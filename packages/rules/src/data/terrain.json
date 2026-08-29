@@ -1,0 +1,42 @@
+{
+  "prairie": {
+    "id": "prairie",
+    "name": "Prairie",
+    "defenseBonus": 0,
+    "passable": true,
+    "yields": { "food": 2, "production": 0, "gold": 0 }
+  },
+  "plaine": {
+    "id": "plaine",
+    "name": "Plaine",
+    "defenseBonus": 0,
+    "passable": true,
+    "yields": { "food": 1, "production": 1, "gold": 0 }
+  },
+  "foret": {
+    "id": "foret",
+    "name": "Forêt",
+    "defenseBonus": 0.25,
+    "passable": true,
+    "yields": { "food": 1, "production": 2, "gold": 0 }
+  },
+  "colline": {
+    "id": "colline",
+    "name": "Colline",
+    "defenseBonus": 0.5,
+    "passable": true,
+    "yields": { "food": 0, "production": 2, "gold": 0 }
+  },
+  "montagne": {
+    "id": "montagne",
+    "name": "Montagne",
+    "defenseBonus": 0,
+    "passable": false
+  },
+  "eau": {
+    "id": "eau",
+    "name": "Eau",
+    "defenseBonus": 0,
+    "passable": false
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "guerrier": {
+    "id": "guerrier",
+    "name": "Guerrier",
+    "attack": 1,
+    "defense": 1,
+    "movement": 1,
+    "hpMax": 3,
+    "cost": 10,
+    "visionRadius": 2,
+    "canAttack": true,
+    "canFoundCity": false,
+    "isRanged": false
+  },
+  "colon": {
+    "id": "colon",
+    "name": "Colon",
+    "attack": 0,
+    "defense": 0,
+    "movement": 2,
+    "hpMax": 3,
+    "cost": 20,
+    "visionRadius": 2,
+    "canAttack": false,
+    "canFoundCity": true,
+    "isRanged": false
+  }
+}
