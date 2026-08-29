@@ -1,0 +1,15 @@
+/** Point d'entrée public du moteur de règles pur (@game/rules). */
+export * from './constants.js';
+export * from './state.js';
+export * from './events.js';
+export * from './types.js';
+export * from './hex.js';
+export * from './rng.js';
+export * from './combat.js';
+export * from './army.js';
+export * from './data.js';
+export * from './map.js';
+export * from './fog.js';
+export * from './turn.js';
+export * from './forfeit.js';
+export * from './fixtures.js';

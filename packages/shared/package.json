@@ -1,0 +1,19 @@
+{
+  "name": "@game/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Contrats TypeScript du protocole réseau (messages WS, résumés de partie). Source unique des types d'ordres/événements : @game/rules.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@game/rules": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,23 @@
+# Copier en .dev.vars (gitignore) pour `wrangler dev` — JAMAIS de vrai secret committé.
+
+# Secret de signature des JWT de session (obligatoire en dev aussi).
+# Générer : openssl rand -hex 32
+AUTH_SECRET=dev-only-secret-change-me
+
+# Secret de l'endpoint admin debug (dump d'état d'une partie).
+ADMIN_TOKEN=dev-only-admin-token
+
+# Mettre à "1" pour activer le faux login /auth/dev?name=... (local & tests).
+# Si les secrets OAuth ci-dessous sont absents, le mode stub est actif quoi qu'il arrive.
+DEV_STUB_AUTH=1
+
+# OAuth Google (optionnel en local — laisser vide → mode stub avec avertissement).
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# OAuth Discord (optionnel en local).
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+
+# URL publique de l'app (redirections OAuth + client). En local :
+APP_BASE_URL=http://localhost:5173

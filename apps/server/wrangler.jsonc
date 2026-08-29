@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Worker + Durable Objects — DESIGN.md §3.2.
+  // Déploiement : voir README.md (documenté, non exécuté sans compte Cloudflare).
+  "name": "game-4x-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // SQLite est le stockage des DO (obligatoire pour les nouveaux DO) — §3.5.
+  // Migrations DO ajoutées en L3/L4 avec les classes GameDO/LobbyDO.
+  "durable_objects": {},
+  "observability": {
+    "enabled": true
+  },
+  "environments": {
+    // Local/dev : `wrangler dev` — secrets dans .dev.vars (non committé).
+    "dev": {},
+    // Prod : `wrangler deploy --env prod` — secrets via `wrangler secret put`.
+    "prod": {
+      "name": "game-4x-server-prod"
+    }
+  }
+}

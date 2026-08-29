@@ -4,13 +4,17 @@
   "private": true,
   "type": "module",
   "description": "Moteur de règles pur du jeu 4X — zéro dépendance réseau/IO. Spécification : RULES.md",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "fast-check": "^4.9.0",
     "typescript": "^5.6.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.0"
   }
 }
