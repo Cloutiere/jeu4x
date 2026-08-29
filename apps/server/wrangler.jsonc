@@ -8,12 +8,12 @@
   "compatibility_flags": ["nodejs_compat"],
   // SQLite est le stockage des DO (obligatoire pour les nouveaux DO) — §3.5.
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["GameDO"] }
+    { "tag": "v1", "new_sqlite_classes": ["GameDO", "LobbyDO"] }
   ],
   "durable_objects": {
     "bindings": [
-      { "name": "GAME", "class_name": "GameDO" }
-      // L4 : { "name": "LOBBY", "class_name": "LobbyDO" }
+      { "name": "GAME", "class_name": "GameDO" },
+      { "name": "LOBBY", "class_name": "LobbyDO" }
     ]
   },
   "observability": {

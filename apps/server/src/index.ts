@@ -3,9 +3,9 @@
  *
  * Routes :
  *  - GET  /api/health            healthcheck
+ *  - GET  /ws/lobby              upgrade WebSocket → LobbyDO (L4)
  *  - GET  /ws/game/:code         upgrade WebSocket → GameDO (L3)
  *  - GET  /admin/game/:code      dump d'état (Authorization: Bearer ADMIN_TOKEN, L3)
- *  - (L4) /ws/lobby              upgrade WebSocket → LobbyDO
  *  - (L5) /auth/:provider, /auth/:provider/callback, /auth/dev, /auth/logout, /api/me
  */
 import type { Env } from './env.js';
@@ -16,6 +16,12 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/health') return jsonResponse({ ok: true });
+
+    // --- WebSocket de lobby → LobbyDO (singleton, L4)
+    if (url.pathname === '/ws/lobby') {
+      const stub = env.LOBBY.get(env.LOBBY.idFromName('lobby'));
+      return stub.fetch(request);
+    }
 
     // --- WebSocket de partie → GameDO (un DO par code de partie, §3.2)
     const gameWsMatch = /^\/ws\/game\/([A-Z0-9]{6})$/.exec(url.pathname);
