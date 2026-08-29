@@ -38,5 +38,12 @@
     "name": "Eau",
     "defenseBonus": 0,
     "passable": false
+  },
+  "ville": {
+    "id": "ville",
+    "name": "Case de ville",
+    "defenseBonus": 0.5,
+    "passable": true,
+    "yields": { "food": 2, "production": 1, "gold": 1 }
   }
 }

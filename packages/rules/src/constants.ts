@@ -24,3 +24,13 @@ export const WATER_PASSABLE = false;
 export const SETTLER_BOOTY_GOLD = 10;
 /** T-13 · Portée des unités à distance (R-59). 🔶 */
 export const RANGED_RANGE = 1;
+
+// --- Constantes 🔶 introduites par l'implémentation (absentes de la table
+// RULES.md §11, défauts simples à calibrer) — signalées au rapport de session.
+
+/** R-61 · Part du commerce allouée à la science (curseur global, défaut 50/50). 🔶 */
+export const SCIENCE_RATIO_DEFAULT = 0.5;
+/** R-63 · Seuil de croissance : base × population courante. 🔶 */
+export const GROWTH_BASE = 10;
+/** R-63 · Modulation de la production par point de population au-delà du premier. 🔶 */
+export const POP_PRODUCTION_BONUS = 0.25;
