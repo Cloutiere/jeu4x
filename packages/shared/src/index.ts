@@ -34,6 +34,11 @@ export interface PlayerInfo {
   name: string;
 }
 
+/** Joueur vu du protocole : id de session + id dans le GameState moteur (spawn de carte, "p1"/"p2"). */
+export interface GamePlayerInfo extends PlayerInfo {
+  engineId: string;
+}
+
 export type GameStatus = 'waiting' | 'active' | 'finished';
 
 export interface GameSummary {
@@ -61,8 +66,8 @@ export type ClientToServerMessage = ProtoMessage &
       { type: 'CancelOrder'; unitId?: UnitId; cityId?: CityId }
     | /** Verrouille les ordres courants — irrévocable (RULES.md §4). */
       { type: 'EndTurn' }
-    | /** Demande un snapshot complet (trou de seq détecté, §3.4-3). */
-      { type: 'ResyncRequest' }
+    | /** Demande un snapshot complet (trou de seq détecté, §3.4-3). `lastSeq` = dernier seq reçu par le client (null si jamais reçu). */
+      { type: 'ResyncRequest'; lastSeq: number | null }
     /** --- Messages de lobby (socket LobbyDO) --- */
     | { type: 'CreateGame'; settings: GameCreationSettings }
     | { type: 'JoinGame'; code: string }
@@ -96,16 +101,24 @@ export type ServerToClientMessage = ProtoMessage &
           phase: 'orders' | 'resolving';
           /** Dernier seq du journal (= seq du snapshot qui suit). */
           seq: number;
+          /** Les joueurs inscrits (attente → 1, active → 2). */
+          players: GamePlayerInfo[];
+          status: GameStatus;
         }
-    | /** État complet filtré par brouillard (au connect/reconnect/resync, §3.4-1). */
-      { type: 'Snapshot'; seq: number; state: GameState }
+    | /**
+       * État complet filtré par brouillard (au connect/reconnect/resync, §3.4-1).
+       * `orders` = brouillons d'ordres du joueur (conservés côté serveur) ;
+       * `missedEvents` = événements de la DERNIÈRE résolution non reçus par le
+       * client (reprise d'animation — l'état, lui, est toujours complet).
+       */
+      { type: 'Snapshot'; seq: number; state: GameState; orders: Order[]; missedEvents: GameEvent[] }
     | /**
        * Résultat d'une résolution de tour : événements filtrés par joueur
        * (rejoués côté client, §3.4-4) + état post-résolution filtré. `seq`
        * est le dernier seq du journal après la résolution.
        */
       { type: 'TurnResult'; seq: number; turn: number; events: GameEvent[]; state: GameState }
-    | /** Accusé de réception d'un ordre (accepté, ou refusé avec motif). */
+    | /** Accusé de réception d'un ordre ou d'un verrouillage (EndTurn). */
       { type: 'OrderAck'; accepted: boolean; order: Order | null; reason: string | null }
     | { type: 'Error'; code: ErrorCode; message: string }
     | /** Listes de parties : publiques en attente + les miennes (actives). */

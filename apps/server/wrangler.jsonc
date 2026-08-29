@@ -7,8 +7,15 @@
   "compatibility_date": "2025-10-01",
   "compatibility_flags": ["nodejs_compat"],
   // SQLite est le stockage des DO (obligatoire pour les nouveaux DO) — §3.5.
-  // Migrations DO ajoutées en L3/L4 avec les classes GameDO/LobbyDO.
-  "durable_objects": {},
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["GameDO"] }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "GAME", "class_name": "GameDO" }
+      // L4 : { "name": "LOBBY", "class_name": "LobbyDO" }
+    ]
+  },
   "observability": {
     "enabled": true
   },
