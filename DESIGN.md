@@ -43,6 +43,7 @@
 | ✅ | Sync réseau robuste : snapshot complet au (re)connect + diffs séquencés + resync par snapshot au moindre écart |
 | ✅ | Desktop only ; JSON compacté (gzip) ; unités/villes/terrains en spritesheets |
 | ✅ | Génération procédurale = chantier dédié (Phase 6) ; prototypes sur cartes préfabriquées |
+| ✅ | Phase 0 complétée (29/08) : 119 tests verts. Interprétations d'implémentation validées en bloc + **R-56 en allocation globale deux-passes** + constantes économie T-14/T-15/T-16 → RULES.md §7.5, §8, §11, §12.1 |
 
 ---
 
@@ -169,8 +170,8 @@ Le développement étant agentique et sans échéance, les « semaines » devien
 | Phase | Livrable vérifiable | Contenu |
 |---|---|---|
 | **0 — Spécifications exécutables** *(démarrée : RULES.md v1 + squelette `/packages/rules` avec 22 tests verts)* — ✅ **complétée le 29/08** : hex, GameState versionné + migrations, événements, cartes 40×40, `resolveTurn` (phases A-D), fog 3 états, fast-check — 119 tests verts | Suite de tests verte sans serveur | `RULES.md` (formules chiffrées) ; RNG seedé ; vitest + tests de propriété (fast-check) ; fixtures de cartes préfabriquées (1–2 cartes 40×40) ; implémentation de `resolveTurn` |
-| **1 — Socle infra** | Deux navigateurs voient la même partie vide en temps réel | Monorepo ; `GameDO` + `LobbyDO` ; WS hibernation ; reconnexion + snapshot/seq ; OAuth Google/Discord ; déploiement Wrangler |
-| **2 — Moteur de règles** | Toute la logique 4X testée, hors réseau | Hex ; GameState versionné ; `processAction` ; `resolveTurn` + journal d'événements ; fog 3 états ; économie Civ Rev ; combat ; migrations v1 |
+| **1 — Socle infra** *(handoff prêt : HANDOFF-PHASE1.md)* | Deux navigateurs voient la même partie vide en temps réel | Monorepo ; `GameDO` + `LobbyDO` ; WS hibernation ; reconnexion + snapshot/seq ; OAuth Google/Discord ; déploiement Wrangler |
+| **2 — Moteur de règles** — ✅ **absorbée par la Phase 0** (29/08) : tout ce contenu est livré et testé | — | — |
 | **3 — Rendu & UI** | On joue à la souris sur une partie locale (bot aléatoire) | Canvas PixiJS (caméra zoom/pan/culling) ; spritesheets **placeholder géométriques** ; stores Svelte ← messages réseau ; barre sup., panneau d'unité, menu de ville, fin de tour ; playback des événements |
 | **4 — Prototype J1 complet** | 2 humains finissent une partie 1v1 en ligne | Timers/alarms ; forfait ; résolution collision ; capture capitale ; persistance complète ; admin debug |
 | **5 — Durcissement & déploiement** | Mise en production | Diffs réseau ; gzip ; observabilité (Tail/Sentry) ; CI/CD (Pages + Wrangler sur `main`) ; tests de charge légers ; validation coût (< 5 $) |

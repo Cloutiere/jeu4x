@@ -142,7 +142,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 
 **R-55 · Attaques répétées.** Sans case de repli, les échanges se répètent (toujours `T-03` round(s) par attaque) **jusqu'à l'élimination d'une des deux unités**. C'est le mécanisme assumé de « blocage » : encercler un attaquant force l'usure. La boucle est garantie terminale (chaque itération retire ≥ 1 PV).
 
-**R-56 · Allocation concurrente des replis.** Les besoins de repli sont évalués **au moment de la résolution de chaque combat** (cases vides à cet instant). Si deux perdants se disputent la **dernière** case libre : elle revient à celui qui a le **plus de PV** ; l'autre reprend le combat avec une attaque supplémentaire, jusqu'à élimination (règle du message du 29/08).
+**R-56 · Allocation concurrente des replis (deux passes — validé le 29/08).** L'allocation des cases de repli est **globale, pas séquentielle** : (1) tous les combats de la phase se résolvent d'abord (R-50 → R-55) et les perdants devant se replier sont collectés ; (2) les cases de repli libres sont alors alluées **par perdant à PV décroissants** (tie : `unitId` croissant), chacun recevant sa meilleure case selon R-54 ; (3) les perdants sans case attribuée reprennent le combat avec une attaque supplémentaire contre le vainqueur de leur propre combat, jusqu'à élimination — les vainqueurs ne quittent jamais la case, donc l'adversaire est toujours présent. Corrige la première implémentation « premier résolu, premier servi » de la Phase 0.
 
 ### 7.6 Villes et Colons dans les combats
 
@@ -167,11 +167,11 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 
 **R-60 · Une case travaillée par ville.** Chaque ville travaille **une seule case** (dans un rayon de `T-08b` 🔶) — assignée automatiquement à la meilleure, re-assignable manuellement. La case de ville produit toujours son rendement de base. Pas de citoyens spécialisés, pas de micro-gestion.
 
-**R-61 · Répartition du commerce.** Les revenus d'or et de science proviennent du commerce de la ville, répartis par un **curseur global** science/or (défaut 50/50, 🔶 à caler sur Civ Rev). Pas de curseur par ville.
+**R-61 · Répartition du commerce.** Les revenus d'or et de science proviennent du commerce de la ville, répartis par un **curseur global** science/or (défaut `T-14` = 50/50 ; reste entier attribué à l'or — validé le 29/08). Pas de curseur par ville.
 
-**R-62 · Files de production.** Un seul item à la fois ; la progression est conservée en cas de remplacement. À complétion : l'unité apparaît sur la case de ville (si libre — sinon en attente, 🔶).
+**R-62 · Files de production.** Un seul item à la fois ; la progression est conservée en cas de remplacement. À complétion : l'unité apparaît sur la case de ville (si libre — sinon en attente, 🔶) et la **file est vidée** (validé le 29/08).
 
-**R-63 · Croissance.** La population augmente quand la nourriture cumulée atteint le seuil du palier (🔶 table de croissance Civ Rev simplifiée). v1 : la pop module la production (`+25 %/pop` 🔶).
+**R-63 · Croissance.** La population augmente quand la nourriture cumulée atteint le seuil `T-15` × pop (validé le 29/08). v1 : **pas de consommation de nourriture** (accumulation seule) ; chaque point de population accorde `+T-16` de production.
 
 **R-64 · Fondation.** `FoundCity` consomme le Colon → ville pop 1, **capitale** si première ville du joueur. Distance minimale entre villes : `T-09`.
 
@@ -206,6 +206,9 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 | T-11 | `waterPassable` | false (v1) |
 | T-12 | `settlerBootyGold` | 10 (moitié du coût) 🔶 |
 | T-13 | `rangedRange` | 1 🔶 |
+| T-14 | `scienceRatioDefault` | 0.5 (reste entier à l'or) 🔶 |
+| T-15 | `growthBase` | 10 (seuil = 10 × pop) 🔶 |
+| T-16 | `popProductionBonus` | 0.25 🔶 |
 
 ## 12. Décisions d'interprétation (toutes tranchées — 29/08)
 
@@ -216,6 +219,16 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 | I-3 | Sort du Colon vaincu | ✅ **Révisé** : destruction + butin en or au vainqueur (R-43, T-12) — pas de conversion |
 | I-4 | Unités pacifiques vers une case ennemie | ✅ **Révisé** : capture systématique — destruction + butin en guerre ; détention + restitution ou butin + guerre auto en paix (R-43, §7.7-c) |
 | I-5 | Bonus de fortification | ✅ Aucun en v1 |
+
+### 12.1 Interprétations d'implémentation validées en bloc (29/08, post-Phase 0)
+
+| ID | Sujet | Règle validée |
+|---|---|---|
+| X-1 | Case d'origine (R-54) | Position **en début de tour** ; un attaquant sans mouvement dont l'origine est libre se replie sur place — sauf R-59-d : le défenseur à distance cède toujours la case |
+| X-2 | Halte (R-42) | Seuls les ennemis **devenus visibles** ce tour (absents de la vision en début de tour) gèlent le chemin. Chemin invalide = effacé ; blocage/halte = gelé (repris plus tard) |
+| X-3 | FormArmy | Ordre **consommé chaque tour** (à redonner si échec) ; des co-localisés sans fusion possible → **éparpillement déterministe** (le plus petit `unitId` reste sur place) |
+| X-4 | Brouillard (R-70/R-73) | Ville ennemie visible seulement si sa **case** l'est ; journal filtré = événements publics, ou impliquant une entité du joueur, ou toutes références explorées/visibles ; `rngSeed` **masqué** dans l'état filtré |
+| X-5 | Rounds sans riposte (R-59-b) | Chaque round retire directement 1 PV au défenseur (p = 1 côté attaquant) — garantit la terminaison de R-55 |
 
 ---
 
