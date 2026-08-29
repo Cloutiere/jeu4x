@@ -21,7 +21,8 @@ export type TerrainId =
   | 'foret'
   | 'colline'
   | 'montagne'
-  | 'eau';
+  | 'eau'
+  | 'ville';
 
 export interface TerrainData {
   id: TerrainId;

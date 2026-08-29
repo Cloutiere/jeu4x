@@ -3,8 +3,8 @@
  * d'unités et les terrains vivent en JSON ; ajouter du contenu ne touche pas
  * au code moteur. Les constantes T-xx restent dans constants.ts.
  */
-import unitsJson from './data/units.json';
-import terrainJson from './data/terrain.json';
+import unitsJson from './data/units.json' with { type: 'json' };
+import terrainJson from './data/terrain.json' with { type: 'json' };
 import type { TerrainData, TerrainId, UnitTypeData } from './types.js';
 
 export const UNIT_TYPES: Record<string, UnitTypeData> = unitsJson as Record<string, UnitTypeData>;

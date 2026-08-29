@@ -21,6 +21,7 @@ export type GameEvent =
       type: 'CombatExchange';
       attackerId: UnitId;
       defenderId: UnitId;
+      at: Hex;
       attackerHpAfter: number;
       defenderHpAfter: number;
     }

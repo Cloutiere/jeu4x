@@ -106,6 +106,7 @@ describe('L2 · Journal d’événements typé (R-73)', () => {
       type: 'CombatExchange',
       attackerId: 'u1',
       defenderId: 'u2',
+      at: { q: 1, r: 0 },
       attackerHpAfter: 3,
       defenderHpAfter: 2,
     },
@@ -122,7 +123,7 @@ describe('L2 · Journal d’événements typé (R-73)', () => {
 
   it('l’union typée couvre au minimum les 12 types demandés (HANDOFF L2)', () => {
     const types = new Set(events.map((e) => e.type));
-    for (const t of [
+    const required: Array<GameEvent['type']> = [
       'Move',
       'Attack',
       'CombatExchange',
@@ -135,7 +136,8 @@ describe('L2 · Journal d’événements typé (R-73)', () => {
       'CityCaptured',
       'DiplomaticIncident',
       'TurnResolved',
-    ]) {
+    ];
+    for (const t of required) {
       expect(types.has(t)).toBe(true);
     }
   });

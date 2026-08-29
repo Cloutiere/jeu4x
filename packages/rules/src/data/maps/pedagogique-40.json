@@ -1,0 +1,96 @@
+{
+ "id": "pedagogique-40",
+ "name": "Pédagogique 40×40 (terrains simples, aucune eau)",
+ "width": 40,
+ "height": 40,
+ "legend": {
+  "g": "prairie",
+  "p": "plaine",
+  "f": "foret",
+  "h": "colline",
+  "m": "montagne",
+  "w": "eau"
+ },
+ "rows": [
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pgmmgpggggpggggpggggpggggpggggpggggpgggg",
+  "pgmggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggffffgggpggggpggggpggggpggggpgggg",
+  "pggggpggffffgggpggggpggggpggggpggggpgggg",
+  "pggggpggffffgggpggggpggggpggggpggggpgggg",
+  "pggggpggffffgggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pgggggggggpggggpggggpggggpggggpggggpgggg",
+  "pgggggggggpggggpggggpggggpggggpggggpgggg",
+  "pgggggggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpgghhhhgggpgggg",
+  "pggggpggggpggggpggggpggggpgghhhhgggpgggg",
+  "pggggpggggpggggpggggpggggpgghhhhgggpgggg",
+  "pggggpggggpggggpggggpggggpgghhhhgggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgmgg",
+  "pggggpggggpggggpggggpggggpggggpggggpmmgg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg",
+  "pggggpggggpggggpggggpggggpggggpggggpgggg"
+ ],
+ "players": [
+  {
+   "id": "p1",
+   "capital": {
+    "q": -4,
+    "r": 20
+   },
+   "units": [
+    {
+     "type": "guerrier",
+     "q": -4,
+     "r": 20
+    },
+    {
+     "type": "colon",
+     "q": -3,
+     "r": 20
+    }
+   ]
+  },
+  {
+   "id": "p2",
+   "capital": {
+    "q": 24,
+    "r": 19
+   },
+   "units": [
+    {
+     "type": "guerrier",
+     "q": 24,
+     "r": 19
+    },
+    {
+     "type": "colon",
+     "q": 23,
+     "r": 19
+    }
+   ]
+  }
+ ]
+}

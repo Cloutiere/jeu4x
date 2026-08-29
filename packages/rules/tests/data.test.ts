@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import units from '../src/data/units.json';
-import terrains from '../src/data/terrain.json';
+import units from '../src/data/units.json' with { type: 'json' };
+import terrains from '../src/data/terrain.json' with { type: 'json' };
 import type { TerrainData, UnitTypeData } from '../src/types.js';
 
 const unitTable = units as Record<string, UnitTypeData>;

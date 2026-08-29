@@ -1,0 +1,96 @@
+{
+ "id": "pangee-40",
+ "name": "Pangée 40×40 (eau en bordure, T-11)",
+ "width": 40,
+ "height": 40,
+ "legend": {
+  "g": "prairie",
+  "p": "plaine",
+  "f": "foret",
+  "h": "colline",
+  "m": "montagne",
+  "w": "eau"
+ },
+ "rows": [
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwfwwfwgpwffgwwfwpfwwpwpgwwfwwwfwgfwwhhw",
+  "wfggfmgmgwpffghhfffpwgppmpffhpffgpfggfww",
+  "wwghpghpmhhfgpgphhfmffhfpmhppgfpgfffpggw",
+  "wwpfpgfgffffmfgpfgppggfpmgpfhfpggffpmgpw",
+  "wmgffgmhghgppmpgpgmfhfpppggfggfffpfpfgww",
+  "wwffgmgfhgphmffgpgffffghfmggpmmpfpfgpwww",
+  "wffhpfpffphffmhffffffppggfpfgfffmgfpgfww",
+  "wwmgfpffgmfgpgpmffppghmfhfgfpmpfghpfpwww",
+  "wfpmmffhhfpgffghffhfpgggggfmpgggmmfhgpfw",
+  "wwwffpgfpgppffppfpffgghgpgfpfphphgfgffww",
+  "wwgpfffgpggffmghpfgpffffmpppghmfffmgfgww",
+  "wmgffgpfffhfffpffhfggfghpgghmpgpffffffww",
+  "wwphphffgggggfpgghgmmffpmgffgfgfffmfhphw",
+  "wmfffmmpgfgggfffgmhmphfgfpfppgfffggfffww",
+  "wwffgmgfggggffffgfhpffgpfmppffgfppffhfww",
+  "wwppppmmhffffgffhghppmfpffpggpgfffffgghw",
+  "wwfgfgpfffffpffpfhhppfhhfmgmffhgpfmhffww",
+  "wwgpfggfhfhfgpgfmgppgfffgpppppgggggggggw",
+  "wgpgpggggffgfggfhhpfffmgfphgmpgggggfmhww",
+  "wffpfggggfggffgfgfgfpfffmpmhghfggggmgfww",
+  "wwwggggggpgmhgghffppffgffmppphffgfmffgww",
+  "wmghgfghfpfgpmfgfpghpgpghgfghfhhmfhmppww",
+  "wwfhmfffgfpfpfhfgmfmpgffmfggfphpgffmpgww",
+  "wwfpggfppgmmhpgfppgpmmgfpfffhgfggpfffpfw",
+  "wmfffffgfghffghmgfgghgffpgfhphfmmgfmfpww",
+  "wfpfgpphggpgffppmfpffpfggfffhphmfmhgpfww",
+  "wwghpffpffpfghffggfhfgpfpffpfgfgmpghhfhw",
+  "wgmfppmpffffpffpfmfgghgppfghpmhhgpmfgmww",
+  "wwgggmhgfffgfmffffmgfpgfgppghffphmgpppww",
+  "wwfpfpfgghfhffhphppgfmpffmffpmffphppfphw",
+  "whfhgfhfhhfffgfppfghfgfgmppggfmgghghppww",
+  "wwffpgfpfhppmgfhfpfpfgfgfgfpggghfhfffgpw",
+  "wfffphgfgffhfpfpgffgmpgfhffgfghfppmgmfgw",
+  "wpfpfgpphgpfmmpgmfhpmpfpgghfffhphfmfgpww",
+  "wwgfffggppgpgggfppfgfpgghgggfgghghhgfgfw",
+  "wwpfpfgpfpffgphpffgfhffggfggpfffgghpghww",
+  "wwgmfwgmphwwpgwhffpwmhfgggwfmfgmfffpggww",
+  "wwwfwppwgwwfwpmwwwwwwmwmgwhwwwwwwwfppfgw",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww"
+ ],
+ "players": [
+  {
+   "id": "p1",
+   "capital": {
+    "q": -4,
+    "r": 20
+   },
+   "units": [
+    {
+     "type": "guerrier",
+     "q": -4,
+     "r": 20
+    },
+    {
+     "type": "colon",
+     "q": -3,
+     "r": 20
+    }
+   ]
+  },
+  {
+   "id": "p2",
+   "capital": {
+    "q": 24,
+    "r": 19
+   },
+   "units": [
+    {
+     "type": "guerrier",
+     "q": 24,
+     "r": 19
+    },
+    {
+     "type": "colon",
+     "q": 23,
+     "r": 19
+    }
+   ]
+  }
+ ]
+}
