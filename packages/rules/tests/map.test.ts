@@ -6,6 +6,7 @@ import {
   parseMap,
 } from '../src/map.js';
 import type { MapData } from '../src/map.js';
+import { CURRENT_SCHEMA_VERSION } from '../src/state.js';
 import { hexDistance, tileKeyOf } from '../src/hex.js';
 import { TERRAINS } from '../src/data.js';
 
@@ -145,7 +146,7 @@ describe('L3 · createInitialState', () => {
   it('capitales fondées (pop 1, capital), unités placées, guerre permanente, vision initiale', async () => {
     const loaded = await loadBuiltinMap('pangee-40');
     const state = createInitialState(loaded, 42);
-    expect(state.schemaVersion).toBe(1);
+    expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(state.turn).toBe(0);
     expect(state.rngSeed).toBe(42);
     expect(Object.keys(state.cities)).toEqual(['c1', 'c2']);

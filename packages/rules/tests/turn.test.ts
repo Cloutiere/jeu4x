@@ -21,6 +21,21 @@ registerTestUnitType({
   isRanged: true,
 });
 
+/** Défense à 0 : p = 1/(1+0) = 1 → le défenseur perd chaque round (déterministe). */
+registerTestUnitType({
+  id: 'cible-test',
+  name: 'Cible (test)',
+  attack: 1,
+  defense: 0,
+  movement: 1,
+  hpMax: 3,
+  cost: 5,
+  visionRadius: 2,
+  canAttack: true,
+  canFoundCity: false,
+  isRanged: false,
+});
+
 function eventsOf(result: { events: GameEvent[] }): GameEvent[] {
   return result.events;
 }
@@ -386,6 +401,97 @@ describe('Phase B · R-53 · collisions', () => {
     expect(newState.units['u2']).toBeUndefined(); // colon capturé
     expect(newState.players['p1']!.gold).toBe(10);
     expect(unit(newState, 'u1')).toMatchObject({ q: 1, r: 0 });
+  });
+});
+
+describe('Phase B · R-56 · allocation globale des replis en deux passes', () => {
+  /**
+   * Dispositif à deux combats disputant UNE SEULE case de repli (3,1) —
+   * l'unique voisine commune à (2,1) et (4,1) :
+   *  - mur p2 stationnaire sur tous les autres voisins des deux cases de combat ;
+   *  - a1 (u1) attaque d1 (u7) en (2,1), a2 (u5) attaque d2 (u8) en (4,1) ;
+   *  - u3 et u6 suivent leurs attaquants pour occuper leurs origines (1,2)/(4,2)
+   *    dès qu'ils les quittent (R-41 : u3/u6 > u1/u5 à l'ordre de traitement) ;
+   *  - défenseurs « cible-test » (défense 0 → p = 1 : ils perdent le round,
+   *    échange déterministe, survie mutuelle des deux combats).
+   * Les perdants a1/a2 n'ont donc qu'une candidate : (3,1). R-50 : le combat
+   * en (2,1) se résout AVANT celui de (4,1).
+   */
+  function deuxPerdants(hpA1: number, hpA2: number): GameState {
+    const wall = (id: string, q: number, r: number) => ({ id, type: 'cible-test', owner: 'p2', q, r });
+    return makeState({
+      units: [
+        { id: 'u1', type: 'guerrier', owner: 'p1', q: 1, r: 2, hp: hpA1 }, // a1 → attaque (2,1)
+        { id: 'u3', type: 'cible-test', owner: 'p2', q: 0, r: 2 },         // suit a1, reprend (1,2)
+        { id: 'u5', type: 'guerrier', owner: 'p1', q: 4, r: 2, hp: hpA2 }, // a2 → attaque (4,1)
+        { id: 'u6', type: 'cible-test', owner: 'p2', q: 4, r: 3 },         // suit a2, reprend (4,2)
+        // défenseurs stationnaires
+        wall('u7', 2, 1), // d1
+        wall('u8', 4, 1), // d2
+        // mur : voisins de (2,1) et (4,1) sauf (3,1) et les cases de départ
+        wall('u10', 2, 0), wall('u11', 1, 1), wall('u12', 2, 2), wall('u13', 3, 0),
+        wall('u15', 4, 0), wall('u16', 5, 1), wall('u17', 5, 0), wall('u14', 3, 2),
+      ],
+    });
+  }
+
+  function orders(): Record<string, Order[]> {
+    return {
+      p1: [
+        { type: 'Move', unitId: 'u1', path: [{ q: 2, r: 1 }] },
+        { type: 'Move', unitId: 'u5', path: [{ q: 4, r: 1 }] },
+      ],
+      p2: [
+        { type: 'Move', unitId: 'u3', path: [{ q: 1, r: 2 }] },
+        { type: 'Move', unitId: 'u6', path: [{ q: 4, r: 2 }] },
+      ],
+    };
+  }
+
+  function exchangesEntre(events: GameEvent[], a: string, d: string): number {
+    return events.filter((e) => e.type === 'CombatExchange' && e.attackerId === a && e.defenderId === d).length;
+  }
+
+  it('deux perdants, une case : le plus haut PV l’obtient, même résolu en second', () => {
+    // a1 (u1) a 2 PV, a2 (u5) en a 3 : a2 reçoit (3,1) bien que son combat se
+    // résolve APRÈS celui de a1 (l'ancienne lecture « premier résolu, premier
+    // servi » aurait donné la case à a1). a1 reprend le combat contre d1 (R-55).
+    const { newState, events } = resolveTurn(deuxPerdants(2, 3), orders(), 7);
+    expect(unit(newState, 'u5')).toMatchObject({ q: 3, r: 1 }); // a2 : la case disputée
+    expect(exchangesEntre(events, 'u5', 'u8')).toBe(1); // a2 : alloué, un seul échange, pas de passe 3
+    // passe 3 : a1 (2 PV) vs d1 (2 PV) → attaques répétées, un des deux meurt
+    const morts = (newState.units['u1'] === undefined ? 1 : 0) + (newState.units['u7'] === undefined ? 1 : 0);
+    expect(morts).toBe(1);
+    expect(exchangesEntre(events, 'u1', 'u7')).toBeGreaterThanOrEqual(2);
+    expect(unit(newState, 'u8')).toMatchObject({ q: 4, r: 1, hp: 2 }); // d2 a juste encaissé l'échange
+  });
+
+  it('allocation par PV décroissants : le premier résolu ne garde pas de privilège', () => {
+    // a1 (3 PV) > a2 (2 PV) : a1 obtient (3,1) et se replie après un seul
+    // échange ; a2 repart au combat contre d2.
+    const { newState, events } = resolveTurn(deuxPerdants(3, 2), orders(), 7);
+    expect(unit(newState, 'u1')).toMatchObject({ q: 3, r: 1 });
+    expect(exchangesEntre(events, 'u1', 'u7')).toBe(1);
+    const morts = (newState.units['u5'] === undefined ? 1 : 0) + (newState.units['u8'] === undefined ? 1 : 0);
+    expect(morts).toBe(1);
+    expect(exchangesEntre(events, 'u5', 'u8')).toBeGreaterThanOrEqual(2);
+  });
+
+  it('aucune case libre nulle part : les deux perdants reprennent leur propre duel', () => {
+    // variante : (3,1) est occupé par le mur → aucun repli possible pour a1/a2,
+    // chaque perdant reprend le combat contre le vainqueur de SON combat.
+    const state = deuxPerdants(3, 3);
+    state.units['u18'] = {
+      id: 'u18', type: 'cible-test', owner: 'p2', q: 3, r: 1, hp: 3, mp: 1,
+      veteran: false, isArmy: false, order: null, detainedBy: null,
+    };
+    const { newState, events } = resolveTurn(state, orders(), 7);
+    const mortsA1 = (newState.units['u1'] === undefined ? 1 : 0) + (newState.units['u7'] === undefined ? 1 : 0);
+    const mortsA2 = (newState.units['u5'] === undefined ? 1 : 0) + (newState.units['u8'] === undefined ? 1 : 0);
+    expect(mortsA1).toBe(1);
+    expect(mortsA2).toBe(1);
+    expect(exchangesEntre(events, 'u1', 'u7')).toBeGreaterThanOrEqual(2);
+    expect(exchangesEntre(events, 'u5', 'u8')).toBeGreaterThanOrEqual(2);
   });
 });
 

@@ -71,6 +71,25 @@ interface FormGroup {
   rally: Hex;
 }
 
+/**
+ * Repli différé (R-56 deux passes) : pendant la passe 1 (résolution des
+ * combats R-50..R-52), un perdant devant céder le terrain est collecté au
+ * lieu de replier immédiatement. La passe 2 alloue les cases de repli libres
+ * GLOBALEMENT (PV décroissants), la passe 3 fait reprendre le combat aux
+ * perdants sans case (R-55).
+ */
+interface PendingRetreat {
+  loserId: UnitId;
+  winnerId: UnitId;
+  combatTile: Hex;
+  /** Perdant occupant la case de combat (R-59-d, détenteur d'une collision) : il doit la céder. */
+  mustLeave: boolean;
+  /** Collision gagnée par le challenger : il prend la case dès que le perdant l'a quittée. */
+  winnerTakesTile: boolean;
+  /** R-52 : si le perdant emporte les attaques répétées de la passe 3, il avance. */
+  advanceOnKill: boolean;
+}
+
 /** État de travail mutable pendant la résolution (copie profonde de l'état). */
 interface Board {
   st: GameState;
@@ -90,6 +109,8 @@ interface Board {
   initialVisible: Map<PlayerId, Set<TileKey>>;
   /** Groupes FormArmy de ce tour (co-location transitoire, R-44). */
   formGroups: Map<UnitId, FormGroup>;
+  /** Perdants en attente d'allocation de repli (R-56 deux passes). */
+  pendingRetreats: PendingRetreat[];
 }
 
 // ---------------------------------------------------------------------------
@@ -344,25 +365,29 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
     defender.veteran = true; // R-32
     return;
   }
-  // Survie mutuelle.
+  // Survie mutuelle (passe 1 de R-56) : le perdant est COLLECTÉ, l'allocation
+  // des cases de repli est globale, après la fin de tous les combats.
   if (isRanged(defender)) {
-    // R-59-d : le défenseur à distance qui ne vainc pas cède la case.
-    const target = retreatTarget(board, defender, combatTile, true);
-    if (target !== null && target !== 'stay') {
-      applyRetreat(board, defender, target);
-      return;
-    }
-    repeatedAttacks(board, attacker, defender, combatTile, true);
+    // R-59-d : le défenseur à distance qui ne vainc pas cède systématiquement sa case.
+    board.pendingRetreats.push({
+      loserId: defender.id,
+      winnerId: attacker.id,
+      combatTile,
+      mustLeave: true,
+      winnerTakesTile: false,
+      advanceOnKill: false,
+    });
     return;
   }
   // R-52 : le défenseur stationnaire garde sa case, l'attaquant est en repli.
-  const target = retreatTarget(board, attacker, combatTile, false);
-  if (target === 'stay') return;
-  if (target !== null) {
-    applyRetreat(board, attacker, target);
-    return;
-  }
-  repeatedAttacks(board, attacker, defender, combatTile, true);
+  board.pendingRetreats.push({
+    loserId: attacker.id,
+    winnerId: defender.id,
+    combatTile,
+    mustLeave: false,
+    winnerTakesTile: false,
+    advanceOnKill: true,
+  });
 }
 
 /** Collision de movers convergents (R-53) : aucun dégât, la plus haute PV demeure. */
@@ -388,18 +413,60 @@ function resolveCollision(board: Board, holder: Unit, challenger: Unit, combatTi
 
   const loser = holderWins ? challenger : holder;
   const winner = holderWins ? holder : challenger;
-  // Le perdant se replie depuis sa situation (R-54). Le détenteur, qui occupe
-  // la case, doit la céder (mustLeave) ; le challenger replie normalement.
-  const target = retreatTarget(board, loser, combatTile, !holderWins);
-  if (target === 'stay') return;
-  if (target) {
-    applyRetreat(board, loser, target);
-    if (!holderWins) moveUnit(board, winner, combatTile); // le challenger prend la case
-    return;
+  // Passe 1 de R-56 : le perdant est collecté. Le détenteur, qui occupe la
+  // case, doit la céder (mustLeave) et le challenger vainqueur prendra la case
+  // dès qu'elle sera libérée (winnerTakesTile, passe 2).
+  board.pendingRetreats.push({
+    loserId: loser.id,
+    winnerId: winner.id,
+    combatTile,
+    mustLeave: !holderWins,
+    winnerTakesTile: !holderWins,
+    advanceOnKill: !holderWins,
+  });
+}
+
+/**
+ * R-56 — passes 2 et 3 de l'allocation globale des replis.
+ *
+ * Passe 2 : les cases de repli libres sont allouées par perdant à PV
+ * décroissants (tie : `unitId` croissant), chacun recevant sa meilleure case
+ * selon R-54, évaluée APRÈS la fin de tous les combats (cases réellement
+ * libres, pas leur état au moment du combat).
+ *
+ * Passe 3 (R-56-3/R-55) : les perdants sans case attribuée reprennent le
+ * combat avec une attaque supplémentaire contre le vainqueur de LEUR combat —
+ * qui n'a jamais quitté la case — jusqu'à élimination d'une des deux. Même
+ * ordre déterministe que l'allocation.
+ */
+function allocateRetreats(board: Board): void {
+  const order = [...board.pendingRetreats].sort((a, b) => {
+    const la = board.st.units[a.loserId];
+    const lb = board.st.units[b.loserId];
+    return (lb ? lb.hp : -1) - (la ? la.hp : -1) || compareUnitIds(a.loserId, b.loserId);
+  });
+  const withoutTile: PendingRetreat[] = [];
+  for (const req of order) {
+    const loser = board.st.units[req.loserId];
+    if (!loser) continue; // sécurité : déjà éliminé
+    const target = retreatTarget(board, loser, req.combatTile, req.mustLeave);
+    if (target === null) {
+      withoutTile.push(req);
+      continue;
+    }
+    if (target !== 'stay') applyRetreat(board, loser, target);
+    if (req.winnerTakesTile) {
+      const winner = board.st.units[req.winnerId];
+      if (winner) moveUnit(board, winner, req.combatTile); // le challenger prend la case libérée
+    }
   }
-  // R-53 → R-55 : le perdant sans repli combat jusqu'à l'élimination. Rôles :
-  // le perdant attaque, le gagneur défend là où il se trouve (bonus de terrain).
-  repeatedAttacks(board, loser, winner, { q: winner.q, r: winner.r }, !holderWins);
+  for (const req of withoutTile) {
+    const loser = board.st.units[req.loserId];
+    const winner = board.st.units[req.winnerId];
+    if (!loser || !winner) continue;
+    // Le perdant attaque, le vainqueur défend là où il se trouve (bonus de terrain).
+    repeatedAttacks(board, loser, winner, { q: winner.q, r: winner.r }, req.advanceOnKill);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -820,6 +887,7 @@ export function resolveTurn(
     fought: new Set(),
     initialVisible: new Map(),
     formGroups: new Map(),
+    pendingRetreats: [],
   };
 
   for (const id of sortUnitIds(board)) {
@@ -875,10 +943,10 @@ export function resolveTurn(
   processFormArmy(board, allOrdersFlattened(ordersByPlayer));
 
   // ---- Phase B : combats (R-50 : tri par case puis attaquant croissant).
-  // R-56 : les replis sont évalués au moment de chaque combat (cases vides à
-  // cet instant) — le traitement séquentiel rend l'allocation déterministe ;
-  // interprétation documentée : en cas de « dispute », le perdant résolu en
-  // premier obtient la case, le suivant reprend le combat (R-55).
+  // R-56 (deux passes) : chaque combat se résout avec UN échange (R-51) et le
+  // perdant devant replier est collecté (passe 1) ; les cases de repli sont
+  // allouées globalement ensuite, par PV décroissants (passe 2), puis les
+  // perdants sans case reprennent le combat contre leur vainqueur (passe 3).
   board.planned.sort(
     (a, b) =>
       compareHex(a.at, b.at) ||
@@ -900,6 +968,7 @@ export function resolveTurn(
       resolveCollision(board, holder, challenger, { q: holder.q, r: holder.r });
     }
   }
+  allocateRetreats(board);
 
   // ---- Phase C : économie (R-60 à R-65).
   applySetProduction(board, ordersByPlayer);

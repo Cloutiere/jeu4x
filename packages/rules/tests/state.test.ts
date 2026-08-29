@@ -14,14 +14,15 @@ import { TERRAINS } from '../src/data.js';
 import { cityAt, makeState, unit, unitAt } from '../src/fixtures.js';
 
 describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
-  it('le premier commit porte schemaVersion = 1 et la chaîne de migrations est exportée', () => {
+  it('la version courante est exportée avec la chaîne de migrations (v2 depuis le forfait T-06)', () => {
     const state = makeState();
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(1);
+    expect(CURRENT_SCHEMA_VERSION).toBe(2);
     expect(MIGRATIONS).toBeTypeOf('object');
+    expect(typeof MIGRATIONS[2]).toBe('function');
   });
 
-  it('migrateState laisse passer un état v1 à l’identique (chaîne v1→v1 vide)', () => {
+  it('migrateState laisse passer un état à jour à l’identique (chaîne v2→v2 vide)', () => {
     const state = makeState();
     const out = migrateState<GameState>(state as unknown as Record<string, unknown>);
     expect(out).toEqual(state);
@@ -29,7 +30,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
 
   it('migrateState rejette une version inconnue ou futuriste', () => {
     expect(() => migrateState({ schemaVersion: 0 })).toThrow();
-    expect(() => migrateState({ schemaVersion: 2 })).toThrow();
+    expect(() => migrateState({ schemaVersion: 3 })).toThrow();
     expect(() => migrateState({})).toThrow();
   });
 });

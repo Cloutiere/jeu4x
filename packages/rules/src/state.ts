@@ -131,7 +131,7 @@ export function areAtWar(state: GameState, a: PlayerId, b: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 type AnyState = Record<string, unknown>;
 
@@ -140,7 +140,25 @@ type AnyState = Record<string, unknown>;
  * la case [1] est intentionally absente (rien à migrer vers v1).
  * Chaque migration doit être pure et totales sur les champs de sa version.
  */
-export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {};
+export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
+  /**
+   * v1 → v2 : compteur de forfait T-06 (RULES.md §1/§11). Les joueurs des
+   * états v1 persistés n'ont pas `missedTurns` : initialisé à 0. Champ déjà
+   * présent (états de test) : conservé.
+   */
+  2: (state) => {
+    const players = (state.players ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(players).sort()) {
+      const p = players[id]!;
+      migrated[id] = {
+        ...p,
+        missedTurns: typeof p.missedTurns === 'number' ? p.missedTurns : 0,
+      };
+    }
+    return { ...state, players: migrated };
+  },
+};
 
 /**
  * Applique la chaîne de migrations jusqu'à CURRENT_SCHEMA_VERSION.

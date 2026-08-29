@@ -43,8 +43,8 @@ export type GameEvent =
   | { seq: number; type: 'UnitProduced'; unitId: UnitId; cityId: CityId; owner: PlayerId; unitType: string; at: Hex }
   /** Point d'accroche diplomatie (R-58-b) — inactif en v1 (guerre permanente). */
   | { seq: number; type: 'DiplomaticIncident'; between: [PlayerId, PlayerId]; at: Hex }
-  /** Victoire — v1 : 'domination' (capture de la capitale adverse, R-65). */
-  | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' }
+  /** Victoire — v1 : 'domination' (capture de la capitale adverse, R-65) ou 'forfait' (T-06). */
+  | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' | 'forfeit' }
   /** Fin de résolution : newState est l'état du tour indiqué. */
   | { seq: number; type: 'TurnResolved'; turn: number };
 

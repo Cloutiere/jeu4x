@@ -9,7 +9,7 @@ architecture : [`DESIGN.md`](../../DESIGN.md).
 ## Commandes
 
 ```bash
-pnpm test        # vitest run — 119 tests (unitaires + propriétés fast-check)
+pnpm test        # vitest run — 132 tests (unitaires + propriétés fast-check)
 pnpm test:watch  # mode watch
 npx tsc --noEmit # vérification de types (strict, NodeNext)
 ```
@@ -36,6 +36,7 @@ src/
 ├── fog.ts            Brouillard 3 états : vision, getFilteredState,
 │                     filtrage du journal (R-70) (L5)
 ├── turn.ts           resolveTurn — phases A/B/C/D (R-40..R-72) (L4)
+├── forfeit.ts        checkForfeit — défaite au-delà de T-06 timers manqués (L0-P1)
 ├── fixtures.ts       Constructeurs d'états de test (L2)
 └── data/
     ├── units.json        Guerrier 1/1/1, Colon 0/0/2 (v1)
@@ -51,10 +52,11 @@ tests/                 combat, data, hex, state, map, fog, turn, e2e, properties
 | R-30 | Non-empilement | `turn.ts` (blocages, replis, éparpillement) | `turn`, `properties` (P2) |
 | R-31/R-32 | Armées, vétérans | `army.ts`, `turn.ts` (fusion, coup fatal) | `combat`, `turn` |
 | R-40..R-44 | Phase A — mouvements | `turn.ts` (`executeMoveOrder`, `processFormArmy`) | `turn` |
-| R-50..R-59 | Phase B — combats & replis | `turn.ts`, `combat.ts` | `combat`, `turn` |
+| R-50..R-59 | Phase B — combats & replis | `turn.ts` (`resolveAttack`, `resolveCollision`, `allocateRetreats` — R-56 deux passes), `combat.ts` | `combat`, `turn` |
 | R-58 | Diplomatie (points d'accroche) | `state.ts` (`areAtWar`), `turn.ts` (rejet, repli mutuel, détention) | `state`, `turn` |
 | R-60..R-65 | Phase C — économie | `turn.ts` (`processEconomy`, `processCityCaptures`, `processFoundCity`) | `turn` |
 | R-70..R-73 | Phase D — vision, soins, PM, journal | `fog.ts`, `turn.ts`, `events.ts` | `fog`, `turn` |
+| T-06 | Forfait (missedTurns, v2) | `forfeit.ts` (`checkForfeit`), migration v1→v2 | `forfeit` |
 | R-80/R-82 | Déterminisme, interdits | `rng.ts`, tris explicites partout | `combat`, `turn`, `properties` (P1) |
 | R-81 | Tris déterministes | `state.ts` (`compareIds`), `hex.ts` (`compareHex`) | `state`, `hex` |
 | T-01..T-13 | Constantes | `constants.ts` | `data`, `turn` |
@@ -91,9 +93,15 @@ Documentées dans le code et le rapport de session ; les principales :
 1. **Repli R-54** : la « case d'origine » est la position en début de tour ;
    si l'unité s'y trouve encore et libre, le repli est un repli sur place
    (`stay`), sauf pour le défenseur à distance (R-59-d) qui doit céder la case.
-2. **R-56 (allocation du dernier repli)** : les combats sont résolus
-   séquentiellement (R-50) ; le perdant résolu en premier obtient la case
-   libre, le suivant reprend le combat (R-55).
+2. **R-56 (allocation des replis, deux passes)** : passe 1 — tous les combats
+   se résolvent (un échange chacun, R-50..R-52) et les perdants devant replier
+   sont collectés ; passe 2 — les cases de repli libres sont allouées
+   GLOBALEMENT par perdant à PV décroissants (tie : `unitId` croissant),
+   chacun recevant sa meilleure case R-54 évaluée après tous les combats ;
+   passe 3 — les perdants sans case reprennent le combat avec une attaque
+   supplémentaire contre le vainqueur de leur propre combat (qui n'a jamais
+   quitté la case), jusqu'à élimination (R-55). Refonte du 29/08, remplace
+   l'implémentation Phase 0 « premier résolu, premier servi ».
 3. **R-59-b (pas de riposte)** : chaque round retire directement 1 PV au
    défenseur non-à-distance (p = 1 côté attaquant) — garantit la terminaison
    de R-55.
@@ -114,10 +122,14 @@ Documentées dans le code et le rapport de session ; les principales :
    croissance `10 × pop`, production `+25 %/pop` au-delà de la 1ʳᵉ population,
    file vidée après complétion, unité en attente si case de ville occupée.
 9. **Case de ville** : terrain `'ville'` (2/1/1, +50 %) posé à la fondation.
+10. **Forfait T-06** : le seuil est atteint dès que `missedTurns` vaut
+   `FORFEIT_MISSED_TURNS` (« défaite après T-06 timers manqués », RULES.md §1).
+   Le compteur est tenu par le serveur (GameDO) ; si les deux joueurs
+   atteignent le seuil simultanément, le plus petit `playerId` perd (R-81).
 
 ## Migrations de schéma (§3.8)
 
-`CURRENT_SCHEMA_VERSION = 1` ; `MIGRATIONS` (vide au premier commit) et
-`migrateState()` sont en place : toute future évolution ajoute
-`MIGRATIONS[n] = (state) => newState` — les parties en cours migreront au
-chargement côté serveur.
+`CURRENT_SCHEMA_VERSION = 2` ; `MIGRATIONS` :
+`MIGRATIONS[2]` ajoute `missedTurns: 0` aux joueurs des états v1 (forfait
+T-06). `migrateState()` applique la chaîne au chargement côté serveur — toute
+future évolution ajoute `MIGRATIONS[n] = (state) => newState`.
