@@ -110,7 +110,7 @@ describe('L2 · Journal d’événements typé (R-73)', () => {
       attackerHpAfter: 3,
       defenderHpAfter: 2,
     },
-    { seq: 4, type: 'UnitDestroyed', unitId: 'u2', owner: 'p2', at: { q: 1, r: 0 }, cause: 'combat' },
+    { seq: 4, type: 'UnitDestroyed', unitId: 'u2', owner: 'p2', at: { q: 1, r: 0 }, cause: 'combat', byUnitId: 'u1' },
     { seq: 5, type: 'Retreat', unitId: 'u3', owner: 'p2', from: { q: 2, r: 0 }, to: { q: 2, r: 1 } },
     { seq: 6, type: 'Captured', unitId: 'u4', owner: 'p2', byPlayer: 'p1', at: { q: 0, r: 1 }, outcome: 'destroyed' },
     { seq: 7, type: 'BootyGold', player: 'p1', amount: 10, sourceUnitId: 'u4' },

@@ -25,7 +25,7 @@ export type GameEvent =
       attackerHpAfter: number;
       defenderHpAfter: number;
     }
-  | { seq: number; type: 'UnitDestroyed'; unitId: UnitId; owner: PlayerId; at: Hex; cause: DestructionCause }
+  | { seq: number; type: 'UnitDestroyed'; unitId: UnitId; owner: PlayerId; at: Hex; cause: DestructionCause; byUnitId: UnitId | null }
   /** Repli (R-54) ou déplacement forcé (formation ratée, R-44). */
   | { seq: number; type: 'Retreat'; unitId: UnitId; owner: PlayerId; from: Hex; to: Hex }
   /**
