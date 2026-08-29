@@ -112,12 +112,12 @@ describe('Campagne multi-tours (critère 2)', () => {
     // Bilan de campagne.
     expect(state.winner).toBeNull();
     expect(state.turn).toBe(5);
-    // Le journal reste filtrable par brouillard sans fuite.
+    // Le journal reste filtrable par brouillard ; u1 (distance 3 de u3) est
+    // hors de vue de p2 : il ne doit pas apparaître dans son état filtré.
     const seenByP1 = filterEventsForPlayer(state, 'p1', allEvents);
     expect(seenByP1.length).toBeGreaterThan(0);
-    const fogged = getFilteredState(state, 'p2');
-    expect(fogged.units['u1']).toBeDefined(); // u1 est dans le rayon de p2 ? non…
-    void fogged;
+    const foggedForP2 = getFilteredState(state, 'p2');
+    expect(foggedForP2.units['u1']).toBeUndefined();
   });
 
   it('combat explicite entre guerriers au fil de la campagne (CombatExchange présent)', () => {

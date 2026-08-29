@@ -168,7 +168,7 @@ Le développement étant agentique et sans échéance, les « semaines » devien
 
 | Phase | Livrable vérifiable | Contenu |
 |---|---|---|
-| **0 — Spécifications exécutables** *(démarrée : RULES.md v1 + squelette `/packages/rules` avec 22 tests verts)* | Suite de tests verte sans serveur | `RULES.md` (formules chiffrées) ; RNG seedé ; vitest + tests de propriété (fast-check) ; fixtures de cartes préfabriquées (1–2 cartes 40×40) ; implémentation de `resolveTurn` |
+| **0 — Spécifications exécutables** *(démarrée : RULES.md v1 + squelette `/packages/rules` avec 22 tests verts)* — ✅ **complétée le 29/08** : hex, GameState versionné + migrations, événements, cartes 40×40, `resolveTurn` (phases A-D), fog 3 états, fast-check — 119 tests verts | Suite de tests verte sans serveur | `RULES.md` (formules chiffrées) ; RNG seedé ; vitest + tests de propriété (fast-check) ; fixtures de cartes préfabriquées (1–2 cartes 40×40) ; implémentation de `resolveTurn` |
 | **1 — Socle infra** | Deux navigateurs voient la même partie vide en temps réel | Monorepo ; `GameDO` + `LobbyDO` ; WS hibernation ; reconnexion + snapshot/seq ; OAuth Google/Discord ; déploiement Wrangler |
 | **2 — Moteur de règles** | Toute la logique 4X testée, hors réseau | Hex ; GameState versionné ; `processAction` ; `resolveTurn` + journal d'événements ; fog 3 états ; économie Civ Rev ; combat ; migrations v1 |
 | **3 — Rendu & UI** | On joue à la souris sur une partie locale (bot aléatoire) | Canvas PixiJS (caméra zoom/pan/culling) ; spritesheets **placeholder géométriques** ; stores Svelte ← messages réseau ; barre sup., panneau d'unité, menu de ville, fin de tour ; playback des événements |
