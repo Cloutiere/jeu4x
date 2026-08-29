@@ -115,7 +115,7 @@ describe('L2 · Journal d’événements typé (R-73)', () => {
     { seq: 6, type: 'Captured', unitId: 'u4', owner: 'p2', byPlayer: 'p1', at: { q: 0, r: 1 }, outcome: 'destroyed' },
     { seq: 7, type: 'BootyGold', player: 'p1', amount: 10, sourceUnitId: 'u4' },
     { seq: 8, type: 'ArmyFormed', unitId: 'u9', owner: 'p1', memberIds: ['u1', 'u5', 'u6'], at: { q: 1, r: 0 } },
-    { seq: 9, type: 'CityFounded', cityId: 'c2', owner: 'p1', at: { q: 3, r: 3 }, capital: false },
+    { seq: 9, type: 'CityFounded', cityId: 'c2', owner: 'p1', at: { q: 3, r: 3 }, capital: false, byUnitId: 'u4' },
     { seq: 10, type: 'CityCaptured', cityId: 'c1', fromOwner: 'p2', toOwner: 'p1', at: { q: 5, r: 5 } },
     { seq: 11, type: 'DiplomaticIncident', between: ['p1', 'p2'], at: { q: 1, r: 1 } },
     { seq: 12, type: 'TurnResolved', turn: 1 },

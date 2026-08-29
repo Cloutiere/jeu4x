@@ -318,13 +318,17 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
   }
   // R-58-b / I-1 (hook, inactif en v1) : nation en paix — repli mutuel si
   // possible, sinon échange normal + incident diplomatique (sans rupture de paix).
+  // Le défenseur se replie d'abord (il doit libérer la case) ; sa case de repli
+  // n'est pas disponible pour l'attaquant.
   if (!areAtWar(board.st, attacker.owner, defender.owner)) {
-    const aT = retreatTarget(board, attacker, combatTile, false);
     const dT = retreatTarget(board, defender, combatTile, true);
-    if (aT !== null && dT !== null && dT !== 'stay') {
-      if (aT !== 'stay') applyRetreat(board, attacker, aT);
+    if (dT !== null && dT !== 'stay') {
       applyRetreat(board, defender, dT);
-      return;
+      const aT = retreatTarget(board, attacker, combatTile, false);
+      if (aT !== null) {
+        if (aT !== 'stay') applyRetreat(board, attacker, aT);
+        return;
+      }
     }
     emit(board, { type: 'DiplomaticIncident', between: [attacker.owner, defender.owner], at: combatTile });
   }
@@ -695,7 +699,7 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
     delete board.st.units[unit.id];
-    emit(board, { type: 'CityFounded', cityId, owner: unit.owner, at: hex, capital: !ownerHasCity });
+    emit(board, { type: 'CityFounded', cityId, owner: unit.owner, at: hex, capital: !ownerHasCity, byUnitId: unit.id });
   }
 }
 

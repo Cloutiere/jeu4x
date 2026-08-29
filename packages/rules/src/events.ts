@@ -37,7 +37,7 @@ export type GameEvent =
   | { seq: number; type: 'BootyGold'; player: PlayerId; amount: number; sourceUnitId: UnitId }
   /** Fusion d'armée réussie (R-31/R-44) : les 3 membres deviennent l'entité unitId. */
   | { seq: number; type: 'ArmyFormed'; unitId: UnitId; owner: PlayerId; memberIds: UnitId[]; at: Hex }
-  | { seq: number; type: 'CityFounded'; cityId: CityId; owner: PlayerId; at: Hex; capital: boolean }
+  | { seq: number; type: 'CityFounded'; cityId: CityId; owner: PlayerId; at: Hex; capital: boolean; byUnitId: UnitId | null }
   | { seq: number; type: 'CityCaptured'; cityId: CityId; fromOwner: PlayerId; toOwner: PlayerId; at: Hex }
   /** Production d'une unité par une ville (R-62). */
   | { seq: number; type: 'UnitProduced'; unitId: UnitId; cityId: CityId; owner: PlayerId; unitType: string; at: Hex }
