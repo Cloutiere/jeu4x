@@ -12,7 +12,9 @@
     "typecheck": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
+    "@game/rules": "workspace:*",
     "@game/shared": "workspace:*",
+    "pixi.js": "^8.20.1",
     "svelte": "^5.0.0"
   },
   "devDependencies": {

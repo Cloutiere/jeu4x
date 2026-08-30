@@ -16,7 +16,7 @@
  */
 import { get, writable } from 'svelte/store';
 import type { Writable } from 'svelte/store';
-import type { GameEvent, GameState, Order, ServerToClientMessage, Unit, UnitId } from '@game/shared';
+import type { CityId, GameEvent, GameState, Order, ServerToClientMessage, Unit, UnitId } from '@game/shared';
 import { connectWs } from './net.js';
 import type { NetStatus, SocketHandle } from './net.js';
 
@@ -46,6 +46,7 @@ export interface GameClient {
   error: Writable<string | null>;
   submitOrder(order: Order): void;
   cancelOrderFor(unitId: UnitId): void;
+  cancelCityOrder(cityId: CityId): void;
   endTurn(): void;
   resync(): void;
   close(): void;
@@ -143,7 +144,10 @@ export function reduceView(v: GameView, message: ServerToClientMessage): GameVie
   }
 }
 
-export function createGameClient(code: string): GameClient {
+export function createGameClient(
+  code: string,
+  hooks: { onMessage?: (message: ServerToClientMessage) => void } = {},
+): GameClient {
   const view = writable<GameView>(initialView(code));
   const status = writable<NetStatus>('connecting');
   const error = writable<string | null>(null);
@@ -155,6 +159,10 @@ export function createGameClient(code: string): GameClient {
   }
 
   function apply(message: ServerToClientMessage): void {
+    // Le hook est appelé AVANT la mise à jour de la vue (la page y purge par
+    // ex. le playback sur un Snapshot, puis la souscription rejoue les
+    // événements fraîchement ajoutés).
+    hooks.onMessage?.(message);
     if (message.type === 'Error') {
       error.set(`${message.code} : ${message.message}`);
       return;
@@ -184,6 +192,9 @@ export function createGameClient(code: string): GameClient {
     },
     cancelOrderFor(unitId) {
       handle.send({ type: 'CancelOrder', unitId });
+    },
+    cancelCityOrder(cityId) {
+      handle.send({ type: 'CancelOrder', cityId });
     },
     endTurn() {
       handle.send({ type: 'EndTurn' });
