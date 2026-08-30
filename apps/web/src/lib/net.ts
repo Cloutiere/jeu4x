@@ -52,6 +52,11 @@ export function connectWs(
   let closedByUser = false;
   let everOpened = false;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  // Messages envoyés avant l'ouverture du socket (ou pendant une coupure) —
+  // vidés à la (re)connexion. Tous les messages du protocole sont idempotents
+  // côté serveur, donc rejouer après une coupure est sûr.
+  const MAX_QUEUED = 32;
+  let queue: Array<DistributiveOmit<ClientToServerMessage, 'proto'>> = [];
 
   const open = (): void => {
     if (closedByUser) return;
@@ -63,6 +68,11 @@ export function connectWs(
       attempt = 0;
       everOpened = true;
       onStatus('open');
+      const pending = queue;
+      queue = [];
+      for (const m of pending) {
+        socket.send(JSON.stringify({ ...m, proto: PROTO_VERSION }));
+      }
       if (reopened) onReopen?.();
     };
     socket.onmessage = (ev) => {
@@ -85,10 +95,15 @@ export function connectWs(
 
   return {
     send(message) {
-      if (socketOpen(ws)) ws!.send(JSON.stringify({ ...message, proto: PROTO_VERSION }));
+      if (socketOpen(ws)) {
+        ws!.send(JSON.stringify({ ...message, proto: PROTO_VERSION }));
+      } else if (queue.length < MAX_QUEUED) {
+        queue.push(message);
+      }
     },
     close() {
       closedByUser = true;
+      queue = [];
       if (retryTimer) clearTimeout(retryTimer);
       socketOpen(ws) && ws!.close();
     },
