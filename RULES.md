@@ -17,19 +17,23 @@
 - Aucune unité à distance en v1 ; leurs règles sont fixées en §7.8 (Catapulte, Canon, Artillerie en Phase 7).
 - Hors v1 (Phase 7) : arbre technologique, autres unités, naval, barbares, merveilles, grandes personnes.
 
-## 2. Terrains (v1)
+## 2. Terrains (révision économique du 30/08 — décision d'Erik, modèle Civ Revolution)
 
-| Terrain | Passable | Bonus défensif | Rendements 🔶 (nourriture/production/or) |
-|---|---|---|---|
-| Prairie | oui | 0 % | 2/0/0 |
-| Plaine | oui | 0 % | 1/1/0 |
-| Forêt | oui | +25 % | 1/2/0 |
-| Colline | oui | +50 % | 0/2/0 |
-| Montagne | **non** | — | — |
-| Eau | **non (v1)** | — | — |
-| Case de ville | oui | +50 % (T-02) | 2/1/1 |
+| Terrain | Passable (unités) | Bonus défensif | Rendement de base (N/P/C) | Bâtiment d'amélioration | Bonus du bâtiment |
+|---|---|---|---|---|---|
+| Prairie | oui | 0 % | **2/0/0** | — | — |
+| Plaine | oui | 0 % | **1/0/0** | Grenier | +1 Nourriture |
+| Forêt | oui | **+50 %** (revu : était 25 %) | **0/2/0** | — | +50 % défense aux unités occupantes (déjà le rôle du bonus) |
+| Colline | oui | +50 % | **0/1/0** | Atelier | +2 Production |
+| Montagne | **non** (mais **travaillable par les villes**) | — | **0/1/0** | Mine de fer | +4 Production |
+| Désert *(nouveau)* | oui | 0 % | **0/0/1** | Comptoir commercial | +2 Commerce |
+| Mer *(l'ex-« eau », désormais productive)* | **non** (naval en Phase 7) | — | **0/0/2** | Port | +1 Nourriture |
+| Case de ville | oui | +50 % (T-02) | 2/1/1 | — | — |
 
-Les bonus défensifs s'appliquent au **défenseur** uniquement. Les valeurs marquées 🔶 sont des cibles de calibrage, pas des vérités Civ Rev (les valeurs exactes internes de Civ Rev ne sont pas publiées ; voir sources en appendice).
+- **C** = commerce : la matière première répartie entre **or** et **science** par le curseur global (R-61). Le champ `gold` des données reste le support du commerce.
+- **Montagne et Mer sont travaillables par les villes** bien qu'infranchissables pour les unités (un citoyen exploite la case, il n'y marche pas).
+- Les bonus défensifs s'appliquent au **défenseur** uniquement ; le bonus défensif de la forêt passe de 25 % à **50 %** (table du 30/08).
+- Les coûts de production des bâtiments : voir R-66. Les valeurs restantes marquées 🔶 sont des cibles de calibrage.
 
 ## 3. Unités, PV, armées
 
@@ -68,7 +72,8 @@ Une unité qui survit à un combat où elle inflige le coup fatal devient vété
 | `FormArmy` | membres `[id, id, id]`, case RDV | Voir R-31. |
 | `Hold` | — | Ne rien faire (l'unité reste « stationnaire »). |
 | `Fortify` | — | **R-33** (ajouté le 30/08) : fortification permanente — voir ci-dessous. |
-| `SetProduction` | ville, item | File de production à un élément, remplaçable (progression conservée). |
+| `SetProduction` | ville, item | File de production à un élément, remplaçable (progression conservée). Items : unités **et bâtiments** (R-66). |
+| `SetWorkedTile` | ville, case | **R-60** (30/08) : assigne un citoyen à la case (dans le rayon de travail, libre) ; désassigner = cibler `null` ou une autre case déjà travaillée par la même ville (échange). |
 
 **R-33 · Fortification.** L'ordre `Fortify` place l'unité en position fortifiée **permanente** :
 - bonus défensif `T-17` tant que l'unité est fortifiée (multiplie `S_def`, §7.4) ;
@@ -173,17 +178,37 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 
 ## 8. Phase C — Économie (modèle Civ Revolution)
 
-**R-60 · Une case travaillée par ville.** Chaque ville travaille **une seule case** (dans un rayon de `T-08b` 🔶) — assignée automatiquement à la meilleure, re-assignable manuellement. La case de ville produit toujours son rendement de base. Pas de citoyens spécialisés, pas de micro-gestion.
+**R-60 · Cases travaillées par ville (révision 30/08 — modèle Civ Revolution).**
+- La **case du centre-ville** est exploitée automatiquement et gratuitement : ses rendements s'ajoutent toujours, sans citoyen.
+- Chaque point de population = **1 citoyen** = **1 case supplémentaire travaillée**, choisie parmi les cases environnantes dans le rayon de travail `T-08b` (**rayon 1 = 6 cases** ; le **Tribunal** (R-66) porte le rayon à **2 = 18 cases**).
+- **Montagne et Mer sont travaillables** bien qu'infranchissables pour les unités.
+- **Assignation** : automatique à la fondation/à la croissance (meilleure case libre par priorité nourriture > production > commerce, tie-break déterministe R-81), **re-assignable manuellement** via le nouvel ordre `SetWorkedTile` (ville, case) — dans le rayon, libre (non travaillée par une autre ville).
+- La ville affiche ses rendements cumulés (nourriture, production, commerce) — visibles dans le menu de ville et sous forme d'indicateurs sur la carte (affichage masquable).
 
 **R-61 · Répartition du commerce.** Les revenus d'or et de science proviennent du commerce de la ville, répartis par un **curseur global** science/or (défaut `T-14` = 50/50 ; reste entier attribué à l'or — validé le 29/08). Pas de curseur par ville.
 
 **R-62 · Files de production.** Un seul item à la fois ; la progression est conservée en cas de remplacement. À complétion : l'unité apparaît sur la case de ville (si libre — sinon en attente, 🔶) et la **file est vidée** (validé le 29/08).
 
-**R-63 · Croissance.** La population augmente quand la nourriture cumulée atteint le seuil `T-15` × pop (validé le 29/08). v1 : **pas de consommation de nourriture** (accumulation seule) ; chaque point de population accorde `+T-16` de production.
+**R-63 · Croissance.** La population augmente quand la nourriture cumulée atteint le seuil **`10 × pop`** (règle Civ Revolution confirmée par Erik le 30/08 — la calibration 10→25 du même jour est **annulée** : elle compensait l'ancienne économie sans rendements réels ; avec les vrais rendements §2, le rythme Civ Rev 10×pop redevient la référence). v1 : **pas de consommation de nourriture** (100 % de la nourriture s'accumule, les citoyens ne « mangent » pas) ; à seuil atteint : +1 pop, jauge remise à zéro ; chaque point de population accorde `+T-16` de production et **1 citoyen de plus** (R-60).
 
 **R-64 · Fondation.** `FoundCity` consomme le Colon → ville pop 1, **capitale** si première ville du joueur. Distance minimale entre villes : `T-09`.
 
 **R-65 · Capture de ville.** Ville sans défenseur investie : changement de propriétaire, pop −1 (min 1), file de production effacée. **Capturer la capitale adverse = victoire (domination).**
+
+**R-66 · Bâtiments d'amélioration des terrains (ajouté le 30/08).** Construits via la **file de production de la ville** (même mécanique que les unités, `SetProduction`), une fois bâtis ils sont **permanents et propres à la ville** :
+- le bonus du bâtiment s'applique à **chaque case travaillée de son terrain** par cette ville (ex. Grenier : +1 N à chaque plaine travaillée par cette ville) ;
+- le **Tribunal** est l'exception : il étend le rayon de travail de la ville de **1 à 2** (6 → 18 cases exploitables) ;
+- un bâtiment n'est constructible **qu'une fois** par ville ; il est **perdu si la ville est capturée** (le captreur ne le récupère pas — 🔶 simplification) ;
+- effets de combat : aucun (le « +50 % combat » de la table §2 est le bonus défensif du terrain colline, déjà en place).
+
+| Bâtiment | Effet | Coût 🔶 |
+|---|---|---|
+| Grenier | +1 N par plaine travaillée | 20 |
+| Atelier | +2 P par colline travaillée | 30 |
+| Mine de fer | +4 P par montagne travaillée | 40 |
+| Comptoir commercial | +2 C par désert travaillé | 30 |
+| Port | +1 N par mer travaillée | 30 |
+| Tribunal | rayon de travail 1 → 2 (6 → 18 cases) | 40 |
 
 ## 9. Phase D — Vision, soins, fin de tour
 
@@ -208,14 +233,14 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 | T-06 | `forfeitMissedTurns` | 3 |
 | T-07 | `visionRadiusUnit` | 2 |
 | T-08 | `visionRadiusCity` | 3 |
-| T-08b | `cityWorkRadius` | 2 |
+| T-08b | `cityWorkRadius` | 1 (6 cases) — **2 (18 cases) avec Tribunal** (R-60/R-66) |
 | T-09 | `minCityDistance` | 2 |
 | T-10 | `armySize` | 3 |
 | T-11 | `waterPassable` | false (v1) |
 | T-12 | `settlerBootyGold` | 10 (moitié du coût) 🔶 |
 | T-13 | `rangedRange` | 1 🔶 |
 | T-14 | `scienceRatioDefault` | 0.5 (reste entier à l'or) 🔶 |
-| T-15 | `growthBase` | 25 (seuil = 25 × pop) 🔶 — **calibration 30/08** : 10 → 25, croissance beaucoup trop rapide observée en partie réelle (pop 2 en 3 tours) |
+| T-15 | `growthBase` | **10 (seuil = 10 × pop)** — règle Civ Rev confirmée par Erik le 30/08 ; la calibration 10→25 du même jour est annulée (elle compensait l'absence de rendements réels) |
 | T-16 | `popProductionBonus` | 0.25 🔶 |
 | T-17 | `fortifyDefenseBonus` | 0.25 🔶 (R-33, ajouté le 30/08) |
 
