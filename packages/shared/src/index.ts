@@ -7,9 +7,9 @@
  * Source unique des types métier : les ordres, événements et le GameState
  * sont RÉ-EXPORTÉS de @game/rules — aucune duplication.
  */
-import type { CityId, GameEvent, GameState, Order, PlayerId, UnitId } from '@game/rules';
+import type { CityId, GameEvent, GameState, Order, PlayerId, Unit, UnitId } from '@game/rules';
 
-export type { CityId, GameEvent, GameState, Order, PlayerId, UnitId };
+export type { CityId, GameEvent, GameState, Order, PlayerId, Unit, UnitId };
 
 /** Version du protocole — incrémenter à toute rupture de compatibilité. */
 export const PROTO_VERSION = 1;
@@ -104,6 +104,8 @@ export type ServerToClientMessage = ProtoMessage &
           /** Les joueurs inscrits (attente → 1, active → 2). */
           players: GamePlayerInfo[];
           status: GameStatus;
+          /** Ordres du joueur déjà verrouillés pour le tour courant. */
+          locked: boolean;
         }
     | /**
        * État complet filtré par brouillard (au connect/reconnect/resync, §3.4-1).
@@ -111,7 +113,7 @@ export type ServerToClientMessage = ProtoMessage &
        * `missedEvents` = événements de la DERNIÈRE résolution non reçus par le
        * client (reprise d'animation — l'état, lui, est toujours complet).
        */
-      { type: 'Snapshot'; seq: number; state: GameState; orders: Order[]; missedEvents: GameEvent[] }
+      { type: 'Snapshot'; seq: number; state: GameState; orders: Order[]; missedEvents: GameEvent[]; locked: boolean }
     | /**
        * Résultat d'une résolution de tour : événements filtrés par joueur
        * (rejoués côté client, §3.4-4) + état post-résolution filtré. `seq`

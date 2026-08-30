@@ -326,6 +326,7 @@ export class GameDO {
   private sendWelcome(ws: WebSocket): void {
     const att = ws.deserializeAttachment() as WsAttachment | null;
     if (!this.meta || !att) return;
+    const engineId = this.engineIdOf(att.playerId);
     this.sendTo(ws, {
       proto: PROTO_VERSION,
       type: 'Welcome',
@@ -336,6 +337,7 @@ export class GameDO {
       seq: this.game?.lastEventSeq ?? 0,
       players: this.meta.players,
       status: this.meta.status,
+      locked: this.locked[engineId] === true,
     });
   }
 
@@ -354,6 +356,7 @@ export class GameDO {
       state: getFilteredState(this.game, engineId),
       orders: this.orders[engineId] ?? [],
       missedEvents: missed,
+      locked: this.locked[engineId] === true,
     };
   }
 
