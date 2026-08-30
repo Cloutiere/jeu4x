@@ -696,6 +696,10 @@
     onReady?.({ centerOnHex, centerOnUnit });
     // Debug console (dev uniquement) : état interne inspectable via la console.
     (window as unknown as Record<string, unknown>).__gameCanvas = {
+      /** Centre la caméra sur une case (debug/tests). */
+      centerOn(hex: Hex): void {
+        centerOnHex(hex);
+      },
       /** Coordonnées PAGE du centre d'une case (caméra courante) — debug/tests. */
       hexToPage(hex: Hex): { x: number; y: number } | null {
         const p = hexToPixel(hex, HEX_SIZE);
@@ -724,6 +728,7 @@
       get stats() {
         return {
           frames,
+          ui: scene.ui,
           hasTextures: !!textures,
           state: !!scene.state,
           myId: scene.myId,

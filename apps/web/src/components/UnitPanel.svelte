@@ -31,19 +31,36 @@
     unit ? view.orders.find((o) => 'unitId' in o && o.unitId === unit.id) ?? null : null,
   );
 
-  /** Cibles d'attaque : entités ennemies VISIBLES adjacentes (état filtré). */
+  /** Cibles d'attaque : UNITÉS ennemies VISIBLES adjacentes (état filtré).
+   * Une ville vide adjacente ne se « combat » pas : on y entre (R-57/R-65). */
   const attackTargets = $derived.by(() => {
     if (!unit || !mine || !stats?.canAttack || !editable || !view.state) return [];
     return neighbors(unit)
       .map((h) => {
         const enemyUnit = unitAtHex(view.state!, h);
-        const enemyCity = enemyUnit ? null : cityAtHex(view.state!, h);
-        const owner = enemyUnit?.owner ?? enemyCity?.owner ?? null;
-        if (!owner || owner === unit.owner) return null;
-        return { hex: h, label: enemyUnit ? `${enemyUnit.id}` : `ville ${enemyCity!.id}` };
+        if (!enemyUnit || enemyUnit.owner === unit.owner) return null;
+        return { hex: h, label: enemyUnit.id };
       })
       .filter((t): t is { hex: { q: number; r: number }; label: string } => t !== null);
   });
+
+  /** Villes ennemies adjacentes sans unité visible → entrée (capture/assaut). */
+  const cityEntries = $derived.by(() => {
+    if (!unit || !mine || !editable || !view.state) return [];
+    return neighbors(unit)
+      .map((h) => {
+        const occupied = unitAtHex(view.state!, h);
+        const city = occupied ? null : cityAtHex(view.state!, h);
+        if (!city || city.owner === unit.owner) return null;
+        return { hex: h, label: city.id };
+      })
+      .filter((t): t is { hex: { q: number; r: number }; label: string } => t !== null);
+  });
+
+  function enterCity(target: { q: number; r: number }): void {
+    if (!unit) return;
+    client.submitOrder({ type: 'Move', unitId: unit.id, path: [target] });
+  }
 
   function orderLabel(o: Order): string {
     switch (o.type) {
@@ -118,6 +135,15 @@
           {#each attackTargets as t (t.hex.q + ',' + t.hex.r)}
             <button type="button" class="danger" disabled={!editable} onclick={() => submitAttack(t.hex)}>
               Attaquer {t.label} ({t.hex.q},{t.hex.r})
+            </button>
+          {/each}
+        </div>
+      {/if}
+      {#if cityEntries.length > 0}
+        <div class="btns">
+          {#each cityEntries as t (t.hex.q + ',' + t.hex.r)}
+            <button type="button" disabled={!editable} onclick={() => enterCity(t.hex)}>
+              Entrer dans la ville {t.label} ({t.hex.q},{t.hex.r})
             </button>
           {/each}
         </div>

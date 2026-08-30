@@ -41,8 +41,8 @@ async function loginStub() {
   return m[1];
 }
 
-function wsConnect(token) {
-  const wsUrl = `${BASE.replace(/^http/, 'ws')}/ws/game/${CODE}?token=${encodeURIComponent(token)}`;
+function wsConnect(path, token) {
+  const wsUrl = `${BASE.replace(/^http/, 'ws')}${path}?token=${encodeURIComponent(token)}`;
   const ws = new WebSocket(wsUrl);
   const waiters = [];
   const pending = [];
@@ -107,9 +107,19 @@ async function main() {
   const token = await loginStub();
   log(`Connecté en tant que « ${NAME} » (dev stub).`);
 
-  const { ws, open, waitFor, send } = wsConnect(token);
+  // 1. Join via le socket de LOBBY (le GameDO refuse tout joueur non inscrit).
+  const lobby = wsConnect('/ws/lobby', token);
+  await lobby.open;
+  await lobby.waitFor('GameList');
+  lobby.send({ type: 'JoinGame', code: CODE });
+  const joined = await lobby.waitFor('GameJoined', 10000);
+  log(`Partie ${joined.code} rejointe via le lobby.`);
+  lobby.ws.close();
+
+  // 2. Socket de partie.
+  const { ws, open, waitFor, send } = wsConnect(`/ws/game/${CODE}`, token);
   await open;
-  log(`Socket de partie ouvert sur ${CODE}.`);
+  log('Socket de partie ouvert.');
 
   const welcome = await waitFor('Welcome');
   const myEngineId = welcome.players.find((p) => p.id === welcome.playerId)?.engineId;
@@ -161,7 +171,12 @@ async function main() {
       return;
     }
     if (msg.type === 'Snapshot') void planTurn(msg);
-    if (msg.type === 'TurnResult') log(`Tour ${msg.turn} résolu (${msg.events.length} événement(s) visibles).`);
+    if (msg.type === 'TurnResult') {
+      log(`Tour ${msg.turn} résolu (${msg.events.length} événement(s) visibles).`);
+      // Après une résolution, les deux joueurs sont déverrouillés : planifier
+      // le nouveau tour depuis l'état post-résolution.
+      void planTurn({ state: msg.state, orders: [], locked: false });
+    }
     if (msg.type === 'OrderAck' && msg.accepted === false && msg.reason) log(`Ordre refusé : ${msg.reason}`);
     if (msg.type === 'Error') log(`Erreur serveur : ${msg.code} ${msg.message}`);
     if (msg.type === 'TurnResult' && msg.events.some((e) => e.type === 'Victory')) {
