@@ -44,6 +44,7 @@
 | ✅ | Desktop only ; JSON compacté (gzip) ; unités/villes/terrains en spritesheets |
 | ✅ | Génération procédurale = chantier dédié (Phase 6) ; prototypes sur cartes préfabriquées |
 | ✅ | Phase 0 complétée (29/08) : 119 tests verts. Interprétations d'implémentation validées en bloc + **R-56 en allocation globale deux-passes** + constantes économie T-14/T-15/T-16 → RULES.md §7.5, §8, §11, §12.1 |
+| ✅ | Phase 1 complétée (29/08) : socle infra — monorepo pnpm+turbo, `GameDO`/`LobbyDO` (WS hibernation, persistance SQLite + migrations, résolution idempotente **testée bit à bit**), OAuth Google/Discord + stub local, client Svelte 5 minimal. 147 tests verts (moteur 132 + DO 15) |
 
 ---
 
@@ -170,7 +171,7 @@ Le développement étant agentique et sans échéance, les « semaines » devien
 | Phase | Livrable vérifiable | Contenu |
 |---|---|---|
 | **0 — Spécifications exécutables** *(démarrée : RULES.md v1 + squelette `/packages/rules` avec 22 tests verts)* — ✅ **complétée le 29/08** : hex, GameState versionné + migrations, événements, cartes 40×40, `resolveTurn` (phases A-D), fog 3 états, fast-check — 119 tests verts | Suite de tests verte sans serveur | `RULES.md` (formules chiffrées) ; RNG seedé ; vitest + tests de propriété (fast-check) ; fixtures de cartes préfabriquées (1–2 cartes 40×40) ; implémentation de `resolveTurn` |
-| **1 — Socle infra** *(handoff prêt : HANDOFF-PHASE1.md)* | Deux navigateurs voient la même partie vide en temps réel | Monorepo ; `GameDO` + `LobbyDO` ; WS hibernation ; reconnexion + snapshot/seq ; OAuth Google/Discord ; déploiement Wrangler |
+| **1 — Socle infra** — ✅ **complétée le 29/08** (HANDOFF-PHASE1.md) : monorepo ; `GameDO` + `LobbyDO` ; WS hibernation ; snapshot/seq + resync ; résolution idempotente ; alarms timer + forfait T-06 ; OAuth + stub ; client minimal. Déploiement Wrangler documenté (non exécuté — sans compte) | Deux navigateurs voient la même partie vide en temps réel ✅ | `apps/server` (Worker + DO, README avec scénario à deux onglets) ; `apps/web` (Svelte 5) ; `packages/shared` (contrats) |
 | **2 — Moteur de règles** — ✅ **absorbée par la Phase 0** (29/08) : tout ce contenu est livré et testé | — | — |
 | **3 — Rendu & UI** | On joue à la souris sur une partie locale (bot aléatoire) | Canvas PixiJS (caméra zoom/pan/culling) ; spritesheets **placeholder géométriques** ; stores Svelte ← messages réseau ; barre sup., panneau d'unité, menu de ville, fin de tour ; playback des événements |
 | **4 — Prototype J1 complet** | 2 humains finissent une partie 1v1 en ligne | Timers/alarms ; forfait ; résolution collision ; capture capitale ; persistance complète ; admin debug |
