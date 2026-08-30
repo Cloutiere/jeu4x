@@ -79,11 +79,15 @@ describe('clickAction (L3)', () => {
     expect(action).toEqual({ kind: 'selectUnit', unitId: 'u3', mine: false });
   });
 
-  it('construction de chemin : clics adjacents praticables connus, troncature en arrière', () => {
+  it('construction de chemin : clics adjacents praticables connus LIBRES, troncature en arrière', () => {
     const view = viewOf(makeBattleState());
     const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } });
-    // (0,1) voisine de (0,0), prairie connue → extension.
-    expect(clickAction(view, ui, { q: 0, r: 1 })).toEqual({ kind: 'extend', path: [{ q: 0, r: 1 }] });
+    // Case occupée par un ALLIÉ refusée (u2 en (1,0)) ; case ENNEMIE traçable
+    // (entrée = combat R-42, comportement Phase 3). Les cases négatives sont
+    // hors de l'état filtré de la fixture → jamais traçables.
+    expect(clickAction(view, ui, { q: -1, r: 1 })).toEqual({ kind: 'deselect' });
+    expect(clickAction(view, ui, { q: 1, r: 0 })).toEqual({ kind: 'none' }); // u2 allié
+    expect(clickAction(view, ui, { q: 0, r: 1 })).toEqual({ kind: 'extend', path: [{ q: 0, r: 1 }] }); // u3 ennemi
     const ui2 = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [{ q: 0, r: 1 }] } });
     expect(clickAction(view, ui2, { q: 1, r: 1 })).toEqual({
       kind: 'extend',
@@ -91,11 +95,9 @@ describe('clickAction (L3)', () => {
     });
     // Re-clic sur la 1re étape → troncature.
     expect(clickAction(view, ui2, { q: 0, r: 1 })).toEqual({ kind: 'truncate', path: [{ q: 0, r: 1 }] });
-    // Clic sur la case de l'unité (chemin vide, pas de ville) → re-sélection.
+    // Re-clic sur la case de l'unité (chemin vide, pas de ville) → désélection (Phase 5 L1).
     expect(clickAction(view, uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } }), { q: 0, r: 0 })).toEqual({
-      kind: 'selectUnit',
-      unitId: 'u1',
-      mine: true,
+      kind: 'deselect',
     });
   });
 

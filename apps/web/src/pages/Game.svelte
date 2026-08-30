@@ -19,22 +19,43 @@
   import { createUiState, selectNothing } from '../lib/render/ui.js';
   import type { UiStore } from '../lib/render/ui.js';
   import { Playback } from '../lib/render/playback.js';
+  import { rightClickAction, unitsWithoutOrders, myEngineId } from '../lib/render/interaction.js';
+  import type { ClickAction } from '../lib/render/interaction.js';
+  import { unexecutedOrders } from '../lib/feedback.js';
   import GameCanvas from '../lib/render/GameCanvas.svelte';
   import UnitPanel from '../components/UnitPanel.svelte';
   import CityPanel from '../components/CityPanel.svelte';
   import Journal from '../components/Journal.svelte';
-  import { myEngineId } from '../lib/render/interaction.js';
-  import type { ClickAction } from '../lib/render/interaction.js';
 
   let { code }: { code: string } = $props();
 
   let lastReplayedSeq = -1;
   const playback = new Playback();
 
+  // Toasts d'erreur réseau/ordres (les toasts d'événements viennent du playback).
+  const toasts = playback.toasts;
+  let errorToasts = $state<Array<{ id: number; text: string }>>([]);
+  let errorToastId = 1;
+  function pushErrorToast(text: string): void {
+    const id = errorToastId++;
+    errorToasts = [...errorToasts, { id, text }];
+    setTimeout(() => {
+      errorToasts = errorToasts.filter((t) => t.id !== id);
+    }, 5000);
+  }
+
   const client: GameClient = createGameClient(code, {
     onMessage(message) {
       // Resync/reconnexion : le snapshot reçu prime sur toute animation.
       if (message.type === 'Snapshot') playback.reset();
+      // Polish Phase 5 : un ordre écarté par le moteur à la résolution est
+      // signalé (le hook voit les ordres d'AVANT la mise à jour de la vue).
+      if (message.type === 'TurnResult') {
+        const previous = get(view).orders;
+        for (const f of unexecutedOrders(previous, message.events, message.state)) {
+          pushErrorToast(`Ordre non exécuté (${f.unitId}) : ${f.label}`);
+        }
+      }
     },
   });
   onDestroy(() => client.close());
@@ -94,6 +115,12 @@
           const unitId = action.kind === 'extend' ? action.unitId ?? u.selectedUnitId : null;
           return unitId ? { ...u, draft: { unitId, path: action.path } } : u;
         });
+        // Phase 5 L1 : soumission automatique — chaque extension/troncature
+        // re-soumet le brouillon complet (plus de bouton « Valider »).
+        {
+          const d = get(ui).draft;
+          if (d && d.path.length > 0) client.submitOrder({ type: 'Move', unitId: d.unitId, path: d.path });
+        }
         break;
       case 'attack':
         client.submitOrder(action.order);
@@ -110,6 +137,44 @@
     // Le brouillon reste armé (vide) sur la même unité : enchaîner un autre
     // ordre de déplacement ne demande pas de re-sélection.
     ui.update((u) => ({ ...u, draft: { unitId: d.unitId, path: [] } }));
+  }
+
+  /** Clic droit (Phase 5 L1) : chemin complet soumis, ou annulation du brouillon. */
+  function handleRightClick(hex: Hex): void {
+    const v = get(view);
+    const action = rightClickAction(v, get(ui), hex);
+    if (action.kind === 'cancelDraft') {
+      cancelDraft();
+      return;
+    }
+    ui.update((u) => ({ ...u, draft: { unitId: action.unitId, path: action.path } }));
+    client.submitOrder({ type: 'Move', unitId: action.unitId, path: action.path });
+  }
+
+  // ---------------------------------------------------------------------
+  // Fin de tour : confirmation si des unités n'ont aucun ordre (Phase 5 L1).
+  // ---------------------------------------------------------------------
+
+  let showIdleDialog = $state(false);
+  let idleUnits = $state<Array<{ id: string; label: string; pos: string }>>([]);
+
+  function requestEndTurn(): void {
+    const v = get(view);
+    const ids = unitsWithoutOrders(v);
+    if (ids.length === 0 || !v.state) {
+      client.endTurn();
+      return;
+    }
+    idleUnits = ids.map((id) => {
+      const u = v.state!.units[id]!;
+      return { id, label: u.type, pos: `(${u.q},${u.r})` };
+    });
+    showIdleDialog = true;
+  }
+
+  function confirmEndTurn(): void {
+    showIdleDialog = false;
+    client.endTurn();
   }
 
   function cancelDraft(): void {
@@ -148,17 +213,10 @@
   });
   const showVictory = $derived(!!$view.state?.winner);
 
-  // Toasts d'erreur réseau/ordres (les toasts d'événements viennent du playback).
-  const toasts = playback.toasts;
-  let errorToasts = $state<Array<{ id: number; text: string }>>([]);
-  let errorToastId = 1;
+  // Toasts d'erreur réseau (déjà déclarés en tête : pushErrorToast).
   const unsubError = error.subscribe((e) => {
     if (!e) return;
-    const id = errorToastId++;
-    errorToasts = [...errorToasts, { id, text: e }];
-    setTimeout(() => {
-      errorToasts = errorToasts.filter((t) => t.id !== id);
-    }, 5000);
+    pushErrorToast(e);
     error.set(null);
   });
 
@@ -182,7 +240,7 @@
     </span>
     <span class="net net-{$status}">{$status}</span>
     {#if $view.locked}<span class="chip locked">Verrouillé</span>{/if}
-    <button type="button" class="primary" disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active'} onclick={() => client.endTurn()}>
+    <button type="button" class="primary" disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active'} onclick={requestEndTurn}>
       Fin de tour
     </button>
     <button type="button" onclick={() => client.resync()}>Resync</button>
@@ -204,11 +262,26 @@
           {ui}
           {playback}
           onAction={handleAction}
-          onConfirmDraft={confirmDraft}
+          onRightClick={handleRightClick}
           onCancelDraft={cancelDraft}
           onReady={(api) => (canvasApi = api)}
           onPlaybackActive={(a) => (playbackActive = a)}
         />
+        {#if showIdleDialog}
+          <div class="victory idle-dialog">
+            <h2>Unités sans ordre</h2>
+            <p>Ces unités n'ont aucun ordre pour ce tour :</p>
+            <ul>
+              {#each idleUnits as u (u.id)}
+                <li><strong>{u.id}</strong> — {u.label} {u.pos}</li>
+              {/each}
+            </ul>
+            <div class="btns">
+              <button type="button" class="primary-btn" onclick={confirmEndTurn}>Finir le tour quand même</button>
+              <button type="button" onclick={() => (showIdleDialog = false)}>Revenir aux ordres</button>
+            </div>
+          </div>
+        {/if}
         {#if busy}
           <div class="banner">
             {#if $view.phase === 'resolving'}Résolution du tour…{:else}Relecture du tour — clic sur la carte pour accélérer{/if}
@@ -273,6 +346,11 @@
   .banner { position: absolute; top: 0.7rem; left: 50%; transform: translateX(-50%); background: #000000cc; padding: 0.4rem 1rem; border-radius: 999px; font-size: 0.9rem; pointer-events: none; }
   .victory { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; background: #000000b8; text-align: center; }
   .victory h1 { font-size: 2.4rem; margin: 0; }
+  .idle-dialog { justify-content: center; background: #000000a8; z-index: 5; }
+  .idle-dialog h2 { margin: 0; }
+  .idle-dialog ul { text-align: left; max-height: 40vh; overflow: auto; }
+  .idle-dialog .btns { display: flex; gap: 0.6rem; }
+  .idle-dialog button { padding: 0.4rem 1rem; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; cursor: pointer; }
   .primary-btn { background: #2e5e3f; border: 1px solid #3c7a52; padding: 0.5rem 1.2rem; border-radius: 6px; color: inherit; text-decoration: none; }
   .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; text-align: center; }
   .waiting { font-size: 1.2rem; }

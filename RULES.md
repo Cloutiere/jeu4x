@@ -215,7 +215,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 | T-12 | `settlerBootyGold` | 10 (moitié du coût) 🔶 |
 | T-13 | `rangedRange` | 1 🔶 |
 | T-14 | `scienceRatioDefault` | 0.5 (reste entier à l'or) 🔶 |
-| T-15 | `growthBase` | 10 (seuil = 10 × pop) 🔶 |
+| T-15 | `growthBase` | 25 (seuil = 25 × pop) 🔶 — **calibration 30/08** : 10 → 25, croissance beaucoup trop rapide observée en partie réelle (pop 2 en 3 tours) |
 | T-16 | `popProductionBonus` | 0.25 🔶 |
 | T-17 | `fortifyDefenseBonus` | 0.25 🔶 (R-33, ajouté le 30/08) |
 

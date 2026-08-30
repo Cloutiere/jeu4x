@@ -5,7 +5,7 @@
    * Le client ne calcule aucune règle : les boutons reflètent ce que l'état
    * filtré autorise ; la validation finale reste serveur.
    */
-  import { neighbors, unitType } from '@game/rules';
+  import { MIN_CITY_DISTANCE, hexDistance, neighbors, unitType } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex } from '../lib/render/interaction.js';
@@ -16,7 +16,7 @@
     ui: UiState;
     client: GameClient;
     onCancelDraft(): void;
-    onConfirmDraft(): void;
+    onConfirmDraft?(): void;
     onCenterUnit(unitId: string): void;
   }
 
@@ -85,6 +85,12 @@
     if (!unit) return;
     client.submitOrder({ type: 'Attack', unitId: unit.id, target });
   }
+
+  /** R-64/T-09 : une ville CONNUE (état filtré) à distance < T-09 interdit la fondation. */
+  const cityTooClose = $derived.by(() => {
+    if (!unit || !view.state) return false;
+    return Object.values(view.state.cities).some((c) => hexDistance(c, unit) < MIN_CITY_DISTANCE);
+  });
 </script>
 
 <section class="panel">
@@ -109,14 +115,11 @@
       {#if currentOrder}<p class="order">Ordre : {orderLabel(currentOrder)}</p>{/if}
 
       {#if draftHere}
-        <div class="btns">
-          <button type="button" class="primary" disabled={draftHere.path.length === 0 || !editable} onclick={onConfirmDraft}>
-            Valider le déplacement ({draftHere.path.length})
-          </button>
-          <button type="button" disabled={!editable} onclick={onCancelDraft}>Annuler le brouillon</button>
-        </div>
+        <!-- Phase 5 L1 : le chemin est soumis automatiquement (tracé gauche pas à
+             pas ou clic droit sur la destination) — plus de bouton « Valider ». -->
+        <p class="hint">Chemin soumis automatiquement — cliquez des cases pour l'étendre, clic droit ailleurs pour l'annuler.</p>
       {:else if editable}
-        <p class="hint">Cliquez des cases adjacentes praticables pour tracer un déplacement.</p>
+        <p class="hint">Clic gauche : tracer pas à pas · Clic droit sur une case : chemin complet soumis d'un coup.</p>
       {/if}
       <div class="btns">
         <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'Hold', unitId: unit.id })}>
@@ -133,7 +136,12 @@
           </button>
         {/if}
         {#if stats?.canFoundCity}
-          <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'FoundCity', unitId: unit.id })}>
+          <button
+            type="button"
+            disabled={!editable || cityTooClose}
+            title={cityTooClose ? `Une ville connue est à distance < ${MIN_CITY_DISTANCE} (T-09) — déplacez le colon.` : undefined}
+            onclick={() => unit && client.submitOrder({ type: 'FoundCity', unitId: unit.id })}
+          >
             Fonder une ville
           </button>
         {/if}

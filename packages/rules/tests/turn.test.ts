@@ -610,15 +610,25 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     expect(cityAt(newState, 0, 0)!.production).toEqual({ item: 'guerrier', progress: 6 });
   });
 
-  it('R-63 : croissance au seuil du palier (base × pop 🔶)', () => {
+  it('R-63 : croissance au seuil du palier (base × pop 🔶 — T-15 = 25 depuis le 30/08)', () => {
+    const state = makeState({
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 22 }],
+    });
+    const { newState } = resolveTurn(state, {}, 1);
+    // nourriture du tour = 2 (ville) + 2 (prairie travaillée) = 4 → 22 + 4 = 26 ≥ 25
+    const city = cityAt(newState, 0, 0)!;
+    expect(city.pop).toBe(2);
+    expect(city.foodStored).toBe(1);
+  });
+
+  it('R-63 : sous le seuil T-15 (calibration 30/08) → pas de croissance', () => {
     const state = makeState({
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 8 }],
     });
     const { newState } = resolveTurn(state, {}, 1);
-    // nourriture du tour = 2 (ville) + 2 (prairie travaillée) = 4 → 8 + 4 = 12 ≥ 10
     const city = cityAt(newState, 0, 0)!;
-    expect(city.pop).toBe(2);
-    expect(city.foodStored).toBe(2);
+    expect(city.pop).toBe(1);
+    expect(city.foodStored).toBe(12);
   });
 });
 

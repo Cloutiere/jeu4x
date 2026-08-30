@@ -32,7 +32,9 @@ export const FORTIFY_DEFENSE_BONUS = 0.25;
 
 /** R-61 · Part du commerce allouée à la science (curseur global, défaut 50/50). 🔶 */
 export const SCIENCE_RATIO_DEFAULT = 0.5;
-/** R-63 · Seuil de croissance : base × population courante. 🔶 */
-export const GROWTH_BASE = 10;
+/** R-63 · Seuil de croissance : base × population courante. 🔶
+ *  Calibration 30/08 (retour 1re partie en ligne) : 10 → 25 (pop 2 atteinte
+ *  en 3 tours, beaucoup trop rapide). */
+export const GROWTH_BASE = 25;
 /** R-63 · Modulation de la production par point de population au-delà du premier. 🔶 */
 export const POP_PRODUCTION_BONUS = 0.25;

@@ -27,16 +27,19 @@
     client: GameClient;
     ui: UiStore;
     playback: Playback;
-    /** Décision de clic pure résolue par la page (ordres, sélection). */
+    /** Décision de clic pur résolue par la page (ordres, sélection). */
     onAction(action: ClickAction): void;
-    onConfirmDraft(): void;
+    /** Clic droit (Phase 5 L1) : hex visée — la page décide (chemin ou annulation). */
+    onRightClick(hex: Hex): void;
+    /** Soumission clavier (Entrée) d'un brouillon — optionnel depuis la soumission auto (Phase 5 L1). */
+    onConfirmDraft?(): void;
     onCancelDraft(): void;
     onReady?(api: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void }): void;
     /** Signal d'activité du playback (bannière « Relecture » côté page). */
     onPlaybackActive?(active: boolean): void;
   }
 
-  let { client, ui, playback, onAction, onConfirmDraft, onCancelDraft, onReady, onPlaybackActive }: Props = $props();
+  let { client, ui, playback, onAction, onRightClick, onConfirmDraft, onCancelDraft, onReady, onPlaybackActive }: Props = $props();
 
   let host: HTMLDivElement;
 
@@ -525,7 +528,7 @@
   let pointer: { x: number; y: number } | null = null;
   let dragging = false;
 
-  function canvasPos(e: PointerEvent | WheelEvent): { x: number; y: number } {
+  function canvasPos(e: PointerEvent | WheelEvent | MouseEvent): { x: number; y: number } {
     const rect = app!.canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
@@ -579,7 +582,9 @@
 
   function onContextMenu(e: MouseEvent): void {
     e.preventDefault();
-    onCancelDraft();
+    if (playback.active) return;
+    if (!scene.view) return onCancelDraft();
+    onRightClick(screenToHex(canvasPos(e).x, canvasPos(e).y, camera, HEX_SIZE));
   }
 
   function onKey(e: KeyboardEvent): void {
@@ -587,7 +592,7 @@
       onCancelDraft();
       onAction({ kind: 'deselect' });
     } else if (e.key === 'Enter' && scene.ui.draft && scene.ui.draft.path.length > 0) {
-      onConfirmDraft();
+      onConfirmDraft?.();
     } else if (e.key === 'f' || e.key === 'F') {
       const tile = selectedTileOf();
       if (tile) centerOnHex(tile);
