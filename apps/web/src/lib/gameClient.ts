@@ -101,9 +101,9 @@ export function createGameClient(code: string): GameClient {
           turn: message.state.turn,
           phase: message.state.phase,
           lastSeq: message.seq,
-          // Reprise d'animation : les événements de résolution manqués sont
-          // ajoutés au journal ; l'état, lui, est déjà complet (§3.4).
-          events: [...v.events, ...message.missedEvents],
+          // Reprise d'animation : événements de résolution non encore vus
+          // (dédoublonnés par seq — §3.4).
+          events: [...v.events, ...message.missedEvents.filter((e) => e.seq > v.lastSeq)],
         }));
         break;
       case 'TurnResult': {

@@ -15,6 +15,9 @@
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
 import { signSession } from './auth/jwt.js';
+// Classes de Durable Objects : doivent être exportées du script principal.
+export { GameDO } from './game.js';
+export { LobbyDO } from './lobby.js';
 import {
   authorizeUrl,
   baseUrlOf,

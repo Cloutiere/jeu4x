@@ -139,8 +139,9 @@ export class GameDO {
   // Chargement paresseux + reprise de résolution (§3.3 / §3.5)
   // -----------------------------------------------------------------------
 
-  private async ensureLoaded(): Promise<void> {
-    if (this.loaded) return;
+  /** Retourne true si une résolution interrompue vient d'être rejouée au chargement. */
+  private async ensureLoaded(): Promise<boolean> {
+    if (this.loaded) return false;
     const meta = await this.state.storage.get<GameMeta>('meta');
     const rawGame = await this.state.storage.get<GameState>('game');
     this.meta = meta ?? null;
@@ -151,19 +152,20 @@ export class GameDO {
     this.resolving = (await this.state.storage.get<PendingResolution>('resolving')) ?? null;
     this.lastEvents = (await this.state.storage.get<GameEvent[]>('lastEvents')) ?? [];
     this.loaded = true;
-    await this.ensureResolved();
+    return this.ensureResolved();
   }
 
-  /** §3.5 : une résolution interrompue est rejouée à l'identique. */
-  private async ensureResolved(): Promise<void> {
-    if (!this.resolving) return;
+  /** §3.5 : une résolution interrompue est rejouée à l'identique. Retourne true si une résolution vient de se terminer. */
+  private async ensureResolved(): Promise<boolean> {
+    if (!this.resolving) return false;
     if (this.game && this.game.phase === 'resolving') {
       await this.finishResolution(); // même entrée → même sortie (moteur pur, R-80)
-      return;
+      return true;
     }
     // Le nouvel état a été persisté mais le motif pas encore supprimé : purger.
     this.resolving = null;
     await this.state.storage.delete('resolving');
+    return false;
   }
 
   private engineIdOf(playerId: PlayerId): EnginePlayerId {
@@ -286,6 +288,7 @@ export class GameDO {
       orders: this.orders,
       locked: this.locked,
       resolving: this.resolving,
+      lastEvents: this.lastEvents,
     });
   }
 
@@ -306,7 +309,9 @@ export class GameDO {
     this.state.acceptWebSocket(server);
 
     this.sendWelcome(server);
-    const snapshot = this.snapshotFor(claims.sub, this.game?.lastEventSeq ?? null);
+    // Au connect, le seq réel du client est inconnu (reconnexion ?) : les
+    // événements de la dernière résolution sont inclus ; le client dédoublonne.
+    const snapshot = this.snapshotFor(claims.sub, null);
     if (snapshot) this.sendTo(server, snapshot);
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
@@ -321,6 +326,11 @@ export class GameDO {
 
   private sendError(ws: WebSocket, code: ErrorCode, message: string): void {
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'Error', code, message });
+  }
+
+  /** Refus métier d'un ordre/verrouillage : OrderAck négatif (jamais fatal, §3.5). */
+  private sendOrderRejection(ws: WebSocket, reason: string): void {
+    this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: false, order: null, reason });
   }
 
   private sendWelcome(ws: WebSocket): void {
@@ -341,12 +351,14 @@ export class GameDO {
     });
   }
 
-  /** Snapshot filtré (§3.4-1) : état + brouillons du joueur + événements de résolution manqués. */
+  /** Snapshot filtré (§3.4-1) : état + brouillons du joueur + événements de résolution manqués.
+   * `clientLastSeq` null = inconnu (première connexion) → les événements de la
+   * dernière résolution sont inclus ; le client dédoublonne par seq. */
   private snapshotFor(playerId: PlayerId, clientLastSeq: number | null): ServerToClientMessage | null {
     if (!this.game) return null; // partie en attente du joueur B
     const engineId = this.engineIdOf(playerId);
     const missed =
-      clientLastSeq !== null && this.lastEvents.length > 0 && this.lastEvents[0]!.seq > clientLastSeq
+      this.lastEvents.length > 0 && (clientLastSeq === null || this.lastEvents[0]!.seq > clientLastSeq)
         ? filterEventsForPlayer(this.game, engineId, this.lastEvents)
         : [];
     return {
@@ -433,16 +445,16 @@ export class GameDO {
 
   private async handleOrder(ws: WebSocket, playerId: PlayerId, order: Order): Promise<void> {
     const shapeError = orderShapeError(order);
-    if (shapeError) return this.sendError(ws, 'badOrder', shapeError);
+    if (shapeError) return this.sendOrderRejection(ws, shapeError);
     if (!this.game || !this.meta || this.meta.status !== 'active' || this.game.phase !== 'orders') {
-      return this.sendError(ws, 'badPhase', 'ordres non modifiables (résolution ou partie terminée)');
+      return this.sendOrderRejection(ws, 'ordres non modifiables (résolution ou partie terminée)');
     }
     const engineId = this.engineIdOf(playerId);
     if (this.locked[engineId]) {
-      return this.sendError(ws, 'badPhase', 'ordres verrouillés (Fin de tour déjà validé)');
+      return this.sendOrderRejection(ws, 'ordres verrouillés (Fin de tour déjà validé)');
     }
     const ownerError = this.orderOwnerError(engineId, order);
-    if (ownerError) return this.sendError(ws, 'badOrder', ownerError);
+    if (ownerError) return this.sendOrderRejection(ws, ownerError);
 
     this.orders[engineId] = [...this.orders[engineId].filter((o) => !sameSubject(o, order)), order];
     await this.state.storage.put({ orders: this.orders });
@@ -470,11 +482,11 @@ export class GameDO {
 
   private async handleCancel(ws: WebSocket, playerId: PlayerId, unitId?: UnitId, cityId?: CityId): Promise<void> {
     if (!this.game || !this.meta || this.meta.status !== 'active' || this.game.phase !== 'orders') {
-      return this.sendError(ws, 'badPhase', 'ordres non modifiables');
+      return this.sendOrderRejection(ws, 'ordres non modifiables');
     }
     const engineId = this.engineIdOf(playerId);
-    if (this.locked[engineId]) return this.sendError(ws, 'badPhase', 'ordres verrouillés');
-    if (!unitId && !cityId) return this.sendError(ws, 'badOrder', 'unitId ou cityId requis');
+    if (this.locked[engineId]) return this.sendOrderRejection(ws, 'ordres verrouillés');
+    if (!unitId && !cityId) return this.sendOrderRejection(ws, 'unitId ou cityId requis');
     const before = this.orders[engineId] ?? [];
     this.orders[engineId] =
       cityId !== undefined
@@ -494,10 +506,10 @@ export class GameDO {
   /** « Fin de tour » : verrouillage irrévocable (RULES.md §4) ; résolution si les deux ont verrouillé. */
   private async handleEndTurn(ws: WebSocket, playerId: PlayerId): Promise<void> {
     if (!this.game || !this.meta || this.meta.status !== 'active' || this.game.phase !== 'orders') {
-      return this.sendError(ws, 'badPhase', 'verrouillage impossible (résolution ou partie terminée)');
+      return this.sendOrderRejection(ws, 'verrouillage impossible (résolution ou partie terminée)');
     }
     const engineId = this.engineIdOf(playerId);
-    if (this.locked[engineId]) return this.sendError(ws, 'badPhase', 'ordres déjà verrouillés');
+    if (this.locked[engineId]) return this.sendOrderRejection(ws, 'ordres déjà verrouillés');
     this.locked[engineId] = true;
     this.game.players[engineId]!.missedTurns = 0; // verrouillage dans les temps : compteur T-06 remis à zéro
     await this.state.storage.put({ locked: this.locked, game: this.game });
@@ -572,7 +584,8 @@ export class GameDO {
     this.meta.status = 'finished';
     this.meta.finishedReason = reason;
     this.meta.deadline = null;
-    await this.state.storage.put({ meta: this.meta, game });
+    this.lastEvents = events; // journal de la fin de partie (TurnResult des clients)
+    await this.state.storage.put({ meta: this.meta, game, lastEvents: events });
     await this.state.storage.deleteAlarm();
     this.broadcastTurnResult(events);
     void this.notifyLobbyFinished();
@@ -610,8 +623,11 @@ export class GameDO {
   }
 
   async alarm(): Promise<void> {
-    await this.ensureLoaded();
+    const replayed = await this.ensureLoaded();
     if (!this.meta || this.meta.status !== 'active' || !this.game) return;
+    // Une résolution interrompue vient d'être terminée (reprise à froid ou à
+    // chaud) : ne pas enchaîner sur l'échéance du timer (elle a déjà replanifié).
+    if (replayed || (await this.ensureResolved())) return;
 
     // Échéance du timer : auto-verrouillage des ordres courants (§4.6).
     for (const engineId of ENGINE_IDS) {

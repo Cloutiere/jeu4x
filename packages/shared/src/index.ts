@@ -90,43 +90,89 @@ export type ErrorCode =
   | 'badMessage'
   | 'internal';
 
-export type ServerToClientMessage = ProtoMessage &
-  (
-    | /** Accueil sur un socket de partie : identité confirmée + position dans la partie. */
-      {
-          type: 'Welcome';
-          playerId: PlayerId;
-          gameCode: string;
-          turn: number;
-          phase: 'orders' | 'resolving';
-          /** Dernier seq du journal (= seq du snapshot qui suit). */
-          seq: number;
-          /** Les joueurs inscrits (attente → 1, active → 2). */
-          players: GamePlayerInfo[];
-          status: GameStatus;
-          /** Ordres du joueur déjà verrouillés pour le tour courant. */
-          locked: boolean;
-        }
-    | /**
-       * État complet filtré par brouillard (au connect/reconnect/resync, §3.4-1).
-       * `orders` = brouillons d'ordres du joueur (conservés côté serveur) ;
-       * `missedEvents` = événements de la DERNIÈRE résolution non reçus par le
-       * client (reprise d'animation — l'état, lui, est toujours complet).
-       */
-      { type: 'Snapshot'; seq: number; state: GameState; orders: Order[]; missedEvents: GameEvent[]; locked: boolean }
-    | /**
-       * Résultat d'une résolution de tour : événements filtrés par joueur
-       * (rejoués côté client, §3.4-4) + état post-résolution filtré. `seq`
-       * est le dernier seq du journal après la résolution.
-       */
-      { type: 'TurnResult'; seq: number; turn: number; events: GameEvent[]; state: GameState }
-    | /** Accusé de réception d'un ordre ou d'un verrouillage (EndTurn). */
-      { type: 'OrderAck'; accepted: boolean; order: Order | null; reason: string | null }
-    | { type: 'Error'; code: ErrorCode; message: string }
-    | /** Listes de parties : publiques en attente + les miennes (actives). */
-      { type: 'GameList'; waiting: GameSummary[]; mine: GameSummary[] }
-    | /** Réponse à CreateGame — le code EST le lien d'invitation /join/<code>. */
-      { type: 'GameCreated'; code: string }
-    | /** Réponse à JoinGame : la place est réservée, connecter le socket de partie. */
-      { type: 'GameJoined'; code: string }
-  );
+/** Accueil sur un socket de partie : identité confirmée + position dans la partie. */
+export interface Welcome extends ProtoMessage {
+  type: 'Welcome';
+  playerId: PlayerId;
+  gameCode: string;
+  turn: number;
+  phase: 'orders' | 'resolving';
+  /** Dernier seq du journal (= seq du snapshot qui suit). */
+  seq: number;
+  /** Les joueurs inscrits (attente → 1, active → 2). */
+  players: GamePlayerInfo[];
+  status: GameStatus;
+  /** Ordres du joueur déjà verrouillés pour le tour courant. */
+  locked: boolean;
+}
+
+/**
+ * État complet filtré par brouillard (au connect/reconnect/resync, §3.4-1).
+ * `orders` = brouillons d'ordres du joueur (conservés côté serveur) ;
+ * `missedEvents` = événements de la DERNIÈRE résolution non reçus par le
+ * client (reprise d'animation — l'état, lui, est toujours complet).
+ */
+export interface Snapshot extends ProtoMessage {
+  type: 'Snapshot';
+  seq: number;
+  state: GameState;
+  orders: Order[];
+  missedEvents: GameEvent[];
+  locked: boolean;
+}
+
+/**
+ * Résultat d'une résolution de tour : événements filtrés par joueur (rejoués
+ * côté client, §3.4-4) + état post-résolution filtré. `seq` est le dernier
+ * seq du journal après la résolution.
+ */
+export interface TurnResult extends ProtoMessage {
+  type: 'TurnResult';
+  seq: number;
+  turn: number;
+  events: GameEvent[];
+  state: GameState;
+}
+
+/** Accusé de réception d'un ordre ou d'un verrouillage (EndTurn). */
+export interface OrderAck extends ProtoMessage {
+  type: 'OrderAck';
+  accepted: boolean;
+  order: Order | null;
+  reason: string | null;
+}
+
+export interface ErrorMessage extends ProtoMessage {
+  type: 'Error';
+  code: ErrorCode;
+  message: string;
+}
+
+/** Listes de parties : publiques en attente + les miennes (actives). */
+export interface GameList extends ProtoMessage {
+  type: 'GameList';
+  waiting: GameSummary[];
+  mine: GameSummary[];
+}
+
+/** Réponse à CreateGame — le code EST le lien d'invitation /join/<code>. */
+export interface GameCreated extends ProtoMessage {
+  type: 'GameCreated';
+  code: string;
+}
+
+/** Réponse à JoinGame : la place est réservée, connecter le socket de partie. */
+export interface GameJoined extends ProtoMessage {
+  type: 'GameJoined';
+  code: string;
+}
+
+export type ServerToClientMessage =
+  | Welcome
+  | Snapshot
+  | TurnResult
+  | OrderAck
+  | ErrorMessage
+  | GameList
+  | GameCreated
+  | GameJoined;
