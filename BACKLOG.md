@@ -67,3 +67,22 @@ Le besoin existe **déjà en 1v1** : deux unités amies (sur cases adjacentes, l
 - Ordre de ciblage du round-robin : neutre par `unitId` (recommandé) ou focus sur les PV les plus bas (plus de kills, moins « équitable » en perception) ?
 - Alliés qui co-attaquent (ni en guerre ni même camp) : participation interdite ? (Phase 7 diplomatie — R-58)
 - Melee à 3 côtés (FFA triangulaire) : chaque unité distribue sur **tous** les ennemis présents (recommandé — les côtés émergent des propriétaires).
+
+---
+
+## Validations (30/08)
+
+Les 4 défauts proposés sont **validés par Erik** (galeries de 6 variantes · silhouette jamais variée · combat hybride rounds + rotation · ciblage neutre par `unitId`) — ils gouvernent les Phases 4.5 et 7. *(confirmation explicite bienvenue, mais traités comme actifs)*
+
+## Idée 3 — Relecture cinématique de la résolution (Erik, 30/08 — confirmée → Phase 5.5)
+
+Au début de chaque tour, rendre la résolution automatique **maximalement transparente** :
+1. afficher d'abord les **lignes de déplacement prévues** par les joueurs adverses (issues des événements `Move` reçus) ;
+2. puis animer les mouvements le long de ces lignes ;
+3. puis les effets : replis, attaques répétées, captures, combats.
+
+Le journal d'événements (séquences, from/to) porte déjà toutes les données — c'est une fonctionnalité purement client au-dessus du playback existant.
+
+## Idée 4 — Flèches de chemin persistantes (Erik, 30/08 — confirmée → Phase 5.5)
+
+Aujourd'hui la ligne de déplacement disparaît à la validation. Elle doit **demeurer** sous forme de **flèche** (sens de déplacement visible) tant que l'ordre est actif — effacée à la résolution ou à l'annulation de l'ordre.
