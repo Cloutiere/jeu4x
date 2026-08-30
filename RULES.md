@@ -67,7 +67,15 @@ Une unité qui survit à un combat où elle inflige le coup fatal devient vété
 | `FoundCity` | — | Consomme le Colon (exécuté en Phase C si survivant et valide : distance ≥ `T-09` de toute ville). |
 | `FormArmy` | membres `[id, id, id]`, case RDV | Voir R-31. |
 | `Hold` | — | Ne rien faire (l'unité reste « stationnaire »). |
+| `Fortify` | — | **R-33** (ajouté le 30/08) : fortification permanente — voir ci-dessous. |
 | `SetProduction` | ville, item | File de production à un élément, remplaçable (progression conservée). |
+
+**R-33 · Fortification.** L'ordre `Fortify` place l'unité en position fortifiée **permanente** :
+- bonus défensif `T-17` tant que l'unité est fortifiée (multiplie `S_def`, §7.4) ;
+- l'état persiste d'un tour à l'autre — l'ordre n'est **pas consommé** à la résolution ;
+- **tout autre ordre** (`Move`, `Attack`, `Hold`, `FoundCity`, `FormArmy`) **annule la fortification** ; la réactiver est manuel ;
+- une unité fortifiée ne bouge pas et bénéficie des soins R-71 normaux.
+UI : bouton « Fortifier » sur le panneau d'unité + marqueur écu sur le sprite.
 
 Les ordres sont **modifiables/annulables jusqu'au verrouillage** (« Fin de tour »). Après verrouillage : irrévocable. Les ordres vivent côté serveur (persistés à chaque modification).
 
@@ -125,7 +133,7 @@ Déclenchée quand **les deux joueurs ont verrouillé** ou à l'**échéance du 
 
 ```
 S_att = A × (1 + T-01 si vétéran)
-S_def = D × (1 + T-01 si vétéran) × (1 + bonus défensif du terrain)
+S_def = D × (1 + T-01 si vétéran) × (1 + bonus défensif du terrain + T-17 si fortifiée)
 p (l'attaquant touche) = S_att² / (S_att² + S_def²)
 roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaquant perd 1 PV
 ```
@@ -209,6 +217,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 | T-14 | `scienceRatioDefault` | 0.5 (reste entier à l'or) 🔶 |
 | T-15 | `growthBase` | 10 (seuil = 10 × pop) 🔶 |
 | T-16 | `popProductionBonus` | 0.25 🔶 |
+| T-17 | `fortifyDefenseBonus` | 0.25 🔶 (R-33, ajouté le 30/08) |
 
 ## 12. Décisions d'interprétation (toutes tranchées — 29/08)
 
@@ -218,7 +227,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 | I-2 | Avancée de l'attaquant victorieux | ✅ Avancée systématique (l'attaque suppose des PM). Exception : unités à distance, jamais (§7.8) |
 | I-3 | Sort du Colon vaincu | ✅ **Révisé** : destruction + butin en or au vainqueur (R-43, T-12) — pas de conversion |
 | I-4 | Unités pacifiques vers une case ennemie | ✅ **Révisé** : capture systématique — destruction + butin en guerre ; détention + restitution ou butin + guerre auto en paix (R-43, §7.7-c) |
-| I-5 | Bonus de fortification | ✅ Aucun en v1 |
+| I-5 | Bonus de fortification | ✅ **Révisé le 30/08** (demande d'Erik) : la fortification entre au v1 comme ordre `Fortify` — R-33, bonus T-17, permanent jusqu'à réactivation manuelle |
 
 ### 12.1 Interprétations d'implémentation validées en bloc (29/08, post-Phase 0)
 
