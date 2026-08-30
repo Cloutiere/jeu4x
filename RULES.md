@@ -75,7 +75,7 @@ Une unité qui survit à un combat où elle inflige le coup fatal devient vété
 - l'état persiste d'un tour à l'autre — l'ordre n'est **pas consommé** à la résolution ;
 - **tout autre ordre** (`Move`, `Attack`, `Hold`, `FoundCity`, `FormArmy`) **annule la fortification** ; la réactiver est manuel ;
 - une unité fortifiée ne bouge pas et bénéficie des soins R-71 normaux.
-UI : bouton « Fortifier » sur le panneau d'unité + marqueur écu sur le sprite.
+UI : bouton « Fortifier » sur le panneau d'unité + marqueur écu sur le sprite. *(implémenté en Phase 5 L0 — moteur + UI + bot ; `schemaVersion` 2→3 : champ additif `fortified`, migration d'initialisation à false)*
 
 Les ordres sont **modifiables/annulables jusqu'au verrouillage** (« Fin de tour »). Après verrouillage : irrévocable. Les ordres vivent côté serveur (persistés à chaque modification).
 

@@ -14,15 +14,16 @@ import { TERRAINS } from '../src/data.js';
 import { cityAt, makeState, unit, unitAt } from '../src/fixtures.js';
 
 describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
-  it('la version courante est exportée avec la chaîne de migrations (v2 depuis le forfait T-06)', () => {
+  it('la version courante est exportée avec la chaîne de migrations (v3 depuis la fortification R-33)', () => {
     const state = makeState();
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(2);
+    expect(CURRENT_SCHEMA_VERSION).toBe(3);
     expect(MIGRATIONS).toBeTypeOf('object');
     expect(typeof MIGRATIONS[2]).toBe('function');
+    expect(typeof MIGRATIONS[3]).toBe('function');
   });
 
-  it('migrateState laisse passer un état à jour à l’identique (chaîne v2→v2 vide)', () => {
+  it('migrateState laisse passer un état à jour à l’identique (chaîne v3→v3 vide)', () => {
     const state = makeState();
     const out = migrateState<GameState>(state as unknown as Record<string, unknown>);
     expect(out).toEqual(state);
@@ -30,7 +31,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
 
   it('migrateState rejette une version inconnue ou futuriste', () => {
     expect(() => migrateState({ schemaVersion: 0 })).toThrow();
-    expect(() => migrateState({ schemaVersion: 3 })).toThrow();
+    expect(() => migrateState({ schemaVersion: 4 })).toThrow();
     expect(() => migrateState({})).toThrow();
   });
 });

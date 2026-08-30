@@ -26,6 +26,8 @@ export type Order =
   | { type: 'FormArmy'; members: [UnitId, UnitId, UnitId]; rally: { q: number; r: number } }
   /** Ne rien faire. */
   | { type: 'Hold'; unitId: UnitId }
+  /** Fortification permanente (R-33) — non consommé, annulé par tout autre ordre. */
+  | { type: 'Fortify'; unitId: UnitId }
   /** File de production d'une ville (R-62) — progression conservée. */
   | { type: 'SetProduction'; cityId: CityId; item: string };
 
@@ -52,6 +54,8 @@ export interface Unit {
   order: Order | null;
   /** R-43/§7.7-c : détention en temps de paix (Phase 7) — null en v1. */
   detainedBy: PlayerId | null;
+  /** R-33 : position fortifiée — bonus T-17, persiste tant qu'aucun autre ordre n'est donné. */
+  fortified: boolean;
 }
 
 export interface CityProduction {
@@ -131,7 +135,7 @@ export function areAtWar(state: GameState, a: PlayerId, b: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 type AnyState = Record<string, unknown>;
 
@@ -157,6 +161,25 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       };
     }
     return { ...state, players: migrated };
+  },
+  /**
+   * v2 → v3 : fortification R-33 (ajout du 30/08). Nouvel ordre + nouveau
+   * champ `fortified` sur les unités : donnée ADDITIVE, pas un reformat —
+   * les états persistés v2 n'ont jamais de fortification, initialisée à
+   * false. (Décision : bump de version requis car un champ d'unité manque
+   * dans les états v2 ; aucune autre transformation.)
+   */
+  3: (state) => {
+    const units = (state.units ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(units).sort()) {
+      const u = units[id]!;
+      migrated[id] = {
+        ...u,
+        fortified: typeof u.fortified === 'boolean' ? u.fortified : false,
+      };
+    }
+    return { ...state, units: migrated };
   },
 };
 

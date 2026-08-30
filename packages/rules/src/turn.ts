@@ -33,6 +33,7 @@ import {
   ARMY_SIZE,
   CITY_WORK_RADIUS,
   EXCHANGES_PER_ATTACK,
+  FORTIFY_DEFENSE_BONUS,
   GROWTH_BASE,
   MIN_CITY_DISTANCE,
   POP_PRODUCTION_BONUS,
@@ -252,6 +253,69 @@ function terrainDefenseBonus(board: Board, hex: Hex): number {
   return tile ? TERRAINS[tile.terrain]!.defenseBonus : 0;
 }
 
+/**
+ * R-33 : applique les ordres de fortification et les annulations associées.
+ *  - `Fortify` → l'unité est fortifiée (état persistant), tout chemin gelé est
+ *    effacé (une unité fortifiée ne bouge pas) ;
+ *  - tout autre ordre touchant l'unité (Move, Attack, Hold, FoundCity,
+ *    FormArmy via ses membres) annule la fortification.
+ * Interprétation déterministe : si un même tour porte à la fois un autre
+ * ordre et un Fortify (impossible via le serveur, qui remplace par sujet),
+ * l'annulation s'applique d'abord puis le Fortify — la fortification prime.
+ */
+function applyFortifyOrders(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
+  const fortify = new Set<UnitId>();
+  const cancel = new Set<UnitId>();
+  for (const playerId of Object.keys(ordersByPlayer).sort()) {
+    for (const order of ordersByPlayer[playerId] ?? []) {
+      switch (order.type) {
+        case 'Fortify':
+          fortify.add(order.unitId);
+          break;
+        case 'Move':
+        case 'Attack':
+        case 'Hold':
+        case 'FoundCity':
+          cancel.add(order.unitId);
+          break;
+        case 'FormArmy':
+          for (const m of order.members) cancel.add(m);
+          break;
+        case 'SetProduction':
+          break;
+      }
+    }
+  }
+  for (const id of cancel) {
+    const unit = board.st.units[id];
+    // Seuls les ordres du propriétaire comptent (une consigne ennemie est ignorée).
+    const ordered = Object.keys(ordersByPlayer).some(
+      (pid) => (ordersByPlayer[pid] ?? []).some((o) => orderTouchesUnit(o, id)) && unit?.owner === pid,
+    );
+    if (unit && ordered) unit.fortified = false;
+  }
+  for (const id of fortify) {
+    const unit = board.st.units[id];
+    const ordered = Object.keys(ordersByPlayer).some(
+      (pid) =>
+        (ordersByPlayer[pid] ?? []).some((o) => o.type === 'Fortify' && o.unitId === id) &&
+        unit?.owner === pid,
+    );
+    if (unit && ordered) {
+      unit.fortified = true;
+      unit.order = null; // ne bouge pas : chemin gelé effacé (R-33)
+    }
+  }
+}
+
+/** Un ordre (quelconque) porte-t-il sur cette unité ? */
+function orderTouchesUnit(order: Order, unitId: UnitId): boolean {
+  return (
+    ('unitId' in order && order.unitId === unitId) ||
+    (order.type === 'FormArmy' && order.members.includes(unitId))
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Phase B — combats & replis (RULES.md §7)
 // ---------------------------------------------------------------------------
@@ -267,7 +331,12 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
   const dStats = unitType(defender.type);
   const noRiposte = isRanged(attacker) && !isRanged(defender);
   const sAtt = effectiveStrength(aStats.attack, attacker.veteran);
-  const sDef = effectiveStrength(dStats.defense, defender.veteran, terrainDefenseBonus(board, combatTile));
+  // T-17 : le bonus de fortification s'ajoute au bonus de terrain (RULES.md §7.4).
+  const sDef = effectiveStrength(
+    dStats.defense,
+    defender.veteran,
+    terrainDefenseBonus(board, combatTile) + (defender.fortified ? FORTIFY_DEFENSE_BONUS : 0),
+  );
   for (let i = 0; i < EXCHANGES_PER_ATTACK && attacker.hp > 0 && defender.hp > 0; i++) {
     if (noRiposte) {
       defender.hp -= 1;
@@ -616,6 +685,7 @@ function processFormArmy(board: Board, allOrders: Order[]): void {
       isArmy: true,
       order: null,
       detainedBy: null,
+      fortified: false, // R-33 : la formation d'armée annule la fortification
     };
     for (const m of members) delete board.st.units[m.id];
     board.st.units[armyId] = army;
@@ -826,6 +896,7 @@ function processEconomy(board: Board): void {
             isArmy: false,
             order: null,
             detainedBy: null,
+            fortified: false,
           };
           emit(board, {
             type: 'UnitProduced',
@@ -905,7 +976,10 @@ export function resolveTurn(
     }
   }
 
-  // ---- Phase A : mouvements (R-40..R-43), ordre unitId croissant (R-41).
+  // ---- Phase A : fortification R-33 (avant les mouvements : un Move donné
+  // à un fortifié l'annule et s'exécute ; un Fortify efface tout chemin).
+  applyFortifyOrders(board, ordersByPlayer);
+  // mouvements (R-40..R-43), ordre unitId croissant (R-41).
   for (const { unit, path } of collectMoveOrders(board, ordersByPlayer)) {
     if (!st.units[unit.id] || unit.detainedBy) continue;
     executeMoveOrder(board, unit, path);

@@ -24,6 +24,8 @@ export const WATER_PASSABLE = false;
 export const SETTLER_BOOTY_GOLD = 10;
 /** T-13 · Portée des unités à distance (R-59). 🔶 */
 export const RANGED_RANGE = 1;
+/** T-17 · Bonus défensif d'une unité fortifiée (R-33, ajouté le 30/08). 🔶 */
+export const FORTIFY_DEFENSE_BONUS = 0.25;
 
 // --- Constantes 🔶 introduites par l'implémentation (absentes de la table
 // RULES.md §11, défauts simples à calibrer) — signalées au rapport de session.

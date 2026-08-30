@@ -72,6 +72,8 @@
         return 'Fonder une ville';
       case 'Hold':
         return 'Tenir la position';
+      case 'Fortify':
+        return 'Fortifier';
       case 'FormArmy':
         return 'Formation d\'armée';
       case 'SetProduction':
@@ -92,6 +94,7 @@
   {:else}
     <div class="rows">
       <span class="title">{stats?.name ?? unit.type}{unit.veteran ? ' ★' : ''}{unit.isArmy ? ' (armée)' : ''}</span>
+      {#if unit.fortified}<span class="fortified" title="Bonus défensif de fortification (R-33)">🛡 Fortifié</span>{/if}
       {#if !mine}<span class="enemy">Ennemi — {unit.owner}</span>{/if}
       {#if mine}
         <span>PV <strong>{unit.hp}</strong> / {stats?.hpMax ?? '?'}</span>
@@ -119,6 +122,16 @@
         <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'Hold', unitId: unit.id })}>
           Tenir la position
         </button>
+        {#if unit.fortified}
+          <!-- R-33 : tout autre ordre annule la fortification — Hold = « ne plus fortifier ». -->
+          <button type="button" disabled={!editable} title="Annule la fortification (un Hold suffit — R-33)" onclick={() => unit && client.submitOrder({ type: 'Hold', unitId: unit.id })}>
+            Ne plus fortifier
+          </button>
+        {:else}
+          <button type="button" disabled={!editable} title="Bonus défensif permanent (+25 %) tant qu'aucun autre ordre n'est donné (R-33)" onclick={() => unit && client.submitOrder({ type: 'Fortify', unitId: unit.id })}>
+            Fortifier
+          </button>
+        {/if}
         {#if stats?.canFoundCity}
           <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'FoundCity', unitId: unit.id })}>
             Fonder une ville
@@ -160,6 +173,7 @@
   .title { font-weight: 700; }
   .enemy { color: #ef9a9a; }
   .frozen { color: #ffcc80; font-size: 0.85rem; }
+  .fortified { color: #90caf9; font-weight: 600; font-size: 0.85rem; }
   .order { margin: 0.25rem 0; color: #ffe082; font-size: 0.9rem; }
   .hint { margin: 0.25rem 0; color: #8b98a5; font-size: 0.82rem; }
   .btns { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }

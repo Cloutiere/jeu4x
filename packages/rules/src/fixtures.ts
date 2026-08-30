@@ -31,6 +31,7 @@ export interface UnitSpec {
   veteran?: boolean;
   isArmy?: boolean;
   order?: Order | null;
+  fortified?: boolean;
 }
 
 export interface CitySpec {
@@ -122,6 +123,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       isArmy: spec.isArmy ?? false,
       order: spec.order ?? null,
       detainedBy: null,
+      fortified: spec.fortified ?? false,
     };
   });
 

@@ -107,6 +107,7 @@ function orderShapeError(order: unknown): string | null {
       return isHex(o.target) ? null : 'cible invalide';
     case 'FoundCity':
     case 'Hold':
+    case 'Fortify':
       return typeof o.unitId === 'string' ? null : 'unitId manquant';
     case 'FormArmy':
       return Array.isArray(o.members) && o.members.length === 3 && new Set(o.members).size === 3 && o.members.every((m) => typeof m === 'string') && isHex(o.rally)
@@ -470,6 +471,7 @@ export class GameDO {
       case 'Attack':
       case 'FoundCity':
       case 'Hold':
+      case 'Fortify':
         return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
       case 'FormArmy':
         return order.members.every(ownsUnit) ? null : 'une des unités est inconnue ou non possédée';

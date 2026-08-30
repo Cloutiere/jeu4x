@@ -12,14 +12,15 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { parseBotArgs } from './botArgs.mjs';
 
 const BASE = process.env.GAME_URL ?? 'http://127.0.0.1:8787';
 
-const [codeArg, nameArg] = process.argv.slice(2);
-const CODE = (codeArg ?? '').toUpperCase();
-const NAME = nameArg ?? 'Bot';
+// `pnpm bot -- <CODE>` : le `--` est transmis littéralement par pnpm — filtré
+// dans parseBotArgs (régression Phase 5, L2).
+const { code: CODE, name: NAME, valid: argsValid } = parseBotArgs(process.argv.slice(2));
 
-if (!/^[A-Z0-9]{6}$/.test(CODE)) {
+if (!argsValid) {
   console.error('Usage : pnpm bot -- <CODE6> [nom]\n       GAME_URL=http://127.0.0.1:8787 par défaut.');
   process.exit(1);
 }
@@ -140,9 +141,17 @@ async function main() {
     const mine = Object.values(state.units).filter((u) => u.owner === myEngineId);
     let moves = 0;
     let holds = 0;
+    let fortifies = 0;
     for (const unit of mine) {
       const hasOrder = snapshot.orders.some((o) => 'unitId' in o && o.unitId === unit.id);
       if (hasOrder) continue; // brouillon conservé côté serveur : ne pas doubler
+      // R-33 : fortifier parfois (état persistant — une unité déjà fortifiée
+      // est laissée telle quelle, l'ordre n'est pas consommé).
+      if (!unit.fortified && Math.random() < 0.15) {
+        send({ type: 'SubmitOrder', order: { type: 'Fortify', unitId: unit.id } });
+        fortifies += 1;
+        continue;
+      }
       if (Math.random() < 0.4) {
         send({ type: 'SubmitOrder', order: { type: 'Hold', unitId: unit.id } });
         holds += 1;
@@ -157,7 +166,7 @@ async function main() {
         holds += 1;
       }
     }
-    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s) de position.`);
+    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s) de position, ${fortifies} fortification(s).`);
     send({ type: 'EndTurn' });
     lastEndedTurn = state.turn;
   }

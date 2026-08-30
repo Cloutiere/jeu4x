@@ -218,6 +218,7 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
         isArmy: false,
         order: null,
         detainedBy: null,
+        fortified: false,
       };
     }
   }

@@ -204,6 +204,9 @@
       const fill = c.getChildByLabel('hpFill') as Sprite;
       fill.width = 76 * ratio;
       fill.tint = hpBarColor(ratio);
+      // Marqueur écu de fortification (R-33).
+      const shield = c.getChildByLabel('fortify');
+      if (shield) shield.visible = unit.fortified === true;
     }
     for (const [id, c] of unitSprites) {
       if (!seenUnits.has(id)) {
@@ -268,6 +271,12 @@
     fill.height = 10;
     fill.position.set(-38, -156);
     c.addChild(base, accent, bg, fill);
+    // Écu de fortification (R-33) : petit bouclier bleu au-dessus du PV, caché par défaut.
+    const shield = new Graphics();
+    shield.label = 'fortify';
+    shield.moveTo(0, -178).lineTo(12, -172).lineTo(12, -162).quadraticCurveTo(12, -152, 0, -148).quadraticCurveTo(-12, -152, -12, -162).lineTo(-12, -172).closePath().fill({ color: 0x90caf9 }).stroke({ width: 2, color: 0x1b3a5c });
+    shield.visible = false;
+    c.addChild(shield);
     c.label = unitId;
     return c;
   }

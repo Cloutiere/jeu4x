@@ -69,13 +69,14 @@ describe('L0 · T-06 · forfait (compteur missedTurns tenu par le serveur)', () 
   });
 });
 
-describe('L0 · Migration v1→v2 (chaîne de migrations, DESIGN.md §3.8)', () => {
-  it(`CURRENT_SCHEMA_VERSION vaut ${CURRENT_SCHEMA_VERSION} et la migration v2 existe`, () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(2);
+describe('L0 · Migrations (chaîne de migrations, DESIGN.md §3.8)', () => {
+  it(`CURRENT_SCHEMA_VERSION vaut ${CURRENT_SCHEMA_VERSION} et les migrations v2/v3 existent`, () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(3);
     expect(typeof MIGRATIONS[2]).toBe('function');
+    expect(typeof MIGRATIONS[3]).toBe('function');
   });
 
-  it('un état v1 (sans missedTurns) migre vers v2 avec missedTurns = 0 par joueur', () => {
+  it('un état v1 (sans missedTurns) migre vers v3 avec missedTurns = 0 et fortified = false', () => {
     const v2 = makeState();
     const v1Raw = migrateState<Record<string, unknown>>({
       ...structuredClone(v2),
@@ -85,11 +86,13 @@ describe('L0 · Migration v1→v2 (chaîne de migrations, DESIGN.md §3.8)', () 
         p2: { id: 'p2', gold: 0, science: 0, scienceRatio: 0.5, vision: { explored: [], visible: [] }, missedTurns: 2 },
       },
     } as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(v1Raw.schemaVersion).toBe(2);
+    expect(v1Raw.schemaVersion).toBe(3);
     expect(v1Raw.players['p1']!.missedTurns).toBe(0);
     // un champ déjà présent est conservé
     expect(v1Raw.players['p2']!.missedTurns).toBe(2);
     expect(v1Raw.players['p1']!.gold).toBe(3);
+    // v2 → v3 (R-33) : fortification absente des anciens états → false
+    for (const u of Object.values(v1Raw.units)) expect(u.fortified).toBe(false);
   });
 
   it('la chaîne est rejouable à l’identique (idempotence par état d’entrée fixé)', () => {
