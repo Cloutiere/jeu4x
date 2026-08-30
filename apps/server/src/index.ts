@@ -91,20 +91,35 @@ export default {
       const code = url.searchParams.get('code');
       const state = url.searchParams.get('state');
       const expectedState = cookieValue(request, STATE_COOKIE);
+      const loginError = (): Response => {
+        // Redirection lisible vers la page de login (jamais de JSON brut) —
+        // deux cookies DISTINCTS via Headers.append : les joindre par une
+        // virgule dans un seul Set-Cookie corrompt la session (le Max-Age=0
+        // du state est lu comme attribut du cookie de session).
+        const headers = new Headers({
+          location: `${baseUrlOf(env, url)}/?loginError=1#/login`,
+          'cache-control': 'no-store',
+        });
+        headers.append('set-cookie', stateClearCookie(secure));
+        return new Response(null, { status: 302, headers });
+      };
       if (url.searchParams.get('error') || !code || !state || !expectedState || state !== expectedState) {
-        return jsonResponse({ error: 'oauthStateMismatch' }, 400, { 'set-cookie': stateClearCookie(secure) });
+        return loginError();
       }
       try {
         const profile = await fetchProfile(env, url, provider, code);
         if (!env.AUTH_SECRET) return jsonResponse({ error: 'authSecretMissing' }, 500);
         const token = await signSession(`${provider}:${profile.id}`, profile.name, env.AUTH_SECRET);
-        return redirectWithHeaders(`${baseUrlOf(env, url)}${safeNext(url)}`, {
-          'set-cookie': `${sessionSetCookie(token, secure)}, ${stateClearCookie(secure)}`,
+        const headers = new Headers({
+          location: `${baseUrlOf(env, url)}${safeNext(url)}`,
+          'cache-control': 'no-store',
         });
+        headers.append('set-cookie', sessionSetCookie(token, secure));
+        headers.append('set-cookie', stateClearCookie(secure));
+        return new Response(null, { status: 302, headers });
       } catch (e) {
-        return jsonResponse({ error: 'oauthFailed', message: e instanceof Error ? e.message : 'échec OAuth' }, 502, {
-          'set-cookie': stateClearCookie(secure),
-        });
+        console.error(`oauth ${provider} :`, e instanceof Error ? e.message : e);
+        return loginError();
       }
     }
 
@@ -116,6 +131,11 @@ export default {
       const session = await sessionOfRequest(request, env);
       if (!session) return jsonResponse({ player: null });
       return jsonResponse({ player: { id: session.sub, name: session.name } });
+    }
+
+    // Mode de login exposé au client (masquer le formulaire stub en prod).
+    if (url.pathname === '/api/auth-mode') {
+      return jsonResponse({ stub: stubAuthAllowed(env) });
     }
 
     // ------------------------------------------------------------------
