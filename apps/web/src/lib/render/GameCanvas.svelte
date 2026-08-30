@@ -85,6 +85,8 @@
 
   const unsubscribes: Array<() => void> = [];
   let resizeObserver: ResizeObserver | null = null;
+  let rafId = 0;
+  let fallbackInterval: ReturnType<typeof setInterval> | null = null;
 
   function onNewView(v: GameView): void {
     scene.view = v;
@@ -94,9 +96,15 @@
     const vision = v.state && scene.myId ? v.state.players[scene.myId]?.vision : undefined;
     scene.explored = new Set(vision?.explored ?? []);
     scene.visible = new Set(vision?.visible ?? []);
+    // Bornes du monde : connues seulement à l'arrivée du premier état.
+    if (v.state) {
+      bounds = mapBounds(HEX_SIZE, v.state.mapWidth, v.state.mapHeight);
+      camera.clamp(bounds, vw, vh);
+    }
     tilesDirty = true;
     entitiesDirty = true;
     overlayDirty = true;
+    cameraChanged = true;
     maybeCenter();
   }
 
@@ -254,11 +262,11 @@
     bg.width = 80;
     bg.height = 10;
     bg.tint = 0x1b1b22;
-    bg.position.set(-40, -168);
+    bg.position.set(-40, -158);
     const fill = new Sprite(textures!.px);
     fill.label = 'hpFill';
     fill.height = 10;
-    fill.position.set(-38, -166);
+    fill.position.set(-38, -156);
     c.addChild(base, accent, bg, fill);
     c.label = unitId;
     return c;
@@ -440,9 +448,26 @@
   // Boucle
   // ---------------------------------------------------------------------
 
+  let lastPlaybackActive = false;
   let lastFrame = performance.now();
+  let frames = 0;
 
   function tick(tickerDeltaMs: number): void {
+    frames += 1;
+    try {
+      tickInner(tickerDeltaMs);
+    } catch (err) {
+      // Surface l'erreur une fois pour le débogage (dev) sans tuer la boucle.
+      (window as unknown as Record<string, unknown>).__tickError = String(err);
+      if (rafId) cancelAnimationFrame(rafId);
+      if (fallbackInterval !== null) clearInterval(fallbackInterval);
+      rafId = 0;
+      fallbackInterval = null;
+      throw err;
+    }
+  }
+
+  function tickInner(tickerDeltaMs: number): void {
     const now = performance.now();
     const dt = Math.min(100, now - lastFrame);
     lastFrame = now;
@@ -482,8 +507,6 @@
     }
     void tickerDeltaMs;
   }
-
-  let lastPlaybackActive = false;
 
   // ---------------------------------------------------------------------
   // Entrées souris / clavier (pan vs clic : seuil 5 px — L1)
@@ -643,12 +666,56 @@
     });
     resizeObserver.observe(host);
 
-    application.ticker.add(() => tick(application.ticker.deltaMS));
+    const application2 = app;
+    // Boucle hybride : requestAnimationFrame en priorité (fluide), avec timer
+    // de secours si rAF est suspendu (onglet arrière-plan, rAF bridé) — le
+    // rendu et le playback ne dépendent alors que d'un setInterval.
+    lastFrame = performance.now();
+    let lastRaf = lastFrame;
+    const step = (): void => {
+      const now = performance.now();
+      tick(Math.min(100, now - lastFrame));
+      lastFrame = now;
+      application2.renderer.render(application2.stage);
+    };
+    const rafLoop = (): void => {
+      lastRaf = performance.now();
+      step();
+      rafId = requestAnimationFrame(rafLoop);
+    };
+    rafId = requestAnimationFrame(rafLoop);
+    fallbackInterval = setInterval(() => {
+      // rAF vivant (< 400 ms) : rien à faire. Sinon, rendre quand même.
+      if (performance.now() - lastRaf < 400) return;
+      step();
+    }, 33);
 
     unsubscribes.push(client.view.subscribe(onNewView));
     unsubscribes.push(ui.subscribe(onNewUi));
     maybeCenter();
     onReady?.({ centerOnHex, centerOnUnit });
+    // Debug console (dev uniquement) : état interne inspectable via la console.
+    (window as unknown as Record<string, unknown>).__gameCanvas = {
+      get stats() {
+        return {
+          frames,
+          hasTextures: !!textures,
+          state: !!scene.state,
+          myId: scene.myId,
+          explored: scene.explored.size,
+          visible: scene.visible.size,
+          mapKeys: scene.state ? Object.keys(scene.state.map).length : 0,
+          firstMapKeys: scene.state ? Object.keys(scene.state.map).slice(0, 3) : [],
+          tileSprites: tileSprites.size,
+          unitSprites: unitSprites.size,
+          citySprites: citySprites.size,
+          camera: { x: camera.x, y: camera.y, scale: camera.scale },
+          bounds,
+          vw,
+          vh,
+        };
+      },
+    };
   }
 
   function teardown(): void {
@@ -656,6 +723,8 @@
     disposed = true;
     for (const u of unsubscribes) u();
     resizeObserver?.disconnect();
+    if (rafId) cancelAnimationFrame(rafId);
+    if (fallbackInterval !== null) clearInterval(fallbackInterval);
     if (app) {
       const canvas = app.canvas;
       canvas.removeEventListener('pointerdown', onPointerDown);
