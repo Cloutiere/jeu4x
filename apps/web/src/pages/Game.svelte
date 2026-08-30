@@ -48,6 +48,11 @@
   // Lien vers le mode reveal (#/debug) — jamais dans un build de production.
   const devMode = import.meta.env.DEV;
 
+  /** Icône optionnelle : masquée silencieusement si l'asset est absent. */
+  function hideImg(e: Event): void {
+    (e.currentTarget as HTMLElement | null)?.style.setProperty('display', 'none');
+  }
+
   // Rejouer tout événement fraîchement ajouté au journal (dédoublonné par seq
   // côté réducteur — cf. gameClient.ts).
   const unsubReplay = view.subscribe((v) => {
@@ -162,7 +167,12 @@
     <strong>Partie {code}</strong>
     <span>Tour <strong>{$view.turn}</strong></span>
     <span class="chip" class:resolving={$view.phase === 'resolving'}>{$view.phase === 'resolving' ? 'Résolution…' : 'Ordres'}</span>
-    <span title="Or / Science du joueur">🪙 {myGold} · 🔬 {myScience}</span>
+    <span class="res" title="Or / Science du joueur">
+      <img src="/art/icone_or.png" alt="Or" onerror={hideImg} />
+      {myGold}
+      <img src="/art/icone_science.png" alt="Science" onerror={hideImg} />
+      {myScience}
+    </span>
     <span class="net net-{$status}">{$status}</span>
     {#if $view.locked}<span class="chip locked">Verrouillé</span>{/if}
     <button type="button" class="primary" disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active'} onclick={() => client.endTurn()}>
@@ -241,6 +251,8 @@
   .chip.resolving { border-color: #8d6e63; background: #332a24; }
   .chip.locked { border-color: #7a5b3c; background: #2e251c; }
   .net { font-size: 0.8rem; color: #8b98a5; }
+  .res { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 600; }
+  .res img { width: 18px; height: 18px; vertical-align: middle; }
   .net-open { color: #81c784; }
   .net-connecting { color: #ffd54f; }
   .net-closed { color: #e57373; }

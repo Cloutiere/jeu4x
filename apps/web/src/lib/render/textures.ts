@@ -11,7 +11,7 @@
  *  - nommage aligné sur les ids des données JSON (tile_prairie, unite_guerrier…).
  * Le fog, la sélection, les chemins et les effets sont programmatiques (v1).
  */
-import { Graphics, Texture } from 'pixi.js';
+import { Assets, Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
 import type { TerrainId } from '@game/rules';
 
@@ -308,5 +308,65 @@ export function createTextures(renderer: Renderer): GameTextures {
       capital: bakeEntity(renderer, buildCapitalGraphics()),
     },
     px,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Chargement des assets réels (HANDOFF-PHASE3 L2 — commit 29723ed) avec
+// FALLBACK placeholder : un seul chemin de rendu, chaque nom d'asset vise le
+// PNG de public/art/ (copies de assets-src/exports, SPEC-ART §3.5) et retombe
+// sur la texture générée si le fichier est absent (unités P2 futures…).
+// ---------------------------------------------------------------------------
+
+/** Nom d'asset PNG (SPEC-ART §3.5) par id des données JSON. */
+const TILE_ASSETS: Record<TerrainId, string> = {
+  prairie: 'tile_prairie',
+  plaine: 'tile_plaine',
+  foret: 'tile_foret',
+  colline: 'tile_colline',
+  montagne: 'tile_montagne',
+  eau: 'tile_eau',
+  ville: 'tile_ville_sol',
+};
+
+const UNIT_IDS = ['guerrier', 'colon'];
+
+async function texOrFallback(name: string, fallback: Texture): Promise<Texture> {
+  try {
+    return (await Assets.load(`/art/${name}.png`)) as Texture;
+  } catch {
+    return fallback;
+  }
+}
+
+async function entityOrFallback(base: string, fallback: EntityTexture): Promise<EntityTexture> {
+  const [b, a] = await Promise.all([
+    texOrFallback(base, fallback.base),
+    texOrFallback(`${base}_accent`, fallback.accent),
+  ]);
+  return { base: b, accent: a };
+}
+
+/** Charge les assets réels depuis /art/ — fallback placeholder fichier par fichier. */
+export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
+  const fallback = createTextures(renderer);
+
+  const tileIds = Object.keys(TILE_ASSETS) as TerrainId[];
+  const [tiles, units, settlement, capital] = await Promise.all([
+    Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
+    Promise.all(
+      UNIT_IDS.filter((id) => fallback.units[id]).map((id) =>
+        entityOrFallback(`unite_${id}`, fallback.units[id]!).then((t) => [id, t] as const),
+      ),
+    ),
+    entityOrFallback('ville_settlement', fallback.cities.settlement),
+    entityOrFallback('ville_capitale', fallback.cities.capital),
+  ]);
+
+  return {
+    tiles: Object.fromEntries(tiles) as Record<TerrainId, Texture>,
+    units: Object.fromEntries(units),
+    cities: { settlement, capital },
+    px: fallback.px,
   };
 }

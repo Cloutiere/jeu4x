@@ -17,7 +17,7 @@
   import type { UiState, UiStore } from './ui.js';
   import type { Playback } from './playback.js';
   import { Camera } from './camera.js';
-  import { createTextures, playerColor } from './textures.js';
+  import { loadTextures, playerColor } from './textures.js';
   import type { GameTextures } from './textures.js';
   import { HEX_SIZE, hexesInRect, mapBounds, screenToHex } from './hexView.js';
   import { clickAction, myEngineId } from './interaction.js';
@@ -605,7 +605,8 @@
     app = application;
     host.appendChild(application.canvas);
 
-    textures = createTextures(application.renderer);
+    // Assets réels (/art/, SPEC-ART) avec fallback placeholder fichier par fichier.
+    textures = await loadTextures(application.renderer);
     world = new Container();
     tilesLayer = new Container();
     overlayLayer = new Container();
