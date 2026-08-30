@@ -6,3 +6,6 @@ dist/
 # Cloudflare local dev (secrets & état local)
 .dev.vars
 .wrangler/
+
+# Variables Vite locales (mode reveal — L0 Phase 3)
+.env.local

@@ -3,6 +3,16 @@
  * WS (§3.4). Toute mise à jour d'état passe par Snapshot / TurnResult — le
  * client n'applique jamais de diffs approximatifs ; au moindre doute il
  * demande un resync (ResyncRequest avec son dernier seq).
+ *
+ * L0 (Phase 3) : la vue est produite par `reduceView`, fonction PURE testée.
+ * Deux marques de lecture distinctes :
+ *  - `lastSeq` : dernier seq de protocole reçu (Welcome/Snapshot/TurnResult) —
+ *    sert à la détection d'obsolescence et au ResyncRequest ;
+ *  - `seenEventSeq` : dernier seq d'événement réellement AJOUTÉ au journal.
+ *    Welcome ne doit jamais y toucher : son `seq` est le bout du journal
+ *    serveur, or les `missedEvents` du Snapshot qui suit ont des seq ≤ ce
+ *    bout — les dédoublonner contre `lastSeq` les supprimait tous (journal
+ *    vide à la reconnexion).
  */
 import { get, writable } from 'svelte/store';
 import type { Writable } from 'svelte/store';
@@ -24,7 +34,10 @@ export interface GameView {
   locked: boolean;
   /** Journal cumulé (événements filtrés reçus, dans l'ordre). */
   events: GameEvent[];
+  /** Dernier seq de protocole reçu (ResyncRequest, obsolescence TurnResult). */
   lastSeq: number;
+  /** Dernier seq ajouté au journal (dédoublonnage missedEvents/événements). */
+  seenEventSeq: number;
 }
 
 export interface GameClient {
@@ -38,7 +51,7 @@ export interface GameClient {
   close(): void;
 }
 
-function initialView(code: string): GameView {
+export function initialView(code: string): GameView {
   return {
     code,
     playerId: null,
@@ -51,7 +64,17 @@ function initialView(code: string): GameView {
     locked: false,
     events: [],
     lastSeq: -1,
+    seenEventSeq: -1,
   };
+}
+
+/** Ajoute au journal les événements non encore vus (dédoublonnage par seq — §3.4). */
+export function appendJournalEvents(v: GameView, incoming: GameEvent[]): GameView {
+  const fresh = incoming.filter((e) => e.seq > v.seenEventSeq);
+  if (fresh.length === 0) return v;
+  let maxSeq = v.seenEventSeq;
+  for (const e of fresh) if (e.seq > maxSeq) maxSeq = e.seq;
+  return { ...v, events: [...v.events, ...fresh], seenEventSeq: maxSeq };
 }
 
 /** Sujet d'un ordre (miroir du GameDO) pour remplacer/annuler localement. */
@@ -67,6 +90,59 @@ function sameSubject(a: Order, b: Order): boolean {
   return ua !== null && ub !== null && ua === ub;
 }
 
+/** Réducteur PUR : vue suivante à partir de la vue courante et d'un message serveur. */
+export function reduceView(v: GameView, message: ServerToClientMessage): GameView {
+  switch (message.type) {
+    case 'Welcome':
+      // `seenEventSeq` volontairement inchangé : le seq du Welcome est le bout
+      // du journal serveur, pas une marque de lecture du journal client.
+      return { ...v, playerId: message.playerId, players: message.players, status: message.status, turn: message.turn, phase: message.phase, lastSeq: Math.max(v.lastSeq, message.seq) };
+    case 'Snapshot':
+      return appendJournalEvents(
+        {
+          ...v,
+          state: message.state,
+          orders: message.orders,
+          locked: message.locked,
+          status: 'active',
+          turn: message.state.turn,
+          phase: message.state.phase,
+          lastSeq: Math.max(v.lastSeq, message.seq),
+        },
+        message.missedEvents,
+      );
+    case 'TurnResult': {
+      if (message.seq <= v.lastSeq) return v; // message obsolète
+      return appendJournalEvents(
+        {
+          ...v,
+          state: message.state,
+          turn: message.turn,
+          phase: message.state.phase,
+          lastSeq: Math.max(v.lastSeq, message.seq),
+          locked: false,
+          orders: [],
+        },
+        message.events,
+      );
+    }
+    case 'OrderAck':
+      if (!message.accepted) return v;
+      if (message.order) {
+        // Remplacement local du brouillon du même sujet (miroir du serveur).
+        return { ...v, orders: [...v.orders.filter((o) => !sameSubject(o, message.order!)), message.order!] };
+      }
+      if (message.reason === 'verrouillé') return { ...v, locked: true };
+      return v;
+    case 'GameList':
+    case 'GameCreated':
+    case 'GameJoined':
+      return v; // messages de lobby
+    case 'Error':
+      return v; // erreur exposée via le store `error`, pas la vue
+  }
+}
+
 export function createGameClient(code: string): GameClient {
   const view = writable<GameView>(initialView(code));
   const status = writable<NetStatus>('connecting');
@@ -79,67 +155,11 @@ export function createGameClient(code: string): GameClient {
   }
 
   function apply(message: ServerToClientMessage): void {
-    switch (message.type) {
-      case 'Welcome':
-        view.update((v) => ({
-          ...v,
-          playerId: message.playerId,
-          players: message.players,
-          status: message.status,
-          turn: message.turn,
-          phase: message.phase,
-          lastSeq: message.seq,
-        }));
-        break;
-      case 'Snapshot':
-        view.update((v) => ({
-          ...v,
-          state: message.state,
-          orders: message.orders,
-          locked: message.locked,
-          status: 'active',
-          turn: message.state.turn,
-          phase: message.state.phase,
-          lastSeq: message.seq,
-          // Reprise d'animation : événements de résolution non encore vus
-          // (dédoublonnés par seq — §3.4).
-          events: [...v.events, ...message.missedEvents.filter((e) => e.seq > v.lastSeq)],
-        }));
-        break;
-      case 'TurnResult': {
-        if (message.seq <= get(view).lastSeq) return; // message obsolète
-        view.update((v) => ({
-          ...v,
-          state: message.state,
-          turn: message.turn,
-          phase: message.state.phase,
-          lastSeq: message.seq,
-          locked: false,
-          orders: [],
-          events: [...v.events, ...message.events],
-        }));
-        break;
-      }
-      case 'OrderAck':
-        if (!message.accepted) {
-          error.set(message.reason ?? 'ordre refusé');
-          break;
-        }
-        if (message.order) {
-          // Remplacement local du brouillon du même sujet (miroir du serveur).
-          view.update((v) => ({ ...v, orders: [...v.orders.filter((o) => !sameSubject(o, message.order!)), message.order!] }));
-        } else if (message.reason === 'verrouillé') {
-          view.update((v) => ({ ...v, locked: true }));
-        }
-        break;
-      case 'GameList':
-      case 'GameCreated':
-      case 'GameJoined':
-        break; // messages de lobby
-      case 'Error':
-        error.set(`${message.code} : ${message.message}`);
-        break;
+    if (message.type === 'Error') {
+      error.set(`${message.code} : ${message.message}`);
+      return;
     }
+    view.update((v) => reduceView(v, message));
   }
 
   handle = connectWs(

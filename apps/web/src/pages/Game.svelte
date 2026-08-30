@@ -15,6 +15,9 @@
   const status = client.status;
   const error = client.error;
 
+  // Lien vers le mode reveal (#/debug) — jamais dans un build de production.
+  const devMode = import.meta.env.DEV;
+
   // Mini-formulaire d'ordres (sans carte) : Hold, ou Move d'un pas (q, r).
   let orderUnitId = $state('');
   let orderKind = $state<'Hold' | 'Move'>('Hold');
@@ -80,6 +83,7 @@
       Fin de tour
     </button>
     <button type="button" onclick={() => client.resync()}>Resync</button>
+    {#if devMode}<a href={`#/debug/${code}`}>Debug</a>{/if}
   </header>
 
   {#if $error}<p class="error">{$error}</p>{/if}

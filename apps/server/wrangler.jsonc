@@ -19,12 +19,19 @@
   "observability": {
     "enabled": true
   },
-  "environments": {
-    // Local/dev : `wrangler dev` — secrets dans .dev.vars (non committé).
-    "dev": {},
-    // Prod : `wrangler deploy --env prod` — secrets via `wrangler secret put`.
+  // Environnements Wrangler 4 (clé racine `env`) :
+  //  - top-level = dev local (`wrangler dev`, secrets dans .dev.vars non committé) ;
+  //  - `prod` = `wrangler deploy --env prod` (secrets via `wrangler secret put`).
+  //  Les bindings `durable_objects` ne sont PAS hérités : répétés dans prod.
+  "env": {
     "prod": {
-      "name": "game-4x-server-prod"
+      "name": "game-4x-server-prod",
+      "durable_objects": {
+        "bindings": [
+          { "name": "GAME", "class_name": "GameDO" },
+          { "name": "LOBBY", "class_name": "LobbyDO" }
+        ]
+      }
     }
   }
 }

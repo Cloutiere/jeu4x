@@ -1,18 +1,21 @@
 <script lang="ts">
   // App (L6) : routeur minimal par hash + garde de session.
-  // Routes : #/login · #/lobby · #/game/<code> · #/join/<code> (lien d'invitation).
+  // Routes : #/login · #/lobby · #/game/<code> · #/join/<code> (lien d'invitation)
+  //         · #/debug/<code> (mode reveal — dev uniquement, L0 Phase 3).
   import { onMount } from 'svelte';
   import { session, loadSession } from './lib/session.js';
   import Login from './pages/Login.svelte';
   import Lobby from './pages/Lobby.svelte';
   import Game from './pages/Game.svelte';
   import Join from './pages/Join.svelte';
+  import Debug from './pages/Debug.svelte';
 
   type Route =
     | { page: 'login' }
     | { page: 'lobby' }
     | { page: 'game'; code: string }
-    | { page: 'join'; code: string };
+    | { page: 'join'; code: string }
+    | { page: 'debug'; code: string };
 
   function parseHash(): Route {
     const hash = window.location.hash.replace(/^#/, '') || '/';
@@ -21,6 +24,8 @@
     if (game) return { page: 'game', code: game[1]! };
     const join = /^\/join\/([A-Z0-9]{6})$/.exec(hash);
     if (join) return { page: 'join', code: join[1]! };
+    const debug = /^\/debug\/([A-Z0-9]{6})$/.exec(hash);
+    if (debug) return { page: 'debug', code: debug[1]! };
     return { page: 'login' };
   }
 
@@ -51,6 +56,9 @@
   <Lobby />
 {:else if route.page === 'game'}
   <Game code={route.code} />
+{:else if route.page === 'debug'}
+  <!-- Mode reveal : la page affiche elle-même l'indisponibilité hors dev. -->
+  <Debug code={route.code} />
 {:else}
   <Login />
 {/if}
