@@ -547,14 +547,15 @@ describe('Phase B · R-57 · bonus défensif de la case de ville (T-02)', () => 
   });
 });
 
-describe('Phase C · R-60/R-61 · case travaillée et commerce', () => {
-  it('R-60 : auto-assignation à la meilleure case du rayon T-08b', () => {
+describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () => {
+  it('R-60 : auto-assignation — priorité nourriture > production > commerce, tie-break (q, r)', () => {
     const state = makeState({
-      terrainOverrides: { '2,0': 'foret' }, // score 3 > prairie (2)
+      terrainOverrides: { '1,0': 'foret' }, // 0/2/0 : la forêt perd face aux prairies 2/0/0 (nourriture d'abord)
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true }],
     });
     const { newState } = resolveTurn(state, {}, 1);
-    expect(cityAt(newState, 0, 0)!.workedTile).toBe('2,0');
+    // rayon T-08b = 1 : parmi les voisins prairie (2/0/0), seul voisin prairie praticable du rectangle : (0,1)
+    expect(cityAt(newState, 0, 0)!.workedTiles).toEqual(['0,1']);
   });
 
   it('R-61 : répartition science/or au curseur (reste entier à l’or)', () => {
@@ -579,7 +580,7 @@ describe('Phase C · R-60/R-61 · case travaillée et commerce', () => {
 describe('Phase C · R-62/R-63 · production et croissance', () => {
   function cityState(): GameState {
     return makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, production: { item: 'guerrier', progress: 9 } }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, production: { item: { kind: 'unit', id: 'guerrier' }, progress: 9 } }],
     });
   }
 
@@ -600,35 +601,38 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     };
     const { newState, events } = resolveTurn(state, {}, 1);
     expect(events.some((e) => e.type === 'UnitProduced')).toBe(false);
-    expect(cityAt(newState, 0, 0)!.production).toEqual({ item: 'guerrier', progress: 10 });
+    expect(cityAt(newState, 0, 0)!.production).toEqual({ item: { kind: 'unit', id: 'guerrier' }, progress: 10 });
   });
 
   it('R-62 : SetProduction remplace l’item en conservant la progression', () => {
     const state = cityState();
-    state.cities['c1']!.production = { item: 'colon', progress: 5 };
-    const { newState } = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: 'guerrier' }] }, 1);
-    expect(cityAt(newState, 0, 0)!.production).toEqual({ item: 'guerrier', progress: 6 });
+    state.cities['c1']!.production = { item: { kind: 'unit', id: 'colon' }, progress: 5 };
+    const { newState } = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'guerrier' } }] }, 1);
+    expect(cityAt(newState, 0, 0)!.production).toEqual({ item: { kind: 'unit', id: 'guerrier' }, progress: 6 });
   });
 
-  it('R-63 : croissance au seuil du palier (base × pop 🔶 — T-15 = 25 depuis le 30/08)', () => {
-    const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 22 }],
-    });
-    const { newState } = resolveTurn(state, {}, 1);
-    // nourriture du tour = 2 (ville) + 2 (prairie travaillée) = 4 → 22 + 4 = 26 ≥ 25
-    const city = cityAt(newState, 0, 0)!;
-    expect(city.pop).toBe(2);
-    expect(city.foodStored).toBe(1);
-  });
-
-  it('R-63 : sous le seuil T-15 (calibration 30/08) → pas de croissance', () => {
+  it('R-63 : croissance au seuil 10 × pop (T-15, règle Civ Rev — révision 30/08)', () => {
     const state = makeState({
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 8 }],
+    });
+    const { newState, events } = resolveTurn(state, {}, 1);
+    // nourriture du tour = 2 (ville) + 2 (prairie travaillée) = 4 → 8 + 4 = 12 ≥ 10
+    const city = cityAt(newState, 0, 0)!;
+    expect(city.pop).toBe(2);
+    expect(city.foodStored).toBe(2); // 12 − 10, seuil suivant 20 non atteint
+    expect(events.some((e) => e.type === 'PopulationGrew' && e.pop === 2)).toBe(true);
+    // R-60 : +1 pop = +1 citoyen auto-assigné
+    expect(city.workedTiles.length).toBe(2);
+  });
+
+  it('R-63 : sous le seuil 10 × pop → pas de croissance', () => {
+    const state = makeState({
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 2 }],
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
     expect(city.pop).toBe(1);
-    expect(city.foodStored).toBe(12);
+    expect(city.foodStored).toBe(6);
   });
 });
 
@@ -661,7 +665,7 @@ describe('Phase C · R-64/R-65 · fondation et capture de ville', () => {
       width: 12,
       height: 12,
       terrainOverrides: { '5,5': 'ville' },
-      cities: [{ id: 'c1', owner: 'p2', q: 5, r: 5, capital: true, pop: 2, production: { item: 'guerrier', progress: 5 } }],
+      cities: [{ id: 'c1', owner: 'p2', q: 5, r: 5, capital: true, pop: 2, production: { item: { kind: 'unit', id: 'guerrier' }, progress: 5 } }],
       units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4 }],
     });
     const { newState, events } = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }] }, 1);

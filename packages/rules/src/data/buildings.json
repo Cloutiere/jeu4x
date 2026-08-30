@@ -1,0 +1,44 @@
+{
+  "grenier": {
+    "id": "grenier",
+    "name": "Grenier",
+    "cost": 20,
+    "workRadiusBonus": 0,
+    "tileBonus": { "terrain": "plaine", "food": 1, "production": 0, "commerce": 0 }
+  },
+  "atelier": {
+    "id": "atelier",
+    "name": "Atelier",
+    "cost": 30,
+    "workRadiusBonus": 0,
+    "tileBonus": { "terrain": "colline", "food": 0, "production": 2, "commerce": 0 }
+  },
+  "mine_de_fer": {
+    "id": "mine_de_fer",
+    "name": "Mine de fer",
+    "cost": 40,
+    "workRadiusBonus": 0,
+    "tileBonus": { "terrain": "montagne", "food": 0, "production": 4, "commerce": 0 }
+  },
+  "comptoir_commercial": {
+    "id": "comptoir_commercial",
+    "name": "Comptoir commercial",
+    "cost": 30,
+    "workRadiusBonus": 0,
+    "tileBonus": { "terrain": "desert", "food": 0, "production": 0, "commerce": 2 }
+  },
+  "port": {
+    "id": "port",
+    "name": "Port",
+    "cost": 30,
+    "workRadiusBonus": 0,
+    "tileBonus": { "terrain": "eau", "food": 1, "production": 0, "commerce": 0 }
+  },
+  "tribunal": {
+    "id": "tribunal",
+    "name": "Tribunal",
+    "cost": 40,
+    "workRadiusBonus": 1,
+    "tileBonus": null
+  }
+}

@@ -28,6 +28,10 @@ export function eventLabel(event: GameEvent): string {
       return `Ville ${event.cityId} prise par ${event.toOwner}`;
     case 'UnitProduced':
       return `${event.unitType} produit par ${event.cityId}`;
+    case 'PopulationGrew':
+      return `${event.cityId} grandit — population ${event.pop}`;
+    case 'BuildingCompleted':
+      return `${event.building} achevé dans ${event.cityId}`;
     case 'DiplomaticIncident':
       return `Incident diplomatique entre ${event.between[0]} et ${event.between[1]}`;
     case 'Victory':

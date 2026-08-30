@@ -25,8 +25,9 @@ import {
 } from './hex.js';
 import type { Hex } from './hex.js';
 import { areAtWar, compareCityIds, compareUnitIds, nextId } from './state.js';
-import type { City, GameState, Order, PlayerId, TileKey, Unit, UnitId } from './state.js';
-import { TERRAINS, unitType } from './data.js';
+import type { City, GameState, Order, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
+import { TERRAINS, unitType, building, BUILDINGS } from './data.js';
+import { tileYield, workRadiusOf, tileWorkable } from './economy.js';
 import { combatRound, effectiveStrength } from './combat.js';
 import { computeVisibleTiles, recomputeVision } from './fog.js';
 import {
@@ -282,6 +283,7 @@ function applyFortifyOrders(board: Board, ordersByPlayer: Record<PlayerId, Order
           for (const m of order.members) cancel.add(m);
           break;
         case 'SetProduction':
+        case 'SetWorkedTile':
           break;
       }
     }
@@ -721,46 +723,87 @@ function allOrdersFlattened(ordersByPlayer: Record<PlayerId, Order[]>): Order[] 
 }
 
 // ---------------------------------------------------------------------------
-// Phase C — économie (RULES.md §8)
+// Phase C — économie (RULES.md §8, révision Phase 6 : R-60/R-61/R-63/R-66)
 // ---------------------------------------------------------------------------
 
-function tileHasYields(board: Board, hex: Hex): boolean {
-  const tile = board.st.map[tileKeyOf(hex)];
-  return !!tile && !!TERRAINS[tile.terrain]!.yields;
+/** Coût d'un item de production (unité ou bâtiment), null si id inconnu. */
+function productionItemCost(item: ProductionItem): number | null {
+  if (item.kind === 'unit') {
+    try {
+      return unitType(item.id).cost;
+    } catch {
+      return null;
+    }
+  }
+  return BUILDINGS[item.id]?.cost ?? null;
 }
 
-function yieldScore(board: Board, hex: Hex): number {
-  const y = TERRAINS[board.st.map[tileKeyOf(hex)]!.terrain]!.yields!;
-  return y.food + y.production + y.gold;
+/** La ville possède-t-elle déjà ce bâtiment ? (R-66 : non duplicable) */
+function hasBuilding(city: City, id: string): boolean {
+  return city.buildings.includes(id);
 }
 
-/** R-60 : meilleure case à travailler dans le rayon T-08b (déterministe). */
-function bestWorkedTile(board: Board, city: City): TileKey | null {
-  const candidates = hexesWithinRadius(city, CITY_WORK_RADIUS)
-    .filter((h) => hexDistance(h, city) >= 1)
-    .filter((h) => tileHasYields(board, h))
-    .filter((h) => !cityAt(board, h)) // une ville n'en travaille pas une autre
-    .sort((a, b) => yieldScore(board, b) - yieldScore(board, a) || compareHex(a, b));
-  return candidates.length ? tileKeyOf(candidates[0]!) : null;
+/**
+ * R-60 · re-validation des cases travaillées d'une ville (appelée en Phase C) :
+ * dans le rayon (bâtiments compris), travaillables, pas une case de ville,
+ * pas déjà travaillée par une AUTRE ville. Les citoyens excédentaires (pop
+ * baissée, capture) sont retirés en fin de liste.
+ */
+function validatedWorkedTiles(board: Board, city: City, takenByOthers: Set<TileKey>): TileKey[] {
+  const radius = workRadiusOf(city.buildings);
+  const cityHex = { q: city.q, r: city.r };
+  const cityKeys = new Set(
+    Object.keys(board.st.cities).map((id) => {
+      const c = board.st.cities[id]!;
+      return `${c.q},${c.r}`;
+    }),
+  );
+  const kept: TileKey[] = [];
+  for (const key of city.workedTiles) {
+    if (kept.length >= city.pop) break;
+    if (kept.includes(key)) continue;
+    const parsed = key.split(',');
+    const hex = { q: Number(parsed[0]), r: Number(parsed[1]) };
+    if (Math.abs(hex.q - cityHex.q) + Math.abs(hex.r - cityHex.r) === 0) continue; // centre : gratuit, jamais assigné
+    if (hexDistance(cityHex, hex) > radius) continue;
+    if (!tileWorkable(board.st.map, key)) continue;
+    if (cityKeys.has(key)) continue;
+    if (takenByOthers.has(key)) continue;
+    kept.push(key);
+  }
+  return kept;
 }
 
-function workedYields(board: Board, key: TileKey | null): { food: number; production: number; gold: number } {
-  if (!key) return { food: 0, production: 0, gold: 0 };
-  const tile = board.st.map[key];
-  const y = tile ? TERRAINS[tile.terrain]!.yields : undefined;
-  return y ?? { food: 0, production: 0, gold: 0 };
-}
-
-function unitTypeSafe(id: string): boolean {
-  try {
-    unitType(id);
-    return true;
-  } catch {
-    return false;
+/**
+ * Complète l'assignation d'une ville jusqu'à `pop` citoyens : meilleures
+ * cases libres par priorité nourriture > production > commerce, tie-break
+ * (q, r) (R-60/R-81, rendements effectifs — bonus bâtiments compris).
+ */
+function fillWorkedTiles(board: Board, city: City, taken: Set<TileKey>): void {
+  const radius = workRadiusOf(city.buildings);
+  const cityHex = { q: city.q, r: city.r };
+  const cityKeys = new Set(Object.values(board.st.cities).map((c) => `${c.q},${c.r}`));
+  const candidates = hexesWithinRadius(cityHex, radius)
+    .filter((h) => hexDistance(h, cityHex) >= 1)
+    .map((h) => ({ key: tileKeyOf(h), hex: h }))
+    .filter(({ key }) => tileWorkable(board.st.map, key) && !cityKeys.has(key) && !taken.has(key))
+    .map(({ key, hex }) => ({ key, hex, y: tileYield(board.st.map, city.buildings, key)! }))
+    .sort(
+      (a, b) =>
+        b.y.food - a.y.food ||
+        b.y.production - a.y.production ||
+        b.y.commerce - a.y.commerce ||
+        compareHex(a.hex, b.hex),
+    );
+  for (const c of candidates) {
+    if (city.workedTiles.length >= city.pop) break;
+    if (city.workedTiles.includes(c.key)) continue;
+    city.workedTiles.push(c.key);
+    taken.add(c.key);
   }
 }
 
-/** R-62 : SetProduction — la progression est conservée au remplacement. */
+/** R-62/R-66 : SetProduction — items unités ET bâtiments ; progression conservée. */
 function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
   const setOrders: Array<Extract<Order, { type: 'SetProduction' }>> = [];
   for (const playerId of Object.keys(ordersByPlayer).sort()) {
@@ -768,7 +811,9 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
       if (order.type !== 'SetProduction') continue;
       const city = board.st.cities[order.cityId];
       if (!city || city.owner !== playerId) continue;
-      if (!unitTypeSafe(order.item)) continue;
+      if (productionItemCost(order.item) === null) continue;
+      // R-66 : un bâtiment déjà possédé n'est pas (re)constructible.
+      if (order.item.kind === 'building' && hasBuilding(city, order.item.id)) continue;
       setOrders.push(order);
     }
   }
@@ -778,6 +823,80 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
     const progress = city.production?.progress ?? 0;
     city.production = { item: order.item, progress };
   }
+}
+
+/**
+ * R-60 · SetWorkedTile — assignation manuelle d'un citoyen (ordre Phase 6).
+ * Validations : ville possédée, case null (désassignation) ou dans le rayon
+ * de travail (bâtiments compris), travaillable, pas une case de ville, pas
+ * travaillée par une AUTRE ville. Assigner une case libre : si tous les
+ * citoyens sont employés, ÉCHANGE — la case la moins intéressante de la
+ * ville (même priorité, tie-break (q, r) croissant : la dernière du classement)
+ * cède sa place (interprétation documentée, 🔶).
+ */
+function applySetWorkedTile(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
+  const orders: Array<Extract<Order, { type: 'SetWorkedTile' }>> = [];
+  for (const playerId of Object.keys(ordersByPlayer).sort()) {
+    for (const order of ordersByPlayer[playerId] ?? []) {
+      if (order.type !== 'SetWorkedTile') continue;
+      const city = board.st.cities[order.cityId];
+      if (!city || city.owner !== playerId) continue;
+      orders.push(order);
+    }
+  }
+  orders.sort((a, b) => compareCityIds(a.cityId, b.cityId));
+  const takenByOthers = takenTilesExcluding(board, null);
+  for (const order of orders) {
+    const city = board.st.cities[order.cityId]!;
+    if (order.tile === null) {
+      // Désassignation : le dernier citoyen assigné est retiré (déterministe).
+      city.workedTiles.pop();
+      continue;
+    }
+    const parsed = order.tile.split(',');
+    const hex = { q: Number(parsed[0]), r: Number(parsed[1]) };
+    const cityHex = { q: city.q, r: city.r };
+    if (!tileWorkable(board.st.map, order.tile)) continue;
+    if (hexDistance(cityHex, hex) > workRadiusOf(city.buildings)) continue;
+    if (takenByOthers.has(order.tile)) continue; // travaillée par une autre ville (ou ville elle-même)
+    if (city.workedTiles.includes(order.tile)) continue; // déjà travaillée par cette ville : no-op
+    if (city.workedTiles.length < city.pop) {
+      city.workedTiles.push(order.tile);
+    } else {
+      // Échange : remplace la case la moins intéressante (dernière du classement).
+      const ranked = [...city.workedTiles]
+        .map((key) => {
+          const p = key.split(',');
+          return { key, hex: { q: Number(p[0]), r: Number(p[1]) }, y: tileYield(board.st.map, city.buildings, key)! };
+        })
+        .sort(
+          (a, b) =>
+            a.y.food - b.y.food ||
+            a.y.production - b.y.production ||
+            a.y.commerce - b.y.commerce ||
+            compareHex(a.hex, b.hex),
+        );
+      const worst = ranked[ranked.length - 1];
+      if (!worst) continue;
+      city.workedTiles = city.workedTiles.map((k) => (k === worst.key ? order.tile! : k));
+    }
+    takenByOthers.add(order.tile);
+  }
+}
+
+/** Cases travaillées par les villes, hors celles de la ville donnée (null = toutes). */
+function takenTilesExcluding(board: Board, cityId: string | null): Set<TileKey> {
+  const taken = new Set<TileKey>();
+  for (const id of Object.keys(board.st.cities).sort()) {
+    if (id === cityId) continue;
+    for (const key of board.st.cities[id]!.workedTiles) taken.add(key);
+  }
+  // Une case de ville n'est jamais travaillable.
+  for (const id of Object.keys(board.st.cities).sort()) {
+    const c = board.st.cities[id]!;
+    taken.add(`${c.q},${c.r}`);
+  }
+  return taken;
 }
 
 /** R-65 : ville sans défenseur investie → capture (capitale = victoire). */
@@ -793,7 +912,8 @@ function processCityCaptures(board: Board): void {
     city.owner = invader.owner;
     city.pop = Math.max(1, city.pop - 1);
     city.production = null;
-    city.workedTile = null;
+    city.workedTiles = [];
+    city.buildings = []; // R-66 : les bâtiments sont perdus à la capture (le captreur ne les récupère pas)
     emit(board, { type: 'CityCaptured', cityId, fromOwner, toOwner: invader.owner, at: hex });
     if (city.capital) {
       board.st.winner = invader.owner; // R-65 : victoire par domination
@@ -832,7 +952,8 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       capital: !ownerHasCity,
       foodStored: 0,
       production: null,
-      workedTile: null,
+      workedTiles: [],
+      buildings: [],
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
     delete board.st.units[unit.id];
@@ -840,76 +961,115 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
   }
 }
 
-/** R-60 à R-63 : rendements, science/or, croissance, production. */
+/** R-60/R-61/R-63/R-66 : rendements, répartition or/science, croissance, production. */
 function processEconomy(board: Board): void {
+  // Une case travaillée l'est par exactement une ville (propriété R-60) :
+  // re-validation dans l'ordre des cityIds, qui arbitre tout conflit.
+  // Interprétation (documentée) : le re-remplissage automatique ne joue QUE
+  // si des cases sont devenues indisponibles (ou ville neuve) — une
+  // désassignation MANUELLE (SetWorkedTile null) laisse le citoyen au repos.
+  const taken = new Set<TileKey>();
+  for (const cityId of Object.keys(board.st.cities).sort()) {
+    const city = board.st.cities[cityId]!;
+    const before = city.workedTiles.length;
+    city.workedTiles = validatedWorkedTiles(board, city, taken);
+    const removed = before - city.workedTiles.length;
+    for (const key of city.workedTiles) taken.add(key);
+    if (removed > 0 || city.workedTiles.length === 0) fillWorkedTiles(board, city, taken);
+  }
+
   for (const cityId of Object.keys(board.st.cities).sort()) {
     const city = board.st.cities[cityId]!;
     const player = board.st.players[city.owner]!;
 
-    // R-60 : une seule case travaillée ; re-validation puis auto-assignation.
-    let workedValid = false;
-    if (city.workedTile) {
-      const hexes = hexesWithinRadius(city, CITY_WORK_RADIUS).map(tileKeyOf);
-      workedValid =
-        hexes.includes(city.workedTile) &&
-        tileHasYields(board, { q: Number(city.workedTile.split(',')[0]), r: Number(city.workedTile.split(',')[1]) }) &&
-        !cityAt(board, { q: Number(city.workedTile.split(',')[0]), r: Number(city.workedTile.split(',')[1]) });
+    // Rendements : centre-ville automatique et gratuit + Σ cases travaillées
+    // (base §2 + bonus bâtiments par terrain travaillé, R-66).
+    const cityTile = TERRAINS['ville']!.yields!;
+    let food = cityTile.food;
+    let rawProduction = cityTile.production;
+    let commerce = cityTile.commerce;
+    for (const key of city.workedTiles) {
+      const y = tileYield(board.st.map, city.buildings, key)!;
+      food += y.food;
+      rawProduction += y.production;
+      commerce += y.commerce;
     }
-    if (!workedValid) city.workedTile = bestWorkedTile(board, city);
-
-    const cityTile = TERRAINS['ville']!.yields!; // la case de ville produit toujours (R-60)
-    const worked = workedYields(board, city.workedTile);
-    const food = cityTile.food + worked.food;
     const prodMult = 1 + POP_PRODUCTION_BONUS * (city.pop - 1); // R-63 🔶
-    const production = Math.floor((cityTile.production + worked.production) * prodMult);
-    const commerce = cityTile.gold + worked.gold;
-    const scienceGain = Math.floor(commerce * player.scienceRatio); // R-61 🔶
+    const production = Math.floor(rawProduction * prodMult);
+    // R-61 : le commerce est réparti or/science par le curseur global (reste
+    // entier à l'or) — le commerce n'est JAMAIS crédité directement.
+    const scienceGain = Math.floor(commerce * player.scienceRatio);
     player.gold += commerce - scienceGain;
     player.science += scienceGain;
 
-    // R-63 : croissance quand la nourriture cumulée atteint le seuil du palier.
+    // R-63 : croissance au seuil 10 × pop (T-15) ; +1 pop = +1 citoyen
+    // (auto-assigné) et +T-16 production par pop au-delà de la première.
     city.foodStored += food;
     let threshold = GROWTH_BASE * city.pop;
     while (city.foodStored >= threshold) {
       city.foodStored -= threshold;
       city.pop += 1;
+      emit(board, { type: 'PopulationGrew', cityId, owner: city.owner, pop: city.pop, at: { q: city.q, r: city.r } });
+      if (city.workedTiles.length < city.pop) fillWorkedTiles(board, city, taken);
       threshold = GROWTH_BASE * city.pop;
     }
 
-    // R-62 : un seul item, progression conservée ; apparition sur la case de ville.
-    if (city.production && unitTypeSafe(city.production.item)) {
-      const stats = unitType(city.production.item);
-      city.production.progress += production;
-      if (city.production.progress >= stats.cost) {
-        const hex = { q: city.q, r: city.r };
-        if (!occupiedByUnit(board, hex)) {
-          const unitId = nextId(board.st.units, 'u');
-          board.st.units[unitId] = {
-            id: unitId,
-            type: city.production.item,
-            owner: city.owner,
-            q: hex.q,
-            r: hex.r,
-            hp: stats.hpMax,
-            mp: stats.movement,
-            veteran: false,
-            isArmy: false,
-            order: null,
-            detainedBy: null,
-            fortified: false,
-          };
-          emit(board, {
-            type: 'UnitProduced',
-            unitId,
-            cityId,
-            owner: city.owner,
-            unitType: city.production.item,
-            at: hex,
-          });
-          city.production = null; // 🔶 file vidée après complétion
-        } else {
-          city.production.progress = stats.cost; // en attente 🔶
+    // R-62/R-66 : un seul item, progression conservée ; unité posée sur la
+    // case de ville (si libre), bâtiment ajouté à la ville (permanent).
+    if (city.production) {
+      const cost = productionItemCost(city.production.item);
+      if (cost !== null) {
+        city.production.progress += production;
+        if (city.production.progress >= cost) {
+          if (city.production.item.kind === 'unit') {
+            const stats = unitType(city.production.item.id);
+            const hex = { q: city.q, r: city.r };
+            if (!occupiedByUnit(board, hex)) {
+              const unitId = nextId(board.st.units, 'u');
+              board.st.units[unitId] = {
+                id: unitId,
+                type: city.production.item.id,
+                owner: city.owner,
+                q: hex.q,
+                r: hex.r,
+                hp: stats.hpMax,
+                mp: stats.movement,
+                veteran: false,
+                isArmy: false,
+                order: null,
+                detainedBy: null,
+                fortified: false,
+              };
+              emit(board, {
+                type: 'UnitProduced',
+                unitId,
+                cityId,
+                owner: city.owner,
+                unitType: city.production.item.id,
+                at: hex,
+              });
+              city.production = null; // 🔶 file vidée après complétion
+            } else {
+              city.production.progress = cost; // en attente 🔶
+            }
+          } else {
+            // Bâtiment (R-66) : permanent, non duplicable, aucun besoin de case.
+            const buildingId = city.production.item.id;
+            if (!hasBuilding(city, buildingId)) {
+              city.buildings.push(buildingId);
+              emit(board, {
+                type: 'BuildingCompleted',
+                cityId,
+                owner: city.owner,
+                building: buildingId,
+                at: { q: city.q, r: city.r },
+              });
+            }
+            city.production = null;
+          }
         }
+      } else {
+        city.production = null; // item inconnu : file purgée
       }
     }
   }
@@ -1044,10 +1204,11 @@ export function resolveTurn(
   }
   allocateRetreats(board);
 
-  // ---- Phase C : économie (R-60 à R-65).
+  // ---- Phase C : économie (R-60 à R-66).
   applySetProduction(board, ordersByPlayer);
   processCityCaptures(board);
   processFoundCity(board, ordersByPlayer);
+  applySetWorkedTile(board, ordersByPlayer);
   processEconomy(board);
 
   // ---- Phase D : vision (R-70), soins (R-71), PM (R-72).

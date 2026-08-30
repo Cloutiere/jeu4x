@@ -9,7 +9,7 @@
    * JSON), entités = celles de l'état filtré uniquement.
    */
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
-  import { hexToPixel, tileKeyOf, unitType } from '@game/rules';
+  import { hexToPixel, tileKeyOf, unitType, BUILDINGS, TERRAINS } from '@game/rules';
   import type { GameState, Hex } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -39,9 +39,17 @@
     onReady?(api: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void }): void;
     /** Signal d'activité du playback (bannière « Relecture » côté page). */
     onPlaybackActive?(active: boolean): void;
+    /** Phase 6 L3 : overlay des rendements N/P/C (bouton de bascule). */
+    showYields?: boolean;
   }
 
-  let { client, ui, playback, onAction, onRightClick, onConfirmDraft, onCancelDraft, onReady, onPlaybackActive }: Props = $props();
+  let { client, ui, playback, onAction, onRightClick, onConfirmDraft, onCancelDraft, onReady, onPlaybackActive, showYields = false }: Props = $props();
+
+  // La bascule de l'overlay de rendements reconstruit la surcouche.
+  $effect(() => {
+    void showYields;
+    overlayDirty = true;
+  });
 
   let host: HTMLDivElement;
 
@@ -236,7 +244,9 @@
       const prodFill = c.getChildByLabel('prodFill') as Sprite;
       const popText = c.getChildByLabel('pop') as Text;
       if (city.production) {
-        const cost = unitType(city.production.item).cost;
+        // Coût selon le type d'item (unité ou bâtiment — R-66, Phase 6).
+        const item = city.production.item;
+        const cost = item.kind === 'unit' ? unitType(item.id).cost : (BUILDINGS[item.id]?.cost ?? Infinity);
         prodFill.visible = true;
         prodFill.width = 76 * Math.max(0.04, Math.min(1, city.production.progress / cost));
       } else {
@@ -331,15 +341,43 @@
       overlayLayer.addChild(gr);
     }
 
-    // Cases travaillées (R-60) des villes amies — présentes dans l'état.
+    // Cases travaillées (R-60, Phase 6) : cadre de la couleur du propriétaire
+    // sur chaque case travaillée par une ville visible (la ville sélectionnée
+    // reçoit en plus un cadre intérieur plus marqué).
     for (const city of Object.values(scene.state.cities)) {
-      if (city.owner !== scene.myId || !city.workedTile) continue;
-      const [q, r] = city.workedTile.split(',').map(Number);
-      if (q === undefined || r === undefined) continue;
-      const gr = new Graphics();
-      gr.poly(hexLocalPoints(HEX_SIZE - 14)).stroke({ width: 3, color: 0x9be27a, alpha: 0.9 });
-      gr.position.copyFrom(hexToPixel({ q, r }, HEX_SIZE));
-      overlayLayer.addChild(gr);
+      if (!scene.explored.has(tileKeyOf(city))) continue;
+      if (!city.workedTiles || city.workedTiles.length === 0) continue;
+      const color = playerColor(city.owner);
+      for (const key of city.workedTiles) {
+        const [q, r] = key.split(',').map(Number);
+        if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+        const gr = new Graphics();
+        gr.poly(hexLocalPoints(HEX_SIZE - 14)).stroke({ width: 3, color, alpha: 0.9 });
+        gr.poly(hexLocalPoints(HEX_SIZE - 22)).stroke({ width: 1.5, color, alpha: 0.5 });
+        gr.position.copyFrom(hexToPixel({ q, r }, HEX_SIZE));
+        overlayLayer.addChild(gr);
+      }
+    }
+
+    // Overlay des rendements N/P/C (Phase 6 L3, masquable) sur les cases
+    // explorées ayant des rendements.
+    if (showYields) {
+      for (const [key, tile] of Object.entries(scene.state.map)) {
+        if (!scene.explored.has(key)) continue;
+        const y = TERRAINS[tile.terrain]?.yields;
+        if (!y) continue;
+        const [q, r] = key.split(',').map(Number);
+        if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+        const text = new Text({
+          text: `${y.food}/${y.production}/${y.commerce}`,
+          style: { fontFamily: 'system-ui, sans-serif', fontSize: 17, fill: 0xffffff, fontWeight: '600', stroke: { color: 0x1b1b22, width: 3 } },
+        });
+        text.anchor.set(0.5, 0.5);
+        text.alpha = 0.85;
+        const p = hexToPixel({ q, r }, HEX_SIZE);
+        text.position.set(p.x, p.y + HEX_SIZE * 0.45);
+        overlayLayer.addChild(text);
+      }
     }
 
     // Ordres de déplacement PERSISTANTS (Phase 5.5 L1) : flèche de l'origine

@@ -41,6 +41,10 @@ export type GameEvent =
   | { seq: number; type: 'CityCaptured'; cityId: CityId; fromOwner: PlayerId; toOwner: PlayerId; at: Hex }
   /** Production d'une unité par une ville (R-62). */
   | { seq: number; type: 'UnitProduced'; unitId: UnitId; cityId: CityId; owner: PlayerId; unitType: string; at: Hex }
+  /** Croissance d'une ville : +1 pop = +1 citoyen (R-63, Phase 6). */
+  | { seq: number; type: 'PopulationGrew'; cityId: CityId; owner: PlayerId; pop: number; at: Hex }
+  /** Bâtiment construit par une ville (R-66, Phase 6). */
+  | { seq: number; type: 'BuildingCompleted'; cityId: CityId; owner: PlayerId; building: string; at: Hex }
   /** Point d'accroche diplomatie (R-58-b) — inactif en v1 (guerre permanente). */
   | { seq: number; type: 'DiplomaticIncident'; between: [PlayerId, PlayerId]; at: Hex }
   /** Victoire — v1 : 'domination' (capture de la capitale adverse, R-65) ou 'forfait' (T-06). */
@@ -105,6 +109,16 @@ export function eventRefs(event: GameEvent): EventRefs {
       break;
     case 'UnitProduced':
       refs.unitIds.push(event.unitId);
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner);
+      hex(event.at);
+      break;
+    case 'PopulationGrew':
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner);
+      hex(event.at);
+      break;
+    case 'BuildingCompleted':
       refs.cityIds.push(event.cityId);
       refs.players.push(event.owner);
       hex(event.at);

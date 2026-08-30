@@ -133,6 +133,15 @@ function buildTileGraphics(): Record<TerrainId, Graphics> {
     gr.poly([TILE_CX + 66, TILE_CY - 16, TILE_CX + 54, TILE_CY + 2, TILE_CX + 80, TILE_CY]).fill({ color: 0xdcdad2 });
     out.montagne = gr;
   }
+  // Désert — sable clair, dunes discrètes (Phase 6, RULES.md §2).
+  {
+    const gr = g();
+    tileBase(gr, 0xe0cd8f);
+    gr.ellipse(TILE_CX - 28, TILE_CY + 22, 40, 11).fill({ color: 0xd2bc78 });
+    gr.ellipse(TILE_CX + 34, TILE_CY - 18, 30, 9).fill({ color: 0xeadfae });
+    gr.ellipse(TILE_CX + 6, TILE_CY + 44, 26, 8).fill({ color: 0xc9b26e });
+    out.desert = gr;
+  }
   // Eau — bleu profond, lignes de vagues claires (T-11 : infranchissable v1).
   {
     const gr = g();
@@ -325,6 +334,7 @@ const TILE_ASSETS: Record<TerrainId, string> = {
   foret: 'tile_foret',
   colline: 'tile_colline',
   montagne: 'tile_montagne',
+  desert: 'tile_desert',
   eau: 'tile_eau',
   ville: 'tile_ville_sol',
 };

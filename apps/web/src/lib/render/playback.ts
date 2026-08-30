@@ -57,6 +57,8 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   CityFounded: 320,
   CityCaptured: 380,
   UnitProduced: 300,
+  PopulationGrew: 320,
+  BuildingCompleted: 320,
   DiplomaticIncident: 300,
   Victory: 400,
   TurnResolved: 140,
@@ -67,6 +69,8 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   CityFounded: 'good',
   CityCaptured: 'bad',
   UnitProduced: 'info',
+  PopulationGrew: 'good',
+  BuildingCompleted: 'good',
   Captured: 'bad',
   DiplomaticIncident: 'info',
   Victory: 'good',
@@ -254,6 +258,10 @@ export class Playback {
         this.pushFx(ev.at, 'good', dur);
         break;
       case 'UnitProduced':
+        this.pushFx(ev.at, 'good', dur);
+        break;
+      case 'PopulationGrew':
+      case 'BuildingCompleted':
         this.pushFx(ev.at, 'good', dur);
         break;
       default:

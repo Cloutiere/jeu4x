@@ -1,14 +1,16 @@
 /**
  * Tables de données chargées (content-driven — DESIGN.md §4.2) : les stats
- * d'unités et les terrains vivent en JSON ; ajouter du contenu ne touche pas
- * au code moteur. Les constantes T-xx restent dans constants.ts.
+ * d'unités, les terrains et les bâtiments vivent en JSON ; ajouter du contenu
+ * ne touche pas au code moteur. Les constantes T-xx restent dans constants.ts.
  */
 import unitsJson from './data/units.json' with { type: 'json' };
 import terrainJson from './data/terrain.json' with { type: 'json' };
-import type { TerrainData, TerrainId, UnitTypeData } from './types.js';
+import buildingsJson from './data/buildings.json' with { type: 'json' };
+import type { BuildingData, TerrainData, TerrainId, UnitTypeData } from './types.js';
 
 export const UNIT_TYPES: Record<string, UnitTypeData> = unitsJson as Record<string, UnitTypeData>;
 export const TERRAINS: Record<string, TerrainData> = terrainJson as Record<string, TerrainData>;
+export const BUILDINGS: Record<string, BuildingData> = buildingsJson as Record<string, BuildingData>;
 
 export function unitType(id: string): UnitTypeData {
   const t = UNIT_TYPES[id];
@@ -20,6 +22,13 @@ export function terrain(id: TerrainId): TerrainData {
   const t = TERRAINS[id];
   if (!t) throw new Error(`Terrain inconnu : ${id}`);
   return t;
+}
+
+/** R-66 : bâtiment par id (Grenier, Atelier, Mine de fer, Comptoir, Port, Tribunal). */
+export function building(id: string): BuildingData {
+  const b = BUILDINGS[id];
+  if (!b) throw new Error(`Bâtiment inconnu : ${id}`);
+  return b;
 }
 
 /**

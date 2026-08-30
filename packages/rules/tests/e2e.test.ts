@@ -100,13 +100,13 @@ describe('Campagne multi-tours (critère 2)', () => {
     step(
       {
         p1: [
-          { type: 'SetProduction', cityId: newCity.id, item: 'guerrier' },
+          { type: 'SetProduction', cityId: newCity.id, item: { kind: 'unit', id: 'guerrier' } },
           // pas de nouvel ordre Move pour u1 : son chemin gelé reprend
         ],
       },
       15,
     );
-    expect(state.cities[newCity.id]!.production).toMatchObject({ item: 'guerrier' });
+    expect(state.cities[newCity.id]!.production).toMatchObject({ item: { kind: 'unit', id: 'guerrier' } });
     expect(unitPos(state, 'u1')).toEqual({ q: 2, r: 0 }); // reprise multi-tours
 
     // Bilan de campagne.

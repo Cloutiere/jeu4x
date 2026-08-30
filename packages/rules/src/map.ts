@@ -194,7 +194,8 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       capital: true,
       foodStored: 0,
       production: null,
-      workedTile: null,
+      workedTiles: [],
+      buildings: [],
     };
     // La case de capitale devient une case de ville (RULES.md §2).
     mapRecord[tileKeyOf(spawn.capital)] = { terrain: 'ville', resource: null };

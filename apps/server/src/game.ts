@@ -69,8 +69,16 @@ interface WsAttachment {
 
 /** Sujet d'un ordre : remplace l'ordre brouillon existant du même sujet. */
 function sameSubject(a: Order, b: Order): boolean {
-  if (a.type === 'SetProduction' || b.type === 'SetProduction') {
-    return a.type === 'SetProduction' && b.type === 'SetProduction' && a.cityId === b.cityId;
+  if (a.type === 'SetProduction' || b.type === 'SetProduction' || a.type === 'SetWorkedTile' || b.type === 'SetWorkedTile') {
+    // Ordres de ville : un seul brouillon par ville et par type de sujet.
+    if (a.type === b.type) {
+      return (
+        (a.type === 'SetProduction' || a.type === 'SetWorkedTile') &&
+        (b.type === 'SetProduction' || b.type === 'SetWorkedTile') &&
+        a.cityId === b.cityId
+      );
+    }
+    return false;
   }
   if (a.type === 'FormArmy' && b.type === 'FormArmy') {
     return [...a.members].sort().join(',') === [...b.members].sort().join(',');
@@ -113,8 +121,19 @@ function orderShapeError(order: unknown): string | null {
       return Array.isArray(o.members) && o.members.length === 3 && new Set(o.members).size === 3 && o.members.every((m) => typeof m === 'string') && isHex(o.rally)
         ? null
         : 'membres/rendez-vous invalides';
-    case 'SetProduction':
-      return typeof o.cityId === 'string' && typeof o.item === 'string' ? null : 'ville/item invalides';
+    case 'SetProduction': {
+      if (typeof o.cityId !== 'string') return 'ville invalide';
+      const item = o.item as Record<string, unknown> | undefined;
+      if (!item || typeof item !== 'object') return 'item invalide';
+      if (item.kind !== 'unit' && item.kind !== 'building') return 'kind d’item invalide';
+      return typeof item.id === 'string' ? null : 'id d’item invalide';
+    }
+    case 'SetWorkedTile':
+      // tile : clé "q,r" ou null (désassignation) — la validité métier (rayon,
+      // case libre, travaillable) est re-vérifiée par le moteur à la résolution.
+      return typeof o.cityId === 'string' && (o.tile === null || typeof o.tile === 'string')
+        ? null
+        : 'ville/case invalides';
     default:
       return 'type d\'ordre inconnu';
   }
@@ -476,6 +495,7 @@ export class GameDO {
       case 'FormArmy':
         return order.members.every(ownsUnit) ? null : 'une des unités est inconnue ou non possédée';
       case 'SetProduction':
+      case 'SetWorkedTile':
         return cities[order.cityId]?.owner === engineId ? null : `ville ${order.cityId} inconnue ou non possédée`;
       default:
         return 'ordre inconnu';
@@ -492,7 +512,10 @@ export class GameDO {
     const before = this.orders[engineId] ?? [];
     this.orders[engineId] =
       cityId !== undefined
-        ? before.filter((o) => !(o.type === 'SetProduction' && o.cityId === cityId))
+        ? before.filter(
+            (o) =>
+              !((o.type === 'SetProduction' || o.type === 'SetWorkedTile') && o.cityId === cityId),
+          )
         : before.filter((o) => !orderTouchesUnit(o, unitId!));
     const removed = this.orders[engineId].length !== before.length;
     if (removed) await this.state.storage.put({ orders: this.orders });

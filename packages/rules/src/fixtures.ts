@@ -43,6 +43,10 @@ export interface CitySpec {
   capital?: boolean;
   foodStored?: number;
   production?: City['production'];
+  /** Cases travaillées (R-60) — sinon [] (auto-assignées en Phase C). */
+  workedTiles?: string[];
+  /** Bâtiments possédés (R-66). */
+  buildings?: string[];
 }
 
 export interface MakeStateOptions {
@@ -140,7 +144,8 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       capital: spec.capital ?? false,
       foodStored: spec.foodStored ?? 0,
       production: spec.production ?? null,
-      workedTile: null,
+      workedTiles: spec.workedTiles ?? [],
+      buildings: spec.buildings ?? [],
     };
   });
 

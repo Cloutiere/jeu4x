@@ -7,6 +7,7 @@
  * s'exécutera au chargement côté serveur (lazy-load du GameDO).
  */
 import type { TerrainId } from './types.js';
+import { TERRAINS } from './data.js';
 
 export type PlayerId = string;
 export type UnitId = string;
@@ -28,8 +29,19 @@ export type Order =
   | { type: 'Hold'; unitId: UnitId }
   /** Fortification permanente (R-33) — non consommé, annulé par tout autre ordre. */
   | { type: 'Fortify'; unitId: UnitId }
-  /** File de production d'une ville (R-62) — progression conservée. */
-  | { type: 'SetProduction'; cityId: CityId; item: string };
+  /** File de production d'une ville (R-62) — progression conservée. Items :
+   *  unités ET bâtiments (R-66, Phase 6). */
+  | { type: 'SetProduction'; cityId: CityId; item: ProductionItem }
+  /** R-60 (Phase 6) : assigne un citoyen à une case (rayon de travail, libre,
+   *  travaillable) ; désassigner = cibler null. Un ciblage d'une case déjà
+   *  travaillée par la MÊME ville est un échange (re-assignation). */
+  | { type: 'SetWorkedTile'; cityId: CityId; tile: TileKey | null };
+
+/** Item de production (R-62/R-66) : une unité ou un bâtiment. */
+export interface ProductionItem {
+  kind: 'unit' | 'building';
+  id: string;
+}
 
 export interface Tile {
   terrain: TerrainId;
@@ -59,7 +71,7 @@ export interface Unit {
 }
 
 export interface CityProduction {
-  item: string;
+  item: ProductionItem;
   progress: number;
 }
 
@@ -74,8 +86,11 @@ export interface City {
   /** Nourriture cumulée vers le prochain palier (R-63). */
   foodStored: number;
   production: CityProduction | null;
-  /** Case travaillée (R-60) — clé "q,r", null = auto-assignation en Phase C. */
-  workedTile: TileKey | null;
+  /** R-60 (Phase 6) : cases travaillées par les citoyens (≤ pop, sans le
+   *  centre-ville, exploité gratuitement). Clés "q,r". */
+  workedTiles: TileKey[];
+  /** R-66 : bâtiments construits (permanents ; perdus si la ville est capturée). */
+  buildings: string[];
 }
 
 export interface Vision {
@@ -135,9 +150,37 @@ export function areAtWar(state: GameState, a: PlayerId, b: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 type AnyState = Record<string, unknown>;
+
+/**
+ * Auto-assignation R-60 pour la migration v3 → v4 (implémentation locale :
+ * la migration doit rester stable même si economy.ts évolue). Priorité
+ * nourriture > production > commerce, tie-break (q, r) — R-81.
+ */
+function migrationAssign(map: Record<string, { terrain: string }>, city: Record<string, unknown>): string[] {
+  const radius = 1 + (Array.isArray(city.buildings) && city.buildings.includes('tribunal') ? 1 : 0);
+  const q0 = Number(city.q);
+  const r0 = Number(city.r);
+  const pop = Number(city.pop ?? 1);
+  const candidates: Array<{ key: string; f: number; p: number; c: number }> = [];
+  for (const [key, tile] of Object.entries(map).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    const parsed = /^(-?\d+),(-?\d+)$/.exec(key);
+    if (!parsed) continue;
+    const dq = Number(parsed[1]) - q0;
+    const dr = Number(parsed[2]) - r0;
+    const dist = (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+    if (dist < 1 || dist > radius) continue;
+    const yields = TERRAINS[tile.terrain]?.yields;
+    if (!yields) continue;
+    candidates.push({ key, f: yields.food, p: yields.production, c: yields.commerce });
+  }
+  return candidates
+    .sort((a, b) => b.f - a.f || b.p - a.p || b.c - a.c || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+    .slice(0, pop)
+    .map((c) => c.key);
+}
 
 /**
  * Migrations v(n-1) → v(n), indexées par version cible. v1 = état initial :
@@ -180,6 +223,40 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       };
     }
     return { ...state, units: migrated };
+  },
+  /**
+   * v3 → v4 : économie Phase 6 (R-60/R-66). Trois transformations :
+   *  - `workedTile` (case unique) → `workedTiles` (citoyens, ≤ pop) — valeur
+   *    par défaut = auto-assignation déterministe de l'état chargé (priorité
+   *    nourriture > production > commerce, tie-break (q, r)) ;
+   *  - `production.item` string (unité) → `{ kind: 'unit', id }` (items
+   *    étendus unités + bâtiments, R-66) ;
+   *  - `buildings: []` (champ additif — aucun état v3 n'a de bâtiment).
+   */
+  4: (state) => {
+    const map = (state.map ?? {}) as Record<string, { terrain: string }>;
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      // workedTiles par défaut = auto-assignation déterministe de l'état
+      // chargé (l'ancienne workedTile unique, posée par le même algorithme,
+      // est recalculée — plus robuste qu'un report de valeur périmée).
+      const workedTiles = migrationAssign(map, c);
+      const rawItem = (c.production as { item?: unknown } | null)?.item;
+      const item =
+        typeof rawItem === 'string' ? { kind: 'unit', id: rawItem } : (rawItem as unknown);
+      const { workedTile: _drop, ...rest } = c;
+      void _drop;
+      migrated[id] = {
+        ...rest,
+        workedTiles,
+        buildings: Array.isArray(c.buildings) ? c.buildings : [],
+        production:
+          c.production && typeof c.production === 'object' ? { ...(c.production as object), item } : c.production,
+      };
+    }
+    return { ...state, cities: migrated };
   },
 };
 

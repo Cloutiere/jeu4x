@@ -125,6 +125,9 @@
       case 'attack':
         client.submitOrder(action.order);
         break;
+      case 'setWorkedTile':
+        client.submitOrder({ type: 'SetWorkedTile', cityId: action.cityId, tile: action.tile });
+        break;
       case 'none':
         break;
     }
@@ -188,6 +191,9 @@
   let playbackActive = $state(false);
   const busy = $derived($view.phase === 'resolving' || playbackActive);
 
+  // Phase 6 L3 : overlay des rendements N/P/C (masquable).
+  let showYields = $state(false);
+
   const myGold = $derived.by(() => {
     const v = $view;
     const id = myEngineId(v);
@@ -244,6 +250,9 @@
       Fin de tour
     </button>
     <button type="button" onclick={() => client.resync()}>Resync</button>
+    <button type="button" class:active-toggle={showYields} title="Afficher/masquer les rendements N/P/C sur les cases" onclick={() => (showYields = !showYields)}>
+      Rendements
+    </button>
     {#if devMode}<a href={`#/debug/${code}`}>Debug</a>{/if}
   </header>
 
@@ -261,6 +270,7 @@
           {client}
           {ui}
           {playback}
+          {showYields}
           onAction={handleAction}
           onRightClick={handleRightClick}
           onCancelDraft={cancelDraft}

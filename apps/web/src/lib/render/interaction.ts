@@ -22,7 +22,10 @@ export type ClickAction =
   | { kind: 'extend'; path: Hex[]; unitId?: UnitId }
   | { kind: 'truncate'; path: Hex[] }
   /** Attaque directe d'une case ennemie visible adjacente. */
-  | { kind: 'attack'; order: Order };
+  | { kind: 'attack'; order: Order }
+  /** R-60 (Phase 6) : réassignation d'un citoyen — ville sélectionnée, case
+   *  cliquée (`null` = désassignation, cf. toggle de la case courante). */
+  | { kind: 'setWorkedTile'; cityId: CityId; tile: string | null };
 
 /** Clic droit (Phase 5 L1) : chemin complet vers la case visée, ou annulation. */
 export type RightClickAction = { kind: 'moveDraft'; path: Hex[]; unitId: UnitId } | { kind: 'cancelDraft' };
@@ -119,11 +122,24 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
     }
   }
 
-  // 3. Sélection. Case avec unité ET ville (capitale défendue) : alterner —
-  //    1er clic l'unité, 2e clic la ville (le re-clic sur l'unité sélectionnée
-  //    est déjà traité en règle 0).
+  // 3. Ville amie sélectionnée et ordres modifiables : un clic sur une case
+  //    SANS entité réassigne un citoyen (R-60, Phase 6). Re-clic sur une case
+  //    déjà travaillée par cette ville = désassignation. (La validité métier —
+  //    rayon, case libre, travaillable — reste validée par le serveur.)
   const unit = unitAtHex(state, hex);
   const city = unit ? cityAtHex(state, hex) : null;
+  if (ui.selectedCityId && ordersEditable(view) && !ui.draft) {
+    const selCity = state.cities[ui.selectedCityId];
+    if (selCity && selCity.owner === myEngineId(view) && !unit && !city) {
+      const key = tileKeyOf(hex);
+      const already = selCity.workedTiles?.includes(key) ?? false;
+      return { kind: 'setWorkedTile', cityId: selCity.id, tile: already ? null : key };
+    }
+  }
+
+  // 4. Sélection. Case avec unité ET ville (capitale défendue) : alterner —
+  //    1er clic l'unité, 2e clic la ville (le re-clic sur l'unité sélectionnée
+  //    est déjà traité en règle 0).
   if (unit && city) {
     if (ui.selectedCityId === city.id) return { kind: 'selectUnit', unitId: unit.id, mine: unit.owner === myEngineId(view) };
     return { kind: 'selectUnit', unitId: unit.id, mine: unit.owner === myEngineId(view) };
@@ -132,7 +148,7 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
   const aloneCity = cityAtHex(state, hex);
   if (aloneCity) return { kind: 'selectCity', cityId: aloneCity.id };
 
-  // 4. Vide (connu ou brouillard) : déselection.
+  // 5. Vide (connu ou brouillard) : déselection.
   return { kind: 'deselect' };
 }
 

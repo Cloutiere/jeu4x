@@ -166,7 +166,24 @@ async function main() {
         holds += 1;
       }
     }
-    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s) de position, ${fortifies} fortification(s).`);
+    // Phase 6 : de temps en temps, réassigner aléatoirement un citoyen d'une
+    // ville (SetWorkedTile valide — dans le rayon, case libre ; le moteur
+    // revalide tout, un ordre invalide est simplement ignoré).
+    let reassigns = 0;
+    const myCities = Object.values(state.cities).filter((c) => c.owner === myEngineId);
+    for (const city of myCities) {
+      if (Math.random() >= 0.2) continue;
+      const candidates = Object.keys(state.map).filter((key) => {
+        const [q, r] = key.split(',').map(Number);
+        const dist = (Math.abs(q - city.q) + Math.abs(r - city.r) + Math.abs(q + r - city.q - city.r)) / 2;
+        return dist >= 1 && dist <= 2;
+      });
+      if (candidates.length === 0) continue;
+      const tile = candidates[Math.floor(Math.random() * candidates.length)];
+      send({ type: 'SubmitOrder', order: { type: 'SetWorkedTile', cityId: city.id, tile } });
+      reassigns += 1;
+    }
+    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s) de position, ${fortifies} fortification(s), ${reassigns} réassignation(s).`);
     send({ type: 'EndTurn' });
     lastEndedTurn = state.turn;
   }

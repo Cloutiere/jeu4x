@@ -12,8 +12,12 @@ export const FORFEIT_MISSED_TURNS = 3;
 export const VISION_RADIUS_UNIT = 2;
 /** T-08 · Rayon de vision des villes. */
 export const VISION_RADIUS_CITY = 3;
-/** T-08b · Rayon dans lequel une ville peut travailler une case. */
-export const CITY_WORK_RADIUS = 2;
+/** T-08b · Rayon de travail d'une ville (R-60). Le Tribunal (R-66) ajoute
+ *  WORK_RADIUS_TRIBUNAL (= 1) : rayon total 2 (18 cases au lieu de 6). */
+export const CITY_WORK_RADIUS = 1;
+/** R-66 · Bonus de rayon de travail apporté par le Tribunal (data-driven :
+ *  building.workRadiusBonus — constante de référence pour la table). */
+export const TRIBUNAL_WORK_RADIUS_BONUS = 1;
 /** T-09 · Distance minimale entre deux villes. */
 export const MIN_CITY_DISTANCE = 2;
 /** T-10 · Taille d'une armée. */
@@ -32,9 +36,10 @@ export const FORTIFY_DEFENSE_BONUS = 0.25;
 
 /** R-61 · Part du commerce allouée à la science (curseur global, défaut 50/50). 🔶 */
 export const SCIENCE_RATIO_DEFAULT = 0.5;
-/** R-63 · Seuil de croissance : base × population courante. 🔶
- *  Calibration 30/08 (retour 1re partie en ligne) : 10 → 25 (pop 2 atteinte
- *  en 3 tours, beaucoup trop rapide). */
-export const GROWTH_BASE = 25;
+/** R-63 · Seuil de croissance : base × population courante (règle Civ Rev,
+ *  confirmée par Erik le 30/08 — la calibration 10→25 du même jour, qui
+ *  compensait l'absence de rendements réels, est ANNULÉE avec la révision
+ *  économique §2 : retour à 10). */
+export const GROWTH_BASE = 10;
 /** R-63 · Modulation de la production par point de population au-delà du premier. 🔶 */
 export const POP_PRODUCTION_BONUS = 0.25;

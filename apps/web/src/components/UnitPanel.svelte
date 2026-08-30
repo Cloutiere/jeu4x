@@ -78,6 +78,8 @@
         return 'Formation d\'armée';
       case 'SetProduction':
         return 'Production';
+      case 'SetWorkedTile':
+        return o.tile ? `Citoyen vers (${o.tile})` : 'Citoyen retiré';
     }
   }
 

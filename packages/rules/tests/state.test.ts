@@ -14,16 +14,17 @@ import { TERRAINS } from '../src/data.js';
 import { cityAt, makeState, unit, unitAt } from '../src/fixtures.js';
 
 describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
-  it('la version courante est exportée avec la chaîne de migrations (v3 depuis la fortification R-33)', () => {
+  it('la version courante est exportée avec la chaîne de migrations (v4 depuis l’économie Phase 6)', () => {
     const state = makeState();
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(3);
+    expect(CURRENT_SCHEMA_VERSION).toBe(4);
     expect(MIGRATIONS).toBeTypeOf('object');
     expect(typeof MIGRATIONS[2]).toBe('function');
     expect(typeof MIGRATIONS[3]).toBe('function');
+    expect(typeof MIGRATIONS[4]).toBe('function');
   });
 
-  it('migrateState laisse passer un état à jour à l’identique (chaîne v3→v3 vide)', () => {
+  it('migrateState laisse passer un état à jour à l’identique (chaîne v4→v4 vide)', () => {
     const state = makeState();
     const out = migrateState<GameState>(state as unknown as Record<string, unknown>);
     expect(out).toEqual(state);
@@ -31,7 +32,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
 
   it('migrateState rejette une version inconnue ou futuriste', () => {
     expect(() => migrateState({ schemaVersion: 0 })).toThrow();
-    expect(() => migrateState({ schemaVersion: 4 })).toThrow();
+    expect(() => migrateState({ schemaVersion: 5 })).toThrow();
     expect(() => migrateState({})).toThrow();
   });
 });
@@ -56,7 +57,7 @@ describe('L2 · Structure du GameState (DESIGN.md §4.2)', () => {
     expect(TERRAINS['ville']).toMatchObject({
       passable: true,
       defenseBonus: 0.5,
-      yields: { food: 2, production: 1, gold: 1 },
+      yields: { food: 2, production: 1, commerce: 1 },
     });
   });
 
