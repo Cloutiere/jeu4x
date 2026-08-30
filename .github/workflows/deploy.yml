@@ -16,6 +16,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      # L'ID de compte n'est pas un secret ; explicite car wrangler est non
+      # interactif en CI et le token est scoppé à un seul compte.
+      CLOUDFLARE_ACCOUNT_ID: 02dd3eea63bdb31596a0d89636b2ea34
     steps:
       - uses: actions/checkout@v4
 
@@ -40,7 +45,8 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # S'ignore tant que le secret CLOUDFLARE_API_TOKEN n'est pas posé —
+      # les push restent verts (tests + typecheck seuls).
       - name: Deploy (wrangler --env prod)
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
         run: pnpm --filter @game/server exec wrangler deploy --env prod
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
