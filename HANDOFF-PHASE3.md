@@ -36,7 +36,10 @@ Phases 0 et 1 complétées : le moteur pur (`resolveTurn`, fog 3 états, journal
 - **Inexploré** : fond sombre uni (les cases sont absentes du JSON — ne rien dessiner).
 - **Exploré-masqué** : terrain en teinte atténuée/désaturée, **jamais d'entité** (les entités ennemies sont absentes de l'état filtré de toute façon — ne pas inventer de données localement).
 - **Visible** : terrain en couleurs, unités/villes du joueur et ennemies visibles.
-- Terrains (prairie, plaine, forêt, colline, montagne, eau, ville) + entités (unités par type, villes avec propriétaire) : **textures placeholder générées à l'exécution** (PixiJS `Graphics` → `generateTexture`, couleurs/formes distinctes par terrain et joueur, PV en barre, indicateur d'ordre). Pas de fichiers d'art : `/assets-src` reçoit un README (réservé au vrai art, licences à consigner) et l'intégration spritesheet/TextureAtlas attendra les vrais assets.
+- **Les assets réels existent déjà** (commit `29723ed`) : 24 fichiers dans `assets-src/exports/`, conformes à `SPEC-ART.md` (7 tuiles 224×256, 2 unités + accents 256×320, 2 villes + accents 224×256, 8 icônes 64×64). Les charger via PixiJS `Assets` depuis `apps/web/public/art/` (copie des PNG — script de sync ou import statique, au choix, mais ils doivent être inclus dans le build Pages).
+- **Système d'accent** : chaque entité a un calque `_accent.png` (zones blanches, ancrage identique) à superposer au sprite et teinter avec la couleur du joueur — p1 `#D64545`, p2 `#3B6FD6` (`assets-src/palette.txt`).
+- **Fallback placeholder** (`Graphics` → `generateTexture`) conservé pour tout fichier absent (les unités P2 futures arriveront plus tard) : un seul chemin de rendu, résolution texture réelle → fallback.
+- PV en barre et indicateur d'ordre : programmatiques, posés par-dessus le sprite.
 - superpositions : frontières/couleur de possession des villes, cases travaillées si présentes dans l'état.
 
 ### L3 — Interactions & ordres à la souris
