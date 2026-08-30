@@ -26,6 +26,15 @@
   "env": {
     "prod": {
       "name": "game-4x-server-prod",
+      "vars": {
+        "APP_BASE_URL": "https://game-4x-server-prod.erik-ai-studio.workers.dev"
+      },
+      // Frontend servi par le Worker même (même origine → cookies de session OK,
+      // pas de CORS, un seul URL). Le client utilise le routage par hash (#/…),
+      // donc aucun fallback SPA n'est nécessaire.
+      "assets": {
+        "directory": "../web/dist"
+      },
       "durable_objects": {
         "bindings": [
           { "name": "GAME", "class_name": "GameDO" },
