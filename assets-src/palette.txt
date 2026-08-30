@@ -1,0 +1,21 @@
+# palette.txt — couleurs figées (SPEC-ART §4)
+contour_ui        #2B2620
+prairie_1         #A8C86A
+prairie_2         #8FB35A
+prairie_3         #C4DA82
+plaine_1          #B5B36A
+plaine_2          #C2A85E
+foret_1           #4E7A3A
+foret_2           #6E9C4A
+colline_1         #93AC58
+colline_2         #8A6F4A
+montagne_1        #8D8D95
+montagne_2        #6E6E78
+neige             #F2F2F0
+eau_1             #3E6E9E
+eau_2             #7FA9CC
+sol_chemin        #A98F63
+sol_terre         #8F7B57
+or                #D9A93F
+joueur_1_rouge    #D64545  (référence — accents livrés blancs)
+joueur_2_bleu     #3B6FD6  (référence — accents livrés blancs)
