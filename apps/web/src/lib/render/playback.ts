@@ -74,10 +74,51 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
 
 const TOAST_LIFETIME = 4000;
 
+/** Durée (ms, vitesse 1) de la phase « annonce » en tête de relecture. */
+export const ANNOUNCE_MS = 1000;
+
+/** Ligne de déplacement prévue (phase annonce) : d'une case vers une autre. */
+export interface AnnounceLine {
+  from: Hex;
+  to: Hex;
+  /** Propriétaire de l'unité (couleur d'accent du rendu). */
+  owner: string;
+}
+
+/**
+ * Plan d'annonce (Phase 5.5 L2) — PURE : déduit des événements `Move`/`Retreat`
+ * du tour les lignes de déplacement de TOUS les movers (y compris ennemis
+ * présents dans le journal — donc visibles, le fog ayant déjà filtré).
+ * Les pas consécutifs d'une même unité sont fusionnés en une ligne
+ * from → to ; l'ordre de première apparition est conservé.
+ */
+export function buildAnnounceLines(events: GameEvent[]): AnnounceLine[] {
+  const byUnit = new Map<string, AnnounceLine>();
+  const order: string[] = [];
+  for (const ev of events) {
+    if (ev.type !== 'Move' && ev.type !== 'Retreat') continue;
+    const existing = byUnit.get(ev.unitId);
+    if (existing) {
+      existing.to = ev.to;
+    } else {
+      byUnit.set(ev.unitId, { from: ev.from, to: ev.to, owner: ev.owner });
+      order.push(ev.unitId);
+    }
+  }
+  return order.map((id) => byUnit.get(id)!);
+}
+
 export class Playback {
   active = false;
   /** Multiplicateur de vitesse (clic = accélérer). */
   speed = 1;
+
+  /**
+   * Phase 1 « annonce » (Phase 5.5 L2) : lignes de déplacement prévues de
+   * tous les movers du tour, affichées ~1 s avant les mouvements. Vide dès
+   * que la phase est consommée (ou si aucun Move dans le tour rejoué).
+   */
+  announce: AnnounceLine[] = [];
 
   readonly moves = new Map<string, MoveAnim>();
   readonly hpOverride = new Map<string, number>();
@@ -86,6 +127,8 @@ export class Playback {
 
   private queue: GameEvent[] = [];
   private current: CurrentItem | null = null;
+  /** Progression de la phase annonce (ms consommées à vitesse courante). */
+  private announceT = 0;
   /** Horloge interne (ms) — horodate les effets ; lisible par le renderer. */
   clock = 0;
   private nextToastId = 1;
@@ -93,11 +136,15 @@ export class Playback {
   /** Enfile des événements à rejouer (TurnResult ou missedEvents). */
   enqueue(events: GameEvent[]): void {
     if (events.length === 0) return;
+    const start = !this.active;
     this.queue.push(...events);
-    if (!this.active) {
+    if (start) {
       this.active = true;
       this.speed = 1;
-      this.next();
+      // Phase annonce : lignes de tous les movers AVANT tout mouvement.
+      this.announce = buildAnnounceLines(events);
+      this.announceT = 0;
+      if (!this.announce.length) this.next();
     }
   }
 
@@ -112,6 +159,8 @@ export class Playback {
     this.current = null;
     this.active = false;
     this.speed = 1;
+    this.announce = [];
+    this.announceT = 0;
     this.moves.clear();
     this.hpOverride.clear();
     this.fxList = [];
@@ -136,6 +185,17 @@ export class Playback {
 
     const cur = this.current;
     if (!cur) {
+      // Phase annonce en cours (aucun événement démarré) : consommer avant
+      // de lancer la file des mouvements/effets.
+      if (this.announce.length > 0) {
+        this.announceT += dtMs * this.speed;
+        if (this.announceT >= ANNOUNCE_MS) {
+          this.announce = [];
+          this.announceT = 0;
+          this.next();
+        }
+        return;
+      }
       this.next();
       return;
     }

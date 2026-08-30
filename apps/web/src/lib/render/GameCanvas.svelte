@@ -20,6 +20,8 @@
   import { loadTextures, playerColor } from './textures.js';
   import type { GameTextures } from './textures.js';
   import { HEX_SIZE, hexesInRect, mapBounds, screenToHex } from './hexView.js';
+  import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
+  import type { Point } from './arrows.js';
   import { clickAction, myEngineId } from './interaction.js';
   import type { ClickAction } from './interaction.js';
 
@@ -340,25 +342,34 @@
       overlayLayer.addChild(gr);
     }
 
-    // Ordres soumis (miroir OrderAck) : destination des Move, cible des Attack.
+    // Ordres de déplacement PERSISTANTS (Phase 5.5 L1) : flèche de l'origine
+    // à la destination, tête sur la case d'arrivée. Ordre actif (miroir
+    // OrderAck) = trait plein jaune ; chemin gelé (unit.order restant après
+    // une halte, R-40) = pointillé atténué. Effacés à la résolution
+    // (TurnResult : orders=[] et unit.order consommé) ou à l'annulation
+    // (CancelOrder → OrderAck rejeté/remplacement → reconstruit ici).
+    const solidUnits = new Set<string>();
     for (const order of scene.orders) {
       if (order.type === 'Move' && order.path.length > 0) {
-        const dest = order.path[order.path.length - 1]!;
-        const gr = new Graphics();
-        gr.poly(hexLocalPoints(HEX_SIZE - 20)).stroke({ width: 3.5, color: 0xf0c419, alpha: 0.85 });
-        gr.position.copyFrom(hexToPixel(dest, HEX_SIZE));
-        overlayLayer.addChild(gr);
-        for (const step of order.path) {
-          const dot = new Graphics();
-          dot.circle(0, 0, 7).fill({ color: 0xf0c419, alpha: 0.7 });
-          dot.position.copyFrom(hexToPixel(step, HEX_SIZE));
-          overlayLayer.addChild(dot);
-        }
+        const origin = scene.state.units[order.unitId];
+        if (!origin) continue;
+        solidUnits.add(order.unitId);
+        drawArrow(hexToPixel(origin, HEX_SIZE), order.path, 0xf0c419, 0.9, false);
       } else if (order.type === 'Attack') {
         const gr = new Graphics();
         drawCross(gr, 18, 0xd64545);
         gr.position.copyFrom(hexToPixel(order.target, HEX_SIZE));
         overlayLayer.addChild(gr);
+      }
+    }
+    // Chemins gelés : reste de chemin qui s'exécutera à la prochaine
+    // résolution — variante atténuée/pointillée (état déjà modélisé par
+    // unit.order côté panneau). Masqué si un ordre actif remplace l'unité.
+    for (const unit of Object.values(scene.state.units)) {
+      if (unit.owner !== scene.myId) continue;
+      if (solidUnits.has(unit.id)) continue;
+      if (unit.order?.type === 'Move' && unit.order.path.length > 0) {
+        drawArrow(hexToPixel(unit, HEX_SIZE), unit.order.path, 0xf0c419, 0.4, true);
       }
     }
 
@@ -431,9 +442,44 @@
     gr.stroke({ width: 5, color });
   }
 
+  /** Flèche persistante d'un ordre Move (Phase 5.5 L1) : tracé + tête pleine. */
+  function drawArrow(
+    origin: { x: number; y: number },
+    path: Hex[],
+    color: number,
+    alpha: number,
+    dashed: boolean,
+  ): void {
+    const points: Point[] = [origin, ...path.map((h) => hexToPixel(h, HEX_SIZE))];
+    const segs = segmentsOf(points);
+    if (segs.length === 0) return;
+    const [lastFrom, lastTo] = segs[segs.length - 1]!;
+    const gr = new Graphics();
+    for (const [a, b] of dashed ? segs.flatMap(([a, b]) => dashSegments(a, b)) : segs) gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
+    gr.stroke({ width: 6, color, alpha });
+    // Pastille discrète à l'origine (départ lisible même sur un chemin court).
+    gr.circle(points[0]!.x, points[0]!.y, 8).fill({ color, alpha });
+    gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
+    overlayLayer.addChild(gr);
+  }
+
   /** Effets de playback (flashs, destructions) — reconstruits par frame. */
   function rebuildEffects(): void {
     effectsLayer.removeChildren().forEach((child) => child.destroy({ children: true }));
+    // Phase annonce (Phase 5.5 L2) : lignes prévues de TOUS les movers du
+    // tour (y compris ennemis visibles dans le journal — le fog a filtré),
+    // colorées à l'accent du propriétaire, avant tout mouvement animé.
+    for (const line of playback.announce) {
+      const color = playerColor(line.owner);
+      const a = hexToPixel(line.from, HEX_SIZE);
+      const b = hexToPixel(line.to, HEX_SIZE);
+      const gr = new Graphics();
+      gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
+      gr.stroke({ width: 7, color, alpha: 0.85 });
+      gr.circle(a.x, a.y, 9).fill({ color, alpha: 0.85 });
+      gr.poly(arrowHeadPoints(a, b, 36).flatMap((p) => [p.x, p.y])).fill({ color, alpha: 0.95 });
+      effectsLayer.addChild(gr);
+    }
     for (const fx of playback.fxList) {
       const p = hexToPixel(fx.at, HEX_SIZE);
       const progress = 1 - (fx.t + fx.dur - playback.clock) / fx.dur; // 0→1
@@ -515,6 +561,7 @@
     }
     if (playback.active !== lastPlaybackActive) {
       lastPlaybackActive = playback.active;
+      if (!playback.active) rebuildEffects(); // purge : aucune annonce/effet résiduel après la relecture
       onPlaybackActive?.(playback.active);
     }
     void tickerDeltaMs;

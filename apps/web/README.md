@@ -24,6 +24,7 @@ Login de dev : `/auth/dev?name=Alice` (stub, bouton sur la page de login).
 | Sélectionner une unité / une ville | Clic gauche sur la case (sur une capitale défendue : 1er clic l'unité, 2e clic la ville) |
 | **Désélectionner** | Re-clic sur l'entité sélectionnée (Phase 5), **Échap**, ou clic sur une case vide |
 | Tracer un déplacement | **Clic droit sur la case de destination** : chemin complet calculé à travers les cases connues praticables et **soumis automatiquement** (Phase 5). Variante pas à pas : clics gauche sur des cases adjacentes libres — chaque extension re-soumet le chemin (re-cliquer une case du chemin = retour arrière) |
+| **Flèche de chemin persistante** (Phase 5.5) | L'ordre de déplacement soumis reste affiché en **flèche** (origine → tête sur la destination) tant que l'ordre est actif, y compris d'un tour à l'autre ; un **chemin gelé** (reste de chemin qui s'exécutera à la prochaine résolution) s'affiche en **pointillé atténué**. Effacée à la résolution du tour ou à l'annulation de l'ordre |
 | Annuler le brouillon | **Clic droit** hors d'une case cible valable, ou **Échap** (l'ordre déjà soumis s'annule via « Annuler l'ordre » du panneau) |
 | Attaquer une unité ennemie visible | Bouton « Attaquer … » du panneau, ou clic direct sur sa case adjacente |
 | Capturer/assaut une ville ennemie | Bouton « Entrer dans la ville … » ou clic sur la case (l'entrée déclenche capture si vide, assaut du défenseur sinon — R-57) |
@@ -38,6 +39,19 @@ Login de dev : `/auth/dev?name=Alice` (stub, bouton sur la page de login).
 Pendant la résolution et la relecture du tour (playback), les ordres sont désactivés ;
 **un clic sur la carte accélère la relecture**. L'état affiché reste toujours l'état
 autoritaire du serveur — les animations sont une surcouche cosmétique.
+
+### Relecture cinématique (Phase 5.5)
+
+La résolution se rejoue en trois phases lisibles :
+
+1. **Annonce** (~1 s) : lignes de déplacement prévues de **tous** les movers du tour,
+   y compris ennemis (déduites des événements `Move`/`Retreat` reçus — filtrés par le
+   brouillard ; les mouvements hors de vue n'existent simplement pas à l'écran),
+   colorées à l'accent du propriétaire, avec tête de flèche sur la destination.
+2. **Mouvements** : chaque unité est animée le long de son trajet (séquentiel) ;
+   les combats s'ancrent sur la case d'arrivée.
+3. **Effets** : replis, échanges successifs (flashs + PV qui descendent), captures,
+   butin, fondation/capture de ville (toasts + effets), victoire.
 
 ## Brouillard de guerre (3 états, R-70)
 
@@ -104,4 +118,4 @@ tests/                     Vitest : réducteur de vue (missedEvents L0), culling
 ## Tests des Durable Objects côté serveur
 
 Voir `apps/server/README.md` (scénario à deux onglets, reconnexion, alarmes) —
-`pnpm test` à la racine lance toutes les suites (moteur 132, DO 16+, web 25).
+`pnpm test` à la racine lance toutes les suites (moteur, DO, web).
