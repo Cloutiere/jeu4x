@@ -81,8 +81,12 @@ describe('clickAction (L3)', () => {
     });
     // Re-clic sur la 1re étape → troncature.
     expect(clickAction(view, ui2, { q: 0, r: 1 })).toEqual({ kind: 'truncate', path: [{ q: 0, r: 1 }] });
-    // Clic sur la case de l'unité (chemin vide) → no-op.
-    expect(clickAction(view, uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } }), { q: 0, r: 0 }).kind).toBe('none');
+    // Clic sur la case de l'unité (chemin vide, pas de ville) → re-sélection.
+    expect(clickAction(view, uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } }), { q: 0, r: 0 })).toEqual({
+      kind: 'selectUnit',
+      unitId: 'u1',
+      mine: true,
+    });
   });
 
   it('une case inconnue (brouillard) n\'étend jamais le chemin', () => {
@@ -110,6 +114,15 @@ describe('clickAction (L3)', () => {
     const view = viewOf(makeBattleState());
     expect(clickAction(view, uiOf(), { q: 2, r: 1 })).toEqual({ kind: 'selectCity', cityId: 'c1' });
     expect(clickAction(view, uiOf(), { q: 6, r: 6 })).toEqual({ kind: 'deselect' });
+  });
+
+  it('capitale défendue : 1er clic l\'unité, 2e clic la ville (alternance)', () => {
+    const state = makeBattleState();
+    // Ville amie sous le guerrier u1 en (0,0).
+    state.cities.c2 = { id: 'c2', q: 0, r: 0, owner: 'p1', pop: 1, capital: true, foodStored: 0, production: null, workedTile: null };
+    const view = viewOf(state);
+    expect(clickAction(view, uiOf(), { q: 0, r: 0 })).toEqual({ kind: 'selectUnit', unitId: 'u1', mine: true });
+    expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 0, r: 0 })).toEqual({ kind: 'selectCity', cityId: 'c2' });
   });
 
   it('passableKnown refuse l\'eau et les cases absentes du JSON filtré', () => {

@@ -95,34 +95,32 @@
           </button>
           <button type="button" disabled={!editable} onclick={onCancelDraft}>Annuler le brouillon</button>
         </div>
-      {:else}
-        {#if editable}
-          <p class="hint">Cliquez des cases adjacentes praticables pour tracer un déplacement.</p>
-        {/if}
-        <div class="btns">
-          <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'Hold', unitId: unit.id })}>
-            Tenir la position
+      {:else if editable}
+        <p class="hint">Cliquez des cases adjacentes praticables pour tracer un déplacement.</p>
+      {/if}
+      <div class="btns">
+        <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'Hold', unitId: unit.id })}>
+          Tenir la position
+        </button>
+        {#if stats?.canFoundCity}
+          <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'FoundCity', unitId: unit.id })}>
+            Fonder une ville
           </button>
-          {#if stats?.canFoundCity}
-            <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'FoundCity', unitId: unit.id })}>
-              Fonder une ville
-            </button>
-          {/if}
-          {#if currentOrder}
-            <button type="button" disabled={!editable} onclick={() => unit && client.cancelOrderFor(unit.id)}>
-              Annuler l'ordre
-            </button>
-          {/if}
-        </div>
-        {#if attackTargets.length > 0}
-          <div class="btns">
-            {#each attackTargets as t (t.hex.q + ',' + t.hex.r)}
-              <button type="button" class="danger" disabled={!editable} onclick={() => submitAttack(t.hex)}>
-                Attaquer {t.label} ({t.hex.q},{t.hex.r})
-              </button>
-            {/each}
-          </div>
         {/if}
+        {#if currentOrder}
+          <button type="button" disabled={!editable} onclick={() => unit && client.cancelOrderFor(unit.id)}>
+            Annuler l'ordre
+          </button>
+        {/if}
+      </div>
+      {#if attackTargets.length > 0}
+        <div class="btns">
+          {#each attackTargets as t (t.hex.q + ',' + t.hex.r)}
+            <button type="button" class="danger" disabled={!editable} onclick={() => submitAttack(t.hex)}>
+              Attaquer {t.label} ({t.hex.q},{t.hex.r})
+            </button>
+          {/each}
+        </div>
       {/if}
       <button type="button" class="link" onclick={() => unit && onCenterUnit(unit.id)}>Centrer la caméra (F)</button>
     {/if}

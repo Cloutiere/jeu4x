@@ -696,6 +696,12 @@
     onReady?.({ centerOnHex, centerOnUnit });
     // Debug console (dev uniquement) : état interne inspectable via la console.
     (window as unknown as Record<string, unknown>).__gameCanvas = {
+      exportPng(): string | null {
+        if (!app) return null;
+        // Extraction via PixiJS (le drawing buffer WebGL est vidé après compositing).
+        const c = app.renderer.extract.canvas(app.stage) as HTMLCanvasElement;
+        return c.toDataURL("image/png");
+      },
       get stats() {
         return {
           frames,

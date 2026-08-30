@@ -64,8 +64,11 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
     const trunc = truncateOf(ui.draft.path, hex);
     if (trunc) return { kind: 'truncate', path: trunc };
     const last = ui.draft.path[ui.draft.path.length - 1] ?? selected;
-    if (last.q === hex.q && last.r === hex.r) return { kind: 'none' };
-    if (areNeighbors(last, hex) && passableKnown(state, hex)) {
+    if (last.q === hex.q && last.r === hex.r) {
+      // Clic sur la case courante : no-op si le chemin a commencé, sinon on
+      // laisse passer (alternance unité ↔ ville sur une capitale défendue).
+      if (ui.draft.path.length > 0) return { kind: 'none' };
+    } else if (areNeighbors(last, hex) && passableKnown(state, hex)) {
       return { kind: 'extend', path: [...ui.draft.path, { q: hex.q, r: hex.r }] };
     }
     // Clic ailleurs : on abandonne le brouillon et on retombe sur la sélection.
@@ -83,11 +86,17 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
     }
   }
 
-  // 3. Sélection.
+  // 3. Sélection. Case avec unité ET ville (capitale défendue) : alterner —
+  //    1er clic l'unité, 2e clic la ville.
   const unit = unitAtHex(state, hex);
+  const city = unit ? cityAtHex(state, hex) : null;
+  if (unit && city) {
+    if (ui.selectedUnitId === unit.id) return { kind: 'selectCity', cityId: city.id };
+    return { kind: 'selectUnit', unitId: unit.id, mine: unit.owner === myEngineId(view) };
+  }
   if (unit) return { kind: 'selectUnit', unitId: unit.id, mine: unit.owner === myEngineId(view) };
-  const city = cityAtHex(state, hex);
-  if (city) return { kind: 'selectCity', cityId: city.id };
+  const aloneCity = cityAtHex(state, hex);
+  if (aloneCity) return { kind: 'selectCity', cityId: aloneCity.id };
 
   // 4. Vide (connu ou brouillard) : déselection.
   return { kind: 'deselect' };
