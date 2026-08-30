@@ -90,12 +90,14 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
       // laisse passer (alternance unité ↔ ville sur une capitale défendue).
       if (ui.draft.path.length > 0) return { kind: 'none' };
     } else if (areNeighbors(last, hex) && passableKnown(state, hex)) {
-      // Case finale/intermédiaire occupée par un ALLIÉ refusée côté client
-      // (R-30, polish Phase 5). Une case ennemie reste traçable : y entrer
-      // déclenche le combat d'entrée (R-42) — comportement de la Phase 3.
+      // Case occupée par un ALLIÉ refusée comme étape de chemin (R-30, polish
+      // Phase 5) — mais le clic retombe sur la sélection : on sélectionne
+      // l'allié. Une case ennemie reste traçable : y entrer déclenche le
+      // combat d'entrée (R-42) — comportement de la Phase 3.
       const occupant = unitAtHex(state, hex);
-      if (occupant && occupant.owner === selected.owner) return { kind: 'none' };
-      return { kind: 'extend', path: [...ui.draft.path, { q: hex.q, r: hex.r }] };
+      if (!occupant || occupant.owner !== selected.owner) {
+        return { kind: 'extend', path: [...ui.draft.path, { q: hex.q, r: hex.r }] };
+      }
     }
     // Clic ailleurs : on abandonne le brouillon et on retombe sur la sélection.
   }

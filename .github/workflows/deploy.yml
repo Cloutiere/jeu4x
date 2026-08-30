@@ -1,0 +1,46 @@
+# CI/CD — Phase 5 L4 (DESIGN.md §5, HANDOFF-PHASE5.md)
+#
+# Déploiement du Worker COMPLET sur push vers main : le frontend est servi par
+# le Worker même (Static Assets, apps/web/dist) — pas de Cloudflare Pages.
+#
+# Prérequis (côté Erik, documentés dans apps/server/README.md § CI/CD) :
+#  1. repo GitHub + push de cette branche main ;
+#  2. secret GitHub CLOUDFLARE_API_TOKEN (template « Edit Cloudflare Workers »).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web (assets du Worker)
+        run: pnpm build
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Deploy (wrangler --env prod)
+        run: pnpm --filter @game/server exec wrangler deploy --env prod
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -99,3 +99,67 @@ wrangler deploy --env prod
   `p1`/`p2` (spawns de carte) via `meta.players`, par ordre de join.
 - Le filtrage du journal est réutilisé tel quel du moteur (`filterEventsForPlayer`,
   `getFilteredState`) — aucune entité ennemie cachée ne quitte le DO.
+
+## Exploitation & observabilité (Phase 5 — L3)
+
+Production : `https://game-4x-server-prod.erik-ai-studio.workers.dev`
+(déploiement `wrangler deploy --env prod`, Worker + Static Assets même origine).
+
+### Débug live — `wrangler tail`
+
+```bash
+npx wrangler tail --env prod          # flux de logs du Worker en production
+npx wrangler tail --env prod --format pretty
+```
+
+Les erreurs d'ordres rejetées, les résolutions et les exceptions (try/catch
+global §3.5) apparaissent dans le flux. Les logs sont aussi consultables dans
+le dash Cloudflare (Workers & Pages → `game-4x-server-prod` → Logs ; l'observ
+abilité est activée dans `wrangler.jsonc`).
+
+### Endpoint admin (production)
+
+```bash
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  https://game-4x-server-prod.erik-ai-studio.workers.dev/admin/game/<CODE>
+```
+
+Retourne le dump NON filtré d'une partie : `meta`, `state` (GameState complet,
+non passé par le brouillard), `orders`, `locked`, `resolving`, `lastEvents`.
+`ADMIN_TOKEN` est un secret posé via `wrangler secret put ADMIN_TOKEN`.
+
+### Purge des parties terminées (T-12, DESIGN.md §4.6 — décision documentée)
+
+Décision (Phase 5) : **purge manuelle différée, pas d'automatisme** en v1.
+Motifs : volume minuscule (~10 parties au pic), stockage SQLite des DO
+négligeable à cette échelle, et une alarme de purge LobbyDO ajouterait une
+réplication inter-DO non triviale. Les parties terminées restent stockées
+(statut `finished`, ignorées par le lobby, alarme supprimée). Si un besoin de
+purge effective se présente (30 jours, 🔶), la voie simple sera un endpoint
+admin `DELETE /admin/game/<code>` (même garde Bearer) supprimant le stockage
+du GameDO — à ajouter en Phase 6/7 si Erik le demande.
+
+### Coût — où le lire et cible
+
+- Dash Cloudflare → **Workers & Pages** → `game-4x-server-prod` → onglet
+  **Metrics** : requêtes, durée CPU, et consommation Durable Objects
+  (requests + duration ; l'hibernation WebSocket rend la durée ≈ nulle entre
+  les messages). Le stockage DO est visible dans Storage & Databases →
+  Durable Objects.
+- Cible (DESIGN.md §1) : **≪ 5 $/mois** (Workers Paid). Les mesures relevées
+  lors de la vérification Phase 5 sont consignées dans le rapport de phase ;
+  captures à renouveler après chaque vague de parties de test.
+
+## CI/CD (Phase 5 — L4)
+
+Le workflow `.github/workflows/deploy.yml` (à la racine du dépôt) déploie le
+Worker complet (build web inclus — les assets sont servis par le Worker même,
+pas de Cloudflare Pages) sur `push` vers `main` : install pnpm → tests →
+typecheck → `wrangler deploy --env prod`.
+
+Étapes côté Erik (le repo GitHub n'existait pas à la session Phase 5) :
+
+1. Créer le repo GitHub et pousser : `git remote add origin <url> && git push -u origin main`.
+2. Secret GitHub `CLOUDFLARE_API_TOKEN` (dash Cloudflare → My Profile → API
+   Tokens → « Edit Cloudflare Workers » template, compte + zone Workers.dev).
+3. Le premier push `main` déclenche tests + déploiement ; vert attendu.

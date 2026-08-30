@@ -22,17 +22,18 @@ Login de dev : `/auth/dev?name=Alice` (stub, bouton sur la page de login).
 | Action | Contrôle |
 |---|---|
 | Sélectionner une unité / une ville | Clic gauche sur la case (sur une capitale défendue : 1er clic l'unité, 2e clic la ville) |
-| Tracer un déplacement | Unité sélectionnée → clics sur des cases adjacentes praticables **connues** (le chemin se dessine ; re-cliquer une case du chemin = retour arrière) |
-| Valider le déplacement | Bouton « Valider le déplacement (n) » ou touche **Entrée** |
-| Annuler le brouillon | Bouton « Annuler le brouillon », **clic droit** ou **Échap** |
+| **Désélectionner** | Re-clic sur l'entité sélectionnée (Phase 5), **Échap**, ou clic sur une case vide |
+| Tracer un déplacement | **Clic droit sur la case de destination** : chemin complet calculé à travers les cases connues praticables et **soumis automatiquement** (Phase 5). Variante pas à pas : clics gauche sur des cases adjacentes libres — chaque extension re-soumet le chemin (re-cliquer une case du chemin = retour arrière) |
+| Annuler le brouillon | **Clic droit** hors d'une case cible valable, ou **Échap** (l'ordre déjà soumis s'annule via « Annuler l'ordre » du panneau) |
 | Attaquer une unité ennemie visible | Bouton « Attaquer … » du panneau, ou clic direct sur sa case adjacente |
 | Capturer/assaut une ville ennemie | Bouton « Entrer dans la ville … » ou clic sur la case (l'entrée déclenche capture si vide, assaut du défenseur sinon — R-57) |
-| Tenir la position / Fonder une ville | Boutons du panneau (Fonder : Colon uniquement) |
+| Tenir la position / Fortifier | Boutons du panneau — Fortifier : bonus défensif permanent +25 % (R-33/T-17), marqueur 🛡 sur le sprite ; tout autre ordre annule ; « Ne plus fortifier » soumet un Hold |
+| Fonder une ville | Bouton du panneau (Colon uniquement) — désactivé avec info-bulle si une ville connue est à distance < T-09 |
 | Production d'une ville | Menu de ville → Guerrier (10) / Colon (20) — file unique, progression conservée (R-62) |
 | Centrer la caméra sur la sélection | Bouton « Centrer la caméra » ou touche **F** |
 | Zoom | Molette (borné 0.5×–2.25×), ancré sur le curseur |
 | Pan | Glisser (un glisser de > 5 px ne déclenche jamais de clic) |
-| Fin de tour / Resync | Barre supérieure |
+| Fin de tour / Resync | Barre supérieure — « Fin de tour » confirme d'abord si des unités n'ont aucun ordre (dialogue listant leurs positions, Phase 5) |
 
 Pendant la résolution et la relecture du tour (playback), les ordres sont désactivés ;
 **un clic sur la carte accélère la relecture**. L'état affiché reste toujours l'état

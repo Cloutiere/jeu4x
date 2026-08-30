@@ -82,11 +82,12 @@ describe('clickAction (L3)', () => {
   it('construction de chemin : clics adjacents praticables connus LIBRES, troncature en arrière', () => {
     const view = viewOf(makeBattleState());
     const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } });
-    // Case occupée par un ALLIÉ refusée (u2 en (1,0)) ; case ENNEMIE traçable
+    // Case occupée par un ALLIÉ : jamais une étape de chemin (R-30) — le clic
+    // retombe sur la sélection de l'allié (Phase 5). Case ENNEMIE traçable
     // (entrée = combat R-42, comportement Phase 3). Les cases négatives sont
     // hors de l'état filtré de la fixture → jamais traçables.
     expect(clickAction(view, ui, { q: -1, r: 1 })).toEqual({ kind: 'deselect' });
-    expect(clickAction(view, ui, { q: 1, r: 0 })).toEqual({ kind: 'none' }); // u2 allié
+    expect(clickAction(view, ui, { q: 1, r: 0 })).toEqual({ kind: 'selectUnit', unitId: 'u2', mine: true }); // u2 allié → sélection
     expect(clickAction(view, ui, { q: 0, r: 1 })).toEqual({ kind: 'extend', path: [{ q: 0, r: 1 }] }); // u3 ennemi
     const ui2 = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [{ q: 0, r: 1 }] } });
     expect(clickAction(view, ui2, { q: 1, r: 1 })).toEqual({
