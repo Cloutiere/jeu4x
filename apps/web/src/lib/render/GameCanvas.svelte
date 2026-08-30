@@ -696,11 +696,30 @@
     onReady?.({ centerOnHex, centerOnUnit });
     // Debug console (dev uniquement) : état interne inspectable via la console.
     (window as unknown as Record<string, unknown>).__gameCanvas = {
+      /** Coordonnées PAGE du centre d'une case (caméra courante) — debug/tests. */
+      hexToPage(hex: Hex): { x: number; y: number } | null {
+        const p = hexToPixel(hex, HEX_SIZE);
+        const rect = host.getBoundingClientRect();
+        return { x: rect.x + p.x * camera.scale + camera.x, y: rect.y + p.y * camera.scale + camera.y };
+      },
       exportPng(): string | null {
         if (!app) return null;
         // Extraction via PixiJS (le drawing buffer WebGL est vidé après compositing).
         const c = app.renderer.extract.canvas(app.stage) as HTMLCanvasElement;
         return c.toDataURL("image/png");
+      },
+      sprites(): Array<{ layer: string; label: string; x: number; y: number; children: number }> {
+        const dump: Array<{ layer: string; label: string; x: number; y: number; children: number }> = [];
+        const walk = (layer: Container, name: string): void => {
+          for (const child of layer.children) {
+            dump.push({ layer: name, label: String(child.label ?? ""), x: Math.round(child.x), y: Math.round(child.y), children: child.children.length });
+          }
+        };
+        walk(tilesLayer, "tiles");
+        walk(entitiesLayer, "entities");
+        walk(overlayLayer, "overlay");
+        walk(effectsLayer, "effects");
+        return dump;
       },
       get stats() {
         return {

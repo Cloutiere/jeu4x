@@ -17,8 +17,9 @@ export type ClickAction =
   /** Sélection d'une unité (amie si `mine`, sinon ennemie visible — lecture seule). */
   | { kind: 'selectUnit'; unitId: UnitId; mine: boolean }
   | { kind: 'selectCity'; cityId: CityId }
-  /** Extension/troncature du chemin en construction. */
-  | { kind: 'extend'; path: Hex[] }
+  /** Extension/troncature du chemin en construction (`unitId` : armer un
+   *  brouillon frais sur cette unité si aucun n'est actif — entrée de ville). */
+  | { kind: 'extend'; path: Hex[]; unitId?: UnitId }
   | { kind: 'truncate'; path: Hex[] }
   /** Attaque directe d'une case ennemie visible adjacente. */
   | { kind: 'attack'; order: Order };
@@ -74,15 +75,20 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
     // Clic ailleurs : on abandonne le brouillon et on retombe sur la sélection.
   }
 
-  // 2. Attaque directe : unité amie combattante sélectionnée + entité ennemie
-  //    visible adjacente (présente dans l'état filtré ⇒ visible).
+  // 2. Attaque directe : unité amie combattante sélectionnée + UNITÉ ennemie
+  //    visible adjacente (présente dans l'état filtré ⇒ visible). Une ville
+  //    ennemie SANS unité visible ne se « combat » pas : on entre dessus
+  //    (capture si vide — R-57/R-65 ; assaut du défenseur sinon, R-42), ce
+  //    qui revient à une simple étape de déplacement.
   if (selected && selected.owner === myEngineId(view) && ordersEditable(view) && !ui.draft) {
     const enemy = unitAtHex(state, hex);
     const enemyCity = enemy ? null : cityAtHex(state, hex);
     const adjacent = hexDistance({ q: selected.q, r: selected.r }, hex) === 1;
-    const enemyOwner = enemy?.owner ?? enemyCity?.owner;
-    if (adjacent && enemyOwner && enemyOwner !== selected.owner && unitType(selected.type).canAttack) {
+    if (adjacent && enemy && enemy.owner !== selected.owner && unitType(selected.type).canAttack) {
       return { kind: 'attack', order: { type: 'Attack', unitId: selected.id, target: { q: hex.q, r: hex.r } } };
+    }
+    if (adjacent && enemyCity && enemyCity.owner !== selected.owner) {
+      return { kind: 'extend', path: [{ q: hex.q, r: hex.r }], unitId: selected.id };
     }
   }
 

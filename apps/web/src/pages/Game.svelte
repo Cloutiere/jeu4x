@@ -88,7 +88,12 @@
         break;
       case 'extend':
       case 'truncate':
-        ui.update((u) => (u.draft ? { ...u, draft: { ...u.draft, path: action.path } } : u));
+        ui.update((u) => {
+          if (u.draft) return { ...u, draft: { ...u.draft, path: action.path } };
+          // Extension sans brouillon actif (entrée dans une ville ennemie — R-57).
+          const unitId = action.kind === 'extend' ? action.unitId ?? u.selectedUnitId : null;
+          return unitId ? { ...u, draft: { unitId, path: action.path } } : u;
+        });
         break;
       case 'attack':
         client.submitOrder(action.order);
@@ -102,7 +107,9 @@
     const d = get(ui).draft;
     if (!d || d.path.length === 0) return;
     client.submitOrder({ type: 'Move', unitId: d.unitId, path: d.path });
-    ui.update((u) => ({ ...u, draft: null }));
+    // Le brouillon reste armé (vide) sur la même unité : enchaîner un autre
+    // ordre de déplacement ne demande pas de re-sélection.
+    ui.update((u) => ({ ...u, draft: { unitId: d.unitId, path: [] } }));
   }
 
   function cancelDraft(): void {

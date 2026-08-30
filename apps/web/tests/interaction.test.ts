@@ -63,6 +63,16 @@ describe('clickAction (L3)', () => {
     expect(action).toEqual({ kind: 'attack', order: { type: 'Attack', unitId: 'u1', target: { q: 0, r: 1 } } });
   });
 
+  it('ville ennemie adjacente SANS unité visible → étape de déplacement (capture par entrée, R-57/R-65), pas un Attack', () => {
+    const state = makeBattleState();
+    // Ville p2 vide adjacente au guerrier u1 (0,0) : (-1,1) est voisine.
+    state.cities.c9 = { id: 'c9', q: -1, r: 1, owner: 'p2', pop: 1, capital: false, foodStored: 0, production: null, workedTile: null };
+    const view = viewOf(state);
+    // Brouillon annulé (draft null) : le clic arme un brouillon frais sur l'unité.
+    const action = clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: -1, r: 1 });
+    expect(action).toEqual({ kind: 'extend', path: [{ q: -1, r: 1 }], unitId: 'u1' });
+  });
+
   it('le colon (non-combattant) ne produit pas d\'attaque — sélection au clic', () => {
     const view = viewOf(makeBattleState());
     const action = clickAction(view, uiOf({ selectedUnitId: 'u2' }), { q: 0, r: 1 });
