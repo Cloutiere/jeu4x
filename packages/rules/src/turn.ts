@@ -863,7 +863,8 @@ function applySetWorkedTile(board: Board, ordersByPlayer: Record<PlayerId, Order
     if (city.workedTiles.length < city.pop) {
       city.workedTiles.push(order.tile);
     } else {
-      // Échange : remplace la case la moins intéressante (dernière du classement).
+      // Échange : remplace la case la moins intéressante (première du
+      // classement ascendant nourriture > production > commerce).
       const ranked = [...city.workedTiles]
         .map((key) => {
           const p = key.split(',');
@@ -876,7 +877,7 @@ function applySetWorkedTile(board: Board, ordersByPlayer: Record<PlayerId, Order
             a.y.commerce - b.y.commerce ||
             compareHex(a.hex, b.hex),
         );
-      const worst = ranked[ranked.length - 1];
+      const worst = ranked[0];
       if (!worst) continue;
       city.workedTiles = city.workedTiles.map((k) => (k === worst.key ? order.tile! : k));
     }

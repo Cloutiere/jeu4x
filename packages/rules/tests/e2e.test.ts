@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveTurn } from '../src/turn.js';
 import { makeState } from '../src/fixtures.js';
+import { tileYield } from '../src/economy.js';
 import { filterEventsForPlayer, getFilteredState } from '../src/fog.js';
 import type { GameState, Order } from '../src/state.js';
 import type { GameEvent } from '../src/events.js';
@@ -171,3 +172,95 @@ function unitPos(state: GameState, id: string): { q: number; r: number } {
   const u = state.units[id]!;
   return { q: u.q, r: u.r };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 6 — scénario économique de bout en bout (HANDOFF-PHASE6 §L5)
+// Fonder une ville → pop 2 par les vrais rendements (jauge R-63) → assigner
+// un citoyen à une plaine → construire le Grenier (+1 N sur la case) →
+// réassigner → construire le Tribunal → rayon 2 (cases à distance 2).
+// ---------------------------------------------------------------------------
+
+describe('Phase 6 · scénario économique de bout en bout', () => {
+  function ecoMap(): GameState {
+    return makeState({
+      width: 12,
+      height: 12,
+      terrainOverrides: { '5,6': 'plaine', '3,5': 'montagne' },
+      units: [{ id: 'u1', type: 'colon', owner: 'p1', q: 5, r: 5 }],
+    });
+  }
+
+  it('fondation → croissance → Grenier (+1 N) → réassignation → Tribunal (rayon 2)', () => {
+    let state = ecoMap();
+    const allEvents: GameEvent[] = [];
+    const step = (orders: Record<string, Order[]>): void => {
+      const r = resolveTurn(state, orders, 42);
+      state = r.newState;
+      allEvents.push(...r.events);
+    };
+
+    // Tour 1 : fondation. Pop 1 → 1 citoyen auto-assigné (prairie 2 N) ;
+    // nourriture/tour = 2 (centre) + 2 (citoyen) = 4.
+    step({ p1: [{ type: 'FoundCity', unitId: 'u1' }] });
+    const cityId = Object.keys(state.cities)[0]!;
+    expect(state.cities[cityId]!.pop).toBe(1);
+    expect(state.cities[cityId]!.workedTiles.length).toBe(1);
+    expect(state.cities[cityId]!.foodStored).toBe(4);
+
+    // Tours 2-3 : croissance au seuil 10 × pop (R-63) → pop 2.
+    step({});
+    step({});
+    expect(state.cities[cityId]!.pop).toBe(2);
+    expect(allEvents.some((e) => e.type === 'PopulationGrew')).toBe(true);
+    expect(state.cities[cityId]!.workedTiles.length).toBe(2); // +1 citoyen auto-assigné (R-60)
+
+    // Tour 4 : citoyen assigné à la plaine (5,6) + Grenier en file (20 🔶).
+    step({
+      p1: [
+        { type: 'SetWorkedTile', cityId, tile: '5,6' },
+        { type: 'SetProduction', cityId, item: { kind: 'building', id: 'grenier' } },
+      ],
+    });
+    expect(state.cities[cityId]!.workedTiles).toContain('5,6');
+    expect(state.cities[cityId]!.production!.progress).toBe(1); // 1/tour à pop 2
+
+    // Le Grenier s'achève quand la progression atteint son coût (R-62/R-66) :
+    // on amène la file au bord (la progression est conservée tour à tour).
+    state.cities[cityId]!.production!.progress = 19;
+    step({}); // 19 + production du tour → complété
+    expect(state.cities[cityId]!.buildings).toEqual(['grenier']);
+    expect(allEvents.some((e) => e.type === 'BuildingCompleted' && e.building === 'grenier')).toBe(true);
+
+    // R-66 : le Grenier donne +1 N sur la plaine travaillée — le gain de
+    // nourriture du tour suivant intègre le bonus (centre + Σ rendements
+    // effectifs des cases travaillées, Grenier compris).
+    const before = state.cities[cityId]!.foodStored;
+    const tiles = [...state.cities[cityId]!.workedTiles];
+    const expectedFood =
+      2 + tiles.reduce((acc, key) => acc + tileYield(state.map, ['grenier'], key)!.food, 0);
+    step({});
+    expect(state.cities[cityId]!.foodStored).toBe(before + expectedFood);
+    expect(expectedFood).toBeGreaterThan(2 + tiles.length); // le bonus se sent vraiment
+
+    // Tribunal en file (40 🔶), achevé au tour suivant.
+    state.cities[cityId]!.production = { item: { kind: 'building', id: 'tribunal' }, progress: 39 };
+    step({});
+    expect(state.cities[cityId]!.buildings).toEqual(['grenier', 'tribunal']);
+
+    // Rayon 2 (T-08b + Tribunal) : la montagne (3,5) — distance 2 — devient
+    // travaillable (R-60/R-66). La ville a maintenant pop ≥ 2 : l'assignation
+    // manuelle de la montagne est acceptée.
+    step({ p1: [{ type: 'SetWorkedTile', cityId, tile: '3,5' }] });
+    expect(state.cities[cityId]!.workedTiles).toContain('3,5');
+    // Sans Tribunal, ce même ordre aurait été refusé (couvert par economy.test.ts).
+
+    // Propriété transversale : chaque case travaillée l'est par une seule ville.
+    const seen = new Set<string>();
+    for (const c of Object.values(state.cities)) {
+      for (const key of c.workedTiles) {
+        expect(seen.has(key)).toBe(false);
+        seen.add(key);
+      }
+    }
+  });
+});
