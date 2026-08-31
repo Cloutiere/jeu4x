@@ -49,6 +49,9 @@ PRODUCTION = "#9C7A4E"
 PV = "#C25B5B"
 PM = "#D9C04A"
 SABLE = "#C8B08A"        # peaux/tissus neutres
+DESERT_1 = "#E3D19A"     # sable clair (Phase 6)
+DESERT_2 = "#CDB478"     # dune
+COMMERCE = "#C08A3E"     # commerce (Phase 6)
 BOIS = "#7A5C3A"
 BOIS_CLAIR = "#A3835A"
 GRIS_ARMURE = "#9A9AA0"
@@ -242,6 +245,19 @@ def tile_montagne(d, img, w, h, cx):
     for x, y, r in [(70, 205, 6), (90, 215, 4), (150, 200, 5), (170, 212, 3.5)]:
         d.ellipse((x - r, y - r, x + r, y + r), fill="#7C7C86")
     light_from_topleft(img, w, h, cx, 14)
+
+
+def tile_desert(d, img, w, h, cx):
+    d.poly(hex_points(cx, h / 2, w, h), fill=DESERT_1)
+    # dunes (crêtes douces)
+    d.ellipse((20, 110, 150, 200), fill=DESERT_2)
+    d.ellipse((110, 160, 220, 240), fill="#D8C48C")
+    for x, y in [(60, 130), (150, 190), (105, 215)]:
+        d.arc((x - 34, y - 8, x + 34, y + 8), 195, 345, fill="#B89B60", width=2.6)
+    # cactus discret (flat board-game)
+    d.rrect((160, 120, 170, 158), 4, fill="#6E9C4A")
+    d.rrect((150, 128, 180, 138), 4, fill="#6E9C4A")
+    light_from_topleft(img, w, h, cx, 20)
 
 
 def tile_eau(d, img, w, h, cx):
@@ -440,6 +456,88 @@ def ville_capitale(db, da, w, h):
     db.ellipse((109, 12, 115, 18), fill=OR)
 
 
+# ---------------------------------------------------------------- bâtiments (Phase 6, R-66)
+
+
+def batiment_grenier(db, da, w, h):
+    """Grenier : silo à grain sur pilotis, toit = accent."""
+    shadow(db, 112, 214, 70)
+    for x in (76, 148):
+        db.rrect((x - 5, 178, x + 5, 214), 2, fill=BOIS)
+    db.rrect((64, 120, 160, 184), 6, fill=SABLE)
+    db.rrect((64, 120, 160, 184), 6, outline=INK, width=2.5)
+    for y in (136, 156):
+        db.line([(68, y), (156, y)], fill="#B39B72", width=3)
+    roof = [(56, 124), (112, 84), (168, 124)]
+    db.poly(roof, fill="#8E8A80", outline=INK, width=2)
+    da.poly(roof, fill="#FFFFFF")
+    db.ellipse((104, 138, 120, 154), fill=BOIS_CLAIR, outline=INK, width=2)
+
+
+def batiment_atelier(db, da, w, h):
+    """Atelier : enclume + marteau, tête d'enclume = accent."""
+    shadow(db, 112, 214, 70)
+    db.rrect((56, 190, 168, 214), 4, fill=BOIS, outline=INK, width=2)
+    db.rrect((92, 160, 132, 194), 3, fill="#6E6A62")
+    anvil_head = [(64, 130), (160, 130), (150, 162), (74, 162)]
+    db.poly(anvil_head, fill=GRIS_ARMURE, outline=INK, width=2)
+    db.poly([(160, 130), (186, 138), (160, 146)], fill=GRIS_ARMURE, outline=INK, width=2)
+    da.poly(anvil_head, fill="#FFFFFF")
+    db.line([(128, 60), (152, 118)], fill=BOIS, width=8)
+    db.rrect((120, 46, 168, 66), 5, fill="#6E6A62", outline=INK, width=2)
+
+
+def batiment_mine_de_fer(db, da, w, h):
+    """Mine de fer : entrée de galerie + chariot, pan de montagne = accent."""
+    shadow(db, 112, 214, 76)
+    db.poly([(40, 214), (40, 120), (112, 66), (184, 120), (184, 214)],
+            fill=MONTAGNE_2, outline=INK, width=2.5)
+    db.poly([(40, 120), (112, 66), (184, 120)], fill=MONTAGNE_1)
+    da.poly([(40, 120), (112, 66), (184, 120)], fill="#FFFFFF")
+    db.poly([(84, 214), (84, 158), (140, 158), (140, 214)], fill="#3E342A")
+    db.line([(84, 158), (112, 138), (140, 158)], fill=BOIS, width=6)
+    db.rrect((96, 182, 128, 214), 3, fill=BOIS, outline=INK, width=2)
+    db.ellipse((100, 208, 112, 220), fill="#5E4630")
+    db.ellipse((112, 208, 124, 220), fill="#5E4630")
+
+
+def batiment_comptoir_commercial(db, da, w, h):
+    """Comptoir : échoppe à auvent, auvent = accent."""
+    shadow(db, 112, 214, 74)
+    db.rrect((64, 128, 160, 214), 4, fill=SABLE, outline=INK, width=2.5)
+    awning = [(52, 132), (172, 132), (160, 96), (64, 96)]
+    db.poly(awning, fill="#8E8A80", outline=INK, width=2)
+    da.poly(awning, fill="#FFFFFF")
+    for x in (80, 112, 144):
+        db.line([(x, 134), (x, 168)], fill=BOIS, width=4)
+    db.ellipse((92, 178, 108, 194), fill=OR, outline=INK, width=2)
+    db.rrect((126, 176, 150, 196), 3, fill=BOIS_CLAIR, outline=INK, width=2)
+
+
+def batiment_port(db, da, w, h):
+    """Port : quai + mât + coque, voile = accent."""
+    shadow(db, 112, 214, 74)
+    db.poly([(48, 196), (176, 196), (160, 218), (64, 218)], fill=BOIS, outline=INK, width=2)
+    db.line([(76, 196), (76, 120)], fill=BOIS, width=6)
+    db.line([(76, 126), (140, 150)], fill=BOIS, width=5)
+    sail = [(112, 190), (112, 120), (156, 176)]
+    db.poly(sail, fill="#EDE7DA", outline=INK, width=2)
+    da.poly(sail, fill="#FFFFFF")
+    db.poly([(60, 170), (150, 170), (140, 194), (70, 194)], fill=BOIS_CLAIR, outline=INK, width=2)
+
+
+def batiment_tribunal(db, da, w, h):
+    """Tribunal : façade à fronton + colonnes, fronton = accent."""
+    shadow(db, 112, 214, 78)
+    db.rrect((48, 180, 176, 214), 3, fill="#C2B6A2", outline=INK, width=2.5)
+    pediment = [(44, 128), (112, 84), (180, 128), (168, 140), (56, 140)]
+    db.poly(pediment, fill="#B0A390", outline=INK, width=2)
+    da.poly([(44, 128), (112, 84), (180, 128), (168, 140), (56, 140)], fill="#FFFFFF")
+    for x in (66, 94, 122, 150):
+        db.rrect((x - 7, 144, x + 7, 182), 3, fill=SABLE, outline=INK, width=2)
+    db.rrect((56, 150, 168, 156), 2, fill="#A5987F")
+
+
 # ---------------------------------------------------------------- icônes
 
 
@@ -454,6 +552,18 @@ def icone_or(d):
     d.ellipse((14, 14, 50, 50), outline=OR_SOMBRE, width=3)
     d.line([(32, 20), (32, 44)], fill=OR_SOMBRE, width=4)
     d.line([(24, 26), (40, 26)], fill=OR_SOMBRE, width=4)
+
+
+def icone_commerce(d):
+    """Commerce (Phase 6) : balance de marchand — répartition or/science."""
+    d.line([(32, 10), (32, 44)], fill=BOIS, width=4)
+    d.line([(14, 20), (50, 20)], fill=BOIS, width=4)
+    for x in (14, 50):
+        d.line([(x, 20), (x - 8, 36)], fill=BOIS, width=2.5)
+        d.line([(x, 20), (x + 8, 36)], fill=BOIS, width=2.5)
+        d.arc((x - 10, 28, x + 10, 44), 0, 180, fill=COMMERCE, width=3.5)
+        d.ellipse((x - 5, 38, x + 5, 46), fill=OR, outline=INK, width=1.5)
+    d.rrect((22, 44, 42, 52), 3, fill=BOIS_CLAIR, outline=INK, width=2)
 
 
 def icone_science(d):
@@ -520,6 +630,7 @@ def main():
         "tile_foret": tile_foret,
         "tile_colline": tile_colline,
         "tile_montagne": tile_montagne,
+        "tile_desert": tile_desert,
         "tile_eau": tile_eau,
         "tile_ville_sol": tile_ville_sol,
     }
@@ -528,9 +639,16 @@ def main():
         "unite_colon": (256, 320, unite_colon),
         "ville_settlement": (224, 256, ville_settlement),
         "ville_capitale": (224, 256, ville_capitale),
+        "batiment_grenier": (224, 256, batiment_grenier),
+        "batiment_atelier": (224, 256, batiment_atelier),
+        "batiment_mine_de_fer": (224, 256, batiment_mine_de_fer),
+        "batiment_comptoir_commercial": (224, 256, batiment_comptoir_commercial),
+        "batiment_port": (224, 256, batiment_port),
+        "batiment_tribunal": (224, 256, batiment_tribunal),
     }
     icons = {
         "icone_or": icone_or,
+        "icone_commerce": icone_commerce,
         "icone_science": icone_science,
         "icone_nourriture": icone_nourriture,
         "icone_production": icone_production,
@@ -569,6 +687,9 @@ def write_palette():
         f"montagne_1        {MONTAGNE_1}",
         f"montagne_2        {MONTAGNE_2}",
         f"neige             {NEIGE}",
+        f"desert_1          {DESERT_1}",
+        f"desert_2          {DESERT_2}",
+        f"commerce          {COMMERCE}",
         f"eau_1             {EAU_1}",
         f"eau_2             {EAU_2}",
         f"sol_chemin        {SOL_CHEMIN}",
@@ -611,7 +732,10 @@ for n in ["guerrier", "colon"]:
 for n in ["settlement", "capitale"]:
     EXPECTED[f"ville_{n}.png"] = (224, 256)
     EXPECTED[f"ville_{n}_accent.png"] = (224, 256)
-for n in ["or", "science", "nourriture", "production", "pv", "pm", "fin_tour", "reseau"]:
+for n in ["grenier", "atelier", "mine_de_fer", "comptoir_commercial", "port", "tribunal"]:
+    EXPECTED[f"batiment_{n}.png"] = (224, 256)
+    EXPECTED[f"batiment_{n}_accent.png"] = (224, 256)
+for n in ["or", "commerce", "science", "nourriture", "production", "pv", "pm", "fin_tour", "reseau"]:
     EXPECTED[f"icone_{n}.png"] = (64, 64)
 
 

@@ -12,6 +12,9 @@ colline_2         #8A6F4A
 montagne_1        #8D8D95
 montagne_2        #6E6E78
 neige             #F2F2F0
+desert_1          #E3D19A
+desert_2          #CDB478
+commerce          #C08A3E
 eau_1             #3E6E9E
 eau_2             #7FA9CC
 sol_chemin        #A98F63

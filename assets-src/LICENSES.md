@@ -1,16 +1,16 @@
 # LICENSES.md
 
-Tous les fichiers de `exports/` sont générés **procéduralement** par 
-`assets-src/assets-src/tools/generate.py` (dessin vectoriel Pillow, antialiasing supersampling x4).
+Tous les fichiers de `exports/` sont générés **procéduralement** par
+`tools/generate.py` (dessin vectoriel Pillow, antialiasing supersampling x4).
 Aucune ressource tierce, aucune police, aucun texte incorporé.
 
 | Fichiers | Source | Licence |
 |---|---|---|
-| 7 tuiles `tile_*.png` | Généré par assets-src/tools/generate.py | Licence projet |
-| 4 entités `unite_*`/`ville_*` (+ `_accent`) | Généré par assets-src/tools/generate.py | Licence projet |
-| 8 icônes `icone_*.png` | Généré par assets-src/tools/generate.py | Licence projet |
+| 8 tuiles `tile_*.png` | Généré par tools/generate.py | Licence projet |
+| 10 entités `unite_*`/`ville_*` (+ `_accent`) | Généré par tools/generate.py | Licence projet |
+| 9 icônes `icone_*.png` | Généré par tools/generate.py | Licence projet |
 
 Annexe palette : voir `palette.txt` (hex figés).
 
-Régénérer après modification : `python assets-src/tools/generate.py`.
-Dernière génération : 2026-08-30
+Régénérer après modification : `python tools/generate.py`.
+Dernière génération : 2026-08-31
