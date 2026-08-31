@@ -122,6 +122,17 @@ pas de techs/unités nouvelles (Phase 7 — les bâtiments ne nécessitent aucun
 tech en v1), pas de spécialistes.
 
 ## Déploiement
-Push de `main` → CI (tests puis deploy) → vérification en ligne : création de
-partie, un tour avec production de bâtiment (voir §fin de rapport — section
-« Vérification en ligne » ajoutée après le push).
+Push de `main` (651330f → 1441c7a) → workflow **Deploy : success** sur 1441c7a
+(tests + typecheck puis deploy worker/pages). Vérifications en ligne :
+- `GET /api/health` → 200 ;
+- le bundle servi (`/assets/index-CLr3LL3K.js`) est **celui de ce commit** (hash
+  identique au build local) et contient le nouveau code (`SetWorkedTile`,
+  bouton « Rendements », bâtiments) ;
+- `/auth/dev` correctement **désactivé** en prod (403).
+
+**Partie complète en ligne non jouée** : la prod n'accepte que l'OAuth
+Google/Discord réel (aucun identifiant disponible pour la session agent). Le
+même scénario (création de partie, tours, production de bâtiment) a été joué
+intégralement **en local à la souris vs bot** (§Vérification GUI). Erik peut
+rejouer le scénario en ligne en ~2 minutes avec son compte ; le moteur et le
+serveur sont identiques (mêmes contrats, même bundle).
