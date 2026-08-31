@@ -3,6 +3,10 @@
 Socle réseau du jeu 4X : Worker Cloudflare, `GameDO` (un par partie, WS
 hibernation), `LobbyDO` (singleton), OAuth Google/Discord + stub local.
 Contrats du protocole : `packages/shared` — moteur : `packages/rules`.
+Ordres acceptés (Phase 6) : `Move`, `Attack`, `FoundCity`, `FormArmy`, `Hold`,
+`Fortify`, `SetProduction` (item `{kind:'unit'|'building', id}` — R-62/R-66),
+`SetWorkedTile` (`{cityId, tile: "q,r"|null}` — R-60). Le dump admin inclut
+`workedTiles` et `buildings` des villes.
 
 ## Commandes
 

@@ -30,7 +30,10 @@ Login de dev : `/auth/dev?name=Alice` (stub, bouton sur la page de login).
 | Capturer/assaut une ville ennemie | Bouton « Entrer dans la ville … » ou clic sur la case (l'entrée déclenche capture si vide, assaut du défenseur sinon — R-57) |
 | Tenir la position / Fortifier | Boutons du panneau — Fortifier : bonus défensif permanent +25 % (R-33/T-17), marqueur 🛡 sur le sprite ; tout autre ordre annule ; « Ne plus fortifier » soumet un Hold |
 | Fonder une ville | Bouton du panneau (Colon uniquement) — désactivé avec info-bulle si une ville connue est à distance < T-09 |
-| Production d'une ville | Menu de ville → Guerrier (10) / Colon (20) — file unique, progression conservée (R-62) |
+| Production d'une ville | Menu de ville → unités (Guerrier 10 / Colon 20) **et bâtiments** (Grenier 20, Atelier 30, Mine de fer 40, Comptoir 30, Port 30, Tribunal 40 — R-66) — file unique, progression conservée (R-62) |
+| **Réassigner un citoyen** (Phase 6, R-60) | Sélectionner une ville amie puis **clic sur une case** de la carte (dans le rayon de travail, case libre) — re-clic sur une case déjà travaillée par la ville = désassignation. Les cases travaillées portent un **cadre de la couleur du propriétaire** |
+| **Overlay des rendements** (Phase 6) | Bouton « Rendements » de la barre supérieure : affiche/masque les indicateurs N/P/C sur chaque case explorée |
+| **Menu de ville enrichi** (Phase 6) | Cumuls Nourriture / Production / Commerce (+ répartition or/science du curseur R-61), jauge de croissance (seuil 10 × pop, R-63), liste des citoyens cliquable (désassignation), bâtiments possédés, rayon de travail (1, 2 avec Tribunal) |
 | Centrer la caméra sur la sélection | Bouton « Centrer la caméra » ou touche **F** |
 | Zoom | Molette (borné 0.5×–2.25×), ancré sur le curseur |
 | Pan | Glisser (un glisser de > 5 px ne déclenche jamais de clic) |
