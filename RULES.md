@@ -41,10 +41,15 @@
 
 Chaque type d'unité : `attaque (A)`, `défense (D)`, `mouvement (M)`, `PV max`, `coût`, `rayon de vision`, capacités (`peutAttaquer`, `peutFonderVille`, `àDistance`). Est **pacifique** toute unité qui ne peut pas attaquer.
 
-| Unité | A | D | M | PV max | Coût | Vision | Capacités |
-|---|---|---|---|---|---|---|---|
-| Guerrier | 1 | 1 | 1 | 3 | 10 | 2 | peutAttaquer |
-| Colon | 0 | 0 | 2 | 3 | 20 | 2 | peutFonderVille, **non-combattant** |
+| Unité | A | D | M | PV max | Coût | Vision | Capacités | Tech |
+|---|---|---|---|---|---|---|---|---|
+| Guerrier | 1 | 1 | 1 | 3 | 10 | 2 | peutAttaquer | — |
+| Colon | 0 | 0 | 2 | 3 | 20 | 2 | peutFonderVille, **non-combattant** | — |
+| Archer *(7a)* | 1 | 2 | 1 | 3 | 15 | 2 | peutAttaquer | Travail du bronze |
+| Cavalier *(7a)* | 2 | 1 | 2 | 3 | 20 | 2 | peutAttaquer | Équitation |
+| Légion *(7a)* | 2 | 1 | 1 | 3 | 10 | 2 | peutAttaquer | Travail du fer |
+
+*(Données du PDF officiel, ajoutées en 7a ; Espion et Galère existent dans `units.json` mais ne sont pas constructibles en v1 terrestre — mécaniques Phase 7.)*
 
 ### 3.2 R-30 · Non-empilement
 
@@ -209,6 +214,30 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 | Comptoir commercial | +2 C par désert travaillé | 30 |
 | Port | +1 N par mer travaillée | 30 |
 | Tribunal | rayon de travail 1 → 2 (6 → 18 cases) | 40 |
+
+### 8.1 Technologies — Phase 7a (ajouté le 31/08, décisions d'Erik)
+
+**Base : seuls le Guerrier et le Colon sont constructibles sans technologie** — tout autre item de production (unité ou bâtiment) exige la sienne (R-87).
+
+**R-85 · Recherche.** Chaque joueur choisit **une technologie à la fois** via `SetResearch(techId)` — action **immédiate** (hors ordres de tour, validée serveur : tech existante, non débloquée, prérequis satisfaits). La science produite par les villes s'accumule sur la tech courante ; **la progression est conservée par technologie** en cas de changement ; le **débordement est reporté** sur la suivante. À complétion : événement `TechResearched` + débloquages immédiats (visibles dans les menus de production au tour suivant au plus tard).
+
+**R-86 · Arbre relationnel.** Les technologies vivent dans `techs.json` : `{id, name, cost 🔶, prereqs[], unlocks{units[], buildings[], wonders[]}}` — avec **tests d'intégrité référentielle** (toute référence existe ; index inverse ; seule Guerrier/Colon et les items sans tech sont constructibles au départ). **Calibrage = édition du JSON + push** (CI déploie). Les **merveilles sont en données mais non constructibles** (effets : Phase 7 suite).
+
+| Tech | Coût 🔶 | Prérequis 🔶 | Débloque |
+|---|---|---|---|
+| Alphabet | 20 | — | Bibliothèque ; merveille Oracle de Delphes |
+| Travail du bronze | 20 | — | Archer (15) ; Caserne ; merveille Colosse de Rhodes |
+| Poterie | 20 | — | Grenier ; merveille Jardins suspendus |
+| Équitation | 20 | — | Cavalier (2/1/2, 20) |
+| Travail du fer | 30 | Travail du bronze | Légion (2/1/1, 10) ; Atelier |
+| Écriture | 30 | Alphabet | Espion *(données — mécaniques en Phase 7)* |
+| Lettres | 40 | Écriture | Tribunal |
+| Code des lois | 40 | Lettres | Comptoir commercial |
+| Navigation | 50 | Poterie | Port ; Galère *(données — naval en Phase 7)* |
+
+*Prérequis proposés d'après [CivRevTechTree_Official.pdf](CivRevTechTree_Official.pdf) (extraction du 31/08) et marqués 🔶 — à calibrer librement, c'est le rôle de la base.*
+
+**R-87 · Débloquage.** Un item de production est **proposé par l'UI et accepté par le serveur** ssi sa technologie (`tech` de sa donnée) est débloquée ou `null`. Les items verrouillés apparaissent grisés avec leur tech requise. Le joueur sans tech choisie accumule sa science en réserve (`scienceStored`) jusqu'au premier choix.
 
 ## 9. Phase D — Vision, soins, fin de tour
 
