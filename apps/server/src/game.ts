@@ -22,6 +22,7 @@ import {
   migrateState,
   resolveTurn,
   applySetResearch,
+  applySetConversion,
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, Order, PlayerId, UnitId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
@@ -437,6 +438,14 @@ export class GameDO {
         case 'SetResearch':
           await this.handleSetResearch(ws, att.playerId, (msg as { techId: string }).techId);
           break;
+        case 'SetConversion':
+          await this.handleSetConversion(
+            ws,
+            att.playerId,
+            (msg as { cityId: string }).cityId,
+            (msg as { target: 'gold' | 'science' }).target,
+          );
+          break;
         case 'ResyncRequest':
           this.sendWelcome(ws);
           {
@@ -513,6 +522,40 @@ export class GameDO {
     }
     await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'recherche mise à jour' });
+    this.broadcast((pid) => this.snapshotFor(pid, null));
+  }
+
+  /**
+   * R-90 · SetConversion (Phase 7b) — action IMMÉDIATE (pas un ordre de tour),
+   * même contrat que SetResearch : appliquée à la réception (moteur pur
+   * applySetConversion), persistée, puis diffusée immédiatement aux deux
+   * clients. Autorisée en phase « orders », même verrouillé ; refusée pendant
+   * la résolution.
+   */
+  private async handleSetConversion(
+    ws: WebSocket,
+    playerId: PlayerId,
+    cityId: string,
+    target: 'gold' | 'science',
+  ): Promise<void> {
+    if (typeof cityId !== 'string' || cityId.length === 0) {
+      return this.sendOrderRejection(ws, 'cityId requis');
+    }
+    if (target !== 'gold' && target !== 'science') {
+      return this.sendOrderRejection(ws, 'target requis (gold|science)');
+    }
+    if (!this.game || !this.meta || this.meta.status !== 'active') {
+      return this.sendOrderRejection(ws, 'conversion impossible (partie non active)');
+    }
+    if (this.game.phase !== 'orders') {
+      return this.sendOrderRejection(ws, 'conversion non modifiable (résolution en cours)');
+    }
+    const engineId = this.engineIdOf(playerId);
+    const result = applySetConversion(this.game, engineId, cityId, target);
+    if (!result.ok) return this.sendOrderRejection(ws, result.reason);
+    this.game = result.state;
+    await this.state.storage.put({ game: this.game });
+    this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'conversion mise à jour' });
     this.broadcast((pid) => this.snapshotFor(pid, null));
   }
 

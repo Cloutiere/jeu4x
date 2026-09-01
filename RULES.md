@@ -190,7 +190,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 - **Assignation** : automatique à la fondation/à la croissance (meilleure case libre par priorité nourriture > production > commerce, tie-break déterministe R-81), **re-assignable manuellement** via le nouvel ordre `SetWorkedTile` (ville, case) — dans le rayon, libre (non travaillée par une autre ville).
 - La ville affiche ses rendements cumulés (nourriture, production, commerce) — visibles dans le menu de ville et sous forme d'indicateurs sur la carte (affichage masquable).
 
-**R-61 · Répartition du commerce.** Les revenus d'or et de science proviennent du commerce de la ville, répartis par un **curseur global** science/or (défaut `T-14` = 50/50 ; reste entier attribué à l'or — validé le 29/08). Pas de curseur par ville.
+**R-61 · Répartition du commerce.** ~~Répartie par un curseur global science/or (défaut `T-14` = 50/50)~~ — **remplacée par R-90 le 01/09/2026** (conversion binaire par ville ; le curseur global `player.scienceRatio` est déprécié).
 
 **R-62 · Files de production.** Un seul item à la fois ; la progression est conservée en cas de remplacement. À complétion : l'unité apparaît sur la case de ville (si libre — sinon en attente, 🔶) et la **file est vidée** (validé le 29/08).
 
@@ -239,6 +239,26 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 
 **R-87 · Débloquage.** Un item de production est **proposé par l'UI et accepté par le serveur** ssi sa technologie (`tech` de sa donnée) est débloquée ou `null`. Les items verrouillés apparaissent grisés avec leur tech requise. Le joueur sans tech choisie accumule sa science en réserve (`scienceStored`) jusqu'au premier choix.
 
+### 8.2 Économie de la ville — Phase 7b (ajouté le 01/09/2026, décisions d'Erik)
+
+**R-90 (révisée) · Conversion du commerce, par ville.** Chaque ville convertit la **totalité** de son commerce en **or** ou en **science** — choix **binaire, par ville** (amende R-61 : plus de curseur global ; `player.scienceRatio` déprécié, conservé pour compat).
+- Choix via `SetConversion(cityId, target)` — **action immédiate** (même contrat que `SetResearch` : traitée à la réception, visible en temps réel, autorisée en phase « orders » même verrouillé, refusée pendant la résolution). Bouton dans le menu de ville.
+- **Défaut : or** — pour une ville neuve comme pour une ville capturée (le choix est réinitialisé à la capture, R-65).
+- **Répercussion carte** : les cases **travaillées** par une ville (et sa case de ville) affichent l'icône **or ou science** selon sa conversion, au lieu du commerce ; les cases non travaillées gardent l'icône commerce (potentiel du terrain).
+- Conséquence : toute ville avec ≥ 1 commerce produit 1 or OU 1 science minimum — le calibrage « science 0/tour » (remonté en 7a) disparaît par construction.
+
+**R-88 · Bibliothèque (30 🔶, Alphabet).** Modifie la conversion de sa ville :
+| Conversion de la ville | Sans bibliothèque | Avec bibliothèque |
+|---|---|---|
+| **Or** | `C` or, 0 science | `C` or, `max(1 ; round(C × 0,2))` science |
+| **Science** | 0 or, `C` science | 0 or, `round(C × 1,5)` science |
+
+Arrondi **au plus proche** (round half up). Cas limite tranché : même à **0 commerce**, une ville à bibliothèque génère **1 science/tour** (conversion or). Exemples validés par Erik : 5 commerce en or → 5 or + 1 science ; 12 commerce en or → 12 or + 2 science ; 12 commerce en science → 18 science.
+
+**R-89 · Caserne (20 🔶, Travail du bronze).** Les **unités produites** par une ville avec Caserne sortent **vétérans** (+50 % A/D, T-01) — **hors Colons** (pacifiques, pas de combat). Ne se cumule pas avec la promotion par combat (R-32) pour les unités déjà vétérans.
+
+**UI (Phase 7b).** Menu de ville restructuré en tableau de bord (identité / rendements avec durées en tours / citoyens / production à deux niveaux catégorisée). Le clic sur une ville interrompt un brouillon de déplacement en cours (le chemin soumis reste en place). Le bouton « Rendements » de la carte devient un cycle à 3 états : masqué → affiché → affiché **sans villes ni armées** (pour lire les icônes sous les entités).
+
 ## 9. Phase D — Vision, soins, fin de tour
 
 - **R-70 · Vision** : rayon `T-07` (unité) / `T-08` (ville), **distance uniquement** — aucun blocage par terrain. Recalcul par joueur à chaque résolution ; 3 états (inexploré / exploré-masqué / visible). `getFilteredState(state, player)` ne diffuse jamais d'entité hors du champ visible.
@@ -268,7 +288,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 | T-11 | `waterPassable` | false (v1) |
 | T-12 | `settlerBootyGold` | 10 (moitié du coût) 🔶 |
 | T-13 | `rangedRange` | 1 🔶 |
-| T-14 | `scienceRatioDefault` | 0.5 (reste entier à l'or) 🔶 |
+| T-14 | `scienceRatioDefault` | ~~0.5~~ **déprécié le 01/09/2026** — remplacé par R-90 (conversion binaire par ville) |
 | T-15 | `growthBase` | **10 (seuil = 10 × pop)** — règle Civ Rev confirmée par Erik le 30/08 ; la calibration 10→25 du même jour est annulée (elle compensait l'absence de rendements réels) |
 | T-16 | `popProductionBonus` | 0.25 🔶 |
 | T-17 | `fortifyDefenseBonus` | 0.25 🔶 (R-33, ajouté le 30/08) |

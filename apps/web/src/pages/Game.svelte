@@ -193,8 +193,15 @@ import { TECHS } from '@game/rules';
   let playbackActive = $state(false);
   const busy = $derived($view.phase === 'resolving' || playbackActive);
 
-  // Phase 6 L3 : overlay des rendements N/P/C (masquable).
-  let showYields = $state(false);
+  // Phase 6 L3 : overlay des rendements N/P/C — cycle 3 états (Phase 7b) :
+  // 0 masqué → 1 affiché → 2 affiché SANS villes/armées (lire les rendements
+  // sous les entités) → 0.
+  let yieldMode = $state<0 | 1 | 2>(0);
+  const showYields = $derived(yieldMode > 0);
+  const hideEntities = $derived(yieldMode === 2);
+  function cycleYields(): void {
+    yieldMode = ((yieldMode + 1) % 3) as 0 | 1 | 2;
+  }
 
   // Phase 7a : menu de choix technologique (R-85).
   let showResearch = $state(false);
@@ -274,8 +281,13 @@ import { TECHS } from '@game/rules';
       Fin de tour
     </button>
     <button type="button" onclick={() => client.resync()}>Resync</button>
-    <button type="button" class:active-toggle={showYields} title="Afficher/masquer les rendements N/P/C sur les cases" onclick={() => (showYields = !showYields)}>
-      Rendements
+    <button
+      type="button"
+      class:active-toggle={showYields}
+      title="Rendements N/P/C sur les cases — 3e clic : masquer villes et armées pour les lire (Phase 7b)"
+      onclick={cycleYields}
+    >
+      Rendements{yieldMode === 1 ? ' ✓' : yieldMode === 2 ? ' (seuls)' : ''}
     </button>
     {#if devMode}<a href={`#/debug/${code}`}>Debug</a>{/if}
   </header>
@@ -295,6 +307,7 @@ import { TECHS } from '@game/rules';
           {ui}
           {playback}
           {showYields}
+          {hideEntities}
           onAction={handleAction}
           onRightClick={handleRightClick}
           onCancelDraft={cancelDraft}

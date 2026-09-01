@@ -42,14 +42,33 @@
     onPlaybackActive?(active: boolean): void;
     /** Phase 6 L3 : overlay des rendements N/P/C (bouton de bascule). */
     showYields?: boolean;
+    /** Phase 7b : masquer villes et armées pour lire les rendements (cycle 3 états). */
+    hideEntities?: boolean;
   }
 
-  let { client, ui, playback, onAction, onRightClick, onConfirmDraft, onCancelDraft, onReady, onPlaybackActive, showYields = false }: Props = $props();
+  let {
+    client,
+    ui,
+    playback,
+    onAction,
+    onRightClick,
+    onConfirmDraft,
+    onCancelDraft,
+    onReady,
+    onPlaybackActive,
+    showYields = false,
+    hideEntities = false,
+  }: Props = $props();
 
-  // La bascule de l'overlay de rendements reconstruit la surcouche.
+  // La bascule de l'overlay de rendements reconstruit la surcouche ; le
+  // masquage des entités (Phase 7b) ne fait que cacher la couche (réversible,
+  // sans reconstruction).
   $effect(() => {
     void showYields;
     overlayDirty = true;
+  });
+  $effect(() => {
+    entitiesLayer.visible = !hideEntities;
   });
 
   let host: HTMLDivElement;
@@ -362,16 +381,30 @@
 
     // Overlay des rendements (Phase 6 L3, masquable) : sur chaque case
     // explorée à rendements, une ligne par ressource non nulle — icône
-    // (nourriture / production / commerce) + valeur générée.
+    // (nourriture / production / commerce) + valeur générée. Phase 7b (R-90) :
+    // les cases TRAVAILLÉES par une ville (et la case de ville elle-même)
+    // affichent or/science selon la conversion de cette ville au lieu du
+    // commerce ; les cases non travaillées gardent le commerce (potentiel).
     if (showYields) {
+      const workedBy = workedTileOwner();
       for (const [key, tile] of Object.entries(scene.state.map)) {
         if (!scene.explored.has(key)) continue;
         const y = TERRAINS[tile.terrain]?.yields;
         if (!y) continue;
+        const converter = workedBy.get(key);
         const rows: Array<{ icon: Texture | null; count: number; tint: number }> = [];
         if (y.food !== 0) rows.push({ icon: textures!.yieldIcons.food, count: y.food, tint: 0xffffff });
         if (y.production !== 0) rows.push({ icon: textures!.yieldIcons.production, count: y.production, tint: 0xffffff });
-        if (y.commerce !== 0) rows.push({ icon: textures!.yieldIcons.commerce, count: y.commerce, tint: 0xffffff });
+        if (y.commerce !== 0) {
+          // Case travaillée : le commerce est converti (R-90) — or ou science.
+          const icon =
+            converter
+              ? converter.conversion === 'science'
+                ? textures!.yieldIcons.science
+                : textures!.yieldIcons.gold
+              : textures!.yieldIcons.commerce;
+          rows.push({ icon, count: y.commerce, tint: 0xffffff });
+        }
         if (rows.length === 0) continue;
         const [q, r] = key.split(',').map(Number);
         if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
@@ -502,6 +535,23 @@
       if (city) return { q: city.q, r: city.r };
     }
     return null;
+  }
+
+  /**
+   * Case → ville qui la travaille (R-90, Phase 7b) : les cases travaillées ET
+   * la case de ville elle-même sont exploitées par cette ville (le centre est
+   * gratuit, R-60). Sert à l'overlay de rendements pour choisir l'icône
+   * or/science selon la conversion de la ville.
+   */
+  function workedTileOwner(): Map<string, GameState['cities'][string]> {
+    const by = new Map<string, GameState['cities'][string]>();
+    if (!scene.state) return by;
+    for (const city of Object.values(scene.state.cities)) {
+      if (!scene.explored.has(tileKeyOf(city))) continue;
+      by.set(tileKeyOf(city), city);
+      for (const key of city.workedTiles) by.set(key, city);
+    }
+    return by;
   }
 
   function originOfDraft(unitId: string): { x: number; y: number } | null {

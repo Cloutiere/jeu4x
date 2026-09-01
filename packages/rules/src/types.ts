@@ -62,6 +62,9 @@ export interface BuildingData {
   tileBonus: { terrain: TerrainId } & Yields | null;
   /** R-87 : technologie requise pour le construire (null = disponible d'office). */
   tech: string | null;
+  /** Phase 7b : libellé d'effet pour l'UI (Bibliothèque R-88, Caserne R-89) —
+   *  absent pour les bâtiments à bonus de terrain (libellé dérivé). */
+  effect?: string;
 }
 
 /** R-86 · Technologie (techs.json) — base relationnelle embarquée. */

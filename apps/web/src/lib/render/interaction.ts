@@ -83,8 +83,15 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
     if (city && city.id === ui.selectedCityId) return { kind: 'deselect' };
   }
 
-  // 1. Un chemin est en construction : priorité aux interactions de chemin.
+  // 1. Un chemin est en construction : priorité aux interactions de chemin,
+  //    SAUF sur une case de ville AMIE — le clic interrompt le brouillon et
+  //    sélectionne la ville (Phase 7b : le menu de ville doit toujours être
+  //    accessible d'un clic ; le chemin déjà soumis reste en place).
   if (selected && ui.draft && ui.draft.unitId === selected.id && ordersEditable(view)) {
+    const draftCity = cityAtHex(state, hex);
+    if (draftCity && draftCity.owner === selected.owner) {
+      return { kind: 'selectCity', cityId: draftCity.id };
+    }
     const trunc = truncateOf(ui.draft.path, hex);
     if (trunc) return { kind: 'truncate', path: trunc };
     const last = ui.draft.path[ui.draft.path.length - 1] ?? selected;

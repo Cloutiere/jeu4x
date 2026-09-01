@@ -38,7 +38,7 @@ export interface GameTextures {
   units: Record<string, EntityTexture>;
   cities: { settlement: EntityTexture; capital: EntityTexture };
   /** Icônes de rendement pour l'overlay N/P/C (null si asset absent). */
-  yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null };
+  yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null; gold: Texture | null; science: Texture | null };
   /** Pixel blanc (barres de PV/progression, flashs). */
   px: Texture;
 }
@@ -370,7 +370,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const fallback = createTextures(renderer);
 
   const tileIds = Object.keys(TILE_ASSETS) as TerrainId[];
-  const [tiles, units, settlement, capital, foodIcon, productionIcon, commerceIcon] = await Promise.all([
+  const [tiles, units, settlement, capital, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     Promise.all(
       UNIT_IDS.filter((id) => fallback.units[id]).map((id) =>
@@ -382,13 +382,15 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
+    optionalIcon('icone_or'),
+    optionalIcon('icone_science'),
   ]);
 
   return {
     tiles: Object.fromEntries(tiles) as Record<TerrainId, Texture>,
     units: Object.fromEntries(units),
     cities: { settlement, capital },
-    yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon },
+    yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon, gold: goldIcon, science: scienceIcon },
     px: fallback.px,
   };
 }

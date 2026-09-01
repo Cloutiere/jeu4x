@@ -71,6 +71,10 @@ export type ClientToServerMessage = ProtoMessage &
     /** R-85 · Choix/changement de technologie — ACTION IMMÉDIATE (hors ordres
      *  de tour) : validée et appliquée à la réception, diffusion immédiate. */
     | { type: 'SetResearch'; techId: string }
+    /** R-90 · Conversion or/science d'une ville — ACTION IMMÉDIATE (hors
+     *  ordres de tour) : validée et appliquée à la réception, diffusion
+     *  immédiate (Phase 7b). */
+    | { type: 'SetConversion'; cityId: CityId; target: 'gold' | 'science' }
     /** --- Messages de lobby (socket LobbyDO) --- */
     | { type: 'CreateGame'; settings: GameCreationSettings }
     | { type: 'JoinGame'; code: string }

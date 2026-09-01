@@ -91,6 +91,9 @@ export interface City {
   workedTiles: TileKey[];
   /** R-66 : bâtiments construits (permanents ; perdus si la ville est capturée). */
   buildings: string[];
+  /** R-90 (Phase 7b) : conversion du commerce — 'gold' | 'science' (défaut or,
+   *  réinitialisé à la capture). Amende R-61 : plus de curseur global. */
+  conversion: 'gold' | 'science';
 }
 
 export interface Vision {
@@ -158,7 +161,7 @@ export function areAtWar(state: GameState, a: PlayerId, b: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 type AnyState = Record<string, unknown>;
 
@@ -289,6 +292,25 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       };
     }
     return { ...state, players: migrated };
+  },
+  /**
+   * v5 → v6 : conversion du commerce par ville (R-90 révisée, Phase 7b —
+   * décisions d'Erik du 01/09/2026). Champ ADDITIF sur chaque ville, défaut
+   * 'gold' (décision : les villes neuves et capturées convertissent en or) —
+   * idempotent si le champ existe déjà. `player.scienceRatio` (curseur global
+   * R-61) devient inutilisé : conservé tel quel pour compat.
+   */
+  6: (state) => {
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      migrated[id] = {
+        ...c,
+        conversion: c.conversion === 'science' ? 'science' : 'gold',
+      };
+    }
+    return { ...state, cities: migrated };
   },
 };
 

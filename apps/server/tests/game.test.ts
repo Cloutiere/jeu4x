@@ -87,6 +87,39 @@ describe('GameDO · temps réel à deux onglets', () => {
   });
 });
 
+describe('GameDO · SetConversion (R-90, Phase 7b — action immédiate)', () => {
+  it('la conversion or→science d’une ville possédée est appliquée et diffusée aux deux clients', async () => {
+    const { code, alice, bob } = await readySockets(NO_TIMER);
+    alice.send({ type: 'SetConversion', cityId: 'c1', target: 'science' });
+    const ack = await alice.waitFor('OrderAck');
+    if (ack.type !== 'OrderAck') return;
+    expect(ack.accepted).toBe(true);
+
+    // Diffusion immédiate : le snapshot d’A porte la conversion ; B reçoit
+    // aussi un snapshot (c1 hors de sa vision → filtré, mais diffusion prouvée).
+    const resnap = (await alice.waitFor('Snapshot')) as Snapshot;
+    expect(resnap.state.cities['c1']!.conversion).toBe('science');
+    const resnapB = (await bob.waitFor('Snapshot')) as Snapshot;
+    expect(resnapB.type).toBe('Snapshot');
+
+    // Persisté (vérification directe en stockage via admin — état non filtré).
+    const dump = await adminDump(code);
+    const cities = (dump.state as unknown as { cities: Record<string, { conversion: string }> } | null)?.cities;
+    expect(cities?.['c1']?.conversion).toBe('science');
+    alice.close();
+    bob.close();
+  });
+
+  it('la conversion d’une ville ennemie est rejetée', async () => {
+    const { alice } = await readySockets(NO_TIMER);
+    alice.send({ type: 'SetConversion', cityId: 'c2', target: 'science' }); // c2 = p2
+    const ack = await alice.waitFor('OrderAck');
+    if (ack.type !== 'OrderAck') return;
+    expect(ack.accepted).toBe(false);
+    alice.close();
+  });
+});
+
 describe('GameDO · brouillons d\'ordres persistés (§3.5)', () => {
   it('les brouillons survivent à la déconnexion (multi-appareil gratuit)', async () => {
     const { code, alice, bob } = await readySockets(NO_TIMER);

@@ -37,10 +37,10 @@ describe('migration v4 → v5 (R-85 : champs de recherche additifs)', () => {
     expect(twice).toEqual(once);
   });
 
-  it('migrateState applique toute la chaîne v4 → v5 (CURRENT_SCHEMA_VERSION = 5)', () => {
+  it('migrateState applique toute la chaîne v4 → v6 (CURRENT_SCHEMA_VERSION = 6)', () => {
     const out = migrateState<GameState>(structuredClone(v4));
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(5);
+    expect(CURRENT_SCHEMA_VERSION).toBe(6);
     expect(out.players['p2']!.techsUnlocked).toEqual([]);
   });
 });
@@ -111,7 +111,7 @@ describe('R-85 · SetResearch (action immédiate) et accumulation', () => {
     let state = makeState({
       fill: 'eau',
       terrainOverrides: { '0,0': 'ville' },
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: ['1,0', '0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: ['1,0', '0,1'], conversion: 'science' }],
     });
     const r = applySetResearch(state, 'p1', 'alphabet');
     expect(r.ok).toBe(true);
@@ -129,7 +129,7 @@ describe('R-85 · SetResearch (action immédiate) et accumulation', () => {
     let state = makeState({
       fill: 'eau',
       terrainOverrides: { '0,0': 'ville' },
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: ['1,0', '0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: ['1,0', '0,1'], conversion: 'science' }],
     });
     state = (applySetResearch(state, 'p1', 'alphabet') as { state: GameState }).state;
     let found = 0;
@@ -147,7 +147,7 @@ describe('R-87 · déblocage des items de production', () => {
     return makeState({
       fill: 'eau',
       terrainOverrides: { '0,0': 'ville' },
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: ['1,0', '0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: ['1,0', '0,1'], conversion: 'science' }],
     });
   }
 

@@ -1,12 +1,14 @@
 <script lang="ts">
   /**
-   * Menu de ville (Phase 6 L3) : cumuls Nourriture / Production / Commerce
-   * (+ or/science après répartition R-61), jauge de croissance (R-63),
-   * liste des citoyens avec leur case (clic sur la carte = réassignation,
-   * R-60), bâtiments possédés (R-66) et menu de production unités + bâtiments.
-   * File unique (R-62), progression conservée.
+   * Menu de ville — refonte Phase 7b (maquette RAPPORT-PROPOSITION §4.2) :
+   * tableau de bord en 4 blocs — identité, rendements (jauges + durées en
+   * tours), citoyens (clic carte = réassignation, R-60), production à deux
+   * niveaux (item courant + choix catégorisés unités/bâtiments, verrouillés
+   * en fin de section, R-87). Conversion or/science par ville (R-90) via
+   * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
+   * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, TECHS, tileYield, workRadiusOf, isUnlocked, productionDataOf } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, TECHS, tileYield, workRadiusOf, isUnlocked, conversionGains } from '@game/rules';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -28,6 +30,8 @@
   const city = $derived(view.state && ui.selectedCityId ? view.state.cities[ui.selectedCityId] : null);
   const mine = $derived(!!city && city.owner === myEngineId(view));
   const editable = $derived(ordersEditable(view));
+  /** Conversion = action immédiate : modifiable en phase ordres, même verrouillé. */
+  const conversionEditable = $derived(view.status === 'active' && view.phase === 'orders');
 
   const prodOrder = $derived(
     city
@@ -63,14 +67,47 @@
     }
     return t;
   });
-  const goldPerTurn = $derived(
-    yields && player ? yields.commerce - Math.floor(yields.commerce * player.scienceRatio) : 0,
+
+  /** R-90/R-88 : répartition or/science selon la conversion de la ville (source unique moteur). */
+  const gains = $derived(
+    yields && city ? conversionGains(yields.commerce, city.conversion, city.buildings) : null,
   );
-  const sciencePerTurn = $derived(yields && player ? Math.floor(yields.commerce * player.scienceRatio) : 0);
+
+  /** Production par tour de la ville (miroir Phase C : raw × (1 + 0,25×(pop−1)), R-63 🔶). */
+  const prodPerTurn = $derived.by(() => {
+    if (!city || !view.state) return 0;
+    let raw = 1; // case de ville
+    for (const key of city.workedTiles) {
+      const y = tileYield(view.state.map, city.buildings, key);
+      if (y) raw += y.production;
+    }
+    return Math.floor(raw * (1 + 0.25 * (city.pop - 1)));
+  });
+  const prodEta = $derived(
+    city && city.production && prodItem && prodPerTurn > 0
+      ? Math.ceil((itemCost(prodItem) - city.production.progress) / prodPerTurn)
+      : null,
+  );
+
+  /** Nourriture par tour (miroir Phase C) → ETA de croissance (R-63). */
+  const foodPerTurn = $derived.by(() => {
+    if (!city || !view.state) return 0;
+    let f = 2; // case de ville
+    for (const key of city.workedTiles) {
+      const y = tileYield(view.state.map, city.buildings, key);
+      if (y) f += y.food;
+    }
+    return f;
+  });
 
   /** R-63 : jauge de croissance — nourriture accumulée / seuil 10 × pop. */
   const growthThreshold = $derived(city ? 10 * city.pop : 0);
   const growthRatio = $derived(city ? Math.max(0, Math.min(1, city.foodStored / growthThreshold)) : 0);
+  const growthEta = $derived(
+    city && foodPerTurn > 0 && city.foodStored < growthThreshold
+      ? Math.ceil((growthThreshold - city.foodStored) / foodPerTurn)
+      : null,
+  );
 
   /** R-60 : rayon de travail courant (Tribunal → 2). */
   const workRadius = $derived(city ? workRadiusOf(city.buildings) : 1);
@@ -103,50 +140,73 @@
     const effective = Math.min(city.pop, tiles.length);
     return { assigns, unassigns, effective, toAssign: city.pop - effective, tiles };
   });
+  const hasPending = $derived(pending.unassigns > 0 || pending.assigns.length > 0);
 
   /**
    * Items de production : unités 7a + bâtiments — FILTRÉS par déblocage
    * (R-87) : tech débloquée ou null, et item implémenté (Espion/Galère
    * exclus — données seules). Verrouillé = grisé avec « Requiert : <tech> ».
+   * Refonte 7b : sections Unités / Bâtiments, débloqués d'abord (maquette §4.2).
    */
   const engine = $derived(myEngineId(view));
   const techsUnlocked = $derived(
     view.state && engine ? view.state.players[engine]?.techsUnlocked ?? [] : ([] as string[]),
   );
-  const productionOptions = $derived.by(() => {
-    const options: Array<{ item: ProductionItem; name: string; cost: number; effect: string; unlocked: boolean; requires: string | null }> = [];
+
+  interface ProdOption {
+    item: ProductionItem;
+    name: string;
+    cost: number;
+    effect: string;
+    unlocked: boolean;
+    requires: string | null;
+    eta: number | null;
+  }
+
+  function optionFor(item: ProductionItem, name: string, cost: number, effect: string, tech: string | null): ProdOption {
+    const unlocked = isUnlocked({ tech: tech ?? null }, techsUnlocked);
+    return {
+      item,
+      name,
+      cost,
+      effect,
+      unlocked,
+      requires: tech ? TECHS[tech]?.name ?? tech : null,
+      eta: unlocked && prodPerTurn > 0 ? Math.ceil(cost / prodPerTurn) : null,
+    };
+  }
+
+  const unitOptions = $derived.by(() => {
+    const options: ProdOption[] = [];
     for (const u of Object.values(UNIT_TYPES)) {
-      if (u.implemented === false) continue; // Espion/Galère : pas proposés en 7a
-      const data = { tech: u.tech ?? null };
-      options.push({
-        item: { kind: 'unit', id: u.id },
-        name: u.name,
-        cost: u.cost,
-        effect: u.id === 'colon' ? 'Fonde une ville' : `${u.attack}/${u.defense}/${u.movement}`,
-        unlocked: isUnlocked(data, techsUnlocked),
-        requires: u.tech ? TECHS[u.tech]?.name ?? u.tech : null,
-      });
+      if (u.implemented === false) continue; // Espion/Galère : pas proposés
+      const effect = u.id === 'colon' ? 'Fonde une ville' : `${u.attack}/${u.defense}/${u.movement}`;
+      options.push(optionFor({ kind: 'unit', id: u.id }, u.name, u.cost, effect, u.tech ?? null));
     }
-    for (const b of Object.values(BUILDINGS)) {
-      const data = { tech: b.tech ?? null };
-      options.push({
-        item: { kind: 'building', id: b.id },
-        name: b.name,
-        cost: b.cost,
-        effect: b.workRadiusBonus > 0 ? 'Rayon de travail 1 → 2' : tileEffectLabel(b),
-        unlocked: isUnlocked(data, techsUnlocked),
-        requires: b.tech ? TECHS[b.tech]?.name ?? b.tech : null,
-      });
-    }
-    return options;
+    return sortUnlockedFirst(options);
   });
 
+  const buildingOptions = $derived.by(() => {
+    const options: ProdOption[] = [];
+    for (const b of Object.values(BUILDINGS)) {
+      const effect = b.workRadiusBonus > 0 ? 'Rayon de travail 1 → 2' : (b.effect ?? tileEffectLabel(b));
+      options.push(optionFor({ kind: 'building', id: b.id }, b.name, b.cost, effect, b.tech ?? null));
+    }
+    return sortUnlockedFirst(options);
+  });
+
+  function sortUnlockedFirst(options: ProdOption[]): ProdOption[] {
+    return [...options].sort((a, b) => (a.unlocked === b.unlocked ? 0 : a.unlocked ? -1 : 1));
+  }
+
+  /** Libellé d'effet d'un bâtiment à bonus de terrain (tileBonus peut être null — crash 7a corrigé). */
   function tileEffectLabel(b: (typeof BUILDINGS)[string]): string {
+    if (!b.tileBonus) return b.effect ?? 'Effet à venir';
     const parts: string[] = [];
-    if (b.tileBonus!.food) parts.push(`+${b.tileBonus!.food} N`);
-    if (b.tileBonus!.production) parts.push(`+${b.tileBonus!.production} P`);
-    if (b.tileBonus!.commerce) parts.push(`+${b.tileBonus!.commerce} C`);
-    return `${parts.join(' ')} par ${TERRAIN_NAMES[b.tileBonus!.terrain] ?? b.tileBonus!.terrain}`;
+    if (b.tileBonus.food) parts.push(`+${b.tileBonus.food} N`);
+    if (b.tileBonus.production) parts.push(`+${b.tileBonus.production} P`);
+    if (b.tileBonus.commerce) parts.push(`+${b.tileBonus.commerce} C`);
+    return `${parts.join(' ')} par ${TERRAIN_NAMES[b.tileBonus.terrain] ?? b.tileBonus.terrain}`;
   }
 
   const TERRAIN_NAMES: Record<string, string> = {
@@ -180,6 +240,12 @@
     if (!city) return;
     client.submitOrder({ type: 'SetProduction', cityId: city.id, item });
   }
+
+  /** R-90 : bascule la conversion or ⇄ science (action immédiate). */
+  function toggleConversion(): void {
+    if (!city) return;
+    client.setConversion(city.id, city.conversion === 'gold' ? 'science' : 'gold');
+  }
 </script>
 
 <section class="panel">
@@ -187,115 +253,158 @@
   {#if !city}
     <p class="hint">Cliquez sur une ville de la carte. Ville sélectionnée : cliquez une case pour y assigner un citoyen.</p>
   {:else}
+    <!-- 1. Identité -->
     <div class="rows">
-      <span class="title">{city.id}{city.capital ? ' — Capitale' : ''}</span>
-      <span>
-        Population <strong>{city.pop}</strong> —
-        {#if pending.unassigns > 0 || pending.assigns.length > 0}
-          <strong>{pending.effective}</strong> assigné(s) après résolution
-          {#if pending.toAssign > 0}<em class="to-assign"> · {pending.toAssign} citoyen(s) à assigner</em>{/if}
-        {:else}
-          {city.workedTiles.length} citoyen(s) assigné(s)
-        {/if}
-        · rayon {workRadius}
+      <span class="title">
+        {city.id}
+        {#if city.capital}<span class="capital">Capitale</span>{/if}
+        {#if !mine}<span class="enemy">Ennemie — {city.owner}</span>{/if}
       </span>
-      {#if !mine}<span class="enemy">Ennemie — {city.owner}</span>{/if}
+      <span>
+        Population <strong>{city.pop}</strong>
+        {#if mine}
+          —
+          {#if hasPending}
+            <strong>{pending.effective}</strong> assigné(s) après résolution
+            {#if pending.toAssign > 0}<em class="to-assign"> · {pending.toAssign} citoyen(s) à assigner</em>{/if}
+          {:else}
+            {city.workedTiles.length} citoyen(s) assigné(s)
+          {/if}
+          · rayon {workRadius}
+        {/if}
+      </span>
     </div>
 
-    {#if yields && pending.tiles.length !== city.workedTiles.length}
-      {@const projected = projectedYields(pending.tiles)}
-      <div class="yields projected" title="Cumuls anticipés (réassignations en attente appliquées)">
-        <span><img src="/art/icone_nourriture.png" alt="N" onerror={hideImg} /> {projected.food}</span>
-        <span><img src="/art/icone_production.png" alt="P" onerror={hideImg} /> {projected.production}</span>
-        <span><img src="/art/icone_commerce.png" alt="C" onerror={hideImg} /> {projected.commerce}</span>
-        {#if mine}
-          <span>
-            → <img src="/art/icone_or.png" alt="or" onerror={hideImg} /> {projected.commerce - Math.floor(projected.commerce * (player?.scienceRatio ?? 0.5))} /
-            <img src="/art/icone_science.png" alt="science" onerror={hideImg} /> {Math.floor(projected.commerce * (player?.scienceRatio ?? 0.5))}
-          </span>
-        {/if}
-      </div>
-    {/if}
-
+    <!-- 2. Rendements + jauges (projeté si réassignation en attente) -->
     {#if yields}
-      <div class="yields">
-        <span title="Nourriture par tour"><img src="/art/icone_nourriture.png" alt="N" onerror={hideImg} /> {yields.food}</span>
-        <span title="Production par tour"><img src="/art/icone_production.png" alt="P" onerror={hideImg} /> {yields.production}</span>
-        <span title="Commerce par tour"><img src="/art/icone_commerce.png" alt="C" onerror={hideImg} /> {yields.commerce}</span>
+      {@const shown = hasPending ? projectedYields(pending.tiles) : yields}
+      {@const shownGains = conversionGains(shown.commerce, city.conversion, city.buildings)}
+      <div class="yields" class:projected={hasPending}>
+        <span title="Nourriture par tour"><img src="/art/icone_nourriture.png" alt="N" onerror={hideImg} /> {shown.food}</span>
+        <span title="Production par tour"><img src="/art/icone_production.png" alt="P" onerror={hideImg} /> {shown.production}</span>
+        <span title="Commerce par tour"><img src="/art/icone_commerce.png" alt="C" onerror={hideImg} /> {shown.commerce}</span>
         {#if mine}
-          <span title="Répartition du commerce (curseur science/or, R-61)">
-            → <img src="/art/icone_or.png" alt="or" onerror={hideImg} /> {goldPerTurn} /
-            <img src="/art/icone_science.png" alt="science" onerror={hideImg} /> {sciencePerTurn}
+          <span class="split" title="Conversion du commerce (R-90/R-88 — {city.conversion === 'gold' ? 'or' : 'science'})">
+            → <img src="/art/icone_or.png" alt="or" onerror={hideImg} /> {shownGains.gold}
+            / <img src="/art/icone_science.png" alt="science" onerror={hideImg} /> {shownGains.science}
           </span>
         {/if}
       </div>
+      {#if hasPending}<p class="hint pending-note">▲ valeurs projetées (réassignation en attente)</p>{/if}
       {#if mine}
-        <div class="growth" title="Croissance : seuil 10 × pop (R-63)">
+        <div class="gauge" title="Croissance : seuil 10 × pop (R-63)">
+          <span class="lab"><img src="/art/icone_nourriture.png" alt="" onerror={hideImg} /> {city.foodStored} / {growthThreshold}</span>
           <div class="bar"><div class="fill growth-fill" style:width={`${growthRatio * 100}%`}></div></div>
-          <span class="hint">Croissance : {city.foodStored} / {growthThreshold} nourriture</span>
+          <span class="eta">{growthEta !== null ? `${growthEta} tour${growthEta > 1 ? 's' : ''}` : '—'}</span>
         </div>
       {/if}
     {/if}
 
-    {#if mine && (city.workedTiles.length > 0 || pending.assigns.length > 0)}
-      <div class="citizens">
-        <span class="hint">
-          Citoyens (clic sur une case de la carte pour réassigner){#if pending.assigns.length > 0 || pending.unassigns > 0} — <em class="pending-note">réassignation en attente</em>{/if} :
-        </span>
-        <div class="tiles">
-          {#each pending.tiles as key (key)}
-            <button
-              type="button"
-              class="tile"
-              class:pending={pending.assigns.includes(key)}
-              disabled={!editable}
-              title={pending.assigns.includes(key) ? `Assignation en attente — annuler (${key})` : `Désassigner (${key})`}
-              onclick={() => client.submitOrder({ type: 'SetWorkedTile', cityId: city.id, tile: null })}
-            >({key})</button>
-          {/each}
-          {#if pending.toAssign > 0}
-            <span class="tile free">+ {pending.toAssign} citoyen(s) à assigner</span>
-          {/if}
-        </div>
+    <!-- 3. Citoyens + conversion -->
+    {#if mine}
+      <div class="block">
+        <h3>Citoyens — clic carte = assigner / désassigner</h3>
+        {#if city.workedTiles.length > 0 || pending.assigns.length > 0}
+          <div class="tiles">
+            {#each pending.tiles as key (key)}
+              <button
+                type="button"
+                class="tile"
+                class:pending={pending.assigns.includes(key)}
+                disabled={!editable}
+                title={pending.assigns.includes(key) ? `Assignation en attente — annuler (${key})` : `Désassigner (${key})`}
+                onclick={() => client.submitOrder({ type: 'SetWorkedTile', cityId: city.id, tile: null })}
+              >({key})</button>
+            {/each}
+            {#if pending.toAssign > 0}
+              <span class="tile free">+ {pending.toAssign} citoyen(s) à assigner</span>
+            {/if}
+          </div>
+        {:else}
+          <p class="hint">Aucun citoyen assigné — cliquez une case sur la carte.</p>
+        {/if}
+        <button
+          type="button"
+          class="conversion"
+          disabled={!conversionEditable}
+          title="R-90 : le commerce est converti en totalité en or ou en science (R-88 : la Bibliothèque ajoute sa science). Action immédiate."
+          onclick={toggleConversion}
+        >
+          Convertit le commerce en : <strong>{city.conversion === 'gold' ? 'Or' : 'Science'}</strong>
+          <span class="swap">⇄</span>
+        </button>
       </div>
     {/if}
 
+    <!-- 4. Bâtiments possédés -->
     {#if city.buildings.length > 0}
-      <div class="buildings">
-        <span class="hint">Bâtiments :</span>
+      <div class="block">
+        <h3>Bâtiments</h3>
         <div class="btns">
           {#each city.buildings as b (b)}
-            <span class="building">{BUILDINGS[b]?.name ?? b}</span>
+            <span class="building" title={BUILDINGS[b]?.effect ?? tileEffectLabel(BUILDINGS[b] ?? ({} as never))}>{BUILDINGS[b]?.name ?? b}</span>
           {/each}
         </div>
       </div>
     {/if}
 
+    <!-- 5. Production (ville amie uniquement) -->
     {#if !mine}
       <p class="hint">Ville ennemie visible (lecture seule).</p>
     {:else}
-      <div class="prod">
+      <div class="block">
+        <h3>Production en cours</h3>
         {#if city.production && prodItem}
-          <span>Production : <strong>{itemName(prodItem)}</strong></span>
-          <div class="bar"><div class="fill" style:width={`${prodRatio * 100}%`}></div></div>
-          <span class="hint">{city.production.progress} / {itemCost(prodItem)} points</span>
+          <div class="prodcur">
+            <span class="name">{itemName(prodItem)}</span>
+            <div class="bar"><div class="fill" style:width={`${prodRatio * 100}%`}></div></div>
+            <span class="eta-p">
+              {city.production.progress} / {itemCost(prodItem)}
+              {#if prodEta !== null}— {prodEta} tour{prodEta > 1 ? 's' : ''}{/if}
+            </span>
+          </div>
         {:else}
-          <span class="hint">Aucune production en file.</span>
+          <p class="hint">Aucune production en file.</p>
         {/if}
-        {#if prodOrder}<span class="hint">(changement en attente : {itemName(prodOrder.item)})</span>{/if}
-      </div>
-      <div class="btns">
-        {#each productionOptions as opt (opt.item.kind + ':' + opt.item.id)}
-          <button
-            type="button"
-            class:locked={!opt.unlocked}
-            disabled={!editable || !opt.unlocked}
-            title={opt.unlocked ? opt.effect : `Requiert : ${opt.requires}`}
-            onclick={() => setProduction(opt.item)}
-          >{opt.name} ({opt.cost}){#if !opt.unlocked}<span class="req">Requiert : {opt.requires}</span>{/if}</button>
-        {/each}
+        {#if prodOrder}<p class="hint">(changement en attente : {itemName(prodOrder.item)})</p>{/if}
+
+        <h3>Produire — unités</h3>
+        <div class="queue">
+          {#each unitOptions as opt (opt.item.kind + ':' + opt.item.id)}
+            <button
+              type="button"
+              class="opt"
+              class:locked={!opt.unlocked}
+              disabled={!editable || !opt.unlocked}
+              title={opt.unlocked ? opt.effect : `Requiert : ${opt.requires}`}
+              onclick={() => setProduction(opt.item)}
+            >
+              <b>{opt.name} ({opt.cost})</b>
+              <span class="fx">{opt.unlocked ? opt.effect : `Requiert : ${opt.requires}`}</span>
+              {#if opt.eta !== null}<span class="turns"> · {opt.eta} tour{opt.eta > 1 ? 's' : ''}</span>{/if}
+            </button>
+          {/each}
+        </div>
+
+        <h3>Produire — bâtiments</h3>
+        <div class="queue">
+          {#each buildingOptions as opt (opt.item.kind + ':' + opt.item.id)}
+            <button
+              type="button"
+              class="opt"
+              class:locked={!opt.unlocked}
+              disabled={!editable || !opt.unlocked}
+              title={opt.unlocked ? opt.effect : `Requiert : ${opt.requires}`}
+              onclick={() => setProduction(opt.item)}
+            >
+              <b>{opt.name} ({opt.cost})</b>
+              <span class="fx">{opt.unlocked ? opt.effect : `Requiert : ${opt.requires}`}</span>
+              {#if opt.eta !== null}<span class="turns"> · {opt.eta} tour{opt.eta > 1 ? 's' : ''}</span>{/if}
+            </button>
+          {/each}
+        </div>
         {#if city.production}
-          <button type="button" disabled={!editable} onclick={() => city && client.cancelCityOrder(city.id)}>Annuler</button>
+          <button type="button" class="cancel" disabled={!editable} onclick={() => city && client.cancelCityOrder(city.id)}>Annuler la production</button>
         {/if}
       </div>
     {/if}
@@ -305,30 +414,46 @@
 <style>
   .panel { border: 1px solid #3a4148; border-radius: 8px; padding: 0.7rem 0.85rem; background: #1d242b; }
   h2 { margin: 0 0 0.4rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa7b2; }
-  .rows { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.4rem; }
-  .title { font-weight: 700; }
-  .enemy { color: #ef9a9a; }
+  h3 { margin: 0.55rem 0 0.3rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa7b2; }
+  .rows { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.45rem; }
+  .title { font-weight: 700; display: flex; align-items: center; gap: 0.45rem; }
+  .capital { color: #ffd54f; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .enemy { color: #ef9a9a; font-size: 0.8rem; text-transform: none; letter-spacing: 0; }
+  .block { border-top: 1px solid #2c353d; padding-top: 0.3rem; margin-top: 0.35rem; }
   .yields { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; font-weight: 600; margin: 0.25rem 0; }
   .yields img { width: 16px; height: 16px; vertical-align: middle; }
-  .growth { margin: 0.25rem 0 0.35rem; }
-  .prod { display: flex; flex-direction: column; gap: 0.2rem; margin: 0.3rem 0; }
-  .bar { height: 8px; background: #12161a; border-radius: 4px; overflow: hidden; border: 1px solid #3a4148; }
+  .yields .split { margin-left: auto; font-weight: 400; color: #a8b4be; }
+  .yields.projected { opacity: 0.85; }
+  .projected-note, .pending-note { margin: 0.1rem 0; color: #ffe082; font-size: 0.78rem; }
+  .gauge { display: flex; align-items: center; gap: 0.5rem; margin: 0.35rem 0; }
+  .gauge .lab { font-size: 0.8rem; color: #8b98a5; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.25rem; }
+  .gauge img { width: 14px; height: 14px; }
+  .bar { height: 8px; background: #12161a; border-radius: 4px; overflow: hidden; border: 1px solid #3a4148; flex: 1; }
   .fill { height: 100%; background: #f0c419; }
   .growth-fill { background: #81c784; }
-  .citizens { margin: 0.3rem 0; }
+  .eta { font-size: 0.8rem; color: #a5d6a7; white-space: nowrap; }
+  .prodcur { display: flex; align-items: center; gap: 0.55rem; }
+  .prodcur .name { font-weight: 700; }
+  .eta-p { font-size: 0.8rem; color: #ffd54f; white-space: nowrap; }
   .tiles { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.2rem; }
   .tile { font-size: 0.78rem; padding: 0.15rem 0.45rem; }
   .tile.pending { border-style: dashed; border-color: #ffd54f; color: #ffe082; }
   .tile.free { border-style: dashed; border-color: #81c784; color: #a5d6a7; cursor: default; padding: 0.15rem 0.55rem; border-radius: 6px; border-width: 1px; background: #1d242b; }
   .to-assign { color: #a5d6a7; font-style: normal; font-weight: 600; }
-  .pending-note { color: #ffe082; font-style: normal; }
-  .yields.projected { opacity: 0.75; }
-  .buildings { margin: 0.3rem 0; }
+  .conversion { display: block; width: 100%; margin-top: 0.45rem; padding: 0.4rem 0.6rem; text-align: left; }
+  .conversion .swap { float: right; color: #ffd54f; }
+  .buildings { display: flex; flex-wrap: wrap; gap: 0.35rem; }
   .building { padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid #3c7a52; background: #243b2b; font-size: 0.8rem; }
   .hint { margin: 0.15rem 0; color: #8b98a5; font-size: 0.82rem; }
   .btns { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }
-  button { padding: 0.35rem 0.7rem; cursor: pointer; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; }
-  button:disabled { opacity: 0.45; cursor: default; }
-  button.locked { color: #7d8892; }
-  button .req { display: block; font-size: 0.72rem; color: #b08d5a; }
+  .queue { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.4rem; margin: 0.35rem 0 0.5rem; }
+  .opt { text-align: left; padding: 0.4rem 0.55rem; border-radius: 8px; border: 1px solid #46525c; background: #27313a; color: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 0.1rem; }
+  .opt b { font-size: 0.84rem; }
+  .opt .fx { color: #8b98a5; font-size: 0.74rem; }
+  .opt .turns { color: #ffd54f; font-size: 0.74rem; }
+  .opt.locked { opacity: 0.55; cursor: default; }
+  .opt.locked .fx { color: #b08d5a; }
+  .opt:disabled { opacity: 0.55; cursor: default; }
+  .cancel { margin-top: 0.3rem; padding: 0.35rem 0.7rem; cursor: pointer; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; }
+  .cancel:disabled { opacity: 0.45; cursor: default; }
 </style>

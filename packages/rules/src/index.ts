@@ -10,6 +10,7 @@ export * from './army.js';
 export * from './data.js';
 export * from './techs.js';
 export * from './research.js';
+export * from './conversion.js';
 export * from './economy.js';
 export * from './map.js';
 export * from './fog.js';

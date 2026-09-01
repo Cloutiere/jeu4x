@@ -19,6 +19,7 @@ import { CURRENT_SCHEMA_VERSION, areAtWar } from './state.js';
 import { TERRAINS, unitType } from './data.js';
 import type { TerrainId } from './types.js';
 import { SCIENCE_RATIO_DEFAULT } from './constants.js';
+import { CONVERSION_DEFAULT } from './conversion.js';
 
 export interface UnitSpec {
   id?: UnitId;
@@ -47,6 +48,8 @@ export interface CitySpec {
   workedTiles?: string[];
   /** Bâtiments possédés (R-66). */
   buildings?: string[];
+  /** Conversion du commerce (R-90) — sinon 'gold' (défaut). */
+  conversion?: 'gold' | 'science';
 }
 
 export interface MakeStateOptions {
@@ -150,6 +153,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       production: spec.production ?? null,
       workedTiles: spec.workedTiles ?? [],
       buildings: spec.buildings ?? [],
+      conversion: spec.conversion ?? CONVERSION_DEFAULT,
     };
   });
 

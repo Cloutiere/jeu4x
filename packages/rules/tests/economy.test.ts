@@ -257,8 +257,8 @@ describe('R-60 · ordre SetWorkedTile (Phase 6)', () => {
 });
 
 describe('Migration v3 → v4 (Phase 6)', () => {
-  it('schemaVersion courant = 5 (chaîne poursuivie en Phase 7a)', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(5);
+  it('schemaVersion courant = 6 (conversion des villes, Phase 7b)', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(6);
   });
 
   it('un état v3 migre : workedTiles auto-assignées, buildings [], item string → {kind:"unit"}', () => {
@@ -272,7 +272,7 @@ describe('Migration v3 → v4 (Phase 6)', () => {
     });
     const raw = { ...structuredClone(v3), schemaVersion: 3, cities: { c1: { ...structuredClone(v3.cities['c1']!), workedTiles: undefined, workedTile: null, buildings: undefined, production: { item: 'guerrier', progress: 4 } } } } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(5);
+    expect(out.schemaVersion).toBe(6);
     const c = out.cities['c1']!;
     expect(c.buildings).toEqual([]);
     expect('workedTile' in c).toBe(false); // l'ancien champ est supprimé

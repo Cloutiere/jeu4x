@@ -18,6 +18,7 @@ import { TERRAINS, unitType } from './data.js';
 import type { PlayerId, Tile, GameState, City } from './state.js';
 import { CURRENT_SCHEMA_VERSION } from './state.js';
 import { SCIENCE_RATIO_DEFAULT, VISION_RADIUS_CITY } from './constants.js';
+import { CONVERSION_DEFAULT } from './conversion.js';
 import { hexesWithinRadius } from './hex.js';
 
 export interface MapPlayerSpawn {
@@ -200,6 +201,7 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       production: null,
       workedTiles: [],
       buildings: [],
+      conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
     };
     // La case de capitale devient une case de ville (RULES.md §2).
     mapRecord[tileKeyOf(spawn.capital)] = { terrain: 'ville', resource: null };

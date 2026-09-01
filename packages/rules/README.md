@@ -126,9 +126,13 @@ Documentées dans le code et le rapport de session ; les principales :
    (`TurnResolved`, `Victory`, `DiplomaticIncident`), impliquent une entité du
    joueur, ou toutes leurs références sont explorées/visibles ; `rngSeed` est
    masqué dans l'état diffusé.
-8. **Économie 🔶** : `scienceRatio` 0.5 (reste entier à l'or), seuil de
-   croissance `10 × pop`, production `+25 %/pop` au-delà de la 1ʳᵉ population,
-   file vidée après complétion, unité en attente si case de ville occupée.
+8. **Économie 🔶** : conversion du commerce **par ville** — `conversion:
+   'gold' | 'science'` (R-90, Phase 7b ; défaut or, réinitialisé à la
+   capture ; Bibliothèque R-88 : or → +max(1 ; 20 %) science, science → ×1,5 ;
+   Caserne R-89 : unités produites vétérans hors Colons), seuil de croissance
+   `10 × pop`, production `+25 %/pop` au-delà de la 1ʳᵉ population, file vidée
+   après complétion, unité en attente si case de ville occupée. (Le curseur
+   `scienceRatio` 0.5 est déprécié depuis R-90.)
 9. **Case de ville** : terrain `'ville'` (2/1/1, +50 %) posé à la fondation.
 10. **Forfait T-06** : le seuil est atteint dès que `missedTurns` vaut
    `FORFEIT_MISSED_TURNS` (« défaite après T-06 timers manqués », RULES.md §1).
@@ -137,7 +141,9 @@ Documentées dans le code et le rapport de session ; les principales :
 
 ## Migrations de schéma (§3.8)
 
-`CURRENT_SCHEMA_VERSION = 2` ; `MIGRATIONS` :
-`MIGRATIONS[2]` ajoute `missedTurns: 0` aux joueurs des états v1 (forfait
-T-06). `migrateState()` applique la chaîne au chargement côté serveur — toute
+`CURRENT_SCHEMA_VERSION = 6` ; `MIGRATIONS` :
+`MIGRATIONS[2]` (`missedTurns`), `[3]` (`fortified`), `[4]` (économie Phase 6 :
+`workedTiles`/`production.item`/`buildings`), `[5]` (recherche Phase 7a :
+`researching`/`scienceProgress`/`techsUnlocked`/`scienceStored`), `[6]`
+(conversion des villes Phase 7b : `city.conversion`, défaut `'gold'`). `migrateState()` applique la chaîne au chargement côté serveur — toute
 future évolution ajoute `MIGRATIONS[n] = (state) => newState`.

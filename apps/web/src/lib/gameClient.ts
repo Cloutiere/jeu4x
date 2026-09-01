@@ -49,6 +49,8 @@ export interface GameClient {
   cancelCityOrder(cityId: CityId): void;
   endTurn(): void;
   setResearch(techId: string): void;
+  /** R-90 (Phase 7b) : conversion or/science de la ville — action immédiate. */
+  setConversion(cityId: CityId, target: 'gold' | 'science'): void;
   resync(): void;
   close(): void;
 }
@@ -210,6 +212,9 @@ export function createGameClient(
     },
     setResearch(techId) {
       handle.send({ type: 'SetResearch', techId });
+    },
+    setConversion(cityId, target) {
+      handle.send({ type: 'SetConversion', cityId, target });
     },
     resync,
     close() {

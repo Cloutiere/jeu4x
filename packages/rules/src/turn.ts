@@ -42,6 +42,7 @@ import {
 } from './constants.js';
 import type { DestructionCause, GameEvent } from './events.js';
 import { creditScience } from './research.js';
+import { conversionGains, CONVERSION_DEFAULT } from './conversion.js';
 import { isUnlocked, productionDataOf } from './techs.js';
 
 export interface TurnResult {
@@ -912,6 +913,7 @@ function processCityCaptures(board: Board): void {
     city.production = null;
     city.workedTiles = [];
     city.buildings = []; // R-66 : les bâtiments sont perdus à la capture (le captreur ne les récupère pas)
+    city.conversion = CONVERSION_DEFAULT; // R-90 : le choix de conversion est réinitialisé
     board.pendingFill.add(cityId); // les citoyens de la nouvelle propriétaire sont auto-assignés
     emit(board, { type: 'CityCaptured', cityId, fromOwner, toOwner: invader.owner, at: hex });
     if (city.capital) {
@@ -953,6 +955,7 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       production: null,
       workedTiles: [],
       buildings: [],
+      conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
     delete board.st.units[unit.id];
@@ -997,13 +1000,14 @@ function processEconomy(board: Board): void {
     }
     const prodMult = 1 + POP_PRODUCTION_BONUS * (city.pop - 1); // R-63 🔶
     const production = Math.floor(rawProduction * prodMult);
-    // R-61 : le commerce est réparti or/science par le curseur global (reste
-    // entier à l'or) — le commerce n'est JAMAIS crédité directement.
-    const scienceGain = Math.floor(commerce * player.scienceRatio);
-    player.gold += commerce - scienceGain;
+    // R-90 révisée (Phase 7b) : le commerce est converti en TOTALITÉ en or ou
+    // en science selon le choix de la ville (R-88 : la Bibliothèque modifie
+    // la conversion). Amende R-61 : plus de curseur global.
+    const gains = conversionGains(commerce, city.conversion, city.buildings);
+    player.gold += gains.gold;
     // R-85 : la science alimente la tech courante (progression par tech,
     // débordement reporté) ou la réserve si aucun choix (`scienceStored`).
-    creditScience(board.st, city.owner, scienceGain, (pid, techId) => {
+    creditScience(board.st, city.owner, gains.science, (pid, techId) => {
       emit(board, { type: 'TechResearched', player: pid, tech: techId });
     });
 
@@ -1039,7 +1043,9 @@ function processEconomy(board: Board): void {
                 r: hex.r,
                 hp: stats.hpMax,
                 mp: stats.movement,
-                veteran: false,
+                // R-89 (Phase 7b) : la Caserne rend les unités produites
+                // vétérans — hors Colon (pacifique, pas de combat).
+                veteran: hasBuilding(city, 'caserne') && city.production.item.id !== 'colon',
                 isArmy: false,
                 order: null,
                 detainedBy: null,

@@ -567,20 +567,18 @@ describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () 
     expect(cityAt(newState, 0, 0)!.workedTiles).toEqual([]);
   });
 
-  it('R-61 : répartition science/or au curseur (reste entier à l’or)', () => {
+  it('R-90 (révisée 7b) : conversion binaire par ville — or par défaut, science sur choix', () => {
+    // commerce v1 = 1 (case de ville) + 0 (prairie) → conversion or (défaut)
     const state = makeState({
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true }],
     });
-    // commerce v1 = 1 (case de ville) + 0 (prairie) → 50/50 : 0 science, 1 or
-    // Phase 7a (R-85) : sans tech choisie, la science va en réserve (`scienceStored`).
     const r = resolveTurn(state, {}, 1);
     expect(r.newState.players['p1']!.scienceStored).toBe(0);
     expect(r.newState.players['p1']!.gold).toBe(1);
-    // curseur 100 % science
+    // conversion science (amende R-61 : plus de curseur, choix par ville)
     const state2 = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, conversion: 'science' }],
     });
-    state2.players['p1']!.scienceRatio = 1;
     const r2 = resolveTurn(state2, {}, 1);
     expect(r2.newState.players['p1']!.scienceStored).toBe(1);
     expect(r2.newState.players['p1']!.gold).toBe(0);
