@@ -7,7 +7,7 @@ Aucune ressource tierce, aucune police, aucun texte incorporé.
 | Fichiers | Source | Licence |
 |---|---|---|
 | 8 tuiles `tile_*.png` | Généré par tools/generate.py | Licence projet |
-| 10 entités `unite_*`/`ville_*` (+ `_accent`) | Généré par tools/generate.py | Licence projet |
+| 15 entités `unite_*`/`ville_*` (+ `_accent`) | Généré par tools/generate.py | Licence projet |
 | 9 icônes `icone_*.png` | Généré par tools/generate.py | Licence projet |
 
 Annexe palette : voir `palette.txt` (hex figés).
