@@ -10,10 +10,9 @@ import { CURRENT_SCHEMA_VERSION } from '../src/state.js';
 import { hexDistance, tileKeyOf } from '../src/hex.js';
 import { TERRAINS } from '../src/data.js';
 
-/** Petite carte valide 6×4 de prairie, capitales à distance ≥ 12 impossible →
- *  on l'agrandit : la validation de distance exige une carte assez grande. */
+/** Petite carte valide 14×3 de prairie, capitales à distance 13 ≥ 12.
+ *  Démarrage conforme (décision d'Erik du 01/09) : 1 Guerrier adjacent. */
 function validSmallMap(): MapData {
-  // 14 colonnes suffisent : (0,0) ↔ (13,0) → distance 13 ≥ 12.
   return {
     id: 'test',
     name: 'Carte de test',
@@ -25,18 +24,12 @@ function validSmallMap(): MapData {
       {
         id: 'p1',
         capital: { q: 0, r: 0 },
-        units: [
-          { type: 'guerrier', q: 0, r: 0 },
-          { type: 'colon', q: 1, r: 0 },
-        ],
+        units: [{ type: 'guerrier', q: 1, r: 0 }],
       },
       {
         id: 'p2',
         capital: { q: 13, r: 0 },
-        units: [
-          { type: 'guerrier', q: 13, r: 0 },
-          { type: 'colon', q: 12, r: 0 },
-        ],
+        units: [{ type: 'guerrier', q: 12, r: 0 }],
       },
     ],
   };
@@ -68,10 +61,7 @@ describe('L3 · Loader de cartes — validation', () => {
   it('rejette des capitales trop proches (< 12, décision #7)', () => {
     const m = validSmallMap();
     m.players[1]!.capital = { q: 5, r: 0 };
-    m.players[1]!.units = [
-      { type: 'guerrier', q: 5, r: 0 },
-      { type: 'colon', q: 6, r: 0 },
-    ];
+    m.players[1]!.units = [{ type: 'guerrier', q: 6, r: 0 }];
     expect(() => parseMap(m)).toThrow(/distance 5 < 12/);
   });
 
@@ -82,17 +72,40 @@ describe('L3 · Loader de cartes — validation', () => {
 
     const m2 = validSmallMap();
     m2.rows[0] = 'g'.repeat(13) + 'w';
+    m2.players[1]!.units = [{ type: 'guerrier', q: 12, r: 1 }]; // (12,1) reste praticable
     expect(() => parseMap(m2)).toThrow(/infranchissable/);
+
+    const m3 = validSmallMap();
+    m3.rows[1] = 'g'.repeat(12) + 'w' + 'g';
+    m3.players[1]!.units = [{ type: 'guerrier', q: 12, r: 1 }]; // sur l'eau
+    expect(() => parseMap(m3)).toThrow(/infranchissable/);
   });
 
-  it('rejette un type d’unité inconnu et deux unités sur la même case', () => {
-    const m = validSmallMap();
-    m.players[0]!.units[0]!.type = 'char';
-    expect(() => parseMap(m)).toThrow(/type d'unité inconnu/);
+  it('démarrage conforme (décision d’Erik 01/09) : exactement 1 Guerrier adjacent à la capitale', () => {
+    const deuxUnites = validSmallMap();
+    deuxUnites.players[0]!.units = [
+      { type: 'guerrier', q: 1, r: 0 },
+      { type: 'colon', q: 0, r: 1 },
+    ];
+    expect(() => parseMap(deuxUnites)).toThrow(/exactement 1 unité/);
 
-    const m2 = validSmallMap();
-    m2.players[0]!.units[1] = { type: 'colon', q: 0, r: 0 };
-    expect(() => parseMap(m2)).toThrow(/plus d'une unité/);
+    const pasUnGuerrier = validSmallMap();
+    pasUnGuerrier.players[0]!.units = [{ type: 'colon', q: 1, r: 0 }];
+    expect(() => parseMap(pasUnGuerrier)).toThrow(/doit être un Guerrier/);
+
+    const surLaCapitale = validSmallMap();
+    surLaCapitale.players[0]!.units = [{ type: 'guerrier', q: 0, r: 0 }];
+    expect(() => parseMap(surLaCapitale)).toThrow(/adjacent à la capitale/);
+
+    const tropLoin = validSmallMap();
+    tropLoin.players[0]!.units = [{ type: 'guerrier', q: 2, r: 0 }];
+    expect(() => parseMap(tropLoin)).toThrow(/adjacent à la capitale/);
+  });
+
+  it('rejette deux unités ennemies sur la même case', () => {
+    const m = validSmallMap();
+    m.players[1]!.units = [{ type: 'guerrier', q: 1, r: 0 }]; // case du Guerrier de p1
+    expect(() => parseMap(m)).toThrow(/plus d'une unité/);
   });
 
   it('v1 : exactement deux joueurs', () => {
@@ -128,15 +141,37 @@ describe('L3 · Cartes 40×40 commises', () => {
     }
   });
 
-  it('les deux cartes ont des spawns valides et symétriques à distance ≥ 12', async () => {
-    for (const id of ['pedagogique-40', 'pangee-40'] as const) {
+  it('variée : 1600 cases, les 7 terrains en quantités significatives', async () => {
+    const loaded = await loadBuiltinMap('variee-40');
+    expect(Object.keys(loaded.terrain)).toHaveLength(1600);
+    const counts: Record<string, number> = {};
+    for (const t of Object.values(loaded.terrain)) counts[t] = (counts[t] ?? 0) + 1;
+    for (const t of ['prairie', 'plaine', 'foret', 'colline', 'montagne', 'desert', 'eau']) {
+      expect(counts[t], `terrain ${t} présent en quantité significative`).toBeGreaterThanOrEqual(50);
+    }
+  });
+
+  it('variée : terrain symétrique par miroir ponctuel (équité)', async () => {
+    const loaded = await loadBuiltinMap('variee-40');
+    const rows = loaded.data.rows;
+    for (let r = 0; r < 40; r++) {
+      for (let c = 0; c < 40; c++) {
+        expect(rows[r]![c]).toBe(rows[39 - r]![39 - c]!);
+      }
+    }
+  });
+
+  it('les trois cartes ont des spawns valides et symétriques à distance ≥ 12 (démarrage 01/09)', async () => {
+    for (const id of ['pedagogique-40', 'pangee-40', 'variee-40'] as const) {
       const loaded = await loadBuiltinMap(id);
       const [p1, p2] = loaded.spawns;
       const d = hexDistance(p1!.capital, p2!.capital);
       expect(d).toBeGreaterThanOrEqual(12);
       for (const p of loaded.spawns) {
-        expect(p.units).toHaveLength(2); // 1 Guerrier + 1 Colon (décision #7)
-        expect(p.units.map((u) => u.type).sort()).toEqual(['colon', 'guerrier']);
+        // Décision d'Erik du 01/09 : plus de Colon — 1 Guerrier adjacent à la capitale.
+        expect(p.units).toHaveLength(1);
+        expect(p.units[0]!.type).toBe('guerrier');
+        expect(hexDistance(p.capital, p.units[0]!)).toBe(1);
       }
     }
   });
@@ -156,7 +191,15 @@ describe('L3 · createInitialState', () => {
       // la case de capitale porte le terrain "ville" (RULES.md §2)
       expect(state.map[tileKeyOf(city)]!.terrain).toBe('ville');
     }
-    expect(Object.keys(state.units)).toHaveLength(4);
+    // 1 Guerrier par joueur, adjacent à sa capitale (décision d'Erik du 01/09).
+    expect(Object.keys(state.units)).toHaveLength(2);
+    for (const city of Object.values(state.cities)) {
+      const defenders = Object.values(state.units).filter(
+        (u) => u.owner === city.owner && hexDistance(u, city) === 1,
+      );
+      expect(defenders).toHaveLength(1);
+      expect(defenders[0]!.type).toBe('guerrier');
+    }
     expect(state.diplomacy.war).toEqual([['p1', 'p2']]);
     // chaque joueur voit au moins sa capitale (rayon ville T-08 = 3)
     for (const p of Object.values(state.players)) {

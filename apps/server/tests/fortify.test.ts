@@ -65,8 +65,8 @@ describe('GameDO · cycle Fortify (R-33)', () => {
 
   it('un ordre Fortify sur une unité ennemie est refusé', async () => {
     const { alice, bob } = await ready();
-    // u1/u2 d'ALICE ; l'unité de BOB est invisible d'Alice mais existe (p2).
-    alice.send({ type: 'SubmitOrder', order: { type: 'Fortify', unitId: 'u3' } });
+    // u1 est l'unité d'ALICE ; u2 est celle de BOB — invisible d'Alice mais existante.
+    alice.send({ type: 'SubmitOrder', order: { type: 'Fortify', unitId: 'u2' } });
     const ack = await alice.waitFor('OrderAck');
     if (ack.type !== 'OrderAck') throw new Error('OrderAck attendu');
     expect(ack.accepted).toBe(false);

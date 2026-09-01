@@ -23,7 +23,7 @@ describe('GameDO · crash pendant resolveTurn → reprise idempotente', () => {
     expect(snap.state.turn).toBe(0);
 
     // Ordre + verrouillage de A ; B sera auto-verrouillé par le flux d'alarme.
-    const move: Order = { type: 'Move', unitId: 'u1', path: [{ q: -3, r: 20 }] };
+    const move: Order = { type: 'Move', unitId: 'u1', path: [{ q: -3, r: 19 }] };
     alice.send({ type: 'SubmitOrder', order: move });
     await alice.waitFor('OrderAck');
     alice.send({ type: 'EndTurn' });

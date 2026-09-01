@@ -35,9 +35,10 @@ describe('GameDO · temps réel à deux onglets', () => {
     expect(welcomeB.status).toBe('active');
     expect(snapA.state.turn).toBe(0);
     expect(snapB.state.turn).toBe(0);
-    // Brouillard : chaque socket voit ses propres unités…
-    expect(Object.keys(snapA.state.units).length).toBe(2);
-    expect(Object.keys(snapB.state.units).length).toBe(2);
+    // Brouillard : chaque socket voit sa propre unité (1 Guerrier adjacent à
+    // la capitale — décision d'Erik du 01/09)…
+    expect(Object.keys(snapA.state.units).length).toBe(1);
+    expect(Object.keys(snapB.state.units).length).toBe(1);
     // …et A ne voit PAS les unités de B (spawns à distance ≥ 12, décision #7).
     for (const unitId of Object.keys(snapB.state.units)) {
       expect(snapA.state.units[unitId]).toBeUndefined();
@@ -47,8 +48,8 @@ describe('GameDO · temps réel à deux onglets', () => {
     expect(snapA.seq).toBe(0);
     expect(snapB.seq).toBe(0);
 
-    // A déplace son guerrier (u1), tout le monde verrouille → résolution.
-    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [{ q: -4, r: 19 }] } });
+    // A déplace son guerrier (u1, en (-3,20)), tout le monde verrouille → résolution.
+    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [{ q: -3, r: 19 }] } });
     const ack = await alice.waitFor('OrderAck');
     expect(ack.type).toBe('OrderAck');
     if (ack.type !== 'OrderAck') return;
@@ -79,7 +80,7 @@ describe('GameDO · temps réel à deux onglets', () => {
 
   it('un ordre illégal est rejeté individuellement sans bloquer la partie', async () => {
     const { alice } = await readySockets(NO_TIMER);
-    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u3', path: [{ q: 0, r: 0 }] } }); // u3 = p2
+    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u2', path: [{ q: 0, r: 0 }] } }); // u2 = p2
     const ack = await alice.waitFor('OrderAck');
     if (ack.type !== 'OrderAck') return;
     expect(ack.accepted).toBe(false);
@@ -123,7 +124,7 @@ describe('GameDO · SetConversion (R-90, Phase 7b — action immédiate)', () =>
 describe('GameDO · brouillons d\'ordres persistés (§3.5)', () => {
   it('les brouillons survivent à la déconnexion (multi-appareil gratuit)', async () => {
     const { code, alice, bob } = await readySockets(NO_TIMER);
-    bob.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u3', path: [{ q: 25, r: 19 }] } });
+    bob.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u2', path: [{ q: 22, r: 19 }] } });
     await bob.waitFor('OrderAck');
     bob.close();
 
@@ -132,7 +133,7 @@ describe('GameDO · brouillons d\'ordres persistés (§3.5)', () => {
     await bob2.waitFor('Welcome');
     const snap = (await bob2.waitFor('Snapshot')) as Snapshot;
     expect(snap.orders).toHaveLength(1);
-    expect(snap.orders[0]).toMatchObject({ type: 'Move', unitId: 'u3' });
+    expect(snap.orders[0]).toMatchObject({ type: 'Move', unitId: 'u2' });
 
     // Vérification directe en stockage (admin).
     const dump = await adminDump(code);
@@ -146,7 +147,7 @@ describe('GameDO · alarme : timer, reconnexion, resync, forfait', () => {
   it('échéance du timer : auto-verrouillage des ordres courants + résolution + missedTurns', async () => {
     const { code, alice } = await readySockets(WITH_TIMER);
     // A soumet un ordre puis verrouille ; B ne verrouille pas (déconnecté).
-    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [{ q: -4, r: 19 }] } });
+    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [{ q: -3, r: 19 }] } });
     await alice.waitFor('OrderAck');
     alice.send({ type: 'EndTurn' });
     await alice.waitFor('OrderAck');

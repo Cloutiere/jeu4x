@@ -218,7 +218,7 @@ export class LobbyDO {
   }
 
   private async handleCreate(ws: WebSocket, att: WsAttachment, settings: GameCreationSettings): Promise<void> {
-    if (!settings || typeof settings !== 'object' || !['pedagogique-40', 'pangee-40'].includes(settings.mapId)) {
+    if (!settings || typeof settings !== 'object' || !['pedagogique-40', 'pangee-40', 'variee-40'].includes(settings.mapId)) {
       return this.sendError(ws, 'badMessage', 'settings invalides');
     }
     if (settings.turnTimerMinutes !== null && !(typeof settings.turnTimerMinutes === 'number' && settings.turnTimerMinutes > 0)) {

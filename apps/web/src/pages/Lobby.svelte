@@ -12,7 +12,7 @@
   const status = client.status;
   const error = client.error;
 
-  let mapId = $state<'pedagogique-40' | 'pangee-40'>('pedagogique-40');
+  let mapId = $state<'pedagogique-40' | 'pangee-40' | 'variee-40'>('variee-40');
   let timerMinutes = $state(60);
   let isPublic = $state(true);
   let joinCode = $state('');
@@ -41,6 +41,7 @@
     <label>
       Carte
       <select bind:value={mapId}>
+        <option value="variee-40">Variée 40×40 (défaut)</option>
         <option value="pedagogique-40">Pédagogique 40×40</option>
         <option value="pangee-40">Pangée 40×40</option>
       </select>

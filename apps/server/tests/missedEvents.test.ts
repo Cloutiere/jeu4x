@@ -28,7 +28,7 @@ describe('GameDO · missedEvents de la dernière résolution (L0)', () => {
     await bob.waitFor('Snapshot');
 
     // Tour 0 résolu normalement (les deux sockets étaient connectés).
-    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [{ q: -4, r: 19 }] } });
+    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [{ q: -3, r: 19 }] } });
     await alice.waitFor('OrderAck');
     alice.send({ type: 'EndTurn' });
     await alice.waitFor('OrderAck');

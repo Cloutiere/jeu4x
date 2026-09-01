@@ -53,7 +53,7 @@ describe('LobbyDO · join par code', () => {
     const dump = await adminDump(code);
     expect(dump.meta?.status).toBe('active');
     expect(dump.state?.turn).toBe(0);
-    expect(Object.keys(dump.state?.units ?? {}).length).toBe(4); // 2 unités par joueur
+    expect(Object.keys(dump.state?.units ?? {}).length).toBe(2); // 1 Guerrier par joueur (démarrage 01/09)
   });
 
   it('join un code inconnu → Error notFound', async () => {

@@ -64,11 +64,6 @@
    "units": [
     {
      "type": "guerrier",
-     "q": -4,
-     "r": 20
-    },
-    {
-     "type": "colon",
      "q": -3,
      "r": 20
     }
@@ -83,11 +78,6 @@
    "units": [
     {
      "type": "guerrier",
-     "q": 24,
-     "r": 19
-    },
-    {
-     "type": "colon",
      "q": 23,
      "r": 19
     }

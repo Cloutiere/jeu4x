@@ -5,8 +5,9 @@
  *  - `rows[r]` : chaîne de `width` caractères, la colonne c de la rangée r
  *    correspond à la case axiale (q = c − ⌊r/2⌋, r) ;
  *  - `legend` : caractère → identifiant de terrain (doit exister dans terrain.json) ;
- *  - `players` : exactement 2 en v1, chaque joueur a sa capitale et ses unités
- *    de départ (1 Guerrier + 1 Colon — décision #7), en coordonnées axiales.
+ *  - `players` : exactement 2 en v1, chaque joueur a sa capitale et son unité
+ *    de départ — 1 Guerrier sur une case adjacente praticable de la capitale
+ *    (décision d'Erik du 01/09 : plus de Colon au départ).
  *
  * Validations testées : dimensions, terrains connus, spawns dans la carte et
  * praticables, capitales à distance ≥ 12, types d'unités connus, au plus une
@@ -115,16 +116,22 @@ export function parseMap(raw: unknown): LoadedMap {
         const t = terrain[tileKeyOf(cap)];
         if (t && !TERRAINS[t]!.passable) issues.push(`capitale de ${p.id} sur terrain infranchissable (${t})`);
       }
-      if (!Array.isArray(p.units) || p.units.length === 0) {
-        issues.push(`joueur ${p.id} : aucune unité de départ`);
+      if (!Array.isArray(p.units) || p.units.length !== 1) {
+        issues.push(
+          `joueur ${p.id} : démarrage non conforme — exactement 1 unité attendue ` +
+          `(décision d'Erik du 01/09 : 1 Guerrier à côté de la ville, plus de Colon)`,
+        );
       }
       for (const u of p.units ?? []) {
-        try {
-          unitType(u.type);
-        } catch {
-          issues.push(`joueur ${p.id} : type d'unité inconnu "${u.type}"`);
+        if (u.type !== 'guerrier') {
+          issues.push(`joueur ${p.id} : l'unité de départ doit être un Guerrier (reçu "${u.type}")`);
         }
         const hex = { q: u.q, r: u.r };
+        if (cap && typeof cap.q === 'number' && typeof cap.r === 'number') {
+          if (hexDistance(cap, hex) !== 1) {
+            issues.push(`joueur ${p.id} : le Guerrier de départ doit être adjacent à la capitale (distance ${hexDistance(cap, hex)})`);
+          }
+        }
         if (!inRectangle(hex, width, height)) {
           issues.push(`unité ${u.type} de ${p.id} hors carte`);
         } else {
@@ -152,11 +159,13 @@ export function parseMap(raw: unknown): LoadedMap {
 }
 
 /** Charge une des cartes commises (source des données : src/data/maps). */
-export async function loadBuiltinMap(id: 'pedagogique-40' | 'pangee-40'): Promise<LoadedMap> {
+export async function loadBuiltinMap(id: 'pedagogique-40' | 'pangee-40' | 'variee-40'): Promise<LoadedMap> {
   const mod =
     id === 'pangee-40'
       ? await import('./data/maps/pangee-40.json', { with: { type: 'json' } })
-      : await import('./data/maps/pedagogique-40.json', { with: { type: 'json' } });
+      : id === 'variee-40'
+        ? await import('./data/maps/variee-40.json', { with: { type: 'json' } })
+        : await import('./data/maps/pedagogique-40.json', { with: { type: 'json' } });
   return parseMap(mod.default);
 }
 

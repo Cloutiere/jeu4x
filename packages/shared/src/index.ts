@@ -19,7 +19,7 @@ export interface ProtoMessage {
 }
 
 /** Cartes préfabriquées disponibles à la création (packages/rules/src/data/maps). */
-export type MapId = 'pedagogique-40' | 'pangee-40';
+export type MapId = 'pedagogique-40' | 'pangee-40' | 'variee-40';
 
 export interface GameCreationSettings {
   mapId: MapId;
