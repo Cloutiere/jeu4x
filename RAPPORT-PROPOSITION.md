@@ -122,3 +122,33 @@ Ordre de grandeur : **une session** (comparable à 7a si R-88/R-89/R-90 tous val
 5. Les petits plus optionnels (ETA sur sprite, noms de villes) : à garder ou couper.
 
 *Après validation (éventuellement amendée), une session temps B implémentera le tout en test-first avec un handoff d'implémentation dérivé de cette proposition. Rien n'a été modifié dans le code produit ni dans RULES.md durant le temps A.*
+
+---
+
+## 6. Décisions d'Erik du 01/09/2026 (validation du temps A — amendements intégrés)
+
+**§4.1 — Option A approuvée** (panneau latéral restructuré), avec les deux emprunts ciblés (catégorisation de la production ; visibilité carte).
+
+**§4.3 — R-89 Caserne validée telle quelle** : les unités produites par une ville avec Caserne sortent **vétérans** (+50 % A/D, T-01), **hors Colons** (pacifiques, pas de combat). Ne se cumule pas avec une future promotion par combat.
+
+**R-88 Bibliothèque — validée sous forme amendée** (remplace la proposition +50 % sur la répartition). La bibliothèque modifie la conversion de la ville (cf. R-90 révisée ci-dessous) :
+
+| Conversion de la ville | Sans bibliothèque | Avec bibliothèque |
+|---|---|---|
+| **Or** | `C` or, 0 science | `C` or, `max(1 ; round(C × 0,2))` science |
+| **Science** | 0 or, `C` science | 0 or, `round(C × 1,5)` science |
+
+Exemples validés par Erik : 5 commerce converti en or avec bibliothèque → **5 or + 1 science** ; 12 commerce converti en or avec bibliothèque → **12 or + 2 science** ; 12 commerce converti en science avec bibliothèque → **18 science, 0 or**. Arrondi : **au plus proche** (round half up — même convention que l'exemple « arrondi(12×20 %) »). Cas limite tranché : **même à 0 commerce**, une ville à bibliothèque génère **1 science/tour** (le `max(1 ; …)` s'applique toujours).
+
+**R-90 (révisée) — Conversion du commerce, par ville** (amende R-61, qui disparaît) :
+- Chaque ville convertit la **totalité** de son commerce en **or** ou en **science** — choix binaire, par ville (plus de curseur global 50/50 T-14 ; `player.scienceRatio` devient inutilisé, conservé pour compat comme `player.science`).
+- **Bouton dans le panneau de ville** (« Convertit le commerce en : Or ⇄ Science ») — ordre **immediate** à la `SetResearch` (action `SetConversion(cityId, target)`, visible en temps réel, autorisée hors verrouillage des ordres, refusée pendant la résolution) — détail d'implémentation proposé par l'agent.
+- **Défaut : Or** — pour une ville neuve comme pour une ville capturée (le choix est réinitialisé à la capture).
+- **Répercussion carte** : les cases **travaillées** par une ville n'affichent plus l'icône commerce mais l'icône **or ou science** selon le choix de la ville qui les travaille (case de ville comprise) ; les cases non travaillées gardent l'icône commerce (potentiel du terrain).
+- **Conséquence heureuse** : l'anomalie « science 0/tour » (REPORT-PHASE7A §3.1) disparaît **par construction** — plus de `floor()` d'une fraction : toute ville avec ≥ 1 commerce produit 1 or OU 1 science minimum ; une ville à 0 commerce sans bibliothèque produit 0/0 (topographie, assumé).
+
+**Nouvelle exigence UI (carte, mode Rendements)** : ajouter une option pour **masquer villes et armées** pendant l'affichage des rendements (les icônes sont aujourd'hui en arrière-plan des entités). Choix d'implémentation de l'agent : le bouton « Rendements » devient un cycle à 3 états — *masqué → affiché → affiché sans entités* — revenant au premier état par un clic.
+
+**Non tranché (laissé de côté pour l'instant)** : ETA sur le sprite de ville (PixiJS) et noms de villes — petits plus optionnels du §4.2, non retenus sauf demande contraire.
+
+**Périmètre temps B consolidé** (estimation inchangée : une session) : L0 règles (R-88/R-89/R-90, champ `conversion` sur la ville, migration v5→v6 additive) → L1 moteur (Phase C, dépréciation du curseur) → L2 UI (correctif crash CityPanel — cause racine §1.2, panneau restructuré + bouton de conversion, icônes or/science sur cases travaillées, cycle Rendements à 3 états, interaction « clic ville interrompt le brouillon ») → L3 polish optionnel → L4 vérification GUI + README + captures + CI + deploy.
