@@ -37,6 +37,8 @@ export interface GameTextures {
   /** Clé = id type d'unité des données JSON (unite_guerrier…). */
   units: Record<string, EntityTexture>;
   cities: { settlement: EntityTexture; capital: EntityTexture };
+  /** Icônes de rendement pour l'overlay N/P/C (null si asset absent). */
+  yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null };
   /** Pixel blanc (barres de PV/progression, flashs). */
   px: Texture;
 }
@@ -308,6 +310,11 @@ export function createTextures(renderer: Renderer): GameTextures {
   }
 
   const px = Texture.WHITE;
+  const yieldIcons = {
+    food: null,
+    production: null,
+    commerce: null,
+  } as GameTextures['yieldIcons'];
 
   return {
     tiles,
@@ -316,6 +323,7 @@ export function createTextures(renderer: Renderer): GameTextures {
       settlement: bakeEntity(renderer, buildSettlementGraphics()),
       capital: bakeEntity(renderer, buildCapitalGraphics()),
     },
+    yieldIcons,
     px,
   };
 }
@@ -362,7 +370,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const fallback = createTextures(renderer);
 
   const tileIds = Object.keys(TILE_ASSETS) as TerrainId[];
-  const [tiles, units, settlement, capital] = await Promise.all([
+  const [tiles, units, settlement, capital, foodIcon, productionIcon, commerceIcon] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     Promise.all(
       UNIT_IDS.filter((id) => fallback.units[id]).map((id) =>
@@ -371,12 +379,25 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     ),
     entityOrFallback('ville_settlement', fallback.cities.settlement),
     entityOrFallback('ville_capitale', fallback.cities.capital),
+    optionalIcon('icone_nourriture'),
+    optionalIcon('icone_production'),
+    optionalIcon('icone_commerce'),
   ]);
 
   return {
     tiles: Object.fromEntries(tiles) as Record<TerrainId, Texture>,
     units: Object.fromEntries(units),
     cities: { settlement, capital },
+    yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon },
     px: fallback.px,
   };
+}
+
+/** Icône optionnelle : null si l'asset est absent (l'overlay retombe sur le texte). */
+async function optionalIcon(name: string): Promise<Texture | null> {
+  try {
+    return (await Assets.load(`/art/${name}.png`)) as Texture;
+  } catch {
+    return null;
+  }
 }

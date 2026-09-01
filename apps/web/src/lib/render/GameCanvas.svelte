@@ -9,6 +9,7 @@
    * JSON), entités = celles de l'état filtré uniquement.
    */
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
+  import type { Texture } from 'pixi.js';
   import { hexToPixel, tileKeyOf, unitType, BUILDINGS, TERRAINS } from '@game/rules';
   import type { GameState, Hex } from '@game/rules';
   import type { Order } from '@game/shared';
@@ -359,24 +360,66 @@
       }
     }
 
-    // Overlay des rendements N/P/C (Phase 6 L3, masquable) sur les cases
-    // explorées ayant des rendements.
+    // Overlay des rendements (Phase 6 L3, masquable) : sur chaque case
+    // explorée à rendements, une ligne par ressource non nulle — icône
+    // (nourriture / production / commerce) + valeur générée.
     if (showYields) {
       for (const [key, tile] of Object.entries(scene.state.map)) {
         if (!scene.explored.has(key)) continue;
         const y = TERRAINS[tile.terrain]?.yields;
         if (!y) continue;
+        const rows: Array<{ icon: Texture | null; count: number; tint: number }> = [];
+        if (y.food !== 0) rows.push({ icon: textures!.yieldIcons.food, count: y.food, tint: 0xffffff });
+        if (y.production !== 0) rows.push({ icon: textures!.yieldIcons.production, count: y.production, tint: 0xffffff });
+        if (y.commerce !== 0) rows.push({ icon: textures!.yieldIcons.commerce, count: y.commerce, tint: 0xffffff });
+        if (rows.length === 0) continue;
         const [q, r] = key.split(',').map(Number);
         if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
-        const text = new Text({
-          text: `${y.food}/${y.production}/${y.commerce}`,
-          style: { fontFamily: 'system-ui, sans-serif', fontSize: 17, fill: 0xffffff, fontWeight: '600', stroke: { color: 0x1b1b22, width: 3 } },
-        });
-        text.anchor.set(0.5, 0.5);
-        text.alpha = 0.85;
         const p = hexToPixel({ q, r }, HEX_SIZE);
-        text.position.set(p.x, p.y + HEX_SIZE * 0.45);
-        overlayLayer.addChild(text);
+        const rowH = 19;
+        let rowY = p.y - ((rows.length - 1) * rowH) / 2 + HEX_SIZE * 0.38;
+        for (const row of rows) {
+          const text = new Text({
+            text: String(row.count),
+            style: { fontFamily: 'system-ui, sans-serif', fontSize: 15, fill: 0xffffff, fontWeight: '700', stroke: { color: 0x1b1b22, width: 3 } },
+          });
+          text.anchor.set(0, 0.5);
+          text.alpha = 0.92;
+          text.position.set(p.x + 4, rowY);
+          overlayLayer.addChild(text);
+          if (row.icon) {
+            const icon = new Sprite(row.icon);
+            icon.anchor.set(1, 0.5);
+            icon.scale.set(0.36);
+            icon.alpha = 0.95;
+            icon.position.set(p.x - 1, rowY);
+            overlayLayer.addChild(icon);
+          }
+          rowY += rowH;
+        }
+      }
+    }
+
+    // Réassignations en attente (R-60) : retour immédiat — anneau pointillé
+    // sur la case demandée (+) et sur le citoyen qui sera retiré (−, dernier
+    // de la liste, même règle que le moteur).
+    for (const order of scene.orders) {
+      if (order.type !== 'SetWorkedTile') continue;
+      const city = scene.state.cities[order.cityId];
+      if (!city || !scene.explored.has(tileKeyOf(city))) continue;
+      const color = playerColor(city.owner);
+      if (order.tile !== null) {
+        const [q, r] = order.tile.split(',').map(Number);
+        if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+        drawPendingMarker({ q, r }, color, true);
+      } else {
+        const last = city.workedTiles[city.workedTiles.length - 1];
+        if (last) {
+          const [q, r] = last.split(',').map(Number);
+          if (q !== undefined && r !== undefined && !Number.isNaN(q) && !Number.isNaN(r)) {
+            drawPendingMarker({ q, r }, color, false);
+          }
+        }
       }
     }
 
@@ -478,6 +521,23 @@
   function drawCross(gr: Graphics, r: number, color: number): void {
     gr.moveTo(-r, -r).lineTo(r, r).moveTo(r, -r).lineTo(-r, r);
     gr.stroke({ width: 5, color });
+  }
+
+  /** Réassignation en attente (R-60) : anneau pointillé + signe + / −. */
+  function drawPendingMarker(hex: Hex, color: number, assign: boolean): void {
+    const gr = new Graphics();
+    gr.poly(hexLocalPoints(HEX_SIZE - 18)).stroke({ width: 3, color, alpha: 0.95 });
+    // Pointillés : tirets sur les 6 côtés — approximation avec 6 arcs pleins
+    // espacés (petits segments aux sommets internes).
+    gr.circle(0, 0, 9).fill({ color: 0x1b1b22, alpha: 0.85 }).stroke({ width: 2, color, alpha: 1 });
+    const s = 5;
+    if (assign) {
+      gr.moveTo(-s, 0).lineTo(s, 0).moveTo(0, -s).lineTo(0, s).stroke({ width: 2.5, color: 0xffffff });
+    } else {
+      gr.moveTo(-s, 0).lineTo(s, 0).stroke({ width: 2.5, color: 0xffffff });
+    }
+    gr.position.copyFrom(hexToPixel(hex, HEX_SIZE));
+    overlayLayer.addChild(gr);
   }
 
   /** Flèche persistante d'un ordre Move (Phase 5.5 L1) : tracé + tête pleine. */

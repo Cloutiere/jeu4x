@@ -75,6 +75,48 @@
   /** R-60 : rayon de travail courant (Tribunal → 2). */
   const workRadius = $derived(city ? workRadiusOf(city.buildings) : 1);
 
+  /**
+   * Réassignations en attente (retour immédiat) : les ordres SetWorkedTile
+   * soumis pour cette ville, appliqués en miroir de ce que fera le moteur —
+   * assignation (case libre), échange (ville pleine) ou désassignation (le
+   * dernier citoyen de la liste est retiré).
+   */
+  const pending = $derived.by(() => {
+    if (!city || !view.state) return { assigns: [] as string[], unassigns: 0, effective: 0, toAssign: 0, tiles: [] as string[] };
+    const orders = view.orders.filter(
+      (o): o is Extract<Order, { type: 'SetWorkedTile' }> => o.type === 'SetWorkedTile' && o.cityId === city.id,
+    );
+    const tiles = [...city.workedTiles];
+    const assigns: string[] = [];
+    let unassigns = 0;
+    for (const o of orders) {
+      if (o.tile === null) {
+        unassigns += 1;
+        tiles.pop(); // même règle que le moteur : le dernier assigné part
+      } else if (!tiles.includes(o.tile)) {
+        if (tiles.length < city.pop) {
+          tiles.push(o.tile);
+          assigns.push(o.tile);
+        } else {
+          // échange : remplace la case la moins intéressante (miroir moteur)
+          const ranked = tiles
+            .map((key) => ({ key, y: tileYield(view.state!.map, city.buildings, key) }))
+            .sort(
+              (a, b) =>
+                (a.y?.food ?? 0) - (b.y?.food ?? 0) ||
+                (a.y?.production ?? 0) - (b.y?.production ?? 0) ||
+                (a.y?.commerce ?? 0) - (b.y?.commerce ?? 0),
+            );
+          const worst = ranked[0]!.key;
+          tiles[tiles.indexOf(worst)] = o.tile;
+          assigns.push(o.tile);
+        }
+      }
+    }
+    const effective = Math.min(city.pop, tiles.length);
+    return { assigns, unassigns, effective, toAssign: city.pop - effective, tiles };
+  });
+
   /** Items de production disponibles : unités v1 + bâtiments non possédés (R-66). */
   const productionOptions = $derived.by(() => {
     const options: Array<{ item: ProductionItem; name: string; cost: number; effect: string }> = [
@@ -113,6 +155,20 @@
     (e.currentTarget as HTMLElement | null)?.style.setProperty('display', 'none');
   }
 
+  /** Cumuls anticipés : les tiles attendues après résolution (miroir des ordres). */
+  function projectedYields(tiles: string[]): { food: number; production: number; commerce: number } {
+    const t = { food: 2, production: 1, commerce: 1 }; // case de ville (R-60)
+    if (!view.state || !city) return t;
+    for (const key of tiles) {
+      const y = tileYield(view.state.map, city.buildings, key);
+      if (!y) continue;
+      t.food += y.food;
+      t.production += y.production;
+      t.commerce += y.commerce;
+    }
+    return t;
+  }
+
   function setProduction(item: ProductionItem): void {
     if (!city) return;
     client.submitOrder({ type: 'SetProduction', cityId: city.id, item });
@@ -126,9 +182,33 @@
   {:else}
     <div class="rows">
       <span class="title">{city.id}{city.capital ? ' — Capitale' : ''}</span>
-      <span>Population <strong>{city.pop}</strong> — {city.workedTiles.length} citoyen(s) assigné(s) · rayon {workRadius}</span>
+      <span>
+        Population <strong>{city.pop}</strong> —
+        {#if pending.unassigns > 0 || pending.assigns.length > 0}
+          <strong>{pending.effective}</strong> assigné(s) après résolution
+          {#if pending.toAssign > 0}<em class="to-assign"> · {pending.toAssign} citoyen(s) à assigner</em>{/if}
+        {:else}
+          {city.workedTiles.length} citoyen(s) assigné(s)
+        {/if}
+        · rayon {workRadius}
+      </span>
       {#if !mine}<span class="enemy">Ennemie — {city.owner}</span>{/if}
     </div>
+
+    {#if yields && pending.tiles.length !== city.workedTiles.length}
+      {@const projected = projectedYields(pending.tiles)}
+      <div class="yields projected" title="Cumuls anticipés (réassignations en attente appliquées)">
+        <span><img src="/art/icone_nourriture.png" alt="N" onerror={hideImg} /> {projected.food}</span>
+        <span><img src="/art/icone_production.png" alt="P" onerror={hideImg} /> {projected.production}</span>
+        <span><img src="/art/icone_commerce.png" alt="C" onerror={hideImg} /> {projected.commerce}</span>
+        {#if mine}
+          <span>
+            → <img src="/art/icone_or.png" alt="or" onerror={hideImg} /> {projected.commerce - Math.floor(projected.commerce * (player?.scienceRatio ?? 0.5))} /
+            <img src="/art/icone_science.png" alt="science" onerror={hideImg} /> {Math.floor(projected.commerce * (player?.scienceRatio ?? 0.5))}
+          </span>
+        {/if}
+      </div>
+    {/if}
 
     {#if yields}
       <div class="yields">
@@ -150,19 +230,25 @@
       {/if}
     {/if}
 
-    {#if mine && city.workedTiles.length > 0}
+    {#if mine && (city.workedTiles.length > 0 || pending.assigns.length > 0)}
       <div class="citizens">
-        <span class="hint">Citoyens (clic sur une case de la carte pour réassigner) :</span>
+        <span class="hint">
+          Citoyens (clic sur une case de la carte pour réassigner){#if pending.assigns.length > 0 || pending.unassigns > 0} — <em class="pending-note">réassignation en attente</em>{/if} :
+        </span>
         <div class="tiles">
-          {#each city.workedTiles as key (key)}
+          {#each pending.tiles as key (key)}
             <button
               type="button"
               class="tile"
+              class:pending={pending.assigns.includes(key)}
               disabled={!editable}
-              title="Désassigner ({key})"
-              onclick={() => client.submitOrder({ type: 'SetWorkedTile', cityId: city.id, tile: key })}
+              title={pending.assigns.includes(key) ? `Assignation en attente — annuler (${key})` : `Désassigner (${key})`}
+              onclick={() => client.submitOrder({ type: 'SetWorkedTile', cityId: city.id, tile: null })}
             >({key})</button>
           {/each}
+          {#if pending.toAssign > 0}
+            <span class="tile free">+ {pending.toAssign} citoyen(s) à assigner</span>
+          {/if}
         </div>
       </div>
     {/if}
@@ -224,6 +310,11 @@
   .citizens { margin: 0.3rem 0; }
   .tiles { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.2rem; }
   .tile { font-size: 0.78rem; padding: 0.15rem 0.45rem; }
+  .tile.pending { border-style: dashed; border-color: #ffd54f; color: #ffe082; }
+  .tile.free { border-style: dashed; border-color: #81c784; color: #a5d6a7; cursor: default; padding: 0.15rem 0.55rem; border-radius: 6px; border-width: 1px; background: #1d242b; }
+  .to-assign { color: #a5d6a7; font-style: normal; font-weight: 600; }
+  .pending-note { color: #ffe082; font-style: normal; }
+  .yields.projected { opacity: 0.75; }
   .buildings { margin: 0.3rem 0; }
   .building { padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid #3c7a52; background: #243b2b; font-size: 0.8rem; }
   .hint { margin: 0.15rem 0; color: #8b98a5; font-size: 0.82rem; }
