@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Maquette 7b — Menu de ville (option recommandée : panneau restructuré)</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #10151a; color: #e3e8ec; font-family: system-ui, sans-serif; }
+  header.page { padding: 0.8rem 1.2rem; border-bottom: 2px solid #2c353d; background: #171e24; }
+  header.page h1 { margin: 0; font-size: 1.05rem; }
+  header.page p { margin: 0.2rem 0 0; color: #8b98a5; font-size: 0.85rem; }
+  .stage { display: flex; gap: 1rem; padding: 1rem; align-items: flex-start; flex-wrap: wrap; }
+  /* Fausse carte (contexte) */
+  .map { flex: 1 1 420px; min-width: 320px; height: 560px; border: 1px solid #2c353d; border-radius: 8px;
+         background: repeating-linear-gradient(60deg, #16202a 0 40px, #141a20 40px 80px); position: relative; }
+  .map .note { position: absolute; top: 0.6rem; left: 0.6rem; color: #6f7d89; font-size: 0.8rem; max-width: 26rem; }
+  /* Panneau de ville */
+  aside.city { width: 460px; background: #1d242b; border: 1px solid #3a4148; border-radius: 10px; padding: 0.9rem 1rem; }
+  h2 { margin: 0; font-size: 1.15rem; } h2 .capital { color: #ffd54f; font-size: 0.75rem; letter-spacing: .08em; }
+  .sub { color: #8b98a5; font-size: 0.82rem; margin: 0.1rem 0 0.6rem; }
+  .block { border-top: 1px solid #2c353d; padding: 0.55rem 0; }
+  .block h3 { margin: 0 0 0.35rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: #9aa7b2; }
+  .yields { display: flex; gap: 1.1rem; font-weight: 700; font-size: 1.05rem; align-items: center; }
+  .yields .ic { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .dot { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  .n { background: #81c784; } .p { background: #f0c419; } .c { background: #6fa3b8; } .o { background: #ffd54f; } .s { background: #90caf9; }
+  .split { margin-left: auto; font-size: 0.9rem; color: #a8b4be; font-weight: 400; }
+  .line2 { display: flex; gap: 1.1rem; font-size: 0.85rem; color: #a8b4be; margin-top: 0.3rem; }
+  .bar { height: 8px; background: #12161a; border: 1px solid #3a4148; border-radius: 4px; overflow: hidden; flex: 1; }
+  .bar > span { display: block; height: 100%; }
+  .gauge { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
+  .gauge .lab { font-size: 0.8rem; color: #8b98a5; white-space: nowrap; }
+  .fill-g { background: #81c784; width: 34%; } .fill-p { background: #f0c419; width: 62%; }
+  .eta { font-size: 0.8rem; color: #a5d6a7; white-space: nowrap; }
+  .citoyens { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .cit { border: 1px solid #46525c; background: #27313a; border-radius: 6px; padding: 0.18rem 0.5rem; font-size: 0.82rem; }
+  .cit.pend { border-style: dashed; border-color: #ffd54f; color: #ffe082; }
+  .cit.free { border-style: dashed; border-color: #81c784; color: #a5d6a7; }
+  .buildings { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .bld { padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid #3c7a52; background: #243b2b; font-size: 0.8rem; }
+  .prodcur { display: flex; align-items: center; gap: 0.6rem; }
+  .prodcur .name { font-weight: 700; }
+  .eta-p { font-size: 0.82rem; color: #ffd54f; white-space: nowrap; }
+  .queue { margin-top: 0.55rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.4rem; }
+  .opt { border: 1px solid #46525c; background: #27313a; border-radius: 8px; padding: 0.4rem 0.55rem; font-size: 0.82rem; }
+  .opt b { display: block; } .opt .fx { color: #8b98a5; font-size: 0.74rem; } .opt .turns { color: #ffd54f; font-size: 0.74rem; }
+  .opt.locked { opacity: 0.55; } .opt.locked .fx { color: #b08d5a; }
+  .foot { color: #6f7d89; font-size: 0.78rem; margin-top: 0.6rem; }
+  .badge { display:inline-block; background:#22333c; border:1px solid #3a5a66; color:#9fd0dd; border-radius:999px; padding:0.05rem 0.6rem; font-size:0.72rem; margin-left:0.4rem; }
+</style>
+</head>
+<body>
+<header class="page">
+  <h1>Maquette — Menu de ville, option recommandée <span class="badge">panneau latéral restructuré (hybride A + C)</span></h1>
+  <p>Statique, non branchée. La carte est simulée ; le panneau montre la structure cible écran par écran. Largeur panneau : 350 → 460 px, repliable.</p>
+</header>
+
+<div class="stage">
+  <div class="map">
+    <p class="note">← La carte reste visible et interactive : la réassignation des citoyens se fait TOUJOURS par clic sur la carte (R-60), avec les rendements affichés sur les cases (overlay Phase 6). Le panneau est un tableau de bord, pas un écran captive.</p>
+  </div>
+
+  <aside class="city">
+    <h2>Ville n°1 <span class="capital">CAPITALE</span></h2>
+    <p class="sub">Population 2 · 1 citoyen assigné + 1 à assigner · rayon de travail 1 (6 cases)</p>
+
+    <div class="block">
+      <h3>Rendements par tour</h3>
+      <div class="yields">
+        <span class="ic"><span class="dot n"></span>5</span>
+        <span class="ic"><span class="dot p"></span>3</span>
+        <span class="ic"><span class="dot c"></span>2</span>
+        <span class="split">→ <span class="dot o"></span> 1 or &nbsp; <span class="dot s"></span> 1 science</span>
+      </div>
+      <div class="line2">
+        <span>Croissance : +3 N/t</span>
+        <span>Production : Grenier dans <b>6 tours</b></span>
+      </div>
+      <div class="gauge">
+        <span class="lab">🍽 7 / 20</span>
+        <div class="bar"><span class="fill-g"></span></div>
+        <span class="eta">4 tours</span>
+      </div>
+      <div class="gauge">
+        <span class="lab">⚒ 12 / 20</span>
+        <div class="bar"><span class="fill-p"></span></div>
+        <span class="eta">6 tours</span>
+      </div>
+    </div>
+
+    <div class="block">
+      <h3>Citoyens <span class="badge" style="margin-left:.3rem">clic carte = assigner / désassigner</span></h3>
+      <div class="citoyens">
+        <span class="cit" title="case (-3,21) — cliquer pour désassigner">Citoyen (-3,21)</span>
+        <span class="cit free">+ 1 à assigner</span>
+      </div>
+    </div>
+
+    <div class="block">
+      <h3>Production en cours</h3>
+      <div class="prodcur">
+        <span class="name">Grenier</span>
+        <div class="bar"><span class="fill-p"></span></div>
+        <span class="eta-p">12/20 — 6 tours</span>
+      </div>
+      <h3 style="margin-top:0.7rem">Produire <span class="badge" style="margin-left:.3rem">tri : unités · bâtiments</span></h3>
+      <div class="queue">
+        <div class="opt"><b>Guerrier (10)</b><span class="fx">1/1/1</span> · <span class="turns">3 tours</span></div>
+        <div class="opt"><b>Colon (15)</b><span class="fx">fonde une ville</span> · <span class="turns">5 tours</span></div>
+        <div class="opt locked"><b>Archer (15)</b><span class="fx">Requiert : Travail du bronze</span></div>
+        <div class="opt"><b>Grenier (20)</b><span class="fx">+1 N / plaine</span> · <span class="turns">6 tours</span></div>
+        <div class="opt locked"><b>Bibliothèque (30)</b><span class="fx">Requiert : Alphabet</span></div>
+        <div class="opt locked"><b>Caserne (20)</b><span class="fx">Requiert : Travail du bronze</span></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h3>Bâtiments</h3>
+      <div class="buildings"><span class="bld">Grenier</span></div>
+      <p class="foot">Ville ennemie : même panneau en lecture seule (identité, rendements estimés, bâtiments visibles) sans bloc production.</p>
+    </div>
+  </aside>
+</div>
+</body>
+</html>
