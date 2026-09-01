@@ -31,6 +31,6 @@ Date : 01/09/2026. Handoff : `HANDOFF-PHASE7C.md`. Session livrée jusqu'à l'**
 3. ✅ Proposition `resources.json` + plan d'implémentation présentés.
 4. ✅ Aucun changement de règles ni de moteur hors L0 ; tout commité (CI verte).
 
-## 5. Arrêt
+## 5. Arrêt — puis décisions d'Erik (01/09/2026)
 
-**La main est rendue à Erik** : décisions D1–D6 (§7 de la proposition), puis handoff d'implémentation ; cadrage 7d (barbares/huttes) possible en parallèle — la recherche a noté que les villages barbares CivRev apparaissent « always on top of a resource », utile pour l'équilibrage.
+La main a été rendue à Erik conformément au handoff ; **les décisions D1–D6 sont reçues le jour même** et consignées dans [`PROPOSITION-RESSOURCES.md` §7](PROPOSITION-RESSOURCES.md) : D1 révélation par technologie (adaptation assumée, diffère de CivRev), D2 no-go culture moteur / données prêtes, D3 Or→commerce, D4 null+officialTech pour les 13, D5 placement inline, D6 les 3 cartes dotées. Le handoff d'implémentation **[`HANDOFF-PHASE7C-IMPL.md`](HANDOFF-PHASE7C-IMPL.md)** est écrit pour la session suivante ; le cadrage 7d (barbares/huttes) peut se faire en parallèle — la recherche a noté que les villages barbares CivRev apparaissent « always on top of a resource », utile pour l'équilibrage.

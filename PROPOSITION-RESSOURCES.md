@@ -155,15 +155,15 @@ Ordre de grandeur : **une session d'implémentation** (moteur + serveur passif +
 
 ---
 
-## 7. Décisions demandées à Erik
+## 7. Décisions d'Erik (01/09/2026 — toutes tranchées)
 
-| # | Question | Recommandation | Alternatives |
-|---|---|---|---|
-| **D1** | Visibilité d'une ressource non débloquée : masquée (consigne L2.3) ou visible-inactive (CivRev officiel, cf. recherche §3) ? | **Masquée** par défaut + champ `hiddenUntilRevealed` par ressource (revenir au comportement CivRev = édition JSON) | visible-inactive pour toutes ; visible-inactive seulement pour les stratégiques |
-| **D2** | Culture : no-go 7c + champ `culture` en données ? | **Oui** (no-go moteur, données prêtes) | go minimal (compteur inerte) ; report complet (champ retiré) |
-| **D3** | Bonus « Or » de Gemmes/Or : mappé sur le **commerce** (v1) ou canal direct trésor ? | **Commerce** en v1, divergence documentée | champ `gold` direct (fidélité, +15 lignes moteur) |
-| **D4** | Les 13 ressources à tech absente de notre base : `revealedByTech: null` (actives en v1) + `officialTech` documentaire ? | **Oui** | créer les 13 techs dès maintenant (hors périmètre) ; ne poser en v1 que les 9 ressources « vivantes » |
-| **D5** | Placement : tableau `resources` inline dans chaque carte JSON ? | **Oui** | fichier de placement séparé par carte |
-| **D6** | Périmètre de pose : toutes les cartes reçoivent des ressources à l'implémentation, ou seulement `variee-40` ? | **Les trois** (pédagogique : quelques-unes ; pangée/variee : jeu complet symétrique) | variee-40 seulement ; aucune (UI/art d'abord) |
+| # | Question | Décision |
+|---|---|---|
+| **D1** | Visibilité d'une ressource non débloquée | ✅ **Révélation avec la technologie** — nouvelle adaptation assumée, **diffère du jeu original** (CivRev affiche les icônes dès l'exploration, cf. recherche §3) : une ressource `revealedByTech` non débloquée est **invisible** pour le joueur. `hiddenUntilRevealed: true` par défaut en données. |
+| **D2** | Culture | ✅ **No-go moteur, données prêtes** — `resources.json` porte `culture` (Encens 2, Soie 3), ignoré par le moteur tant que le système (grandes personnes/temples) n'est pas acté. |
+| **D3** | Bonus « Or » de Gemmes/Or | ✅ **Mappé sur le commerce en v1** — `gemmes.commerce: 2`, `or.commerce: 3` (divergence avec CivRev documentée : chez CivRev, or direct au trésor). |
+| **D4** | 13 ressources à tech absente de notre base | ✅ **Oui** — `revealedByTech: null` (actives en v1) + `officialTech` documentaire ; activation future = édition JSON quand la tech rejoindra `techs.json`. |
+| **D5** | Placement | ✅ **Inline** — tableau `resources` dans chaque carte JSON. |
+| **D6** | Périmètre de pose | ✅ **Les 3 cartes** dotées de ressources à l'implémentation (pédagogique : quelques-unes ; pangée et variee : jeu complet, placements symétriques pour variee-40). |
 
-Après décisions : handoff d'implémentation (moteur → serveur passif → UI/art → e2e → déploiement), puis cadrage 7d (barbares/huttes — la recherche a d'ailleurs noté que les villages barbares CivRev apparaissent « always on top of a resource », un point d'équilibre à garder pour 7d).
+Après décisions : handoff d'implémentation (`HANDOFF-PHASE7C-IMPL.md`), puis cadrage 7d (barbares/huttes — la recherche a d'ailleurs noté que les villages barbares CivRev apparaissent « always on top of a resource », un point d'équilibre à garder pour 7d).

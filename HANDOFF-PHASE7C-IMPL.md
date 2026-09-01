@@ -1,0 +1,28 @@
+# HANDOFF PHASE 7c-impl — Implémentation du système de ressources (modèle approuvé)
+
+Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), baseline `pnpm test` + `pnpm typecheck` verts (**300 tests** : 226 rules / 50 web / 24 server), [`PROPOSITION-RESSOURCES.md`](PROPOSITION-RESSOURCES.md) — **le modèle est APPROUVÉ, décisions D1–D6 d'Erik actées §7** — et [`RECHERCHE-RESSOURCES.md`](RECHERCHE-RESSOURCES.md) (données officielles sourcées), `RULES.md` §2/§8.1 (pattern R-85/86/87), `assets-src/tools/generate.py` (pipeline d'art), `schemaVersion` actuel : **6**.
+
+## Mission — implémenter le système de ressources tel qu'approuvé (aucune nouvelle décision de règles)
+
+Écrire d'abord les règles **R-91 à R-94 dans `RULES.md`** (nouvelle section §8.3 « Ressources »), puis les implémenter test-first (chaque test cite son `R-xx`) :
+
+- **R-91 · Données ressources.** `resources.json` : base relationnelle embarquée de **22 ressources** (table fermée — ids : aluminium, betail, ble, baleine, boeufs, caoutchouc, charbon, chene, encens, epices, fer, gemmes, or, marbre, petrole, poisson, soie, soufre, teinture, vin), champs : `{id, name, terrains[], yields{N/P/C}, revealedByTech, officialTech, culture, hiddenUntilRevealed, spawnWeight}`. **Tout est éditable en données, rien de codé en dur** (le scénario étalon : déplacer Gemmes de `montagne` à `colline` = éditer `terrains`). Tests d'intégrité en miroir des techs (R-86) : table fermée, terrains connus (≠ ville), yields ≥ 0 avec au moins un > 0, `revealedByTech` existant, `hiddenUntilRevealed: true` ⇒ tech non null, index inverse `resourcesRevealedBy` réciproque, `culture` épinglé sur encens(2)/soie(3) — **non lu par le moteur (D2)**, `spawnWeight` réservé 6b.
+- **R-92 · Accès et visibilité par technologie (D1).** Une ressource `revealedByTech` non débloquée par le joueur est **invisible** (adaptation assumée, diffère de CivRev — documenter la divergence dans RULES avec renvoi à la recherche §3) : `getFilteredState` retire la ressource des tiles explorés non débloqués (`resource: null` diffusé). Le **bonus**, lui, est toujours conditionné par l'accès à la tech, indépendamment de la visibilité (si `hiddenUntilRevealed: false`, ressource affichée mais inactive — aucune ressource v1 n'utilise ce cas). Pas de nouvel événement (révélation passive, visible au snapshot suivant, comme R-85).
+- **R-93 · Bonus de rendement (D3).** `tileYield` ajoute les `yields` de la ressource de la case si le propriétaire de la ville y a accès — Gemmes/Or mappés **commerce** (`gemmes.commerce: 2`, `or.commerce: 3` ; divergence CivRev « or direct au trésor » documentée). L'auto-assignation R-60 (priorité N > P > C, tie-break R-81) valorise naturellement les cases à ressource — déterminisme conservé.
+- **R-94 · Placement (D5/D6).** Tableau `resources: [{id, q, r}]` inline dans chaque carte. Validations loader : id connu, terrain de la case ∈ `terrains`, au plus une ressource par case, jamais sur une case de capitale. **Les 3 cartes sont dotées** : pédagogique quelques-unes (didactique), pangée et variee jeu complet — placements **symétriques (miroir ponctuel) pour variee-40** (test de symétrie), libres pour pangée (terrain non symétrique). Poser en priorité les ressources « vivantes » v1 (7 à tech + Gemmes/Épices) ; les 13 modernes peuvent figurer (`revealedByTech: null` les rend actives — calibrage libre des placements).
+
+## Livrables dans l'ordre (détail chiffré : PROPOSITION-RESSOURCES.md §6, A–L)
+
+1. **Moteur pur** (`packages/rules`, test-first) : types (`ResourceData`, `ResourceId`, `Tile.resource: ResourceId | null` — le champ existe à null, migration **6→7 no-op**, chaîne v1→v7 testée idempotente) ; `data/resources.json` + accesseurs (`data.ts`) ; couche de requête `resources.ts` (accès + index inverse, tri R-81) ; `economy.ts` `tileYield` (R-93, contexte ville/techs passé aux appels) ; `fog.ts` `getFilteredState` (R-92) ; `map.ts` (R-94 : `MapData.resources`, validations, `createInitialState` recopie dans l'état). Tests : intégrité (nouveau `resources.test.ts`), brouillard (jamais de ressource non révélée dans l'état filtré, présente après déblocage), économie (bonus seulement si accessible ; e2e : déblocage tech → bonus dans les rendements de ville au tour suivant), map (validations + symétrie variee-40), migration.
+2. **Placements** : doter les 3 cartes (R-94) — les placements sont des données commitées, calibrage par édition.
+3. **UI/art** (`apps/web`) : 22 sprites via `assets-src/tools/generate.py` (nommage `res_fer`… aligné sur les ids), rendu sur les cases explorées-du-joueur (masqué = non dessiné), tooltip/mode rendements intégrant le bonus ressource. Le serveur/protocole ne change **pas** (l'état filtré traverse).
+4. **e2e + vérification** : `pnpm test` et `typecheck` verts partout ; vérifier le filtrage D1 en partie réelle (ressource visible avant/après Travail du fer pour le Fer).
+5. **Déploiement** : push → CI verte → vérifier le déploiement prod (convention 7b).
+
+## Périmètre interdit (cette session)
+
+Culture moteur (D2 : données seules), barbares/huttes (7d), génération procédurale (6b — `spawnWeight` reste inutilisé), naval, merveilles, toute création de technologies nouvelles dans `techs.json` (les 13 techs manquantes sont une décision de roadmap séparée), tout calibrage hors données JSON.
+
+## Fin de session
+
+Rapport (`REPORT-PHASE7C-IMPL.md`) : livrables, résultats de tests, ambiguïtés et interprétations, proposition de calibrage des placements si besoin. Puis la **Phase 7d (barbares/huttes)** pourra être cadrée — la recherche note que les villages barbares CivRev apparaissent « always on top of a resource » et que les cases de mer sombres sont impraticables pour la Galère (utile au naval).
