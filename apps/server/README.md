@@ -5,8 +5,12 @@ hibernation), `LobbyDO` (singleton), OAuth Google/Discord + stub local.
 Contrats du protocole : `packages/shared` — moteur : `packages/rules`.
 Ordres acceptés (Phase 6) : `Move`, `Attack`, `FoundCity`, `FormArmy`, `Hold`,
 `Fortify`, `SetProduction` (item `{kind:'unit'|'building', id}` — R-62/R-66),
-`SetWorkedTile` (`{cityId, tile: "q,r"|null}` — R-60). Le dump admin inclut
-`workedTiles` et `buildings` des villes.
+`SetWorkedTile` (`{cityId, tile: "q,r"|null}` — R-60) et l'action immédiate
+`SetResearch` (`{techId}` — R-85, Phase 7a : hors ordres de tour, validée et
+diffusée à la réception ; l'événement `TechResearched` prolonge le journal).
+Le dump admin inclut `workedTiles`, `buildings` des villes et les champs de
+recherche des joueurs (`researching`, `scienceProgress`, `techsUnlocked`,
+`scienceStored`).
 
 ## Commandes
 

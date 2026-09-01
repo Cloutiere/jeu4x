@@ -27,6 +27,10 @@ src/
 │                     ordres, tri déterministe des ids (R-81) (L2)
 ├── events.ts         Journal d'événements typé et séquencé (R-73) (L2)
 ├── data.ts           Tables data-driven : units.json, terrain.json
+├── techs.ts          Technologies Phase 7a : TECHS/WONDERS + couche de requête
+│                     (availableTechs, isUnlocked, researchable — R-85/86/87)
+├── research.ts       Recherche : creditScience (Phase C), applySetResearch
+│                     (action immédiate — R-85)
 ├── constants.ts      Constantes T-01..T-13 + 🔶 défauts d'économie
 ├── rng.ts            RNG mulberry32 seedé (R-80)
 ├── combat.ts         Force effective, round p = S_att²/(S_att²+S_def²),
@@ -39,10 +43,14 @@ src/
 ├── forfeit.ts        checkForfeit — défaite au-delà de T-06 timers manqués (L0-P1)
 ├── fixtures.ts       Constructeurs d'états de test (L2)
 └── data/
-    ├── units.json        Guerrier 1/1/1, Colon 0/0/2 (v1)
+    ├── units.json        7 unités (base 7a : Archer, Cavalier, Légion ;
+    │                      Espion/Galère en données, implemented: false)
+    ├── buildings.json    8 bâtiments (R-66) + champ tech (R-87)
+    ├── techs.json        Arbre technologique 9 techs (R-86, coûts 🔶)
+    ├── wonders.json      3 merveilles en données (non constructibles — 7a)
     ├── terrain.json      6 terrains + case de ville (2/1/1, +50 %)
     └── maps/             pedagogique-40.json, pangee-40.json (L3)
-tests/                 combat, data, hex, state, map, fog, turn, e2e, properties
+tests/                 combat, data, techs, research, hex, state, map, fog, turn, e2e, economy, properties
 ```
 
 ## Traçabilité R-xx / T-xx
