@@ -5,7 +5,7 @@
  * l'état filtré autorise (entités présentes = visibles ; cases connues =
  * présentes dans `state.map`). La validation métier reste côté serveur.
  */
-import { hexDistance, neighbors, TERRAINS, tileKeyOf, unitType } from '@game/rules';
+import { hexDistance, neighbors, TERRAINS, tileKeyOf, unitType, workRadiusOf } from '@game/rules';
 import type { Hex, Order } from '@game/rules';
 import type { CityId, GameState, UnitId } from '@game/shared';
 import type { GameView } from '../gameClient.js';
@@ -123,17 +123,34 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
   }
 
   // 3. Ville amie sélectionnée et ordres modifiables : un clic sur une case
-  //    SANS entité réassigne un citoyen (R-60, Phase 6). Re-clic sur une case
-  //    déjà travaillée par cette ville = désassignation. (La validité métier —
-  //    rayon, case libre, travaillable — reste validée par le serveur.)
+  //    réassigne un citoyen (R-60, Phase 6) — avec validation LOCALE des
+  //    mêmes contraintes que le moteur, pour un retour immédiat honnête :
+  //      - case déjà travaillée par cette ville → désassignation (null) ;
+  //      - sinon : dans le rayon de travail (bâtiments compris), travaillable,
+  //        pas une case de ville, pas travaillée par une autre ville, et la
+  //        ville doit avoir un citoyen disponible (sinon désassigner d'abord).
   const unit = unitAtHex(state, hex);
   const city = unit ? cityAtHex(state, hex) : null;
   if (ui.selectedCityId && ordersEditable(view) && !ui.draft) {
     const selCity = state.cities[ui.selectedCityId];
-    if (selCity && selCity.owner === myEngineId(view) && !unit && !city) {
+    if (selCity && selCity.owner === myEngineId(view)) {
       const key = tileKeyOf(hex);
-      const already = selCity.workedTiles?.includes(key) ?? false;
-      return { kind: 'setWorkedTile', cityId: selCity.id, tile: already ? null : key };
+      if (!unit && !city) {
+        if (selCity.workedTiles.includes(key)) {
+          return { kind: 'setWorkedTile', cityId: selCity.id, tile: null };
+        }
+        const dist = hexDistance(selCity, hex);
+        const workable = !!state.map[key] && !!TERRAINS[state.map[key].terrain]?.yields;
+        const free =
+          workable &&
+          dist >= 1 &&
+          dist <= workRadiusOf(selCity.buildings) &&
+          !Object.values(state.cities).some((c) => c.q === hex.q && c.r === hex.r) &&
+          !Object.values(state.cities).some((c) => c.id !== selCity.id && c.workedTiles.includes(key)) &&
+          selCity.workedTiles.length < selCity.pop;
+        if (free) return { kind: 'setWorkedTile', cityId: selCity.id, tile: key };
+        return { kind: 'none' };
+      }
     }
   }
 

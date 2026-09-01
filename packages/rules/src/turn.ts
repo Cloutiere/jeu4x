@@ -25,7 +25,7 @@ import {
 } from './hex.js';
 import type { Hex } from './hex.js';
 import { areAtWar, compareCityIds, compareUnitIds, nextId } from './state.js';
-import type { City, GameState, Order, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
+import type { City, CityId, GameState, Order, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
 import { TERRAINS, unitType, building, BUILDINGS } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable } from './economy.js';
 import { combatRound, effectiveStrength } from './combat.js';
@@ -113,6 +113,13 @@ interface Board {
   formGroups: Map<UnitId, FormGroup>;
   /** Perdants en attente d'allocation de repli (R-56 deux passes). */
   pendingRetreats: PendingRetreat[];
+  /**
+   * Villes dont les citoyens doivent être auto-assignés en Phase C : fondation
+   * et capture uniquement (R-60). Une désassignation manuelle ou une case devenue
+   * invalide LIBÈRE un citoyen sans re-remplissage (règle d'Erik : le joueur
+   * réassigne explicitement).
+   */
+  pendingFill: Set<CityId>;
 }
 
 // ---------------------------------------------------------------------------
@@ -829,10 +836,9 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
  * R-60 · SetWorkedTile — assignation manuelle d'un citoyen (ordre Phase 6).
  * Validations : ville possédée, case null (désassignation) ou dans le rayon
  * de travail (bâtiments compris), travaillable, pas une case de ville, pas
- * travaillée par une AUTRE ville. Assigner une case libre : si tous les
- * citoyens sont employés, ÉCHANGE — la case la moins intéressante de la
- * ville (même priorité, tie-break (q, r) croissant : la dernière du classement)
- * cède sa place (interprétation documentée, 🔶).
+ * travaillée par une AUTRE ville, et un citoyen disponible. Ville pleine :
+ * l'ordre est ignoré — désassigner d'abord (règle d'Erik : pas d'échange
+ * automatique).
  */
 function applySetWorkedTile(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
   const orders: Array<Extract<Order, { type: 'SetWorkedTile' }>> = [];
@@ -862,26 +868,11 @@ function applySetWorkedTile(board: Board, ordersByPlayer: Record<PlayerId, Order
     if (city.workedTiles.includes(order.tile)) continue; // déjà travaillée par cette ville : no-op
     if (city.workedTiles.length < city.pop) {
       city.workedTiles.push(order.tile);
-    } else {
-      // Échange : remplace la case la moins intéressante (première du
-      // classement ascendant nourriture > production > commerce).
-      const ranked = [...city.workedTiles]
-        .map((key) => {
-          const p = key.split(',');
-          return { key, hex: { q: Number(p[0]), r: Number(p[1]) }, y: tileYield(board.st.map, city.buildings, key)! };
-        })
-        .sort(
-          (a, b) =>
-            a.y.food - b.y.food ||
-            a.y.production - b.y.production ||
-            a.y.commerce - b.y.commerce ||
-            compareHex(a.hex, b.hex),
-        );
-      const worst = ranked[0];
-      if (!worst) continue;
-      city.workedTiles = city.workedTiles.map((k) => (k === worst.key ? order.tile! : k));
+      takenByOthers.add(order.tile);
     }
-    takenByOthers.add(order.tile);
+    // Ville pleine : l'ordre est ignoré — le joueur doit d'abord DÉSASSIGNER
+    // une case (tile null) pour libérer un citoyen, puis assigner au tour
+    // suivant (règle demandée par Erik, remplace l'ancien échange automatique).
   }
 }
 
@@ -915,6 +906,7 @@ function processCityCaptures(board: Board): void {
     city.production = null;
     city.workedTiles = [];
     city.buildings = []; // R-66 : les bâtiments sont perdus à la capture (le captreur ne les récupère pas)
+    board.pendingFill.add(cityId); // les citoyens de la nouvelle propriétaire sont auto-assignés
     emit(board, { type: 'CityCaptured', cityId, fromOwner, toOwner: invader.owner, at: hex });
     if (city.capital) {
       board.st.winner = invader.owner; // R-65 : victoire par domination
@@ -958,6 +950,7 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
     delete board.st.units[unit.id];
+    board.pendingFill.add(cityId); // le premier citoyen est auto-assigné en Phase C
     emit(board, { type: 'CityFounded', cityId, owner: unit.owner, at: hex, capital: !ownerHasCity, byUnitId: unit.id });
   }
 }
@@ -966,17 +959,18 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
 function processEconomy(board: Board): void {
   // Une case travaillée l'est par exactement une ville (propriété R-60) :
   // re-validation dans l'ordre des cityIds, qui arbitre tout conflit.
-  // Interprétation (documentée) : le re-remplissage automatique ne joue QUE
-  // si des cases sont devenues indisponibles (ou ville neuve) — une
-  // désassignation MANUELLE (SetWorkedTile null) laisse le citoyen au repos.
+  // Remplissage automatique UNIQUEMENT pour les villes fondées ou capturées
+  // ce tour (board.pendingFill) — une désassignation manuelle (SetWorkedTile
+  // null) ou une case devenue invalide LIBÈRE un citoyen sans re-remplissage
+  // (règle d'Erik : le joueur réassigne explicitement).
   const taken = new Set<TileKey>();
   for (const cityId of Object.keys(board.st.cities).sort()) {
     const city = board.st.cities[cityId]!;
-    const before = city.workedTiles.length;
     city.workedTiles = validatedWorkedTiles(board, city, taken);
-    const removed = before - city.workedTiles.length;
     for (const key of city.workedTiles) taken.add(key);
-    if (removed > 0 || city.workedTiles.length === 0) fillWorkedTiles(board, city, taken);
+    if (city.workedTiles.length < city.pop && board.pendingFill.has(cityId)) {
+      fillWorkedTiles(board, city, taken);
+    }
   }
 
   for (const cityId of Object.keys(board.st.cities).sort()) {
@@ -1120,6 +1114,7 @@ export function resolveTurn(
     initialVisible: new Map(),
     formGroups: new Map(),
     pendingRetreats: [],
+    pendingFill: new Set(),
   };
 
   for (const id of sortUnitIds(board)) {

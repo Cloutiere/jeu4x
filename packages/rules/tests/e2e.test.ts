@@ -214,15 +214,20 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     expect(allEvents.some((e) => e.type === 'PopulationGrew')).toBe(true);
     expect(state.cities[cityId]!.workedTiles.length).toBe(2); // +1 citoyen auto-assigné (R-60)
 
-    // Tour 4 : citoyen assigné à la plaine (5,6) + Grenier en file (20 🔶).
+    // Tour 4 : ville pleine (pop 2, 2 citoyens) → on désassigne d'abord
+    // (règle d'Erik : pas d'échange automatique) + Grenier en file (20 🔶).
     step({
       p1: [
-        { type: 'SetWorkedTile', cityId, tile: '5,6' },
+        { type: 'SetWorkedTile', cityId, tile: null },
         { type: 'SetProduction', cityId, item: { kind: 'building', id: 'grenier' } },
       ],
     });
-    expect(state.cities[cityId]!.workedTiles).toContain('5,6');
+    expect(state.cities[cityId]!.workedTiles).toHaveLength(1);
     expect(state.cities[cityId]!.production!.progress).toBe(1); // 1/tour à pop 2
+
+    // Tour 5 : le citoyen libéré est assigné à la plaine (5,6).
+    step({ p1: [{ type: 'SetWorkedTile', cityId, tile: '5,6' }] });
+    expect(state.cities[cityId]!.workedTiles).toContain('5,6');
 
     // Le Grenier s'achève quand la progression atteint son coût (R-62/R-66) :
     // on amène la file au bord (la progression est conservée tour à tour).
@@ -234,12 +239,14 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     // R-66 : le Grenier donne +1 N sur la plaine travaillée — le gain de
     // nourriture du tour suivant intègre le bonus (centre + Σ rendements
     // effectifs des cases travaillées, Grenier compris).
-    const before = state.cities[cityId]!.foodStored;
     const tiles = [...state.cities[cityId]!.workedTiles];
     const expectedFood =
       2 + tiles.reduce((acc, key) => acc + tileYield(state.map, ['grenier'], key)!.food, 0);
+    // stock remis à zéro pour isoler la mesure d'un tour (sinon la croissance
+    // R-63 peut se déclencher pendant la mesure)
+    state.cities[cityId]!.foodStored = 0;
     step({});
-    expect(state.cities[cityId]!.foodStored).toBe(before + expectedFood);
+    expect(state.cities[cityId]!.foodStored).toBe(expectedFood);
     expect(expectedFood).toBeGreaterThan(2 + tiles.length); // le bonus se sent vraiment
 
     // Tribunal en file (40 🔶), achevé au tour suivant.
@@ -248,10 +255,14 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     expect(state.cities[cityId]!.buildings).toEqual(['grenier', 'tribunal']);
 
     // Rayon 2 (T-08b + Tribunal) : la montagne (3,5) — distance 2 — devient
-    // travaillable (R-60/R-66). La ville a maintenant pop ≥ 2 : l'assignation
-    // manuelle de la montagne est acceptée.
+    // travaillable (R-60/R-66). Ville pleine : il faut d'abord DÉSASSIGNER un
+    // citoyen (tour A), puis l'assigner au tour B (règle d'Erik : pas
+    // d'échange automatique).
+    step({ p1: [{ type: 'SetWorkedTile', cityId, tile: null }] });
     step({ p1: [{ type: 'SetWorkedTile', cityId, tile: '3,5' }] });
     expect(state.cities[cityId]!.workedTiles).toContain('3,5');
+    // length ≤ pop : la croissance (R-63) peut ajouter un citoyen entre-temps
+    expect(state.cities[cityId]!.workedTiles.length).toBeLessThanOrEqual(state.cities[cityId]!.pop);
     // Sans Tribunal, ce même ordre aurait été refusé (couvert par economy.test.ts).
 
     // Propriété transversale : chaque case travaillée l'est par une seule ville.

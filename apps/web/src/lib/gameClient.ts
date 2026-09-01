@@ -80,8 +80,16 @@ export function appendJournalEvents(v: GameView, incoming: GameEvent[]): GameVie
 
 /** Sujet d'un ordre (miroir du GameDO) pour remplacer/annuler localement. */
 function sameSubject(a: Order, b: Order): boolean {
-  if (a.type === 'SetProduction' || b.type === 'SetProduction') {
-    return a.type === 'SetProduction' && b.type === 'SetProduction' && a.cityId === b.cityId;
+  if (a.type === 'SetProduction' || b.type === 'SetProduction' || a.type === 'SetWorkedTile' || b.type === 'SetWorkedTile') {
+    // Ordres de ville : un seul brouillon par ville et par type de sujet.
+    if (a.type === b.type) {
+      return (
+        (a.type === 'SetProduction' || a.type === 'SetWorkedTile') &&
+        (b.type === 'SetProduction' || b.type === 'SetWorkedTile') &&
+        a.cityId === b.cityId
+      );
+    }
+    return false;
   }
   if (a.type === 'FormArmy' && b.type === 'FormArmy') {
     return [...a.members].sort().join(',') === [...b.members].sort().join(',');

@@ -57,7 +57,7 @@ describe('economy.ts · rendements et rayon (R-60/R-66)', () => {
 describe('R-60 · cases travaillées multiples (Phase 6)', () => {
   it('pop 2 → 2 citoyens assignés, ≤ pop, uniques', () => {
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 20 }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 20, workedTiles: ['0,1', '1,0'] }],
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
@@ -125,13 +125,16 @@ describe('R-66 · bâtiments (Phase 6)', () => {
     const state = makeState({
       terrainOverrides: { '2,0': 'montagne' }, // 0/1/0 — hors de portée sans Tribunal
       cities: [
-        { id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 7, buildings: ['tribunal'] },
+        {
+          id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 7, buildings: ['tribunal'],
+          workedTiles: ['0,1', '1,0', '0,2', '1,1', '2,0', '-1,2'],
+        },
       ],
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
-    // rayon 2 : la montagne (2,0) est candidate seulement avec le Tribunal
-    // (la fixture 8×8 coupe les cases à q ou r négatifs : 6 candidates au total)
+    // rayon 2 (Tribunal) : les 6 cases pré-assignées restent valides, dont la
+    // montagne (2,0) à distance 2 — refusée sans Tribunal (test suivant)
     expect(city.workedTiles).toContain('2,0');
     expect(city.workedTiles.length).toBe(6);
   });
@@ -139,13 +142,19 @@ describe('R-66 · bâtiments (Phase 6)', () => {
   it('R-66 : sans Tribunal, une case à distance 2 n’est jamais travaillée', () => {
     const state = makeState({
       terrainOverrides: { '2,0': 'montagne' },
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 7 }],
+      cities: [
+        {
+          id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 7,
+          workedTiles: ['0,1', '1,0', '0,2', '1,1', '2,0', '-1,2'],
+        },
+      ],
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
+    // rayon 1 : les cases à distance 2 sont retirées par la validation
     expect(city.workedTiles).not.toContain('2,0');
-    // rayon 1 : seules (0,1) et (1,0) sont dans la carte (q, r ≥ 0)
-    expect(city.workedTiles.length).toBe(2);
+    expect(city.workedTiles).not.toContain('0,2');
+    expect(city.workedTiles).toEqual(['0,1', '1,0']);
   });
 
   it('R-66 : un bâtiment déjà possédé n’est pas re-constructible (SetProduction ignoré)', () => {
@@ -220,17 +229,20 @@ describe('R-60 · ordre SetWorkedTile (Phase 6)', () => {
     expect(cityAt(newState, 0, 0)!.workedTiles).not.toContain('1,0');
   });
 
-  it('tous les citoyens occupés → échange avec la case la moins intéressante', () => {
+  it('tous les citoyens occupés → ordre ignoré (désassignation d’abord — règle d’Erik)', () => {
     const state = makeState({
-      terrainOverrides: { '1,0': 'montagne' }, // 0/1/0 : case de repli pauvre
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1 }],
+      terrainOverrides: { '1,0': 'montagne' }, // 0/1/0 : case pauvre
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: ['0,1'] }],
     });
-    // pop 1 : l'auto-assignation a déjà pris la meilleure case (prairie 2 N).
-    // Demander la montagne déclenche l'échange : la prairie cède sa place.
+    // pop 1, un citoyen déjà assigné (prairie) : ville pleine.
+    // Demander la montagne est ignoré — pas d'échange auto.
     const { newState } = resolveTurn(state, { p1: [{ type: 'SetWorkedTile', cityId: 'c1', tile: '1,0' }] }, 1);
     const tiles = cityAt(newState, 0, 0)!.workedTiles;
-    expect(tiles).toContain('1,0');
+    expect(tiles).not.toContain('1,0');
     expect(tiles).toHaveLength(1);
+    // En revanche, désassigner libère le citoyen pour le tour suivant.
+    const r2 = resolveTurn(newState, { p1: [{ type: 'SetWorkedTile', cityId: 'c1', tile: null }] }, 1);
+    expect(cityAt(r2.newState, 0, 0)!.workedTiles).toHaveLength(0);
   });
 
   it('désassignation (tile null) → un citoyen de moins, non re-rempli (interprétation)', () => {

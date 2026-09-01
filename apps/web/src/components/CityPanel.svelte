@@ -78,8 +78,9 @@
   /**
    * Réassignations en attente (retour immédiat) : les ordres SetWorkedTile
    * soumis pour cette ville, appliqués en miroir de ce que fera le moteur —
-   * assignation (case libre), échange (ville pleine) ou désassignation (le
-   * dernier citoyen de la liste est retiré).
+   * assignation (case libre ET citoyen disponible) ou désassignation (le
+   * dernier citoyen de la liste est retiré). Ville pleine : l'assignation
+   * est ignorée (désassigner d'abord — règle d'Erik).
    */
   const pending = $derived.by(() => {
     if (!city || !view.state) return { assigns: [] as string[], unassigns: 0, effective: 0, toAssign: 0, tiles: [] as string[] };
@@ -93,25 +94,11 @@
       if (o.tile === null) {
         unassigns += 1;
         tiles.pop(); // même règle que le moteur : le dernier assigné part
-      } else if (!tiles.includes(o.tile)) {
-        if (tiles.length < city.pop) {
-          tiles.push(o.tile);
-          assigns.push(o.tile);
-        } else {
-          // échange : remplace la case la moins intéressante (miroir moteur)
-          const ranked = tiles
-            .map((key) => ({ key, y: tileYield(view.state!.map, city.buildings, key) }))
-            .sort(
-              (a, b) =>
-                (a.y?.food ?? 0) - (b.y?.food ?? 0) ||
-                (a.y?.production ?? 0) - (b.y?.production ?? 0) ||
-                (a.y?.commerce ?? 0) - (b.y?.commerce ?? 0),
-            );
-          const worst = ranked[0]!.key;
-          tiles[tiles.indexOf(worst)] = o.tile;
-          assigns.push(o.tile);
-        }
+      } else if (!tiles.includes(o.tile) && tiles.length < city.pop) {
+        tiles.push(o.tile);
+        assigns.push(o.tile);
       }
+      // case déjà travaillée par la ville, ou ville pleine : ignoré (miroir moteur)
     }
     const effective = Math.min(city.pop, tiles.length);
     return { assigns, unassigns, effective, toAssign: city.pop - effective, tiles };

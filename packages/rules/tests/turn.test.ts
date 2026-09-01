@@ -548,14 +548,23 @@ describe('Phase B · R-57 · bonus défensif de la case de ville (T-02)', () => 
 });
 
 describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () => {
-  it('R-60 : auto-assignation — priorité nourriture > production > commerce, tie-break (q, r)', () => {
+  it('R-60 : auto-assignation À LA FONDATION — priorité nourriture, tie-break (q, r)', () => {
     const state = makeState({
       terrainOverrides: { '1,0': 'foret' }, // 0/2/0 : la forêt perd face aux prairies 2/0/0 (nourriture d'abord)
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true }],
+      units: [{ id: 'u1', type: 'colon', owner: 'p1', q: 0, r: 0 }],
     });
-    const { newState } = resolveTurn(state, {}, 1);
-    // rayon T-08b = 1 : parmi les voisins prairie (2/0/0), seul voisin prairie praticable du rectangle : (0,1)
+    const { newState } = resolveTurn(state, { p1: [{ type: 'FoundCity', unitId: 'u1' }] }, 1);
+    // rayon T-08b = 1 : la forêt (1,0) perd face à la prairie (0,1) — nourriture d'abord
     expect(cityAt(newState, 0, 0)!.workedTiles).toEqual(['0,1']);
+  });
+
+  it('R-60 : une ville existante sans réassignation ne se re-remplit pas (désassignation respectée)', () => {
+    const state = makeState({
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: ['0,1'] }],
+    });
+    const { newState } = resolveTurn(state, { p1: [{ type: 'SetWorkedTile', cityId: 'c1', tile: null }] }, 1);
+    // désassignation manuelle → 0 citoyen assigné, PAS de re-remplissage
+    expect(cityAt(newState, 0, 0)!.workedTiles).toEqual([]);
   });
 
   it('R-61 : répartition science/or au curseur (reste entier à l’or)', () => {
@@ -613,7 +622,7 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
 
   it('R-63 : croissance au seuil 10 × pop (T-15, règle Civ Rev — révision 30/08)', () => {
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 8 }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 8, workedTiles: ['0,1'] }],
     });
     const { newState, events } = resolveTurn(state, {}, 1);
     // nourriture du tour = 2 (ville) + 2 (prairie travaillée) = 4 → 8 + 4 = 12 ≥ 10
@@ -627,7 +636,7 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
 
   it('R-63 : sous le seuil 10 × pop → pas de croissance', () => {
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 2 }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 2, workedTiles: ['0,1'] }],
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
