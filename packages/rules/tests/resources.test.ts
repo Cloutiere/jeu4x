@@ -15,8 +15,9 @@ import resources from '../src/data/resources.json' with { type: 'json' };
 import techs from '../src/data/techs.json' with { type: 'json' };
 import terrainJson from '../src/data/terrain.json' with { type: 'json' };
 import type { ResourceData, TechData } from '../src/types.js';
+import { RESOURCE_UNKNOWN } from '../src/types.js';
 import { RESOURCES, TERRAINS } from '../src/data.js';
-import { resourceAccessible, resourceBonus, resourceVisible, resourcesRevealedBy } from '../src/resources.js';
+import { filteredResource, resourceAccessible, resourceBonus, resourceIdentified, resourcesRevealedBy } from '../src/resources.js';
 import { tileYield, autoAssignWorkedTiles } from '../src/economy.js';
 import { getFilteredState } from '../src/fog.js';
 import { grassMap, makeState } from '../src/fixtures.js';
@@ -157,7 +158,7 @@ describe('R-91 · index inverse resourcesRevealedBy (miroir de tech.unlocks)', (
   });
 });
 
-describe('R-92 · accès et visibilité (couche de requête, D1)', () => {
+describe('R-92 · accès et identité (couche de requête, D1 révisée)', () => {
   const fer = resourceTable['fer']!;
   const gemmes = resourceTable['gemmes']!;
 
@@ -174,13 +175,14 @@ describe('R-92 · accès et visibilité (couche de requête, D1)', () => {
     expect(resourceBonus(gemmes, [])).toEqual({ food: 0, production: 0, commerce: 2 });
   });
 
-  it('visibilité D1 : masquée tant que la tech manque, révélée après déblocage', () => {
-    expect(resourceVisible(fer, [])).toBe(false);
-    expect(resourceVisible(fer, ['travail_du_fer'])).toBe(true);
-    // sans tech exigée : toujours visible
-    expect(resourceVisible(gemmes, [])).toBe(true);
-    // cas CivRev-fidèle (affichée mais inactive) — aucun cas en v1, sémantique testée
-    expect(resourceVisible({ ...fer, hiddenUntilRevealed: false }, [])).toBe(true);
+  it('identité D1 : masquée (« inconnue ») tant que la tech manque, réelle après', () => {
+    expect(filteredResource(fer, [])).toBe(RESOURCE_UNKNOWN);
+    expect(resourceIdentified(fer, [])).toBe(false);
+    expect(filteredResource(fer, ['travail_du_fer'])).toBe('fer');
+    // sans tech exigée : identité réelle pour tous
+    expect(filteredResource(gemmes, [])).toBe('gemmes');
+    // cas CivRev-fidèle (icône réelle avant la tech) — aucun cas en v1, sémantique testée
+    expect(filteredResource({ ...fer, hiddenUntilRevealed: false }, [])).toBe('fer');
   });
 });
 
@@ -208,6 +210,19 @@ describe('R-93 · bonus de rendement dans tileYield', () => {
       production: 5,
       commerce: 0,
     });
+  });
+
+  it('le marqueur « inconnue » n’apporte jamais de bonus (et n’est pas une donnée)', () => {
+    // l'UI passe l'état filtré : une case à marqueur doit rester au rendement
+    // de base, exactement comme une ressource à tech non débloquée (R-92/R-93)
+    const m = {
+      '1,0': { terrain: 'colline', resource: RESOURCE_UNKNOWN },
+      '2,0': { terrain: 'colline', resource: 'fer' },
+    } as never;
+    expect(tileYield(m, [], '1,0', ['travail_du_fer'])).toEqual({ food: 0, production: 1, commerce: 0 });
+    expect(tileYield(m, [], '2,0', ['travail_du_fer'])).toEqual({ food: 0, production: 3, commerce: 0 });
+    // le marqueur n'est pas une entrée de resources.json (table fermée à 22)
+    expect(RESOURCES[RESOURCE_UNKNOWN]).toBeUndefined();
   });
 
   it('R-60 : l’auto-assignation valorise les cases à ressource accessibles (déterminisme R-81)', () => {
@@ -271,17 +286,16 @@ describe('R-93 · e2e : déblocage de tech → bonus dans les rendements de vill
     expect(base).toBe(noRes + 2); // R-93 : +2 P du Fer perçus au tour du déblocage
   });
 
-  it('R-92 : le Fer invisible avant déblocage apparaît dans l’état filtré après', () => {
+  it('R-92 : le Fer non débloqué est diffusé « inconnue », identité réelle après déblocage', () => {
     const st = stateAvecFer();
     // p1 voit la case (capitale au centre, colline adjacente)
     st.players['p1']!.vision.explored = [tileKeyOf({ q: 1, r: 0 })];
     st.players['p1']!.vision.visible = [tileKeyOf({ q: 1, r: 0 })];
     const before = resolveTurn(st, {}, 7).newState;
-    // la tech manque : la ressource est masquée dans l'état filtré
-    // (resolveTurn n'a rien changé à la ressource : le masquage est au filtrage)
-    expect(before.map['1,0']!.resource).toBe('fer');
-    expect(getFilteredResource(before)).toBeNull();
-    // la tech est débloquée : la ressource est diffusée
+    // la tech manque : la présence est diffusée, PAS l'identité (marqueur)
+    expect(before.map['1,0']!.resource).toBe('fer'); // l'état serveur garde l'id réel
+    expect(getFilteredResource(before)).toBe(RESOURCE_UNKNOWN);
+    // la tech est débloquée : l'identité réelle est diffusée
     before.players['p1']!.techsUnlocked = ['travail_du_fer'];
     expect(getFilteredResource(before)).toBe('fer');
   });

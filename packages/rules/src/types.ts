@@ -85,6 +85,17 @@ export interface WonderData {
   implemented: boolean;
 }
 
+/**
+ * R-92 (D1 révisée le 01/09/2026) : marqueur diffusé à la place de l'id réel
+ * quand l'identité d'une ressource est masquée (tech non débloquée,
+ * `hiddenUntilRevealed: true`). JAMAIS persisté : posé uniquement par
+ * `getFilteredState` sur la copie diffusée, consommé par l'UI (icône « ? »).
+ */
+export const RESOURCE_UNKNOWN = 'inconnue';
+
+/** Ressource portée par une case : id de resources.json ou marqueur « inconnue ». */
+export type TileResource = ResourceId | typeof RESOURCE_UNKNOWN;
+
 /** R-91 · Ressource (resources.json) — base relationnelle embarquée (RULES.md §8.3).
  *  Tout est éditable en données : déplacer Gemmes de montagne à colline = éditer
  *  `terrains`, rien d'autre. */

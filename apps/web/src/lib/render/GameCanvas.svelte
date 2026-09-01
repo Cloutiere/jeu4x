@@ -196,9 +196,11 @@
       const target = scene.visible.has(key) ? 0xffffff : 0x70707e;
       if (sprite.tint !== target) sprite.tint = target;
 
-      // R-91/Phase 7c : la ressource d'une case explorée (l'état filtré ne
-      // diffuse que les ressources révélées au joueur — R-92) est dessinée sur
-      // la case, comme du décor persistant (CivRev).
+      // R-91/Phase 7c : la ressource d'une case explorée est dessinée sur la
+      // case, comme du décor persistant (CivRev). R-92 (D1 révisée) : l'état
+      // filtré diffuse l'id réel si l'identité est connue, ou le marqueur
+      // « inconnue » (icône « ? ») tant que la tech manque — la présence est
+      // toujours visible, jamais l'identité masquée.
       if (tile.resource && textures.resources[tile.resource]) {
         wantedResources.add(key);
         let res = resourceSprites.get(key);
@@ -414,9 +416,10 @@
     // commerce ; les cases non travaillées gardent le commerce (potentiel).
     if (showYields) {
       const workedBy = workedTileOwner();
-      // R-93 : le bonus de la ressource (visible et accessible au joueur —
-      // l'état filtré ne diffuse que les ressources révélées) s'ajoute aux
-      // rendements du terrain dans l'affichage, comme dans tileYield.
+      // R-93 : le bonus de la ressource identifiée et accessible au joueur
+      // s'ajoute aux rendements du terrain dans l'affichage, comme dans
+      // tileYield. Le marqueur « inconnue » (R-92) n'est pas dans RESOURCES :
+      // jamais de bonus affiché pour une identité masquée.
       const viewerTechs = scene.myId ? (scene.state.players[scene.myId]?.techsUnlocked ?? []) : [];
       for (const [key, tile] of Object.entries(scene.state.map)) {
         if (!scene.explored.has(key)) continue;

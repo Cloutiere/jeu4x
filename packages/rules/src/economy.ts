@@ -16,18 +16,20 @@
 import { hexesWithinRadius, compareHex, tileKeyOf, parseTileKey } from './hex.js';
 import type { Hex } from './hex.js';
 import { TERRAINS, BUILDINGS, RESOURCES } from './data.js';
-import type { ResourceId, TerrainId, Yields } from './types.js';
+import type { TerrainId, TileResource, Yields } from './types.js';
 import { resourceBonus } from './resources.js';
 import { CITY_WORK_RADIUS } from './constants.js';
 import type { TileKey } from './state.js';
 
 export const ZERO_YIELDS: Yields = { food: 0, production: 0, commerce: 0 };
 
-/** Case vue par les fonctions d'économie : terrain + ressource posée (R-91). */
+/** Case vue par les fonctions d'économie : terrain + ressource posée (R-91).
+ *  Accepte le marqueur « inconnue » (R-92) : l'UI passe l'état filtré — le
+ *  marqueur est absent de RESOURCES, donc jamais de bonus. */
 export interface YieldTile {
   terrain: TerrainId;
   /** Absent ou null = pas de ressource. */
-  resource?: ResourceId | null;
+  resource?: TileResource | null;
 }
 
 function addYields(a: Yields, b: Yields): Yields {

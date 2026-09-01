@@ -1006,6 +1006,19 @@ def res_vin(d):
     d.ellipse((24, 18, 30, 24), fill="#B18CE0")
 
 
+def res_inconnue(d):
+    """Ressource inconnue (R-92, D1 révisée) : marqueur « ? » sur stèle —
+    la présence d'une ressource est visible, pas son identité."""
+    d.ellipse((12, 48, 52, 60), fill="#8A8A92", outline=INK, width=2)   # socle
+    d.rrect((20, 6, 44, 52), 7, fill="#B8B4AC", outline=INK, width=2)   # stèle
+    d.rrect((23, 9, 41, 49), 6, fill="#C9C4BC")
+    # « ? » doré : arc, fût, point
+    d.arc((25, 14, 39, 32), 130, 410, fill=OR, width=4)
+    d.line([(32, 28), (32, 36)], fill=OR, width=4)
+    d.ellipse((28, 39, 36, 47), fill=OR, outline="#8A641C", width=1.5)
+    _shine(d, 25, 12, 2)
+
+
 # ---------------------------------------------------------------- génération
 
 
@@ -1075,6 +1088,9 @@ def main():
         "res_teinture": res_teinture,
         "res_uranium": res_uranium,
         "res_vin": res_vin,
+        # R-92 (D1 révisée) : marqueur « ressource inconnue » — diffusion de
+        # l'état filtré quand l'identité est masquée (jamais dans resources.json).
+        "res_inconnue": res_inconnue,
     }
 
     for name, painter in tiles.items():
@@ -1162,7 +1178,8 @@ for n in ["or", "commerce", "science", "nourriture", "production", "pv", "pm", "
 # Phase 7c (R-91) : icônes de ressources 64×64.
 for n in ["aluminium", "baleine", "betail", "ble", "boeufs", "caoutchouc", "charbon",
           "chene", "encens", "epices", "fer", "gemmes", "gibier", "or", "marbre",
-          "petrole", "poisson", "soie", "soufre", "teinture", "uranium", "vin"]:
+          "petrole", "poisson", "soie", "soufre", "teinture", "uranium", "vin",
+          "inconnue"]:
     EXPECTED[f"res_{n}.png"] = (64, 64)
 
 

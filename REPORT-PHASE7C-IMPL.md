@@ -2,6 +2,8 @@
 
 Date : 01/09/2026. Exécution de [`HANDOFF-PHASE7C-IMPL.md`](HANDOFF-PHASE7C-IMPL.md) — le modèle approuvé (`PROPOSITION-RESSOURCES.md` §7, décisions D1–D6 d'Erik) a été implémenté **sans nouvelle décision de règles**. Commit `b9341a3`, CI verte, production vérifiée. La **Phase 7d (barbares/huttes)** peut être cadrée.
 
+> **Addendum (01/09, soir) — R-92 révisée par Erik.** Le masquage complet des ressources non débloquées est remplacé par le **marqueur « ressource inconnue »** : la présence reste visible sur les cases explorées, seule l'identité est masquée (état filtré diffuse `inconnue` au lieu de l'id réel ; le bonus reste verrouillé). Détaillé en §7.
+
 ## 1. Résultats
 
 - **`pnpm test` : 334 tests verts** (260 rules / 50 web / 24 server — baseline 300, +34). `pnpm typecheck` vert partout, `pnpm build` OK.
@@ -56,3 +58,17 @@ Chaque placement est une entrée `resources` inline dans le JSON de carte (D5) ;
 ## 6. Suite — cadrage Phase 7d (proposition)
 
 Barbares/huttes : la recherche note que les villages barbares CivRev apparaissent « **always on top of a resource** » (point d'équilibre à reprendre — nos placements sont prêts à servir d'ancrage) et que les cases de **mer sombre** sont impraticables pour la Galère (utile au naval, Phase suivante). Le schéma 7 (Tile.resource) et la couche `resources.ts` sont les fondations naturelles pour 7d.
+
+## 7. Addendum (01/09, soir) — R-92 révisée : marqueur « ressource inconnue »
+
+**Décision d'Erik** : une ressource dont la tech n'est pas débloquée ne doit pas être invisible — le joueur voit **qu'il y a une ressource particulière** (comme une civilisation qui repère du pétrole sans savoir l'exploiter) ; au déblocage de la technologie, il en découvre la **nature** (l'icône réelle remplace le marqueur).
+
+**Implémentation** (commit `feat(7c-impl)` suivi) :
+- `types.ts` : `RESOURCE_UNKNOWN = 'inconnue'` + type `TileResource = ResourceId | 'inconnue'` — **jamais persisté** : produit uniquement par `getFilteredState`, l'état serveur garde l'id réel (pas de bump de schéma).
+- `resources.ts` : `resourceVisible` → **`resourceIdentified`** (l'identité réelle est-elle connue ?) + `filteredResource(res, techs)` qui retourne l'id réel ou le marqueur. `resourceAccessible`/`resourceBonus` inchangés — une ressource « inconnue » n'apporte **aucun bonus** (absente de `RESOURCES`, et de toute façon sans accès).
+- `fog.ts` : diffuse `inconnue` au lieu de retirer la ressource (R-92).
+- UI : sprite **`res_inconnue.png`** (stèle grise + « ? » doré) généré par le pipeline ; rendu sur les cases explorées comme toute ressource ; aucun bonus dans l'overlay/panneau tant que l'identité est masquée ; tooltip « Ressource inconnue » (`CityPanel`).
+- `RULES.md` : R-92 réécrite (D1 révisée) + puce `hiddenUntilRevealed` de R-91 (true = marqueur, false = icône réelle avant la tech, CivRev-fidèle).
+- Tests : **336 verts** (262 rules — fog R-92 réécrit : marqueur diffusé, jamais persisté, identité réelle après déblocage, bonus nul du marqueur).
+
+**Vérification en partie réelle** (partie `P3UUET`, carte Variée, tour 0, tech absente) : l'état filtré du client montre `"resource": "inconnue"` sur la case du Fer (-2,20) ; 4 sprites rendus sur les cases explorées — Encens + Blé (identité réelle, sans tech) et Fer + Bétail (marqueur). Capture : `docs/captures-7c/marqueur-inconnue-tour0.png`.

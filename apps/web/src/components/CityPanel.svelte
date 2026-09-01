@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, TECHS, tileYield, workRadiusOf, isUnlocked, conversionGains, RESOURCES } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, TECHS, tileYield, workRadiusOf, isUnlocked, conversionGains, RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -217,10 +217,12 @@
     eau: 'mer',
   };
 
-  /** Nom de la ressource visible posée sur une case (R-91) — tooltip. */
+  /** Nom de la ressource posée sur une case (R-91/R-92) — tooltip. Le
+   *  marqueur « inconnue » est libellé explicitement (identité masquée). */
   function resourceLabel(key: string): string {
     const res = view.state?.map[key]?.resource;
-    return res ? (RESOURCES[res]?.name ?? res) : '';
+    if (!res) return '';
+    return res === RESOURCE_UNKNOWN ? 'Ressource inconnue' : (RESOURCES[res]?.name ?? res);
   }
 
   /** Icône optionnelle : masquée silencieusement si l'asset est absent. */

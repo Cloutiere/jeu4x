@@ -13,7 +13,7 @@
  */
 import { Assets, Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
-import { RESOURCES } from '@game/rules';
+import { RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
 import type { TerrainId } from '@game/rules';
 
 /** Couleurs d'accent joueurs — SPEC-ART §3.3/§4 (extensible à 8). */
@@ -374,8 +374,9 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const fallback = createTextures(renderer);
 
   const tileIds = Object.keys(TILE_ASSETS) as TerrainId[];
-  // R-91 : les 22 ressources de resources.json (res_<id>.png), optionnelles.
-  const resourceIds = Object.keys(RESOURCES).sort();
+  // R-91 : les 22 ressources de resources.json + le marqueur « inconnue »
+  // (R-92, diffusion d'identité masquée) — optionnels, id → res_<id>.png.
+  const resourceIds = [...Object.keys(RESOURCES).sort(), RESOURCE_UNKNOWN];
   const [tiles, units, settlement, capital, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     Promise.all(

@@ -6,7 +6,7 @@
  * (`MIGRATIONS`, `migrateState`) est exportée dès ce premier commit et
  * s'exécutera au chargement côté serveur (lazy-load du GameDO).
  */
-import type { ResourceId, TerrainId } from './types.js';
+import type { TerrainId, TileResource } from './types.js';
 import { TERRAINS } from './data.js';
 
 export type PlayerId = string;
@@ -47,8 +47,10 @@ export interface Tile {
   terrain: TerrainId;
   /** R-91/Phase 7c : ressource posée sur la case (id de resources.json) —
    *  null = aucune. Le champ existait à null depuis v1 ; l'élargissement du
-   *  type (7b → 7c) ne change pas la forme : migration v6 → v7 no-op. */
-  resource: ResourceId | null;
+   *  type (7b → 7c) ne change pas la forme : migration v6 → v7 no-op.
+   *  R-92 (D1 révisée) : la valeur « inconnue » (marqueur d'identité masquée)
+   *  n'est JAMAIS persistée — elle n'existe que dans l'état filtré diffusé. */
+  resource: TileResource | null;
 }
 
 export interface Unit {

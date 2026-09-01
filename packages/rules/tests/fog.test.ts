@@ -3,6 +3,7 @@ import { filterEventsForPlayer, getFilteredState } from '../src/fog.js';
 import { makeState } from '../src/fixtures.js';
 import { resolveTurn } from '../src/turn.js';
 import { colRowToHex, tileKeyOf } from '../src/hex.js';
+import { RESOURCE_UNKNOWN } from '../src/types.js';
 import type { GameEvent } from '../src/events.js';
 import type { GameState, Order } from '../src/state.js';
 
@@ -58,7 +59,7 @@ describe('L5 · R-70 · trois états du brouillard', () => {
   });
 });
 
-describe('R-92 · ressources non révélées (Phase 7c, D1)', () => {
+describe('R-92 · ressources non révélées (Phase 7c, D1 révisée : marqueur inconnue)', () => {
   const KEY = '2,0'; // case explorée-masquée de p1 (distance 2 = limite de vision)
 
   function stateWithFer(): GameState {
@@ -70,20 +71,28 @@ describe('R-92 · ressources non révélées (Phase 7c, D1)', () => {
     return state;
   }
 
-  it('aucune fuite : le Fer (tech non débloquée) est retiré du tile exploré-masqué', () => {
-    const fogged = getFilteredState(stateWithFer(), 'p1');
-    expect(fogged.map[KEY]).toBeDefined(); // le terrain mémorisé reste…
-    expect(fogged.map[KEY]!.resource).toBeNull(); // …la ressource non révélée non
+  it('aucune fuite d’identité : le Fer non débloqué est diffusé sous le marqueur « inconnue »', () => {
+    const state = stateWithFer();
+    const fogged = getFilteredState(state, 'p1');
+    expect(fogged.map[KEY]).toBeDefined(); // la case mémorisée reste…
+    expect(fogged.map[KEY]!.resource).toBe(RESOURCE_UNKNOWN); // …présence visible…
+    expect(fogged.map[KEY]!.resource).not.toBe('fer'); // …identité masquée
   });
 
-  it('présente après déblocage de la tech (révélation passive, snapshot suivant)', () => {
+  it('le marqueur n’est jamais persisté : l’état serveur garde l’id réel', () => {
+    const state = stateWithFer();
+    getFilteredState(state, 'p1');
+    expect(state.map[KEY]!.resource).toBe('fer');
+  });
+
+  it('identité réelle diffusée après déblocage de la tech (révélation passive)', () => {
     const state = stateWithFer();
     state.players['p1']!.techsUnlocked = ['travail_du_fer'];
     const fogged = getFilteredState(state, 'p1');
     expect(fogged.map[KEY]!.resource).toBe('fer');
   });
 
-  it('une ressource sans tech (D4 : Gemmes) est toujours diffusée', () => {
+  it('une ressource sans tech (D4 : Gemmes) est diffusée sous son identité réelle', () => {
     const state = stateWithFer();
     state.map[KEY] = { terrain: 'montagne', resource: 'gemmes' };
     const fogged = getFilteredState(state, 'p1');
