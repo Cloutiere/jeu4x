@@ -25,6 +25,8 @@
   import GameCanvas from '../lib/render/GameCanvas.svelte';
   import UnitPanel from '../components/UnitPanel.svelte';
   import CityPanel from '../components/CityPanel.svelte';
+import ResearchPanel from '../components/ResearchPanel.svelte';
+import { TECHS } from '@game/rules';
   import Journal from '../components/Journal.svelte';
 
   let { code }: { code: string } = $props();
@@ -194,16 +196,28 @@
   // Phase 6 L3 : overlay des rendements N/P/C (masquable).
   let showYields = $state(false);
 
+  // Phase 7a : menu de choix technologique (R-85).
+  let showResearch = $state(false);
+
   const myGold = $derived.by(() => {
     const v = $view;
     const id = myEngineId(v);
     return id && v.state ? (v.state.players[id]?.gold ?? 0) : 0;
   });
-  const myScience = $derived.by(() => {
+  const myResearch = $derived.by(() => {
     const v = $view;
     const id = myEngineId(v);
-    return id && v.state ? (v.state.players[id]?.science ?? 0) : 0;
+    const p = id && v.state ? v.state.players[id] : null;
+    if (!p) return { tech: null as string | null, progress: 0, cost: 0, stored: 0 };
+    const tech = p.researching ? TECHS[p.researching] ?? null : null;
+    return {
+      tech: p.researching,
+      progress: p.researching ? p.scienceProgress[p.researching] ?? 0 : 0,
+      cost: tech?.cost ?? 0,
+      stored: p.scienceStored ?? 0,
+    };
   });
+  const myResearchRatio = $derived(myResearch.cost > 0 ? Math.min(1, myResearch.progress / myResearch.cost) : 0);
   const myName = $derived.by(() => {
     const v = $view;
     return v.players.find((p) => p.id === v.playerId)?.name ?? '';
@@ -238,12 +252,22 @@
     <strong>Partie {code}</strong>
     <span>Tour <strong>{$view.turn}</strong></span>
     <span class="chip" class:resolving={$view.phase === 'resolving'}>{$view.phase === 'resolving' ? 'Résolution…' : 'Ordres'}</span>
-    <span class="res" title="Or / Science du joueur">
+    <span class="res" title="Or du joueur">
       <img src="/art/icone_or.png" alt="Or" onerror={hideImg} />
       {myGold}
-      <img src="/art/icone_science.png" alt="Science" onerror={hideImg} />
-      {myScience}
     </span>
+    <button type="button" class="research" title="Choix technologique (R-85)" onclick={() => (showResearch = !showResearch)}>
+      <img src="/art/icone_science.png" alt="Science" onerror={hideImg} />
+      {#if myResearch.tech}
+        {TECHS[myResearch.tech]?.name ?? myResearch.tech}
+        <span class="minibar"><span class="minifill" style:width={`${myResearchRatio * 100}%`}></span></span>
+        {myResearch.progress}/{myResearch.cost}
+      {:else if myResearch.stored > 0}
+        <em class="reserve">Choisir… ({myResearch.stored} en attente)</em>
+      {:else}
+        Recherche
+      {/if}
+    </button>
     <span class="net net-{$status}">{$status}</span>
     {#if $view.locked}<span class="chip locked">Verrouillé</span>{/if}
     <button type="button" class="primary" disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active'} onclick={requestEndTurn}>
@@ -323,6 +347,10 @@
     </div>
   {/if}
 
+  {#if showResearch && $view.state}
+    <ResearchPanel view={$view} {client} onClose={() => (showResearch = false)} />
+  {/if}
+
   <div class="toasts" role="status">
     {#each $toasts as t (t.id)}
       <div class="toast {t.kind}">{t.text}</div>
@@ -340,6 +368,11 @@
   .chip { padding: 0.1rem 0.55rem; border-radius: 999px; border: 1px solid #3c4a55; font-size: 0.8rem; background: #1f2a33; }
   .chip.resolving { border-color: #8d6e63; background: #332a24; }
   .chip.locked { border-color: #7a5b3c; background: #2e251c; }
+  .research { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .research img { width: 16px; height: 16px; }
+  .research .minibar { display: inline-block; width: 4rem; height: 7px; background: #12161a; border: 1px solid #3a4148; border-radius: 4px; overflow: hidden; }
+  .research .minifill { display: block; height: 100%; background: #6fa3b8; }
+  .research .reserve { color: #ffe082; font-style: normal; }
   .net { font-size: 0.8rem; color: #8b98a5; }
   .res { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 600; }
   .res img { width: 18px; height: 18px; vertical-align: middle; }

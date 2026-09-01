@@ -6,7 +6,7 @@
    * R-60), bâtiments possédés (R-66) et menu de production unités + bâtiments.
    * File unique (R-62), progression conservée.
    */
-  import { unitType, BUILDINGS, tileYield, workRadiusOf } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, TECHS, tileYield, workRadiusOf, isUnlocked, productionDataOf } from '@game/rules';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -104,18 +104,38 @@
     return { assigns, unassigns, effective, toAssign: city.pop - effective, tiles };
   });
 
-  /** Items de production disponibles : unités v1 + bâtiments non possédés (R-66). */
+  /**
+   * Items de production : unités 7a + bâtiments — FILTRÉS par déblocage
+   * (R-87) : tech débloquée ou null, et item implémenté (Espion/Galère
+   * exclus — données seules). Verrouillé = grisé avec « Requiert : <tech> ».
+   */
+  const engine = $derived(myEngineId(view));
+  const techsUnlocked = $derived(
+    view.state && engine ? view.state.players[engine]?.techsUnlocked ?? [] : ([] as string[]),
+  );
   const productionOptions = $derived.by(() => {
-    const options: Array<{ item: ProductionItem; name: string; cost: number; effect: string }> = [
-      { item: { kind: 'unit', id: 'guerrier' }, name: unitType('guerrier').name, cost: unitType('guerrier').cost, effect: '1/1/1' },
-      { item: { kind: 'unit', id: 'colon' }, name: unitType('colon').name, cost: unitType('colon').cost, effect: 'Fonde une ville' },
-    ];
+    const options: Array<{ item: ProductionItem; name: string; cost: number; effect: string; unlocked: boolean; requires: string | null }> = [];
+    for (const u of Object.values(UNIT_TYPES)) {
+      if (u.implemented === false) continue; // Espion/Galère : pas proposés en 7a
+      const data = { tech: u.tech ?? null };
+      options.push({
+        item: { kind: 'unit', id: u.id },
+        name: u.name,
+        cost: u.cost,
+        effect: u.id === 'colon' ? 'Fonde une ville' : `${u.attack}/${u.defense}/${u.movement}`,
+        unlocked: isUnlocked(data, techsUnlocked),
+        requires: u.tech ? TECHS[u.tech]?.name ?? u.tech : null,
+      });
+    }
     for (const b of Object.values(BUILDINGS)) {
+      const data = { tech: b.tech ?? null };
       options.push({
         item: { kind: 'building', id: b.id },
         name: b.name,
         cost: b.cost,
         effect: b.workRadiusBonus > 0 ? 'Rayon de travail 1 → 2' : tileEffectLabel(b),
+        unlocked: isUnlocked(data, techsUnlocked),
+        requires: b.tech ? TECHS[b.tech]?.name ?? b.tech : null,
       });
     }
     return options;
@@ -268,10 +288,11 @@
         {#each productionOptions as opt (opt.item.kind + ':' + opt.item.id)}
           <button
             type="button"
-            disabled={!editable}
-            title={opt.effect}
+            class:locked={!opt.unlocked}
+            disabled={!editable || !opt.unlocked}
+            title={opt.unlocked ? opt.effect : `Requiert : ${opt.requires}`}
             onclick={() => setProduction(opt.item)}
-          >{opt.name} ({opt.cost})</button>
+          >{opt.name} ({opt.cost}){#if !opt.unlocked}<span class="req">Requiert : {opt.requires}</span>{/if}</button>
         {/each}
         {#if city.production}
           <button type="button" disabled={!editable} onclick={() => city && client.cancelCityOrder(city.id)}>Annuler</button>
@@ -308,4 +329,6 @@
   .btns { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }
   button { padding: 0.35rem 0.7rem; cursor: pointer; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; }
   button:disabled { opacity: 0.45; cursor: default; }
+  button.locked { color: #7d8892; }
+  button .req { display: block; font-size: 0.72rem; color: #b08d5a; }
 </style>

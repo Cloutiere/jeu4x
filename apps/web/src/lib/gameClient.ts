@@ -48,6 +48,7 @@ export interface GameClient {
   cancelOrderFor(unitId: UnitId): void;
   cancelCityOrder(cityId: CityId): void;
   endTurn(): void;
+  setResearch(techId: string): void;
   resync(): void;
   close(): void;
 }
@@ -206,6 +207,9 @@ export function createGameClient(
     },
     endTurn() {
       handle.send({ type: 'EndTurn' });
+    },
+    setResearch(techId) {
+      handle.send({ type: 'SetResearch', techId });
     },
     resync,
     close() {

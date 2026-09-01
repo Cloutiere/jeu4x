@@ -28,6 +28,8 @@ export function eventLabel(event: GameEvent): string {
       return `Ville ${event.cityId} prise par ${event.toOwner}`;
     case 'UnitProduced':
       return `${event.unitType} produit par ${event.cityId}`;
+    case 'TechResearched':
+      return `Technologie complétée : ${event.tech} — déblocages disponibles !`;
     case 'PopulationGrew':
       return `${event.cityId} grandit — population ${event.pop}`;
     case 'BuildingCompleted':
