@@ -10,7 +10,8 @@
     "visionRadius": 2,
     "canAttack": true,
     "canFoundCity": false,
-    "isRanged": false
+    "isRanged": false,
+    "tech": null
   },
   "colon": {
     "id": "colon",
@@ -23,6 +24,80 @@
     "visionRadius": 2,
     "canAttack": false,
     "canFoundCity": true,
-    "isRanged": false
+    "isRanged": false,
+    "tech": null
+  },
+  "archer": {
+    "id": "archer",
+    "name": "Archer",
+    "attack": 1,
+    "defense": 2,
+    "movement": 1,
+    "hpMax": 3,
+    "cost": 15,
+    "visionRadius": 2,
+    "canAttack": true,
+    "canFoundCity": false,
+    "isRanged": false,
+    "tech": "travail_du_bronze"
+  },
+  "cavalier": {
+    "id": "cavalier",
+    "name": "Cavalier",
+    "attack": 2,
+    "defense": 1,
+    "movement": 2,
+    "hpMax": 3,
+    "cost": 20,
+    "visionRadius": 2,
+    "canAttack": true,
+    "canFoundCity": false,
+    "isRanged": false,
+    "tech": "equitation"
+  },
+  "legion": {
+    "id": "legion",
+    "name": "Légion",
+    "attack": 2,
+    "defense": 1,
+    "movement": 1,
+    "hpMax": 3,
+    "cost": 10,
+    "visionRadius": 2,
+    "canAttack": true,
+    "canFoundCity": false,
+    "isRanged": false,
+    "tech": "travail_du_fer"
+  },
+  "espion": {
+    "id": "espion",
+    "name": "Espion",
+    "attack": 0,
+    "defense": 1,
+    "movement": 2,
+    "hpMax": 3,
+    "cost": 30,
+    "visionRadius": 2,
+    "canAttack": false,
+    "canFoundCity": false,
+    "isRanged": false,
+    "tech": "ecriture",
+    "implemented": false
+  },
+  "galere": {
+    "id": "galere",
+    "name": "Galère",
+    "attack": 1,
+    "defense": 1,
+    "movement": 2,
+    "hpMax": 3,
+    "cost": 30,
+    "visionRadius": 2,
+    "canAttack": true,
+    "canFoundCity": false,
+    "isRanged": false,
+    "tech": "navigation",
+    "aquatic": true,
+    "implemented": false
   }
 }

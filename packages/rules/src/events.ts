@@ -41,6 +41,8 @@ export type GameEvent =
   | { seq: number; type: 'CityCaptured'; cityId: CityId; fromOwner: PlayerId; toOwner: PlayerId; at: Hex }
   /** Production d'une unité par une ville (R-62). */
   | { seq: number; type: 'UnitProduced'; unitId: UnitId; cityId: CityId; owner: PlayerId; unitType: string; at: Hex }
+  /** Technologie complétée (R-85, Phase 7a) : déblocages immédiats (R-87). */
+  | { seq: number; type: 'TechResearched'; player: PlayerId; tech: string }
   /** Croissance d'une ville : +1 pop = +1 citoyen (R-63, Phase 6). */
   | { seq: number; type: 'PopulationGrew'; cityId: CityId; owner: PlayerId; pop: number; at: Hex }
   /** Bâtiment construit par une ville (R-66, Phase 6). */
@@ -112,6 +114,9 @@ export function eventRefs(event: GameEvent): EventRefs {
       refs.cityIds.push(event.cityId);
       refs.players.push(event.owner);
       hex(event.at);
+      break;
+    case 'TechResearched':
+      refs.players.push(event.player);
       break;
     case 'PopulationGrew':
       refs.cityIds.push(event.cityId);

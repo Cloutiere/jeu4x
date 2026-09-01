@@ -41,6 +41,8 @@ import {
   SETTLER_BOOTY_GOLD,
 } from './constants.js';
 import type { DestructionCause, GameEvent } from './events.js';
+import { creditScience } from './research.js';
+import { isUnlocked, productionDataOf } from './techs.js';
 
 export interface TurnResult {
   newState: GameState;
@@ -819,6 +821,10 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
       const city = board.st.cities[order.cityId];
       if (!city || city.owner !== playerId) continue;
       if (productionItemCost(order.item) === null) continue;
+      // R-87 : item verrouillé (tech non débloquée ou non implémenté) refusé.
+      const pdata = productionDataOf(order.item);
+      const research = board.st.players[playerId]!;
+      if (!pdata || !isUnlocked(pdata, research.techsUnlocked)) continue;
       // R-66 : un bâtiment déjà possédé n'est pas (re)constructible.
       if (order.item.kind === 'building' && hasBuilding(city, order.item.id)) continue;
       setOrders.push(order);
@@ -995,7 +1001,11 @@ function processEconomy(board: Board): void {
     // entier à l'or) — le commerce n'est JAMAIS crédité directement.
     const scienceGain = Math.floor(commerce * player.scienceRatio);
     player.gold += commerce - scienceGain;
-    player.science += scienceGain;
+    // R-85 : la science alimente la tech courante (progression par tech,
+    // débordement reporté) ou la réserve si aucun choix (`scienceStored`).
+    creditScience(board.st, city.owner, scienceGain, (pid, techId) => {
+      emit(board, { type: 'TechResearched', player: pid, tech: techId });
+    });
 
     // R-63 : croissance au seuil 10 × pop (T-15) ; +1 pop = +1 citoyen
     // (auto-assigné) et +T-16 production par pop au-delà de la première.

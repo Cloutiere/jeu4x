@@ -108,6 +108,14 @@ export interface Player {
   science: number;
   /** Curseur global science/or (R-61, 🔶 défaut 0.5). */
   scienceRatio: number;
+  /** R-85 · Phase 7a : technologie en cours de recherche (null = aucun choix). */
+  researching: string | null;
+  /** R-85 : progression PAR technologie (conservée en cas de changement). */
+  scienceProgress: Record<string, number>;
+  /** R-85/R-87 : technologies débloquées (ids de techs.json). */
+  techsUnlocked: string[];
+  /** R-85 : science accumulée sans choix de tech — versée au premier choix. */
+  scienceStored: number;
   vision: Vision;
   /** Timers manqués consécutifs (forfait T-06 — géré côté serveur, Phase 1). */
   missedTurns: number;
@@ -150,7 +158,7 @@ export function areAtWar(state: GameState, a: PlayerId, b: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 type AnyState = Record<string, unknown>;
 
@@ -258,7 +266,33 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
     }
     return { ...state, cities: migrated };
   },
+    /**
+   * v4 → v5 : technologies Phase 7a (R-85). Champs ADDITIFS par joueur :
+   * défauts vides (aucune recherche, aucune progression, rien débloqué,
+   * réserve nulle) — idempotent si un champ existe déjà. `science` (stat
+   * cumulative des phases 6) est conservé tel quel.
+   */
+  5: (state) => {
+    const players = (state.players ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(players).sort()) {
+      const p = players[id]!;
+      migrated[id] = {
+        ...p,
+        researching: typeof p.researching === 'string' ? p.researching : null,
+        scienceProgress:
+          p.scienceProgress && typeof p.scienceProgress === 'object' && !Array.isArray(p.scienceProgress)
+            ? p.scienceProgress
+            : {},
+        techsUnlocked: Array.isArray(p.techsUnlocked) ? p.techsUnlocked : [],
+        scienceStored: typeof p.scienceStored === 'number' ? p.scienceStored : 0,
+      };
+    }
+    return { ...state, players: migrated };
+  },
 };
+
+
 
 /**
  * Applique la chaîne de migrations jusqu'à CURRENT_SCHEMA_VERSION.

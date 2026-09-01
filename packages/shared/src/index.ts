@@ -68,6 +68,9 @@ export type ClientToServerMessage = ProtoMessage &
       { type: 'EndTurn' }
     | /** Demande un snapshot complet (trou de seq détecté, §3.4-3). `lastSeq` = dernier seq reçu par le client (null si jamais reçu). */
       { type: 'ResyncRequest'; lastSeq: number | null }
+    /** R-85 · Choix/changement de technologie — ACTION IMMÉDIATE (hors ordres
+     *  de tour) : validée et appliquée à la réception, diffusion immédiate. */
+    | { type: 'SetResearch'; techId: string }
     /** --- Messages de lobby (socket LobbyDO) --- */
     | { type: 'CreateGame'; settings: GameCreationSettings }
     | { type: 'JoinGame'; code: string }

@@ -192,6 +192,9 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
 
   it('fondation → croissance → Grenier (+1 N) → réassignation → Tribunal (rayon 2)', () => {
     let state = ecoMap();
+    // Phase 7a (R-87) : Grenier et Tribunal sont désormais verrouillés par
+    // Poterie / Lettres — le scénario économique les débloque en amont.
+    state.players['p1']!.techsUnlocked = ['poterie', 'lettres'];
     const allEvents: GameEvent[] = [];
     const step = (orders: Record<string, Order[]>): void => {
       const r = resolveTurn(state, orders, 42);

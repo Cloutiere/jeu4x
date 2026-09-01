@@ -1,0 +1,17 @@
+{
+  "oracle_de_delphes": {
+    "id": "oracle_de_delphes",
+    "name": "Oracle de Delphes",
+    "implemented": false
+  },
+  "colosse_de_rhodes": {
+    "id": "colosse_de_rhodes",
+    "name": "Colosse de Rhodes",
+    "implemented": false
+  },
+  "jardins_suspendus": {
+    "id": "jardins_suspendus",
+    "name": "Jardins suspendus",
+    "implemented": false
+  }
+}

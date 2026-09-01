@@ -4,41 +4,63 @@
     "name": "Grenier",
     "cost": 20,
     "workRadiusBonus": 0,
-    "tileBonus": { "terrain": "plaine", "food": 1, "production": 0, "commerce": 0 }
+    "tileBonus": { "terrain": "plaine", "food": 1, "production": 0, "commerce": 0 },
+    "tech": "poterie"
   },
   "atelier": {
     "id": "atelier",
     "name": "Atelier",
     "cost": 30,
     "workRadiusBonus": 0,
-    "tileBonus": { "terrain": "colline", "food": 0, "production": 2, "commerce": 0 }
+    "tileBonus": { "terrain": "colline", "food": 0, "production": 2, "commerce": 0 },
+    "tech": "travail_du_fer"
   },
   "mine_de_fer": {
     "id": "mine_de_fer",
     "name": "Mine de fer",
     "cost": 40,
     "workRadiusBonus": 0,
-    "tileBonus": { "terrain": "montagne", "food": 0, "production": 4, "commerce": 0 }
+    "tileBonus": { "terrain": "montagne", "food": 0, "production": 4, "commerce": 0 },
+    "tech": "travail_du_fer"
   },
   "comptoir_commercial": {
     "id": "comptoir_commercial",
     "name": "Comptoir commercial",
     "cost": 30,
     "workRadiusBonus": 0,
-    "tileBonus": { "terrain": "desert", "food": 0, "production": 0, "commerce": 2 }
+    "tileBonus": { "terrain": "desert", "food": 0, "production": 0, "commerce": 2 },
+    "tech": "code_des_lois"
   },
   "port": {
     "id": "port",
     "name": "Port",
     "cost": 30,
     "workRadiusBonus": 0,
-    "tileBonus": { "terrain": "eau", "food": 1, "production": 0, "commerce": 0 }
+    "tileBonus": { "terrain": "eau", "food": 1, "production": 0, "commerce": 0 },
+    "tech": "navigation"
   },
   "tribunal": {
     "id": "tribunal",
     "name": "Tribunal",
     "cost": 40,
     "workRadiusBonus": 1,
-    "tileBonus": null
+    "tileBonus": null,
+    "tech": "lettres"
+  },
+  "bibliotheque": {
+    "id": "bibliotheque",
+    "name": "Bibliothèque",
+    "cost": 30,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "alphabet"
+  },
+  "caserne": {
+    "id": "caserne",
+    "name": "Caserne",
+    "cost": 20,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "travail_du_bronze"
   }
 }

@@ -177,6 +177,10 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       gold: 0,
       science: 0,
       scienceRatio: SCIENCE_RATIO_DEFAULT,
+      researching: null,
+      scienceProgress: {},
+      techsUnlocked: [],
+      scienceStored: 0,
       vision: { explored: [], visible: [] },
       missedTurns: 0,
     };

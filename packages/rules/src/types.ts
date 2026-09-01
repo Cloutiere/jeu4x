@@ -13,6 +13,12 @@ export interface UnitTypeData {
   canFoundCity: boolean;
   /** R-59 : attaque depuis sa case, sans avancée, sans riposte de mêlée. */
   isRanged: boolean;
+  /** R-87 : technologie requise pour la produire (null/absent = disponible d'office). */
+  tech?: string | null;
+  /** R-87/Phase 7a : données seules (Espion, Galère) — non constructibles en v1. */
+  implemented?: boolean;
+  /** Unité navale (Galère — Phase 7) : se déplace sur l'eau. */
+  aquatic?: boolean;
 }
 
 export type TerrainId =
@@ -54,6 +60,26 @@ export interface BuildingData {
   /** Bonus appliqué à CHAQUE case travaillée du terrain ciblé par cette ville.
    *  null = pas de bonus par case (Tribunal). */
   tileBonus: { terrain: TerrainId } & Yields | null;
+  /** R-87 : technologie requise pour le construire (null = disponible d'office). */
+  tech: string | null;
+}
+
+/** R-86 · Technologie (techs.json) — base relationnelle embarquée. */
+export interface TechData {
+  id: string;
+  name: string;
+  /** Coût de recherche 🔶 (R-86 : 20/20/20/20/30/30/40/40/50). */
+  cost: number;
+  /** Technologies requises (ids existants — vérifié par tests d'intégrité). */
+  prereqs: string[];
+  unlocks: { units: string[]; buildings: string[]; wonders: string[] };
+}
+
+/** R-86 · Merveille en données (non constructible en 7a — implemented: false). */
+export interface WonderData {
+  id: string;
+  name: string;
+  implemented: boolean;
 }
 
 /** Entité combattante au sens de la formule de combat (unité ou armée vue comme un tout). */

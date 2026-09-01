@@ -1,0 +1,65 @@
+{
+  "alphabet": {
+    "id": "alphabet",
+    "name": "Alphabet",
+    "cost": 20,
+    "prereqs": [],
+    "unlocks": { "units": [], "buildings": ["bibliotheque"], "wonders": ["oracle_de_delphes"] }
+  },
+  "travail_du_bronze": {
+    "id": "travail_du_bronze",
+    "name": "Travail du bronze",
+    "cost": 20,
+    "prereqs": [],
+    "unlocks": { "units": ["archer"], "buildings": ["caserne"], "wonders": ["colosse_de_rhodes"] }
+  },
+  "poterie": {
+    "id": "poterie",
+    "name": "Poterie",
+    "cost": 20,
+    "prereqs": [],
+    "unlocks": { "units": [], "buildings": ["grenier"], "wonders": ["jardins_suspendus"] }
+  },
+  "equitation": {
+    "id": "equitation",
+    "name": "Équitation",
+    "cost": 20,
+    "prereqs": [],
+    "unlocks": { "units": ["cavalier"], "buildings": [], "wonders": [] }
+  },
+  "travail_du_fer": {
+    "id": "travail_du_fer",
+    "name": "Travail du fer",
+    "cost": 30,
+    "prereqs": ["travail_du_bronze"],
+    "unlocks": { "units": ["legion"], "buildings": ["atelier", "mine_de_fer"], "wonders": [] }
+  },
+  "ecriture": {
+    "id": "ecriture",
+    "name": "Écriture",
+    "cost": 30,
+    "prereqs": ["alphabet"],
+    "unlocks": { "units": ["espion"], "buildings": [], "wonders": [] }
+  },
+  "lettres": {
+    "id": "lettres",
+    "name": "Lettres",
+    "cost": 40,
+    "prereqs": ["ecriture"],
+    "unlocks": { "units": [], "buildings": ["tribunal"], "wonders": [] }
+  },
+  "code_des_lois": {
+    "id": "code_des_lois",
+    "name": "Code des lois",
+    "cost": 40,
+    "prereqs": ["lettres"],
+    "unlocks": { "units": [], "buildings": ["comptoir_commercial"], "wonders": [] }
+  },
+  "navigation": {
+    "id": "navigation",
+    "name": "Navigation",
+    "cost": 50,
+    "prereqs": ["poterie"],
+    "unlocks": { "units": ["galere"], "buildings": ["port"], "wonders": [] }
+  }
+}

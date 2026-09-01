@@ -21,6 +21,7 @@ import {
   loadBuiltinMap,
   migrateState,
   resolveTurn,
+  applySetResearch,
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, Order, PlayerId, UnitId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
@@ -433,6 +434,9 @@ export class GameDO {
         case 'EndTurn':
           await this.handleEndTurn(ws, att.playerId);
           break;
+        case 'SetResearch':
+          await this.handleSetResearch(ws, att.playerId, (msg as { techId: string }).techId);
+          break;
         case 'ResyncRequest':
           this.sendWelcome(ws);
           {
@@ -479,6 +483,37 @@ export class GameDO {
     this.orders[engineId] = [...this.orders[engineId].filter((o) => !sameSubject(o, order)), order];
     await this.state.storage.put({ orders: this.orders });
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order, reason: null });
+  }
+
+  /**
+   * R-85 · SetResearch — action IMMÉDIATE (pas un ordre de tour) : appliquée
+   * à la réception (moteur pur applySetResearch), persistée, puis diffusée
+   * immédiatement aux deux clients (Snapshot — visible en temps réel, sans
+   * attendre la résolution). Autorisée en phase « orders », même verrouillé
+   * (le verrouillage porte sur les ordres, pas sur cette action) ; refusée
+   * pendant la résolution.
+   */
+  private async handleSetResearch(ws: WebSocket, playerId: PlayerId, techId: string): Promise<void> {
+    if (typeof techId !== 'string' || techId.length === 0) {
+      return this.sendOrderRejection(ws, 'techId requis');
+    }
+    if (!this.game || !this.meta || this.meta.status !== 'active') {
+      return this.sendOrderRejection(ws, 'recherche impossible (partie non active)');
+    }
+    if (this.game.phase !== 'orders') {
+      return this.sendOrderRejection(ws, 'recherche non modifiable (résolution en cours)');
+    }
+    const engineId = this.engineIdOf(playerId);
+    const result = applySetResearch(this.game, engineId, techId);
+    if (!result.ok) return this.sendOrderRejection(ws, result.reason);
+    this.game = result.state;
+    if (result.events.length > 0) {
+      // Complétion immédiate (réserve versée) : prolonger le journal diffusé.
+      this.lastEvents = [...this.lastEvents, ...result.events];
+    }
+    await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
+    this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'recherche mise à jour' });
+    this.broadcast((pid) => this.snapshotFor(pid, null));
   }
 
   private orderOwnerError(engineId: EnginePlayerId, order: Order): string | null {

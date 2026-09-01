@@ -29,6 +29,18 @@ if (!argsValid) {
 // RULES.md §2 (montagne et eau infranchissables en v1, T-11).
 const terrainPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/terrain.json');
 const TERRAINS = JSON.parse(readFileSync(terrainPath, 'utf8'));
+const techsPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/techs.json');
+const TECHS = JSON.parse(readFileSync(techsPath, 'utf8'));
+
+/** R-85 : une tech aléatoire disponible (non débloquée, prérequis satisfaits). */
+function pickResearch(player) {
+  const unlocked = player.techsUnlocked ?? [];
+  const available = Object.values(TECHS).filter(
+    (t) => !unlocked.includes(t.id) && t.prereqs.every((p) => unlocked.includes(p)),
+  );
+  if (available.length === 0) return null;
+  return available[Math.floor(Math.random() * available.length)];
+}
 
 const PROTO = 1;
 const log = (...args) => console.log(`[${new Date().toISOString().slice(11, 19)}]`, ...args);
@@ -182,6 +194,17 @@ async function main() {
       const tile = candidates[Math.floor(Math.random() * candidates.length)];
       send({ type: 'SubmitOrder', order: { type: 'SetWorkedTile', cityId: city.id, tile } });
       reassigns += 1;
+    }
+    // Phase 7a (R-85) : dès qu'il n'a pas de tech en cours, le bot en choisit
+    // une aléatoirement parmi les disponibles.
+    const me = state.players[myEngineId];
+    let research = null;
+    if (me && !me.researching) {
+      const tech = pickResearch(me);
+      if (tech) {
+        send({ type: 'SetResearch', techId: tech.id });
+        research = tech.id;
+      }
     }
     log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s) de position, ${fortifies} fortification(s), ${reassigns} réassignation(s).`);
     send({ type: 'EndTurn' });

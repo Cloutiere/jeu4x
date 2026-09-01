@@ -572,8 +572,9 @@ describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () 
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true }],
     });
     // commerce v1 = 1 (case de ville) + 0 (prairie) → 50/50 : 0 science, 1 or
+    // Phase 7a (R-85) : sans tech choisie, la science va en réserve (`scienceStored`).
     const r = resolveTurn(state, {}, 1);
-    expect(r.newState.players['p1']!.science).toBe(0);
+    expect(r.newState.players['p1']!.scienceStored).toBe(0);
     expect(r.newState.players['p1']!.gold).toBe(1);
     // curseur 100 % science
     const state2 = makeState({
@@ -581,7 +582,7 @@ describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () 
     });
     state2.players['p1']!.scienceRatio = 1;
     const r2 = resolveTurn(state2, {}, 1);
-    expect(r2.newState.players['p1']!.science).toBe(1);
+    expect(r2.newState.players['p1']!.scienceStored).toBe(1);
     expect(r2.newState.players['p1']!.gold).toBe(0);
   });
 });

@@ -9,8 +9,10 @@ const terrainTable = terrains as Record<string, TerrainData>;
 const buildingTable = buildings as Record<string, BuildingData>;
 
 describe('Données v1 (RULES.md §2-3)', () => {
-  it('contient exactement Guerrier et Colon en v1', () => {
-    expect(Object.keys(unitTable).sort()).toEqual(['colon', 'guerrier']);
+  it('contient le roster Phase 7a (base Guerrier/Colon + Archer, Cavalier, Légion ; Espion/Galère données seules)', () => {
+    expect(Object.keys(unitTable).sort()).toEqual([
+      'archer', 'cavalier', 'colon', 'espion', 'galere', 'guerrier', 'legion',
+    ]);
   });
 
   it('Guerrier 1/1/1, Colon 0/0/2 (référence Civ Rev)', () => {
@@ -86,9 +88,9 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
     expect(terrainTable['montagne']!.yields).toEqual({ food: 0, production: 1, commerce: 0 });
   });
 
-  it('buildings.json : 6 bâtiments aux coûts R-66 (20/30/40/30/30/40)', () => {
+  it('buildings.json : 8 bâtiments — coûts R-66 + Bibliothèque/Caserne (Phase 7a, 🔶)', () => {
     expect(Object.keys(buildingTable).sort()).toEqual([
-      'atelier', 'comptoir_commercial', 'grenier', 'mine_de_fer', 'port', 'tribunal',
+      'atelier', 'bibliotheque', 'caserne', 'comptoir_commercial', 'grenier', 'mine_de_fer', 'port', 'tribunal',
     ]);
     expect(buildingTable['grenier']!.cost).toBe(20);
     expect(buildingTable['atelier']!.cost).toBe(30);
@@ -96,6 +98,9 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
     expect(buildingTable['comptoir_commercial']!.cost).toBe(30);
     expect(buildingTable['port']!.cost).toBe(30);
     expect(buildingTable['tribunal']!.cost).toBe(40);
+    // Phase 7a : coûts 🔶 documentés au rapport (effets inertes pour l'instant)
+    expect(buildingTable['bibliotheque']!.cost).toBe(30);
+    expect(buildingTable['caserne']!.cost).toBe(20);
   });
 
   it('effets R-66 : Grenier +1 N plaine, Atelier +2 P colline, Mine +4 P montagne, Comptoir +2 C désert, Port +1 N mer, Tribunal rayon', () => {
