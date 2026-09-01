@@ -10,7 +10,7 @@
    */
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
-  import { hexToPixel, tileKeyOf, unitType, BUILDINGS, TERRAINS } from '@game/rules';
+  import { hexToPixel, tileKeyOf, unitType, BUILDINGS, RESOURCES, TERRAINS, resourceBonus } from '@game/rules';
   import type { GameState, Hex } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -97,6 +97,7 @@
   let textures: GameTextures | null = null;
   let world = new Container();
   let tilesLayer = new Container();
+  let resourceLayer = new Container(); // R-91 : icônes de ressources sur les cases
   let overlayLayer = new Container();
   let entitiesLayer = new Container();
   let effectsLayer = new Container();
@@ -105,6 +106,7 @@
   let vh = 1;
 
   const tileSprites = new Map<string, Sprite>();
+  const resourceSprites = new Map<string, Sprite>();
   const unitSprites = new Map<string, Container>();
   const citySprites = new Map<string, Container>();
 
@@ -172,6 +174,7 @@
     rect.h += HEX_SIZE * 3;
 
     const wanted = new Set<string>();
+    const wantedResources = new Set<string>();
     for (const hex of hexesInRect(rect, HEX_SIZE, mapWidth, mapHeight)) {
       const key = tileKeyOf(hex);
       const tile = map[key];
@@ -192,12 +195,36 @@
       // Brouillard : visible = couleurs ; exploré-masqué = teinte atténuée.
       const target = scene.visible.has(key) ? 0xffffff : 0x70707e;
       if (sprite.tint !== target) sprite.tint = target;
+
+      // R-91/Phase 7c : la ressource d'une case explorée (l'état filtré ne
+      // diffuse que les ressources révélées au joueur — R-92) est dessinée sur
+      // la case, comme du décor persistant (CivRev).
+      if (tile.resource && textures.resources[tile.resource]) {
+        wantedResources.add(key);
+        let res = resourceSprites.get(key);
+        if (!res) {
+          res = new Sprite(textures.resources[tile.resource]!);
+          res.anchor.set(0.5, 0.5);
+          res.scale.set(0.62);
+          res.position.copyFrom(sprite.position);
+          res.y -= 6;
+          resourceLayer.addChild(res);
+          resourceSprites.set(key, res);
+        }
+        if (res.tint !== target) res.tint = target;
+      }
     }
     // Culling : destruction des cases sorties du viewport (exigence Phase 3).
     for (const [key, sprite] of tileSprites) {
       if (!wanted.has(key)) {
         sprite.destroy();
         tileSprites.delete(key);
+      }
+    }
+    for (const [key, sprite] of resourceSprites) {
+      if (!wantedResources.has(key)) {
+        sprite.destroy();
+        resourceSprites.delete(key);
       }
     }
   }
@@ -387,10 +414,25 @@
     // commerce ; les cases non travaillées gardent le commerce (potentiel).
     if (showYields) {
       const workedBy = workedTileOwner();
+      // R-93 : le bonus de la ressource (visible et accessible au joueur —
+      // l'état filtré ne diffuse que les ressources révélées) s'ajoute aux
+      // rendements du terrain dans l'affichage, comme dans tileYield.
+      const viewerTechs = scene.myId ? (scene.state.players[scene.myId]?.techsUnlocked ?? []) : [];
       for (const [key, tile] of Object.entries(scene.state.map)) {
         if (!scene.explored.has(key)) continue;
-        const y = TERRAINS[tile.terrain]?.yields;
-        if (!y) continue;
+        const base = TERRAINS[tile.terrain]?.yields;
+        if (!base) continue;
+        let y = base;
+        if (tile.resource) {
+          const bonus = resourceBonus(RESOURCES[tile.resource] ?? null, viewerTechs);
+          if (bonus) {
+            y = {
+              food: base.food + bonus.food,
+              production: base.production + bonus.production,
+              commerce: base.commerce + bonus.commerce,
+            };
+          }
+        }
         const converter = workedBy.get(key);
         const rows: Array<{ icon: Texture | null; count: number; tint: number }> = [];
         if (y.food !== 0) rows.push({ icon: textures!.yieldIcons.food, count: y.food, tint: 0xffffff });
@@ -841,10 +883,11 @@
     textures = await loadTextures(application.renderer);
     world = new Container();
     tilesLayer = new Container();
+    resourceLayer = new Container();
     overlayLayer = new Container();
     entitiesLayer = new Container();
     effectsLayer = new Container();
-    world.addChild(tilesLayer, overlayLayer, entitiesLayer, effectsLayer);
+    world.addChild(tilesLayer, resourceLayer, overlayLayer, entitiesLayer, effectsLayer);
     application.stage.addChild(world);
 
     vw = host.clientWidth || 800;
@@ -922,17 +965,18 @@
         return c.toDataURL("image/png");
       },
       sprites(): Array<{ layer: string; label: string; x: number; y: number; children: number }> {
-        const dump: Array<{ layer: string; label: string; x: number; y: number; children: number }> = [];
-        const walk = (layer: Container, name: string): void => {
-          for (const child of layer.children) {
-            dump.push({ layer: name, label: String(child.label ?? ""), x: Math.round(child.x), y: Math.round(child.y), children: child.children.length });
-          }
-        };
-        walk(tilesLayer, "tiles");
-        walk(entitiesLayer, "entities");
-        walk(overlayLayer, "overlay");
-        walk(effectsLayer, "effects");
-        return dump;
+    const dump: Array<{ layer: string; label: string; x: number; y: number; children: number }> = [];
+    const walk = (layer: Container, name: string): void => {
+      for (const child of layer.children) {
+        dump.push({ layer: name, label: String(child.label ?? ""), x: Math.round(child.x), y: Math.round(child.y), children: child.children.length });
+      }
+    };
+    walk(tilesLayer, "tiles");
+    walk(resourceLayer, "resources");
+    walk(entitiesLayer, "entities");
+    walk(overlayLayer, "overlay");
+    walk(effectsLayer, "effects");
+    return dump;
       },
       get stats() {
         return {

@@ -787,17 +787,19 @@ function validatedWorkedTiles(board: Board, city: City, takenByOthers: Set<TileK
 /**
  * Complète l'assignation d'une ville jusqu'à `pop` citoyens : meilleures
  * cases libres par priorité nourriture > production > commerce, tie-break
- * (q, r) (R-60/R-81, rendements effectifs — bonus bâtiments compris).
+ * (q, r) (R-60/R-81, rendements effectifs — bonus bâtiments et ressources
+ * comprises, R-66/R-93 : les techs du propriétaire conditionnent le bonus).
  */
 function fillWorkedTiles(board: Board, city: City, taken: Set<TileKey>): void {
   const radius = workRadiusOf(city.buildings);
   const cityHex = { q: city.q, r: city.r };
+  const techs = board.st.players[city.owner]?.techsUnlocked ?? [];
   const cityKeys = new Set(Object.values(board.st.cities).map((c) => `${c.q},${c.r}`));
   const candidates = hexesWithinRadius(cityHex, radius)
     .filter((h) => hexDistance(h, cityHex) >= 1)
     .map((h) => ({ key: tileKeyOf(h), hex: h }))
     .filter(({ key }) => tileWorkable(board.st.map, key) && !cityKeys.has(key) && !taken.has(key))
-    .map(({ key, hex }) => ({ key, hex, y: tileYield(board.st.map, city.buildings, key)! }))
+    .map(({ key, hex }) => ({ key, hex, y: tileYield(board.st.map, city.buildings, key, techs)! }))
     .sort(
       (a, b) =>
         b.y.food - a.y.food ||
@@ -987,13 +989,14 @@ function processEconomy(board: Board): void {
     const player = board.st.players[city.owner]!;
 
     // Rendements : centre-ville automatique et gratuit + Σ cases travaillées
-    // (base §2 + bonus bâtiments par terrain travaillé, R-66).
+    // (base §2 + bonus bâtiments par terrain travaillé R-66 + bonus ressource
+    // si le propriétaire y a accès, R-93).
     const cityTile = TERRAINS['ville']!.yields!;
     let food = cityTile.food;
     let rawProduction = cityTile.production;
     let commerce = cityTile.commerce;
     for (const key of city.workedTiles) {
-      const y = tileYield(board.st.map, city.buildings, key)!;
+      const y = tileYield(board.st.map, city.buildings, key, player.techsUnlocked)!;
       food += y.food;
       rawProduction += y.production;
       commerce += y.commerce;

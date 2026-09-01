@@ -85,6 +85,60 @@ export interface WonderData {
   implemented: boolean;
 }
 
+/** R-91 · Ressource (resources.json) — base relationnelle embarquée (RULES.md §8.3).
+ *  Tout est éditable en données : déplacer Gemmes de montagne à colline = éditer
+ *  `terrains`, rien d'autre. */
+export type ResourceId =
+  | 'aluminium'
+  | 'betail'
+  | 'ble'
+  | 'baleine'
+  | 'boeufs'
+  | 'caoutchouc'
+  | 'charbon'
+  | 'chene'
+  | 'encens'
+  | 'epices'
+  | 'fer'
+  | 'gemmes'
+  | 'gibier'
+  | 'or'
+  | 'marbre'
+  | 'petrole'
+  | 'poisson'
+  | 'soie'
+  | 'soufre'
+  | 'teinture'
+  | 'uranium'
+  | 'vin';
+
+export interface ResourceData {
+  id: ResourceId;
+  name: string;
+  /** Terrains d'apparition autorisés (validation à la pose et au chargement de carte, R-94). */
+  terrains: TerrainId[];
+  /** Bonus de rendement ajouté au rendement du terrain quand la case est
+   *  travaillée par une ville dont le propriétaire a accès (R-93). D3 :
+   *  Gemmes/Or mappés commerce. */
+  yields: Yields;
+  /** R-92/D1 : technologie exigée (accès au bonus + visibilité si
+   *  `hiddenUntilRevealed`). null = visible et active d'office (D4). */
+  revealedByTech: string | null;
+  /** Documentaire (jamais lu par le moteur) : tech CivRev officielle quand
+   *  notre base ne l'a pas encore (D4) — l'activation future = édition JSON. */
+  officialTech: string | null;
+  /** D2 : réservé — non lu par le moteur tant que la culture n'est pas actée
+   *  (valeurs officielles : Encens 2, Soie 3). */
+  culture: number | null;
+  /** R-92/D1 : si true et `revealedByTech` non null, l'icône est masquée au
+   *  joueur tant que la tech manque ; si false, affichage CivRev-fidèle
+   *  (visible, bonus verrouillé). */
+  hiddenUntilRevealed: boolean;
+  /** Réservé 6b (génération procédurale) : poids de pose par case de terrain
+   *  compatible ; null = posée uniquement par placement explicite (R-94). */
+  spawnWeight: number | null;
+}
+
 /** Entité combattante au sens de la formule de combat (unité ou armée vue comme un tout). */
 export interface Combatant {
   attack: number;

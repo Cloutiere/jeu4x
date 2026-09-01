@@ -13,6 +13,7 @@
  */
 import { Assets, Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
+import { RESOURCES } from '@game/rules';
 import type { TerrainId } from '@game/rules';
 
 /** Couleurs d'accent joueurs — SPEC-ART §3.3/§4 (extensible à 8). */
@@ -39,6 +40,8 @@ export interface GameTextures {
   cities: { settlement: EntityTexture; capital: EntityTexture };
   /** Icônes de rendement pour l'overlay N/P/C (null si asset absent). */
   yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null; gold: Texture | null; science: Texture | null };
+  /** R-91 : sprites des ressources (clé = id de resources.json, null si asset absent). */
+  resources: Record<string, Texture | null>;
   /** Pixel blanc (barres de PV/progression, flashs). */
   px: Texture;
 }
@@ -324,6 +327,7 @@ export function createTextures(renderer: Renderer): GameTextures {
       capital: bakeEntity(renderer, buildCapitalGraphics()),
     },
     yieldIcons,
+    resources: {},
     px,
   };
 }
@@ -370,7 +374,9 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const fallback = createTextures(renderer);
 
   const tileIds = Object.keys(TILE_ASSETS) as TerrainId[];
-  const [tiles, units, settlement, capital, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon] = await Promise.all([
+  // R-91 : les 22 ressources de resources.json (res_<id>.png), optionnelles.
+  const resourceIds = Object.keys(RESOURCES).sort();
+  const [tiles, units, settlement, capital, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     Promise.all(
       UNIT_IDS.filter((id) => fallback.units[id]).map((id) =>
@@ -384,6 +390,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     optionalIcon('icone_commerce'),
     optionalIcon('icone_or'),
     optionalIcon('icone_science'),
+    Promise.all(resourceIds.map((id) => optionalIcon(`res_${id}`).then((t) => [id, t] as const))),
   ]);
 
   return {
@@ -391,6 +398,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     units: Object.fromEntries(units),
     cities: { settlement, capital },
     yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon, gold: goldIcon, science: scienceIcon },
+    resources: Object.fromEntries(resourceIcons),
     px: fallback.px,
   };
 }

@@ -779,6 +779,233 @@ def icone_reseau(d):
     d.line([(26, 51), (38, 51)], fill=INK, width=3)
 
 
+# ---------------------------------------------------------------- ressources (Phase 7c, R-91)
+# Icônes 64×64 posées sur les cases (nommage res_<id> aligné sur resources.json).
+
+
+def _shine(d, x, y, r=3, color="#FFFFFF"):
+    d.ellipse((x - r, y - r, x + r, y + r), fill=color)
+
+
+def res_aluminium(d):
+    """Lingots d'aluminium : deux barreaux clairs empilés."""
+    for x, y in [(10, 36), (20, 36), (16, 24)]:
+        d.poly([(x, y), (x + 28, y), (x + 24, y + 11), (x - 4, y + 11)],
+               fill="#C9CCD4", outline=INK, width=2)
+    d.poly([(10, 36), (38, 36), (36, 40), (8, 40)], fill="#9A9AA0")
+    _shine(d, 24, 39, 2.2)
+
+
+def res_baleine(d):
+    """Baleine : corps arqué, queue, jet d'eau."""
+    d.ellipse((8, 30, 50, 52), fill="#5E8CB4", outline=INK, width=2)
+    d.poly([(46, 32), (60, 24), (58, 40), (50, 44)], fill="#5E8CB4", outline=INK, width=2)
+    d.ellipse((12, 34, 30, 44), fill="#7FA9CC")
+    d.ellipse((16, 38, 20, 42), fill=INK)
+    d.arc((26, 8, 40, 22), 200, 340, fill=EAU_2, width=3)
+    d.arc((30, 14, 42, 26), 200, 340, fill=EAU_2, width=2)
+
+
+def res_betail(d):
+    """Bétail : vache blanche à taches brunes."""
+    d.ellipse((8, 24, 46, 48), fill="#F2F0E8", outline=INK, width=2)
+    d.ellipse((16, 30, 30, 42), fill="#8A5A34")
+    d.ellipse((10, 50, 18, 60), fill="#F2F0E8", outline=INK, width=2)
+    d.ellipse((34, 50, 42, 60), fill="#F2F0E8", outline=INK, width=2)
+    d.ellipse((38, 14, 58, 32), fill="#F2F0E8", outline=INK, width=2)
+    d.ellipse((48, 24, 58, 32), fill="#E3B8A0")
+    d.ellipse((44, 18, 48, 22), fill=INK)
+    d.ellipse((38, 8, 52, 16), fill="#8A5A34")
+
+
+def res_ble(d):
+    """Blé : trois épis dorés."""
+    for x, lean in [(22, -4), (32, 0), (42, 4)]:
+        d.line([(x, 58), (x + lean, 14)], fill="#B8892B", width=3)
+        for i, y in enumerate(range(14, 46, 8)):
+            s = 1 if i % 2 == 0 else -1
+            d.ellipse((x + lean + s * 3 - 4, y, x + lean + s * 3 + 4, y + 9),
+                      fill=OR, outline="#8A641C", width=1.5)
+    d.poly([(32, 6), (37, 14), (27, 14)], fill=OR, outline="#8A641C", width=1.5)
+
+
+def res_boeufs(d):
+    """Bœufs : tête de taureaux avec cornes."""
+    d.ellipse((16, 16, 48, 52), fill="#8A5A34", outline=INK, width=2)
+    d.poly([(14, 20), (4, 8), (20, 12)], fill="#F2F0E8", outline=INK, width=2)
+    d.poly([(50, 20), (60, 8), (44, 12)], fill="#F2F0E8", outline=INK, width=2)
+    d.ellipse((24, 36, 40, 52), fill="#C8A176")
+    d.ellipse((28, 40, 31, 43), fill=INK)
+    d.ellipse((33, 40, 36, 43), fill=INK)
+    d.ellipse((30, 46, 34, 50), fill=INK)
+
+
+def res_caoutchouc(d):
+    """Caoutchouc : pneu noir à jante claire."""
+    d.ellipse((8, 14, 56, 62), fill="#3A3A40", outline=INK, width=2)
+    d.ellipse((20, 26, 44, 50), fill="#8A8A92")
+    d.ellipse((27, 33, 37, 43), fill="#3A3A40")
+    for a in range(0, 360, 45):
+        d.line([(32 + 22 * math.cos(math.radians(a)), 38 + 22 * math.sin(math.radians(a))),
+                (32 + 26 * math.cos(math.radians(a)), 38 + 26 * math.sin(math.radians(a)))],
+               fill="#5A5A62", width=3)
+
+
+def res_charbon(d):
+    """Charbon : tas de houille noire aux facettes grises."""
+    for x, y, s in [(10, 38, 1.0), (32, 42, 0.9), (22, 24, 0.8)]:
+        pts = [(x, y + 14 * s), (x + 6 * s, y), (x + 16 * s, y + 2 * s),
+               (x + 20 * s, y + 12 * s), (x + 10 * s, y + 16 * s)]
+        d.poly(pts, fill="#2E2E34", outline=INK, width=2)
+        d.poly([(x + 6 * s, y), (x + 12 * s, y + 5 * s), (x + 6 * s, y + 9 * s)],
+               fill="#4A4A52")
+
+
+def res_chene(d):
+    """Chêne : branches de feuilles lobées + glands."""
+    for x, y, flip in [(16, 22, 1), (34, 14, 1), (30, 34, -1)]:
+        pts = [(x, y)]
+        for i in range(6):
+            s = 1 if i % 2 == 0 else -1
+            pts.append((x + 5 + i * 4 * flip, y + s * 6))
+        pts.append((x + 28 * flip, y))
+        d.poly(pts, fill=FORET_2, outline="#33582A", width=1.5)
+    for x, y in [(20, 44), (34, 48)]:
+        d.ellipse((x, y, x + 8, y + 12), fill="#B98A4E", outline=INK, width=1.5)
+        d.rrect((x - 1, y - 4, x + 9, y + 2), 2, fill="#6B5230")
+
+
+def res_encens(d):
+    """Encens : brûle-parfum doré + volutes."""
+    d.poly([(22, 56), (42, 56), (38, 46), (26, 46)], fill=BOIS, outline=INK, width=1.5)
+    d.pieslice((16, 30, 48, 50), 180, 360, fill=OR, outline=INK, width=2)
+    d.ellipse((16, 38, 48, 46), fill="#8A641C")
+    for i, (dx, dy) in enumerate([(-6, 0), (2, -4), (8, 2)]):
+        d.arc((30 + dx, 8 + dy, 40 + dx, 22 + dy), 120, 330, fill="#B8B4AC", width=3)
+
+
+def res_epices(d):
+    """Épices : deux pots (paprika, curcuma) avec bouchons."""
+    for x, fill, lid in [(10, "#C24545", "#6B5230"), (34, "#D9A93F", "#5E4E3A")]:
+        d.rrect((x, 24, x + 20, 58), 4, fill=fill, outline=INK, width=2)
+        d.rrect((x + 3, 16, x + 17, 26), 3, fill=lid, outline=INK, width=2)
+        d.line([(x + 4, 36), (x + 16, 36)], fill="#F2F0E8", width=2)
+
+
+def res_fer(d):
+    """Fer : minerai gris métallique + éclat."""
+    for x, y, s in [(10, 34, 1.0), (30, 40, 0.85), (20, 20, 0.7)]:
+        pts = [(x, y + 15 * s), (x + 5 * s, y + 4 * s), (x + 15 * s, y),
+               (x + 22 * s, y + 8 * s), (x + 16 * s, y + 17 * s)]
+        d.poly(pts, fill="#6E6E78", outline=INK, width=2)
+        d.poly([(x + 5 * s, y + 4 * s), (x + 11 * s, y + 8 * s), (x + 5 * s, y + 12 * s)],
+               fill="#9A9AA2")
+    _shine(d, 26, 24, 2)
+
+
+def res_gemmes(d):
+    """Gemmes : deux pierres facettées (cyan, améthyste)."""
+    for x, fill, light in [(6, "#58B6C9", "#A8DEE8"), (34, "#9C6FD6", "#CBADEF")]:
+        d.poly([(x, 22), (x + 12, 12), (x + 24, 22), (x + 12, 52)],
+               fill=fill, outline=INK, width=2)
+        d.poly([(x, 22), (x + 12, 30), (x + 24, 22)], fill=light, outline=INK, width=1.2)
+        d.line([(x + 12, 12), (x + 12, 30)], fill=INK, width=1.2)
+
+
+def res_gibier(d):
+    """Gibier : cuissot pendue (viande + os)."""
+    d.ellipse((16, 22, 50, 52), fill="#8A4A34", outline=INK, width=2)
+    d.ellipse((22, 30, 36, 44), fill="#A86046")
+    d.rrect((40, 8, 48, 30), 5, fill="#F2F0E8", outline=INK, width=2)
+    d.ellipse((36, 4, 46, 14), fill="#F2F0E8", outline=INK, width=2)
+    d.ellipse((42, 4, 52, 14), fill="#F2F0E8", outline=INK, width=2)
+
+
+def res_or(d):
+    """Or : pépites brillantes."""
+    for x, y, s in [(10, 34, 1.0), (30, 40, 0.9), (20, 20, 0.75)]:
+        pts = [(x, y + 14 * s), (x + 5 * s, y + 3 * s), (x + 16 * s, y),
+               (x + 22 * s, y + 9 * s), (x + 14 * s, y + 16 * s)]
+        d.poly(pts, fill=OR, outline="#8A641C", width=2)
+        d.poly([(x + 5 * s, y + 3 * s), (x + 11 * s, y + 6 * s), (x + 5 * s, y + 10 * s)],
+               fill="#F0D070")
+    _shine(d, 30, 22, 2.4)
+
+
+def res_marbre(d):
+    """Marbre : bloc blanc veiné."""
+    d.rrect((12, 14, 52, 58), 3, fill="#F2F2F0", outline=INK, width=2)
+    d.line([(18, 22), (30, 32), (24, 44)], fill="#C9C4BC", width=2.4)
+    d.line([(36, 18), (44, 28), (40, 40), (46, 52)], fill="#C9C4BC", width=2)
+    d.rrect((12, 14, 52, 22), 3, fill="#FFFFFF")
+
+
+def res_petrole(d):
+    """Pétrole : derrick sombre + goutte noire."""
+    d.poly([(32, 4), (14, 58), (22, 58), (32, 22), (42, 58), (50, 58)],
+           fill="#4E4438", outline=INK, width=1.5)
+    d.line([(20, 44), (44, 44)], fill="#4E4438", width=3)
+    d.line([(24, 30), (40, 30)], fill="#4E4438", width=3)
+    d.ellipse((44, 40, 58, 56), fill="#26262C", outline=INK, width=2)
+    d.ellipse((48, 44, 53, 49), fill="#4A4A52")
+
+
+def res_poisson(d):
+    """Poisson : corps bleu, nageoire, œil."""
+    d.ellipse((6, 24, 46, 48), fill="#7FA9CC", outline=INK, width=2)
+    d.poly([(42, 28), (58, 18), (58, 52), (42, 44)], fill="#7FA9CC", outline=INK, width=2)
+    d.ellipse((14, 30, 28, 40), fill="#A8C6DE")
+    d.ellipse((16, 33, 21, 38), fill=INK)
+    d.arc((20, 22, 34, 34), 200, 330, fill="#5E8CB4", width=2.4)
+
+
+def res_soie(d):
+    """Soie : rouleau d'étoffe violet."
+    """
+    d.rrect((8, 26, 50, 50), 6, fill="#9C6FD6", outline=INK, width=2)
+    d.ellipse((8, 26, 24, 50), fill="#8A5AC4", outline=INK, width=2)
+    d.ellipse((12, 31, 20, 45), fill="#C6A8EC")
+    d.poly([(50, 30), (60, 26), (58, 40), (50, 46)], fill="#B18CE0", outline=INK, width=1.5)
+
+
+def res_soufre(d):
+    """Soufre : cristaux jaunes anguleux."""
+    for x, y, s in [(12, 30, 1.0), (30, 38, 0.8), (24, 16, 0.6)]:
+        d.poly([(x, y + 20 * s), (x + 6 * s, y + 4 * s), (x + 16 * s, y),
+                (x + 20 * s, y + 14 * s), (x + 10 * s, y + 22 * s)],
+               fill="#E8D44A", outline="#8A7A1C", width=2)
+        d.poly([(x + 6 * s, y + 4 * s), (x + 12 * s, y + 8 * s), (x + 6 * s, y + 13 * s)],
+               fill="#F5EC9A")
+
+
+def res_teinture(d):
+    """Teinture : chaudron de teint violette + tissu."""
+    d.pieslice((12, 26, 46, 58), 180, 360, fill="#6B4A78", outline=INK, width=2)
+    d.ellipse((12, 34, 46, 42), fill="#8E4FA8", outline=INK, width=2)
+    d.rrect((40, 12, 56, 32), 2, fill="#E3D19A", outline=INK, width=1.5)
+    d.poly([(44, 30), (52, 30), (50, 40), (46, 40)], fill="#B18CE0")
+    d.rrect((18, 50, 40, 58), 3, fill="#5E4E3A")
+
+
+def res_uranium(d):
+    """Uranium : pastille verte rayonnante (trèfle)."""
+    d.ellipse((8, 14, 56, 62), fill="#7CD65C", outline=INK, width=2.5)
+    d.ellipse((13, 19, 51, 57), outline="#4E8A38", width=2)
+    for a in (90, 210, 330):
+        d.pieslice((22, 28, 42, 48), a - 30, a + 30, fill="#2E4A22")
+    d.ellipse((29, 35, 35, 41), fill="#2E4A22")
+
+
+def res_vin(d):
+    """Vin : grappe de raisin + feuille."""
+    d.line([(32, 6), (32, 16)], fill="#6B5230", width=3)
+    d.poly([(32, 8), (46, 4), (44, 16)], fill=FORET_2, outline="#33582A", width=1.5)
+    for x, y in [(20, 24), (32, 22), (44, 24), (14, 36), (26, 36), (38, 36), (50, 36),
+                 (20, 48), (32, 48), (44, 48), (32, 58)]:
+        d.ellipse((x - 6, y - 6, x + 6, y + 6), fill="#8E4FA8", outline=INK, width=1.5)
+    d.ellipse((24, 18, 30, 24), fill="#B18CE0")
+
+
 # ---------------------------------------------------------------- génération
 
 
@@ -824,6 +1051,31 @@ def main():
         "icone_fin_tour": icone_fin_tour,
         "icone_reseau": icone_reseau,
     }
+    # Phase 7c (R-91) : ressources — nommage res_<id> aligné sur resources.json.
+    resources = {
+        "res_aluminium": res_aluminium,
+        "res_baleine": res_baleine,
+        "res_betail": res_betail,
+        "res_ble": res_ble,
+        "res_boeufs": res_boeufs,
+        "res_caoutchouc": res_caoutchouc,
+        "res_charbon": res_charbon,
+        "res_chene": res_chene,
+        "res_encens": res_encens,
+        "res_epices": res_epices,
+        "res_fer": res_fer,
+        "res_gemmes": res_gemmes,
+        "res_gibier": res_gibier,
+        "res_or": res_or,
+        "res_marbre": res_marbre,
+        "res_petrole": res_petrole,
+        "res_poisson": res_poisson,
+        "res_soie": res_soie,
+        "res_soufre": res_soufre,
+        "res_teinture": res_teinture,
+        "res_uranium": res_uranium,
+        "res_vin": res_vin,
+    }
 
     for name, painter in tiles.items():
         render_tile(name, painter)
@@ -831,11 +1083,13 @@ def main():
         render_entity(name, w, h, painter)
     for name, painter in icons.items():
         render_icon(name, painter)
+    for name, painter in resources.items():
+        render_icon(name, painter)
 
     write_palette()
-    write_licenses(len(tiles), len(entities), len(icons))
+    write_licenses(len(tiles), len(entities), len(icons), len(resources))
     print(f"OK — {len(tiles)} tuiles, {len(entities)*2} fichiers entités, "
-          f"{len(icons)} icônes → {EXPORTS}")
+          f"{len(icons)} icônes, {len(resources)} ressources → {EXPORTS}")
 
 
 def write_palette():
@@ -868,7 +1122,7 @@ def write_palette():
     (ROOT / "palette.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def write_licenses(n_tiles, n_entities, n_icons):
+def write_licenses(n_tiles, n_entities, n_icons, n_resources):
     txt = f"""# LICENSES.md
 
 Tous les fichiers de `exports/` sont générés **procéduralement** par
@@ -880,6 +1134,7 @@ Aucune ressource tierce, aucune police, aucun texte incorporé.
 | {n_tiles} tuiles `tile_*.png` | Généré par tools/generate.py | Licence projet |
 | {n_entities} entités `unite_*`/`ville_*` (+ `_accent`) | Généré par tools/generate.py | Licence projet |
 | {n_icons} icônes `icone_*.png` | Généré par tools/generate.py | Licence projet |
+| {n_resources} ressources `res_*.png` (Phase 7c, R-91) | Généré par tools/generate.py | Licence projet |
 
 Annexe palette : voir `palette.txt` (hex figés).
 
@@ -904,6 +1159,11 @@ for n in ["grenier", "atelier", "mine_de_fer", "comptoir_commercial", "port", "t
     EXPECTED[f"batiment_{n}_accent.png"] = (224, 256)
 for n in ["or", "commerce", "science", "nourriture", "production", "pv", "pm", "fin_tour", "reseau"]:
     EXPECTED[f"icone_{n}.png"] = (64, 64)
+# Phase 7c (R-91) : icônes de ressources 64×64.
+for n in ["aluminium", "baleine", "betail", "ble", "boeufs", "caoutchouc", "charbon",
+          "chene", "encens", "epices", "fer", "gemmes", "gibier", "or", "marbre",
+          "petrole", "poisson", "soie", "soufre", "teinture", "uranium", "vin"]:
+    EXPECTED[f"res_{n}.png"] = (64, 64)
 
 
 def check():

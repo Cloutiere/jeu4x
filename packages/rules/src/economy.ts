@@ -1,31 +1,41 @@
 /**
- * Économie des villes — Phase 6 (RULES.md §2 révisé, R-60, R-61, R-66).
+ * Économie des villes — Phase 6 (RULES.md §2 révisé, R-60, R-61, R-66) et
+ * ressources Phase 7c (R-93, RULES.md §8.3).
  *
  * Fonctions PURES et déterministes (R-81/R-82) :
  *  - tileYield : rendement effectif d'une case pour une ville (base §2 +
- *    bonus des bâtiments de la ville par terrain travaillé, R-66) ;
+ *    bonus des bâtiments de la ville par terrain travaillé, R-66 + bonus de
+ *    la ressource de la case si le propriétaire y a accès, R-93) ;
  *  - workRadiusOf : rayon de travail (T-08b = 1, 2 avec Tribunal) ;
  *  - autoAssignWorkedTiles : assignation déterministe des citoyens
  *    (priorité nourriture > production > commerce, tie-break (q, r) — R-81).
  *
- * Le commerce N'EST PAS l'or : il est réparti or/science par le curseur
- * global du joueur (R-61) dans turn.ts/processEconomy.
+ * Le commerce N'EST PAS l'or : il est converti en totalité en or ou en
+ * science par ville (R-90 révisée, conversionGains) dans turn.ts/processEconomy.
  */
 import { hexesWithinRadius, compareHex, tileKeyOf, parseTileKey } from './hex.js';
 import type { Hex } from './hex.js';
-import { TERRAINS, BUILDINGS } from './data.js';
-import type { TerrainId, Yields } from './types.js';
+import { TERRAINS, BUILDINGS, RESOURCES } from './data.js';
+import type { ResourceId, TerrainId, Yields } from './types.js';
+import { resourceBonus } from './resources.js';
 import { CITY_WORK_RADIUS } from './constants.js';
 import type { TileKey } from './state.js';
 
 export const ZERO_YIELDS: Yields = { food: 0, production: 0, commerce: 0 };
+
+/** Case vue par les fonctions d'économie : terrain + ressource posée (R-91). */
+export interface YieldTile {
+  terrain: TerrainId;
+  /** Absent ou null = pas de ressource. */
+  resource?: ResourceId | null;
+}
 
 function addYields(a: Yields, b: Yields): Yields {
   return { food: a.food + b.food, production: a.production + b.production, commerce: a.commerce + b.commerce };
 }
 
 /** La case est-elle travaillable par une ville (montagne/mer comprises, R-60) ? */
-export function tileWorkable(map: Record<TileKey, { terrain: TerrainId }>, key: TileKey): boolean {
+export function tileWorkable(map: Record<TileKey, YieldTile>, key: TileKey): boolean {
   const tile = map[key];
   return !!tile && !!TERRAINS[tile.terrain]?.yields;
 }
@@ -42,13 +52,17 @@ export function workRadiusOf(buildings: string[]): number {
 
 /**
  * Rendement effectif d'une case pour une ville donnée : base §2 + bonus de
- * CHAQUE bâtiment ciblant le terrain de la case (R-66). Retourne null si la
- * case n'est pas travaillable (absente, ou terrain sans rendements).
+ * CHAQUE bâtiment ciblant le terrain de la case (R-66) + bonus de la
+ * ressource de la case si le propriétaire de la ville y a accès (R-93 — le
+ * contexte technologique est passé par l'appelant, jamais déduit ici).
+ * Retourne null si la case n'est pas travaillable (absente, ou terrain sans
+ * rendements).
  */
 export function tileYield(
-  map: Record<TileKey, { terrain: TerrainId }>,
+  map: Record<TileKey, YieldTile>,
   buildings: string[],
   key: TileKey,
+  techsUnlocked: readonly string[] = [],
 ): Yields | null {
   const tile = map[key];
   if (!tile) return null;
@@ -61,12 +75,14 @@ export function tileYield(
       y = addYields(y, { food: bonus.food, production: bonus.production, commerce: bonus.commerce });
     }
   }
+  const resBonus = resourceBonus(tile.resource ? (RESOURCES[tile.resource] ?? null) : null, techsUnlocked);
+  if (resBonus) y = addYields(y, resBonus);
   return y;
 }
 
 /** Clés candidates au travail d'une ville : dans le rayon, hors centre, hors villes. */
 export function workableTilesFor(
-  map: Record<TileKey, { terrain: TerrainId }>,
+  map: Record<TileKey, YieldTile>,
   cities: Array<Hex>,
   city: Hex,
   radius: number,
@@ -85,21 +101,22 @@ function hexDistanceAtLeast1(a: Hex, b: Hex): boolean {
 /**
  * R-60 · Auto-assignation déterministe des citoyens : les `pop` meilleures
  * cases libres par priorité nourriture > production > commerce (rendements
- * EFFECTIFS, bonus bâtiments compris), tie-break (q, r) croissant (R-81).
- * `taken` = cases déjà travaillées par d'autres villes (une case travaillée
- * l'est par exactement une ville). Le centre-ville n'est JAMAIS assigné :
- * il est exploité automatiquement et gratuitement.
+ * EFFECTIFS, bonus bâtiments et ressources comprises — R-66/R-93), tie-break
+ * (q, r) croissant (R-81). `taken` = cases déjà travaillées par d'autres
+ * villes (une case travaillée l'est par exactement une ville). Le centre-ville
+ * n'est JAMAIS assigné : il est exploité automatiquement et gratuitement.
  */
 export function autoAssignWorkedTiles(
-  map: Record<TileKey, { terrain: TerrainId }>,
+  map: Record<TileKey, YieldTile>,
   cities: Array<Hex>,
   city: Hex & { pop: number; buildings: string[] },
   taken: Set<TileKey> = new Set<TileKey>(),
+  techsUnlocked: readonly string[] = [],
 ): TileKey[] {
   const radius = workRadiusOf(city.buildings);
   const candidates = workableTilesFor(map, cities, city, radius)
     .filter((key) => !taken.has(key))
-    .map((key) => ({ key, y: tileYield(map, city.buildings, key)! }))
+    .map((key) => ({ key, y: tileYield(map, city.buildings, key, techsUnlocked)! }))
     .sort(
       (a, b) =>
         b.y.food - a.y.food ||

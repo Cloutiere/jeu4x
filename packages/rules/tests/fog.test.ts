@@ -58,6 +58,47 @@ describe('L5 · R-70 · trois états du brouillard', () => {
   });
 });
 
+describe('R-92 · ressources non révélées (Phase 7c, D1)', () => {
+  const KEY = '2,0'; // case explorée-masquée de p1 (distance 2 = limite de vision)
+
+  function stateWithFer(): GameState {
+    const state = makeState({
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 }],
+    });
+    state.map[KEY] = { terrain: 'colline', resource: 'fer' };
+    state.players['p1']!.vision.explored = [KEY]; // mémorisée mais plus visible
+    return state;
+  }
+
+  it('aucune fuite : le Fer (tech non débloquée) est retiré du tile exploré-masqué', () => {
+    const fogged = getFilteredState(stateWithFer(), 'p1');
+    expect(fogged.map[KEY]).toBeDefined(); // le terrain mémorisé reste…
+    expect(fogged.map[KEY]!.resource).toBeNull(); // …la ressource non révélée non
+  });
+
+  it('présente après déblocage de la tech (révélation passive, snapshot suivant)', () => {
+    const state = stateWithFer();
+    state.players['p1']!.techsUnlocked = ['travail_du_fer'];
+    const fogged = getFilteredState(state, 'p1');
+    expect(fogged.map[KEY]!.resource).toBe('fer');
+  });
+
+  it('une ressource sans tech (D4 : Gemmes) est toujours diffusée', () => {
+    const state = stateWithFer();
+    state.map[KEY] = { terrain: 'montagne', resource: 'gemmes' };
+    const fogged = getFilteredState(state, 'p1');
+    expect(fogged.map[KEY]!.resource).toBe('gemmes');
+  });
+
+  it('getFilteredState ne mute pas l’état (la ressource reste dans l’état serveur)', () => {
+    const state = stateWithFer();
+    const before = JSON.stringify(state);
+    getFilteredState(state, 'p1');
+    getFilteredState(state, 'p2');
+    expect(JSON.stringify(state)).toBe(before);
+  });
+});
+
 describe('L5 · fuite d’information — état filtré', () => {
   it('ne contient jamais l’unité ennemie hors vision, y compris après un combat loin de la vue', () => {
     // p2 détruit un colon de p1 au loin (distance > 2 de toute autre entité de p1).

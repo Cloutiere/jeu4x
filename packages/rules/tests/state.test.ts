@@ -14,19 +14,20 @@ import { TERRAINS } from '../src/data.js';
 import { cityAt, makeState, unit, unitAt } from '../src/fixtures.js';
 
 describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
-  it('la version courante est exportée avec la chaîne de migrations (v6 depuis la conversion des villes, Phase 7b)', () => {
+  it('la version courante est exportée avec la chaîne de migrations (v7 depuis les ressources, Phase 7c)', () => {
     const state = makeState();
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(6);
+    expect(CURRENT_SCHEMA_VERSION).toBe(7);
     expect(MIGRATIONS).toBeTypeOf('object');
     expect(typeof MIGRATIONS[2]).toBe('function');
     expect(typeof MIGRATIONS[3]).toBe('function');
     expect(typeof MIGRATIONS[4]).toBe('function');
     expect(typeof MIGRATIONS[5]).toBe('function');
     expect(typeof MIGRATIONS[6]).toBe('function');
+    expect(typeof MIGRATIONS[7]).toBe('function');
   });
 
-  it('migrateState laisse passer un état à jour à l’identique (chaîne v6→v6 vide)', () => {
+  it('migrateState laisse passer un état à jour à l’identique (chaîne v7→v7 vide)', () => {
     const state = makeState();
     const out = migrateState<GameState>(state as unknown as Record<string, unknown>);
     expect(out).toEqual(state);
@@ -34,7 +35,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
 
   it('migrateState rejette une version inconnue ou futuriste', () => {
     expect(() => migrateState({ schemaVersion: 0 })).toThrow();
-    expect(() => migrateState({ schemaVersion: 7 })).toThrow();
+    expect(() => migrateState({ schemaVersion: 8 })).toThrow();
     expect(() => migrateState({})).toThrow();
   });
 });

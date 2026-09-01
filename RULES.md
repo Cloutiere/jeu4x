@@ -259,6 +259,48 @@ Arrondi **au plus proche** (round half up). Cas limite tranché : même à **0 c
 
 **UI (Phase 7b).** Menu de ville restructuré en tableau de bord (identité / rendements avec durées en tours / citoyens / production à deux niveaux catégorisée). Le clic sur une ville interrompt un brouillon de déplacement en cours (le chemin soumis reste en place). Le bouton « Rendements » de la carte devient un cycle à 3 états : masqué → affiché → affiché **sans villes ni armées** (pour lire les icônes sous les entités).
 
+### 8.3 Ressources — Phase 7c (ajouté le 01/09/2026, décisions D1–D6 d'Erik)
+
+**Base : [`RECHERCHE-RESSOURCES.md`](RECHERCHE-RESSOURCES.md) §2** (données officielles CivRev sourcées) — les valeurs ci-dessous sont la table officielle. Tout est **éditable en données** (`resources.json`, même philosophie relationnelle que R-86) : le scénario étalon « déplacer Gemmes de montagne à colline » = éditer son champ `terrains`, rien d'autre. Champs : `{id, name, terrains[], yields{N/P/C}, revealedByTech, officialTech, culture, hiddenUntilRevealed, spawnWeight}`.
+
+**R-91 · Données ressources.** Table fermée de **22 ressources** (miroir exact de la recherche §2) :
+
+| Ressource | Terrain | Bonus | Tech (notre base) | officialTech |
+|---|---|---|---|---|
+| Bétail | Prairie | +3 N | Code des lois | Code of Laws |
+| Blé | Prairie | +2 N | *(absente)* | Irrigation |
+| Gibier | Forêt | +3 N | *(absente)* | Feudalism |
+| Poisson | Mer | +2 N | Travail du bronze | Bronze Working |
+| Baleine | Mer | +4 N | Navigation | Navigation |
+| Fer | Colline | +2 P | Travail du fer | Iron Working |
+| Chêne | Forêt | +3 P | *(absente)* | Construction |
+| Marbre | Plaine | +2 P | *(absente)* | Masonry |
+| Bœufs | Prairie | +2 P | Équitation | Horseback Riding |
+| Charbon | Colline | +3 P | *(absente)* | Steam Power |
+| Soufre | Désert | +3 P | *(absente)* | Gunpowder |
+| Pétrole | Désert | +4 P | *(absente)* | Combustion |
+| Caoutchouc | Forêt | +4 P | *(absente)* | Automobile |
+| Aluminium | Colline | +4 P | *(absente)* | Mass Production |
+| Uranium | Montagne | +4 P | *(absente)* | Nuclear Power |
+| Teinture | Mer | +3 C | *(absente)* | Monarchy |
+| Épices | Désert | +2 C | **aucune** | — |
+| Vin | Plaine | +2 C | Poterie | Pottery |
+| Or | Montagne | **+3 commerce** *(D3)* | *(absente)* | Currency |
+| Gemmes | Montagne | **+2 commerce** *(D3)* | **aucune** | — |
+| Encens | Prairie | **+2 culture** | *(absente)* | Ceremonial Burial |
+| Soie | Plaine | **+3 culture** | Lettres | Literacy |
+
+- **D4** : les 13 ressources dont la tech n'existe pas encore dans `techs.json` ont `revealedByTech: null` (visibles et actives en v1) + `officialTech` documentaire (jamais lu par le moteur) ; leur activation future = édition JSON quand la tech rejoindra l'arbre.
+- **D2** : `culture` (Encens 2, Soie 3) est **porté en données, ignoré par le moteur** tant que le système culturel (grandes personnes/temples) n'est pas acté — même statut que `wonders.json` en 7a.
+- `spawnWeight` est **réservé** à la génération procédurale (Phase 6b) — null = ressource posée uniquement par placement explicite.
+- Tests d'intégrité en miroir des techs (R-86) : table fermée, terrains connus (≠ ville), `yields` ≥ 0 avec au moins un > 0, `revealedByTech` existant, `hiddenUntilRevealed: true` ⇒ tech non null, index inverse réciproque.
+
+**R-92 · Visibilité par technologie (D1 — adaptation assumée, diffère de CivRev).** Dans CivRev, l'icône d'une ressource est visible dès l'exploration, la tech ne verrouillant que le bonus (recherche §3) ; **chez nous, une ressource `revealedByTech` non débloquée par le joueur est invisible** (`hiddenUntilRevealed: true` en données). `getFilteredState` (R-70) retire la ressource des tiles explorés non débloqués (`resource: null` diffusé) — le client ne dessine rien, aucun événement (révélation passive, visible au snapshot suivant, comme R-85). Le **bonus**, lui, est toujours conditionné par l'accès à la tech, indépendamment de la visibilité : une ressource `hiddenUntilRevealed: false` serait affichée mais inactive (aucune ressource v1 n'utilise ce cas ; le filtrage du bonus reste dans `tileYield`, côté moteur).
+
+**R-93 · Bonus de rendement.** Le rendement d'une case travaillée par une ville s'ajoute les `yields` de sa ressource **si le propriétaire de la ville y a accès** (tech débloquée ou `revealedByTech: null`) — R-60/R-66 : centre + Σ rendements effectifs des cases travaillées ; l'auto-assignation (priorité N > P > C, tie-break R-81) valorise alors naturellement les cases à ressource, déterminisme conservé. **D3 — divergence CivRev documentée** : Gemmes/Or donnent un bonus **direct au trésor** chez CivRev ; chez nous, un seul canal (N/P/C) → mappés **commerce** (`gemmes.commerce: 2`, `or.commerce: 3`), convertis or/science par la ville (R-90). Éditable en données.
+
+**R-94 · Placement sur les cartes.** Tableau optionnel `resources: [{id, q, r}]` **inline dans chaque carte JSON** (D5) — données commises, calibrage par édition. Validations du loader : id connu, terrain de la case ∈ `terrains` de la ressource, au plus une ressource par case, jamais sur une case de capitale. **D6** : les 3 cartes sont dotées (pédagogique : quelques-unes, didactique ; pangée et variée : jeu complet — placements symétriques par miroir ponctuel pour variée-40, comme son terrain).
+
 ## 9. Phase D — Vision, soins, fin de tour
 
 - **R-70 · Vision** : rayon `T-07` (unité) / `T-08` (ville), **distance uniquement** — aucun blocage par terrain. Recalcul par joueur à chaque résolution ; 3 états (inexploré / exploré-masqué / visible). `getFilteredState(state, player)` ne diffuse jamais d'entité hors du champ visible.

@@ -6,11 +6,13 @@
 import unitsJson from './data/units.json' with { type: 'json' };
 import terrainJson from './data/terrain.json' with { type: 'json' };
 import buildingsJson from './data/buildings.json' with { type: 'json' };
-import type { BuildingData, TerrainData, TerrainId, UnitTypeData } from './types.js';
+import resourcesJson from './data/resources.json' with { type: 'json' };
+import type { BuildingData, ResourceData, TerrainData, TerrainId, UnitTypeData } from './types.js';
 
 export const UNIT_TYPES: Record<string, UnitTypeData> = unitsJson as Record<string, UnitTypeData>;
 export const TERRAINS: Record<string, TerrainData> = terrainJson as Record<string, TerrainData>;
 export const BUILDINGS: Record<string, BuildingData> = buildingsJson as Record<string, BuildingData>;
+export const RESOURCES: Record<string, ResourceData> = resourcesJson as Record<string, ResourceData>;
 
 export function unitType(id: string): UnitTypeData {
   const t = UNIT_TYPES[id];
@@ -29,6 +31,13 @@ export function building(id: string): BuildingData {
   const b = BUILDINGS[id];
   if (!b) throw new Error(`Bâtiment inconnu : ${id}`);
   return b;
+}
+
+/** R-91 : ressource par id (resources.json). */
+export function resource(id: string): ResourceData {
+  const r = RESOURCES[id];
+  if (!r) throw new Error(`Ressource inconnue : ${id}`);
+  return r;
 }
 
 /**

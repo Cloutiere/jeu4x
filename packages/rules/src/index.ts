@@ -8,6 +8,7 @@ export * from './rng.js';
 export * from './combat.js';
 export * from './army.js';
 export * from './data.js';
+export * from './resources.js';
 export * from './techs.js';
 export * from './research.js';
 export * from './conversion.js';

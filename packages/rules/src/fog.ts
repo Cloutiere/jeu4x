@@ -9,7 +9,8 @@
  */
 import { hexesWithinRadius, tileKeyOf } from './hex.js';
 import type { GameState, PlayerId, TileKey } from './state.js';
-import { unitType } from './data.js';
+import { RESOURCES, unitType } from './data.js';
+import { resourceVisible } from './resources.js';
 import { VISION_RADIUS_CITY } from './constants.js';
 import { eventRefs } from './events.js';
 import type { GameEvent } from './events.js';
@@ -128,6 +129,10 @@ function recomputeAndStore(state: GameState, playerId: PlayerId) {
  * État diffusé au joueur (R-70) :
  *  - cases inexplorées ABSENTES de `map` (pas seulement nulles) ;
  *  - aucune entité ennemie hors `visible` (unités et villes) ;
+ *  - R-92 (Phase 7c) : aucune ressource non révélée — une ressource dont la
+ *    tech (`revealedByTech`) manque et qui masque (`hiddenUntilRevealed`)
+ *    est retirée du tile exploré (`resource: null` diffusé). Révélation
+ *    passive : visible au snapshot suivant (comme R-85), aucun événement ;
  *  - la vision des autres joueurs est privée (vidée) ;
  *  - `rngSeed` remis à zéro : connaître la graine permettrait de prédire les
  *    combats futurs (le serveur, lui, conserve la vraie graine pour le
@@ -140,9 +145,16 @@ export function getFilteredState(state: GameState, playerId: PlayerId): GameStat
   const explored = new Set<string>(player?.vision.explored ?? []);
   for (const key of visible) explored.add(key);
 
+  const techs = player?.techsUnlocked ?? [];
   const filteredMap: Record<string, GameState['map'][string]> = {};
   for (const [key, tile] of Object.entries(clone.map)) {
-    if (explored.has(key)) filteredMap[key] = tile;
+    if (!explored.has(key)) continue;
+    // R-92 : masquer la ressource tant que sa tech n'est pas débloquée.
+    if (tile.resource) {
+      const res = RESOURCES[tile.resource] ?? null;
+      if (res && !resourceVisible(res, techs)) tile.resource = null;
+    }
+    filteredMap[key] = tile;
   }
   clone.map = filteredMap;
 

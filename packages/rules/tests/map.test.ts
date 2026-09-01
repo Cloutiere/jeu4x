@@ -8,7 +8,7 @@ import {
 import type { MapData } from '../src/map.js';
 import { CURRENT_SCHEMA_VERSION } from '../src/state.js';
 import { hexDistance, tileKeyOf } from '../src/hex.js';
-import { TERRAINS } from '../src/data.js';
+import { RESOURCES, TERRAINS } from '../src/data.js';
 
 /** Petite carte valide 14×3 de prairie, capitales à distance 13 ≥ 12.
  *  Démarrage conforme (décision d'Erik du 01/09) : 1 Guerrier adjacent. */
@@ -191,7 +191,7 @@ describe('L3 · createInitialState', () => {
       // la case de capitale porte le terrain "ville" (RULES.md §2)
       expect(state.map[tileKeyOf(city)]!.terrain).toBe('ville');
     }
-    // 1 Guerrier par joueur, adjacent à sa capitale (décision d'Erik du 01/09).
+    // 1 Guerrier par joueur, adjacent à la capitale (décision d'Erik du 01/09).
     expect(Object.keys(state.units)).toHaveLength(2);
     for (const city of Object.values(state.cities)) {
       const defenders = Object.values(state.units).filter(
@@ -205,6 +205,96 @@ describe('L3 · createInitialState', () => {
     for (const p of Object.values(state.players)) {
       expect(p.vision.visible.length).toBeGreaterThanOrEqual(1);
       expect(p.vision.explored).toEqual(p.vision.visible);
+    }
+  });
+});
+
+describe('R-94 · placements de ressources — validations du loader', () => {
+  /** Les tests construisent volontairement des placements invalides : la
+   *  structure n'est pas typée ResourceId ici, le loader valide. */
+  function withResources(resources: Array<{ id: string; q: number; r: number }>): MapData {
+    return { ...validSmallMap(), resources } as unknown as MapData;
+  }
+
+  it('une carte sans `resources` reste valide (champ optionnel)', () => {
+    const loaded = parseMap(validSmallMap());
+    expect(loaded.resources).toEqual([]);
+  });
+
+  it('placements valides : recopiés par createInitialState dans les cases de l’état', () => {
+    // la carte de test est toute en prairie : ressources de prairie (betail, encens)
+    const loaded = parseMap(withResources([{ id: 'betail', q: 1, r: 0 }, { id: 'encens', q: 5, r: 1 }]));
+    expect(loaded.resources).toHaveLength(2);
+    const state = createInitialState(loaded, 7);
+    expect(state.map[tileKeyOf({ q: 1, r: 0 })]!.resource).toBe('betail');
+    expect(state.map[tileKeyOf({ q: 5, r: 1 })]!.resource).toBe('encens');
+    expect(state.map[tileKeyOf({ q: 2, r: 0 })]!.resource).toBeNull();
+    // les capitales restent sans ressource (terrain ville)
+    expect(state.map[tileKeyOf({ q: 0, r: 0 })]!.resource).toBeNull();
+  });
+
+  it('rejette un id de ressource inconnu', () => {
+    expect(() => parseMap(withResources([{ id: 'diamant', q: 1, r: 0 }]))).toThrow(/ressource inconnue/);
+  });
+
+  it('rejette un terrain non autorisé (le scénario étalon : Fer ≠ montagne)', () => {
+    // (3,0) est prairie — le Fer n'apparaît que sur colline
+    expect(() => parseMap(withResources([{ id: 'fer', q: 3, r: 0 }]))).toThrow(/terrain non autorisé/);
+  });
+
+  it('rejette plus d’une ressource sur la même case', () => {
+    // (1,0) : colline (fer) + montagne (gemmes) → conflit d'abord, unicité ensuite ;
+    // deux ressources compatibles prairie suffisent à tester l'unicité.
+    expect(() =>
+      parseMap(withResources([{ id: 'betail', q: 5, r: 1 }, { id: 'encens', q: 5, r: 1 }])),
+    ).toThrow(/plus d'une ressource/);
+  });
+
+  it('rejette une ressource sur une case de capitale', () => {
+    // capitale p1 (0,0) : prairie → betail y serait valide hors capitale
+    expect(() => parseMap(withResources([{ id: 'betail', q: 0, r: 0 }]))).toThrow(/case de capitale/);
+  });
+
+  it('rejette une ressource hors carte', () => {
+    expect(() => parseMap(withResources([{ id: 'betail', q: 50, r: 0 }]))).toThrow(/hors carte/);
+  });
+});
+
+describe('R-94/D6 · les 3 cartes commises sont dotées', () => {
+  it('placements valides et « vivantes » v1 posées en priorité (9 vivantes : 7 à tech + Gemmes/Épices)', async () => {
+    const vivantes = ['betail', 'boeufs', 'fer', 'gemmes', 'epices', 'poisson', 'baleine', 'soie', 'vin'];
+    for (const id of ['pedagogique-40', 'pangee-40', 'variee-40'] as const) {
+      const loaded = await loadBuiltinMap(id);
+      const ids = loaded.resources.map((r) => r.id);
+      expect(ids.length, `${id} : dotée de ressources`).toBeGreaterThanOrEqual(6);
+      for (const res of loaded.resources) {
+        expect(RESOURCES[res.id], `${id} : ${res.id} connu`).toBeDefined();
+      }
+      // pangée et variée = jeu complet (≥ 20 placements, vivantes couvertes)
+      if (id !== 'pedagogique-40') {
+        expect(ids.length, `${id} : jeu complet`).toBeGreaterThanOrEqual(20);
+        for (const v of vivantes) expect(ids, `${id} : vivante ${v}`).toContain(v);
+      } else {
+        // pédagogique : didactique — quelques vivantes seulement
+        expect(ids.some((x) => vivantes.includes(x))).toBe(true);
+        // aucune ressource maritime (la carte n'a pas d'eau, T-11)
+        for (const res of loaded.resources) {
+          expect(RESOURCES[res.id]!.terrains, `${id} : ${res.id} non maritime`).not.toContain('eau');
+        }
+      }
+    }
+  });
+
+  it('variée : placements symétriques par miroir ponctuel (comme le terrain)', async () => {
+    const loaded = await loadBuiltinMap('variee-40');
+    const byKey = new Map(loaded.resources.map((r) => [tileKeyOf(r), r]));
+    expect(loaded.resources.length).toBeGreaterThan(0);
+    for (const res of loaded.resources) {
+      const col = res.q + Math.floor(res.r / 2);
+      const mirror = { q: 39 - col - Math.floor((39 - res.r) / 2), r: 39 - res.r };
+      const twin = byKey.get(tileKeyOf(mirror));
+      expect(twin, `miroir de ${res.id} en (${res.q},${res.r})`).toBeDefined();
+      expect(twin!.id).toBe(res.id);
     }
   });
 });

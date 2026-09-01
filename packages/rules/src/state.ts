@@ -6,7 +6,7 @@
  * (`MIGRATIONS`, `migrateState`) est exportée dès ce premier commit et
  * s'exécutera au chargement côté serveur (lazy-load du GameDO).
  */
-import type { TerrainId } from './types.js';
+import type { ResourceId, TerrainId } from './types.js';
 import { TERRAINS } from './data.js';
 
 export type PlayerId = string;
@@ -45,8 +45,10 @@ export interface ProductionItem {
 
 export interface Tile {
   terrain: TerrainId;
-  /** Réservation design.md §4.2 (non utilisée en v1). */
-  resource: null;
+  /** R-91/Phase 7c : ressource posée sur la case (id de resources.json) —
+   *  null = aucune. Le champ existait à null depuis v1 ; l'élargissement du
+   *  type (7b → 7c) ne change pas la forme : migration v6 → v7 no-op. */
+  resource: ResourceId | null;
 }
 
 export interface Unit {
@@ -161,7 +163,7 @@ export function areAtWar(state: GameState, a: PlayerId, b: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 7;
 
 type AnyState = Record<string, unknown>;
 
@@ -312,6 +314,14 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
     }
     return { ...state, cities: migrated };
   },
+  /**
+   * v6 → v7 : ressources Phase 7c (R-91). `Tile.resource` existe depuis v1 à
+   * `null` et `null` est une valeur valide du type élargi (`ResourceId | null`)
+   * — AUCUN changement de forme : migration no-op (identité pure). Les
+   * ressources des cartes préfabriquées sont posées à `createInitialState`
+   * (R-94), jamais par migration.
+   */
+  7: (state) => state,
 };
 
 

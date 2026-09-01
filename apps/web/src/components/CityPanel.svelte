@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, TECHS, tileYield, workRadiusOf, isUnlocked, conversionGains } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, TECHS, tileYield, workRadiusOf, isUnlocked, conversionGains, RESOURCES } from '@game/rules';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -59,7 +59,7 @@
     if (!city || !view.state) return null;
     const t = { food: 2, production: 1, commerce: 1 }; // case de ville (R-60)
     for (const key of city.workedTiles) {
-      const y = tileYield(view.state.map, city.buildings, key);
+      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
       if (!y) continue;
       t.food += y.food;
       t.production += y.production;
@@ -78,7 +78,7 @@
     if (!city || !view.state) return 0;
     let raw = 1; // case de ville
     for (const key of city.workedTiles) {
-      const y = tileYield(view.state.map, city.buildings, key);
+      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
       if (y) raw += y.production;
     }
     return Math.floor(raw * (1 + 0.25 * (city.pop - 1)));
@@ -94,7 +94,7 @@
     if (!city || !view.state) return 0;
     let f = 2; // case de ville
     for (const key of city.workedTiles) {
-      const y = tileYield(view.state.map, city.buildings, key);
+      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
       if (y) f += y.food;
     }
     return f;
@@ -217,6 +217,12 @@
     eau: 'mer',
   };
 
+  /** Nom de la ressource visible posée sur une case (R-91) — tooltip. */
+  function resourceLabel(key: string): string {
+    const res = view.state?.map[key]?.resource;
+    return res ? (RESOURCES[res]?.name ?? res) : '';
+  }
+
   /** Icône optionnelle : masquée silencieusement si l'asset est absent. */
   function hideImg(e: Event): void {
     (e.currentTarget as HTMLElement | null)?.style.setProperty('display', 'none');
@@ -227,7 +233,7 @@
     const t = { food: 2, production: 1, commerce: 1 }; // case de ville (R-60)
     if (!view.state || !city) return t;
     for (const key of tiles) {
-      const y = tileYield(view.state.map, city.buildings, key);
+      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
       if (!y) continue;
       t.food += y.food;
       t.production += y.production;
@@ -312,7 +318,7 @@
                 class="tile"
                 class:pending={pending.assigns.includes(key)}
                 disabled={!editable}
-                title={pending.assigns.includes(key) ? `Assignation en attente — annuler (${key})` : `Désassigner (${key})`}
+                title={pending.assigns.includes(key) ? `Assignation en attente — annuler (${key})` : `Désassigner (${key})${resourceLabel(key) ? ` — ${resourceLabel(key)}` : ''}`}
                 onclick={() => client.submitOrder({ type: 'SetWorkedTile', cityId: city.id, tile: null })}
               >({key})</button>
             {/each}

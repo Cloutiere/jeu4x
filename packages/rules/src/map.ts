@@ -7,17 +7,22 @@
  *  - `legend` : caractère → identifiant de terrain (doit exister dans terrain.json) ;
  *  - `players` : exactement 2 en v1, chaque joueur a sa capitale et son unité
  *    de départ — 1 Guerrier sur une case adjacente praticable de la capitale
- *    (décision d'Erik du 01/09 : plus de Colon au départ).
+ *    (décision d'Erik du 01/09 : plus de Colon au départ) ;
+ *  - `resources` (optionnel, R-94/Phase 7c) : placements explicites
+ *    `[{id, q, r}]` — données commises, calibrage par édition.
  *
  * Validations testées : dimensions, terrains connus, spawns dans la carte et
  * praticables, capitales à distance ≥ 12, types d'unités connus, au plus une
- * unité par case, pas de chevauchement capitale/unité adverse.
+ * unité par case, pas de chevauchement capitale/unité adverse, et pour les
+ * ressources (R-94) : id connu, terrain de la case ∈ `terrains` de la
+ * ressource, au plus une par case, jamais sur une case de capitale.
  */
 import { colRowToHex, hexDistance, inRectangle, tileKeyOf } from './hex.js';
 import type { Hex } from './hex.js';
-import { TERRAINS, unitType } from './data.js';
+import { RESOURCES, TERRAINS, unitType } from './data.js';
 import type { PlayerId, Tile, GameState, City } from './state.js';
 import { CURRENT_SCHEMA_VERSION } from './state.js';
+import type { ResourceId } from './types.js';
 import { SCIENCE_RATIO_DEFAULT, VISION_RADIUS_CITY } from './constants.js';
 import { CONVERSION_DEFAULT } from './conversion.js';
 import { hexesWithinRadius } from './hex.js';
@@ -28,6 +33,13 @@ export interface MapPlayerSpawn {
   units: Array<{ type: string; q: number; r: number }>;
 }
 
+/** R-94 : placement explicite d'une ressource sur la carte. */
+export interface MapResource {
+  id: ResourceId;
+  q: number;
+  r: number;
+}
+
 export interface MapData {
   id: string;
   name: string;
@@ -36,13 +48,16 @@ export interface MapData {
   legend: Record<string, string>;
   rows: string[];
   players: MapPlayerSpawn[];
+  /** R-94 : tableau optionnel (absent = carte sans ressource). */
+  resources?: MapResource[];
 }
 
-/** Carte validée : terrain par case axiale + spawns. */
+/** Carte validée : terrain par case axiale + spawns + ressources. */
 export interface LoadedMap {
   data: MapData;
   terrain: Record<string, string>; // clé "q,r" → TerrainId
   spawns: MapPlayerSpawn[];
+  resources: MapResource[];
 }
 
 export class MapValidationError extends Error {
@@ -154,8 +169,39 @@ export function parseMap(raw: unknown): LoadedMap {
     }
   }
 
+  // R-94 : validations des placements de ressources (id connu, terrain
+  // autorisé, unicité par case, jamais sur une capitale).
+  const resources = data.resources ?? [];
+  if (issues.every((i) => !i.startsWith('rows') && !i.startsWith('légende'))) {
+    const capitalKeys = new Set((data.players ?? []).map((p) => tileKeyOf(p.capital)));
+    const seenResourceTiles = new Set<string>();
+    for (const res of resources) {
+      const data2 = RESOURCES[res.id];
+      if (!data2) {
+        issues.push(`ressource inconnue : "${res.id}"`);
+        continue;
+      }
+      const key = tileKeyOf({ q: res.q, r: res.r });
+      const t = terrain[key];
+      if (t === undefined) {
+        issues.push(`ressource ${res.id} hors carte (${key})`);
+        continue;
+      }
+      if (!(data2.terrains as readonly string[]).includes(t)) {
+        issues.push(`ressource ${res.id} sur terrain non autorisé (${t} ∈ [${data2.terrains.join(', ')}]) en ${key}`);
+      }
+      if (seenResourceTiles.has(key)) {
+        issues.push(`plus d'une ressource sur la case ${key}`);
+      }
+      seenResourceTiles.add(key);
+      if (capitalKeys.has(key)) {
+        issues.push(`ressource ${res.id} sur une case de capitale (${key})`);
+      }
+    }
+  }
+
   if (issues.length) throw new MapValidationError(issues);
-  return { data, terrain, spawns: data.players };
+  return { data, terrain, spawns: data.players, resources };
 }
 
 /** Charge une des cartes commises (source des données : src/data/maps). */
@@ -178,6 +224,12 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
   const mapRecord: Record<string, Tile> = {};
   for (const [key, t] of Object.entries(terrainById)) {
     mapRecord[key] = { terrain: t as Tile['terrain'], resource: null };
+  }
+  // R-94 : recopie des placements de ressources de la carte dans l'état
+  // (validés par parseMap : terrain autorisé, unicité, pas de capitale).
+  for (const res of map.resources) {
+    const tile = mapRecord[tileKeyOf(res)];
+    if (tile) tile.resource = res.id;
   }
 
   const players: GameState['players'] = {};
