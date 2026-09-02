@@ -108,6 +108,8 @@ poisson boosté ×1.5 sur les côtes — `extraSpawnScale`),
 AVANT le tirage, ordre par rareté, choix farthest-point), **6 villages + 6
 huttes par demi-carte** avec trois distances 🔶 (villages 6, huttes 3,
 huttes↔villages 2 ; départs : villages ≥ 6, huttes ≥ 3), distance de spawn 12,
+**anneau de départ équilibré** (≥ 2 prairies + ≥ 2 forêts dans les 6 cases du
+site, aucune ressource — normalisation en anneau 2 uniquement),
 normalisation = moyenne(top 5) × 0.8.
 
 ## Intégration

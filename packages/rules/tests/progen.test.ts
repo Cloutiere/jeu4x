@@ -29,7 +29,7 @@ import { ProgenPlacementError, attemptSeed, halfMapLookup, normalizeStartSite } 
 import { fertilityScore } from '../src/progen/fertility.js';
 import { parseMap, createInitialState } from '../src/map.js';
 import type { MapData, MapResource, LoadedMap } from '../src/map.js';
-import { hexDistance, tileKeyOf, colRowToHex } from '../src/hex.js';
+import { hexDistance, tileKeyOf, colRowToHex, neighbors } from '../src/hex.js';
 import type { Hex } from '../src/hex.js';
 import { createRng } from '../src/rng.js';
 import { RESOURCES, TERRAINS, isWaterTerrain } from '../src/data.js';
@@ -246,14 +246,16 @@ describe('Phase 6b · Équilibrage — fertilité & équité (PDF §AssignStarti
     const s = resolveProgenSettings();
     const initial = fertilityScore(lookup, site, s);
     const injected: MapResource[] = [];
-    const out = normalizeStartSite(lookup, site, initial, initial + 30, s, injected);
+    // Phase 6c : l'anneau 1 du site reste TOUJOURS sans ressource — la
+    // normalisation n'injecte qu'en anneau 2 (distance 2 exactement ici).
+    const out = normalizeStartSite(lookup, site, initial, initial + 20, s, injected);
     expect(out.normalized).toBe(true);
-    expect(out.score).toBeGreaterThanOrEqual(initial + 30);
+    expect(out.score).toBeGreaterThanOrEqual(initial + 20);
     expect(injected.length).toBeGreaterThan(0);
     for (const r of injected) {
       expect(['ble', 'betail']).toContain(r.id);
       expect(hexDistance(site, r)).toBeLessThanOrEqual(2);
-      expect(hexDistance(site, r)).toBeGreaterThanOrEqual(1);
+      expect(hexDistance(site, r)).toBeGreaterThanOrEqual(2);
     }
     // Aucune case injectable (tout en eau autour) → échec explicite.
     const waterGrid: TerrainId[][] = Array.from({ length: halfH }, () => Array.from({ length: halfW }, () => 'eau'));
@@ -666,5 +668,28 @@ describe('Phase 6c · Calibrage par type de tuile (mosaïque, déserts, prairies
     expect(count('poisson')).toBeGreaterThan(count('teinture'));
     // Et l'ordre de grandeur : ~2,5× n'importe quelle autre ressource marine.
     expect(count('poisson')).toBeGreaterThan(2 * Math.max(count('baleine'), count('teinture')));
+  });
+});
+
+describe("Phase 6c · Anneau de départ équilibré (demande d'Erik)", () => {
+  it('chaque capitale : anneau 6 avec ≥ 2 prairies, ≥ 2 forêts, AUCUNE ressource', () => {
+    for (const seed of [42, 20260902, 606]) {
+      const { map } = generateProceduralMap(seed);
+      for (const spawn of map.spawns) {
+        const cap = spawn.capital;
+        let prairie = 0;
+        let forest = 0;
+        for (const n of neighbors(cap)) {
+          const t = map.terrain[tileKeyOf(n)];
+          expect(t, `seed ${seed} : voisin de la capitale connu`).toBeDefined();
+          if (t === 'prairie') prairie += 1;
+          if (t === 'foret') forest += 1;
+          const res = map.resources.find((r) => r.q === n.q && r.r === n.r);
+          expect(res, `seed ${seed} : case (${n.q},${n.r}) de l'anneau de départ sans ressource`).toBeUndefined();
+        }
+        expect(prairie, `seed ${seed} : ≥ 2 prairies autour de (${cap.q},${cap.r})`).toBeGreaterThanOrEqual(2);
+        expect(forest, `seed ${seed} : ≥ 2 forêts autour de (${cap.q},${cap.r})`).toBeGreaterThanOrEqual(2);
+      }
+    }
   });
 });

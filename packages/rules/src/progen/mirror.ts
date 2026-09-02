@@ -171,7 +171,9 @@ export function normalizeStartSite(
   let score = initialScore;
   let normalized = false;
   if (score >= threshold) return { score, normalized };
-  const injectable = [...ringCells(site, 1), ...ringCells(site, 2)].filter((c) => {
+  // Phase 6c (demande d'Erik) : l'anneau 1 du site reste TOUJOURS sans
+  // ressource — les injections de normalisation ne visent que l'anneau 2.
+  const injectable = ringCells(site, 2).filter((c) => {
     const t = lookup.terrainAt(c);
     if (t !== 'prairie' && t !== 'plaine') return false; // contrainte R-91 (blé/bétail)
     if (lookup.resourceAt(c) !== null) return false;
@@ -365,6 +367,22 @@ export const MIRROR_1V1: StartPlacementStrategy = {
           return nt !== undefined && TERRAINS[nt]!.passable && lookup.resourceAt(n) === null;
         });
         if (!freeNeighbor) continue;
+        // Phase 6c (demande d'Erik) : anneau de départ ÉQUILIBRÉ — au moins
+        // 🔶 startMinRingPrairie prairies et 🔶 startMinRingForest forêts parmi
+        // les 6 voisines, et AUCUNE ressource dans l'anneau (le site de départ
+        // « ne coûte aucun PM » et ne doit rien devoir à la chance des poses).
+        let prairie = 0;
+        let forest = 0;
+        let ringResource = false;
+        for (const n of neighbors(hex)) {
+          const nt = lookup.terrainAt(n);
+          if (nt === 'prairie') prairie += 1;
+          else if (nt === 'foret') forest += 1;
+          if (lookup.resourceAt(n) !== null) ringResource = true;
+        }
+        if (prairie < settings.startMinRingPrairie) continue;
+        if (forest < settings.startMinRingForest) continue;
+        if (ringResource) continue;
         candidates.push({ hex, score: fertilityScore(lookup, hex, settings) });
       }
     }
@@ -416,11 +434,17 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     //    `minPerResourceType` 🔶 pose de CHAQUE type de ressource par joueur
     //    (demi-carte miroir : pérenne pour le multi-joueurs), espacement
     //    compris, capitales exclues.
+    // L'anneau 1 des DEUX capitales reste sans ressource (Phase 6c) : la
+    // garantie de couverture ne peut plus y poser quoi que ce soit.
+    const capitalRings = new Set<string>(capitalKeys);
+    for (const cap of [site.hex, mirror]) {
+      for (const n of neighbors(cap)) capitalRings.add(`${n.q},${n.r}`);
+    }
     guaranteeResourceCoverage({
       rng,
       terrain: geo.terrain,
       resources: finalResources,
-      exclude: capitalKeys,
+      exclude: capitalRings,
       s: settings,
       mirrorOf,
     });

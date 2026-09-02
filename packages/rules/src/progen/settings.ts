@@ -80,6 +80,11 @@ export interface ProgenSettings {
   startMinEdgeDistance: number;
   /** Distance minimale d'un site de capitale à l'axe de miroir (T-09). */
   startMinMirrorDistance: number;
+  /** Équilibre de l'anneau de départ 🔶 (Phase 6c, demande d'Erik) : les 6
+   *  cases entourant le site doivent compter AU MOINS ce nombre de prairies
+   *  et de forêts, et AUCUNE ressource (site « ne coûtant aucun PM », équitable). */
+  startMinRingPrairie: number;
+  startMinRingForest: number;
   /** Villages : distance minimale aux DEUX spawns (leçon de calibrage 7d 🔶). */
   minVillageDistance: number;
   /** Huttes : distance minimale aux deux spawns 🔶 (embuscade = 2 barbares). */
@@ -125,6 +130,8 @@ export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   minSpawnDistance: 12,
   startMinEdgeDistance: 6,
   startMinMirrorDistance: 2, // T-09
+  startMinRingPrairie: 2,
+  startMinRingForest: 2,
   minVillageDistance: 6,
   minHutDistance: 3,
   villageSpacing: 6,
@@ -172,6 +179,8 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
     minSpawnDistance: Math.max(2, Math.round(s.minSpawnDistance)),
     startMinEdgeDistance: Math.max(2, Math.round(s.startMinEdgeDistance)),
     startMinMirrorDistance: Math.max(1, Math.round(s.startMinMirrorDistance)),
+    startMinRingPrairie: Math.min(6, Math.max(0, Math.round(s.startMinRingPrairie))),
+    startMinRingForest: Math.min(6, Math.max(0, Math.round(s.startMinRingForest))),
     minVillageDistance: Math.max(0, Math.round(s.minVillageDistance)),
     minHutDistance: Math.max(0, Math.round(s.minHutDistance)),
     villageSpacing: Math.min(12, Math.max(0, Math.round(s.villageSpacing))),
