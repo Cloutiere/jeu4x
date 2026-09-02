@@ -211,6 +211,11 @@ export interface ResourceData {
   /** Réservé 6b (génération procédurale) : poids de pose par case de terrain
    *  compatible ; null = posée uniquement par placement explicite (R-94). */
   spawnWeight: number | null;
+  /** Phase 6c (demande d'Erik) : tirage supplémentaire FORCÉ pour cette
+   *  ressource sur le terrain donné — en MULTIPLE de la probabilité de base
+   *  de la classe de terrain (terre 1/12, eau 1/48 🔶 × densité). Ex. :
+   *  poisson { eau: 1.5 } ≈ présence ×4 sur les côtes. Absent = aucun. */
+  extraSpawnScale?: Partial<Record<TerrainId, number>>;
 }
 
 /** Entité combattante au sens de la formule de combat (unité ou armée vue comme un tout). */

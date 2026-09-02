@@ -91,6 +91,9 @@ export function placeResources(
   // Ressources éligibles par terrain, pondérées (tri (id) croissant pour la
   // stabilité du tirage — R-81).
   const byTerrain = new Map<TerrainId, Array<{ id: ResourceId; weight: number }>>();
+  // Phase 6c : tirages supplémentaires FORCÉS par terrain (extraSpawnScale —
+  // ex. poisson favorisé sur les côtes), tri (id) croissant.
+  const extraByTerrain = new Map<TerrainId, Array<{ id: ResourceId; scale: number }>>();
   for (const key of Object.keys(RESOURCES).sort()) {
     const r = RESOURCES[key]!;
     if (r.spawnWeight === null || r.spawnWeight <= 0) continue;
@@ -98,6 +101,12 @@ export function placeResources(
       const list = byTerrain.get(t) ?? [];
       list.push({ id: r.id, weight: r.spawnWeight });
       byTerrain.set(t, list);
+      const scale = r.extraSpawnScale?.[t];
+      if (scale && scale > 0) {
+        const extras = extraByTerrain.get(t) ?? [];
+        extras.push({ id: r.id, scale });
+        extraByTerrain.set(t, extras);
+      }
     }
   }
 
@@ -111,23 +120,39 @@ export function placeResources(
       if (!candidates || candidates.length === 0) continue;
       const denominator = isWater ? WATER_RESOURCE_DENOMINATOR : LAND_RESOURCE_DENOMINATOR;
       const probability = (1 / denominator) * s.resourceDensity;
-      if (rng.next() >= probability) continue;
-      const total = candidates.reduce((acc, c) => acc + c.weight, 0);
-      let roll = rng.next() * total;
-      let picked = candidates[candidates.length - 1]!;
-      for (const c of candidates) {
-        if (roll < c.weight) {
-          picked = c;
-          break;
-        }
-        roll -= c.weight;
-      }
       const hex = colRowToHex(col, row);
       const key = `${hex.q},${hex.r}`;
-      if (prePlacedKeys.has(key)) continue; // case réservée par la garantie 6c
-      if (spacingViolated(hex, placedHexes, options?.mirrorOf, s.minResourceDistance)) continue;
-      placedHexes.push(hex);
-      resources.push({ id: picked.id, q: hex.q, r: hex.r });
+      const placeable =
+        !prePlacedKeys.has(key) && // case réservée par la garantie 6c
+        !spacingViolated(hex, placedHexes, options?.mirrorOf, s.minResourceDistance);
+      // Tirage principal pondéré (poids spawnWeight).
+      if (rng.next() < probability && placeable) {
+        const total = candidates.reduce((acc, c) => acc + c.weight, 0);
+        let roll = rng.next() * total;
+        let picked = candidates[candidates.length - 1]!;
+        for (const c of candidates) {
+          if (roll < c.weight) {
+            picked = c;
+            break;
+          }
+          roll -= c.weight;
+        }
+        placedHexes.push(hex);
+        resources.push({ id: picked.id, q: hex.q, r: hex.r });
+        continue;
+      }
+      // Phase 6c — extraSpawnScale : tirage supplémentaire FORCÉ pour une
+      // ressource donnée (ex. poisson favorisé sur les côtes), en multiple de
+      // la probabilité de base ; une seule ressource par case (R-94).
+      for (const e of extraByTerrain.get(t) ?? []) {
+        if (rng.next() < probability * e.scale) {
+          if (placeable) {
+            placedHexes.push(hex);
+            resources.push({ id: e.id, q: hex.q, r: hex.r });
+          }
+          break;
+        }
+      }
     }
   }
   return { resources, landTiles, waterTiles };

@@ -123,7 +123,9 @@ export function generateTerrain(
       const baseRow = height * (0.3 + 0.4 * rng.next());
       const length = width * (0.22 + 0.2 * rng.next());
       const colStart = rng.next() * (width - length);
-      rifts.push({ baseRow, amplitude: 1.5, depth: 32, colStart, colEnd: colStart + length });
+      // 🔶 riftDepth (Phase 6c) : pénétration des mers intérieures dans les
+      // continents — des séparations naturelles plus marquées.
+      rifts.push({ baseRow, amplitude: 1.5, depth: settings.riftDepth, colStart, colEnd: colStart + length });
     }
   }
 

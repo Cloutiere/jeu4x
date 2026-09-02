@@ -644,9 +644,27 @@ describe('Phase 6c · Calibrage par type de tuile (mosaïque, déserts, prairies
     expect(countOf(plaineHeavy.map, 'plaine')).toBeGreaterThan(countOf(prairieHeavy.map, 'plaine'));
   });
 
-  it("la densité de ressources par défaut est 🔶 1.5 (demande d'Erik)", () => {
+  it("les valeurs de base d'Erik (02/09) sont les défauts 🔶", () => {
     expect(DEFAULT_PROGEN_SETTINGS.resourceDensity).toBe(1.5);
     expect(DEFAULT_PROGEN_SETTINGS.villagesPerHalf).toBe(6);
     expect(DEFAULT_PROGEN_SETTINGS.hutsPerHalf).toBe(6);
+    expect(DEFAULT_PROGEN_SETTINGS.forestDensity).toBe(0.36);
+    expect(DEFAULT_PROGEN_SETTINGS.desertDensity).toBe(0.35);
+    expect(DEFAULT_PROGEN_SETTINGS.prairieDensity).toBe(0.2);
+    expect(DEFAULT_PROGEN_SETTINGS.terrainPatchScale).toBe(0.3);
+    expect(DEFAULT_PROGEN_SETTINGS.rifts).toBe(2);
+    expect(DEFAULT_PROGEN_SETTINGS.riftDepth).toBe(48);
+  });
+
+  it('R-105 : poisson favorisé sur les côtes (extraSpawnScale eau ×1.5 ≈ présence ×4)', () => {
+    // Grille 100 % côte : le poisson bénéficie du tirage principal (poids 10/19)
+    // PLUS son tirage forcé (×1.5 la probabilité de base) → net dominant.
+    const grid: TerrainId[][] = Array.from({ length: 20 }, () => Array.from({ length: 20 }, () => 'eau' as TerrainId));
+    const out = placeResources(createRng(7), grid, resolveProgenSettings({ resourceDensity: 4 }));
+    const count = (id: string): number => out.resources.filter((r) => r.id === id).length;
+    expect(count('poisson')).toBeGreaterThan(count('baleine'));
+    expect(count('poisson')).toBeGreaterThan(count('teinture'));
+    // Et l'ordre de grandeur : ~2,5× n'importe quelle autre ressource marine.
+    expect(count('poisson')).toBeGreaterThan(2 * Math.max(count('baleine'), count('teinture')));
   });
 });

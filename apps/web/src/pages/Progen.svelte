@@ -35,6 +35,7 @@
   let landRatio = $state(DEFAULT_PROGEN_SETTINGS.landRatio);
   let continents = $state<1 | 2>(DEFAULT_PROGEN_SETTINGS.continents);
   let rifts = $state(DEFAULT_PROGEN_SETTINGS.rifts);
+  let riftDepth = $state(DEFAULT_PROGEN_SETTINGS.riftDepth);
   let coastWidth = $state(DEFAULT_PROGEN_SETTINGS.coastWidth);
   let mountainDensity = $state(DEFAULT_PROGEN_SETTINGS.mountainDensity);
   let hillDensity = $state(DEFAULT_PROGEN_SETTINGS.hillDensity);
@@ -107,6 +108,7 @@
         landRatio,
         continents,
         rifts,
+        riftDepth,
         coastWidth,
         mountainDensity,
         hillDensity,
@@ -172,6 +174,7 @@
     void landRatio;
     void continents;
     void rifts;
+    void riftDepth;
     void coastWidth;
     void mountainDensity;
     void hillDensity;
@@ -269,6 +272,10 @@
         <label>
           Rifts : {rifts}
           <input type="range" min="0" max="3" step="1" bind:value={rifts} />
+        </label>
+        <label>
+          Mers intérieures (profondeur) : {riftDepth}
+          <input type="range" min="10" max="80" step="1" bind:value={riftDepth} />
         </label>
         <label>
           Largeur des côtes : {coastWidth}

@@ -184,7 +184,8 @@
     "officialTech": "Bronze Working",
     "culture": null,
     "hiddenUntilRevealed": true,
-    "spawnWeight": 10
+    "spawnWeight": 10,
+    "extraSpawnScale": { "eau": 1.5 }
   },
   "soie": {
     "id": "soie",

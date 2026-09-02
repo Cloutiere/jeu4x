@@ -27,6 +27,11 @@ export interface ProgenSettings {
   landRatio: number;
   /** Nombre d'axes de rift (continents=1 : rifts courts ; continents=2 : 1 traversant). */
   rifts: number;
+  /** Profondeur des rifts intérieurs 🔶 (Phase 6c, demande d'Erik : pénétration
+   *  de l'eau dans les continents pour des séparations naturelles) — abaisse
+   *  l'altitude autour de l'axe. Le rift traversant (continents=2) garde sa
+   *  profondeur propre (70) : son rôle est la séparation complète. */
+  riftDepth: number;
   /** Largeur des eaux côtières 🔶 (Phase 6c, décision d'Erik) : une case d'eau
    *  à ≤ coastWidth cases (hex) d'une terre est de la CÔTE (`eau`), le reste
    *  est de l'OCÉAN profond (`ocean`). 1 = bande côtière minimale (adjacence). */
@@ -102,14 +107,15 @@ export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   startPlacement: 'mirror1v1',
   continents: 1,
   landRatio: 0.55,
-  rifts: 1,
+  rifts: 2,
+  riftDepth: 48,
   coastWidth: 1,
   mountainDensity: 0.5,
   hillDensity: 0.5,
-  forestDensity: 0.5,
-  desertDensity: 0.5,
-  prairieDensity: 0.5,
-  terrainPatchScale: 0.5,
+  forestDensity: 0.36,
+  desertDensity: 0.35,
+  prairieDensity: 0.2,
+  terrainPatchScale: 0.3,
   humidity: 0.5,
   resourceDensity: 1.5,
   minResourceDistance: 2,
@@ -149,6 +155,7 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
     continents: s.continents === 2 ? 2 : 1,
     landRatio: Math.min(0.75, Math.max(0.25, s.landRatio)),
     rifts: Math.min(3, Math.max(0, Math.round(s.rifts))),
+    riftDepth: Math.min(80, Math.max(10, Math.round(s.riftDepth))),
     coastWidth: Math.min(3, Math.max(1, Math.round(s.coastWidth))),
     mountainDensity: clamp01(s.mountainDensity),
     hillDensity: clamp01(s.hillDensity),
