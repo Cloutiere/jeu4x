@@ -6,6 +6,11 @@ Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), basel
 
 **Contrainte architecturale : le générateur vit dans `/packages/rules/src/progen/`** — pur, déterministe, testé (R-80), sans IO. Il **produit un `MapData` au format exact des cartes préfabriquées** et doit passer les mêmes validations (`parseMap`) : ainsi tout l'existant (loader, admin, migrations d'entités) se réutilise tel quel.
 
+**AJOUT D'ERIK (02/09) — pérennité multi-joueurs :** aujourd'hui 1v1, demain des cartes plus grandes pour **jusqu'à 5 joueurs** (comme CivRev), où le miroir n'est plus possible. Donc :
+- le **placement des départs et du contenu est une stratégie injectable** (`StartPlacementStrategy`) : `mirror1v1` est la **seule implémentation maintenant**, mais l'interface, le paramètre `playerCount` des settings et la séparation géophysique/placement sont conçus dès ce commit pour accueillir la stratégie `regionalMulti` future (partitionnement régional + fertilité multi-anneaux + normalisation — **déjà documentée dans le PDF §AssignStartingPlots**, rien à re-rechercher) ;
+- la couche géophysique (L0) **ne doit rien connaître du miroir** : elle génère une carte complète ; c'est la stratégie qui découpe/place. Si le miroir nécessite de générer une demi-carte, cette logique vit **dans la stratégie**, pas dans le générateur géophysique ;
+- documenter dans le README du module : « ajouter le support 2-5 joueurs = implémenter `regionalMulti` derrière la même interface ».
+
 ## Mission — livrables dans l'ordre
 
 ### L0 — Générateur géophysique (simplifié, d'après le PDF)
@@ -38,20 +43,31 @@ Plutôt que le partitionnement régional multi-joueurs du PDF (Civ à 2-12 joueu
 2. Les cartes préfabriquées restent disponibles (3 choix au total) ; la sélection par défaut des parties de test devient l'aléatoire (à confirmer à Erik si besoin).
 3. Admin dump : parameters de génération (seed, ratio terre, scores de fertilité).
 
-### L4 — Vérification & livraison
+### L4 — Labo de calibration des cartes (demande d'Erik, 02/09)
+
+**Une page dédiée `#/progen` (labo de génération)** pour voir et calibrer les cartes **hors de toute partie** :
+1. **Génération client-side** : le générateur étant pur, la page le fait tourner dans le navigateur (seed saisissable + bouton « seed aléatoire ») — aucune partie, aucune connexion requise.
+2. **Rendu carte entière, sans fog** : réutiliser le rendu existant (GameCanvas sur un état synthétique « tout visible » de préférence — sinon un rendu dédié) avec **tous les calques utiles au calibrage** : terrains, ressources, villages/huttes, cases travaillables potentielles, score de fertilité autour des spawns proposés, checksum d'équité.
+3. **Réglages = les paramètres du générateur exposés en curseurs** (ratio terre, rifts, densité montagnes, densité forêts, humidité, densité ressources, villages, huttes, distance de spawn) — **chaque réglage régénère à la volée** ; les valeurs par défaut sont celles de `settings` du générateur (elles-même data-driven si pertinent).
+4. **Export** : télécharger la carte générée en JSON (format `MapData` — inspectable, committable dans les cartes préfabriquées si Erik le souhaite) ; bouton « copier le JSON ».
+5. Accessibilité 🔶 : visible en dev obligatoirement ; en prod, au choix d'Erik (outil inoffensif — tout est client-side) ; noter la décision dans le rapport.
+
+### L5 — Vérification & livraison
 
 1. **Tests de propriété** (fast-check sur 50+ seeds) : carte valide (`parseMap` OK), spawns symétriques, connexion terrestre entre spawns, équité (delta fertilité = 0 par miroir ; absolue ≥ seuil), ressources/villages/huttes posés et uniques.
 2. **e2e** : créer une partie aléatoire → les deux joueurs démarrent (guerrier adjacent, pas de colon — R-60/7c), barbares/huttes/ressources présents et symétriques.
-3. **GUI locale vs bot** : jouer 10-15 tours sur une carte aléatoire (exploration, croissance, éventuel contact barbare) ; captures des 2-3 cartes générées différentes dans `docs/`.
-4. README + rapport ; déploiement prod via CI ; vérification en ligne (créer une partie « Carte aléatoire » avec le login OAuth — lister pour Erik ce qui reste à vérifier par lui).
+3. **Labo `#/progen`** : générer plusieurs seeds, tous les calques de calibrage visibles, export JSON fonctionnel.
+4. **GUI locale vs bot** : jouer 10-15 tours sur une carte aléatoire (exploration, croissance, éventuel contact barbare) ; captures des 2-3 cartes générées différentes dans `docs/`.
+5. README + rapport ; déploiement prod via CI ; vérification en ligne (créer une partie « Carte aléatoire » avec le login OAuth — lister pour Erik ce qui reste à vérifier par lui).
 
 ## Critères d'acceptation
 
 1. Générateur **pur et déterministe** dans `/packages/rules/src/progen/`, testé (R-80), zéro IO.
 2. 50+ seeds : zéro carte invalide, équité parfaite (miroir), connexité garantie.
 3. Le format de sortie est le `MapData` existant — **aucun changement du loader ni des validations** (réutilisation intégrale).
-4. Une partie « Carte aléatoire » se crée et se joue de bout en bout en ligne.
-5. Suites vertes (~387+), typecheck propre, déployé en prod.
+4. Une partie « Carte aléatoire » se crée et se joue de bout en bout en ligne ; le **labo `#/progen`** permet le calibrage visuel complet (curseurs → régénération → rendu sans fog → export).
+5. L'interface `StartPlacementStrategy` est en place : ajouter le multi-joueurs (2-5) n'exigera **que** la stratégie `regionalMulti`, sans toucher à la couche géophysique.
+6. Suites vertes (~387+), typecheck propre, déployé en prod.
 
 ## Périmètre interdit (cette session)
 
