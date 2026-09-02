@@ -316,19 +316,25 @@
 
 <style>
   main { max-width: 110rem; margin: 1rem auto; font-family: system-ui, sans-serif; padding: 0 1rem; }
-  header { display: flex; gap: 1.5rem; align-items: baseline; }
+  header { display: flex; gap: 1.5rem; align-items: baseline; flex-wrap: wrap; }
   h1 { font-size: 1.3rem; }
   .hint { color: #555; font-size: 0.9rem; }
-  .columns { display: flex; gap: 1rem; align-items: flex-start; }
-  aside { width: 24rem; flex: none; }
+  /* Fenêtre étroite : le panneau passe au-dessus de la carte (pleine largeur)
+     — jamais caché, la carte suit dessous. */
+  .columns { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+  aside { width: 24rem; flex: none; max-width: 100%; }
   section { border: 1px solid #ccc; border-radius: 6px; padding: 0.75rem; margin-bottom: 0.75rem; }
   h2 { font-size: 1rem; margin: 0 0 0.5rem; }
   label { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.5rem; font-size: 0.85rem; }
   label.check { flex-direction: row; align-items: center; }
-  .canvas-host { flex: 1; height: 78vh; min-height: 32rem; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
+  .canvas-host { flex: 1; height: 78vh; min-height: 26rem; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
   table { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
   td { padding: 0.15rem 0.3rem; }
   td:first-child { color: #555; }
   td.zero { color: #1a7f37; font-weight: 600; }
   .error { color: #b00020; font-size: 0.85rem; }
+  @media (max-width: 54rem) {
+    aside { width: 100%; }
+    .canvas-host { width: 100%; height: 62vh; }
+  }
 </style>
