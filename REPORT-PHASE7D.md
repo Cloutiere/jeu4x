@@ -170,6 +170,11 @@ ressources toujours réservé à 6b.
 
 ## 7. Déploiement
 
-Push → CI `Deploy` → prod `https://game-4x-server-prod.erik-ai-studio.workers.dev`
-vérifiée (assets `unite_barbare_guerrier.png`, `village_barbare.png`, `hutte.png`
-servis ; nouvelle partie = villages/huttes présentes, migration v8 appliquée).
+Push (`0a9769e`) → CI `Deploy` **success** → prod
+`https://game-4x-server-prod.erik-ai-studio.workers.dev` vérifiée :
+assets 7d servis (`/art/unite_barbare_guerrier.png`, `/art/village_barbare.png`,
+`/art/hutte.png` → 200) et bundle client à jour (le JS servi contient le rendu
+`barbare_guerrier`). La création d'une partie réelle en prod exigeant une session
+OAuth (le stub `/auth/dev` est désactivé quand les secrets OAuth sont configurés),
+le comportement de jeu en prod est garanti par le même code vérifié par les tests
+DO locaux (serveur : 27 tests, dont l'asynchrone barbares et l'enrichissement v7→v8).
