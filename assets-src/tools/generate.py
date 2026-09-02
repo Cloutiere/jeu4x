@@ -39,6 +39,8 @@ MONTAGNE_2 = "#6E6E78"   # gris sombre
 NEIGE = "#F2F2F0"
 EAU_1 = "#3E6E9E"        # fond
 EAU_2 = "#7FA9CC"        # vague claire
+OCEAN_1 = "#2A4C74"      # fond océan profond (Phase 6c : côte vs océan)
+OCEAN_2 = "#5E86AE"      # vague océan, plus discrète que la côte
 SOL_CHEMIN = "#A98F63"   # brun chemin
 SOL_TERRE = "#8F7B57"    # terre
 OR = "#D9A93F"
@@ -267,6 +269,17 @@ def tile_eau(d, img, w, h, cx):
         d.arc((x0, y - 9, x1, y + 9), 195, 345, fill=EAU_2, width=3)
         d.arc((x0 + 18, y + 2, x1 - 10, y + 20), 195, 345, fill="#5E8CB4", width=2.4)
     light_from_topleft(img, w, h, cx, 26)
+
+
+def tile_ocean(d, img, w, h, cx):
+    """Phase 6c : océan profond — teinte plus sombre que la côte (EAU_1),
+    vagues rares et courtes (grand large : houle, pas de clapot côtier)."""
+    d.poly(hex_points(cx, h / 2, w, h), fill=OCEAN_1)
+    d.ellipse((10, 20, 160, 120), fill="#33567F")
+    for y, x0, x1 in [(95, 55, 125), (165, 30, 105)]:
+        d.arc((x0, y - 8, x1, y + 8), 195, 345, fill=OCEAN_2, width=2.6)
+        d.arc((x0 + 20, y + 4, x1 - 12, y + 18), 195, 345, fill="#4A6F97", width=2)
+    light_from_topleft(img, w, h, cx, 20)
 
 
 def tile_ville_sol(d, img, w, h, cx):
@@ -1149,6 +1162,7 @@ def main():
         "tile_montagne": tile_montagne,
         "tile_desert": tile_desert,
         "tile_eau": tile_eau,
+        "tile_ocean": tile_ocean,
         "tile_ville_sol": tile_ville_sol,
     }
     entities = {
