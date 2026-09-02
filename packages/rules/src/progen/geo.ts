@@ -73,6 +73,12 @@ export function generateTerrain(
   options?: Partial<GeoOptions>,
 ): PhysicalMap {
   const openBottom = options?.openBottom ?? false;
+  // Phase 6c — mode ARCHIPEL (continents = 3, défaut — demande d'Erik) :
+  // topographie centrée sur l'eau (CivRev « islands ») : grande étendue d'eau
+  // au centre, petits continents et chapelets d'îlots de 1-5 cases.
+  const archipel = settings.continents === 3;
+  const baseFreq = archipel ? 0.128 : 0.08; // fragmentation ×1.6 des masses
+  const landRatio = archipel ? settings.landRatio * settings.archipelagoLandScale : settings.landRatio;
   // Sous-graines dérivées du RNG de la tentative : chaque champ a son bruit.
   const seedAlt = rng.nextInt(0xffffffff);
   const seedHum = rng.nextInt(0xffffffff);
@@ -130,11 +136,10 @@ export function generateTerrain(
   }
 
   const altitudeOf = (col: number, row: number): number => {
-    // Fréquence de base ~3 périodes sur la largeur : des MASSES larges et
-    // cohérentes (une fréquence trop haute pulvérise la terre en îlots et
-    // empêche la connexité des spawns).
-    const x = col * 0.08;
-    const y = row * 0.08;
+    // Fréquence de base : ~3 périodes sur la largeur en pangée (masses larges
+    // et cohérentes) ; ×1.6 en archipel (petits continents + îlots).
+    const x = col * baseFreq;
+    const y = row * baseFreq;
     let alt = nAlt.fbm(x, y) * 100;
     // Océan de bordure : l'altitude décroît vers les bords (PDF §Continents),
     // SAUF le bord bas ouvert (frontière de découpage de la stratégie).
@@ -151,6 +156,14 @@ export function generateTerrain(
       const d = Math.abs(row - axisRow);
       alt -= r.depth * Math.exp(-(d * d) / (2 * 1.4 * 1.4));
     }
+    // Archipel : mer CENTRALE — dépression gaussienne centrée sur le centre de
+    // la carte COMPLÈTE (bas-centre de la demi-carte : bord ouvert du miroir).
+    if (archipel) {
+      const dcx = col - (width / 2 - 0.5);
+      const dcy = row - (height - 1);
+      const sigma = width * 0.18;
+      alt -= 45 * Math.exp(-(dcx * dcx + dcy * dcy) / (2 * sigma * sigma));
+    }
     return alt;
   };
 
@@ -161,7 +174,7 @@ export function generateTerrain(
     for (let col = 0; col < width; col++) alts.push(altitudeOf(col, row));
   }
   const sorted = [...alts].sort((a, b) => a - b);
-  const landCount = Math.round(settings.landRatio * width * height);
+  const landCount = Math.round(landRatio * width * height);
   const seaLevel = sorted[Math.min(sorted.length - 1, Math.max(0, sorted.length - landCount))]!;
 
   const terrain: TerrainId[][] = [];

@@ -44,9 +44,12 @@ describe('Phase 6b · Propriétés du générateur procédural (fast-check, 60+ 
       expect(p2!.capital).toEqual(mirroredHex(p1!.capital, W));
       expect(hexDistance(p1!.capital, p2!.capital)).toBeGreaterThanOrEqual(s.minSpawnDistance);
       for (const sp of map.spawns) {
-        expect(sp.units).toHaveLength(1);
-        expect(sp.units[0]!.type).toBe('guerrier');
-        expect(hexDistance(sp.capital, sp.units[0]!)).toBe(1);
+        // Phase 6c (Erik) : Colon sur le site + Guerrier adjacent, sans capitale.
+        expect(sp.units).toHaveLength(2);
+        expect(sp.units[0]!.type).toBe('colon');
+        expect(hexDistance(sp.capital, sp.units[0]!)).toBe(0);
+        expect(sp.units[1]!.type).toBe('guerrier');
+        expect(hexDistance(sp.capital, sp.units[1]!)).toBe(1);
       }
 
       // Terrains : symétrie miroir exacte (rows[r][c] === rows[39-r][39-c]).
@@ -58,8 +61,11 @@ describe('Phase 6b · Propriétés du générateur procédural (fast-check, 60+ 
         }
       }
 
-      // Connexité terrestre (BFS sur cases praticables).
-      expect(landConnected(map, p1!.capital, p2!.capital)).toBe(true);
+      // Connexité terrestre : requise en pangée/deux continents, NON requise
+      // en archipel (défaut 6c — spawns possibles sur des îles séparées).
+      if (s.continents !== 3) {
+        expect(landConnected(map, p1!.capital, p2!.capital)).toBe(true);
+      }
 
       // Équité : delta de fertilité nul par miroir ; fertilité absolue ≥ seuil.
       expect(report.fertility.delta).toBe(0);

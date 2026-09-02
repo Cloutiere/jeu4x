@@ -105,13 +105,22 @@ function assembleMapData(seed: number, settings: ProgenSettings, out: PlacementO
   const size = strategy.fullSize(settings);
   const rows: string[] = out.terrain.map((line) => line.map((t) => CHAR_BY_TERRAIN[t]).join(''));
   const players: MapPlayerSpawn[] = out.capitals.map((capital, i) => {
-    const units = warriorSpawn(out, capital);
-    if (!units) {
+    const guerrier = warriorSpawn(out, capital);
+    if (!guerrier) {
       throw new ProgenPlacementError(
-        `aucune case libre praticable pour le Guerrier de p${i + 1} à côté de la capitale`,
+        `aucune case libre praticable pour le Guerrier de p${i + 1} à côté du site de départ`,
       );
     }
-    return { id: `p${i + 1}`, capital: { ...capital }, units: [units] };
+    // Phase 6c (Erik) : démarrage Colon + Guerrier SANS capitale — le Colon
+    // occupe le site réservé (coût de fondation nul) et fondera quand il veut.
+    return {
+      id: `p${i + 1}`,
+      capital: { ...capital },
+      units: [
+        { type: 'colon', q: capital.q, r: capital.r },
+        guerrier,
+      ],
+    };
   });
   return {
     id: PROCEDURAL_MAP_ID,
@@ -124,6 +133,7 @@ function assembleMapData(seed: number, settings: ProgenSettings, out: PlacementO
     resources: out.resources,
     villages: out.villages,
     huts: out.huts,
+    start: 'colon',
   };
 }
 
@@ -205,7 +215,11 @@ export function generateProceduralMap(
       const [s1, s2] = map.spawns;
       if (!s1 || !s2) throw new ProgenPlacementError('spawns manquants');
       const connected = landConnected(map, s1.capital, s2.capital);
-      if (!connected) throw new ProgenPlacementError('pas de connexion terrestre entre les deux spawns');
+      // Archipel : les spawns peuvent être sur des îles séparées — la
+      // connexité terrestre n'est PAS requise (contact au naval, Phase 7).
+      if (!connected && settings.continents !== 3) {
+        throw new ProgenPlacementError('pas de connexion terrestre entre les deux spawns');
+      }
 
       let landTiles = 0;
       let coastTiles = 0;

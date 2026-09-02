@@ -69,6 +69,11 @@ export interface MapData {
   villages?: MapVillage[];
   /** R-98/Phase 7d : huttes bonus (2 par carte). */
   huts?: MapHut[];
+  /** Phase 6c (demande d'Erik) : mode de démarrage — 'capital' (défaut : la
+   *  ville existe dès l'initialisation) ou 'colon' : AUCUNE ville au départ,
+   *  un Colon occupe le site réservé (`capital`, qui ne devient une ville que
+   *  par FoundCity R-64) + un Guerrier adjacent. */
+  start?: 'capital' | 'colon';
 }
 
 /** Carte validée : terrain par case axiale + spawns + ressources + villages/huttes. */
@@ -152,20 +157,43 @@ export function parseMap(raw: unknown): LoadedMap {
         const t = terrain[tileKeyOf(cap)];
         if (t && !TERRAINS[t]!.passable) issues.push(`capitale de ${p.id} sur terrain infranchissable (${t})`);
       }
-      if (!Array.isArray(p.units) || p.units.length !== 1) {
+      // Phase 6c : démarrage 'colon' (Erik) — Colon SUR le site réservé +
+      // Guerrier adjacent ; démarrage 'capital' (défaut) — 1 Guerrier adjacent.
+      const colonStart = data.start === 'colon';
+      const expectedUnits = colonStart ? 2 : 1;
+      if (!Array.isArray(p.units) || p.units.length !== expectedUnits) {
         issues.push(
-          `joueur ${p.id} : démarrage non conforme — exactement 1 unité attendue ` +
-          `(décision d'Erik du 01/09 : 1 Guerrier à côté de la ville, plus de Colon)`,
+          `joueur ${p.id} : démarrage non conforme — exactement ${expectedUnits} unité(s) attendue(s) ` +
+          (colonStart ? "(Colon sur le site + Guerrier adjacent)" : "(décision d'Erik du 01/09 : 1 Guerrier à côté de la ville)"),
         );
       }
+      let seenColon = false;
+      let seenGuerrier = false;
       for (const u of p.units ?? []) {
-        if (u.type !== 'guerrier') {
-          issues.push(`joueur ${p.id} : l'unité de départ doit être un Guerrier (reçu "${u.type}")`);
-        }
         const hex = { q: u.q, r: u.r };
-        if (cap && typeof cap.q === 'number' && typeof cap.r === 'number') {
-          if (hexDistance(cap, hex) !== 1) {
-            issues.push(`joueur ${p.id} : le Guerrier de départ doit être adjacent à la capitale (distance ${hexDistance(cap, hex)})`);
+        const d = cap && typeof cap.q === 'number' && typeof cap.r === 'number' ? hexDistance(cap, hex) : -1;
+        if (colonStart) {
+          if (u.type === 'colon') {
+            if (seenColon) issues.push(`joueur ${p.id} : plus d'un Colon de départ`);
+            seenColon = true;
+            if (d !== 0) {
+              issues.push(`joueur ${p.id} : le Colon de départ occupe le site réservé (distance ${d})`);
+            }
+          } else if (u.type === 'guerrier') {
+            if (seenGuerrier) issues.push(`joueur ${p.id} : plus d'un Guerrier de départ`);
+            seenGuerrier = true;
+            if (d !== 1) {
+              issues.push(`joueur ${p.id} : le Guerrier de départ doit être adjacent au site (distance ${d})`);
+            }
+          } else {
+            issues.push(`joueur ${p.id} : unité de départ inattendue "${u.type}" (Colon + Guerrier attendus)`);
+          }
+        } else {
+          if (u.type !== 'guerrier') {
+            issues.push(`joueur ${p.id} : l'unité de départ doit être un Guerrier (reçu "${u.type}")`);
+          }
+          if (d !== 1) {
+            issues.push(`joueur ${p.id} : le Guerrier de départ doit être adjacent à la capitale (distance ${d})`);
           }
         }
         if (!inRectangle(hex, width, height)) {
@@ -317,7 +345,12 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
   }
 
   const cities: Record<string, City> = {};
+  // Phase 6c (Erik) : démarrage 'colon' — AUCUNE ville à l'initialisation ;
+  // le Colon occupe le site réservé et fondera via FoundCity (R-64, la
+  // première ville devient capitale). L'ancre garde son terrain d'origine.
+  const colonStart = map.data.start === 'colon';
   map.spawns.forEach((spawn, i) => {
+    if (colonStart) return;
     const id = `c${i + 1}`;
     cities[id] = {
       id,

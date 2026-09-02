@@ -1,6 +1,6 @@
 {
  "id": "variee-40",
- "name": "Variée 40×40 (tous terrains : mer, désert, montagnes, forêts — symétrique)",
+ "name": "Vari\u00e9e 40\u00d740 (tous terrains : mer, d\u00e9sert, montagnes, for\u00eats \u2014 sym\u00e9trique)",
  "width": 40,
  "height": 40,
  "legend": {
@@ -199,12 +199,12 @@
   {
    "id": "teinture",
    "q": 25,
-   "r": 11
+   "r": 10
   },
   {
    "id": "teinture",
    "q": -5,
-   "r": 28
+   "r": 29
   },
   {
    "id": "ble",

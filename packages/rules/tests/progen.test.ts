@@ -65,9 +65,11 @@ function expectValidProceduralMap(map: LoadedMap): void {
   const [p1, p2] = map.spawns;
   expect(p2!.capital).toEqual(mirrorOf(p1!.capital));
   for (const sp of map.spawns) {
-    expect(sp.units).toHaveLength(1);
-    expect(sp.units[0]!.type).toBe('guerrier');
-    expect(hexDistance(sp.capital, sp.units[0]!)).toBe(1);
+    expect(sp.units).toHaveLength(2);
+    expect(sp.units[0]!.type).toBe('colon');
+    expect(hexDistance(sp.capital, sp.units[0]!)).toBe(0);
+    expect(sp.units[1]!.type).toBe('guerrier');
+    expect(hexDistance(sp.capital, sp.units[1]!)).toBe(1);
     const t = map.terrain[tileKeyOf(sp.capital)]!;
     expect(TERRAINS[t]!.passable).toBe(true);
   }
@@ -93,8 +95,9 @@ function expectValidProceduralMap(map: LoadedMap): void {
       expect(hexDistance(h, sp.capital)).toBeGreaterThanOrEqual(DEFAULT_PROGEN_SETTINGS.minHutDistance);
     }
   }
-  // Connexité terrestre entre les deux zones de spawn (BFS, handoff L0-6).
-  expect(landConnected(map, map.spawns[0]!.capital, map.spawns[1]!.capital)).toBe(true);
+  // Connexité terrestre : NON requise en archipel (défaut 6c — spawns
+  // possibles sur des îles séparées, contact au naval Phase 7). Les modes
+  // pangée/deux-continents la vérifient dans leurs tests dédiés.
 }
 
 describe('Phase 6b · Générateur procédural — déterminisme (R-80)', () => {
@@ -131,8 +134,9 @@ describe('Phase 6b · Générateur procédural — structure & validations', () 
     for (const seed of [7, 99, 1234567]) {
       const { map, report } = generateProceduralMap(seed);
       for (const t of Object.values(map.terrain)) expect(TERRAINS[t]).toBeDefined();
-      expect(report.landRatio).toBeGreaterThan(0.5);
-      expect(report.landRatio).toBeLessThan(0.6);
+      // Archipel (défaut 6c) : ratio terre effectif = 55 % × 🔶 0.7 ≈ 38.5 %.
+      expect(report.landRatio).toBeGreaterThan(0.33);
+      expect(report.landRatio).toBeLessThan(0.45);
     }
   });
 
@@ -196,8 +200,15 @@ describe('Phase 6b · Générateur procédural — structure & validations', () 
     const { map, report } = generateProceduralMap(777);
     const state = createInitialState(map, report.seed);
     expect(state.mapId).toBe(PROCEDURAL_MAP_ID);
-    expect(Object.keys(state.cities)).toEqual(['c1', 'c2']);
-    expect(Object.keys(state.units)).toEqual(['u1', 'u2']);
+    // Phase 6c (Erik) : démarrage Colon + Guerrier SANS capitale — aucune
+    // ville à l'initialisation, le Colon fondera via FoundCity (R-64).
+    expect(Object.keys(state.cities)).toEqual([]);
+    expect(Object.keys(state.units)).toEqual(['u1', 'u2', 'u3', 'u4']);
+    expect(state.units.u1!.type).toBe('colon');
+    expect(state.units.u1!.owner).toBe('p1');
+    expect(state.units.u2!.type).toBe('guerrier');
+    expect(state.units.u3!.type).toBe('colon');
+    expect(state.units.u3!.owner).toBe('p2');
     // Phase 6c : 6 villages + 6 huttes par moitié (demande d'Erik) → 12/12 reflétés.
     expect(state.villages).toHaveLength(12);
     expect(state.huts).toHaveLength(12);
@@ -402,13 +413,10 @@ describe('Phase 6c · Génération — côte et océan sur les cartes (R-107)', 
     expect(w2.report.oceanTiles).toBeLessThan(w1.report.oceanTiles);
   });
 
-  it("R-105 : les ressources posées sur l'océan sont exclusivement marines (baleine/poisson/teinture)", () => {
+  it("R-105 révisé (océan stérile — Erik, 02/09) : AUCUNE ressource ne pose sur l'océan", () => {
     const grid: TerrainId[][] = Array.from({ length: 20 }, () => Array.from({ length: 20 }, () => 'ocean' as TerrainId));
     const out = placeResources(createRng(7), grid, resolveProgenSettings({ resourceDensity: 4 }));
-    expect(out.resources.length).toBeGreaterThan(0);
-    for (const r of out.resources) {
-      expect(['baleine', 'poisson', 'teinture'], `id ${r.id} sur océan`).toContain(r.id);
-    }
+    expect(out.resources).toHaveLength(0);
     expect(out.waterTiles).toBe(400);
   });
 });

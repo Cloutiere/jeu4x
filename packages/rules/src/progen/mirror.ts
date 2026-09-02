@@ -37,7 +37,7 @@ import type { PhysicalMap } from './geo.js';
 import { classifyWaters } from './geo.js';
 import { fertilityScore, ringCells } from './fertility.js';
 import type { TerrainLookup } from './fertility.js';
-import { placeResources, placeEntities, spacingViolated } from './content.js';
+import { placeResources, placeEntities, placeMarineResources, spacingViolated, waterOnlyResourceIds } from './content.js';
 import type { ProgenSettings } from './settings.js';
 import { deriveSeed } from './noise.js';
 
@@ -218,6 +218,9 @@ export function guaranteeResourceCoverage(input: {
   exclude: Set<string>;
   s: ProgenSettings;
   mirrorOf: (hex: Hex) => Hex;
+  /** Sous-ensemble à garantir (Phase 6c : ressources terrestres ici — les
+   *  marines sont posées après classification des eaux). Absent = toutes. */
+  onlyIds?: Set<string>;
 }): void {
   const min = input.s.minPerResourceType;
   if (min <= 0) return;
@@ -239,6 +242,7 @@ export function guaranteeResourceCoverage(input: {
     return n;
   };
   const orderedIds = Object.keys(RESOURCES)
+    .filter((id) => !input.onlyIds || input.onlyIds.has(id))
     .sort((a, b) => eligibleTiles(a) - eligibleTiles(b) || (a < b ? -1 : 1));
   for (const id of orderedIds) {
     const data = RESOURCES[id]!;
@@ -325,6 +329,11 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     //    Phase 6c : la garantie de couverture passe AVANT le tirage aléatoire —
     //    chaque type a déjà sa case réservée, le tirage ne peut pas saturer un
     //    terrain avant elle.
+    const waterOnly = new Set(waterOnlyResourceIds());
+    const landOnly = new Set(Object.keys(RESOURCES).filter((id) => !waterOnly.has(id)));
+    // Pré-garantie : TERRE uniquement (les marines attendent la classification
+    // des eaux — l'océan leur est interdit et la demi-carte ne connaît pas
+    // encore côte/océan).
     const guaranteed: MapResource[] = [];
     guaranteeResourceCoverage({
       rng,
@@ -333,8 +342,9 @@ export const MIRROR_1V1: StartPlacementStrategy = {
       exclude: new Set<string>(),
       s: settings,
       mirrorOf,
+      onlyIds: landOnly,
     });
-    const resPlacement = placeResources(rng, geo.terrain, settings, { mirrorOf, alreadyPlaced: guaranteed });
+    const resPlacement = placeResources(rng, geo.terrain, settings, { mirrorOf, alreadyPlaced: guaranteed, skipIds: waterOnly });
     // La liste `resources` reste DEMI-carte uniquement (l'étape 4 reflète tout)
     // : les poses garanties — générées en paires déjà reflétées — sont
     // repliées sur leur moitié (r < halfH), leur image sera recalculée à
@@ -447,6 +457,18 @@ export const MIRROR_1V1: StartPlacementStrategy = {
       exclude: capitalRings,
       s: settings,
       mirrorOf,
+      onlyIds: landOnly,
+    });
+    // Ressources MARINES : posées sur la grille CLASSIFIÉE (côte seule —
+    // l'océan reste stérile), garantie puis tirage, par paires miroir.
+    placeMarineResources({
+      rng,
+      terrain: classified,
+      resources: finalResources,
+      exclude: capitalRings,
+      s: settings,
+      mirrorOf,
+      halfHeight: halfH,
     });
 
     // 5. Villages (≥ 6 des deux spawns — leçon 7d) et huttes (≥ 3 🔶), posés

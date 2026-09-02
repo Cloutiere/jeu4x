@@ -150,14 +150,13 @@ describe('Données Phase 6c — côte vs océan (décisions d\'Erik du 02/09)', 
     expect(isWaterTerrain('ville')).toBe(false);
   });
 
-  it('R-94 étendu : les 3 ressources marines spawneront aussi sur l\'océan, aucune ressource terrestre ne le permet', () => {
+  it("R-94 révisé (océan stérile — Erik, 02/09) : marines sur la côte seule, AUCUNE ressource sur l'océan", () => {
     const marines = ['baleine', 'poisson', 'teinture'];
     for (const id of marines) {
-      expect(resourceTable[id]!.terrains, `ressource ${id}`).toEqual(['eau', 'ocean']);
+      expect(resourceTable[id]!.terrains, `ressource ${id}`).toEqual(['eau']);
     }
     for (const r of Object.values(resourceTable)) {
-      if (marines.includes(r.id)) continue;
-      expect(r.terrains, `ressource ${r.id} reste terrestre`).not.toContain('ocean');
+      expect(r.terrains, `ressource ${r.id} : jamais sur l'océan`).not.toContain('ocean');
     }
   });
 

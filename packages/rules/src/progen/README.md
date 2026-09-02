@@ -97,13 +97,17 @@ passage par la future stratégie.
 
 Tous les défauts sont dans `settings.ts` (`DEFAULT_PROGEN_SETTINGS`) et sont
 exposés en curseurs dans le labo `#/progen` (régénération à la volée) :
+topographie ARCHIPEL par défaut (continents=3 : eau centrale, îlots 1-5 cases,
+ratio terre ×0.7, connexité terrestre non requise — R-100 Phase 6c),
 ratio terre 55 %, 1-2 rifts, largeur des côtes 1 (R-107 : une case d'eau à
 ≤ N cases d'une terre est de la côte `eau`, le reste est de l'océan `ocean`),
 mosaïque des zones ×0.30, densités PAR TYPE montagnes/collines 50 %, forêts
 36 %, déserts 35 %, prairies 20 % (valeurs de base d'Erik), rifts 2 de
 profondeur 48 (mers intérieures pénétrantes), densité ressources
 **×1.5** (~1 ressource / 8 cases de terre, marines ×1.5/48 sur Mer ET Océan,
-poisson boosté ×1.5 sur les côtes — `extraSpawnScale`),
+poisson boosté ×1.5 sur les côtes — `extraSpawnScale` ; océan STÉRILE :
+marines posées après classification, côte seule), démarrage Colon + Guerrier
+sans capitale (`start: "colon"` — fondation R-64),
 **écart ressources 2** et **min 1 de chaque type par joueur** (R-108, réservées
 AVANT le tirage, ordre par rareté, choix farthest-point), **6 villages + 6
 huttes par demi-carte** avec trois distances 🔶 (villages 6, huttes 3,

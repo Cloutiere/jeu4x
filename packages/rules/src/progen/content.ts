@@ -19,6 +19,7 @@ import type { Hex } from '../hex.js';
 import type { MapResource } from '../map.js';
 import type { ResourceId, TerrainId } from '../types.js';
 import type { SeededRng } from '../rng.js';
+import { ProgenPlacementError } from './mirror.js';
 import type { ProgenSettings } from './settings.js';
 
 /** Densité cible 🔶 : 1 ressource par 12 cases de terre ; l'eau à 1/48
@@ -62,10 +63,12 @@ export interface ResourcePlacement {
 /** Options de pose : `mirrorOf` = image de la stratégie miroir (rotation 180°)
  *  — fournie, la contrainte d'espacement porte sur la carte complète ;
  *  `alreadyPlaced` = ressources déjà posées (garantie de couverture 6c) dont
- *  le tirage aléatoire doit respecter l'espacement. */
+ *  le tirage aléatoire doit respecter l'espacement ; `skipIds` = ressources
+ *  exclues du tirage (marines — posées après classification des eaux). */
 export interface ResourcePlacementOptions {
   mirrorOf?: (hex: Hex) => Hex;
   alreadyPlaced?: Array<{ q: number; r: number }>;
+  skipIds?: Set<string>;
 }
 
 /**
@@ -97,6 +100,7 @@ export function placeResources(
   for (const key of Object.keys(RESOURCES).sort()) {
     const r = RESOURCES[key]!;
     if (r.spawnWeight === null || r.spawnWeight <= 0) continue;
+    if (options?.skipIds?.has(r.id)) continue;
     for (const t of r.terrains) {
       const list = byTerrain.get(t) ?? [];
       list.push({ id: r.id, weight: r.spawnWeight });
@@ -230,4 +234,134 @@ export function placeEntities(input: EntityPlacementInput): Hex[] {
     placed.push({ q: hex.q, r: hex.r });
   }
   return placed;
+}
+
+export interface MarinePlacementInput {
+  rng: SeededRng;
+  /** Grille CLASSIFIÉE de la carte COMPLÈTE (eau = côte 'eau' | 'ocean'). Les
+   *  marines ne posent que sur la côte — l'océan reste stérile (Erik, 02/09). */
+  terrain: TerrainId[][];
+  /** Ressources déjà posées (terre) — muté : les marines s'y ajoutent. */
+  resources: MapResource[];
+  /** Cases interdites (capitales + anneaux de départ), clés "q,r". */
+  exclude: Set<string>;
+  s: ProgenSettings;
+  mirrorOf: (hex: Hex) => Hex;
+  /** Hauteur de la demi-carte : le tirage aléatoire parcourt les cases de
+   *  côte de la demi et pose des PAIRES (équité par miroir). */
+  halfHeight: number;
+}
+
+/** Ressources AQUATIQUES : tous leurs terrains sont des eaux (côte). */
+export function waterOnlyResourceIds(): string[] {
+  return Object.keys(RESOURCES).filter((id) => {
+    const terrains = RESOURCES[id]!.terrains;
+    return terrains.length > 0 && terrains.every((t) => isWaterTerrain(t));
+  });
+}
+
+/**
+ * Phase 6c — pose des ressources marines APRÈS classification des eaux, sur
+ * la grille COMPLÈTE : garantie de couverture d'abord (par paires site+miroir,
+ * farthest-point), puis tirage aléatoire sur les cases de CÔTE de la
+ * demi-carte (l'océan ne reçoit rien). Chaque pose est doublée de son image
+ * (équité). Déterminisme : ids triés, cases triées, RNG seedé.
+ */
+export function placeMarineResources(input: MarinePlacementInput): void {
+  const marines = waterOnlyResourceIds().filter((id) => (RESOURCES[id]!.spawnWeight ?? 0) > 0);
+  if (marines.length === 0) return;
+  const grid = input.terrain;
+  const height = grid.length;
+  const width = grid[0]?.length ?? 0;
+  const isCoast = (h: Hex): boolean => grid[h.r]?.[h.q + Math.floor(h.r / 2)] === 'eau';
+  const open = (h: Hex): boolean => {
+    const key = `${h.q},${h.r}`;
+    if (input.exclude.has(key)) return false;
+    if (input.resources.some((r) => r.q === h.q && r.r === h.r)) return false;
+    return true;
+  };
+  const placeablePair = (hex: Hex): Hex | null => {
+    const m = input.mirrorOf(hex);
+    if (!isCoast(hex) || !isCoast(m)) return null;
+    if (!open(hex) || !open(m)) return null;
+    if (spacingViolated(hex, input.resources, input.mirrorOf, input.s.minResourceDistance)) return null;
+    if (spacingViolated(m, input.resources, input.mirrorOf, input.s.minResourceDistance)) return null;
+    return m;
+  };
+
+  // 1. Garantie de couverture — même nombre de cases de côte éligibles pour
+  //    toutes les marines → ordre (id) croissant (R-81).
+  for (const id of marines) {
+    let need = 2 * input.s.minPerResourceType - input.resources.filter((r) => r.id === id).length;
+    while (need > 0) {
+      const candidates: Hex[] = [];
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          if (grid[row]![col] !== 'eau') continue;
+          const hex = colRowToHex(col, row);
+          if (placeablePair(hex)) candidates.push(hex);
+        }
+      }
+      if (candidates.length === 0) {
+        throw new ProgenPlacementError(
+          `garantie de couverture impossible : aucune côte éligible pour "${id}"`,
+        );
+      }
+      const hex = candidates.reduce((best, c) => {
+        const slack = (h: Hex): number => {
+          let d = Number.POSITIVE_INFINITY;
+          for (const p of input.resources) d = Math.min(d, hexDistance(h, p));
+          return d;
+        };
+        const sBest = slack(best);
+        const sC = slack(c);
+        return sC > sBest || (sC === sBest && compareHex(c, best) < 0) ? c : best;
+      });
+      const m = placeablePair(hex)!;
+      input.resources.push({ id: id as ResourceId, q: hex.q, r: hex.r });
+      input.resources.push({ id: id as ResourceId, q: m.q, r: m.r });
+      need -= 2;
+    }
+  }
+
+  // 2. Tirage aléatoire sur les cases de côte de la demi-carte (paires).
+  const probability = (1 / WATER_RESOURCE_DENOMINATOR) * input.s.resourceDensity;
+  for (let row = 0; row < input.halfHeight; row++) {
+    for (let col = 0; col < width; col++) {
+      if (grid[row]?.[col] !== 'eau') continue;
+      const hex = colRowToHex(col, row);
+      if (input.rng.next() >= probability) continue;
+      // Pick pondéré par spawnWeight parmi les marines.
+      const pool = marines.map((id) => ({ id, weight: RESOURCES[id]!.spawnWeight ?? 0 }));
+      const total = pool.reduce((acc, c) => acc + c.weight, 0);
+      let roll = input.rng.next() * total;
+      let picked = pool[pool.length - 1]!;
+      for (const c of pool) {
+        if (roll < c.weight) {
+          picked = c;
+          break;
+        }
+        roll -= c.weight;
+      }
+      const m = placeablePair(hex);
+      if (m) {
+        input.resources.push({ id: picked.id as ResourceId, q: hex.q, r: hex.r });
+        input.resources.push({ id: picked.id as ResourceId, q: m.q, r: m.r });
+        continue;
+      }
+      // extraSpawnScale (poisson) : tirage forcé si la paire principale a échoué.
+      for (const id of marines) {
+        const scale = RESOURCES[id]!.extraSpawnScale?.['eau'];
+        if (!scale || scale <= 0) continue;
+        if (input.rng.next() < probability * scale) {
+          const m2 = placeablePair(hex);
+          if (m2) {
+            input.resources.push({ id: id as ResourceId, q: hex.q, r: hex.r });
+            input.resources.push({ id: id as ResourceId, q: m2.q, r: m2.r });
+          }
+          break;
+        }
+      }
+    }
+  }
 }

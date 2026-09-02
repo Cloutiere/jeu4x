@@ -21,12 +21,18 @@ export interface ProgenSettings {
   /** Stratégie injectable de placement des départs ET du contenu. */
   startPlacement: StartPlacementId;
   /** 1 = pangée (rifts courts) ; 2 = deux masses séparées par un rift traversant
-   *  avec isthme central (la connexité terrestre des spawns reste garantie). */
-  continents: 1 | 2;
+   *  avec isthme central (la connexité terrestre des spawns reste garantie) ;
+   *  3 = **archipel** (défaut depuis la Phase 6c — demande d'Erik) : eau
+   *  centrale, petits continents et îlots de 1-5 cases, connexité terrestre
+   *  NON requise (le contact attendra le naval, Phase 7). */
+  continents: 1 | 2 | 3;
   /** Cible de ratio terre/eau 🔶 (0.55 = ~55 % de terre). */
   landRatio: number;
   /** Nombre d'axes de rift (continents=1 : rifts courts ; continents=2 : 1 traversant). */
   rifts: number;
+  /** Échelle du ratio terre en archipel 🔶 (Phase 6c) : « plus axé sur l'eau » —
+   *  le ratio terre effectif = landRatio × cette valeur (0.7 → ~38 % de terre). */
+  archipelagoLandScale: number;
   /** Profondeur des rifts intérieurs 🔶 (Phase 6c, demande d'Erik : pénétration
    *  de l'eau dans les continents pour des séparations naturelles) — abaisse
    *  l'altitude autour de l'axe. Le rift traversant (continents=2) garde sa
@@ -110,8 +116,9 @@ export interface ProgenSettings {
 export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   playerCount: 2,
   startPlacement: 'mirror1v1',
-  continents: 1,
+  continents: 3,
   landRatio: 0.55,
+  archipelagoLandScale: 0.7,
   rifts: 2,
   riftDepth: 48,
   coastWidth: 1,
@@ -159,7 +166,8 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
     ...s,
     playerCount: Math.max(2, Math.min(5, Math.round(s.playerCount))),
     startPlacement: s.startPlacement === 'mirror1v1' ? 'mirror1v1' : 'mirror1v1',
-    continents: s.continents === 2 ? 2 : 1,
+    continents: s.continents === 2 ? 2 : s.continents === 3 ? 3 : 1,
+    archipelagoLandScale: Math.min(1, Math.max(0.4, s.archipelagoLandScale)),
     landRatio: Math.min(0.75, Math.max(0.25, s.landRatio)),
     rifts: Math.min(3, Math.max(0, Math.round(s.rifts))),
     riftDepth: Math.min(80, Math.max(10, Math.round(s.riftDepth))),

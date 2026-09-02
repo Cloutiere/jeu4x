@@ -33,7 +33,7 @@
   let seed = $state(20260902);
   let seedText = $state('20260902');
   let landRatio = $state(DEFAULT_PROGEN_SETTINGS.landRatio);
-  let continents = $state<1 | 2>(DEFAULT_PROGEN_SETTINGS.continents);
+  let continents = $state<1 | 2 | 3>(DEFAULT_PROGEN_SETTINGS.continents);
   let rifts = $state(DEFAULT_PROGEN_SETTINGS.rifts);
   let riftDepth = $state(DEFAULT_PROGEN_SETTINGS.riftDepth);
   let coastWidth = $state(DEFAULT_PROGEN_SETTINGS.coastWidth);
@@ -263,8 +263,9 @@
           <input type="range" min="0.35" max="0.7" step="0.01" bind:value={landRatio} />
         </label>
         <label>
-          Continents
+          Topographie
           <select bind:value={continents}>
+            <option value={3}>Archipel (îles et mers — défaut)</option>
             <option value={1}>Pangée (rifts intérieurs)</option>
             <option value={2}>Deux continents (rift + isthme)</option>
           </select>

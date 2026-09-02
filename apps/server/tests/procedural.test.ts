@@ -29,11 +29,13 @@ test('procedural-40 : création, join, dump admin complet et symétrique', async
   expect(progen).toBeDefined();
   expect(progen!.seed).toBe(dump.meta!.seed);
   expect(progen!.strategy).toBe('mirror1v1');
-  expect(progen!.landRatio).toBeGreaterThan(0.5);
-  expect(progen!.landRatio).toBeLessThan(0.6);
+  // Archipel (défaut 6c) : ratio terre effectif ≈ 55 % × 0.7 ≈ 38.5 %.
+  expect(progen!.landRatio).toBeGreaterThan(0.33);
+  expect(progen!.landRatio).toBeLessThan(0.45);
   expect(progen!.fertility.delta).toBe(0); // équité parfaite par miroir
   expect(progen!.fertility.p1).toBeGreaterThanOrEqual(progen!.fertility.threshold);
-  expect(progen!.connected).toBe(true);
+  // Archipel (défaut 6c) : connexité terrestre non requise (îles) — la
+  // valeur du rapport est informative (peut être true par hasard).
 
   // État moteur : villages 2×3, huttes 2×2, villes c1/c2, 1 Guerrier chacun.
   const state = dump.state!;
@@ -41,16 +43,26 @@ test('procedural-40 : création, join, dump admin complet et symétrique', async
   // Phase 6c : 6 villages + 6 huttes par moitié miroir → 12/12.
   expect(state.villages).toHaveLength(12);
   expect(state.huts).toHaveLength(12);
-  expect(Object.keys(state.cities)).toEqual(['c1', 'c2']);
-  expect(Object.keys(state.units)).toEqual(['u1', 'u2']);
+  // Phase 6c (Erik) : démarrage Colon + Guerrier sans capitale.
+  expect(Object.keys(state.cities)).toEqual([]);
+  // Colon + Guerrier par joueur : u1 colon p1, u2 guerrier p1, u3 colon p2, u4 guerrier p2.
+  expect(Object.keys(state.units)).toEqual(['u1', 'u2', 'u3', 'u4']);
+  // (le type Snapshot du dump ne porte pas `type` — cast local pour l'assertion)
+  const unitTypes = state.units as unknown as Record<string, { type: string; owner: string }>;
+  expect(unitTypes.u1!.type).toBe('colon');
+  expect(unitTypes.u1!.owner).toBe('p1');
+  expect(unitTypes.u3!.type).toBe('colon');
+  expect(unitTypes.u3!.owner).toBe('p2');
 
-  // Symétrie miroir des capitales : p2 = image de p1 (q2 = 20 − q1, r2 = 39 − r1).
-  const cities = state.cities as Record<string, { q: number; r: number }>;
-  expect(cities.c2!.q).toBe(20 - cities.c1!.q);
-  expect(cities.c2!.r).toBe(39 - cities.c1!.r);
-  // Distance entre capitales ≥ 12 (validation parseMap côté moteur).
-  const dq = cities.c2!.q - cities.c1!.q;
-  const dr = cities.c2!.r - cities.c1!.r;
+  // Phase 6c (Erik) : sans capitale, la symétrie se vérifie sur les COLONS
+  // (u1 = site p1, u3 = site p2 — l'un est l'image de l'autre, distance ≥ 12).
+  const units = state.units as unknown as Record<string, { q: number; r: number; type: string }>;
+  const colon1 = units.u1!;
+  const colon2 = units.u3!;
+  expect(colon2.q).toBe(20 - colon1.q);
+  expect(colon2.r).toBe(39 - colon1.r);
+  const dq = colon2.q - colon1.q;
+  const dr = colon2.r - colon1.r;
   expect((Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2).toBeGreaterThanOrEqual(12);
 });
 
