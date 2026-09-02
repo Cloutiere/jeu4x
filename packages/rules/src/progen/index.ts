@@ -22,7 +22,7 @@ import { inRectangle, neighbors, tileKeyOf } from '../hex.js';
 import type { Hex } from '../hex.js';
 import { parseMap } from '../map.js';
 import type { LoadedMap, MapData, MapPlayerSpawn } from '../map.js';
-import { TERRAINS } from '../data.js';
+import { TERRAINS, isWaterTerrain } from '../data.js';
 import type { TerrainId } from '../types.js';
 import { createRng } from '../rng.js';
 import { resolveProgenSettings } from './settings.js';
@@ -54,6 +54,9 @@ export interface ProgenReport {
   /** Ratio terre réalisé (cases de terre / cases totales). */
   landTiles: number;
   landRatio: number;
+  /** Phase 6c : répartition des eaux classifiées (côte vs océan profond). */
+  coastTiles: number;
+  oceanTiles: number;
   counts: { resources: number; villages: number; huts: number };
   /** Checksum d'équité : fertilité des 2 spawns sur la carte complète. */
   fertility: {
@@ -82,6 +85,7 @@ export const PROGEN_LEGEND: Record<string, TerrainId> = {
   m: 'montagne',
   d: 'desert',
   '~': 'eau',
+  O: 'ocean',
 };
 
 const CHAR_BY_TERRAIN: Record<TerrainId, string> = {
@@ -92,6 +96,7 @@ const CHAR_BY_TERRAIN: Record<TerrainId, string> = {
   montagne: 'm',
   desert: 'd',
   eau: '~',
+  ocean: 'O',
   ville: '.', // jamais généré (posé par createInitialState sur la capitale)
 };
 
@@ -203,7 +208,16 @@ export function generateProceduralMap(
       if (!connected) throw new ProgenPlacementError('pas de connexion terrestre entre les deux spawns');
 
       let landTiles = 0;
-      for (const t of Object.values(map.terrain)) if (t !== 'eau') landTiles += 1;
+      let coastTiles = 0;
+      let oceanTiles = 0;
+      for (const t of Object.values(map.terrain)) {
+        if (isWaterTerrain(t as TerrainId)) {
+          if (t === 'ocean') oceanTiles += 1;
+          else coastTiles += 1;
+        } else {
+          landTiles += 1;
+        }
+      }
       const totalTiles = data.width * data.height;
 
       const lookup: TerrainLookup = {
@@ -227,6 +241,8 @@ export function generateProceduralMap(
         attempts: attempt,
         landTiles,
         landRatio: landTiles / totalTiles,
+        coastTiles,
+        oceanTiles,
         counts: { resources: map.resources.length, villages: map.villages.length, huts: map.huts.length },
         fertility: {
           p1,
@@ -282,7 +298,10 @@ export type { StartPlacementStrategy, PlacementOutput, PlacementReport } from '.
 export { MIRROR_1V1, START_PLACEMENT_STRATEGIES, attemptSeed } from './mirror.js';
 export { fertilityScore, tileFertility, ringCells } from './fertility.js';
 export type { TerrainLookup } from './fertility.js';
-export { generateTerrain } from './geo.js';
+export { generateTerrain, classifyWaters } from './geo.js';
 export type { PhysicalMap } from './geo.js';
 export { placeResources, placeEntities } from './content.js';
+export { isWaterTerrain } from '../data.js';
+export { countResourcesByTerrain } from './counting.js';
+export type { ResourceTerrainCounts } from './counting.js';
 export { deriveSeed } from './noise.js';

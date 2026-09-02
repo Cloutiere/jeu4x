@@ -29,7 +29,14 @@ export type TerrainId =
   | 'montagne'
   | 'desert'
   | 'eau'
+  | 'ocean'
   | 'ville';
+
+/** Hook naval (Phase 6c, mécanique active en Phase 7) : classe d'eau du
+ *  terrain. L'unité navale portera le même champ (Galère = "coast", Galion =
+ *  "ocean") et entrera dans une case d'eau si terrain.navalAccess === "coast"
+ *  OU unité.navalAccess === "ocean" — décision d'Erik du 02/09. */
+export type NavalAccess = 'coast' | 'ocean';
 
 /** Rendements d'une case (RULES.md §2 révision 30/08). C = commerce : matière
  *  première répartie entre or et science par le curseur global (R-61). */
@@ -47,6 +54,9 @@ export interface TerrainData {
   passable: boolean;
   /** Rendements de base (RULES.md §2). Absent = aucune récolte. */
   yields?: Yields;
+  /** Hook naval : présent UNIQUEMENT sur les terrains d'eau (Mer = coast,
+   *  Océan = ocean) — sert aussi de prédicat « est de l'eau » (data-driven). */
+  navalAccess?: NavalAccess;
 }
 
 /** R-66 · Bâtiment d'amélioration des terrains (data-driven : buildings.json). */

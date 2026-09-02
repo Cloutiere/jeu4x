@@ -14,10 +14,13 @@ import {
   DEFAULT_PROGEN_SETTINGS,
   MIRROR_1V1,
   PROCEDURAL_MAP_ID,
+  classifyWaters,
+  countResourcesByTerrain,
   generateProceduralMap,
   generateMap,
   generateTerrain,
   landConnected,
+  placeResources,
   resolveProgenSettings,
 } from '../src/progen/index.js';
 import { ProgenPlacementError, attemptSeed, halfMapLookup, normalizeStartSite } from '../src/progen/mirror.js';
@@ -27,7 +30,7 @@ import type { MapData, MapResource, LoadedMap } from '../src/map.js';
 import { hexDistance, tileKeyOf, colRowToHex } from '../src/hex.js';
 import type { Hex } from '../src/hex.js';
 import { createRng } from '../src/rng.js';
-import { RESOURCES, TERRAINS } from '../src/data.js';
+import { RESOURCES, TERRAINS, isWaterTerrain } from '../src/data.js';
 import type { TerrainId } from '../src/types.js';
 
 const W = 40;
@@ -285,5 +288,148 @@ describe('Phase 6b · Stratégie injectable (ajout d\'Erik — pérennité multi
       }
       expect(landInRift).toBeGreaterThan(0);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 6c — côte vs océan (décisions d'Erik du 02/09 : navalAccess coast/ocean,
+// rendements 0/0/2 identiques, marines sur les deux eaux, coastWidth 🔶 1)
+// ---------------------------------------------------------------------------
+
+/** Distance hex minimale d'une case (col, row) à une case de terre de la grille. */
+function minLandDistance(grid: TerrainId[][], col: number, row: number): number {
+  const here = colRowToHex(col, row);
+  let best = Number.POSITIVE_INFINITY;
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < grid[r]!.length; c++) {
+      if (isWaterTerrain(grid[r]![c]!)) continue;
+      best = Math.min(best, hexDistance(here, colRowToHex(c, r)));
+    }
+  }
+  return best;
+}
+
+function grille5x5(): TerrainId[][] {
+  const grid: TerrainId[][] = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => 'eau' as TerrainId));
+  grid[2]![2] = 'prairie';
+  return grid;
+}
+
+describe('Phase 6c · Classification des eaux (côte vs océan, R-107)', () => {
+  it('classifyWaters : eau adjacente à de la terre = côte (`eau`), le reste = océan — la terre est inchangée', () => {
+    const grid = grille5x5();
+    const out = classifyWaters(grid, 1);
+    expect(out[2]![2]).toBe('prairie'); // la terre ne change jamais de terrain
+    let coast = 0;
+    let ocean = 0;
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        const t = out[r]![c]!;
+        if (!isWaterTerrain(t)) continue;
+        // Propriété centrale : côte ⟺ distance hex à la terre ≤ coastWidth.
+        expect(t, `case (${c},${r})`).toBe(minLandDistance(grid, c, r) <= 1 ? 'eau' : 'ocean');
+        if (t === 'eau') coast += 1;
+        else ocean += 1;
+      }
+    }
+    // L'anneau 1 du centre compte exactement 6 cases (toutes dans la grille).
+    expect(coast).toBe(6);
+    expect(ocean).toBe(25 - 1 - 6);
+  });
+
+  it('classifyWaters : coastWidth élargit la bande côtière (distance ≤ 2)', () => {
+    const grid = grille5x5();
+    const out = classifyWaters(grid, 2);
+    let ocean = 0;
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        const t = out[r]![c]!;
+        if (!isWaterTerrain(t)) continue;
+        expect(t, `case (${c},${r})`).toBe(minLandDistance(grid, c, r) <= 2 ? 'eau' : 'ocean');
+        if (t === 'ocean') ocean += 1;
+      }
+    }
+    // Les coins de la grille restent à distance ≥ 3 de la terre.
+    expect(ocean).toBeGreaterThan(0);
+  });
+
+  it("classifyWaters : pur (ne mute pas l'entrée), idempotent, re-classifie une grille déjà océanisée", () => {
+    const grid = grille5x5();
+    const snapshot = JSON.stringify(grid);
+    const once = classifyWaters(grid, 1);
+    expect(JSON.stringify(grid)).toBe(snapshot);
+    const twice = classifyWaters(once.map((l) => [...l]), 1);
+    expect(twice).toEqual(once);
+  });
+});
+
+describe('Phase 6c · Génération — côte et océan sur les cartes (R-107)', () => {
+  it('la carte générée contient côte ET océan, chaque case conforme à sa distance à la terre', () => {
+    for (const seed of [42, 20260902]) {
+      const { map, report } = generateProceduralMap(seed);
+      const ids = new Set(Object.values(map.terrain));
+      expect(ids.has('eau'), `seed ${seed} : de la côte`).toBe(true);
+      expect(ids.has('ocean'), `seed ${seed} : de l'océan`).toBe(true);
+      const grid: TerrainId[][] = map.data.rows.map((row) => [...row].map((ch) => map.data.legend[ch]! as TerrainId));
+      for (let r = 0; r < grid.length; r++) {
+        for (let c = 0; c < grid[r]!.length; c++) {
+          const t = grid[r]![c]!;
+          if (!isWaterTerrain(t)) continue;
+          expect(t, `seed ${seed} case (${c},${r})`).toBe(minLandDistance(grid, c, r) <= 1 ? 'eau' : 'ocean');
+        }
+      }
+      // Rapport : la répartition côte/océan couvre toute l'eau.
+      expect(report.coastTiles + report.oceanTiles + report.landTiles).toBe(1600);
+      expect(report.coastTiles).toBeGreaterThan(0);
+      expect(report.oceanTiles).toBeGreaterThan(0);
+    }
+  });
+
+  it('coastWidth = 2 élargit la côte (curseur du labo #/progen)', () => {
+    const w1 = generateProceduralMap(42, { coastWidth: 1 });
+    const w2 = generateProceduralMap(42, { coastWidth: 2 });
+    expect(w2.report.coastTiles).toBeGreaterThan(w1.report.coastTiles);
+    expect(w2.report.oceanTiles).toBeLessThan(w1.report.oceanTiles);
+  });
+
+  it("R-105 : les ressources posées sur l'océan sont exclusivement marines (baleine/poisson/teinture)", () => {
+    const grid: TerrainId[][] = Array.from({ length: 20 }, () => Array.from({ length: 20 }, () => 'ocean' as TerrainId));
+    const out = placeResources(createRng(7), grid, resolveProgenSettings({ resourceDensity: 4 }));
+    expect(out.resources.length).toBeGreaterThan(0);
+    for (const r of out.resources) {
+      expect(['baleine', 'poisson', 'teinture'], `id ${r.id} sur océan`).toContain(r.id);
+    }
+    expect(out.waterTiles).toBe(400);
+  });
+});
+
+describe("Phase 6c · Comptage ressources × terrain (outil de labo d'Erik)", () => {
+  it('countResourcesByTerrain : toutes les ressources connues figurent (zéros inclus), triées, décomptées par terrain', () => {
+    const map: LoadedMap = {
+      data: { id: 't', name: 'Test', width: 2, height: 1, legend: {}, rows: [], players: [] } as unknown as MapData,
+      terrain: { '0,0': 'prairie', '1,0': 'ocean' },
+      spawns: [],
+      resources: [
+        { id: 'betail', q: 0, r: 0 },
+        { id: 'poisson', q: 1, r: 0 },
+        { id: 'poisson', q: 0, r: 1 }, // hors grille (terrain absent) : ignoré
+      ],
+      villages: [],
+      huts: [],
+    };
+    const counts = countResourcesByTerrain(map);
+    expect(counts.byId.map((r) => r.id)).toEqual(Object.keys(RESOURCES).sort());
+    expect(counts.byId.find((r) => r.id === 'betail')!.byTerrain).toEqual({ prairie: 1 });
+    expect(counts.byId.find((r) => r.id === 'poisson')!.byTerrain).toEqual({ ocean: 1 });
+    // Une ressource ABSENTE de la carte doit se voir : ligne à zéro.
+    expect(counts.byId.find((r) => r.id === 'ble')!.total).toBe(0);
+    expect(counts.byId.find((r) => r.id === 'ble')!.byTerrain).toEqual({});
+    expect(counts.total).toBe(2);
+    expect(counts.byTerrain).toEqual({ ocean: 1, prairie: 1 });
+  });
+
+  it('cohérence avec une carte générée : total compté = resources du rapport', () => {
+    const { map, report } = generateProceduralMap(42);
+    expect(countResourcesByTerrain(map).total).toBe(report.counts.resources);
   });
 });

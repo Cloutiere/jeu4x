@@ -46,6 +46,15 @@
     "name": "Mer",
     "defenseBonus": 0,
     "passable": false,
+    "navalAccess": "coast",
+    "yields": { "food": 0, "production": 0, "commerce": 2 }
+  },
+  "ocean": {
+    "id": "ocean",
+    "name": "Océan",
+    "defenseBonus": 0,
+    "passable": false,
+    "navalAccess": "ocean",
     "yields": { "food": 0, "production": 0, "commerce": 2 }
   },
   "ville": {

@@ -42,6 +42,13 @@ export function terrain(id: TerrainId): TerrainData {
   return t;
 }
 
+/** Phase 6c : les terrains d'eau sont EXACTEMENT ceux qui portent le hook
+ *  naval (`navalAccess` — Mer = côte, Océan = large). Prédicat data-driven :
+ *  ajouter une eau demain = une entrée terrain.json, pas de code. */
+export function isWaterTerrain(id: TerrainId): boolean {
+  return TERRAINS[id]?.navalAccess !== undefined;
+}
+
 /** R-66 : bâtiment par id (Grenier, Atelier, Mine de fer, Comptoir, Port, Tribunal). */
 export function building(id: string): BuildingData {
   const b = BUILDINGS[id];

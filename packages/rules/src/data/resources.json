@@ -35,7 +35,7 @@
   "baleine": {
     "id": "baleine",
     "name": "Baleine",
-    "terrains": ["eau"],
+    "terrains": ["eau", "ocean"],
     "yields": { "food": 4, "production": 0, "commerce": 0 },
     "revealedByTech": "navigation",
     "officialTech": "Navigation",
@@ -178,7 +178,7 @@
   "poisson": {
     "id": "poisson",
     "name": "Poisson",
-    "terrains": ["eau"],
+    "terrains": ["eau", "ocean"],
     "yields": { "food": 2, "production": 0, "commerce": 0 },
     "revealedByTech": "travail_du_bronze",
     "officialTech": "Bronze Working",
@@ -211,7 +211,7 @@
   "teinture": {
     "id": "teinture",
     "name": "Teinture",
-    "terrains": ["eau"],
+    "terrains": ["eau", "ocean"],
     "yields": { "food": 0, "production": 0, "commerce": 3 },
     "revealedByTech": null,
     "officialTech": "Monarchy",

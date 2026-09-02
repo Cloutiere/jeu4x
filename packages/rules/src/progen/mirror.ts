@@ -34,6 +34,7 @@ import type { ResourceId, TerrainId } from '../types.js';
 import { TERRAINS } from '../data.js';
 import type { SeededRng } from '../rng.js';
 import type { PhysicalMap } from './geo.js';
+import { classifyWaters } from './geo.js';
 import { fertilityScore, ringCells } from './fertility.js';
 import type { TerrainLookup } from './fertility.js';
 import { placeResources, placeEntities } from './content.js';
@@ -281,6 +282,11 @@ export const MIRROR_1V1: StartPlacementStrategy = {
       }
       fullTerrain.push(line);
     }
+    // 4bis. Phase 6c : classification des eaux sur la CARTE COMPLÈTE —
+    // côte (eau adjacente à de la terre, à ≤ coastWidth cases) vs océan
+    // profond. Le calcul sur la demi-carte serait faux le long de son bord
+    // ouvert (axe de miroir) : on reflète d'abord, on classifie ensuite.
+    const classified = classifyWaters(fullTerrain, settings.coastWidth);
     const mirror = mirroredHex(site.hex, full.width);
     const allResources: MapResource[] = [...resources];
     for (const r of resources) {
@@ -325,10 +331,10 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     huts.push(...hutsHalf.map((h) => mirroredHex(h, full.width)));
 
     // 6. Checksum d'équité : les DEUX fertilités sont mesurées sur la carte
-    //    complète (miroir) — l'image doit scorer exactement pareil (les
-    //    sommes flottantes ne diffèrent que par l'ordre d'addition : on
-    //    annule les différences < 1e-9, invisibles au gameplay).
-    const fullLookup = halfMapLookup(fullTerrain, finalResources, full.width);
+    //    complète (miroir + eaux classifiées) — l'image doit scorer exactement
+    //    pareil (les sommes flottantes ne diffèrent que par l'ordre
+    //    d'addition : on annule les différences < 1e-9, invisibles au gameplay).
+    const fullLookup = halfMapLookup(classified, finalResources, full.width);
     const p1 = fertilityScore(fullLookup, site.hex, settings);
     const p2 = fertilityScore(fullLookup, mirror, settings);
     const rawDelta = Math.abs(p1 - p2);
@@ -344,7 +350,7 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     };
 
     return {
-      terrain: fullTerrain,
+      terrain: classified,
       resources: finalResources,
       villages,
       huts,

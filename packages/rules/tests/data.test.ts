@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import units from '../src/data/units.json' with { type: 'json' };
 import terrains from '../src/data/terrain.json' with { type: 'json' };
 import buildings from '../src/data/buildings.json' with { type: 'json' };
-import type { BuildingData, TerrainData, UnitTypeData } from '../src/types.js';
+import resources from '../src/data/resources.json' with { type: 'json' };
+import { isWaterTerrain } from '../src/data.js';
+import type { BuildingData, ResourceData, TerrainData, TerrainId, UnitTypeData } from '../src/types.js';
 
 const unitTable = units as Record<string, UnitTypeData>;
 const terrainTable = terrains as Record<string, TerrainData>;
 const buildingTable = buildings as Record<string, BuildingData>;
+const resourceTable = resources as Record<string, ResourceData>;
 
 describe('Données v1 (RULES.md §2-3)', () => {
   it('contient le roster Phase 7a (base Guerrier/Colon + Archer, Cavalier, Légion ; Espion/Galère données seules)', () => {
@@ -111,5 +114,54 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
     expect(buildingTable['port']!.tileBonus).toEqual({ terrain: 'eau', food: 1, production: 0, commerce: 0 });
     expect(buildingTable['tribunal']!.tileBonus).toBeNull();
     expect(buildingTable['tribunal']!.workRadiusBonus).toBe(1);
+  });
+});
+
+describe('Données Phase 6c — côte vs océan (décisions d\'Erik du 02/09)', () => {
+  it('ocean : nouveau terrain infranchissable, rendements 0/0/2 (identiques à la côte), navalAccess "ocean"', () => {
+    expect(terrainTable['ocean']).toMatchObject({
+      id: 'ocean',
+      name: 'Océan',
+      defenseBonus: 0,
+      passable: false,
+      navalAccess: 'ocean',
+      yields: { food: 0, production: 0, commerce: 2 },
+    });
+  });
+
+  it('eau = mer côtière : rendements 0/0/2 inchangés, navalAccess "coast" (hook naval Phase 7)', () => {
+    expect(terrainTable['eau']).toMatchObject({
+      id: 'eau',
+      name: 'Mer',
+      passable: false,
+      navalAccess: 'coast',
+      yields: { food: 0, production: 0, commerce: 2 },
+    });
+  });
+
+  it('isWaterTerrain : exactement les terrains portant navalAccess (aucun terrain terrestre inclus)', () => {
+    for (const [id, t] of Object.entries(terrainTable)) {
+      expect(isWaterTerrain(id as TerrainId), `terrain ${id}`).toBe(t.navalAccess !== undefined);
+    }
+    expect(isWaterTerrain('eau')).toBe(true);
+    expect(isWaterTerrain('ocean')).toBe(true);
+    expect(isWaterTerrain('prairie')).toBe(false);
+    expect(isWaterTerrain('montagne')).toBe(false);
+    expect(isWaterTerrain('ville')).toBe(false);
+  });
+
+  it('R-94 étendu : les 3 ressources marines spawneront aussi sur l\'océan, aucune ressource terrestre ne le permet', () => {
+    const marines = ['baleine', 'poisson', 'teinture'];
+    for (const id of marines) {
+      expect(resourceTable[id]!.terrains, `ressource ${id}`).toEqual(['eau', 'ocean']);
+    }
+    for (const r of Object.values(resourceTable)) {
+      if (marines.includes(r.id)) continue;
+      expect(r.terrains, `ressource ${r.id} reste terrestre`).not.toContain('ocean');
+    }
+  });
+
+  it('le Port garde son bonus sur la côte uniquement (recalibrage attendu avec le naval, Phase 7)', () => {
+    expect(buildingTable['port']!.tileBonus).toEqual({ terrain: 'eau', food: 1, production: 0, commerce: 0 });
   });
 });

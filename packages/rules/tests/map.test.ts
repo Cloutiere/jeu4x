@@ -7,8 +7,9 @@ import {
 } from '../src/map.js';
 import type { MapData } from '../src/map.js';
 import { CURRENT_SCHEMA_VERSION } from '../src/state.js';
-import { hexDistance, tileKeyOf } from '../src/hex.js';
-import { RESOURCES, TERRAINS } from '../src/data.js';
+import { hexDistance, tileKeyOf, colRowToHex } from '../src/hex.js';
+import { RESOURCES, TERRAINS, isWaterTerrain } from '../src/data.js';
+import type { TerrainId } from '../src/types.js';
 
 /** Petite carte valide 14×3 de prairie, capitales à distance 13 ≥ 12.
  *  Démarrage conforme (décision d'Erik du 01/09) : 1 Guerrier adjacent. */
@@ -125,28 +126,35 @@ describe('L3 · Cartes 40×40 commises', () => {
     }
   });
 
-  it('pangée : eau infranchissable en bordure uniquement (T-11), continents intérieurs praticables', async () => {
+  it('pangée : eau infranchissable en bordure uniquement (T-11 — côte et océan, Phase 6c), continents intérieurs praticables', async () => {
     const loaded = await loadBuiltinMap('pangee-40');
     expect(Object.keys(loaded.terrain)).toHaveLength(1600);
-    const rows = loaded.data.rows;
+    const waterAtBorder = { eau: 0, ocean: 0 } as Record<string, number>;
     for (let r = 0; r < 40; r++) {
-      expect(rows[r]![0]).toBe('w'); // bordure ouest
-      expect(rows[r]![39]).toBe('w'); // bordure est
+      for (const c of [0, 39]) {
+        const t = loaded.terrain[tileKeyOf(colRowToHex(c, r))]! as TerrainId;
+        expect(TERRAINS[t]!.passable, `bordure (${c},${r}) infranchissable`).toBe(false);
+        expect(isWaterTerrain(t), `bordure (${c},${r}) est de l'eau`).toBe(true);
+        waterAtBorder[t] = (waterAtBorder[t] ?? 0) + 1;
+      }
     }
+    // Les deux eaux existent sur la bordure (côte le long des terres, océan au large).
+    expect(waterAtBorder['eau']).toBeGreaterThan(0);
+    expect(waterAtBorder['ocean']).toBeGreaterThan(0);
     // le centre de la carte est de la terre ferme
     for (let r = 15; r < 25; r++) {
       for (let c = 15; c < 25; c++) {
-        expect(rows[r]![c]).not.toBe('w');
+        expect(isWaterTerrain(loaded.terrain[tileKeyOf(colRowToHex(c, r))]! as TerrainId), `centre (${c},${r})`).toBe(false);
       }
     }
   });
 
-  it('variée : 1600 cases, les 7 terrains en quantités significatives', async () => {
+  it('variée : 1600 cases, les 8 terrains en quantités significatives (Phase 6c : côte + océan)', async () => {
     const loaded = await loadBuiltinMap('variee-40');
     expect(Object.keys(loaded.terrain)).toHaveLength(1600);
     const counts: Record<string, number> = {};
     for (const t of Object.values(loaded.terrain)) counts[t] = (counts[t] ?? 0) + 1;
-    for (const t of ['prairie', 'plaine', 'foret', 'colline', 'montagne', 'desert', 'eau']) {
+    for (const t of ['prairie', 'plaine', 'foret', 'colline', 'montagne', 'desert', 'eau', 'ocean']) {
       expect(counts[t], `terrain ${t} présent en quantité significative`).toBeGreaterThanOrEqual(50);
     }
   });

@@ -27,6 +27,10 @@ export interface ProgenSettings {
   landRatio: number;
   /** Nombre d'axes de rift (continents=1 : rifts courts ; continents=2 : 1 traversant). */
   rifts: number;
+  /** Largeur des eaux côtières 🔶 (Phase 6c, décision d'Erik) : une case d'eau
+   *  à ≤ coastWidth cases (hex) d'une terre est de la CÔTE (`eau`), le reste
+   *  est de l'OCÉAN profond (`ocean`). 1 = bande côtière minimale (adjacence). */
+  coastWidth: number;
   /** Densités des reliefs et du climat, toutes dans [0, 1] 🔶. */
   mountainDensity: number;
   hillDensity: number;
@@ -72,6 +76,7 @@ export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   continents: 1,
   landRatio: 0.55,
   rifts: 1,
+  coastWidth: 1,
   mountainDensity: 0.5,
   hillDensity: 0.5,
   forestDensity: 0.5,
@@ -109,6 +114,7 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
     continents: s.continents === 2 ? 2 : 1,
     landRatio: Math.min(0.75, Math.max(0.25, s.landRatio)),
     rifts: Math.min(3, Math.max(0, Math.round(s.rifts))),
+    coastWidth: Math.min(3, Math.max(1, Math.round(s.coastWidth))),
     mountainDensity: clamp01(s.mountainDensity),
     hillDensity: clamp01(s.hillDensity),
     forestDensity: clamp01(s.forestDensity),

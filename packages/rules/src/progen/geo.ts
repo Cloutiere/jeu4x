@@ -26,6 +26,8 @@
 import type { TerrainId } from '../types.js';
 import type { SeededRng } from '../rng.js';
 import { createNoise2d } from './noise.js';
+import { isWaterTerrain } from '../data.js';
+import { colRowToHex, neighbors } from '../hex.js';
 import type { ProgenSettings } from './settings.js';
 
 /** Résultat de la couche géophysique : terrains + champs de debug (altitude,
@@ -234,4 +236,56 @@ export function generateTerrain(
   }
 
   return { width, height, terrain, altitude, humidity };
+}
+
+/**
+ * Phase 6c — Classification des eaux (pattern officiel du PDF : « océan
+ * profond / eaux côtières au seuillage de l'altitude »). Une case d'eau à
+ * ≤ `coastWidth` cases (distance hex) d'une terre est de la CÔTE (`eau`),
+ * le reste est de l'OCÉAN profond (`ocean`).
+ *
+ * À appeler sur la grille FINALE : la rotation 180° du miroir préserve
+ * l'adjacence, mais le bord ouvert de la demi-carte (axe de découpage) rend
+ * le calcul sur demi-carte faux pour ses cases de bord — la stratégie
+ * reflète d'abord, classifie ensuite.
+ *
+ * Pur : renvoie une NOUVELLE grille, ne mute pas l'entrée. Idempotente :
+ * les grilles contenant déjà de l'`ocean` sont re-classifiées correctement.
+ */
+export function classifyWaters(terrain: TerrainId[][], coastWidth: number): TerrainId[][] {
+  const height = terrain.length;
+  const width = terrain[0]?.length ?? 0;
+  // Distance (BFS multi-source) de chaque case d'eau à la terre la plus proche.
+  const dist: number[][] = [];
+  const queue: Array<{ col: number; row: number }> = [];
+  for (let row = 0; row < height; row++) {
+    dist.push(new Array<number>(width).fill(Number.POSITIVE_INFINITY));
+    for (let col = 0; col < width; col++) {
+      if (!isWaterTerrain(terrain[row]![col]!)) {
+        dist[row]![col] = 0;
+        queue.push({ col, row });
+      }
+    }
+  }
+  let head = 0;
+  while (head < queue.length) {
+    const { col, row } = queue[head++]!;
+    const d = dist[row]![col]!;
+    if (d >= coastWidth) continue; // au-delà, les voisins dépasseraient coastWidth
+    for (const n of neighbors(colRowToHex(col, row))) {
+      const nCol = n.q + Math.floor(n.r / 2);
+      const nRow = n.r;
+      if (nRow < 0 || nRow >= height || nCol < 0 || nCol >= width) continue;
+      if (dist[nRow]![nCol]! > d + 1) {
+        dist[nRow]![nCol] = d + 1;
+        queue.push({ col: nCol, row: nRow });
+      }
+    }
+  }
+  return terrain.map((line, row) =>
+    line.map((t, col) => {
+      if (!isWaterTerrain(t)) return t;
+      return dist[row]![col]! <= coastWidth ? 'eau' : 'ocean';
+    }),
+  );
 }

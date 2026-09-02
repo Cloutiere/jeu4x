@@ -13,7 +13,7 @@
  *
  * Tout est déterministe : parcours triés (row, col), RNG seedé unique.
  */
-import { RESOURCES, TERRAINS } from '../data.js';
+import { RESOURCES, TERRAINS, isWaterTerrain } from '../data.js';
 import { colRowToHex, hexDistance, neighbors, compareHex } from '../hex.js';
 import type { Hex } from '../hex.js';
 import type { MapResource } from '../map.js';
@@ -67,7 +67,7 @@ export function placeResources(
   for (let row = 0; row < height; row++) {
     for (let col = 0; col < width; col++) {
       const t = terrain[row]![col]!;
-      const isWater = t === 'eau';
+      const isWater = isWaterTerrain(t); // Mer (côte) ET Océan — même densité 🔶
       if (isWater) waterTiles += 1;
       else landTiles += 1;
       const candidates = byTerrain.get(t);
