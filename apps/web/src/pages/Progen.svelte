@@ -327,7 +327,11 @@
   h2 { font-size: 1rem; margin: 0 0 0.5rem; }
   label { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.5rem; font-size: 0.85rem; }
   label.check { flex-direction: row; align-items: center; }
-  .canvas-host { flex: 1; height: 78vh; min-height: 26rem; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
+  /* position: relative OBLIGATOIRE : le host interne de GameCanvas est
+     positionné `absolute; inset: 0` (il remplit son parent positionné —
+     dans la page de jeu ce parent est plein écran). Sans ancre, le canvas
+     remontait au viewport entier et recouvrait le panneau de calibration. */
+  .canvas-host { position: relative; flex: 1; height: 78vh; min-height: 26rem; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
   table { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
   td { padding: 0.15rem 0.3rem; }
   td:first-child { color: #555; }
