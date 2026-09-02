@@ -115,6 +115,10 @@ export interface AdminDump {
     rngSeed: number;
     winner: string | null;
     lastEventSeq: number;
+    schemaVersion?: number;
+    mapId?: string | null;
+    villages?: Array<{ id: string; q: number; r: number; hp: number; spawnCountdown: number; spawnedUnits: string[] }>;
+    huts?: Array<{ id: string; q: number; r: number }>;
     players: Record<string, { missedTurns: number }>;
     units: Record<string, { id: string; q: number; r: number; owner: string; hp: number }>;
     cities: Record<string, unknown>;
@@ -123,6 +127,11 @@ export interface AdminDump {
   locked: Record<string, boolean>;
   resolving: unknown;
   lastEvents: Array<{ seq: number; type: string }>;
+  /** Phase 7d : résumé barbares (villages/huttes/compteurs). */
+  barbares?: {
+    villages: Array<{ id: string; q: number; r: number; hp: number; spawnCountdown: number; unitésVivantes: number }>;
+    huts: Array<{ id: string; q: number; r: number }>;
+  } | null;
 }
 
 /** Dump NON filtré d'une partie (endpoint admin, protégé par ADMIN_TOKEN). */

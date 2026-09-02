@@ -1,8 +1,27 @@
 /**
  * Libellés français des événements (L4/L5) — réutilisés par le journal,
- * les toasts du playback et le mode debug.
+ * les toasts du playback et le mode debug. Phase 7d : libellés barbares
+ * (R-95..R-98) avec le nom de la récompense de hutte.
  */
-import type { GameEvent } from '@game/shared';
+import type { GameEvent, HutReward } from '@game/shared';
+
+/** R-98 : libellé d'une récompense de hutte. */
+export function hutRewardLabel(reward: HutReward): string {
+  switch (reward.kind) {
+    case 'gold':
+      return `+${reward.amount} or`;
+    case 'unit':
+      return `unité gratuite (${reward.unitType})`;
+    case 'science':
+      return `+${reward.amount} science`;
+    case 'reveal':
+      return `carte révélée (rayon ${reward.radius})`;
+    case 'ambush':
+      return `EMBUSCADE — ${reward.unitIds.length} barbare(s) !`;
+    case 'nothing':
+      return 'rien';
+  }
+}
 
 export function eventLabel(event: GameEvent): string {
   switch (event.type) {
@@ -38,6 +57,14 @@ export function eventLabel(event: GameEvent): string {
       return `Incident diplomatique entre ${event.between[0]} et ${event.between[1]}`;
     case 'Victory':
       return `VICTOIRE de ${event.winner} (${event.reason})`;
+    case 'BarbarianSpawned':
+      return `Un barbare (${event.unitId}) sort du village ${event.villageId} en (${event.at.q},${event.at.r})`;
+    case 'VillageDestroyed':
+      return `Village barbare ${event.villageId} détruit par ${event.byPlayer} !`;
+    case 'CityRazed':
+      return `Ville ${event.cityId} RASÉE par les barbares (${event.owner} la perd)`;
+    case 'HutOpened':
+      return `Hutte ${event.hutId} ouverte par ${event.byPlayer} : ${hutRewardLabel(event.reward)}`;
     case 'TurnResolved':
       return `— Fin du tour ${event.turn - 1}, tour ${event.turn} —`;
     default:

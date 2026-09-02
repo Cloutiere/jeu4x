@@ -649,11 +649,127 @@ def unite_legion(db, da, w, h):
     db.rrect(scut, 10, fill=GRIS_ARMURE, outline=INK, width=3)
     db.rrect((cx - 76, ground - 130, cx - 28, ground - 52), 8, outline=OR, width=3)
     db.ellipse((cx - 58, ground - 104, cx - 46, ground - 92), fill=OR)
-    da.rrect(scut, 10, fill="#FFFFFF")
-    da.ellipse((cx - 58, ground - 104, cx - 46, ground - 92), fill="#E0E0E0")
+# ------------------------------------------------- barbares (Phase 7d, R-95)
+# Accent dédié côté rendu : gris-brun (ni rouge ni bleu) — les calques accent
+# restent blancs conformément à la SPEC-ART (teinte appliquée au rendu).
+
+
+def unite_barbare_guerrier(db, da, w, h):
+    """256×320 : guerrier barbare — tunique de peaux, casque à cornes, massue
+    cloutée ; bande d'épaules + ceinture d'os = accent."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 52)
+    # jambes trapues
+    db.rrect((cx - 26, ground - 58, cx - 6, ground), 8, fill="#4E4438")
+    db.rrect((cx + 6, ground - 58, cx + 26, ground), 8, fill="#4E4438")
+    db.rrect((cx - 30, ground - 8, cx - 2, ground + 2), 4, fill="#3E342A")
+    db.rrect((cx + 2, ground - 8, cx + 30, ground + 2), 4, fill="#3E342A")
+    # tunique de peaux (brun fauve) — plus rugueuse que le guerrier régulier
+    db.poly([(cx - 36, ground - 132), (cx + 36, ground - 132), (cx + 42, ground - 54),
+             (cx - 42, ground - 54)], fill="#7A5C3A")
+    db.poly([(cx - 36, ground - 132), (cx - 8, ground - 132), (cx - 20, ground - 54),
+             (cx - 42, ground - 54)], fill="#8A6F4A")
+    # ceinture d'os = accent
+    db.rrect((cx - 38, ground - 82, cx + 38, ground - 72), 3, fill="#5E4630")
+    da.rrect((cx - 34, ground - 80, cx + 34, ground - 74), 2, fill="#FFFFFF")
+    # tête + casque à cornes
+    db.ellipse((cx - 18, ground - 172, cx + 18, ground - 136), fill="#B99B7E")
+    db.pieslice((cx - 20, ground - 178, cx + 20, ground - 142), 180, 360, fill="#6E655C")
+    db.line([(cx - 22, ground - 164), (cx - 38, ground - 178)], fill="#C8B08A", width=7)
+    db.line([(cx + 22, ground - 164), (cx + 38, ground - 178)], fill="#C8B08A", width=7)
+    # bras droit levé (massue cloutée)
+    db.line([(cx + 26, ground - 118), (cx + 52, ground - 158)], fill="#7A5C3A", width=13)
+    db.line([(cx + 48, ground - 158), (cx + 56, ground - 196)], fill=BOIS, width=12)
+    db.ellipse((cx + 42, ground - 224, cx + 74, ground - 190), fill="#6E655C")
+    for x, y in [(50, 210), (60, 196), (46, 194)]:
+        db.ellipse((cx + x - 3, ground - y - 3, cx + x + 3, ground - y + 3), fill="#4E4438")
+    # bras gauche + bande d'épaules = accent
+    db.line([(cx - 26, ground - 118), (cx - 50, ground - 96)], fill="#7A5C3A", width=13)
+    da.poly([(cx - 34, ground - 132), (cx + 34, ground - 132), (cx + 30, ground - 118),
+             (cx - 30, ground - 118)], fill="#FFFFFF")
+
+
+def unite_barbare_archer(db, da, w, h):
+    """256×320 : archer barbare — plumes, arc de chasse ; coiffe + carquois = accent."""
+    cx, ground = 120, 300
+    shadow(db, cx, ground + 4, 46)
+    db.rrect((cx - 20, ground - 60, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 60, cx + 20, ground), 7, fill="#4E4438")
+    # tunique de peaux courte
+    db.poly([(cx - 28, ground - 122), (cx + 28, ground - 122), (cx + 34, ground - 58),
+             (cx - 34, ground - 58)], fill="#7A5C3A")
+    db.poly([(cx - 28, ground - 122), (cx - 8, ground - 122), (cx - 18, ground - 58),
+             (cx - 34, ground - 58)], fill="#8A6F4A")
+    db.rrect((cx - 32, ground - 76, cx + 32, ground - 68), 3, fill="#5E4630")
+    # tête + coiffe à plumes = accent
+    db.ellipse((cx - 16, ground - 158, cx + 16, ground - 126), fill="#B99B7E")
+    hood = [(cx - 20, ground - 156), (cx - 18, ground - 186), (cx + 2, ground - 196),
+            (cx + 20, ground - 184), (cx + 20, ground - 168), (cx + 6, ground - 176),
+            (cx - 6, ground - 172), (cx - 12, ground - 156)]
+    db.poly(hood, fill="#6E655C")
+    da.poly(hood, fill="#FFFFFF")
+    for dx, dy in ((-10, -6), (2, -10), (14, -4)):
+        db.line([(cx + dx, ground - 176 + dy), (cx + dx, ground - 196 + dy)],
+                fill="#C8B08A", width=4)
+    # bras tendant l'arc + arc de chasse
+    db.line([(cx - 20, ground - 112), (cx - 54, ground - 128)], fill="#7A5C3A", width=12)
+    bow = [(cx - 62, ground - 186), (cx - 74, ground - 150), (cx - 62, ground - 112)]
+    db.line(bow, fill=BOIS, width=6)
+    db.line([(cx - 62, ground - 186), (cx - 48, ground - 148), (cx - 62, ground - 112)],
+            fill=SABLE, width=2)
+    # bras tirant la corde
+    db.line([(cx + 20, ground - 112), (cx + 6, ground - 140)], fill="#7A5C3A", width=12)
+    # carquois = accent
+    quiver = (cx + 28, ground - 158, cx + 52, ground - 100)
+    db.rrect(quiver, 6, fill="#7E6A48", outline=INK, width=2)
+    da.rrect(quiver, 6, fill="#FFFFFF")
+
+
+def village_barbare(db, da, w, h):
+    """224×256 : camp barbare — tente de peaux + feu de camp + pavois ;
+    toit de la tente = accent (gris-brun au rendu)."""
+    shadow(db, 112, 210, 80)
+    # tente principale (peaux tendues sur piquets)
+    db.poly([(112, 84), (44, 210), (180, 210)], fill="#8A6F4A")
+    db.poly([(112, 84), (44, 210), (112, 210)], fill="#9C7F5A")
+    db.poly([(112, 84), (44, 210), (180, 210)], outline=INK, width=2.5)
+    da.poly([(112, 84), (44, 210), (112, 210)], fill="#FFFFFF")
+    # ouverture sombre
+    db.poly([(100, 160), (124, 160), (132, 210), (92, 210)], fill="#3E342A")
+    # piquets
+    db.line([(112, 84), (112, 66)], fill=BOIS, width=4)
+    db.ellipse((108, 58, 116, 66), fill="#C8B08A")
+    # feu de camp
+    db.ellipse((168, 200, 204, 214), fill="#5E4630")
+    db.poly([(186, 160), (172, 196), (186, 188), (200, 196)], fill="#C25B3A")
+    db.poly([(186, 170), (178, 194), (186, 188), (194, 194)], fill="#D9A93F")
+    # pavois planté (butin)
+    db.line([(40, 210), (40, 140)], fill=BOIS, width=5)
+    db.rrect((28, 142, 52, 172), 3, fill="#6E655C", outline=INK, width=2)
+
+
+def hutte(db, da, w, h):
+    """224×256 : hutte bonus — cabane de branchages au toit doré (accent) ;
+    ouverte par la première unité qui entre sur sa case (R-98)."""
+    shadow(db, 112, 210, 66)
+    # murs de pisé / branchages
+    db.rrect((70, 146, 154, 210), 4, fill="#9C8A6A", outline=INK, width=2.5)
+    db.line([(76, 162), (148, 162)], fill="#8A7A5A", width=2)
+    db.line([(76, 186), (148, 186)], fill="#8A7A5A", width=2)
+    # toit de chaume = accent (doré au rendu)
+    roof = [(58, 150), (112, 96), (166, 150)]
+    db.poly(roof, fill="#A3835A", outline=INK, width=2.5)
+    da.poly(roof, fill="#FFFFFF")
+    # porte + lueur du trésor
+    db.rrect((100, 172, 124, 210), 3, fill="#5E4630")
+    db.ellipse((106, 184, 118, 196), fill=OR)
+    # herbes folles au pied
+    db.line([(58, 210), (52, 198)], fill=FORET_2, width=3)
+    db.line([(166, 210), (172, 198)], fill=FORET_2, width=3)
 
 
 def batiment_bibliotheque(db, da, w, h):
+
     """Bibliotheque : facade a arc + rangees de livres (livres = accent)."""
     shadow(db, 112, 214, 76)
     db.rrect((52, 120, 172, 214), 3, fill="#C2B6A2", outline=INK, width=2.5)
@@ -1052,6 +1168,11 @@ def main():
         "unite_legion": (256, 320, unite_legion),
         "batiment_bibliotheque": (224, 256, batiment_bibliotheque),
         "batiment_caserne": (224, 256, batiment_caserne),
+        # Phase 7d - barbares & huttes (R-95..R-98)
+        "unite_barbare_guerrier": (256, 320, unite_barbare_guerrier),
+        "unite_barbare_archer": (256, 320, unite_barbare_archer),
+        "village_barbare": (224, 256, village_barbare),
+        "hutte": (224, 256, hutte),
     }
     icons = {
         "icone_or": icone_or,
@@ -1170,6 +1291,13 @@ for n in ["guerrier", "colon"]:
 for n in ["settlement", "capitale"]:
     EXPECTED[f"ville_{n}.png"] = (224, 256)
     EXPECTED[f"ville_{n}_accent.png"] = (224, 256)
+# Phase 7d (R-95..R-98) : barbares, village barbare et hutte.
+for n in ["barbare_guerrier", "barbare_archer"]:
+    EXPECTED[f"unite_{n}.png"] = (256, 320)
+    EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
+for n in ["village_barbare", "hutte"]:
+    EXPECTED[f"{n}.png"] = (224, 256)
+    EXPECTED[f"{n}_accent.png"] = (224, 256)
 for n in ["grenier", "atelier", "mine_de_fer", "comptoir_commercial", "port", "tribunal"]:
     EXPECTED[f"batiment_{n}.png"] = (224, 256)
     EXPECTED[f"batiment_{n}_accent.png"] = (224, 256)

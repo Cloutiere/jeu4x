@@ -10,7 +10,7 @@
    */
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
-  import { hexToPixel, tileKeyOf, unitType, BUILDINGS, RESOURCES, TERRAINS, resourceBonus } from '@game/rules';
+  import { hexToPixel, tileKeyOf, unitType, BUILDINGS, RESOURCES, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS } from '@game/rules';
   import type { GameState, Hex } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -109,6 +109,9 @@
   const resourceSprites = new Map<string, Sprite>();
   const unitSprites = new Map<string, Container>();
   const citySprites = new Map<string, Container>();
+  // R-96/R-98 (Phase 7d) : villages barbares et huttes bonus.
+  const villageSprites = new Map<string, Container>();
+  const hutSprites = new Map<string, Container>();
 
   let tilesDirty = true;
   let entitiesDirty = true;
@@ -309,11 +312,75 @@
         citySprites.delete(id);
       }
     }
+
+    // R-96 (Phase 7d) : villages barbares — entités ennemies statiques,
+    // diffusées dès que la case est explorée (fog). Teinte atténuée hors du
+    // champ visible courant, comme les cases.
+    const seenVillages = new Set<string>();
+    for (const village of state.villages) {
+      const key = tileKeyOf(village);
+      seenVillages.add(village.id);
+      let c = villageSprites.get(village.id);
+      if (!c) {
+        c = buildVillageContainer(village.id);
+        entitiesLayer.addChild(c);
+        villageSprites.set(village.id, c);
+      }
+      const p = hexToPixel(village, HEX_SIZE);
+      c.position.set(p.x, p.y);
+      const tint = scene.visible.has(key) ? 0xffffff : 0x70707e;
+      const accent = c.getChildByLabel('accent') as Sprite;
+      if (accent) accent.tint = tint;
+      const base = c.getChildByLabel('base') as Sprite;
+      if (base) base.tint = tint;
+      // PV du village (T-21) : barre rouge → destruction imminente lisible.
+      const fill = c.getChildByLabel('hpFill') as Sprite;
+      const ratio = Math.max(0, Math.min(1, village.hp / BARBARIANS.villageHP));
+      fill.width = 76 * ratio;
+      fill.tint = hpBarColor(ratio);
+    }
+    for (const [id, c] of villageSprites) {
+      if (!seenVillages.has(id)) {
+        c.destroy({ children: true });
+        villageSprites.delete(id);
+      }
+    }
+
+    // R-98 (Phase 7d) : huttes bonus — même traitement de fog que les villages.
+    const seenHuts = new Set<string>();
+    for (const hut of state.huts) {
+      const key = tileKeyOf(hut);
+      seenHuts.add(hut.id);
+      let c = hutSprites.get(hut.id);
+      if (!c) {
+        c = buildHutContainer(hut.id);
+        entitiesLayer.addChild(c);
+        hutSprites.set(hut.id, c);
+      }
+      const p = hexToPixel(hut, HEX_SIZE);
+      c.position.set(p.x, p.y);
+      const tint = scene.visible.has(key) ? 0xffffff : 0x70707e;
+      const accent = c.getChildByLabel('accent') as Sprite;
+      if (accent) accent.tint = tint;
+      const base = c.getChildByLabel('base') as Sprite;
+      if (base) base.tint = tint;
+    }
+    for (const [id, c] of hutSprites) {
+      if (!seenHuts.has(id)) {
+        c.destroy({ children: true });
+        hutSprites.delete(id);
+      }
+    }
   }
 
   function buildUnitContainer(unitId: string, type: string, owner: string): Container {
     const c = new Container();
-    const tex = textures!.units[type];
+    // R-95 (Phase 7d) : les unités barbares ont leurs propres sprites
+    // (`barbare_<type>`, accent gris-brun via playerColor('barbarien')).
+    const tex =
+      owner === BARBARIAN_ID
+        ? (textures!.units[`barbare_${type}`] ?? textures!.units[type])
+        : textures!.units[type];
     if (!tex) return c; // type d'unité sans placeholder (ne devrait pas arriver en v1)
     const color = playerColor(owner);
     const base = new Sprite(tex.base);
@@ -373,6 +440,56 @@
     popText.position.set(52, -66);
     c.addChild(base, accent, prodFill, popBg, popText);
     c.label = cityId;
+    return c;
+  }
+
+  /** R-96 (Phase 7d) : village barbare (tente/camp, accent gris-brun) + PV. */
+  function buildVillageContainer(villageId: string): Container {
+    const c = new Container();
+    const tex = textures!.villageBarbare;
+    const base = new Sprite(tex.base);
+    base.label = 'base';
+    base.anchor.set(0.5, 1);
+    base.scale.set(0.5);
+    base.y = 58;
+    const accent = new Sprite(tex.accent);
+    accent.label = 'accent';
+    accent.anchor.set(0.5, 1);
+    accent.scale.set(0.5);
+    accent.y = 58;
+    accent.tint = playerColor(BARBARIAN_ID);
+    const bg = new Sprite(textures!.px);
+    bg.width = 80;
+    bg.height = 10;
+    bg.tint = 0x1b1b22;
+    bg.position.set(-40, 30);
+    const fill = new Sprite(textures!.px);
+    fill.label = 'hpFill';
+    fill.height = 10;
+    fill.position.set(-38, 32);
+    fill.tint = hpBarColor(1);
+    c.addChild(base, accent, bg, fill);
+    c.label = villageId;
+    return c;
+  }
+
+  /** R-98 (Phase 7d) : hutte bonus (toit doré). */
+  function buildHutContainer(hutId: string): Container {
+    const c = new Container();
+    const tex = textures!.hutte;
+    const base = new Sprite(tex.base);
+    base.label = 'base';
+    base.anchor.set(0.5, 1);
+    base.scale.set(0.5);
+    base.y = 40;
+    const accent = new Sprite(tex.accent);
+    accent.label = 'accent';
+    accent.anchor.set(0.5, 1);
+    accent.scale.set(0.5);
+    accent.y = 40;
+    accent.tint = 0xd9a93f; // or : appelle la récompense
+    c.addChild(base, accent);
+    c.label = hutId;
     return c;
   }
 

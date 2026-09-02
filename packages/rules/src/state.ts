@@ -7,7 +7,7 @@
  * s'exécutera au chargement côté serveur (lazy-load du GameDO).
  */
 import type { TerrainId, TileResource } from './types.js';
-import { TERRAINS } from './data.js';
+import { BARBARIAN_ID, TERRAINS } from './data.js';
 
 export type PlayerId = string;
 export type UnitId = string;
@@ -107,6 +107,33 @@ export interface Vision {
   visible: TileKey[];
 }
 
+/**
+ * R-96 · Village barbare (Phase 7d) — entité de carte posée depuis le JSON de
+ * carte (R-94 : `villages`) par createInitialState/applyMapEntities. Attaquable
+ * (T-21 PV), détruit à 0 PV (disparaît définitivement, or T-20 au vainqueur).
+ */
+export interface BarbarianVillage {
+  /** 'v1', 'v2'… — affecté par (q, r) croissant à la pose. */
+  id: string;
+  q: number;
+  r: number;
+  /** T-21 · PV courants. */
+  hp: number;
+  /** Compteur d'engendrement : résolutions restantes avant le prochain spawn
+   *  (T-18) — initialisé à T-18 (premier engendrement au tour 3). */
+  spawnCountdown: number;
+  /** Unités vivantes engendrées par CE village (mortes élaguées) — cap T-22. */
+  spawnedUnits: UnitId[];
+}
+
+/** R-98 · Hutte bonus (Phase 7d). Une seule ouverture : retirée de l'état. */
+export interface Hut {
+  /** 'h1', 'h2'… — affecté par (q, r) croissant à la pose. */
+  id: string;
+  q: number;
+  r: number;
+}
+
 export interface Player {
   id: PlayerId;
   /** Trésor en or. */
@@ -153,19 +180,33 @@ export interface GameState {
   settings: GameSettings;
   /** Points d'accroche diplomatie (R-58) : paires en guerre. v1 = les deux joueurs. */
   diplomacy: { war: Array<[PlayerId, PlayerId]> };
+  /** R-96/Phase 7d : villages barbares (portés du JSON de carte vers l'état). */
+  villages: BarbarianVillage[];
+  /** R-98/Phase 7d : huttes bonus non ouvertes (une ouverte est retirée). */
+  huts: Hut[];
+  /** Phase 7d : id de la carte d'origine — null pour les états v7 migrés avant
+   *  enrichissement serveur (applyMapEntities). */
+  mapId: string | null;
 }
 
-/** R-58-a : les deux nations sont-elles en guerre ? */
+/** R-58-a : les deux nations sont-elles en guerre ? R-95 : les barbares sont
+ *  en guerre permanente avec tout le monde (et ne sont pas dans `players`). */
 export function areAtWar(state: GameState, a: PlayerId, b: PlayerId): boolean {
   if (a === b) return false;
+  if (a === BARBARIAN_ID || b === BARBARIAN_ID) return true;
   return state.diplomacy.war.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+}
+
+/** R-95 : l'id donné est-il celui du pseudo-joueur barbare ? */
+export function isBarbarian(playerId: PlayerId): boolean {
+  return playerId === BARBARIAN_ID;
 }
 
 // ---------------------------------------------------------------------------
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 type AnyState = Record<string, unknown>;
 
@@ -324,6 +365,21 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
    * (R-94), jamais par migration.
    */
   7: (state) => state,
+  /**
+   * v7 → v8 : barbares & huttes (Phase 7d, R-96/R-98). Champs ADDITIFS :
+   * `villages`, `huts` (tableaux vides — les états migrés n'ont aucun village,
+   * l'enrichissement depuis la carte est fait par applyMapEntities côté
+   * serveur, qui connaît `meta.settings.mapId`, hors du moteur pur) et
+   * `mapId: null`. Compteurs à zéro = villages absents ; idempotent si les
+   * champs existent déjà.
+   */
+  8: (state) => {
+    const out: AnyState = { ...state };
+    if (!Array.isArray(state.villages)) out.villages = [];
+    if (!Array.isArray(state.huts)) out.huts = [];
+    if (typeof state.mapId !== 'string') out.mapId = null;
+    return out;
+  },
 };
 
 

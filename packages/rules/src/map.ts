@@ -19,8 +19,8 @@
  */
 import { colRowToHex, hexDistance, inRectangle, tileKeyOf } from './hex.js';
 import type { Hex } from './hex.js';
-import { RESOURCES, TERRAINS, unitType } from './data.js';
-import type { PlayerId, Tile, GameState, City } from './state.js';
+import { BARBARIANS, RESOURCES, TERRAINS, unitType } from './data.js';
+import type { PlayerId, Tile, GameState, City, BarbarianVillage, Hut } from './state.js';
 import { CURRENT_SCHEMA_VERSION } from './state.js';
 import type { ResourceId } from './types.js';
 import { SCIENCE_RATIO_DEFAULT, VISION_RADIUS_CITY } from './constants.js';
@@ -40,6 +40,21 @@ export interface MapResource {
   r: number;
 }
 
+/** R-96/Phase 7d : placement d'un village barbare (id affecté à la pose). */
+export interface MapVillage {
+  q: number;
+  r: number;
+}
+
+/** R-98/Phase 7d : placement d'une hutte bonus. */
+export interface MapHut {
+  q: number;
+  r: number;
+}
+
+/** Cartes commises (chargées statiquement — migration/enrichissement synchrones). */
+export type BuiltinMapId = 'pedagogique-40' | 'pangee-40' | 'variee-40';
+
 export interface MapData {
   id: string;
   name: string;
@@ -50,14 +65,20 @@ export interface MapData {
   players: MapPlayerSpawn[];
   /** R-94 : tableau optionnel (absent = carte sans ressource). */
   resources?: MapResource[];
+  /** R-96/Phase 7d : villages barbares (3 par carte 40×40 — placements équitables). */
+  villages?: MapVillage[];
+  /** R-98/Phase 7d : huttes bonus (2 par carte). */
+  huts?: MapHut[];
 }
 
-/** Carte validée : terrain par case axiale + spawns + ressources. */
+/** Carte validée : terrain par case axiale + spawns + ressources + villages/huttes. */
 export interface LoadedMap {
   data: MapData;
   terrain: Record<string, string>; // clé "q,r" → TerrainId
   spawns: MapPlayerSpawn[];
   resources: MapResource[];
+  villages: MapVillage[];
+  huts: MapHut[];
 }
 
 export class MapValidationError extends Error {
@@ -200,19 +221,66 @@ export function parseMap(raw: unknown): LoadedMap {
     }
   }
 
+  // R-96/R-98 : validations des villages barbares et des huttes — dans la
+  // carte, terrain praticable (un village sur l'eau serait injoignable),
+  // jamais sur une case de capitale, au plus une entité (village/hutte) par
+  // case. Les ressources, elles, sont AUTORISÉES sous un village (CivRev :
+  // « villages always on top of a resource »).
+  const entities = [
+    ...(data.villages ?? []).map((v) => ({ kind: 'village' as const, ...v })),
+    ...(data.huts ?? []).map((h) => ({ kind: 'hut' as const, ...h })),
+  ];
+  if (issues.every((i) => !i.startsWith('rows') && !i.startsWith('légende'))) {
+    const capitalKeys = new Set((data.players ?? []).map((p) => tileKeyOf(p.capital)));
+    const seenEntities = new Set<string>();
+    for (const e of entities) {
+      const label = e.kind === 'village' ? 'village' : 'hutte';
+      const key = tileKeyOf(e);
+      if (!inRectangle(e, width, height)) {
+        issues.push(`${label} hors carte (${key})`);
+        continue;
+      }
+      const t = terrain[key];
+      if (t === undefined) {
+        issues.push(`${label} hors carte (${key})`);
+        continue;
+      }
+      if (!TERRAINS[t]!.passable) {
+        issues.push(`${label} sur terrain infranchissable (${t}) en ${key}`);
+      }
+      if (capitalKeys.has(key)) {
+        issues.push(`${label} sur une case de capitale (${key})`);
+      }
+      if (seenEntities.has(key)) {
+        issues.push(`plus d'un village/hutte sur la case ${key}`);
+      }
+      seenEntities.add(key);
+    }
+  }
+
   if (issues.length) throw new MapValidationError(issues);
-  return { data, terrain, spawns: data.players, resources };
+  return { data, terrain, spawns: data.players, resources, villages: data.villages ?? [], huts: data.huts ?? [] };
 }
 
+import pedagogiqueJson from './data/maps/pedagogique-40.json' with { type: 'json' };
+import pangeeJson from './data/maps/pangee-40.json' with { type: 'json' };
+import varieeJson from './data/maps/variee-40.json' with { type: 'json' };
+
 /** Charge une des cartes commises (source des données : src/data/maps). */
-export async function loadBuiltinMap(id: 'pedagogique-40' | 'pangee-40' | 'variee-40'): Promise<LoadedMap> {
+export async function loadBuiltinMap(id: BuiltinMapId): Promise<LoadedMap> {
+  return loadBuiltinMapSync(id);
+}
+
+/**
+ * Variante SYNCHRONE (Phase 7d) : les trois cartes sont importées
+ * statiquement — indispensable à `applyMapEntities` pour l'enrichissement des
+ * états migrés v7 (le serveur connaît le `mapId` de la partie, le moteur pur
+ * doit pouvoir l'appliquer sans IO asynchrone).
+ */
+export function loadBuiltinMapSync(id: BuiltinMapId): LoadedMap {
   const mod =
-    id === 'pangee-40'
-      ? await import('./data/maps/pangee-40.json', { with: { type: 'json' } })
-      : id === 'variee-40'
-        ? await import('./data/maps/variee-40.json', { with: { type: 'json' } })
-        : await import('./data/maps/pedagogique-40.json', { with: { type: 'json' } });
-  return parseMap(mod.default);
+    id === 'pangee-40' ? pangeeJson : id === 'variee-40' ? varieeJson : pedagogiqueJson;
+  return parseMap(mod as unknown as MapData);
 }
 
 /**
@@ -306,6 +374,10 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
     cities,
     settings: { turnTimerMinutes: null },
     diplomacy: { war: [[map.spawns[0]!.id, map.spawns[1]!.id]] },
+    // Villages/huttes réellement posés par applyMapEntities ci-dessous (R-96/R-98).
+    villages: [],
+    huts: [],
+    mapId: map.data.id,
   };
 
   // Vision initiale : rayon des unités (T-07, data-driven) + des villes (T-08).
@@ -326,5 +398,31 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
     };
   }
 
-  return state;
+  // R-96/R-98 : villages barbares et huttes portés de la carte vers l'état
+  // (ids affectés par (q, r) croissant — déterminisme R-81 ; compteurs à zéro).
+  return applyMapEntities(state, map);
+}
+
+/**
+ * R-96/R-98 · Porte les villages et huttes d'une carte validée dans l'état,
+ * compteurs à zéro, et mémorise l'`mapId`. Utilisé par `createInitialState`
+ * ET par le serveur pour ENRICHIR les états v7 migrés (la migration moteur ne
+ * connaît pas la carte — le serveur, lui, a `meta.settings.mapId`).
+ * Pure : retourne un nouvel état, l'entrée n'est pas mutée.
+ */
+export function applyMapEntities(state: GameState, map: LoadedMap): GameState {
+  const villages: BarbarianVillage[] = [...map.villages]
+    .sort((a, b) => a.q - b.q || a.r - b.r)
+    .map((v, i) => ({
+      id: `v${i + 1}`,
+      q: v.q,
+      r: v.r,
+      hp: BARBARIANS.villageHP,
+      spawnCountdown: BARBARIANS.spawnInterval,
+      spawnedUnits: [],
+    }));
+  const huts: Hut[] = [...map.huts]
+    .sort((a, b) => a.q - b.q || a.r - b.r)
+    .map((h, i) => ({ id: `h${i + 1}`, q: h.q, r: h.r }));
+  return { ...state, mapId: map.data.id, villages, huts };
 }

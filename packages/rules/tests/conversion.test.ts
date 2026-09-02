@@ -231,7 +231,7 @@ describe('migration v5 → v6 (R-90)', () => {
       },
     };
     const out = migrateState(v5 as unknown as Record<string, unknown>) as unknown as Record<string, never>;
-    expect(out.schemaVersion).toBe(7);
+    expect(out.schemaVersion).toBe(8);
     const cities = out.cities as unknown as Record<string, { conversion: string }>;
     expect(cities.c1!.conversion).toBe('gold');
     expect(cities.c2!.conversion).toBe('science');
@@ -249,7 +249,7 @@ describe('migration v5 → v6 (R-90)', () => {
     expect(twice).toEqual(once);
   });
 
-  it('chaîne complète v1 → v7 sur un état minimal', () => {
+  it('chaîne complète v1 → v8 sur un état minimal', () => {
     const v1 = {
       schemaVersion: 1,
       turn: 0,

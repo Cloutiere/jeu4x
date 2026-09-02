@@ -7,12 +7,28 @@ import unitsJson from './data/units.json' with { type: 'json' };
 import terrainJson from './data/terrain.json' with { type: 'json' };
 import buildingsJson from './data/buildings.json' with { type: 'json' };
 import resourcesJson from './data/resources.json' with { type: 'json' };
-import type { BuildingData, ResourceData, TerrainData, TerrainId, UnitTypeData } from './types.js';
+import barbaresJson from './data/barbares.json' with { type: 'json' };
+import huttesJson from './data/huttes.json' with { type: 'json' };
+import type {
+  BarbariansData,
+  BuildingData,
+  HuttesData,
+  ResourceData,
+  TerrainData,
+  TerrainId,
+  UnitTypeData,
+} from './types.js';
 
 export const UNIT_TYPES: Record<string, UnitTypeData> = unitsJson as Record<string, UnitTypeData>;
 export const TERRAINS: Record<string, TerrainData> = terrainJson as Record<string, TerrainData>;
 export const BUILDINGS: Record<string, BuildingData> = buildingsJson as Record<string, BuildingData>;
 export const RESOURCES: Record<string, ResourceData> = resourcesJson as Record<string, ResourceData>;
+/** R-95/R-99 · Phase 7d : configuration barbares (barbares.json). */
+export const BARBARIANS: BarbariansData = barbaresJson as unknown as BarbariansData;
+/** R-98/R-99 · Phase 7d : table des récompenses de huttes (huttes.json). */
+export const HUT_REWARDS: HuttesData = huttesJson as unknown as HuttesData;
+/** R-95 · Id du pseudo-joueur barbare. */
+export const BARBARIAN_ID: string = BARBARIANS.barbarianId;
 
 export function unitType(id: string): UnitTypeData {
   const t = UNIT_TYPES[id];

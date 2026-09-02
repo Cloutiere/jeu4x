@@ -62,6 +62,11 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   BuildingCompleted: 320,
   DiplomaticIncident: 300,
   Victory: 400,
+  // Phase 7d (R-95..R-98) : barbares & huttes.
+  BarbarianSpawned: 320,
+  VillageDestroyed: 420,
+  CityRazed: 420,
+  HutOpened: 360,
   TurnResolved: 140,
 };
 
@@ -76,6 +81,12 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   Captured: 'bad',
   DiplomaticIncident: 'info',
   Victory: 'good',
+  // Phase 7d : village détruit +or (good), hutte ouverte +récompense (good),
+  // ville rasée / barbares engendrés (bad).
+  VillageDestroyed: 'good',
+  HutOpened: 'good',
+  CityRazed: 'bad',
+  BarbarianSpawned: 'bad',
 };
 
 const TOAST_LIFETIME = 4000;
@@ -264,6 +275,17 @@ export class Playback {
         break;
       case 'PopulationGrew':
       case 'BuildingCompleted':
+        this.pushFx(ev.at, 'good', dur);
+        break;
+      // Phase 7d (R-95..R-98) : barbares & huttes.
+      case 'BarbarianSpawned':
+        this.pushFx(ev.at, 'bad', dur);
+        break;
+      case 'VillageDestroyed':
+      case 'CityRazed':
+        this.pushFx(ev.at, 'destroy', dur);
+        break;
+      case 'HutOpened':
         this.pushFx(ev.at, 'good', dur);
         break;
       default:

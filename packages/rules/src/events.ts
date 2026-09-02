@@ -5,10 +5,19 @@
  * Les `seq` sont consécutifs et persistent entre les tours (GameState.lastEventSeq).
  */
 import type { Hex } from './hex.js';
-import type { PlayerId, TileKey, UnitId, CityId } from './state.js';
+import type { CityId, PlayerId, TileKey, UnitId } from './state.js';
 
 /** Cause de destruction d'une unité. */
 export type DestructionCause = 'combat' | 'collision' | 'capture';
+
+/** R-98 · Récompense structurée d'une hutte ouverte (contenu de HutOpened). */
+export type HutReward =
+  | { kind: 'gold'; amount: number }
+  | { kind: 'unit'; unitType: string; unitIds: UnitId[] }
+  | { kind: 'science'; amount: number }
+  | { kind: 'reveal'; radius: number }
+  | { kind: 'ambush'; unitIds: UnitId[] }
+  | { kind: 'nothing' };
 
 export type GameEvent =
   /** Un pas de mouvement exécuté (un événement par case traversée). */
@@ -33,8 +42,16 @@ export type GameEvent =
    * (+ BootyGold). En paix (Phase 7) : 'detained'.
    */
   | { seq: number; type: 'Captured'; unitId: UnitId; owner: PlayerId; byPlayer: PlayerId; at: Hex; outcome: 'destroyed' | 'detained' }
-  /** Butin en or d'une capture (T-12). */
-  | { seq: number; type: 'BootyGold'; player: PlayerId; amount: number; sourceUnitId: UnitId }
+  /** Butin en or (T-12 capture, T-20 destruction de village R-96) — la source
+   *  est une unité (`sourceUnitId`) OU un village (`sourceVillageId`). */
+  | {
+      seq: number;
+      type: 'BootyGold';
+      player: PlayerId;
+      amount: number;
+      sourceUnitId: UnitId | null;
+      sourceVillageId?: string;
+    }
   /** Fusion d'armée réussie (R-31/R-44) : les 3 membres deviennent l'entité unitId. */
   | { seq: number; type: 'ArmyFormed'; unitId: UnitId; owner: PlayerId; memberIds: UnitId[]; at: Hex }
   | { seq: number; type: 'CityFounded'; cityId: CityId; owner: PlayerId; at: Hex; capital: boolean; byUnitId: UnitId | null }
@@ -49,8 +66,19 @@ export type GameEvent =
   | { seq: number; type: 'BuildingCompleted'; cityId: CityId; owner: PlayerId; building: string; at: Hex }
   /** Point d'accroche diplomatie (R-58-b) — inactif en v1 (guerre permanente). */
   | { seq: number; type: 'DiplomaticIncident'; between: [PlayerId, PlayerId]; at: Hex }
-  /** Victoire — v1 : 'domination' (capture de la capitale adverse, R-65) ou 'forfait' (T-06). */
-  | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' | 'forfeit' }
+  /** Victoire — v1 : 'domination' (capture de la capitale adverse, R-65),
+   *  'forfait' (T-06) ou 'razedCapital' (capitale rasée par les barbares,
+   *  R-97 — Phase 7d : le propriétaire perd, l'adversaire réel gagne). */
+  | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' | 'forfeit' | 'razedCapital' }
+  /** R-96 · Engendrement d'une unité barbare par un village (Phase 7d). */
+  | { seq: number; type: 'BarbarianSpawned'; unitId: UnitId; villageId: string; owner: PlayerId; at: Hex }
+  /** R-96 · Village barbare détruit (0 PV) — or T-20 au vainqueur (BootyGold). */
+  | { seq: number; type: 'VillageDestroyed'; villageId: string; byPlayer: PlayerId; byUnitId: UnitId | null; at: Hex }
+  /** R-97 · Ville rasée par les barbares (capture barbare : aucun changement de
+   *  propriétaire, la ville disparaît avec ses bâtiments). */
+  | { seq: number; type: 'CityRazed'; cityId: CityId; owner: PlayerId; byPlayer: PlayerId; at: Hex }
+  /** R-98 · Hutte ouverte — récompense tirée au RNG seedé (table huttes.json). */
+  | { seq: number; type: 'HutOpened'; hutId: string; byPlayer: PlayerId; byUnitId: UnitId | null; at: Hex; reward: HutReward }
   /** Fin de résolution : newState est l'état du tour indiqué. */
   | { seq: number; type: 'TurnResolved'; turn: number };
 
@@ -92,7 +120,7 @@ export function eventRefs(event: GameEvent): EventRefs {
       break;
     case 'BootyGold':
       refs.players.push(event.player);
-      refs.unitIds.push(event.sourceUnitId);
+      if (event.sourceUnitId) refs.unitIds.push(event.sourceUnitId);
       break;
     case 'ArmyFormed':
       refs.unitIds.push(event.unitId, ...event.memberIds);
@@ -134,6 +162,24 @@ export function eventRefs(event: GameEvent): EventRefs {
       break;
     case 'Victory':
       refs.players.push(event.winner);
+      break;
+    case 'BarbarianSpawned':
+      refs.unitIds.push(event.unitId);
+      refs.players.push(event.owner);
+      hex(event.at);
+      break;
+    case 'VillageDestroyed':
+      refs.players.push(event.byPlayer);
+      hex(event.at);
+      break;
+    case 'CityRazed':
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner, event.byPlayer);
+      hex(event.at);
+      break;
+    case 'HutOpened':
+      refs.players.push(event.byPlayer);
+      hex(event.at);
       break;
     case 'TurnResolved':
       break;

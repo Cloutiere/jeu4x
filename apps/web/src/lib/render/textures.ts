@@ -20,6 +20,8 @@ import type { TerrainId } from '@game/rules';
 export const PLAYER_COLORS: Record<string, number> = {
   p1: 0xd64545, // rouge vif
   p2: 0x3b6fd6, // bleu vif
+  // R-95 (Phase 7d) : accent dédié des barbares — gris-brun, ni rouge ni bleu.
+  barbarien: 0x8a7a66,
 };
 export function playerColor(engineId: string): number {
   return PLAYER_COLORS[engineId] ?? 0x8a5ad6;
@@ -35,9 +37,14 @@ export interface EntityTexture {
 export interface GameTextures {
   /** Clé = id terrain des données JSON (tile_prairie…). */
   tiles: Record<TerrainId, Texture>;
-  /** Clé = id type d'unité des données JSON (unite_guerrier…). */
+  /** Clé = id type d'unité des données JSON (unite_guerrier…) + variantes
+   *  barbares `barbare_<type>` (Phase 7d, R-95). */
   units: Record<string, EntityTexture>;
   cities: { settlement: EntityTexture; capital: EntityTexture };
+  /** R-96 (Phase 7d) : village barbare (tente/camp). */
+  villageBarbare: EntityTexture;
+  /** R-98 (Phase 7d) : hutte bonus. */
+  hutte: EntityTexture;
   /** Icônes de rendement pour l'overlay N/P/C (null si asset absent). */
   yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null; gold: Texture | null; science: Texture | null };
   /** R-91 : sprites des ressources (clé = id de resources.json, null si asset absent). */
@@ -283,6 +290,94 @@ function buildCapitalGraphics(): { base: Graphics; accent: Graphics } {
 }
 
 // ---------------------------------------------------------------------------
+// Barbares & huttes (Phase 7d — R-95..R-98) : placeholders de secours. Les
+// assets réels (unite_barbare_*, village_barbare, hutte) sont générés par le
+// pipeline generate.py ; ces Graphics ne servent que si le PNG est absent.
+// ---------------------------------------------------------------------------
+
+function buildBarbarianUnitGraphics(): Record<string, { base: Graphics; accent: Graphics }> {
+  const out: Record<string, { base: Graphics; accent: Graphics }> = {};
+  // Guerrier barbare — silhouette trapue, peaux (torse brun) + massue.
+  {
+    const cx = UNIT_W / 2;
+    const feet = UNIT_H - 10;
+    const base = g();
+    base.ellipse(cx, feet - 4, 62, 20).fill({ color: 0x000000, alpha: 0.25 });
+    base.rect(cx - 34, feet - 96, 22, 60).fill({ color: 0x4e4438 });
+    base.rect(cx + 12, feet - 96, 22, 60).fill({ color: 0x4e4438 });
+    base.roundRect(cx - 46, feet - 190, 92, 104, 18).fill({ color: 0x7a5c3a }); // tunique de peaux
+    base.rect(cx - 46, feet - 122, 92, 16).fill({ color: 0x5e4630 });
+    base.circle(cx, feet - 218, 30).fill({ color: 0xa8917a }); // tête
+    base.rect(cx - 30, feet - 250, 60, 18).fill({ color: 0x6e655c }); // cheveux sauvages
+    base.circle(cx - 10, feet - 222, 4).fill({ color: 0x2b2620 });
+    base.circle(cx + 10, feet - 222, 4).fill({ color: 0x2b2620 });
+    base.rect(cx + 52, feet - 240, 10, 150).fill({ color: 0x6e655c });
+    base.circle(cx + 57, feet - 252, 24).fill({ color: 0x7d746a }); // massue
+    base.circle(cx + 57, feet - 252, 24).stroke({ width: 5, color: OUTLINE });
+    base.roundRect(cx - 46, feet - 190, 92, 104, 18).stroke({ width: 5, color: OUTLINE });
+    base.circle(cx, feet - 218, 30).stroke({ width: 5, color: OUTLINE });
+    const acc = g();
+    acc.roundRect(cx - 40, feet - 184, 80, 40, 12).fill({ color: 0xffffff }); // bandage d'épaules
+    acc.rect(cx - 20, feet - 96, 40, 30).fill({ color: 0xffffff }); // ceinture d'os
+    out.guerrier = { base, accent: acc };
+  }
+  // Archer barbare — silhouette élancée, plumes, arc de chasse.
+  {
+    const cx = UNIT_W / 2;
+    const feet = UNIT_H - 10;
+    const base = g();
+    base.ellipse(cx, feet - 4, 50, 16).fill({ color: 0x000000, alpha: 0.25 });
+    base.rect(cx - 20, feet - 60, 16, 50).fill({ color: 0x4e4438 });
+    base.rect(cx + 4, feet - 60, 16, 50).fill({ color: 0x4e4438 });
+    base.poly([cx, feet - 220, cx - 38, feet - 90, cx + 38, feet - 90]).fill({ color: 0x6e5a42 }); // tunique de peaux
+    base.circle(cx, feet - 226, 24).fill({ color: 0xa8917a });
+    base.poly([cx - 24, feet - 244, cx, feet - 266, cx + 24, feet - 244]).fill({ color: 0x8a6f4a }); // coiffe à plumes
+    base.rect(cx + 44, feet - 250, 8, 200).fill({ color: 0x7a6f62 }); // arc
+    base.poly([cx, feet - 220, cx - 38, feet - 90, cx + 38, feet - 90]).stroke({ width: 5, color: OUTLINE });
+    base.circle(cx, feet - 226, 24).stroke({ width: 5, color: OUTLINE });
+    const acc = g();
+    acc.poly([cx - 24, feet - 244, cx, feet - 266, cx + 24, feet - 244]).fill({ color: 0xffffff });
+    acc.circle(cx - 30, feet - 130, 20).fill({ color: 0xffffff }); // carquois
+    out.archer = { base, accent: acc };
+  }
+  return out;
+}
+
+/** R-96 : village barbare (tente/camp) — placeholder de secours. */
+function buildVillageBarbareGraphics(): { base: Graphics; accent: Graphics } {
+  const cx = 112;
+  const ground = 202;
+  const base = g();
+  base.ellipse(cx, ground, 80, 20).fill({ color: 0x000000, alpha: 0.2 });
+  // tente principale
+  base.poly([cx, ground - 120, cx - 62, ground, cx + 62, ground]).fill({ color: 0x8a6f4a });
+  base.poly([cx, ground - 120, cx - 62, ground, cx, ground]).fill({ color: 0x9c7f5a });
+  base.rect(cx - 10, ground - 44, 20, 44).fill({ color: 0x3e342a }); // ouverture
+  // feu de camp
+  base.circle(cx + 52, ground - 8, 10).fill({ color: 0xc25b3a });
+  base.poly([cx, ground - 120, cx - 62, ground, cx + 62, ground]).stroke({ width: 5, color: OUTLINE });
+  const acc = g();
+  acc.poly([cx, ground - 120, cx - 26, ground - 58, cx + 26, ground - 58]).fill({ color: 0xffffff }); // peau de toit
+  return { base, accent: acc };
+}
+
+/** R-98 : hutte bonus — placeholder de secours. */
+function buildHutGraphics(): { base: Graphics; accent: Graphics } {
+  const cx = 112;
+  const ground = 202;
+  const base = g();
+  base.ellipse(cx, ground, 56, 14).fill({ color: 0x000000, alpha: 0.2 });
+  base.rect(cx - 30, ground - 52, 60, 52).fill({ color: 0x9c8a6a });
+  base.poly([cx - 40, ground - 52, cx, ground - 96, cx + 40, ground - 52]).fill({ color: 0x7d6b4a });
+  base.rect(cx - 9, ground - 30, 18, 30).fill({ color: 0x3e342a });
+  base.rect(cx - 30, ground - 52, 60, 52).stroke({ width: 5, color: OUTLINE });
+  base.poly([cx - 40, ground - 52, cx, ground - 96, cx + 40, ground - 52]).stroke({ width: 5, color: OUTLINE });
+  const acc = g();
+  acc.poly([cx - 40, ground - 52, cx, ground - 96, cx + 40, ground - 52]).fill({ color: 0xffffff }); // toit doré au rendu
+  return { base, accent: acc };
+}
+
+// ---------------------------------------------------------------------------
 // Cuisson des textures via le renderer (les Graphics sont détruits après).
 // ---------------------------------------------------------------------------
 
@@ -319,13 +414,25 @@ export function createTextures(renderer: Renderer): GameTextures {
     commerce: null,
   } as GameTextures['yieldIcons'];
 
+  const barbarianUnits = buildBarbarianUnitGraphics();
+
   return {
     tiles,
-    units,
+    units: {
+      ...units,
+      // R-95 (Phase 7d) : variantes barbares — accent gris-brun au rendu
+      // (playerColor('barbarien')), silhouettes distinctes des joueurs.
+      barbare_guerrier: bakeEntity(renderer, barbarianUnits.guerrier!),
+      barbare_archer: bakeEntity(renderer, barbarianUnits.archer!),
+    },
     cities: {
       settlement: bakeEntity(renderer, buildSettlementGraphics()),
       capital: bakeEntity(renderer, buildCapitalGraphics()),
     },
+    // R-96/R-98 : village barbare et hutte bonus (placeholders cuisés ; les
+    // assets réels remplacent via loadTextures).
+    villageBarbare: bakeEntity(renderer, buildVillageBarbareGraphics()),
+    hutte: bakeEntity(renderer, buildHutGraphics()),
     yieldIcons,
     resources: {},
     px,
@@ -377,15 +484,24 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   // R-91 : les 22 ressources de resources.json + le marqueur « inconnue »
   // (R-92, diffusion d'identité masquée) — optionnels, id → res_<id>.png.
   const resourceIds = [...Object.keys(RESOURCES).sort(), RESOURCE_UNKNOWN];
-  const [tiles, units, settlement, capital, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
+  // Phase 7d (R-95) : variantes barbares (accent gris-brun au rendu).
+  const barbareIds = ['guerrier', 'archer'];
+  const [tiles, units, barbareUnits, settlement, capital, villageBarbare, hutte, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     Promise.all(
       UNIT_IDS.filter((id) => fallback.units[id]).map((id) =>
         entityOrFallback(`unite_${id}`, fallback.units[id]!).then((t) => [id, t] as const),
       ),
     ),
+    Promise.all(
+      barbareIds.map((id) =>
+        entityOrFallback(`unite_barbare_${id}`, fallback.units[`barbare_${id}`] ?? fallback.units.guerrier!).then((t) => [`barbare_${id}`, t] as const),
+      ),
+    ),
     entityOrFallback('ville_settlement', fallback.cities.settlement),
     entityOrFallback('ville_capitale', fallback.cities.capital),
+    entityOrFallback('village_barbare', fallback.villageBarbare),
+    entityOrFallback('hutte', fallback.hutte),
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
@@ -396,8 +512,10 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
 
   return {
     tiles: Object.fromEntries(tiles) as Record<TerrainId, Texture>,
-    units: Object.fromEntries(units),
+    units: Object.fromEntries([...units, ...barbareUnits]),
     cities: { settlement, capital },
+    villageBarbare,
+    hutte,
     yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon, gold: goldIcon, science: scienceIcon },
     resources: Object.fromEntries(resourceIcons),
     px: fallback.px,

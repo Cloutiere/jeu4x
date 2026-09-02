@@ -13,6 +13,7 @@ export * from './techs.js';
 export * from './research.js';
 export * from './conversion.js';
 export * from './economy.js';
+export * from './barbares.js';
 export * from './map.js';
 export * from './fog.js';
 export * from './turn.js';

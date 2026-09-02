@@ -1,5 +1,7 @@
 /** Constantes réglables du jeu — source unique, référencées T-xx dans RULES.md §11. */
 
+import { BARBARIANS, HUT_REWARDS } from './data.js';
+
 /** T-01 · Bonus de force d'une unité vétéran. */
 export const VETERAN_BONUS = 0.5;
 /** T-02 · Bonus défensif d'une case de ville. */
@@ -43,3 +45,26 @@ export const SCIENCE_RATIO_DEFAULT = 0.5;
 export const GROWTH_BASE = 10;
 /** R-63 · Modulation de la production par point de population au-delà du premier. 🔶 */
 export const POP_PRODUCTION_BONUS = 0.25;
+
+// --- Phase 7d — barbares & huttes (RULES.md §7.9) : valeurs portées par
+// barbares.json / huttes.json (R-99 : calibrage sans code) et ré-exportées ici
+// pour que constants.ts reste la source unique des T-xx côté code.
+
+/** T-18 · Engendrement barbare : un village toutes les N résolutions (R-96). 🔶 */
+export const BARBARIAN_SPAWN_INTERVAL = BARBARIANS.spawnInterval;
+/** T-19 · Rayon d'aggro de l'IA barbare (R-97). 🔶 */
+export const BARBARIAN_AGGRO_RADIUS = BARBARIANS.aggroRadius;
+/** T-20 · Or de destruction d'un village barbare (R-96). 🔶 */
+export const VILLAGE_DESTRUCTION_GOLD = BARBARIANS.villageDestructionGold;
+/** T-21 · PV d'un village barbare (R-96). 🔶 */
+export const VILLAGE_HP = BARBARIANS.villageHP;
+/** T-22 · Cap d'unités vivantes engendrées par village (R-96). 🔶 */
+export const CAP_PER_VILLAGE = BARBARIANS.capPerVillage;
+/** T-23 · Escalade : le type « escalated » engendre après ce tour (R-95). 🔶 */
+export const ESCALATION_TURN = BARBARIANS.escalationTurn;
+/** T-24 · Boost de science d'une hutte (R-98). 🔶 */
+export const HUT_SCIENCE_BOOST = HUT_REWARDS.scienceBoost;
+/** T-25 · Or de hutte : borne basse du tir uniforme (R-98). 🔶 */
+export const HUT_GOLD_MIN = HUT_REWARDS.rewards.find((r) => r.kind === 'gold')?.amountMin ?? 0;
+/** T-26 · Or de hutte : borne haute du tir uniforme (R-98). 🔶 */
+export const HUT_GOLD_MAX = HUT_REWARDS.rewards.find((r) => r.kind === 'gold')?.amountMax ?? 0;

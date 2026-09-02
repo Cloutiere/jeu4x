@@ -24,9 +24,9 @@ import {
   tileKeyOf,
 } from './hex.js';
 import type { Hex } from './hex.js';
-import { areAtWar, compareCityIds, compareUnitIds, nextId } from './state.js';
-import type { City, CityId, GameState, Order, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
-import { TERRAINS, unitType, building, BUILDINGS } from './data.js';
+import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId } from './state.js';
+import type { BarbarianVillage, City, CityId, GameState, Order, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
+import { BARBARIAN_ID, BARBARIANS, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable } from './economy.js';
 import { combatRound, effectiveStrength } from './combat.js';
 import { computeVisibleTiles, recomputeVision } from './fog.js';
@@ -39,11 +39,19 @@ import {
   MIN_CITY_DISTANCE,
   POP_PRODUCTION_BONUS,
   SETTLER_BOOTY_GOLD,
+  VILLAGE_DESTRUCTION_GOLD,
 } from './constants.js';
-import type { DestructionCause, GameEvent } from './events.js';
+import type { DestructionCause, GameEvent, HutReward } from './events.js';
 import { creditScience } from './research.js';
 import { conversionGains, CONVERSION_DEFAULT } from './conversion.js';
 import { isUnlocked, productionDataOf } from './techs.js';
+import {
+  barbarianOrders,
+  barbarianUnitType,
+  createBarbarianUnit,
+  drawHutReward,
+  freeSpawnTiles,
+} from './barbares.js';
 
 export interface TurnResult {
   newState: GameState;
@@ -69,7 +77,14 @@ interface CollisionPlan {
   holderId: UnitId;
   challengerId: UnitId;
 }
-type CombatPlan = AttackPlan | CollisionPlan;
+/** R-96 · Entrée sur une case de village barbare sans unité : le village défend. */
+interface VillageAttackPlan {
+  kind: 'villageAttack';
+  at: Hex;
+  attackerId: UnitId;
+  villageId: string;
+}
+type CombatPlan = AttackPlan | CollisionPlan | VillageAttackPlan;
 
 interface FormGroup {
   members: UnitId[];
@@ -93,6 +108,8 @@ interface PendingRetreat {
   winnerTakesTile: boolean;
   /** R-52 : si le perdant emporte les attaques répétées de la passe 3, il avance. */
   advanceOnKill: boolean;
+  /** R-96 : vainqueur VILLAGE (passe 3 : attaques répétées contre le village). */
+  villageId?: string;
 }
 
 /** État de travail mutable pendant la résolution (copie profonde de l'état). */
@@ -152,6 +169,101 @@ function cityAt(board: Board, hex: Hex): City | null {
     if (c.q === hex.q && c.r === hex.r) return c;
   }
   return null;
+}
+
+/** R-96 : village barbare posé sur une case (au plus un par case — carte validée). */
+function villageAt(board: Board, hex: Hex): BarbarianVillage | null {
+  for (const v of board.st.villages) {
+    if (v.q === hex.q && v.r === hex.r) return v;
+  }
+  return null;
+}
+
+/**
+ * R-98 · Ouverture d'une hutte : la case est entrée lors d'un pas de mouvement
+ * par une unité des civilisations (les barbares n'ouvrent pas — R-95). La
+ * hutte est retirée (une seule ouverture) et la récompense est tirée au RNG
+ * seedé (table huttes.json, R-99) puis appliquée immédiatement. L'événement
+ * `HutOpened` est émis DANS TOUS LES CAS, avec la récompense complétée.
+ */
+function openHutAt(board: Board, hex: Hex, opener: Unit): void {
+  if (isBarbarian(opener.owner)) return; // R-95 : les barbares n'ouvrent pas les huttes
+  const idx = board.st.huts.findIndex((h) => h.q === hex.q && h.r === hex.r);
+  if (idx === -1) return;
+  const hut = board.st.huts[idx]!;
+  board.st.huts.splice(idx, 1);
+  const player = board.st.players[opener.owner]!;
+  const reward: HutReward = drawHutReward(board.rng);
+
+  switch (reward.kind) {
+    case 'gold':
+      player.gold += reward.amount;
+      break;
+    case 'unit': {
+      // Unité gratuite pour l'ouvreur : case adjacente libre (hors
+      // village/ville) — perdue si aucune case (interprétation documentée, R-98).
+      const tile = freeSpawnTiles(board.st, hut, 1)[0];
+      if (tile) {
+        const stats = unitType(HUT_REWARDS.freeUnit);
+        const unitId = nextId(board.st.units, 'u');
+        board.st.units[unitId] = {
+          id: unitId,
+          type: HUT_REWARDS.freeUnit,
+          owner: opener.owner,
+          q: tile.q,
+          r: tile.r,
+          hp: stats.hpMax,
+          mp: stats.movement,
+          veteran: false,
+          isArmy: false,
+          order: null,
+          detainedBy: null,
+          fortified: false,
+        };
+        reward.unitIds = [unitId];
+      }
+      break;
+    }
+    case 'science':
+      // R-85 : la science alimente la tech courante (ou la réserve) —
+      // complétion possible : événement TechResearched en cascade.
+      creditScience(board.st, opener.owner, reward.amount, (pid, techId) => {
+        emit(board, { type: 'TechResearched', player: pid, tech: techId });
+      });
+      break;
+    case 'reveal':
+      // R-98/L3.3 : ajout au `explored` du joueur (pas à `visible`) — le tri
+      // final est assuré par recomputeVision (Phase D).
+      {
+        const explored = new Set(player.vision.explored);
+        for (const h of hexesWithinRadius(hut, reward.radius)) {
+          if (board.st.map[tileKeyOf(h)]) explored.add(tileKeyOf(h));
+        }
+        player.vision = { explored: [...explored].sort(), visible: player.vision.visible };
+      }
+      break;
+    case 'ambush': {
+      // Embuscade : barbares engendrés IMMÉDIATEMENT, hors village (cases
+      // adjacentes libres) — cap des villages non affecté. Escalade R-95.
+      const type = barbarianUnitType(board.st.turn + 1);
+      for (const tile of freeSpawnTiles(board.st, hut, HUT_REWARDS.ambushCount)) {
+        const unit = createBarbarianUnit(board.st, tile, type);
+        reward.unitIds.push(unit.id);
+      }
+      break;
+    }
+    case 'nothing':
+      break;
+  }
+
+  emit(board, {
+    type: 'HutOpened',
+    hutId: hut.id,
+    byPlayer: opener.owner,
+    byUnitId: opener.id,
+    at: { q: hut.q, r: hut.r },
+    reward,
+  });
 }
 
 function inMapAndPassable(board: Board, hex: Hex): boolean {
@@ -252,8 +364,11 @@ function capturePeaceful(board: Board, victim: Unit, byPlayer: PlayerId, byUnitI
   });
   if (war) {
     kill(board, victim, 'capture', byUnitId);
-    board.st.players[byPlayer]!.gold += SETTLER_BOOTY_GOLD;
-    emit(board, { type: 'BootyGold', player: byPlayer, amount: SETTLER_BOOTY_GOLD, sourceUnitId: victim.id });
+    // R-95 : les barbares n'ont pas de trésor — destruction sans butin.
+    if (board.st.players[byPlayer]) {
+      board.st.players[byPlayer]!.gold += SETTLER_BOOTY_GOLD;
+      emit(board, { type: 'BootyGold', player: byPlayer, amount: SETTLER_BOOTY_GOLD, sourceUnitId: victim.id });
+    }
   } else {
     victim.detainedBy = byPlayer;
   }
@@ -471,6 +586,106 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
   });
 }
 
+// ---------------------------------------------------------------------------
+// Combat contre un VILLAGE barbare (R-96 — Phase 7d)
+// ---------------------------------------------------------------------------
+
+/**
+ * Un échange contre un village : le village SUBIT les rounds R-51 (défense
+ * `villageDefense` 🔶 + bonus défensif de son terrain) sans jamais riposter
+ * (force d'attaque 0 — p = 1 pour l'attaquant… sauf bonus défensif élevé :
+ * p = S_att²/(S_att²+S_def²) peut rester < 1). Le perdant du round perd 1 PV.
+ */
+function villageExchange(board: Board, attacker: Unit, village: BarbarianVillage, combatTile: Hex): void {
+  const aStats = unitType(attacker.type);
+  const sAtt = effectiveStrength(aStats.attack, attacker.veteran);
+  const sDef = effectiveStrength(BARBARIANS.villageDefense, false, terrainDefenseBonus(board, combatTile));
+  for (let i = 0; i < EXCHANGES_PER_ATTACK && attacker.hp > 0 && village.hp > 0; i++) {
+    const winner = combatRound(sAtt, sDef, board.rng.next());
+    if (winner === 'defender') village.hp -= 1;
+    else attacker.hp -= 1;
+  }
+  attacker.hp = Math.max(0, attacker.hp);
+  village.hp = Math.max(0, village.hp);
+  // defenderId porte l'id du village ('v*') pour les échanges de village.
+  emit(board, { type: 'Attack', attackerId: attacker.id, defenderId: village.id, at: combatTile });
+  emit(board, {
+    type: 'CombatExchange',
+    attackerId: attacker.id,
+    defenderId: village.id,
+    at: combatTile,
+    attackerHpAfter: attacker.hp,
+    defenderHpAfter: village.hp,
+  });
+  board.fought.add(attacker.id);
+}
+
+/** R-96 : village à 0 PV → détruit, or T-20 au vainqueur, disparition définitive. */
+function destroyVillage(board: Board, village: BarbarianVillage, byPlayer: PlayerId, byUnitId: UnitId | null): void {
+  board.st.villages = board.st.villages.filter((v) => v.id !== village.id);
+  emit(board, {
+    type: 'VillageDestroyed',
+    villageId: village.id,
+    byPlayer,
+    byUnitId,
+    at: { q: village.q, r: village.r },
+  });
+  if (board.st.players[byPlayer]) {
+    board.st.players[byPlayer]!.gold += VILLAGE_DESTRUCTION_GOLD;
+    emit(board, {
+      type: 'BootyGold',
+      player: byPlayer,
+      amount: VILLAGE_DESTRUCTION_GOLD,
+      sourceUnitId: byUnitId,
+      sourceVillageId: village.id,
+    });
+  }
+}
+
+/** Attaque d'un village (R-96) : un échange, puis issue selon R-52. */
+function resolveVillageAttack(board: Board, attacker: Unit, village: BarbarianVillage, combatTile: Hex): void {
+  villageExchange(board, attacker, village, combatTile);
+  if (village.hp <= 0) {
+    destroyVillage(board, village, attacker.owner, attacker.id);
+    attacker.veteran = true; // R-32 : coup fatal
+    // R-52 : l'attaquant avance — il est déjà entré sur la case (Phase A).
+    return;
+  }
+  if (attacker.hp <= 0) {
+    kill(board, attacker, 'combat', null); // le village ne « signe » pas le coup
+    return;
+  }
+  // Survie mutuelle : le village (stationnaire) garde sa case, l'attaquant se
+  // replie — allocation globale R-56 (passe 1).
+  board.pendingRetreats.push({
+    loserId: attacker.id,
+    winnerId: village.id,
+    villageId: village.id,
+    combatTile,
+    mustLeave: false,
+    winnerTakesTile: false,
+    advanceOnKill: true,
+  });
+}
+
+/** R-55 contre un village : attaques répétées jusqu'à élimination d'un des deux. */
+function repeatedVillageAttacks(board: Board, attacker: Unit, village: BarbarianVillage, combatTile: Hex): void {
+  let guard = 0;
+  while (attacker.hp > 0 && village.hp > 0) {
+    villageExchange(board, attacker, village, combatTile);
+    if (village.hp <= 0) {
+      destroyVillage(board, village, attacker.owner, attacker.id);
+      attacker.veteran = true;
+      return;
+    }
+    if (attacker.hp <= 0) {
+      kill(board, attacker, 'combat', null);
+      return;
+    }
+    if (++guard > 10_000) throw new Error('R-55 : boucle non terminale (bug)');
+  }
+}
+
 /** Collision de movers convergents (R-53) : aucun dégât, la plus haute PV demeure. */
 function resolveCollision(board: Board, holder: Unit, challenger: Unit, combatTile: Hex): void {
   // Exception R-43 : une unité pacifique est capturée — pas de comparaison de PV.
@@ -526,6 +741,11 @@ function allocateRetreats(board: Board): void {
     const lb = board.st.units[b.loserId];
     return (lb ? lb.hp : -1) - (la ? la.hp : -1) || compareUnitIds(a.loserId, b.loserId);
   });
+  // R-30 : une case gagnée par un challenger (winnerTakesTile) ne peut pas
+  // être attribuée deux fois — deux collisions distinctes sur la même case
+  // (détenteur commun vaincu par deux movers) attribueraient sinon la case à
+  // deux vainqueurs. Premier attributaire = premier dans l'ordre R-56.
+  const awarded = new Set<TileKey>();
   const withoutTile: PendingRetreat[] = [];
   for (const req of order) {
     const loser = board.st.units[req.loserId];
@@ -537,14 +757,28 @@ function allocateRetreats(board: Board): void {
     }
     if (target !== 'stay') applyRetreat(board, loser, target);
     if (req.winnerTakesTile) {
-      const winner = board.st.units[req.winnerId];
-      if (winner) moveUnit(board, winner, req.combatTile); // le challenger prend la case libérée
+      const key = tileKeyOf(req.combatTile);
+      if (!awarded.has(key) && !occupiedByUnit(board, req.combatTile)) {
+        const winner = board.st.units[req.winnerId];
+        if (winner) {
+          moveUnit(board, winner, req.combatTile); // le challenger prend la case libérée
+          awarded.add(key);
+        }
+      }
     }
   }
   for (const req of withoutTile) {
     const loser = board.st.units[req.loserId];
+    if (!loser) continue;
+    if (req.villageId) {
+      // R-96 : vainqueur village — attaques répétées contre le village (R-55).
+      const village = board.st.villages.find((v) => v.id === req.villageId);
+      if (!village) continue;
+      repeatedVillageAttacks(board, loser, village, { q: village.q, r: village.r });
+      continue;
+    }
     const winner = board.st.units[req.winnerId];
-    if (!loser || !winner) continue;
+    if (!winner) continue;
     // Le perdant attaque, le vainqueur défend là où il se trouve (bonus de terrain).
     repeatedAttacks(board, loser, winner, { q: winner.q, r: winner.r }, req.advanceOnKill);
   }
@@ -586,7 +820,9 @@ function haltedByNewSighting(board: Board, unit: Unit, next: Hex): boolean {
 function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
   while (unit.mp > 0 && path.length > 0) {
     const next = path[0]!;
-    if (haltedByNewSighting(board, unit, next)) break; // halte, chemin gelé
+    // R-95 (Phase 7d) : les barbares ne subissent pas la halte X-2 — leurs
+    // ordres (1 pas) sont régénérés à chaque résolution, la halte les figerait.
+    if (!isBarbarian(unit.owner) && haltedByNewSighting(board, unit, next)) break; // halte, chemin gelé
 
     if (!inMapAndPassable(board, next)) {
       path = []; // R-42 : chemin invalide, l'unité s'arrête
@@ -594,10 +830,29 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
     }
     const here = occupants(board, next);
     if (here.length === 0) {
+      // R-96 (Phase 7d) : case de village barbare ENNEMI — entrer = l'attaquer
+      // (une unité pacifique y est capturée, I-4). L'attaque est planifiée
+      // après l'entrée (le village est stationnaire, R-52). Un barbare entre
+      // sur son propre village sans combat (co-location autorisée, R-30).
+      const village = villageAt(board, next);
+      if (village && !isBarbarian(unit.owner)) {
+        if (isPeaceful(unit)) {
+          capturePeaceful(board, unit, BARBARIAN_ID, null);
+          path = [];
+          break;
+        }
+        path.shift();
+        unit.mp -= 1;
+        moveUnit(board, unit, next);
+        openHutAt(board, next, unit);
+        board.planned.push({ kind: 'villageAttack', at: next, attackerId: unit.id, villageId: village.id });
+        break;
+      }
       // R-40 : mouvement garanti vers une case vide.
       path.shift();
       unit.mp -= 1;
       moveUnit(board, unit, next);
+      openHutAt(board, next, unit); // R-98 : ouverture à l'entrée (Phase A)
       continue;
     }
     if (here.some((u) => u.owner === unit.owner)) {
@@ -609,6 +864,7 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
       path.shift();
       unit.mp -= 1;
       moveUnit(board, unit, next);
+      openHutAt(board, next, unit);
       continue;
     }
     // Occupants ennemis.
@@ -630,6 +886,7 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
     path = [];
     unit.mp -= 1;
     moveUnit(board, unit, next);
+    openHutAt(board, next, unit); // R-98 : la hutte s'ouvre avant le combat planifié
     board.planned.push({ kind: 'attack', at: next, attackerId: unit.id, defenderId: defender.id });
     break;
   }
@@ -900,7 +1157,7 @@ function takenTilesExcluding(board: Board, cityId: string | null): Set<TileKey> 
   return taken;
 }
 
-/** R-65 : ville sans défenseur investie → capture (capitale = victoire). */
+/** R-65 : ville sans défenseur investie → capture (capitale = victoire). R-97 : capture BARBARE → rasement. */
 function processCityCaptures(board: Board): void {
   for (const cityId of Object.keys(board.st.cities).sort()) {
     const city = board.st.cities[cityId]!;
@@ -910,6 +1167,23 @@ function processCityCaptures(board: Board): void {
     if (here.some((u) => u.owner === city.owner)) continue; // défendue (R-57)
     const invader = here[0]!;
     const fromOwner = city.owner;
+    if (isBarbarian(invader.owner)) {
+      // R-97 (Phase 7d) : les barbares ne fondent pas de ville — la ville est
+      // RASÉE (disparaît, bâtiments perdus, aucun changement de propriétaire).
+      delete board.st.cities[cityId];
+      emit(board, { type: 'CityRazed', cityId, owner: fromOwner, byPlayer: invader.owner, at: hex });
+      if (city.capital) {
+        // R-97 : la capitale rasée = défaite de son propriétaire — victoire de
+        // l'AUTRE joueur réel (les barbares ne gagnent jamais).
+        const winner =
+          Object.keys(board.st.players)
+            .filter((id) => id !== fromOwner && !isBarbarian(id))
+            .sort()[0] ?? null;
+        board.st.winner = winner;
+        emit(board, { type: 'Victory', winner: winner ?? '', reason: 'razedCapital' });
+      }
+      continue;
+    }
     city.owner = invader.owner;
     city.pop = Math.max(1, city.pop - 1);
     city.production = null;
@@ -922,6 +1196,31 @@ function processCityCaptures(board: Board): void {
       board.st.winner = invader.owner; // R-65 : victoire par domination
       emit(board, { type: 'Victory', winner: invader.owner, reason: 'domination' });
     }
+  }
+}
+
+/**
+ * R-96 · Engendrement barbare par les villages (Phase C — l'unité produite
+ * n'agit pas le tour de sa naissance). Compteur décrémenté à chaque
+ * résolution ; l'unité apparaît sur une CASE ADJACENTE LIBRE du village (tri
+ * (q, r) — R-81 ; évite qu'un défenseur ne campe sur le village et le rende
+ * inexpugnable), report si aucune case n'est disponible ; cap T-22 d'unités
+ * vivantes par village, type selon l'escalade R-95.
+ */
+function processVillages(board: Board): void {
+  for (const village of [...board.st.villages].sort((a, b) => compareIds(a.id, b.id))) {
+    village.spawnCountdown -= 1;
+    if (village.spawnCountdown > 0) continue;
+    village.spawnCountdown = BARBARIANS.spawnInterval;
+    village.spawnedUnits = village.spawnedUnits.filter((id) => board.st.units[id]);
+    if (village.spawnedUnits.length >= BARBARIANS.capPerVillage) continue; // cap T-22
+    const hex = { q: village.q, r: village.r };
+    const tile = freeSpawnTiles(board.st, hex, 1)[0];
+    if (!tile) continue; // aucune case adjacente libre : reporté au cycle suivant
+    const type = barbarianUnitType(board.st.turn + 1); // tour résultant
+    const unit = createBarbarianUnit(board.st, tile, type);
+    village.spawnedUnits.push(unit.id);
+    emit(board, { type: 'BarbarianSpawned', unitId: unit.id, villageId: village.id, owner: BARBARIAN_ID, at: tile });
   }
 }
 
@@ -1120,6 +1419,20 @@ export function resolveTurn(
   const st: GameState = structuredClone(inputState);
   st.phase = 'resolving';
 
+  // R-95/R-97 (Phase 7d) : les barbares jouent avec les MÊMES phases — leurs
+  // ordres sont générés en tête de résolution par une fonction pure et
+  // déterministe, puis suivent le traitement normal (mouvements → combats).
+  // Ils ne sont JAMAIS persistés dans l'état ni diffusés aux clients
+  // (anti-triche R-95 : seuls les événements résultants, filtrés par fog,
+  // quittent le moteur).
+  const allOrders: Record<PlayerId, Order[]> = { ...ordersByPlayer };
+  if (
+    st.villages.length > 0 ||
+    Object.values(st.units).some((u) => isBarbarian(u.owner))
+  ) {
+    allOrders[BARBARIAN_ID] = [...(allOrders[BARBARIAN_ID] ?? []), ...barbarianOrders(st)];
+  }
+
   const board: Board = {
     st,
     rng: createRng(rngSeed),
@@ -1153,22 +1466,22 @@ export function resolveTurn(
 
   // ---- Phase A : fortification R-33 (avant les mouvements : un Move donné
   // à un fortifié l'annule et s'exécute ; un Fortify efface tout chemin).
-  applyFortifyOrders(board, ordersByPlayer);
-  // mouvements (R-40..R-43), ordre unitId croissant (R-41).
-  for (const { unit, path } of collectMoveOrders(board, ordersByPlayer)) {
+  applyFortifyOrders(board, allOrders);
+  // mouvements (R-40..R-43), ordre unitId croissant (R-41) — barbares compris.
+  for (const { unit, path } of collectMoveOrders(board, allOrders)) {
     if (!st.units[unit.id] || unit.detainedBy) continue;
     executeMoveOrder(board, unit, path);
   }
   // Ordres Hold : effacent l'intention courante (chemin gelé compris).
-  for (const order of allOrdersFlattened(ordersByPlayer)) {
+  for (const order of allOrdersFlattened(allOrders)) {
     if (order.type !== 'Hold') continue;
     const unit = st.units[order.unitId];
     if (unit) unit.order = null;
   }
   // Ordres Attack explicites (I-2 : une attaque suppose des PM disponibles).
   const attackOrders: Array<Extract<Order, { type: 'Attack' }>> = [];
-  for (const playerId of Object.keys(ordersByPlayer).sort()) {
-    for (const order of ordersByPlayer[playerId] ?? []) {
+  for (const playerId of Object.keys(allOrders).sort()) {
+    for (const order of allOrders[playerId] ?? []) {
       if (order.type !== 'Attack') continue;
       const unit = st.units[order.unitId];
       if (!unit || unit.owner !== playerId || unit.detainedBy) continue;
@@ -1189,7 +1502,7 @@ export function resolveTurn(
     board.planned.push({ kind: 'attack', at: target, attackerId: unit.id, defenderId: enemy.id });
   }
   // R-44 : formation d'armées en fin de Phase A.
-  processFormArmy(board, allOrdersFlattened(ordersByPlayer));
+  processFormArmy(board, allOrdersFlattened(allOrders));
 
   // ---- Phase B : combats (R-50 : tri par case puis attaquant croissant).
   // R-56 (deux passes) : chaque combat se résout avec UN échange (R-51) et le
@@ -1200,7 +1513,7 @@ export function resolveTurn(
     (a, b) =>
       compareHex(a.at, b.at) ||
       compareUnitIds(primaryId(a), primaryId(b)) ||
-      (a.kind === 'attack' ? 0 : 1) - (b.kind === 'attack' ? 0 : 1),
+      planOrder(a) - planOrder(b),
   );
   for (const plan of board.planned) {
     if (plan.kind === 'attack') {
@@ -1209,6 +1522,13 @@ export function resolveTurn(
       if (!attacker || !defender) continue; // l'un est mort entre-temps
       if (hexDistance(attacker, defender) > 1) continue; // plus au contact
       resolveAttack(board, attacker, defender, { q: defender.q, r: defender.r });
+    } else if (plan.kind === 'villageAttack') {
+      // R-96 (Phase 7d) : le village défend sa case s'il est toujours debout.
+      const attacker = st.units[plan.attackerId];
+      const village = st.villages.find((v) => v.id === plan.villageId);
+      if (!attacker || !village) continue;
+      if (hexDistance(attacker, village) > 1) continue; // plus au contact
+      resolveVillageAttack(board, attacker, village, { q: village.q, r: village.r });
     } else {
       const holder = st.units[plan.holderId];
       const challenger = st.units[plan.challengerId];
@@ -1219,11 +1539,12 @@ export function resolveTurn(
   }
   allocateRetreats(board);
 
-  // ---- Phase C : économie (R-60 à R-66).
-  applySetProduction(board, ordersByPlayer);
+  // ---- Phase C : économie (R-60 à R-66) + barbares (R-96 : villages).
+  applySetProduction(board, allOrders);
   processCityCaptures(board);
-  processFoundCity(board, ordersByPlayer);
-  applySetWorkedTile(board, ordersByPlayer);
+  processFoundCity(board, allOrders);
+  processVillages(board);
+  applySetWorkedTile(board, allOrders);
   processEconomy(board);
 
   // ---- Phase D : vision (R-70), soins (R-71), PM (R-72).
@@ -1241,5 +1562,10 @@ export function resolveTurn(
 }
 
 function primaryId(plan: CombatPlan): UnitId {
-  return plan.kind === 'attack' ? plan.attackerId : plan.holderId;
+  return plan.kind === 'attack' ? plan.attackerId : plan.kind === 'villageAttack' ? plan.attackerId : plan.holderId;
+}
+
+/** Ordre de type de plan dans le tri R-50 (attaque et village avant collision). */
+function planOrder(plan: CombatPlan): number {
+  return plan.kind === 'collision' ? 1 : 0;
 }

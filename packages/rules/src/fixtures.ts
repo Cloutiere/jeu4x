@@ -16,7 +16,7 @@ import type {
   UnitId,
 } from './state.js';
 import { CURRENT_SCHEMA_VERSION, areAtWar } from './state.js';
-import { TERRAINS, unitType } from './data.js';
+import { BARBARIANS, TERRAINS, unitType } from './data.js';
 import type { TerrainId } from './types.js';
 import { SCIENCE_RATIO_DEFAULT } from './constants.js';
 import { CONVERSION_DEFAULT } from './conversion.js';
@@ -66,6 +66,12 @@ export interface MakeStateOptions {
   rngSeed?: number;
   /** Paires en guerre (défaut : toutes les paires des joueurs déclarés — v1). */
   warPairs?: Array<[PlayerId, PlayerId]>;
+  /** R-96/Phase 7d : villages barbares (id 'v{n}' par (q,r) croissant). */
+  villages?: Array<{ q: number; r: number; hp?: number; spawnCountdown?: number }>;
+  /** R-98/Phase 7d : huttes bonus (id 'h{n}' par (q,r) croissant). */
+  huts?: Array<{ q: number; r: number }>;
+  /** Phase 7d : id de carte d'origine (enrichissement serveur). */
+  mapId?: string | null;
 }
 
 /** Map rectangulaire de prairie (ou du terrain fourni), clé "q,r". */
@@ -159,6 +165,20 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
 
   const warPairs = opts.warPairs ?? defaultWarPairs(players);
 
+  // R-96/R-98 : villages et huttes posés comme depuis une carte (ids par
+  // (q, r) croissant, compteurs T-18/T-21 des données).
+  const villageSpecs = [...(opts.villages ?? [])].sort((a, b) => a.q - b.q || a.r - b.r);
+  const villages: GameState['villages'] = villageSpecs.map((v, i) => ({
+    id: `v${i + 1}`,
+    q: v.q,
+    r: v.r,
+    hp: v.hp ?? BARBARIANS.villageHP,
+    spawnCountdown: v.spawnCountdown ?? BARBARIANS.spawnInterval,
+    spawnedUnits: [],
+  }));
+  const hutSpecs = [...(opts.huts ?? [])].sort((a, b) => a.q - b.q || a.r - b.r);
+  const huts: GameState['huts'] = hutSpecs.map((h, i) => ({ id: `h${i + 1}`, q: h.q, r: h.r }));
+
   const state: GameState = {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     turn: opts.turn ?? 0,
@@ -174,6 +194,9 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
     cities,
     settings: { turnTimerMinutes: null },
     diplomacy: { war: warPairs },
+    villages,
+    huts,
+    mapId: opts.mapId ?? null,
   };
   return state;
 }

@@ -171,6 +171,12 @@ export function getFilteredState(state: GameState, playerId: PlayerId): GameStat
     }
   }
 
+  // R-96/R-98 (Phase 7d) : villages barbares et huttes sont des entités de
+  // carte STATIQUES — visibles dès que la case est explorée (comme le décor,
+  // CivRev-fidèle) ; inexploré = absent de l'état diffusé.
+  clone.villages = clone.villages.filter((v) => explored.has(`${v.q},${v.r}`));
+  clone.huts = clone.huts.filter((h) => explored.has(`${h.q},${h.r}`));
+
   for (const otherId of Object.keys(clone.players)) {
     if (otherId === playerId) {
       clone.players[otherId]!.vision = {

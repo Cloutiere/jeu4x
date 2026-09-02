@@ -14,10 +14,10 @@ import { TERRAINS } from '../src/data.js';
 import { cityAt, makeState, unit, unitAt } from '../src/fixtures.js';
 
 describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
-  it('la version courante est exportée avec la chaîne de migrations (v7 depuis les ressources, Phase 7c)', () => {
+  it('la version courante est exportée avec la chaîne de migrations (v8 depuis les barbares, Phase 7d)', () => {
     const state = makeState();
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(7);
+    expect(CURRENT_SCHEMA_VERSION).toBe(8);
     expect(MIGRATIONS).toBeTypeOf('object');
     expect(typeof MIGRATIONS[2]).toBe('function');
     expect(typeof MIGRATIONS[3]).toBe('function');
@@ -25,9 +25,10 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
     expect(typeof MIGRATIONS[5]).toBe('function');
     expect(typeof MIGRATIONS[6]).toBe('function');
     expect(typeof MIGRATIONS[7]).toBe('function');
+    expect(typeof MIGRATIONS[8]).toBe('function');
   });
 
-  it('migrateState laisse passer un état à jour à l’identique (chaîne v7→v7 vide)', () => {
+  it('migrateState laisse passer un état à jour à l’identique (chaîne v8→v8 vide)', () => {
     const state = makeState();
     const out = migrateState<GameState>(state as unknown as Record<string, unknown>);
     expect(out).toEqual(state);
@@ -35,8 +36,32 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
 
   it('migrateState rejette une version inconnue ou futuriste', () => {
     expect(() => migrateState({ schemaVersion: 0 })).toThrow();
-    expect(() => migrateState({ schemaVersion: 8 })).toThrow();
+    expect(() => migrateState({ schemaVersion: 9 })).toThrow();
     expect(() => migrateState({})).toThrow();
+  });
+
+  it('v7 → v8 (Phase 7d, R-96/R-98) : villages/huttes/mapId additifs, compteurs à zéro, idempotent', () => {
+    // Un état v7 (ressources, sans barbares) migre avec des tableaux vides et
+    // mapId null — l'enrichissement depuis la carte est l'affaire du serveur
+    // (applyMapEntities, R-96), qui connaît meta.settings.mapId.
+    const v7 = {
+      schemaVersion: 7,
+      turn: 12,
+      map: {},
+      players: {},
+      units: {},
+      cities: {},
+      diplomacy: { war: [] },
+      settings: { turnTimerMinutes: null },
+    };
+    const out = migrateState(v7 as unknown as Record<string, unknown>) as unknown as GameState;
+    expect(out.schemaVersion).toBe(8);
+    expect(out.villages).toEqual([]);
+    expect(out.huts).toEqual([]);
+    expect(out.mapId).toBeNull();
+    // idempotence : re-migrer l'état v8 ne change rien
+    const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
+    expect(twice).toEqual(out);
   });
 });
 

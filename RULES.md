@@ -15,7 +15,7 @@
 - Victoire : **capture de la capitale adverse**. Défaite par forfait après `T-06` timers manqués.
 - v1 : **guerre permanente** entre les deux joueurs (pas de diplomatie jouable). Les règles diplomatiques (§7.7) sont écrites dès maintenant comme points d'accroche pour la Phase 7.
 - Aucune unité à distance en v1 ; leurs règles sont fixées en §7.8 (Catapulte, Canon, Artillerie en Phase 7).
-- Hors v1 (Phase 7) : arbre technologique, autres unités, naval, barbares, merveilles, grandes personnes.
+- Hors v1 (Phase 7) : arbre technologique, autres unités, naval, merveilles, grandes personnes. *(Barbares & huttes : entrés en v1 en Phase 7d — §7.9.)*
 
 ## 2. Terrains (révision économique du 30/08 — décision d'Erik, modèle Civ Revolution)
 
@@ -181,6 +181,47 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 - **c.** Cible à distance → échange standard, dégâts mutuels possibles (R-59-b s'applique dans les deux sens).
 - **d.** En défense, une unité à distance attaquée qui **ne vainc pas** son attaquant (survie mutuelle) se **replie systématiquement** — rôles inversés par rapport à R-52 : c'est le défenseur qui cède la case, repli selon R-54. À 0 PV, elle est simplement détruite.
 
+### 7.9 Barbares & huttes (Phase 7d — ajouté le 01/09/2026, transcription de [`HANDOFF-PHASE7D.md`](HANDOFF-PHASE7D.md))
+
+**Principe directeur : les barbares sont un pseudo-joueur piloté par le moteur.** Aucune décision réseau, aucun verrou de tour : leurs ordres sont **générés à chaque résolution** par une fonction pure du moteur (`barbarianOrders(state)`), déterministe (RNG seedé R-80). Ils subissent les règles de combat, replis, forfait et fog comme tout le monde.
+
+**R-95 · Faction barbare.** Pseudo-joueur `barbarien` (id moteur `barbarien`, constante `BARBARIAN_ID`) :
+- n'a **ni ville fondable, ni recherche, ni verrou de tour** — il n'apparaît pas dans `state.players` (aucun trésor, aucun forfait T-06 : la défaite par forfait des joueurs réels n'est **pas affectée**) ;
+- **en guerre permanente avec tout le monde** (R-58-a sans objet) ;
+- ses unités respectent **toutes** les règles de combat/collision/repli (R-51..R-59) et sont **filtrées par le brouillard comme tout ennemi** (R-70) ;
+- **anti-triche** : ses ordres ne sont **jamais envoyés aux clients** — seuls les événements résultants, filtrés par fog, quittent le moteur (les ordres ne sont pas persistés dans l'état) ;
+- sa force **monte en gamme** (escalation) : **guerrier** d'abord, **archer** après le tour `T-23` 🔶 — règle d'engendrement commune à tous les spawns barbares (villages R-96 et embuscades R-98) ;
+- les barbares soignent selon R-71, peuvent être vétérans (R-32), **ne peuvent pas se fortifier** (aucun ordre `Fortify` n'est jamais généré pour eux) ;
+- en tant que capteur d'une unité pacifique (R-43), la destruction s'applique mais **aucun butin n'est crédité** (pas de trésor) ;
+- les barbares **n'ouvrent pas les huttes** (R-98) : seules les unités des deux civilisations ouvrent.
+
+**R-96 · Villages barbares.** Entités de carte (`villages: [{q, r}]` dans les JSON de carte) — **3 villages sur chacune des cartes 40×40** (placements symétriques/équitables ; CivRev les pose sur des ressources, nos placements s'y ancrent). Chaque village :
+- engendre une unité barbare toutes les `T-18` 🔶 tours (compteur `spawnCountdown` initialisé à `T-18`, décrémenté à chaque résolution ; premier engendrement au **tour 3**) tant que son **cap d'unités vivantes** `T-22` 🔶 (par village, suivi par `spawnedUnits`) n'est pas atteint ; l'unité apparaît sur une **case adjacente libre** du village (tri `(q, r)` — R-81 ; un défenseur ne peut donc pas camper sur le village et le rendre inexpugnable) — si aucune case adjacente n'est libre, l'engendrement est **reporté** au cycle suivant ;
+- est **attaquable** (`T-21` PV, défense 🔶 `villageDefense` de `barbares.json`, bonus défensif du terrain de sa case applicable) : entrer sur sa case = attaque (R-57 transposé ; une unité pacifique qui y entre est **capturée** — R-43/I-4) ; le village **subit les rounds R-51** sans jamais riposter (force d'attaque 0) ; survie mutuelle → l'attaquant se replie (R-54) ;
+- à **0 PV il est détruit**, le vainqueur touche `T-20` 🔶 or (événements `VillageDestroyed` + `BootyGold`) ; un village détruit **disparaît définitivement** (la ressource éventuelle de sa case reste) ;
+- un village **défendu par une de ses unités** se traite comme une ville défendue (R-57) : c'est l'unité qui combat.
+
+**R-97 · IA barbare (déterministe).** `barbarianOrders(state)` — fonction pure, appelée **en tête de `resolveTurn`**, dont les ordres suivent les phases normales (mouvements → combats ; l'économie ne la concerne pas). Ordre de priorité **par unité** (unités triées R-81) :
+1. **attaquer** une unité ou ville ennemie **adjacente** (case à défenseur = attaque du défenseur, R-57 ; ordre `Attack`) ;
+2. sinon **avancer d'un pas** vers l'entité ennemie la plus proche (unité ou ville) dans un rayon d'aggro `T-19` 🔶 (première case de la ligne hexagonale ; case injoignable/occupée amicalement → tenir) ;
+3. sinon **tenir** (`Hold`).
+Tie-breaks R-81 partout (distance, puis `(q, r)`). **Les barbares ne subissent pas la halte X-2** : leurs ordres (un pas) sont régénérés à chaque résolution, la halte les figerait. Les barbares **peuvent capturer les villes sans défenseur** (R-57/R-65) : 🔶 **la ville est alors rasée** (événement `CityRazed` — elle disparaît, bâtiments perdus, aucun changement de propriétaire) — **si la capitale d'un joueur est rasée, ce joueur perd** : événement `Victory(reason:'razedCapital')` au profit de l'adversaire réel (les barbares ne gagnent jamais).
+
+**R-98 · Huttes bonus.** Entités de carte (`huts: [{q, r}]`), **2 par carte**. Ouvrir = **entrer sur la case avec n'importe quelle unité des civilisations** (même pacifique), lors d'un pas de mouvement (Phase A) ; **une seule fois** (la hutte disparaît). Récompense tirée au RNG seedé (R-80) dans la table **`huttes.json`** (data-driven, éditable, poids 🔶) :
+| Récompense | Effet |
+|---|---|
+| **or** | `T-25`..`T-26` 🔶 (tir uniforme) au trésor de l'ouvreur |
+| **unité gratuite** | un guerrier engendré sur une case adjacente libre (escalade R-95 non appliquée : toujours guerrier) |
+| **boost science** | `T-24` 🔶 sur la recherche courante (R-85 : réserve `scienceStored` si aucun choix) |
+| **révélation de carte** | rayon 3 autour de la hutte ajouté à `explored` du joueur (pas à `visible`) |
+| **embuscade** | 2 barbares engendrés **immédiatement, hors village** (cases adjacentes libres, cap des villages non affecté) |
+| **rien** | aucun effet |
+Événement `HutOpened(hutId, byPlayer, reward)` dans tous les cas. Tirages d'engendrement impossibles (aucune case adjacente libre) : récompense perdue, événement émis quand même.
+
+**R-99 · Données de calibrage.** Toutes les constantes barbares/huttes vivent dans **`barbares.json`** (`spawnInterval`, `aggroRadius`, `villageDestructionGold`, `villageHP`, `capPerVillage`, `escalationTurn`, `units` d'escalade, `villageDefense`) et **`huttes.json`** (table de récompenses pondérée) — **zéro durcissement de règle dans le code** : calibrer = éditer le JSON + push (CI déploie), même philosophie que R-86/R-91. `constants.ts` ré-exporte les valeurs (source unique des T-18..T-26 côté code). Tests d'intégrité : table de récompenses fermée (kinds connus), poids ≥ 0 et somme > 0, bornes or cohérentes (`min ≤ max`), unités d'escalade existantes.
+
+**Interprétations d'implémentation (signalées au rapport)** : entrer sur une hutte n'ouvre que lors d'un **pas de mouvement** (repli/collision gagnante n'ouvrent pas) ; une hutte sous ennemi s'ouvre à l'entrée (avant le combat planifié) ; le RNG est consommé **dès la Phase A** pour les récompenses (amendement R-80 documenté) ; l'escalade s'applique aux embuscades (guerrier des huttes excepté, table R-98) ; un colon entrant sur un village barbare est capturé (I-4).
+
 ## 8. Phase C — Économie (modèle Civ Revolution)
 
 **R-60 · Cases travaillées par ville (révision 30/08 — modèle Civ Revolution).**
@@ -311,7 +352,7 @@ Arrondi **au plus proche** (round half up). Cas limite tranché : même à **0 c
 
 ## 10. Déterminisme
 
-- **R-80.** RNG **mulberry32** ; la graine vit dans le GameState (`rngSeed`) et avance **uniquement en Phase B**. Toute résolution interrompue peut être rejouée à l'identique depuis `{state, orders, seed}` (crash-recovery idempotent).
+- **R-80.** RNG **mulberry32** ; la graine vit dans le GameState (`rngSeed`) et avance **uniquement en Phase B** — et, depuis la Phase 7d, aux **ouvertures de huttes** (récompense R-98, Phase A). Toute résolution interrompue peut être rejouée à l'identique depuis `{state, orders, seed}` (crash-recovery idempotent).
 - **R-81.** Tous les tris sont déterministes et indépendants des joueurs : `unitId` croissant, `(q, r)` croissant, puis critères métier (PV décroissant, cases parcourues croissant).
 - **R-82.** Interdits dans `/packages/rules` : `Math.random()`, `Date.now()`, itération dépendante de l'ordre d'insertion des Maps (toujours trier avant de parcourir).
 
@@ -335,6 +376,17 @@ Arrondi **au plus proche** (round half up). Cas limite tranché : même à **0 c
 | T-15 | `growthBase` | **10 (seuil = 10 × pop)** — règle Civ Rev confirmée par Erik le 30/08 ; la calibration 10→25 du même jour est annulée (elle compensait l'absence de rendements réels) |
 | T-16 | `popProductionBonus` | 0.25 🔶 |
 | T-17 | `fortifyDefenseBonus` | 0.25 🔶 (R-33, ajouté le 30/08) |
+| T-18 | `barbarianSpawnInterval` | 3 🔶 (R-96, Phase 7d — valeur dans `barbares.json`) |
+| T-19 | `barbarianAggroRadius` | 6 🔶 (R-97, Phase 7d) |
+| T-20 | `villageDestructionGold` | 25 🔶 (R-96, Phase 7d) |
+| T-21 | `villageHP` | 3 🔶 (R-96, Phase 7d) |
+| T-22 | `capPerVillage` | 2 🔶 (R-96, Phase 7d) |
+| T-23 | `escalationTurn` | 15 🔶 (R-95 : archer après ce tour, Phase 7d) |
+| T-24 | `hutScienceBoost` | 20 🔶 (R-98, Phase 7d) |
+| T-25 | `hutGoldMin` | 15 🔶 (R-98, Phase 7d) |
+| T-26 | `hutGoldMax` | 50 🔶 (R-98, Phase 7d) |
+
+*(T-18..T-26 : la source des valeurs est `barbares.json`/`huttes.json` — R-99 ; `constants.ts` les ré-exporte. Le texte de R-96 du handoff citait `T-24` pour le cap par village et la liste des constantes `T-22` : normalisé **T-22**, erratum signalé au rapport.)*
 
 ## 12. Décisions d'interprétation (toutes tranchées — 29/08)
 

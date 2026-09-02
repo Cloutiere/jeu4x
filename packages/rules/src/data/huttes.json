@@ -1,0 +1,14 @@
+{
+  "scienceBoost": 20,
+  "revealRadius": 3,
+  "ambushCount": 2,
+  "freeUnit": "guerrier",
+  "rewards": [
+    { "kind": "gold", "weight": 30, "amountMin": 15, "amountMax": 50 },
+    { "kind": "unit", "weight": 20 },
+    { "kind": "science", "weight": 15 },
+    { "kind": "reveal", "weight": 15 },
+    { "kind": "ambush", "weight": 10 },
+    { "kind": "nothing", "weight": 10 }
+  ]
+}

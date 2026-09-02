@@ -19,6 +19,8 @@ import {
   filterEventsForPlayer,
   getFilteredState,
   loadBuiltinMap,
+  loadBuiltinMapSync,
+  applyMapEntities,
   migrateState,
   resolveTurn,
   applySetResearch,
@@ -169,6 +171,19 @@ export class GameDO {
     this.meta = meta ?? null;
     // La chaîne de migrations tourne à CHAQUE chargement (§3.8).
     this.game = rawGame ? migrateState<GameState>(rawGame as unknown as Record<string, unknown>) : null;
+    // Phase 7d (R-96/R-98) : les états migrés v7 n'ont ni villages ni huttes —
+    // la migration moteur est additive (tableaux vides) ; l'enrichissement
+    // depuis la carte est fait ICI, le serveur étant seul à connaître
+    // `meta.settings.mapId`. Idempotent : après la première application,
+    // `mapId` est persisté avec le prochain état.
+    if (this.game && meta && !this.game.mapId) {
+      try {
+        this.game = applyMapEntities(this.game, loadBuiltinMapSync(meta.settings.mapId));
+        await this.state.storage.put({ game: this.game });
+      } catch {
+        // Carte inconnue des données courantes : partie sans villages (dégradé).
+      }
+    }
     this.orders = (await this.state.storage.get<Record<EnginePlayerId, Order[]>>('orders')) ?? { p1: [], p2: [] };
     this.locked = (await this.state.storage.get<Record<EnginePlayerId, boolean>>('locked')) ?? { p1: false, p2: false };
     this.resolving = (await this.state.storage.get<PendingResolution>('resolving')) ?? null;
@@ -302,8 +317,23 @@ export class GameDO {
     return jsonResponse({ ok: true });
   }
 
-  /** Dump d'état NON filtré (admin debug — protégé par ADMIN_TOKEN côté Worker). */
+  /** Dump d'état NON filtré (admin debug — protégé par ADMIN_TOKEN côté Worker).
+   *  Phase 7d : inclut un résumé `barbares` (villages, huttes, compteurs). */
   private handleAdminDump(): Response {
+    const game = this.game;
+    const barbares = game
+      ? {
+          villages: game.villages.map((v) => ({
+            id: v.id,
+            q: v.q,
+            r: v.r,
+            hp: v.hp,
+            spawnCountdown: v.spawnCountdown,
+            unitésVivantes: v.spawnedUnits.filter((id) => game.units[id]).length,
+          })),
+          huts: game.huts.map((h) => ({ id: h.id, q: h.q, r: h.r })),
+        }
+      : null;
     return jsonResponse({
       meta: this.meta,
       state: this.game,
@@ -311,6 +341,7 @@ export class GameDO {
       locked: this.locked,
       resolving: this.resolving,
       lastEvents: this.lastEvents,
+      barbares,
     });
   }
 

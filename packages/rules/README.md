@@ -9,7 +9,7 @@ architecture : [`DESIGN.md`](../../DESIGN.md).
 ## Commandes
 
 ```bash
-pnpm test        # vitest run — 132 tests (unitaires + propriétés fast-check)
+pnpm test        # vitest run — ~310 tests (unitaires + propriétés fast-check)
 pnpm test:watch  # mode watch
 npx tsc --noEmit # vérification de types (strict, NodeNext)
 ```
@@ -26,20 +26,27 @@ src/
 ├── state.ts          GameState versionné (schemaVersion + chaîne de migrations),
 │                     ordres, tri déterministe des ids (R-81) (L2)
 ├── events.ts         Journal d'événements typé et séquencé (R-73) (L2)
-├── data.ts           Tables data-driven : units.json, terrain.json
+├── data.ts           Tables data-driven : units.json, terrain.json, buildings.json,
+│                     techs.json, resources.json, barbares.json, huttes.json
 ├── techs.ts          Technologies Phase 7a : TECHS/WONDERS + couche de requête
 │                     (availableTechs, isUnlocked, researchable — R-85/86/87)
 ├── research.ts       Recherche : creditScience (Phase C), applySetResearch
 │                     (action immédiate — R-85)
-├── constants.ts      Constantes T-01..T-13 + 🔶 défauts d'économie
+├── resources.ts      Ressources Phase 7c : accès/identité/bonus (R-91..R-93)
+├── conversion.ts     Conversion or/science par ville (R-90, Phase 7b)
+├── economy.ts        Rendements effectifs, rayon de travail (R-60/R-66/R-93)
+├── barbares.ts       Barbares & huttes Phase 7d : barbarianOrders (IA R-97),
+│                     engendrement/escalade (R-95), tir des récompenses (R-98)
+├── constants.ts      Constantes T-01..T-26 (T-18..T-26 ré-exportées des JSON 7d)
 ├── rng.ts            RNG mulberry32 seedé (R-80)
 ├── combat.ts         Force effective, round p = S_att²/(S_att²+S_def²),
 │                     échange, combat à mort (R-51/52/55)
 ├── army.ts           Fusion d'armée 3 même type (R-31)
-├── map.ts            Format JSON des cartes + loader validé + état initial (L3)
+├── map.ts            Format JSON des cartes + loader validé + état initial +
+│                     applyMapEntities (villages/huttes — R-96/R-98) (L3)
 ├── fog.ts            Brouillard 3 états : vision, getFilteredState,
 │                     filtrage du journal (R-70) (L5)
-├── turn.ts           resolveTurn — phases A/B/C/D (R-40..R-72) (L4)
+├── turn.ts           resolveTurn — phases A/B/C/D (R-40..R-72, §7.9) (L4)
 ├── forfeit.ts        checkForfeit — défaite au-delà de T-06 timers manqués (L0-P1)
 ├── fixtures.ts       Constructeurs d'états de test (L2)
 └── data/
@@ -48,9 +55,15 @@ src/
     ├── buildings.json    8 bâtiments (R-66) + champ tech (R-87)
     ├── techs.json        Arbre technologique 9 techs (R-86, coûts 🔶)
     ├── wonders.json      3 merveilles en données (non constructibles — 7a)
-    ├── terrain.json      6 terrains + case de ville (2/1/1, +50 %)
-    └── maps/             pedagogique-40.json, pangee-40.json (L3)
-tests/                 combat, data, techs, research, hex, state, map, fog, turn, e2e, economy, properties
+    ├── resources.json    22 ressources (R-91, Phase 7c)
+    ├── barbares.json     Config barbares : T-18..T-23 + villageDefense (R-99)
+    ├── huttes.json       Table pondérée des récompenses de huttes (R-99)
+    ├── terrain.json      7 terrains + case de ville (2/1/1, +50 %)
+    └── maps/             pedagogique-40, pangee-40, variee-40
+                          (ressources R-94 + villages/huttes 7d)
+tests/                 combat, data, techs, research, conversion, resources, hex,
+                       state, map, fog, turn, e2e, economy, forfait, fortify,
+                       barbares, properties
 ```
 
 ## Traçabilité R-xx / T-xx
@@ -64,7 +77,11 @@ tests/                 combat, data, techs, research, hex, state, map, fog, turn
 | R-58 | Diplomatie (points d'accroche) | `state.ts` (`areAtWar`), `turn.ts` (rejet, repli mutuel, détention) | `state`, `turn` |
 | R-60..R-65 | Phase C — économie | `turn.ts` (`processEconomy`, `processCityCaptures`, `processFoundCity`) | `turn` |
 | R-70..R-73 | Phase D — vision, soins, PM, journal | `fog.ts`, `turn.ts`, `events.ts` | `fog`, `turn` |
+| R-85..R-89 | Technologies, conversion, bâtiments 7a/7b | `techs.ts`, `research.ts`, `conversion.ts`, `turn.ts` | `techs`, `research`, `conversion`, `economy` |
+| R-90..R-94 | Ressources (Phase 7c) | `resources.ts`, `economy.ts`, `map.ts`, `fog.ts` | `resources`, `map`, `fog`, `economy` |
+| R-95..R-99 | Barbares & huttes (Phase 7d) | `barbares.ts`, `turn.ts` (`processVillages`, `resolveVillageAttack`, rasement), `state.ts` (`isBarbarian`, `areAtWar`), `map.ts` (`applyMapEntities`) | `barbares`, `state`, `map` |
 | T-06 | Forfait (missedTurns, v2) | `forfeit.ts` (`checkForfeit`), migration v1→v2 | `forfeit` |
+| T-18..T-26 | Constantes barbares/huttes | `barbares.json`/`huttes.json` ré-exportées par `constants.ts` | `barbares` (R-99) |
 | R-80/R-82 | Déterminisme, interdits | `rng.ts`, tris explicites partout | `combat`, `turn`, `properties` (P1) |
 | R-81 | Tris déterministes | `state.ts` (`compareIds`), `hex.ts` (`compareHex`) | `state`, `hex` |
 | T-01..T-13 | Constantes | `constants.ts` | `data`, `turn` |
@@ -141,9 +158,13 @@ Documentées dans le code et le rapport de session ; les principales :
 
 ## Migrations de schéma (§3.8)
 
-`CURRENT_SCHEMA_VERSION = 6` ; `MIGRATIONS` :
+`CURRENT_SCHEMA_VERSION = 8` ; `MIGRATIONS` :
 `MIGRATIONS[2]` (`missedTurns`), `[3]` (`fortified`), `[4]` (économie Phase 6 :
 `workedTiles`/`production.item`/`buildings`), `[5]` (recherche Phase 7a :
 `researching`/`scienceProgress`/`techsUnlocked`/`scienceStored`), `[6]`
-(conversion des villes Phase 7b : `city.conversion`, défaut `'gold'`). `migrateState()` applique la chaîne au chargement côté serveur — toute
-future évolution ajoute `MIGRATIONS[n] = (state) => newState`.
+(conversion des villes Phase 7b : `city.conversion`, défaut `'gold'`), `[7]`
+(ressources Phase 7c : no-op), `[8]` (Phase 7d : `villages`/`huts`/`mapId`
+additifs — l'enrichissement depuis la carte est fait par le serveur via
+`applyMapEntities` avec `meta.settings.mapId`). `migrateState()` applique la
+chaîne au chargement côté serveur — toute future évolution ajoute
+`MIGRATIONS[n] = (state) => newState`.
