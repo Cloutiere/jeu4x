@@ -215,6 +215,7 @@
     montagne: 'montagne',
     desert: 'désert',
     eau: 'mer',
+    ocean: 'océan',
   };
 
   /** Nom de la ressource posée sur une case (R-91/R-92) — tooltip. Le

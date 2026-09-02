@@ -15,11 +15,12 @@
   import { writable } from 'svelte/store';
   import {
     DEFAULT_PROGEN_SETTINGS,
+    countResourcesByTerrain,
     createInitialState,
     fertilityHeatmap,
     generateProceduralMap,
   } from '@game/rules';
-  import type { ProgenReport } from '@game/rules';
+  import type { ProgenReport, ResourceTerrainCounts } from '@game/rules';
   import type { GameState } from '@game/shared';
   import GameCanvas from '../lib/render/GameCanvas.svelte';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -33,6 +34,7 @@
   let landRatio = $state(DEFAULT_PROGEN_SETTINGS.landRatio);
   let continents = $state<1 | 2>(DEFAULT_PROGEN_SETTINGS.continents);
   let rifts = $state(DEFAULT_PROGEN_SETTINGS.rifts);
+  let coastWidth = $state(DEFAULT_PROGEN_SETTINGS.coastWidth);
   let mountainDensity = $state(DEFAULT_PROGEN_SETTINGS.mountainDensity);
   let hillDensity = $state(DEFAULT_PROGEN_SETTINGS.hillDensity);
   let forestDensity = $state(DEFAULT_PROGEN_SETTINGS.forestDensity);
@@ -52,6 +54,22 @@
 
   let report = $state<ProgenReport | null>(null);
   let heat = $state<Record<string, number> | null>(null);
+  let resCounts = $state<ResourceTerrainCounts | null>(null);
+
+  /** Colonnes du tableau de comptage : terrains réellement porteurs sur la
+   *  carte, dans l'ordre canonique (terres puis eaux), extras triés derrière. */
+  const TERRAIN_COLUMN_ORDER = ['prairie', 'plaine', 'foret', 'colline', 'montagne', 'desert', 'eau', 'ocean'];
+  const TERRAIN_ABBREV: Record<string, string> = {
+    prairie: 'Pra', plaine: 'Pla', foret: 'For', colline: 'Col',
+    montagne: 'Mnt', desert: 'Des', eau: 'Mer', ocean: 'Océ',
+  };
+  let resColumns = $derived.by(() => {
+    if (!resCounts) return [];
+    const present = Object.keys(resCounts.byTerrain);
+    const known = TERRAIN_COLUMN_ORDER.filter((t) => present.includes(t));
+    const extra = present.filter((t) => !TERRAIN_COLUMN_ORDER.includes(t)).sort();
+    return [...known, ...extra];
+  });
 
   // --- État synthétique « tout visible » + faux client (aucune partie) -------
   const ui = createUiState();
@@ -79,6 +97,7 @@
         landRatio,
         continents,
         rifts,
+        coastWidth,
         mountainDensity,
         hillDensity,
         forestDensity,
@@ -90,6 +109,7 @@
         minVillageDistance,
       });
       report = result.report;
+      resCounts = countResourcesByTerrain(result.map);
       // Le MapData complet est gardé pour l'export (format des cartes
       // préfabriquées — inspectable, committable).
       lastMapData = result.map.data;
@@ -120,6 +140,7 @@
     } catch (e) {
       report = null;
       heat = null;
+      resCounts = null;
       lastMapData = null;
       error = e instanceof Error ? e.message : String(e);
     }
@@ -131,6 +152,7 @@
     void landRatio;
     void continents;
     void rifts;
+    void coastWidth;
     void mountainDensity;
     void hillDensity;
     void forestDensity;
@@ -221,6 +243,10 @@
           <input type="range" min="0" max="3" step="1" bind:value={rifts} />
         </label>
         <label>
+          Largeur des côtes : {coastWidth}
+          <input type="range" min="1" max="3" step="1" bind:value={coastWidth} />
+        </label>
+        <label>
           Montagnes : {Math.round(mountainDensity * 100)} %
           <input type="range" min="0" max="1" step="0.01" bind:value={mountainDensity} />
         </label>
@@ -276,12 +302,47 @@
               <tr><td>Seuil normalisation</td><td>{report.fertility.threshold.toFixed(1)}</td></tr>
               <tr><td>Normalisée</td><td>{report.fertility.normalized ? 'oui' : 'non'}</td></tr>
               <tr><td>Ratio terre</td><td>{(report.landRatio * 100).toFixed(1)} %</td></tr>
+              <tr><td>Côte / Océan</td><td>{report.coastTiles} / {report.oceanTiles}</td></tr>
               <tr><td>Connexité</td><td>{report.connected ? 'OK' : 'KO'}</td></tr>
               <tr><td>Tentatives</td><td>{report.attempts}</td></tr>
               <tr><td>Ressources</td><td>{report.counts.resources}</td></tr>
               <tr><td>Villages / Huttes</td><td>{report.counts.villages} / {report.counts.huts}</td></tr>
             </tbody>
           </table>
+        {:else if !error}
+          <p>Génération…</p>
+        {/if}
+      </section>
+
+      <section>
+        <h2>Ressources par type et par terrain</h2>
+        {#if resCounts}
+          <div class="res-scroll">
+            <table class="res-table">
+              <thead>
+                <tr>
+                  <th>Ressource</th>
+                  {#each resColumns as c}<th title={c}>{TERRAIN_ABBREV[c] ?? c.slice(0, 3)}</th>{/each}
+                  <th>Tot</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each resCounts.byId as row (row.id)}
+                  <tr class:absent={row.total === 0}>
+                    <td>{row.name}</td>
+                    {#each resColumns as c}
+                      <td class:zero={!row.byTerrain[c]}>{row.byTerrain[c] ?? 0}</td>
+                    {/each}
+                    <td class="tot">{row.total}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+          <p class="hint-small">
+            {resCounts.total} ressources sur la carte. Une ligne grisée = ressource
+            absente ; la colonne « Mer » = côte, « Océ » = océan profond.
+          </p>
         {:else if !error}
           <p>Génération…</p>
         {/if}
@@ -337,6 +398,16 @@
   td:first-child { color: #555; }
   td.zero { color: #1a7f37; font-weight: 600; }
   .error { color: #b00020; font-size: 0.85rem; }
+  /* Tableau de comptage : 22 ressources × terrains — compact et défilant. */
+  .res-scroll { max-height: 16rem; overflow: auto; border: 1px solid #ddd; border-radius: 4px; }
+  .res-table { font-size: 0.68rem; width: 100%; }
+  .res-table th, .res-table td { padding: 0.1rem 0.22rem; text-align: right; white-space: nowrap; }
+  .res-table th:first-child, .res-table td:first-child { text-align: left; position: sticky; left: 0; background: #fff; }
+  .res-table thead th { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ccc; }
+  .res-table tr.absent td { color: #b3b3b3; }
+  .res-table td.zero { color: #ccc; font-weight: 400; }
+  .res-table td.tot { font-weight: 600; }
+  .hint-small { color: #777; font-size: 0.72rem; margin: 0.4rem 0 0; }
   @media (max-width: 54rem) {
     aside { width: 100%; }
     .canvas-host { width: 100%; height: 62vh; }

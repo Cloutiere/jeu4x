@@ -167,6 +167,19 @@ function buildTileGraphics(): Record<TerrainId, Graphics> {
     gr.stroke({ width: 8, color: 0x7fa8cc, alpha: 0.7, cap: 'round' });
     out.eau = gr;
   }
+  // Océan — bleu plus profond, vagues rares (Phase 6c : côte vs océan).
+  {
+    const gr = g();
+    tileBase(gr, 0x2a4c74);
+    gr.moveTo(TILE_CX - 50, TILE_CY - 6);
+    gr.quadraticCurveTo(TILE_CX - 22, TILE_CY - 20, TILE_CX + 6, TILE_CY - 6);
+    gr.quadraticCurveTo(TILE_CX + 34, TILE_CY + 8, TILE_CX + 62, TILE_CY - 6);
+    gr.stroke({ width: 7, color: 0x5e86ae, alpha: 0.85, cap: 'round' });
+    gr.moveTo(TILE_CX - 34, TILE_CY + 38);
+    gr.quadraticCurveTo(TILE_CX - 8, TILE_CY + 26, TILE_CX + 18, TILE_CY + 38);
+    gr.stroke({ width: 7, color: 0x5e86ae, alpha: 0.6, cap: 'round' });
+    out.ocean = gr;
+  }
   // Case de ville — sol bâti (terre + chemin), le bâtiment est une entité.
   {
     const gr = g();
@@ -455,6 +468,7 @@ const TILE_ASSETS: Record<TerrainId, string> = {
   montagne: 'tile_montagne',
   desert: 'tile_desert',
   eau: 'tile_eau',
+  ocean: 'tile_ocean',
   ville: 'tile_ville_sol',
 };
 
