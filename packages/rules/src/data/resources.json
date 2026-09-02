@@ -8,7 +8,7 @@
     "officialTech": "Mass Production",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 3
   },
   "betail": {
     "id": "betail",
@@ -19,18 +19,18 @@
     "officialTech": "Code of Laws",
     "culture": null,
     "hiddenUntilRevealed": true,
-    "spawnWeight": null
+    "spawnWeight": 10
   },
   "ble": {
     "id": "ble",
     "name": "Blé",
-    "terrains": ["prairie"],
+    "terrains": ["prairie", "plaine"],
     "yields": { "food": 2, "production": 0, "commerce": 0 },
     "revealedByTech": null,
     "officialTech": "Irrigation",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 12
   },
   "baleine": {
     "id": "baleine",
@@ -41,7 +41,7 @@
     "officialTech": "Navigation",
     "culture": null,
     "hiddenUntilRevealed": true,
-    "spawnWeight": null
+    "spawnWeight": 6
   },
   "boeufs": {
     "id": "boeufs",
@@ -52,7 +52,7 @@
     "officialTech": "Horseback Riding",
     "culture": null,
     "hiddenUntilRevealed": true,
-    "spawnWeight": null
+    "spawnWeight": 8
   },
   "caoutchouc": {
     "id": "caoutchouc",
@@ -63,7 +63,7 @@
     "officialTech": "Automobile",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 4
   },
   "charbon": {
     "id": "charbon",
@@ -74,7 +74,7 @@
     "officialTech": "Steam Power",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 5
   },
   "chene": {
     "id": "chene",
@@ -85,7 +85,7 @@
     "officialTech": "Construction",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 9
   },
   "encens": {
     "id": "encens",
@@ -96,7 +96,7 @@
     "officialTech": "Ceremonial Burial",
     "culture": 2,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 7
   },
   "epices": {
     "id": "epices",
@@ -107,7 +107,7 @@
     "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 7
   },
   "fer": {
     "id": "fer",
@@ -118,7 +118,7 @@
     "officialTech": "Iron Working",
     "culture": null,
     "hiddenUntilRevealed": true,
-    "spawnWeight": null
+    "spawnWeight": 7
   },
   "gemmes": {
     "id": "gemmes",
@@ -129,7 +129,7 @@
     "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 4
   },
   "gibier": {
     "id": "gibier",
@@ -140,7 +140,7 @@
     "officialTech": "Feudalism",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 10
   },
   "or": {
     "id": "or",
@@ -151,7 +151,7 @@
     "officialTech": "Currency",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 4
   },
   "marbre": {
     "id": "marbre",
@@ -162,7 +162,7 @@
     "officialTech": "Masonry",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 8
   },
   "petrole": {
     "id": "petrole",
@@ -173,7 +173,7 @@
     "officialTech": "Combustion",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 3
   },
   "poisson": {
     "id": "poisson",
@@ -184,7 +184,7 @@
     "officialTech": "Bronze Working",
     "culture": null,
     "hiddenUntilRevealed": true,
-    "spawnWeight": null
+    "spawnWeight": 10
   },
   "soie": {
     "id": "soie",
@@ -195,7 +195,7 @@
     "officialTech": "Literacy",
     "culture": 3,
     "hiddenUntilRevealed": true,
-    "spawnWeight": null
+    "spawnWeight": 6
   },
   "soufre": {
     "id": "soufre",
@@ -206,7 +206,7 @@
     "officialTech": "Gunpowder",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 3
   },
   "teinture": {
     "id": "teinture",
@@ -217,7 +217,7 @@
     "officialTech": "Monarchy",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 6
   },
   "uranium": {
     "id": "uranium",
@@ -228,7 +228,7 @@
     "officialTech": "Nuclear Power",
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": null
+    "spawnWeight": 2
   },
   "vin": {
     "id": "vin",
@@ -239,6 +239,6 @@
     "officialTech": "Pottery",
     "culture": null,
     "hiddenUntilRevealed": true,
-    "spawnWeight": null
+    "spawnWeight": 8
   }
 }

@@ -2,6 +2,7 @@
   // Page lobby (L6) : créer une partie, rejoindre par code ou via la liste,
   // mes parties, abandon.
   import { onDestroy } from 'svelte';
+  import type { MapId } from '@game/shared';
   import { createLobbyClient } from '../lib/lobbyClient.js';
   import { logout, session } from '../lib/session.js';
 
@@ -12,7 +13,9 @@
   const status = client.status;
   const error = client.error;
 
-  let mapId = $state<'pedagogique-40' | 'pangee-40' | 'variee-40'>('variee-40');
+  // Phase 6b : la carte aléatoire procédurale devient le choix par défaut
+  // des parties (seed de partie → carte déterministe et rejouable).
+  let mapId = $state<MapId>('procedural-40');
   let timerMinutes = $state(60);
   let isPublic = $state(true);
   let joinCode = $state('');
@@ -36,12 +39,17 @@
   <p>Statut lobby : {$status}</p>
   {#if $error}<p class="error">{$error}</p>{/if}
 
+  <p class="progen-link">
+    <a href="#/progen">Labo de cartes (calibrage de la génération procédurale)</a>
+  </p>
+
   <section>
     <h2>Créer une partie</h2>
     <label>
       Carte
       <select bind:value={mapId}>
-        <option value="variee-40">Variée 40×40 (défaut)</option>
+        <option value="procedural-40">Carte aléatoire (seed de partie)</option>
+        <option value="variee-40">Variée 40×40</option>
         <option value="pedagogique-40">Pédagogique 40×40</option>
         <option value="pangee-40">Pangée 40×40</option>
       </select>
@@ -103,4 +111,5 @@
   section { border: 1px solid #ccc; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
   label { display: flex; gap: 0.5rem; margin-right: 1rem; align-items: center; }
   .error { color: #b00020; }
+  .progen-link { font-size: 0.9rem; }
 </style>

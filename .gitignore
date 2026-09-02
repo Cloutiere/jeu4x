@@ -10,3 +10,4 @@ dist/
 # Variables Vite locales (mode reveal — L0 Phase 3)
 .env.local
 client_secret_*.json
+dev-logs/

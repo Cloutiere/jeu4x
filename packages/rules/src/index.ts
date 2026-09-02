@@ -19,3 +19,5 @@ export * from './fog.js';
 export * from './turn.js';
 export * from './forfeit.js';
 export * from './fixtures.js';
+/** Phase 6b — générateur procédural de cartes (pur, seedé, sans IO). */
+export * from './progen/index.js';

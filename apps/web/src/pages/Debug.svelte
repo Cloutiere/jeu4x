@@ -20,6 +20,12 @@
     lastEvents: unknown;
   }
 
+  /** Phase 6b : rapport de génération d'une carte procédurale (meta.progen). */
+  const progenOf = (meta: unknown): Record<string, unknown> | null => {
+    const p = (meta as { progen?: Record<string, unknown> } | null)?.progen;
+    return p ?? null;
+  };
+
   let dump = $state<AdminDump | null>(null);
   let error = $state<string | null>(null);
 
@@ -63,6 +69,12 @@
       <h2>meta</h2>
       <pre>{JSON.stringify(dump.meta, null, 2)}</pre>
     </section>
+    {#if progenOf(dump.meta)}
+      <section>
+        <h2>génération procédurale (seed · ratio terre · checksum de fertilité)</h2>
+        <pre>{JSON.stringify(progenOf(dump.meta), null, 2)}</pre>
+      </section>
+    {/if}
     <section>
       <h2>state (non filtré — toutes les unités, villes et la graine)</h2>
       <pre>{JSON.stringify(dump.state, null, 2)}</pre>

@@ -107,8 +107,30 @@ export async function joinGame(player: { id: string; name: string }, code: strin
   lobby.close();
 }
 
+/** Phase 6b : rapport de génération de la carte procédurale (sous-ensemble). */
+export interface ProgenReportShape {
+  seed: number;
+  strategy: string;
+  attempts: number;
+  landTiles: number;
+  landRatio: number;
+  counts: { resources: number; villages: number; huts: number };
+  fertility: { p1: number; p2: number; delta: number; threshold: number; normalized: boolean };
+  connected: boolean;
+}
+
 export interface AdminDump {
-  meta: { code: string; status: string; finishedReason?: string; deadline: number | null; players: Array<{ id: string; engineId: string }> } | null;
+  meta: {
+    code: string;
+    status: string;
+    finishedReason?: string;
+    deadline: number | null;
+    players: Array<{ id: string; engineId: string }>;
+    seed?: number;
+    settings?: { mapId?: string };
+    /** Phase 6b : présent uniquement pour procedural-40. */
+    progen?: ProgenReportShape;
+  } | null;
   state: {
     turn: number;
     phase: string;

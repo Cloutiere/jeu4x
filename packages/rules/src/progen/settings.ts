@@ -1,0 +1,133 @@
+/**
+ * Phase 6b — Réglages du générateur procédural de cartes.
+ *
+ * Toutes les valeurs par défaut marquées 🔶 sont des CIBLES DE CALIBRAGE :
+ * le labo #/progen permet de les régler visuellement avant toute validation
+ * d'Erik (convention HANDOFF.md §4 — ne pas modifier sans validation).
+ *
+ * Les réglages sont PURS (aucune IO) et sérialisables : ils traversent le
+ * protocole et le dump admin tels quels.
+ */
+
+/** Stratégie de placement des départs (ajout d'Erik, 02/09) : aujourd'hui le
+ *  miroir 1v1 est la seule implémentation ; `regionalMulti` (2-5 joueurs,
+ *  partitionnement régional du PDF §AssignStartingPlots) s'ajoutera derrière
+ *  la même interface sans toucher à la couche géophysique. */
+export type StartPlacementId = 'mirror1v1';
+
+export interface ProgenSettings {
+  /** Nombre de joueurs visés — 2 pour mirror1v1 ; 2-5 pour regionalMulti futur. */
+  playerCount: number;
+  /** Stratégie injectable de placement des départs ET du contenu. */
+  startPlacement: StartPlacementId;
+  /** 1 = pangée (rifts courts) ; 2 = deux masses séparées par un rift traversant
+   *  avec isthme central (la connexité terrestre des spawns reste garantie). */
+  continents: 1 | 2;
+  /** Cible de ratio terre/eau 🔶 (0.55 = ~55 % de terre). */
+  landRatio: number;
+  /** Nombre d'axes de rift (continents=1 : rifts courts ; continents=2 : 1 traversant). */
+  rifts: number;
+  /** Densités des reliefs et du climat, toutes dans [0, 1] 🔶. */
+  mountainDensity: number;
+  hillDensity: number;
+  forestDensity: number;
+  humidity: number;
+  /** Multiplicateur de densité des ressources (cible ~1 / 12 cases de terre 🔶). */
+  resourceDensity: number;
+  /** Villages barbares et huttes posés sur la DEMI-carte puis reflétés 🔶
+   *  (3 villages + 2 huttes par moitié — équité parfaite par miroir). */
+  villagesPerHalf: number;
+  hutsPerHalf: number;
+  /** Distance minimale entre les deux capitales (= validation parseMap). */
+  minSpawnDistance: number;
+  /** Distance minimale d'un site de capitale aux bords de carte. */
+  startMinEdgeDistance: number;
+  /** Distance minimale d'un site de capitale à l'axe de miroir (T-09). */
+  startMinMirrorDistance: number;
+  /** Villages : distance minimale aux DEUX spawns (leçon de calibrage 7d 🔶). */
+  minVillageDistance: number;
+  /** Huttes : distance minimale aux deux spawns 🔶 (embuscade = 2 barbares). */
+  minHutDistance: number;
+  /** Normalisation (PDF §NormalizeStartLocation) : seuil = moyenne des N
+   *  meilleurs sites × facteur 🔶. */
+  normalizationTopSites: number;
+  normalizationFactor: number;
+  /** Poids des anneaux 1/2/3 de fertilité 🔶 (pseudocode du PDF, adapté). */
+  fertilityRingWeights: [number, number, number];
+  /** Pondération des rendements 🔶 : nourriture ×2 + production ×1.5 (PDF) ;
+   *  commerce ×1 — interprétation : le commerce est converti or/science
+   *  chez nous (R-90), il compte donc dans la fertilité. */
+  fertilityFoodWeight: number;
+  fertilityProductionWeight: number;
+  fertilityCommerceWeight: number;
+  /** Pénalité par case de montagne dans un anneau 🔶 (PDF : malus sévère). */
+  fertilityMountainPenalty: number;
+  /** Tentatives maximales (connexité/seuil/validité) avant échec explicite. */
+  maxAttempts: number;
+}
+
+export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
+  playerCount: 2,
+  startPlacement: 'mirror1v1',
+  continents: 1,
+  landRatio: 0.55,
+  rifts: 1,
+  mountainDensity: 0.5,
+  hillDensity: 0.5,
+  forestDensity: 0.5,
+  humidity: 0.5,
+  resourceDensity: 1,
+  villagesPerHalf: 3,
+  hutsPerHalf: 2,
+  minSpawnDistance: 12,
+  startMinEdgeDistance: 6,
+  startMinMirrorDistance: 2, // T-09
+  minVillageDistance: 6,
+  minHutDistance: 3,
+  normalizationTopSites: 5,
+  normalizationFactor: 0.8,
+  fertilityRingWeights: [1.0, 0.6, 0.3],
+  fertilityFoodWeight: 2,
+  fertilityProductionWeight: 1.5,
+  fertilityCommerceWeight: 1,
+  fertilityMountainPenalty: 2,
+  maxAttempts: 10,
+};
+
+const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
+
+/**
+ * Fusionne les overrides sur les défauts, avec bornage : le labo #/progen
+ * envoie des curseurs bruts, les valeurs restent dans des plages saines.
+ */
+export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): ProgenSettings {
+  const s = { ...DEFAULT_PROGEN_SETTINGS, ...(overrides ?? {}) };
+  return {
+    ...s,
+    playerCount: Math.max(2, Math.min(5, Math.round(s.playerCount))),
+    startPlacement: s.startPlacement === 'mirror1v1' ? 'mirror1v1' : 'mirror1v1',
+    continents: s.continents === 2 ? 2 : 1,
+    landRatio: Math.min(0.75, Math.max(0.25, s.landRatio)),
+    rifts: Math.min(3, Math.max(0, Math.round(s.rifts))),
+    mountainDensity: clamp01(s.mountainDensity),
+    hillDensity: clamp01(s.hillDensity),
+    forestDensity: clamp01(s.forestDensity),
+    humidity: clamp01(s.humidity),
+    resourceDensity: Math.min(4, Math.max(0, s.resourceDensity)),
+    villagesPerHalf: Math.min(6, Math.max(0, Math.round(s.villagesPerHalf))),
+    hutsPerHalf: Math.min(6, Math.max(0, Math.round(s.hutsPerHalf))),
+    minSpawnDistance: Math.max(2, Math.round(s.minSpawnDistance)),
+    startMinEdgeDistance: Math.max(2, Math.round(s.startMinEdgeDistance)),
+    startMinMirrorDistance: Math.max(1, Math.round(s.startMinMirrorDistance)),
+    minVillageDistance: Math.max(0, Math.round(s.minVillageDistance)),
+    minHutDistance: Math.max(0, Math.round(s.minHutDistance)),
+    normalizationTopSites: Math.max(1, Math.round(s.normalizationTopSites)),
+    normalizationFactor: Math.min(1, Math.max(0.3, s.normalizationFactor)),
+    fertilityRingWeights: [
+      Math.max(0, s.fertilityRingWeights[0]),
+      Math.max(0, s.fertilityRingWeights[1]),
+      Math.max(0, s.fertilityRingWeights[2]),
+    ],
+    maxAttempts: Math.min(25, Math.max(1, Math.round(s.maxAttempts))),
+  };
+}

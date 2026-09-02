@@ -44,6 +44,10 @@
     showYields?: boolean;
     /** Phase 7b : masquer villes et armées pour lire les rendements (cycle 3 états). */
     hideEntities?: boolean;
+    /** Phase 6b (labo #/progen) : heatmap de fertilité — score par clé "q,r",
+     *  dessiné en teinte verte (riche) → rouge (pauvre). Optionnel : absent du
+     *  jeu réel, fourni uniquement par le labo de calibrage. */
+    fertilityHeatmap?: Record<string, number> | null;
   }
 
   let {
@@ -58,13 +62,18 @@
     onPlaybackActive,
     showYields = false,
     hideEntities = false,
+    fertilityHeatmap = null,
   }: Props = $props();
 
   // La bascule de l'overlay de rendements reconstruit la surcouche ; le
   // masquage des entités (Phase 7b) ne fait que cacher la couche (réversible,
-  // sans reconstruction).
+  // sans reconstruction). Idem pour la heatmap du labo (Phase 6b).
   $effect(() => {
     void showYields;
+    overlayDirty = true;
+  });
+  $effect(() => {
+    void fertilityHeatmap;
     overlayDirty = true;
   });
   $effect(() => {
@@ -497,6 +506,26 @@
   function rebuildOverlay(): void {
     overlayLayer.removeChildren().forEach((child) => child.destroy({ children: true }));
     if (!scene.state) return;
+
+    // Phase 6b (labo #/progen) : heatmap de fertilité, dessinée en FOND de
+    // surcouche (sous les frontières/rendements) — vert = riche, rouge = pauvre.
+    if (fertilityHeatmap) {
+      const values = Object.values(fertilityHeatmap);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const span = max - min || 1;
+      for (const [key, score] of Object.entries(fertilityHeatmap)) {
+        if (!scene.explored.has(key)) continue;
+        const [q, r] = key.split(',').map(Number);
+        if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+        const t = (score - min) / span;
+        const color = (Math.round(220 * (1 - t)) << 16) | (Math.round(220 * t) << 8);
+        const gr = new Graphics();
+        gr.poly(hexLocalPoints(HEX_SIZE - 4)).fill({ color, alpha: 0.4 });
+        gr.position.copyFrom(hexToPixel({ q, r }, HEX_SIZE));
+        overlayLayer.addChild(gr);
+      }
+    }
 
     // Possession des cases de ville (frontière couleur joueur).
     for (const city of Object.values(scene.state.cities)) {

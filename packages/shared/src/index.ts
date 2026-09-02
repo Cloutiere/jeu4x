@@ -18,8 +18,13 @@ export interface ProtoMessage {
   proto: number;
 }
 
-/** Cartes préfabriquées disponibles à la création (packages/rules/src/data/maps). */
-export type MapId = 'pedagogique-40' | 'pangee-40' | 'variee-40';
+/** Cartes disponibles à la création : les 3 préfabriquées (packages/rules/src/
+ *  data/maps) + la carte aléatoire procédurale (Phase 6b, générée par le
+ *  moteur pur depuis la graine de partie — déterministe et rejouable). */
+export type MapId = 'pedagogique-40' | 'pangee-40' | 'variee-40' | 'procedural-40';
+
+/** Identifiant de la carte procédurale (Phase 6b). */
+export const PROCEDURAL_MAP_ID: MapId = 'procedural-40';
 
 export interface GameCreationSettings {
   mapId: MapId;
@@ -27,6 +32,10 @@ export interface GameCreationSettings {
   turnTimerMinutes: number | null;
   /** Les parties publiques en attente apparaissent dans GameList. */
   isPublic: boolean;
+  /** Phase 6b (pérennité multi-joueurs) : nombre de joueurs visés — 2 en v1
+   *  (miroir) ; la génération procédurale est déjà paramétrée pour accueillir
+   *  2-5 joueurs via la future stratégie `regionalMulti`. */
+  playerCount?: number;
 }
 
 export interface PlayerInfo {

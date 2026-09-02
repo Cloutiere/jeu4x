@@ -17,8 +17,8 @@ import {
   checkForfeit,
   createInitialState,
   filterEventsForPlayer,
+  generateProceduralMap,
   getFilteredState,
-  loadBuiltinMap,
   loadBuiltinMapSync,
   applyMapEntities,
   migrateState,
@@ -26,7 +26,7 @@ import {
   applySetResearch,
   applySetConversion,
 } from '@game/rules';
-import type { CityId, GameEvent, GameState, Order, PlayerId, UnitId } from '@game/rules';
+import type { CityId, GameEvent, GameState, LoadedMap, Order, PlayerId, ProgenReport, UnitId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
 import type { ClientToServerMessage, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import type { Env } from './env.js';
@@ -34,6 +34,21 @@ import { jsonResponse, sessionOfRequest } from './env.js';
 
 export type EnginePlayerId = 'p1' | 'p2';
 const ENGINE_IDS: EnginePlayerId[] = ['p1', 'p2'];
+
+/**
+ * Phase 6b : charge la carte de la partie — préfabriquée (données commises)
+ * ou procédurale (`procedural-40`, générée PUREMENT et déterministement depuis
+ * la graine de partie : même `meta.seed` → même carte, rejouable après un
+ * réveil à froid). Retourne aussi le rapport de génération (procedural-40
+ * uniquement) à consigner dans `meta.progen` (dump admin).
+ */
+function loadMapForGame(settings: GameCreationSettings, seed: number): { map: LoadedMap; report?: ProgenReport } {
+  if (settings.mapId === 'procedural-40') {
+    const { map, report } = generateProceduralMap(seed);
+    return { map, report };
+  }
+  return { map: loadBuiltinMapSync(settings.mapId) };
+}
 
 export interface GamePlayer {
   /** Id de session réel (ex. "google:123", "dev:alice"). */
@@ -57,6 +72,9 @@ export interface GameMeta {
   deadline: number | null;
   /** Motif de fin (admin/debug) : domination | forfeit | abandoned. */
   finishedReason?: 'domination' | 'forfeit' | 'abandoned';
+  /** Phase 6b : rapport de génération de la carte procédurale (seed, ratio
+   *  terre, checksum de fertilité) — consigné pour le dump admin. */
+  progen?: ProgenReport;
 }
 
 /** Motif de persistance idempotent (DESIGN.md §3.5) — présent SSI la partie est en résolution. */
@@ -178,7 +196,9 @@ export class GameDO {
     // `mapId` est persisté avec le prochain état.
     if (this.game && meta && !this.game.mapId) {
       try {
-        this.game = applyMapEntities(this.game, loadBuiltinMapSync(meta.settings.mapId));
+        // Phase 6b : le helper couvre les cartes préfabriquées ET la carte
+        // procédurale (régénérée depuis meta.seed — même entrée, même carte).
+        this.game = applyMapEntities(this.game, loadMapForGame(meta.settings, meta.seed).map);
         await this.state.storage.put({ game: this.game });
       } catch {
         // Carte inconnue des données courantes : partie sans villages (dégradé).
@@ -287,8 +307,10 @@ export class GameDO {
     this.meta.players.push({ id: body.player.id, name: body.player.name, engineId: 'p2' });
     this.meta.status = 'active';
 
-    // État moteur initial : carte préfabriquée + graine de la partie.
-    const map = await loadBuiltinMap(this.meta.settings.mapId);
+    // État moteur initial : carte préfabriquée OU procédurale (Phase 6b —
+    // générée depuis la graine de partie déjà présente dans meta) + graine.
+    const { map, report } = loadMapForGame(this.meta.settings, this.meta.seed);
+    if (report) this.meta.progen = report;
     this.game = createInitialState(map, this.meta.seed);
     this.orders = { p1: [], p2: [] };
     this.locked = { p1: false, p2: false };
