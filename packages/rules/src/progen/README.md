@@ -99,11 +99,14 @@ Tous les défauts sont dans `settings.ts` (`DEFAULT_PROGEN_SETTINGS`) et sont
 exposés en curseurs dans le labo `#/progen` (régénération à la volée) :
 ratio terre 55 %, 1-2 rifts, largeur des côtes 1 (R-107 : une case d'eau à
 ≤ N cases d'une terre est de la côte `eau`, le reste est de l'océan `ocean`),
-densités montagnes/collines/forêts 50 %, humidité 50 %, densité ressources ×1
-(~1 ressource / 12 cases de terre, marines ×1/48 sur Mer ET Océan),
-**écart ressources 2** et **min 1 de chaque type par joueur** (R-108),
-3 villages + 2 huttes par demi-carte, distance de spawn 12, villages ≥ 6,
-huttes ≥ 3, normalisation = moyenne(top 5) × 0.8.
+mosaïque des zones ×0.5 (R-100 Phase 6c : regroupement divisé par 2), densités
+PAR TYPE montagnes/collines/forêts/déserts/prairies 50 %, densité ressources
+**×1.5** (~1 ressource / 8 cases de terre, marines ×1.5/48 sur Mer ET Océan),
+**écart ressources 2** et **min 1 de chaque type par joueur** (R-108, réservées
+AVANT le tirage, ordre par rareté, choix farthest-point), **6 villages + 6
+huttes par demi-carte** avec trois distances 🔶 (villages 6, huttes 3,
+huttes↔villages 2 ; départs : villages ≥ 6, huttes ≥ 3), distance de spawn 12,
+normalisation = moyenne(top 5) × 0.8.
 
 ## Intégration
 

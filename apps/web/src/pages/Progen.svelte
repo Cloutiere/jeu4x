@@ -39,7 +39,9 @@
   let mountainDensity = $state(DEFAULT_PROGEN_SETTINGS.mountainDensity);
   let hillDensity = $state(DEFAULT_PROGEN_SETTINGS.hillDensity);
   let forestDensity = $state(DEFAULT_PROGEN_SETTINGS.forestDensity);
-  let humidity = $state(DEFAULT_PROGEN_SETTINGS.humidity);
+  let desertDensity = $state(DEFAULT_PROGEN_SETTINGS.desertDensity);
+  let prairieDensity = $state(DEFAULT_PROGEN_SETTINGS.prairieDensity);
+  let terrainPatchScale = $state(DEFAULT_PROGEN_SETTINGS.terrainPatchScale);
   let resourceDensity = $state(DEFAULT_PROGEN_SETTINGS.resourceDensity);
   let minResourceDistance = $state(DEFAULT_PROGEN_SETTINGS.minResourceDistance);
   let minPerResourceType = $state(DEFAULT_PROGEN_SETTINGS.minPerResourceType);
@@ -47,6 +49,10 @@
   let hutsPerHalf = $state(DEFAULT_PROGEN_SETTINGS.hutsPerHalf);
   let minSpawnDistance = $state(DEFAULT_PROGEN_SETTINGS.minSpawnDistance);
   let minVillageDistance = $state(DEFAULT_PROGEN_SETTINGS.minVillageDistance);
+  let minHutDistance = $state(DEFAULT_PROGEN_SETTINGS.minHutDistance);
+  let villageSpacing = $state(DEFAULT_PROGEN_SETTINGS.villageSpacing);
+  let hutSpacing = $state(DEFAULT_PROGEN_SETTINGS.hutSpacing);
+  let hutVillageSpacing = $state(DEFAULT_PROGEN_SETTINGS.hutVillageSpacing);
 
   // --- Affichage --------------------------------------------------------------
   let showHeatmap = $state(true);
@@ -105,7 +111,9 @@
         mountainDensity,
         hillDensity,
         forestDensity,
-        humidity,
+        desertDensity,
+        prairieDensity,
+        terrainPatchScale,
         resourceDensity,
         minResourceDistance,
         minPerResourceType,
@@ -113,6 +121,10 @@
         hutsPerHalf,
         minSpawnDistance,
         minVillageDistance,
+        minHutDistance,
+        villageSpacing,
+        hutSpacing,
+        hutVillageSpacing,
       });
       report = result.report;
       resCounts = countResourcesByTerrain(result.map);
@@ -164,7 +176,9 @@
     void mountainDensity;
     void hillDensity;
     void forestDensity;
-    void humidity;
+    void desertDensity;
+    void prairieDensity;
+    void terrainPatchScale;
     void resourceDensity;
     void minResourceDistance;
     void minPerResourceType;
@@ -172,6 +186,10 @@
     void hutsPerHalf;
     void minSpawnDistance;
     void minVillageDistance;
+    void minHutDistance;
+    void villageSpacing;
+    void hutSpacing;
+    void hutVillageSpacing;
     void showHeatmap;
     regenerate();
   });
@@ -269,8 +287,16 @@
           <input type="range" min="0" max="1" step="0.01" bind:value={forestDensity} />
         </label>
         <label>
-          Humidité : {Math.round(humidity * 100)} %
-          <input type="range" min="0" max="1" step="0.01" bind:value={humidity} />
+          Déserts : {Math.round(desertDensity * 100)} %
+          <input type="range" min="0" max="1" step="0.01" bind:value={desertDensity} />
+        </label>
+        <label>
+          Prairies ↔ Plaines : {Math.round(prairieDensity * 100)} % de prairies
+          <input type="range" min="0" max="1" step="0.01" bind:value={prairieDensity} />
+        </label>
+        <label>
+          Mosaïque (taille des zones) : ×{terrainPatchScale.toFixed(2)}
+          <input type="range" min="0.25" max="1.5" step="0.05" bind:value={terrainPatchScale} />
         </label>
         <label>
           Densité ressources : ×{resourceDensity.toFixed(1)}
@@ -286,19 +312,35 @@
         </label>
         <label>
           Villages (par moitié) : {villagesPerHalf}
-          <input type="range" min="0" max="6" step="1" bind:value={villagesPerHalf} />
+          <input type="range" min="0" max="12" step="1" bind:value={villagesPerHalf} />
         </label>
         <label>
           Huttes (par moitié) : {hutsPerHalf}
-          <input type="range" min="0" max="6" step="1" bind:value={hutsPerHalf} />
+          <input type="range" min="0" max="12" step="1" bind:value={hutsPerHalf} />
         </label>
         <label>
           Distance de spawn : {minSpawnDistance}
           <input type="range" min="8" max="30" step="1" bind:value={minSpawnDistance} />
         </label>
         <label>
-          Distance villages : {minVillageDistance}
+          Villages ↔ départs : {minVillageDistance}
           <input type="range" min="0" max="12" step="1" bind:value={minVillageDistance} />
+        </label>
+        <label>
+          Huttes ↔ départs : {minHutDistance}
+          <input type="range" min="0" max="12" step="1" bind:value={minHutDistance} />
+        </label>
+        <label>
+          Villages entre eux : {villageSpacing}
+          <input type="range" min="0" max="12" step="1" bind:value={villageSpacing} />
+        </label>
+        <label>
+          Huttes entre elles : {hutSpacing}
+          <input type="range" min="0" max="12" step="1" bind:value={hutSpacing} />
+        </label>
+        <label>
+          Huttes ↔ villages : {hutVillageSpacing} (jamais à côté)
+          <input type="range" min="0" max="12" step="1" bind:value={hutVillageSpacing} />
         </label>
       </section>
 

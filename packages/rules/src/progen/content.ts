@@ -60,9 +60,12 @@ export interface ResourcePlacement {
 }
 
 /** Options de pose : `mirrorOf` = image de la stratégie miroir (rotation 180°)
- *  — fournie, la contrainte d'espacement porte sur la carte complète. */
+ *  — fournie, la contrainte d'espacement porte sur la carte complète ;
+ *  `alreadyPlaced` = ressources déjà posées (garantie de couverture 6c) dont
+ *  le tirage aléatoire doit respecter l'espacement. */
 export interface ResourcePlacementOptions {
   mirrorOf?: (hex: Hex) => Hex;
+  alreadyPlaced?: Array<{ q: number; r: number }>;
 }
 
 /**
@@ -80,7 +83,8 @@ export function placeResources(
   const height = terrain.length;
   const width = terrain[0]?.length ?? 0;
   const resources: MapResource[] = [];
-  const placedHexes: Hex[] = [];
+  const placedHexes: Hex[] = (options?.alreadyPlaced ?? []).map((r) => ({ q: r.q, r: r.r }));
+  const prePlacedKeys = new Set(placedHexes.map((p) => `${p.q},${p.r}`));
   let landTiles = 0;
   let waterTiles = 0;
 
@@ -119,6 +123,8 @@ export function placeResources(
         roll -= c.weight;
       }
       const hex = colRowToHex(col, row);
+      const key = `${hex.q},${hex.r}`;
+      if (prePlacedKeys.has(key)) continue; // case réservée par la garantie 6c
       if (spacingViolated(hex, placedHexes, options?.mirrorOf, s.minResourceDistance)) continue;
       placedHexes.push(hex);
       resources.push({ id: picked.id, q: hex.q, r: hex.r });
@@ -130,18 +136,34 @@ export function placeResources(
 export interface EntityPlacementInput {
   rng: SeededRng;
   terrain: TerrainId[][];
-  /** Cases à distance ≥ minDistance de TOUTES ces cases (spawns de la carte
-   *  complète — l'image du spawn est fournie par la stratégie). */
+  /** Départs de la carte complète (l'image du spawn est fournie par la
+   *  stratégie) — pose à ≥ minSpawnDistance de TOUTES ces cases. */
   spawns: Hex[];
-  minDistance: number;
-  /** Cases déjà occupées (villages + huttes + futurs spawns), clés "q,r". */
-  occupied: Set<string>;
+  minSpawnDistance: number;
+  /** Poses DU MÊME type déjà présentes (muté : chaque pose y est ajoutée) —
+   *  ≥ minSameDistance (≤ 1 = contrainte désactivée). */
+  same: Hex[];
+  minSame: number;
+  /** Poses de l'AUTRE type (villages ↔ huttes) — ≥ minOtherDistance (≤ 1 =
+   *  désactivée ; le recouvrement reste interdit quelle que soit la valeur). */
+  other: Hex[];
+  minOther: number;
+  /** Image miroir (rotation 180°) — fournie, les trois distances portent sur
+   *  la carte COMPLÈTE (poses ET leurs images, auto-image comprise). */
+  mirrorOf?: (hex: Hex) => Hex;
+  /** Cases interdites sans condition de distance (capitales), clés "q,r". */
+  reserved: Set<string>;
   count: number;
 }
 
-/** Cases praticables éligibles pour un village ou une hutte (tri (q, r)). */
+/** Cases praticables éligibles pour un village ou une hutte (tri (q, r)).
+ *  Phase 6c : les trois distances sont indépendantes (villages entre eux,
+ *  huttes entre elles, huttes ↔ villages — une hutte ne doit pas être à côté
+ *  d'un village mais peut en être plus proche qu'une autre hutte). */
 function entityCandidates(input: EntityPlacementInput): Hex[] {
-  const { terrain, spawns, minDistance, occupied } = input;
+  const { terrain, spawns, minSpawnDistance, same, minSame, other, minOther, reserved, mirrorOf } = input;
+  const sameFull = mirrorOf ? [...same, ...same.map(mirrorOf)] : same;
+  const otherFull = mirrorOf ? [...other, ...other.map(mirrorOf)] : other;
   const height = terrain.length;
   const width = terrain[0]?.length ?? 0;
   const out: Hex[] = [];
@@ -151,8 +173,14 @@ function entityCandidates(input: EntityPlacementInput): Hex[] {
       if (!TERRAINS[t]!.passable) continue;
       const hex = colRowToHex(col, row);
       const key = `${hex.q},${hex.r}`;
-      if (occupied.has(key)) continue;
-      if (spawns.some((sp) => hexDistance(sp, hex) < minDistance)) continue;
+      if (reserved.has(key)) continue;
+      if (same.some((p) => p.q === hex.q && p.r === hex.r)) continue;
+      if (other.some((p) => p.q === hex.q && p.r === hex.r)) continue;
+      if (spawns.some((sp) => hexDistance(sp, hex) < minSpawnDistance)) continue;
+      if (minSame > 1 && sameFull.some((p) => hexDistance(p, hex) < minSame)) continue;
+      if (minOther > 1 && otherFull.some((p) => hexDistance(p, hex) < minOther)) continue;
+      // Auto-image : une pose et son reflet ne doivent jamais se toucher.
+      if (mirrorOf && minSame > 1 && hexDistance(hex, mirrorOf(hex)) < minSame) continue;
       const passableNeighbors = neighbors(hex).filter((n) => {
         const nRow = n.r;
         const nCol = n.q + Math.floor(n.r / 2);
@@ -170,10 +198,10 @@ function entityCandidates(input: EntityPlacementInput): Hex[] {
 export function placeEntities(input: EntityPlacementInput): Hex[] {
   const placed: Hex[] = [];
   for (let i = 0; i < input.count; i++) {
-    const candidates = entityCandidates({ ...input, occupied: input.occupied });
+    const candidates = entityCandidates(input);
     if (candidates.length === 0) break; // plus de place : posés en nombre moindre (consigné)
     const hex = candidates[input.rng.nextInt(candidates.length)]!;
-    input.occupied.add(`${hex.q},${hex.r}`);
+    input.same.push(hex);
     placed.push({ q: hex.q, r: hex.r });
   }
   return placed;

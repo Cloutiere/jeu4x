@@ -38,8 +38,9 @@ test('procedural-40 : création, join, dump admin complet et symétrique', async
   // État moteur : villages 2×3, huttes 2×2, villes c1/c2, 1 Guerrier chacun.
   const state = dump.state!;
   expect(state.mapId).toBe('procedural-40');
-  expect(state.villages).toHaveLength(6);
-  expect(state.huts).toHaveLength(4);
+  // Phase 6c : 6 villages + 6 huttes par moitié miroir → 12/12.
+  expect(state.villages).toHaveLength(12);
+  expect(state.huts).toHaveLength(12);
   expect(Object.keys(state.cities)).toEqual(['c1', 'c2']);
   expect(Object.keys(state.units)).toEqual(['u1', 'u2']);
 

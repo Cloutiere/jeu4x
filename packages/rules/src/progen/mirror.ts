@@ -221,7 +221,24 @@ export function guaranteeResourceCoverage(input: {
   if (min <= 0) return;
   const halfH = input.terrain.length;
   const halfW = input.terrain[0]?.length ?? 0;
-  for (const id of Object.keys(RESOURCES).sort()) {
+  // Ordre par RARETÉ (Phase 6c) : les ressources dont le terrain éligible est
+  // peu présent sont réservées EN PREMIER — sinon les types abondants
+  // (alphabétiquement premiers) saturent les bandes rares avec leurs disques
+  // d'espacement et la garantie devient infaisable. Tri déterministe
+  // (nombre de cases éligibles croissant, puis id) — R-81.
+  const terrainCounts = new Map<TerrainId, number>();
+  for (const row of input.terrain) {
+    for (const t of row) terrainCounts.set(t, (terrainCounts.get(t) ?? 0) + 1);
+  }
+  const eligibleTiles = (id: string): number => {
+    const terrains = RESOURCES[id]!.terrains;
+    let n = 0;
+    for (const t of terrains) n += terrainCounts.get(t) ?? 0;
+    return n;
+  };
+  const orderedIds = Object.keys(RESOURCES)
+    .sort((a, b) => eligibleTiles(a) - eligibleTiles(b) || (a < b ? -1 : 1));
+  for (const id of orderedIds) {
     const data = RESOURCES[id]!;
     // Par joueur (demi-carte) → total PAIR sur la carte 1v1 ; les retraits de
     // capitales retirent des paires : le déficit reste pair.
@@ -244,7 +261,21 @@ export function guaranteeResourceCoverage(input: {
           `garantie de couverture impossible : aucune case éligible pour "${id}" (espacement ${input.s.minResourceDistance}, exclues : ${input.exclude.size})`,
         );
       }
-      const hex = candidates[input.rng.nextInt(candidates.length)]!;
+      // Choix « point le plus éloigné » (farthest-point, déterministe — R-81
+      // pour les ties) : chaque pose s'écarte au maximum des poses existantes,
+      // ce qui évite qu'une poignée de disques d'espacement ne recouvre des
+      // zones rares encore à réserver (le tirage aléatoire pouvait y arriver
+      // sur des terrains fragmentés — patchScale 0.5).
+      const hex = candidates.reduce((best, c) => {
+        const slack = (h: Hex): number => {
+          let d = Number.POSITIVE_INFINITY;
+          for (const p of input.resources) d = Math.min(d, hexDistance(h, p));
+          return d;
+        };
+        const sBest = slack(best);
+        const sC = slack(c);
+        return sC > sBest || (sC === sBest && compareHex(c, best) < 0) ? c : best;
+      });
       input.resources.push({ id: id as ResourceId, q: hex.q, r: hex.r });
       const m = input.mirrorOf(hex);
       input.resources.push({ id: id as ResourceId, q: m.q, r: m.r });
@@ -289,8 +320,27 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     // 1. Ressources posées sur la demi-carte AVANT le choix du site (la
     //    fertilité des candidats en tient compte) — handoff L2-1. Espacement
     //    🔶 minResourceDistance sur la carte complète (miroir compris).
-    const resPlacement = placeResources(rng, geo.terrain, settings, { mirrorOf });
-    const resources: MapResource[] = [...resPlacement.resources];
+    //    Phase 6c : la garantie de couverture passe AVANT le tirage aléatoire —
+    //    chaque type a déjà sa case réservée, le tirage ne peut pas saturer un
+    //    terrain avant elle.
+    const guaranteed: MapResource[] = [];
+    guaranteeResourceCoverage({
+      rng,
+      terrain: geo.terrain,
+      resources: guaranteed,
+      exclude: new Set<string>(),
+      s: settings,
+      mirrorOf,
+    });
+    const resPlacement = placeResources(rng, geo.terrain, settings, { mirrorOf, alreadyPlaced: guaranteed });
+    // La liste `resources` reste DEMI-carte uniquement (l'étape 4 reflète tout)
+    // : les poses garanties — générées en paires déjà reflétées — sont
+    // repliées sur leur moitié (r < halfH), leur image sera recalculée à
+    // l'identique par la rotation 180°.
+    const resources: MapResource[] = [
+      ...guaranteed.filter((r) => r.r < halfH),
+      ...resPlacement.resources,
+    ];
 
     // 2. Candidats de capitale sur la demi-carte (scores = carte complète,
     //    via le lookup étendu au miroir).
@@ -383,20 +433,35 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     //    village/hutte/capitale sont exclues.
     const occupiedEntities = new Set<string>(capitalKeys);
     const spawnList = [site.hex, mirror];
+    // Phase 6c : trois distances indépendantes 🔶 — villages entre eux
+    // (villageSpacing), huttes entre elles (hutSpacing), huttes ↔ villages
+    // (hutVillageSpacing : pas À CÔTÉ d'un village, mais plus près autorisé).
+    const villagePositions: Hex[] = [];
     const villagesHalf = placeEntities({
       rng,
       terrain: geo.terrain,
       spawns: spawnList,
-      minDistance: settings.minVillageDistance,
-      occupied: occupiedEntities,
+      minSpawnDistance: settings.minVillageDistance,
+      same: villagePositions,
+      minSame: settings.villageSpacing,
+      other: [],
+      minOther: 0,
+      mirrorOf,
+      reserved: occupiedEntities,
       count: settings.villagesPerHalf,
     });
+    const hutPositions: Hex[] = [];
     const hutsHalf = placeEntities({
       rng,
       terrain: geo.terrain,
       spawns: spawnList,
-      minDistance: settings.minHutDistance,
-      occupied: occupiedEntities,
+      minSpawnDistance: settings.minHutDistance,
+      same: hutPositions,
+      minSame: settings.hutSpacing,
+      other: villagePositions,
+      minOther: settings.hutVillageSpacing,
+      mirrorOf,
+      reserved: occupiedEntities,
       count: settings.hutsPerHalf,
     });
     // Chaque entité de la demi-carte est reflétée : villages 2×3, huttes 2×2,
