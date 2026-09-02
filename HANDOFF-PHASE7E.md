@@ -6,11 +6,26 @@ Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), basel
 
 **La recherche documentaire est déléguée à toi** : PDF officiel + pages CivFanatics (units/buildings déjà référencées) — croise les sources, cite-les, marque 🔶 tout ce qui se calibre.
 
+## AMENDEMENT 02/09 — Erik apporte la source principale : « Civilization Révolution Technologies et Déblocages.md »
+
+**Ce document devient LA source principale de L0** — il remplace les hypothèses du handoff original :
+- **46 technologies avec coûts EXACTS** (20 → 5860) et **prérequis multiples** (2-3 par tech, pas les chaînes simples proposées initialement) — ton travail = saisir fidèlement + marquer 🔶 les doutes, plus « inventer » ;
+- **Bâtiments avec coûts exacts, effets exacts et PRÉREQUIS DE BÂTIMENT** (Banque ← Marché, Université ← Bibliothèque, Cathédrale ← Temple) — nouveau champ `requiresBuilding` + sémantique de **remplacement** : la Banque **retire** le Marché de la ville (idem Université/Bibliothèque, Cathédrale/Temple) ;
+- **Quatre mécaniques révélées par le document** — défauts proposés :
+  1. **Premier découvreur** (récompense gratuite au premier qui complète la tech : unité, bâtiment gratuit, bonus d'empire) → **INCLUS** : champ `firstToDiscover` par tech ; état `firstBy: Record<techId, playerId>` — **migration `schemaVersion` 8→9** ;
+  2. **Obsolescence** (Guerrier obsolète après Travail du fer, Archer après Démocratie, etc.) → **INCLUS en données** (`obsoleteUnits[]` par tech) : retirés du menu de production, unités existantes conservées ; auto-surclassement 🔶 différé ;
+  3. **Sauts technologiques** (majorité des prérequis + finissable ≤ 10 tours = accès direct) → **DIFFÉRÉ** (documenté dans RULES.md, implémentation 7f+) ;
+  4. **Soutien naval** (un navire allié adjacent à un combat côtier ajoute son attaque : Galion 15, Croiseur 35, Cuirassé 65) → **7g** (données dès maintenant : `navalSupport` sur les unités navales).
+- ⚠️ **Piège de lecture du document** : les chiffres sont collés aux numéros de citation — « 105 » = 10 [5], « 45 15 15 » = 4/1/1. Croise systématiquement avec CivFanatics ; les écarts (ex. coût d'Archer 10 ici vs 15 sur CivFanatics) se marquent 🔶.
+- **Corrections immédiates de données existantes** : **Grenier = +2 N** (résout le point ouvert de la 6c), coûts de bâtiments exacts (Temple 40, Comptoir 60, Atelier 60, Tribunal 80, Mine de fer 80, Port 100, Remparts 100, Aqueduc 120…), **Remparts** = +100 % défense + immunité conversion (7f), **Aqueduc** = seuil de croissance −33 %.
+- **Ères** (Ancienne/Médiévale/Industrielle/Moderne) : champ `era` sur les techs (utile à l'UI de l'arbre).
+- **Question à poser à Erik** : les **Pionniers** CivRev coûtent 20 production et consomment **2 population** — notre Colon actuel est auto-consommé sans pop. Garder notre simplification ou adopter le comportement officiel ? (demander, ne pas trancher).
+
 ## Mission — livrables dans l'ordre
 
-### L0 — Recherche & données de l'arbre complet
+### L0 — Données de l'arbre complet (source principale : AMENDEMENT ci-dessus)
 
-1. **`techs.json`** : l'**arbre complet** du PDF (toutes les colonnes : de Alphabet à Space Flight / Future Technology), avec coûts 🔶 (les racines sont à 20 ; proposer une progression croissante par ère, calibrable), prérequis (structure du PDF — vérifiée par les tests d'intégrité existants) et débloquages.
+1. **`techs.json`** : les **46 technologies** du document avec coûts et prérequis exacts, `era`, `firstToDiscover`, `obsoleteUnits[]` — test-first sur l'intégrité (prérequis existants, sans cycle, coûts croissants par ère globalement).
 2. **`units.json`** : toutes les unités restantes du tableau CivFanatics (déjà en appendice A de RULES.md) — **terrestres jouables** : Piquier (1/3/1, 15), Catapulte (4/1/1, 20, **à distance** R-59), Chevalier (4/2/2, 25), Fusilier (3/5/1, 20), Canon (6/2/1, 30, à distance), Infanterie moderne (4/8/1, 30), Char d'assaut (10/6/3, 50), Artillerie (16/2/2, 50, à distance) — **données seules** : Galère/Galion/Croiseur/Cuirassé/Sous-marin (naval — `aquatic`, 7g), Espion/Caravane (mécaniques 7g), Chasseur/Bombardier (aérien, 7g+), ICBM.
 3. **`buildings.json`** : tous les bâtiments terrestres du CivFanatics avec **leur effet exact** (recherche + citation) — au minimum : Temple (Inhumation cérémonielle), Cathédrale (Religion), **Remparts** (Maçonnerie : +100 % défense de ville + immunité conversion — effet utile dès maintenant), **Aqueduc** (réduction du seuil de croissance 🔶), **Marché** (Curseur monétaire ? +% or 🔶), **Banque**, **Université** (+% science 🔶)… Les effets **culturels** (Temple/Cathédrale +1/+2 par pop) sont **décrits en données (`effect`) mais actifs en 7f** — libellés visibles, moteur « implemented: false ».
 4. **`wonders.json`** : compléter les merveilles manquantes du PDF en données (effets décrits, `implemented:false` — leurs effets réels viendront en 7h avec la culture).
