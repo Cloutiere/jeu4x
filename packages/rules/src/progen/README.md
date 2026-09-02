@@ -20,9 +20,11 @@ generateProceduralMap(seed, settings?)
 ├── mirror.ts    L1/L2 STRATÉGIE injectable StartPlacementStrategy :
 │                ressources → meilleur site (fertilité 3 anneaux) →
 │                normalisation → rotation 180° → villages/huttes reflétés
+│                → classification des eaux (côte/océan, R-107)
 ├── fertility.ts Score de fertilité (anneaux [1.0, 0.6, 0.3], food×2 +
 │                prod×1.5 + commerce×1, pénalité montagne)
 ├── content.ts   Pose pondérée des ressources (spawnWeights) + villages/huttes
+├── counting.ts  Comptage ressources × terrain (outil de labo, Phase 6c)
 └── index.ts     Orchestration : tentatives par sous-graines dérivées →
                  MapData → parseMap → BFS de connexité → rapport ProgenReport
 ```
@@ -95,10 +97,12 @@ passage par la future stratégie.
 
 Tous les défauts sont dans `settings.ts` (`DEFAULT_PROGEN_SETTINGS`) et sont
 exposés en curseurs dans le labo `#/progen` (régénération à la volée) :
-ratio terre 55 %, 1-2 rifts, densités montagnes/collines/forêts 50 %,
-humidité 50 %, densité ressources ×1 (~1 ressource / 12 cases de terre,
-marines ×1/48), 3 villages + 2 huttes par demi-carte, distance de spawn 12,
-villages ≥ 6, huttes ≥ 3, normalisation = moyenne(top 5) × 0.8.
+ratio terre 55 %, 1-2 rifts, largeur des côtes 1 (R-107 : une case d'eau à
+≤ N cases d'une terre est de la côte `eau`, le reste est de l'océan `ocean`),
+densités montagnes/collines/forêts 50 %, humidité 50 %, densité ressources ×1
+(~1 ressource / 12 cases de terre, marines ×1/48 sur Mer ET Océan),
+3 villages + 2 huttes par demi-carte, distance de spawn 12, villages ≥ 6,
+huttes ≥ 3, normalisation = moyenne(top 5) × 0.8.
 
 ## Intégration
 
@@ -110,4 +114,5 @@ villages ≥ 6, huttes ≥ 3, normalisation = moyenne(top 5) × 0.8.
   admin (`#/debug/<code>` et `GET /admin/game/:code`) ;
 - le labo `#/progen` fait tourner ce même module dans le navigateur
   (client-side, sans partie) : rendu sans fog, heatmap de fertilité,
+  panneau « ressources par type et par terrain » (`countResourcesByTerrain`),
   export JSON du `MapData`.

@@ -27,11 +27,13 @@
 | Colline | oui | +50 % | **0/1/0** | Atelier | +2 Production |
 | Montagne | **non** (mais **travaillable par les villes**) | — | **0/1/0** | Mine de fer | +4 Production |
 | Désert *(nouveau)* | oui | 0 % | **0/0/1** | Comptoir commercial | +2 Commerce |
-| Mer *(l'ex-« eau », désormais productive)* | **non** (naval en Phase 7) | — | **0/0/2** | Port | +1 Nourriture |
+| Mer *(côte — l'ex-« eau », productive)* | **non** (naval en Phase 7) | — | **0/0/2** | Port | +1 Nourriture |
+| Océan *(nouveau 6c — eau profonde)* | **non** (naval en Phase 7) | — | **0/0/2** | — | — |
 | Case de ville | oui | +50 % (T-02) | 2/1/1 | — | — |
 
 - **C** = commerce : la matière première répartie entre **or** et **science** par le curseur global (R-61). Le champ `gold` des données reste le support du commerce.
-- **Montagne et Mer sont travaillables par les villes** bien qu'infranchissables pour les unités (un citoyen exploite la case, il n'y marche pas).
+- **Montagne et Mer sont travaillables par les villes** bien qu'infranchissables pour les unités (un citoyen exploite la case, il n'y marche pas). **L'Océan l'est aussi** (rendements identiques à la côte — décision d'Erik du 02/09 : seule la classe navale et le visuel distinguent les deux eaux).
+- **Hook naval (`navalAccess`, Phase 6c — décision d'Erik du 02/09)** : les terrains d'eau portent `navalAccess` — Mer = `"coast"`, Océan = `"ocean"`. En Phase 7, l'unité navale portera le même champ (Galère = `"coast"`, Galion = `"ocean"`) et entrera dans une case d'eau si `terrain.navalAccess === "coast"` **ou** `unité.navalAccess === "ocean"`. Le Port garde son bonus sur la côte uniquement (recalibrage attendu avec le naval).
 - Les bonus défensifs s'appliquent au **défenseur** uniquement ; le bonus défensif de la forêt passe de 25 % à **50 %** (table du 30/08).
 - Les coûts de production des bâtiments : voir R-66. Les valeurs restantes marquées 🔶 sont des cibles de calibrage.
 
@@ -311,8 +313,8 @@ Arrondi **au plus proche** (round half up). Cas limite tranché : même à **0 c
 | Bétail | Prairie | +3 N | Code des lois | Code of Laws |
 | Blé | Prairie | +2 N | *(absente)* | Irrigation |
 | Gibier | Forêt | +3 N | *(absente)* | Feudalism |
-| Poisson | Mer | +2 N | Travail du bronze | Bronze Working |
-| Baleine | Mer | +4 N | Navigation | Navigation |
+| Poisson | Mer, Océan | +2 N | Travail du bronze | Bronze Working |
+| Baleine | Mer, Océan | +4 N | Navigation | Navigation |
 | Fer | Colline | +2 P | Travail du fer | Iron Working |
 | Chêne | Forêt | +3 P | *(absente)* | Construction |
 | Marbre | Plaine | +2 P | *(absente)* | Masonry |
@@ -323,7 +325,7 @@ Arrondi **au plus proche** (round half up). Cas limite tranché : même à **0 c
 | Caoutchouc | Forêt | +4 P | *(absente)* | Automobile |
 | Aluminium | Colline | +4 P | *(absente)* | Mass Production |
 | Uranium | Montagne | +4 P | *(absente)* | Nuclear Power |
-| Teinture | Mer | +3 C | *(absente)* | Monarchy |
+| Teinture | Mer, Océan | +3 C | *(absente)* | Monarchy |
 | Épices | Désert | +2 C | **aucune** | — |
 | Vin | Plaine | +2 C | Poterie | Pottery |
 | Or | Montagne | **+3 commerce** *(D3)* | *(absente)* | Currency |
@@ -399,7 +401,8 @@ Le générateur vit dans `/packages/rules/src/progen/` — **pur, déterministe 
 - **R-104 · Contenu reflété** : ressources posées sur la demi-carte AVANT le choix du site ; villages 🔶 3 et huttes 🔶 2 par demi-carte, reflétés → **6 villages / 4 huttes** par carte procédurale (amendement R-96/R-98 pour les cartes générées : le miroir exige des effectifs pairs — 3 villages non reflétés rompraient l'équité). Villages ≥ 6 cases des DEUX spawns (leçon calibrage 7d) ; huttes ≥ 3 🔶.
 - **R-105 · Ressources pondérées** : tirage pondéré par `spawnWeight` de `resources.json` (champ réservé en 7c, rempli 🔶) restreint aux terrains autorisés ; densité cible 🔶 ~1 ressource / 12 cases de terre (ressources marines ~1/48). « Blé » élargi aux plaines 🔶 (pose de normalisation sur plaine possible — CivRev : blé sur plaine).
 - **R-106 · Stratégie injectable** : `StartPlacementStrategy` (`geoSize`/`fullSize`/`build`) ; `mirror1v1` seule implémentation en 6b. Le support 2-5 joueurs exigeront **uniquement** la stratégie `regionalMulti` (partitionnement régional + fertilité multi-anneaux + normalisation relative, PDF §AssignStartingPlots) sans toucher à la couche géophysique ni au loader. `GameCreationSettings.playerCount` est déjà propagé (lobby → GameDO → meta).
-- **Labo `#/progen`** (client-side, sans partie) : le même module tourne dans le navigateur — seed saisissable + aléatoire, curseurs des réglages 🔶 avec régénération à la volée, rendu sans fog via `GameCanvas` (état synthétique tout-visible), heatmap de fertilité, rendements N/P/C, checksum d'équité, export JSON du `MapData` (téléchargement/copie).
+- **R-107 · Côte vs océan (Phase 6c, décision d'Erik du 02/09)** : après miroir, les eaux de la carte COMPLÈTE sont classifiées — une case d'eau à ≤ `coastWidth` 🔶 (1) cases hex d'une terre est de la **côte** (`eau`), le reste est de l'**océan** profond (`ocean`). Classifié sur la carte complète (le bord ouvert de la demi-carte rendrait le calcul local faux) ; idempotent et pur (`classifyWaters`). Rendements de l'océan **0/0/2** (identiques à la côte) ; les 3 ressources marines (R-94) spawneront sur les deux eaux, même densité 🔶 ~1/48. Rapport de génération : `coastTiles`/`oceanTiles` (dump admin).
+- **Labo `#/progen`** (client-side, sans partie) : le même module tourne dans le navigateur — seed saisissable + aléatoire, curseurs des réglages 🔶 avec régénération à la volée (dont **largeur des côtes** 1-3), rendu sans fog via `GameCanvas` (état synthétique tout-visible), heatmap de fertilité, rendements N/P/C, checksum d'équité (+ répartition côte/océan), **panneau « ressources par type et par terrain »** (comptage `countResourcesByTerrain` — absences visibles en grisés, inspection d'Erik), export JSON du `MapData` (téléchargement/copie).
 
 ## 12. Décisions d'interprétation (toutes tranchées — 29/08)
 
