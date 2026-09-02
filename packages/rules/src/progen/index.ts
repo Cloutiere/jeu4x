@@ -294,6 +294,7 @@ export function fertilityHeatmap(map: LoadedMap, settings?: Partial<ProgenSettin
 // Réexports utiles au serveur et au labo.
 export { resolveProgenSettings, DEFAULT_PROGEN_SETTINGS } from './settings.js';
 export type { ProgenSettings, StartPlacementId } from './settings.js';
+export { guaranteeResourceCoverage } from './mirror.js';
 export type { StartPlacementStrategy, PlacementOutput, PlacementReport } from './mirror.js';
 export { MIRROR_1V1, START_PLACEMENT_STRATEGIES, attemptSeed } from './mirror.js';
 export { fertilityScore, tileFertility, ringCells } from './fertility.js';
@@ -302,6 +303,6 @@ export { generateTerrain, classifyWaters } from './geo.js';
 export type { PhysicalMap } from './geo.js';
 export { placeResources, placeEntities } from './content.js';
 export { isWaterTerrain } from '../data.js';
-export { countResourcesByTerrain } from './counting.js';
-export type { ResourceTerrainCounts } from './counting.js';
+export { countResourcesByTerrain, countTerrainTypes } from './counting.js';
+export type { ResourceTerrainCounts, TerrainCountRow } from './counting.js';
 export { deriveSeed } from './noise.js';

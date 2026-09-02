@@ -16,6 +16,8 @@ import {
   PROCEDURAL_MAP_ID,
   classifyWaters,
   countResourcesByTerrain,
+  countTerrainTypes,
+  guaranteeResourceCoverage,
   generateProceduralMap,
   generateMap,
   generateTerrain,
@@ -177,9 +179,11 @@ describe('Phase 6b · Générateur procédural — structure & validations', () 
     expect(map.resources.length).toBeGreaterThan(20); // densité ~1/12 des ~880 terres × 2 moitiés
   });
 
-  it('R-105 : densité des ressources suit resourceDensity (override du labo)', () => {
+  it('R-105 : densité des ressources suit resourceDensity (override du labo) — la garantie de couverture 6c reste active à densité 0', () => {
+    // Densité 0 : plus AUCUNE pose aléatoire, mais la garantie de couverture
+    // (Phase 6c) maintient ≥ 1 ressource de chaque type par joueur.
     const none = generateProceduralMap(606, { resourceDensity: 0 });
-    expect(none.map.resources).toHaveLength(0);
+    expect(none.map.resources).toHaveLength(Object.keys(RESOURCES).length * 2);
     const double = generateProceduralMap(606, { resourceDensity: 2 });
     const simple = generateProceduralMap(606);
     expect(double.map.resources.length).toBeGreaterThan(simple.map.resources.length * 1.4);
@@ -431,5 +435,133 @@ describe("Phase 6c · Comptage ressources × terrain (outil de labo d'Erik)", ()
   it('cohérence avec une carte générée : total compté = resources du rapport', () => {
     const { map, report } = generateProceduralMap(42);
     expect(countResourcesByTerrain(map).total).toBe(report.counts.resources);
+  });
+});
+
+describe("Phase 6c · Espacement des ressources (demande d'Erik : « une distance d'une case »)", () => {
+  it('sur les cartes générées, toutes les paires de ressources (miroir compris) respectent minResourceDistance', () => {
+    for (const seed of [42, 20260902]) {
+      const { map } = generateProceduralMap(seed);
+      const res = map.resources;
+      expect(res.length).toBeGreaterThan(40);
+      for (let i = 0; i < res.length; i++) {
+        for (let j = i + 1; j < res.length; j++) {
+          const d = hexDistance({ q: res[i]!.q, r: res[i]!.r }, { q: res[j]!.q, r: res[j]!.r });
+          expect(d, `seed ${seed} : ${res[i]!.id}@(${res[i]!.q},${res[i]!.r}) ↔ ${res[j]!.id}@(${res[j]!.q},${res[j]!.r})`).toBeGreaterThanOrEqual(2);
+        }
+      }
+    }
+  });
+
+  it("placeResources : l'espacement porte sur la carte COMPLÈTE (images miroir comprises)", () => {
+    const grid: TerrainId[][] = Array.from({ length: 20 }, () => Array.from({ length: 20 }, () => 'prairie' as TerrainId));
+    // Miroir « identité ponctuelle » DANS la grille : une pose et son image
+    // cohabitent sur la même grille — le tirage doit les garder distantes.
+    const mirrorOf = (h: Hex): Hex => ({ q: 19 - h.q, r: 19 - h.r });
+    const out = placeResources(createRng(7), grid, resolveProgenSettings({ resourceDensity: 4, minResourceDistance: 2 }), { mirrorOf });
+    expect(out.resources.length).toBeGreaterThan(0);
+    const full = [...out.resources, ...out.resources.map((r) => ({ ...mirrorOf({ q: r.q, r: r.r }), id: r.id }))];
+    for (let i = 0; i < full.length; i++) {
+      for (let j = i + 1; j < full.length; j++) {
+        expect(hexDistance({ q: full[i]!.q, r: full[i]!.r }, { q: full[j]!.q, r: full[j]!.r }), `paire ${i}-${j}`).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  it('minResourceDistance = 1 restaure le comportement 6b (adjacence tolérée)', () => {
+    const grid: TerrainId[][] = Array.from({ length: 20 }, () => Array.from({ length: 20 }, () => 'prairie' as TerrainId));
+    const out = placeResources(createRng(7), grid, resolveProgenSettings({ resourceDensity: 4, minResourceDistance: 1 }));
+    expect(out.resources.length).toBeGreaterThan(20); // sans espacement, bien plus de poses
+  });
+});
+
+describe('Phase 6c · Garantie de couverture (≥ 1 ressource de chaque type par joueur)', () => {
+  it('sur les cartes générées, chaque ressource existe au moins minPerResourceType fois PAR DEMI-carte', () => {
+    for (const seed of [42, 20260902, 606]) {
+      const { map } = generateProceduralMap(seed);
+      const counts = countResourcesByTerrain(map);
+      for (const row of counts.byId) {
+        // Par joueur = par moitié (le miroir double tout) : total pair ≥ 2×min.
+        expect(row.total, `seed ${seed} : ${row.id}`).toBeGreaterThanOrEqual(2);
+        expect(row.total % 2, `seed ${seed} : ${row.id} symétrique`).toBe(0);
+      }
+    }
+  });
+
+  it('guaranteeResourceCoverage : comble les manques par paires (espacement + exclues respectés)', () => {
+    // Grille à bandes couvrant les 7 terrains porteurs (chaque ressource a au
+    // moins une bande de 5 rangées = ~150 cases, capacité distance-2 ≈ 11) :
+    // il faut loger 22 types × 2 (miroir) à distance ≥ 2.
+    const bands: TerrainId[] = ['prairie', 'plaine', 'foret', 'colline', 'montagne', 'desert', 'eau'];
+    const grid: TerrainId[][] = Array.from({ length: 35 }, (_, row) =>
+      Array.from({ length: 30 }, () => bands[Math.floor(row / 5)]!),
+    );
+    const mirrorOf = (h: Hex): Hex => ({ q: 29 - h.q, r: 34 - h.r });
+    // Blé déjà présent 1×/moitié — paire FERMÉE par miroir (précondition de la passe).
+    const resources: MapResource[] = [{ id: 'ble', q: 0, r: 0 }, { id: 'ble', q: 29, r: 34 }];
+    const exclude = new Set([`7,7`]); // case interdite (capitale fictive au centre)
+    guaranteeResourceCoverage({ rng: createRng(11), terrain: grid, resources, exclude, s: resolveProgenSettings({ minPerResourceType: 1 }), mirrorOf });
+    const counts = new Map<string, number>();
+    for (const r of resources) counts.set(r.id, (counts.get(r.id) ?? 0) + 1);
+    for (const id of Object.keys(RESOURCES)) {
+      expect(counts.get(id) ?? 0, `couverture ${id}`).toBeGreaterThanOrEqual(2);
+    }
+    // Les exclues ne portent rien ; les paires sont symétriques.
+    for (const r of resources) {
+      expect(exclude.has(`${r.q},${r.r}`), `exclue (${r.q},${r.r})`).toBe(false);
+      expect(resources.some((o) => o.id === r.id && o.q === mirrorOf({ q: r.q, r: r.r }).q && o.r === mirrorOf({ q: r.q, r: r.r }).r), `image de (${r.q},${r.r})`).toBe(true);
+    }
+    // Espacement sur la liste complète.
+    for (let i = 0; i < resources.length; i++) {
+      for (let j = i + 1; j < resources.length; j++) {
+        expect(hexDistance({ q: resources[i]!.q, r: resources[i]!.r }, { q: resources[j]!.q, r: resources[j]!.r })).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  it('guaranteeResourceCoverage : échec explicite quand aucune case éligible (retry de tentative côté générateur)', () => {
+    const grid: TerrainId[][] = [[ 'montagne' ]]; // uranium est montagne-only, mais 1 case = espacement impossible
+    expect(() =>
+      guaranteeResourceCoverage({
+        rng: createRng(3),
+        terrain: grid,
+        resources: [],
+        exclude: new Set<string>(),
+        s: resolveProgenSettings({ minPerResourceType: 1, minResourceDistance: 2 }),
+        mirrorOf: (h) => ({ q: 1 - h.q, r: 1 - h.r }),
+      }),
+    ).toThrow(/couverture impossible/);
+  });
+
+  it('minPerResourceType = 0 désactive la garantie', () => {
+    const grid: TerrainId[][] = Array.from({ length: 6 }, () => Array.from({ length: 6 }, () => 'prairie' as TerrainId));
+    const resources: MapResource[] = [];
+    guaranteeResourceCoverage({ rng: createRng(5), terrain: grid, resources, exclude: new Set<string>(), s: resolveProgenSettings({ minPerResourceType: 0 }), mirrorOf: (h) => h });
+    expect(resources).toHaveLength(0);
+  });
+});
+
+describe("Phase 6c · Comptage des terrains par type (demande d'Erik)", () => {
+  it('countTerrainTypes : les 8 terrains de terrain.json figurent (zéros inclus), somme = cases de la carte', () => {
+    const { map } = generateProceduralMap(42);
+    const rows = countTerrainTypes(map);
+    expect(rows.map((r) => r.id)).toEqual(Object.keys(TERRAINS).sort());
+    expect(rows.reduce((acc, r) => acc + r.count, 0)).toBe(1600);
+    const ocean = rows.find((r) => r.id === 'ocean')!;
+    const eau = rows.find((r) => r.id === 'eau')!;
+    expect(ocean.count).toBeGreaterThan(0);
+    expect(eau.count).toBeGreaterThan(0);
+  });
+
+  it('tous les types de terrain existent sur les cartes générées (vérification de couverture)', () => {
+    for (const seed of [1, 11, 42, 2222, 606, 777, 20260902]) {
+      const { map } = generateProceduralMap(seed);
+      // 'ville' n'est jamais généré : c'est une entité posée par
+      // createInitialState sur les capitales (jamais un terrain de carte).
+      const missing = countTerrainTypes(map)
+        .filter((r) => r.count === 0 && r.id !== 'ville')
+        .map((r) => r.id);
+      expect(missing, `seed ${seed} : terrains absents`).toEqual([]);
+    }
   });
 });

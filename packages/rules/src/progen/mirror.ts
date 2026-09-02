@@ -31,13 +31,13 @@ import { colRowToHex, hexDistance, inRectangle, neighbors, compareHex } from '..
 import type { Hex } from '../hex.js';
 import type { MapResource, MapVillage, MapHut } from '../map.js';
 import type { ResourceId, TerrainId } from '../types.js';
-import { TERRAINS } from '../data.js';
+import { RESOURCES, TERRAINS } from '../data.js';
 import type { SeededRng } from '../rng.js';
 import type { PhysicalMap } from './geo.js';
 import { classifyWaters } from './geo.js';
 import { fertilityScore, ringCells } from './fertility.js';
 import type { TerrainLookup } from './fertility.js';
-import { placeResources, placeEntities } from './content.js';
+import { placeResources, placeEntities, spacingViolated } from './content.js';
 import type { ProgenSettings } from './settings.js';
 import { deriveSeed } from './noise.js';
 
@@ -166,6 +166,7 @@ export function normalizeStartSite(
   threshold: number,
   s: ProgenSettings,
   into: MapResource[],
+  options?: { mirrorOf?: (hex: Hex) => Hex },
 ): { score: number; normalized: boolean } {
   let score = initialScore;
   let normalized = false;
@@ -173,7 +174,9 @@ export function normalizeStartSite(
   const injectable = [...ringCells(site, 1), ...ringCells(site, 2)].filter((c) => {
     const t = lookup.terrainAt(c);
     if (t !== 'prairie' && t !== 'plaine') return false; // contrainte R-91 (blé/bétail)
-    return lookup.resourceAt(c) === null;
+    if (lookup.resourceAt(c) !== null) return false;
+    // Phase 6c : les injections respectent l'espacement des ressources aussi.
+    return !spacingViolated(c, into, options?.mirrorOf, s.minResourceDistance);
   });
   for (const cell of injectable) {
     if (score >= threshold) break;
@@ -191,6 +194,63 @@ export function normalizeStartSite(
     );
   }
   return { score, normalized };
+}
+
+/**
+ * Phase 6c — garantie de couverture (demande d'Erik : « au moins une
+ * ressource de chaque type par joueur »). Appelée sur la liste COMPLÈTE
+ * (demi + miroir — fermée par symétrie : les retraits de capitales retirent
+ * des paires) APRÈS ce retrait. Chaque manque est comblé par paires (une pose
+ * en demi-carte + son image), dans le respect de l'espacement
+ * `minResourceDistance` 🔶 et des cases exclues (capitales). Aucune case
+ * éligible → ProgenPlacementError (la tentative suivante re-génère).
+ * Déterminisme : ids triés, cases triées (R-81), tirage RNG seedé.
+ */
+export function guaranteeResourceCoverage(input: {
+  rng: SeededRng;
+  /** Grille de la DEMI-carte (pré-classification : toute l'eau y est 'eau'). */
+  terrain: TerrainId[][];
+  /** Ressources COMPLÈTES — mutées : poses ajoutées par paires. */
+  resources: MapResource[];
+  /** Cases interdites (clés "q,r" — les capitales). */
+  exclude: Set<string>;
+  s: ProgenSettings;
+  mirrorOf: (hex: Hex) => Hex;
+}): void {
+  const min = input.s.minPerResourceType;
+  if (min <= 0) return;
+  const halfH = input.terrain.length;
+  const halfW = input.terrain[0]?.length ?? 0;
+  for (const id of Object.keys(RESOURCES).sort()) {
+    const data = RESOURCES[id]!;
+    // Par joueur (demi-carte) → total PAIR sur la carte 1v1 ; les retraits de
+    // capitales retirent des paires : le déficit reste pair.
+    let need = 2 * min - input.resources.filter((r) => r.id === id).length;
+    while (need > 0) {
+      const occupied = new Set(input.resources.map((r) => `${r.q},${r.r}`));
+      const candidates: Hex[] = [];
+      for (let row = 0; row < halfH; row++) {
+        for (let col = 0; col < halfW; col++) {
+          if (!data.terrains.includes(input.terrain[row]![col]!)) continue;
+          const hex = colRowToHex(col, row);
+          const key = `${hex.q},${hex.r}`;
+          if (input.exclude.has(key) || occupied.has(key)) continue;
+          if (spacingViolated(hex, input.resources, input.mirrorOf, input.s.minResourceDistance)) continue;
+          candidates.push(hex);
+        }
+      }
+      if (candidates.length === 0) {
+        throw new ProgenPlacementError(
+          `garantie de couverture impossible : aucune case éligible pour "${id}" (espacement ${input.s.minResourceDistance}, exclues : ${input.exclude.size})`,
+        );
+      }
+      const hex = candidates[input.rng.nextInt(candidates.length)]!;
+      input.resources.push({ id: id as ResourceId, q: hex.q, r: hex.r });
+      const m = input.mirrorOf(hex);
+      input.resources.push({ id: id as ResourceId, q: m.q, r: m.r });
+      need -= 2;
+    }
+  }
 }
 
 /**
@@ -222,10 +282,14 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     if (halfW !== full.width || halfH * 2 !== full.height) {
       throw new ProgenPlacementError(`demi-carte ${halfW}×${halfH} incompatible avec la carte finale ${full.width}×${full.height}`);
     }
+    // Image d'une case par la rotation 180° — partagée par l'espacement des
+    // ressources (contrainte sur la carte COMPLÈTE, Phase 6c).
+    const mirrorOf: (hex: Hex) => Hex = (hex) => mirroredHex(hex, full.width);
 
     // 1. Ressources posées sur la demi-carte AVANT le choix du site (la
-    //    fertilité des candidats en tient compte) — handoff L2-1.
-    const resPlacement = placeResources(rng, geo.terrain, settings);
+    //    fertilité des candidats en tient compte) — handoff L2-1. Espacement
+    //    🔶 minResourceDistance sur la carte complète (miroir compris).
+    const resPlacement = placeResources(rng, geo.terrain, settings, { mirrorOf });
     const resources: MapResource[] = [...resPlacement.resources];
 
     // 2. Candidats de capitale sur la demi-carte (scores = carte complète,
@@ -268,7 +332,7 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     // 3. Meilleur site + normalisation (PDF §NormalizeStartLocation) : les
     //    anneaux 1-2 du site restent dans la demi-carte (rows ≤ 17+2).
     const best = ranked[0]!;
-    const norm = normalizeStartSite(lookup, best.hex, best.score, threshold, settings, resources);
+    const norm = normalizeStartSite(lookup, best.hex, best.score, threshold, settings, resources, { mirrorOf });
     const site: SiteCandidate = { hex: best.hex, score: norm.score };
 
     // 4. Miroir : rotation 180° des terrains et des ressources.
@@ -298,6 +362,18 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     // centrale exclue) : le retrait ne fausse pas le checksum.
     const capitalKeys = new Set([`${site.hex.q},${site.hex.r}`, `${mirror.q},${mirror.r}`]);
     const finalResources = allResources.filter((r) => !capitalKeys.has(`${r.q},${r.r}`));
+    // 4ter. Phase 6c (demande d'Erik) : garantie de couverture — au moins
+    //    `minPerResourceType` 🔶 pose de CHAQUE type de ressource par joueur
+    //    (demi-carte miroir : pérenne pour le multi-joueurs), espacement
+    //    compris, capitales exclues.
+    guaranteeResourceCoverage({
+      rng,
+      terrain: geo.terrain,
+      resources: finalResources,
+      exclude: capitalKeys,
+      s: settings,
+      mirrorOf,
+    });
 
     // 5. Villages (≥ 6 des deux spawns — leçon 7d) et huttes (≥ 3 🔶), posés
     //    sur la demi-carte puis reflétés : chaque entité existe deux fois,

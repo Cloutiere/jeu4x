@@ -7,9 +7,10 @@
  * figurent au tableau, y compris à ZÉRO (une absence est exactement ce que
  * l'inspection doit révéler). Pur, déterministe : tris (id) / (terrain) croissants.
  */
-import { RESOURCES } from '../data.js';
+import { RESOURCES, TERRAINS } from '../data.js';
 import { tileKeyOf } from '../hex.js';
 import type { LoadedMap } from '../map.js';
+import type { TerrainId } from '../types.js';
 
 export interface ResourceCountRow {
   id: string;
@@ -53,4 +54,24 @@ export function countResourcesByTerrain(map: LoadedMap): ResourceTerrainCounts {
     return { id, name: RESOURCES[id]!.name, byTerrain: rowByTerrain, total: rowTotal };
   });
   return { byId, byTerrain, total };
+}
+
+export interface TerrainCountRow {
+  id: TerrainId;
+  name: string;
+  /** Nombre de cases de ce terrain sur la carte COMPLÈTE. */
+  count: number;
+}
+
+/**
+ * Phase 6c (demande d'Erik) : nombre de cases par type de terrain — TOUS les
+ * terrains de terrain.json figurent (zéros inclus : une absence doit se voir).
+ * Tri (id) croissant, pur et déterministe.
+ */
+export function countTerrainTypes(map: LoadedMap): TerrainCountRow[] {
+  const counts = new Map<string, number>();
+  for (const t of Object.values(map.terrain)) counts.set(t, (counts.get(t) ?? 0) + 1);
+  return Object.keys(TERRAINS)
+    .sort()
+    .map((id) => ({ id: id as TerrainId, name: TERRAINS[id]!.name, count: counts.get(id) ?? 0 }));
 }

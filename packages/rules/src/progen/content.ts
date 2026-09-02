@@ -30,24 +30,57 @@ const WATER_RESOURCE_DENOMINATOR = 48;
  *  ≥ 2 voisins praticables exigés (dont la case du poseur elle-même exclue). */
 const MIN_PASSABLE_NEIGHBORS = 2;
 
+/**
+ * Phase 6c — contrainte d'espacement des ressources (demande d'Erik : « une
+ * distance d'une case entre chaque ressource » → distance hex ≥ N sur la carte
+ * COMPLÈTE). `mirrorOf` (rotation 180° de la stratégie) : la contrainte porte
+ * aussi sur les images — deux ressources réfléchies ne doivent jamais se
+ * toucher à travers l'axe de miroir, et une ressource ne doit pas être
+ * adjacente à sa propre image. min ≤ 1 = contrainte désactivée (héritage 6b).
+ */
+export function spacingViolated(
+  candidate: Hex,
+  placed: Array<{ q: number; r: number }>,
+  mirrorOf: ((hex: Hex) => Hex) | undefined,
+  min: number,
+): boolean {
+  if (min <= 1) return false;
+  for (const p of placed) {
+    if (hexDistance(candidate, p) < min) return true;
+    if (mirrorOf && hexDistance(candidate, mirrorOf(p)) < min) return true;
+  }
+  if (mirrorOf && hexDistance(candidate, mirrorOf(candidate)) < min) return true;
+  return false;
+}
+
 export interface ResourcePlacement {
   resources: MapResource[];
   landTiles: number;
   waterTiles: number;
 }
 
+/** Options de pose : `mirrorOf` = image de la stratégie miroir (rotation 180°)
+ *  — fournie, la contrainte d'espacement porte sur la carte complète. */
+export interface ResourcePlacementOptions {
+  mirrorOf?: (hex: Hex) => Hex;
+}
+
 /**
  * Pose les ressources sur une grille (demi-carte pour le miroir 1v1).
- * Une case éligible reçoit au plus une ressource (R-94).
+ * Une case éligible reçoit au plus une ressource (R-94) ; deux ressources
+ * respectent `minResourceDistance` 🔶 (espacement complet, miroir compris —
+ * Phase 6c).
  */
 export function placeResources(
   rng: SeededRng,
   terrain: TerrainId[][],
   s: ProgenSettings,
+  options?: ResourcePlacementOptions,
 ): ResourcePlacement {
   const height = terrain.length;
   const width = terrain[0]?.length ?? 0;
   const resources: MapResource[] = [];
+  const placedHexes: Hex[] = [];
   let landTiles = 0;
   let waterTiles = 0;
 
@@ -86,6 +119,8 @@ export function placeResources(
         roll -= c.weight;
       }
       const hex = colRowToHex(col, row);
+      if (spacingViolated(hex, placedHexes, options?.mirrorOf, s.minResourceDistance)) continue;
+      placedHexes.push(hex);
       resources.push({ id: picked.id, q: hex.q, r: hex.r });
     }
   }

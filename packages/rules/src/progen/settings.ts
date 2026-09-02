@@ -38,6 +38,15 @@ export interface ProgenSettings {
   humidity: number;
   /** Multiplicateur de densité des ressources (cible ~1 / 12 cases de terre 🔶). */
   resourceDensity: number;
+  /** Distance minimale (hex) entre DEUX ressources 🔶 (Phase 6c, demande
+   *  d'Erik : « une distance d'une case » = 2) — miroir compris : la contrainte
+   *  porte sur la carte COMPLÈTE (demi + images). 1 = adjacence tolérée. */
+  minResourceDistance: number;
+  /** Minimum de poses de CHAQUE type de ressource PAR JOUEUR 🔶 (Phase 6c :
+   *  « au moins une ressource de chaque type par joueur ») — par demi-carte
+   *  miroir, donc ≥ 2×N sur la carte 1v1 ; pérenne pour regionalMulti.
+   *  0 = garantie désactivée. */
+  minPerResourceType: number;
   /** Villages barbares et huttes posés sur la DEMI-carte puis reflétés 🔶
    *  (3 villages + 2 huttes par moitié — équité parfaite par miroir). */
   villagesPerHalf: number;
@@ -82,6 +91,8 @@ export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   forestDensity: 0.5,
   humidity: 0.5,
   resourceDensity: 1,
+  minResourceDistance: 2,
+  minPerResourceType: 1,
   villagesPerHalf: 3,
   hutsPerHalf: 2,
   minSpawnDistance: 12,
@@ -120,6 +131,8 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
     forestDensity: clamp01(s.forestDensity),
     humidity: clamp01(s.humidity),
     resourceDensity: Math.min(4, Math.max(0, s.resourceDensity)),
+    minResourceDistance: Math.min(4, Math.max(1, Math.round(s.minResourceDistance))),
+    minPerResourceType: Math.min(3, Math.max(0, Math.round(s.minPerResourceType))),
     villagesPerHalf: Math.min(6, Math.max(0, Math.round(s.villagesPerHalf))),
     hutsPerHalf: Math.min(6, Math.max(0, Math.round(s.hutsPerHalf))),
     minSpawnDistance: Math.max(2, Math.round(s.minSpawnDistance)),
