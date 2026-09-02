@@ -10,7 +10,7 @@
    */
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
-  import { hexToPixel, tileKeyOf, unitType, BUILDINGS, RESOURCES, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS } from '@game/rules';
   import type { GameState, Hex } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -925,7 +925,63 @@
     dragging = false;
   }
 
+  // Phase 6c — tooltip de survol (demande d'Erik, utile au labo #/progen) :
+  // nom du terrain sous le curseur + entités posées dessus. Source = l'état
+  // (filtré par le fog / la visibilité des ressources R-92) : le tooltip ne
+  // révèle rien que la vue ne montre déjà.
+  let tip = $state<{ x: number; y: number; lines: string[] } | null>(null);
+  let tipHex: string | null = null;
+
+  function buildTipLines(hex: Hex): string[] {
+    const state = scene.state;
+    if (!state) return [];
+    const tile = state.map[tileKeyOf(hex)];
+    if (!tile) return ['Inexploré']; // fog : case absente de l'état filtré
+    const lines: string[] = [TERRAINS[tile.terrain]?.name ?? tile.terrain];
+    if (tile.resource) {
+      lines.push(tile.resource === RESOURCE_UNKNOWN ? 'Ressource inconnue' : (RESOURCES[tile.resource]?.name ?? tile.resource));
+    }
+    for (const c of Object.values(state.cities)) {
+      if (c.q === hex.q && c.r === hex.r) lines.push(c.capital ? `Capitale (pop ${c.pop})` : `Ville (pop ${c.pop})`);
+    }
+    for (const u of Object.values(state.units)) {
+      if (u.q === hex.q && u.r === hex.r) lines.push(unitType(u.type).name);
+    }
+    for (const v of state.villages) {
+      if (v.q === hex.q && v.r === hex.r) lines.push('Village barbare');
+    }
+    for (const h of state.huts) {
+      if (h.q === hex.q && h.r === hex.r) lines.push('Hutte');
+    }
+    return lines;
+  }
+
+  function updateTip(e: PointerEvent): void {
+    if (!app) return;
+    const p = canvasPos(e);
+    const hex = screenToHex(p.x, p.y, camera, HEX_SIZE);
+    const state = scene.state;
+    if (!state || !inRectangle(hex, state.mapWidth, state.mapHeight)) {
+      tip = null;
+      tipHex = null;
+      return;
+    }
+    const key = tileKeyOf(hex);
+    if (tipHex !== key) {
+      tipHex = key;
+      tip = { x: p.x, y: p.y, lines: buildTipLines(hex) };
+    } else if (tip) {
+      tip = { ...tip, x: p.x, y: p.y };
+    }
+  }
+
+  function onPointerLeave(): void {
+    tip = null;
+    tipHex = null;
+  }
+
   function onPointerMove(e: PointerEvent): void {
+    updateTip(e);
     if (!pointer) return;
     const p = canvasPos(e);
     const dx = p.x - pointer.x;
@@ -1046,6 +1102,7 @@
     const canvas = application.canvas;
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerleave', onPointerLeave);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointercancel', () => {
       pointer = null;
@@ -1161,6 +1218,7 @@
       const canvas = app.canvas;
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('contextmenu', onContextMenu);
@@ -1171,7 +1229,15 @@
   }
 </script>
 
-<div class="canvas-host" bind:this={host} aria-label="Carte de partie"></div>
+<div class="canvas-host" bind:this={host} aria-label="Carte de partie">
+  {#if tip}
+    <div class="tile-tip" aria-hidden="true" style:left="{tip.x + 14}px" style:top="{tip.y + 14}px">
+      {#each tip.lines as line, i (i)}
+        <div class:primary={i === 0}>{line}</div>
+      {/each}
+    </div>
+  {/if}
+</div>
 
 <style>
   .canvas-host {
@@ -1184,5 +1250,23 @@
     display: block;
     touch-action: none;
     cursor: grab;
+  }
+  /* Tooltip de survol (Phase 6c) : nom du terrain + entités — jamais cliquable. */
+  .tile-tip {
+    position: absolute;
+    z-index: 20;
+    pointer-events: none;
+    background: rgba(16, 20, 26, 0.92);
+    color: #e8eaee;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font: 12px/1.45 system-ui, sans-serif;
+    white-space: nowrap;
+    max-width: 16rem;
+  }
+  .tile-tip .primary {
+    font-weight: 600;
+    color: #ffffff;
   }
 </style>

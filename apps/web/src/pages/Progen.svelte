@@ -16,11 +16,12 @@
   import {
     DEFAULT_PROGEN_SETTINGS,
     countResourcesByTerrain,
+    countTerrainTypes,
     createInitialState,
     fertilityHeatmap,
     generateProceduralMap,
   } from '@game/rules';
-  import type { ProgenReport, ResourceTerrainCounts } from '@game/rules';
+  import type { ProgenReport, ResourceTerrainCounts, TerrainCountRow } from '@game/rules';
   import type { GameState } from '@game/shared';
   import GameCanvas from '../lib/render/GameCanvas.svelte';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -40,6 +41,8 @@
   let forestDensity = $state(DEFAULT_PROGEN_SETTINGS.forestDensity);
   let humidity = $state(DEFAULT_PROGEN_SETTINGS.humidity);
   let resourceDensity = $state(DEFAULT_PROGEN_SETTINGS.resourceDensity);
+  let minResourceDistance = $state(DEFAULT_PROGEN_SETTINGS.minResourceDistance);
+  let minPerResourceType = $state(DEFAULT_PROGEN_SETTINGS.minPerResourceType);
   let villagesPerHalf = $state(DEFAULT_PROGEN_SETTINGS.villagesPerHalf);
   let hutsPerHalf = $state(DEFAULT_PROGEN_SETTINGS.hutsPerHalf);
   let minSpawnDistance = $state(DEFAULT_PROGEN_SETTINGS.minSpawnDistance);
@@ -55,6 +58,7 @@
   let report = $state<ProgenReport | null>(null);
   let heat = $state<Record<string, number> | null>(null);
   let resCounts = $state<ResourceTerrainCounts | null>(null);
+  let terrainCounts = $state<TerrainCountRow[] | null>(null);
 
   /** Colonnes du tableau de comptage : terrains réellement porteurs sur la
    *  carte, dans l'ordre canonique (terres puis eaux), extras triés derrière. */
@@ -103,6 +107,8 @@
         forestDensity,
         humidity,
         resourceDensity,
+        minResourceDistance,
+        minPerResourceType,
         villagesPerHalf,
         hutsPerHalf,
         minSpawnDistance,
@@ -110,6 +116,7 @@
       });
       report = result.report;
       resCounts = countResourcesByTerrain(result.map);
+      terrainCounts = countTerrainTypes(result.map);
       // Le MapData complet est gardé pour l'export (format des cartes
       // préfabriquées — inspectable, committable).
       lastMapData = result.map.data;
@@ -141,6 +148,7 @@
       report = null;
       heat = null;
       resCounts = null;
+      terrainCounts = null;
       lastMapData = null;
       error = e instanceof Error ? e.message : String(e);
     }
@@ -158,6 +166,8 @@
     void forestDensity;
     void humidity;
     void resourceDensity;
+    void minResourceDistance;
+    void minPerResourceType;
     void villagesPerHalf;
     void hutsPerHalf;
     void minSpawnDistance;
@@ -267,6 +277,14 @@
           <input type="range" min="0" max="3" step="0.1" bind:value={resourceDensity} />
         </label>
         <label>
+          Écart ressources : {minResourceDistance}{#if minResourceDistance > 1} (1 case vide entre deux){/if}
+          <input type="range" min="1" max="4" step="1" bind:value={minResourceDistance} />
+        </label>
+        <label>
+          Min par type : {minPerResourceType} par joueur
+          <input type="range" min="0" max="2" step="1" bind:value={minPerResourceType} />
+        </label>
+        <label>
           Villages (par moitié) : {villagesPerHalf}
           <input type="range" min="0" max="6" step="1" bind:value={villagesPerHalf} />
         </label>
@@ -309,6 +327,28 @@
               <tr><td>Villages / Huttes</td><td>{report.counts.villages} / {report.counts.huts}</td></tr>
             </tbody>
           </table>
+        {:else if !error}
+          <p>Génération…</p>
+        {/if}
+      </section>
+
+      <section>
+        <h2>Terrains par type</h2>
+        {#if terrainCounts}
+          <table class="terrain-table">
+            <tbody>
+              {#each terrainCounts as row (row.id)}
+                <tr class:absent={row.count === 0 && row.id !== 'ville'}>
+                  <td>{row.name}</td>
+                  <td>{row.count}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+          <p class="hint-small">
+            Une ligne grisée = terrain absent de cette carte (« Case de ville » n'est
+            jamais générée : c'est une entité posée sur les capitales).
+          </p>
         {:else if !error}
           <p>Génération…</p>
         {/if}
@@ -408,6 +448,11 @@
   .res-table td.zero { color: #ccc; font-weight: 400; }
   .res-table td.tot { font-weight: 600; }
   .hint-small { color: #777; font-size: 0.72rem; margin: 0.4rem 0 0; }
+  .terrain-table { font-size: 0.8rem; width: 100%; }
+  .terrain-table td { padding: 0.1rem 0.3rem; }
+  .terrain-table td:first-child { color: #555; }
+  .terrain-table td:last-child { text-align: right; font-weight: 600; }
+  .terrain-table tr.absent td { color: #b3b3b3; }
   @media (max-width: 54rem) {
     aside { width: 100%; }
     .canvas-host { width: 100%; height: 62vh; }
