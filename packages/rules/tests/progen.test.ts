@@ -184,9 +184,12 @@ describe('Phase 6b · Générateur procédural — structure & validations', () 
     // (Phase 6c) maintient ≥ 1 ressource de chaque type par joueur.
     const none = generateProceduralMap(606, { resourceDensity: 0 });
     expect(none.map.resources).toHaveLength(Object.keys(RESOURCES).length * 2);
-    const double = generateProceduralMap(606, { resourceDensity: 2 });
+    // Défaut 🔶 1.5 (Phase 6c) ; ×3 sature la capacité d'espacement (distance 2)
+    // mais reste nettement au-dessus du défaut.
     const simple = generateProceduralMap(606);
-    expect(double.map.resources.length).toBeGreaterThan(simple.map.resources.length * 1.4);
+    const double = generateProceduralMap(606, { resourceDensity: 3 });
+    expect(none.map.resources.length).toBeLessThan(simple.map.resources.length);
+    expect(double.map.resources.length).toBeGreaterThan(simple.map.resources.length * 1.15);
   });
 
   it('R-103 : l\'état initial se construit comme pour une carte préfabriquée', () => {
@@ -195,8 +198,9 @@ describe('Phase 6b · Générateur procédural — structure & validations', () 
     expect(state.mapId).toBe(PROCEDURAL_MAP_ID);
     expect(Object.keys(state.cities)).toEqual(['c1', 'c2']);
     expect(Object.keys(state.units)).toEqual(['u1', 'u2']);
-    expect(state.villages).toHaveLength(6);
-    expect(state.huts).toHaveLength(4);
+    // Phase 6c : 6 villages + 6 huttes par moitié (demande d'Erik) → 12/12 reflétés.
+    expect(state.villages).toHaveLength(12);
+    expect(state.huts).toHaveLength(12);
   });
 });
 
@@ -563,5 +567,86 @@ describe("Phase 6c · Comptage des terrains par type (demande d'Erik)", () => {
         .map((r) => r.id);
       expect(missing, `seed ${seed} : terrains absents`).toEqual([]);
     }
+  });
+});
+
+describe("Phase 6c · Équité des entités — distances calibrables (demande d'Erik)", () => {
+  it('villages/huttes : distances par défaut respectées sur les cartes générées (6 villages + 6 huttes par moitié)', () => {
+    for (const seed of [42, 20260902]) {
+      const { map } = generateProceduralMap(seed);
+      expect(map.villages).toHaveLength(12);
+      expect(map.huts).toHaveLength(12);
+      const spawns = map.spawns.map((p) => p.capital);
+      const villages = map.villages.map((v) => ({ q: v.q, r: v.r }));
+      const huts = map.huts.map((h) => ({ q: h.q, r: h.r }));
+      // Villages entre eux ≥ villageSpacing 🔶 6 ; huttes entre elles ≥ 3.
+      for (let i = 0; i < villages.length; i++) {
+        for (let j = i + 1; j < villages.length; j++) {
+          expect(hexDistance(villages[i]!, villages[j]!), `seed ${seed} villages ${i}-${j}`).toBeGreaterThanOrEqual(6);
+        }
+      }
+      for (let i = 0; i < huts.length; i++) {
+        for (let j = i + 1; j < huts.length; j++) {
+          expect(hexDistance(huts[i]!, huts[j]!), `seed ${seed} huttes ${i}-${j}`).toBeGreaterThanOrEqual(3);
+        }
+      }
+      // Huttes ↔ villages ≥ 2 : jamais À CÔTÉ (mais plus près qu'une autre hutte).
+      for (const h of huts) {
+        for (const v of villages) {
+          expect(hexDistance(h, v), `seed ${seed} hutte (${h.q},${h.r}) ↔ village (${v.q},${v.r})`).toBeGreaterThanOrEqual(2);
+        }
+      }
+      // Distances aux départs (leçon 7d inchangée) : villages ≥ 6, huttes ≥ 3.
+      for (const v of villages) {
+        for (const sp of spawns) expect(hexDistance(v, sp), `seed ${seed} village-départ`).toBeGreaterThanOrEqual(6);
+      }
+      for (const h of huts) {
+        for (const sp of spawns) expect(hexDistance(h, sp), `seed ${seed} hutte-départ`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+});
+
+describe('Phase 6c · Calibrage par type de tuile (mosaïque, déserts, prairies)', () => {
+  /** Nombre de transitions de terrain entre cases adjacentes (proxy de la
+   *  taille des zones : plus de transitions = zones plus petites). */
+  function transitions(map: LoadedMap): number {
+    let n = 0;
+    const grid: TerrainId[][] = map.data.rows.map((row) => [...row].map((ch) => map.data.legend[ch]! as TerrainId));
+    for (let r = 0; r < grid.length; r++) {
+      for (let c = 0; c < grid[r]!.length - 1; c++) {
+        if (grid[r]![c] !== grid[r]![c + 1]) n += 1;
+      }
+    }
+    return n;
+  }
+
+  it('terrainPatchScale 0.5 (défaut) divise le regroupement par rapport à 1 (héritage 6b)', () => {
+    const wide = generateProceduralMap(42, { terrainPatchScale: 1 });
+    const fine = generateProceduralMap(42, { terrainPatchScale: 0.5 });
+    expect(transitions(fine.map)).toBeGreaterThan(transitions(wide.map));
+  });
+
+  it('desertDensity et prairieDensity orientent leur type (calibreurs par tuile)', () => {
+    const countOf = (map: LoadedMap, id: TerrainId): number =>
+      Object.values(map.terrain).filter((t) => t === id).length;
+    // Aux extrêmes (0 ou 1), la zone du terrain rare (désert ou plaine) devient
+    // trop petite pour la garantie « 1 de chaque type » → échec explicite de
+    // génération. Le calibrage directionnel se fait à 0.25 / 0.75.
+    const desertLow = generateProceduralMap(42, { desertDensity: 0.25 });
+    const desertHigh = generateProceduralMap(42, { desertDensity: 0.75 });
+    expect(countOf(desertHigh.map, 'desert')).toBeGreaterThan(countOf(desertLow.map, 'desert'));
+    // Au-delà de ~0.6, la plaine (classe résiduelle) disparaît → marbre/vin
+    // infaisables → échec explicite. Calibrage directionnel 0.2 vs défaut 0.5.
+    const plaineHeavy = generateProceduralMap(42, { prairieDensity: 0.2 });
+    const prairieHeavy = generateProceduralMap(42, { prairieDensity: 0.5 });
+    expect(countOf(prairieHeavy.map, 'prairie')).toBeGreaterThan(countOf(plaineHeavy.map, 'prairie'));
+    expect(countOf(plaineHeavy.map, 'plaine')).toBeGreaterThan(countOf(prairieHeavy.map, 'plaine'));
+  });
+
+  it("la densité de ressources par défaut est 🔶 1.5 (demande d'Erik)", () => {
+    expect(DEFAULT_PROGEN_SETTINGS.resourceDensity).toBe(1.5);
+    expect(DEFAULT_PROGEN_SETTINGS.villagesPerHalf).toBe(6);
+    expect(DEFAULT_PROGEN_SETTINGS.hutsPerHalf).toBe(6);
   });
 });

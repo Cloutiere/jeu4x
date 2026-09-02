@@ -168,6 +168,15 @@ export function generateTerrain(
   const mountainThreshold = 0.8 - 0.3 * settings.mountainDensity;
   const hillThreshold = 0.78 - 0.28 * settings.hillDensity;
   const forestThreshold = 0.72 - 0.28 * settings.forestDensity;
+  // Phase 6c — calibrage PAR TYPE (demande d'Erik) : la bande désertique et
+  // le partage prairies/plaines ont leur curseur. À 0.5 : valeurs 6b exactes.
+  const desertBand = 0.06 + 0.24 * settings.desertDensity;
+  const desertDryness = 0.35 + 0.3 * settings.desertDensity;
+  const prairieThreshold = 0.44 - 0.24 * settings.prairieDensity;
+  // Mosaïque 🔶 (Phase 6c) : fréquence des masques de reliefs/climat —
+  // terrainPatchScale 0.5 = zones deux fois plus petites (regroupement /2),
+  // 1 = héritage 6b. L'altitude (masse des continents) n'est PAS touchée.
+  const patch = settings.terrainPatchScale;
 
   for (let row = 0; row < height; row++) {
     const terrRow: TerrainId[] = [];
@@ -189,11 +198,11 @@ export function generateTerrain(
         terrRow.push('eau');
         continue;
       }
-      const mNoise = nMtn.fbm(col * 0.16, row * 0.16);
-      const hNoise = nHill.fbm(col * 0.19, row * 0.19);
+      const mNoise = nMtn.fbm((col * 0.16) / patch, (row * 0.16) / patch);
+      const hNoise = nHill.fbm((col * 0.19) / patch, (row * 0.19) / patch);
       const humNoise = Math.min(
         1,
-        Math.max(0, nHum.fbm(col * 0.11, row * 0.11) + (settings.humidity - 0.5) * 0.6),
+        Math.max(0, nHum.fbm((col * 0.11) / patch, (row * 0.11) / patch) + (settings.humidity - 0.5) * 0.6),
       );
       // Température : décroît avec la latitude ET l'altitude (PDF §TerrainGenerator).
       const temp = Math.min(
@@ -207,13 +216,14 @@ export function generateTerrain(
       } else if (temp < 0.32) {
         // froid (pôles / haute altitude) : forêt boréale humide, sinon collines
         terrRow.push(humNoise > 0.45 ? 'foret' : 'colline');
-      } else if (distEq < 0.18 && humNoise < 0.5) {
-        // bande équatoriale sèche (PDF : désert sous les tropiques)
+      } else if (distEq < desertBand && humNoise < desertDryness) {
+        // bande équatoriale sèche (PDF : désert sous les tropiques) — 🔶 densité
         terrRow.push('desert');
       } else if (humNoise > forestThreshold) {
         // PDF §FeatureGenerator : forêts sur zones tempérées humides
         terrRow.push('foret');
-      } else if (humNoise > 0.32) {
+      } else if (humNoise > prairieThreshold) {
+        // 🔶 prairieDensity : partage prairies/plaines du reste du climat
         terrRow.push('prairie');
       } else {
         terrRow.push('plaine');

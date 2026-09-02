@@ -31,10 +31,20 @@ export interface ProgenSettings {
    *  à ≤ coastWidth cases (hex) d'une terre est de la CÔTE (`eau`), le reste
    *  est de l'OCÉAN profond (`ocean`). 1 = bande côtière minimale (adjacence). */
   coastWidth: number;
-  /** Densités des reliefs et du climat, toutes dans [0, 1] 🔶. */
+  /** Densités des reliefs et du climat, toutes dans [0, 1] 🔶 (Phase 6c :
+   *  un calibreur PAR TYPE de tuile — le curseur d'humidité global quitte le
+   *  labo, `humidity` reste le réglage interne par défaut 0.5). */
   mountainDensity: number;
   hillDensity: number;
   forestDensity: number;
+  desertDensity: number;
+  /** Prairies ↔ plaines : 0 = plaines dominantes, 1 = prairies dominantes
+   *  (0.5 = équilibre historique) 🔶. */
+  prairieDensity: number;
+  /** Échelle des ZONES de terrain 🔶 (Phase 6c, demande d'Erik) : taille des
+   *  massifs/bosquets relative au comportement 6b — 0.5 = regroupement divisé
+   *  par 2 (plus de diversité locale), 1 = héritage 6b. */
+  terrainPatchScale: number;
   humidity: number;
   /** Multiplicateur de densité des ressources (cible ~1 / 12 cases de terre 🔶). */
   resourceDensity: number;
@@ -48,9 +58,17 @@ export interface ProgenSettings {
    *  0 = garantie désactivée. */
   minPerResourceType: number;
   /** Villages barbares et huttes posés sur la DEMI-carte puis reflétés 🔶
-   *  (3 villages + 2 huttes par moitié — équité parfaite par miroir). */
+   *  (6 + 6 par moitié depuis la Phase 6c — demande d'Erik — équité parfaite
+   *  par miroir). */
   villagesPerHalf: number;
   hutsPerHalf: number;
+  /** Distances calibrables entre entités 🔶 (Phase 6c) : villages entre eux,
+   *  huttes entre elles, et huttes ↔ villages (une hutte ne doit pas être
+   *  À CÔTÉ d'un village mais peut en être plus proche qu'une autre hutte :
+   *  hutVillageSpacing < hutSpacing est un réglage légitime). */
+  villageSpacing: number;
+  hutSpacing: number;
+  hutVillageSpacing: number;
   /** Distance minimale entre les deux capitales (= validation parseMap). */
   minSpawnDistance: number;
   /** Distance minimale d'un site de capitale aux bords de carte. */
@@ -89,17 +107,23 @@ export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   mountainDensity: 0.5,
   hillDensity: 0.5,
   forestDensity: 0.5,
+  desertDensity: 0.5,
+  prairieDensity: 0.5,
+  terrainPatchScale: 0.5,
   humidity: 0.5,
-  resourceDensity: 1,
+  resourceDensity: 1.5,
   minResourceDistance: 2,
   minPerResourceType: 1,
-  villagesPerHalf: 3,
-  hutsPerHalf: 2,
+  villagesPerHalf: 6,
+  hutsPerHalf: 6,
   minSpawnDistance: 12,
   startMinEdgeDistance: 6,
   startMinMirrorDistance: 2, // T-09
   minVillageDistance: 6,
   minHutDistance: 3,
+  villageSpacing: 6,
+  hutSpacing: 3,
+  hutVillageSpacing: 2,
   normalizationTopSites: 5,
   normalizationFactor: 0.8,
   fertilityRingWeights: [1.0, 0.6, 0.3],
@@ -129,17 +153,23 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
     mountainDensity: clamp01(s.mountainDensity),
     hillDensity: clamp01(s.hillDensity),
     forestDensity: clamp01(s.forestDensity),
+    desertDensity: clamp01(s.desertDensity),
+    prairieDensity: clamp01(s.prairieDensity),
+    terrainPatchScale: Math.min(1.5, Math.max(0.25, s.terrainPatchScale)),
     humidity: clamp01(s.humidity),
     resourceDensity: Math.min(4, Math.max(0, s.resourceDensity)),
     minResourceDistance: Math.min(4, Math.max(1, Math.round(s.minResourceDistance))),
     minPerResourceType: Math.min(3, Math.max(0, Math.round(s.minPerResourceType))),
-    villagesPerHalf: Math.min(6, Math.max(0, Math.round(s.villagesPerHalf))),
-    hutsPerHalf: Math.min(6, Math.max(0, Math.round(s.hutsPerHalf))),
+    villagesPerHalf: Math.min(12, Math.max(0, Math.round(s.villagesPerHalf))),
+    hutsPerHalf: Math.min(12, Math.max(0, Math.round(s.hutsPerHalf))),
     minSpawnDistance: Math.max(2, Math.round(s.minSpawnDistance)),
     startMinEdgeDistance: Math.max(2, Math.round(s.startMinEdgeDistance)),
     startMinMirrorDistance: Math.max(1, Math.round(s.startMinMirrorDistance)),
     minVillageDistance: Math.max(0, Math.round(s.minVillageDistance)),
     minHutDistance: Math.max(0, Math.round(s.minHutDistance)),
+    villageSpacing: Math.min(12, Math.max(0, Math.round(s.villageSpacing))),
+    hutSpacing: Math.min(12, Math.max(0, Math.round(s.hutSpacing))),
+    hutVillageSpacing: Math.min(12, Math.max(0, Math.round(s.hutVillageSpacing))),
     normalizationTopSites: Math.max(1, Math.round(s.normalizationTopSites)),
     normalizationFactor: Math.min(1, Math.max(0.3, s.normalizationFactor)),
     fertilityRingWeights: [
