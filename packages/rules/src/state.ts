@@ -187,6 +187,9 @@ export interface GameState {
   /** Phase 7d : id de la carte d'origine — null pour les états v7 migrés avant
    *  enrichissement serveur (applyMapEntities). */
   mapId: string | null;
+  /** 7e · Premier découvrir (CivRev) : premier joueur à compléter chaque tech
+   *  (techId → playerId) — récompense `firstToDiscover` appliquée une fois. */
+  firstBy: Record<string, PlayerId>;
 }
 
 /** R-58-a : les deux nations sont-elles en guerre ? R-95 : les barbares sont
@@ -206,7 +209,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 type AnyState = Record<string, unknown>;
 
@@ -378,6 +381,28 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
     if (!Array.isArray(state.villages)) out.villages = [];
     if (!Array.isArray(state.huts)) out.huts = [];
     if (typeof state.mapId !== 'string') out.mapId = null;
+    return out;
+  },
+  /**
+   * v8 → v9 : Phase 7e — arbre technologique complet. Champs ADDITIFS :
+   *  - `firstBy: {}` (Premier découvrir — les parties en cours n'ont fait
+   *    aucun « premier découvrir » : table vide, idempotent) ;
+   *  - le PALAIS est posé dans les capitales existantes (nouveau bâtiment
+   *    fixed, +50 % défense de garnison — les nouvelles fondations le reçoivent
+   *    directement du moteur). Idempotent.
+   */
+  9: (state) => {
+    const out: AnyState = { ...state };
+    if (!state.firstBy || typeof state.firstBy !== 'object' || Array.isArray(state.firstBy)) out.firstBy = {};
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      const buildings = Array.isArray(c.buildings) ? [...(c.buildings as string[])] : [];
+      if (c.capital === true && !buildings.includes('palais')) buildings.push('palais');
+      migrated[id] = { ...c, buildings };
+    }
+    out.cities = migrated;
     return out;
   },
 };

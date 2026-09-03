@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, TECHS, tileYield, workRadiusOf, isUnlocked, conversionGains, RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -73,7 +73,7 @@
     yields && city ? conversionGains(yields.commerce, city.conversion, city.buildings) : null,
   );
 
-  /** Production par tour de la ville (miroir Phase C : raw × (1 + 0,25×(pop−1)), R-63 🔶). */
+  /** Production par tour de la ville (miroir Phase C : raw × Usine × (1 + 0,25×(pop−1)), R-63 🔶 + 7e). */
   const prodPerTurn = $derived.by(() => {
     if (!city || !view.state) return 0;
     let raw = 1; // case de ville
@@ -81,7 +81,9 @@
       const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
       if (y) raw += y.production;
     }
-    return Math.floor(raw * (1 + 0.25 * (city.pop - 1)));
+    let factoryMult = 1;
+    for (const b of city.buildings) factoryMult = Math.max(factoryMult, BUILDINGS[b]?.productionMult ?? 1);
+    return Math.floor(raw * factoryMult * (1 + 0.25 * (city.pop - 1)));
   });
   const prodEta = $derived(
     city && city.production && prodItem && prodPerTurn > 0
@@ -100,8 +102,13 @@
     return f;
   });
 
-  /** R-63 : jauge de croissance — nourriture accumulée / seuil 10 × pop. */
-  const growthThreshold = $derived(city ? 10 * city.pop : 0);
+  /** R-63 (+7e Aqueduc) : jauge de croissance — nourriture accumulée / seuil 10 × pop (−⅓ avec Aqueduc 🔶). */
+  const growthThreshold = $derived.by(() => {
+    if (!city) return 0;
+    let reduction = 0;
+    for (const b of city.buildings) reduction = Math.max(reduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
+    return Math.max(1, Math.round(10 * city.pop * (1 - reduction)));
+  });
   const growthRatio = $derived(city ? Math.max(0, Math.min(1, city.foodStored / growthThreshold)) : 0);
   const growthEta = $derived(
     city && foodPerTurn > 0 && city.foodStored < growthThreshold
@@ -163,15 +170,22 @@
     eta: number | null;
   }
 
-  function optionFor(item: ProductionItem, name: string, cost: number, effect: string, tech: string | null): ProdOption {
-    const unlocked = isUnlocked({ tech: tech ?? null }, techsUnlocked);
+  function optionFor(item: ProductionItem, name: string, cost: number, effect: string, tech: string | null, requires: string | null = null): ProdOption {
+    // 7e : producibilité complète — tech, implémentation, obsolescence,
+    // prérequis de bâtiment (Banque exige un Marché…). Palais : fixed.
+    const unlocked = isProducible({ tech: tech ?? null, requiresBuilding: requires ?? undefined }, techsUnlocked, city?.buildings ?? []);
+    let requiresLabel: string | null = null;
+    if (tech && !techsUnlocked.includes(tech)) requiresLabel = TECHS[tech]?.name ?? tech;
+    if (requires && !(city?.buildings ?? []).includes(requires)) {
+      requiresLabel = requiresLabel ? `${requiresLabel} + ${BUILDINGS[requires]?.name ?? requires}` : (BUILDINGS[requires]?.name ?? requires);
+    }
     return {
       item,
       name,
       cost,
       effect,
       unlocked,
-      requires: tech ? TECHS[tech]?.name ?? tech : null,
+      requires: requiresLabel,
       eta: unlocked && prodPerTurn > 0 ? Math.ceil(cost / prodPerTurn) : null,
     };
   }
@@ -179,8 +193,14 @@
   const unitOptions = $derived.by(() => {
     const options: ProdOption[] = [];
     for (const u of Object.values(UNIT_TYPES)) {
-      if (u.implemented === false) continue; // Espion/Galère : pas proposés
-      const effect = u.id === 'colon' ? 'Fonde une ville' : `${u.attack}/${u.defense}/${u.movement}`;
+      if (u.implemented === false) continue; // Espion, naval, aérien : pas proposés
+      // 7e · R-110 : les unités obsolètes sont retirées du menu (CivRev).
+      if (isUnitObsolete(u.id, techsUnlocked)) continue;
+      const effect = u.id === 'colon'
+        ? `Fonde une ville (consomme ${u.populationCost ?? 0} population)`
+        : u.isRanged
+          ? `${u.attack}/${u.defense}/${u.movement} — à distance`
+          : `${u.attack}/${u.defense}/${u.movement}`;
       options.push(optionFor({ kind: 'unit', id: u.id }, u.name, u.cost, effect, u.tech ?? null));
     }
     return sortUnlockedFirst(options);
@@ -189,8 +209,15 @@
   const buildingOptions = $derived.by(() => {
     const options: ProdOption[] = [];
     for (const b of Object.values(BUILDINGS)) {
-      const effect = b.workRadiusBonus > 0 ? 'Rayon de travail 1 → 2' : (b.effect ?? tileEffectLabel(b));
-      options.push(optionFor({ kind: 'building', id: b.id }, b.name, b.cost, effect, b.tech ?? null));
+      if (b.fixed || b.implemented === false) continue; // Palais, composants du Vaisseau
+      if (city && city.buildings.includes(b.id)) continue; // déjà construit (R-66)
+      if (b.replaces && city && city.buildings.includes(b.replaces)) continue; // remplacé (R-111)
+      const effect = [
+        b.workRadiusBonus > 0 ? 'Rayon de travail 1 → 2' : (b.effect ?? tileEffectLabel(b)),
+        b.replaces ? `remplace ${BUILDINGS[b.replaces]?.name ?? b.replaces}` : null,
+        b.requiresBuilding ? `requiert ${BUILDINGS[b.requiresBuilding]?.name ?? b.requiresBuilding}` : null,
+      ].filter((s): s is string => s !== null).join(' — ');
+      options.push(optionFor({ kind: 'building', id: b.id }, b.name, b.cost, effect, b.tech ?? null, b.requiresBuilding ?? null));
     }
     return sortUnlockedFirst(options);
   });

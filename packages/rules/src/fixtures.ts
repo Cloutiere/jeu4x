@@ -197,6 +197,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
     villages,
     huts,
     mapId: opts.mapId ?? null,
+    firstBy: {}, // 7e : Premier découvrir (aucun au départ)
   };
   return state;
 }

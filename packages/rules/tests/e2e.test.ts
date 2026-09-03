@@ -234,9 +234,10 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
 
     // Le Grenier s'achève quand la progression atteint son coût (R-62/R-66) :
     // on amène la file au bord (la progression est conservée tour à tour).
-    state.cities[cityId]!.production!.progress = 19;
-    step({}); // 19 + production du tour → complété
-    expect(state.cities[cityId]!.buildings).toEqual(['grenier']);
+    state.cities[cityId]!.production!.progress = 39;
+    step({}); // 39 + production du tour → complété (coût exact 7e : 40)
+    // 7e : la ville fondée est capitale → le Palais y est posé par le moteur.
+    expect(state.cities[cityId]!.buildings).toEqual(['palais', 'grenier']);
     expect(allEvents.some((e) => e.type === 'BuildingCompleted' && e.building === 'grenier')).toBe(true);
 
     // R-66 : le Grenier donne +1 N sur la plaine travaillée — le gain de
@@ -253,9 +254,9 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     expect(expectedFood).toBeGreaterThan(2 + tiles.length); // le bonus se sent vraiment
 
     // Tribunal en file (40 🔶), achevé au tour suivant.
-    state.cities[cityId]!.production = { item: { kind: 'building', id: 'tribunal' }, progress: 39 };
-    step({});
-    expect(state.cities[cityId]!.buildings).toEqual(['grenier', 'tribunal']);
+    state.cities[cityId]!.production = { item: { kind: 'building', id: 'tribunal' }, progress: 79 };
+    step({}); // 79 + production du tour → complété (coût exact 7e : 80)
+    expect(state.cities[cityId]!.buildings).toEqual(['palais', 'grenier', 'tribunal']);
 
     // Rayon 2 (T-08b + Tribunal) : la montagne (3,5) — distance 2 — devient
     // travaillable (R-60/R-66). Ville pleine : il faut d'abord DÉSASSIGNER un

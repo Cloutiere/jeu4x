@@ -828,6 +828,319 @@ def batiment_caserne(db, da, w, h):
     db.poly([(72, 122), (66, 106), (78, 106)], fill=GRIS_ARMURE, outline=INK, width=1)
 
 
+
+# ------------------------------------------------- Phase 7e — unités terrestres
+# Gabarits existants (corps du guerrier/archer/legion, gabarits bâtiments) :
+# chaque peintre reprend la grammaire visuelle « flat board-game » (SPEC-ART §4).
+
+def unite_piquier(db, da, w, h):
+    """256x320, piquier anti-cavalerie : longue pique + rondache (rondache = accent)."""
+    cx, ground = 120, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 24, ground - 60, cx - 6, ground), 7, fill="#5E4E3A")
+    db.rrect((cx + 6, ground - 60, cx + 24, ground), 7, fill="#5E4E3A")
+    db.poly([(cx - 30, ground - 128), (cx + 30, ground - 128), (cx + 36, ground - 54),
+             (cx - 36, ground - 54)], fill="#5B6E8C")
+    db.poly([(cx - 30, ground - 128), (cx - 10, ground - 128), (cx - 20, ground - 54),
+             (cx - 36, ground - 54)], fill="#6E82A0")
+    db.ellipse((cx - 18, ground - 164, cx + 16, ground - 132), fill="#B99B7E")
+    db.pieslice((cx - 20, ground - 170, cx + 18, ground - 138), 180, 360, fill=GRIS_ARMURE)
+    db.line([(cx + 30, ground - 96), (cx + 84, ground - 230)], fill=BOIS, width=7)
+    db.poly([(cx + 80, ground - 238), (cx + 90, ground - 226), (cx + 78, ground - 222)],
+            fill=GRIS_ARMURE, outline=INK, width=1)
+    db.line([(cx - 24, ground - 116), (cx - 44, ground - 98)], fill="#5B6E8C", width=12)
+    buckler = (cx - 86, ground - 136, cx - 22, ground - 66)
+    db.ellipse(buckler, fill=GRIS_ARMURE, outline=INK, width=3)
+    db.ellipse((cx - 66, ground - 116, cx - 42, ground - 88), outline=OR, width=3)
+    da.ellipse(buckler, fill="#FFFFFF")
+
+
+def unite_catapulte(db, da, w, h):
+    """256x320, machine de siège : châssis + flèche de lancer (flèche = accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 92)
+    for x in (56, 172):
+        db.ellipse((x, ground - 52, x + 48, ground - 4), fill="#6E4626", outline=INK, width=2.5)
+        db.ellipse((x + 14, ground - 38, x + 34, ground - 18), fill="#8A5A34")
+    db.rrect((52, ground - 88, 200, ground - 52), 5, fill=BOIS, outline=INK, width=2.5)
+    for x in (70, 100, 130, 160):
+        db.line([(x, ground - 84), (x, ground - 56)], fill=BOIS_CLAIR, width=4)
+    db.rrect((96, ground - 148, 160, ground - 84), 4, fill=BOIS_CLAIR, outline=INK, width=2)
+    db.line([(128, ground - 144), (128, ground - 228)], fill=BOIS, width=10)
+    db.ellipse((110, ground - 252, 146, ground - 222), fill=GRIS_ARMURE, outline=INK, width=2)
+    da.line([(128, ground - 144), (128, ground - 228)], fill="#FFFFFF", width=10)
+    da.ellipse((110, ground - 252, 146, ground - 222), fill="#FFFFFF")
+    db.line([(66, ground - 140), (128, ground - 232), (190, ground - 140)], fill=SABLE, width=3)
+    db.ellipse((78, ground - 104, 102, ground - 84), fill=MONTAGNE_1, outline=INK, width=1)
+    db.ellipse((152, ground - 100, 172, ground - 84), fill=MONTAGNE_1, outline=INK, width=1)
+
+
+def unite_chevalier(db, da, w, h):
+    """256x320, cavalier lourd : destrier caparaçonné (barding = accent)."""
+    cx, ground = 128, 296
+    shadow(db, cx, ground + 6, 84)
+    body = [(48, ground - 118), (200, ground - 118), (212, ground - 78),
+            (192, ground - 58), (60, ground - 58), (40, ground - 80)]
+    db.poly(body, fill="#6E5A78")
+    db.poly([(48, ground - 118), (130, ground - 118), (124, ground - 58),
+             (60, ground - 58), (40, ground - 80)], fill="#84709A")
+    for x in (56, 92, 148, 182):
+        db.rrect((x, ground - 62, x + 14, ground), 5, fill="#4E3E58")
+    db.poly([(184, ground - 128), (226, ground - 100), (232, ground - 74),
+             (198, ground - 86)], fill="#6E5A78")
+    db.ellipse((214, ground - 112, 240, ground - 88), fill="#6E5A78")
+    db.ellipse((224, ground - 106, 232, ground - 98), fill="#2B2620")
+    db.line([(44, ground - 100), (24, ground - 66)], fill="#4E3822", width=7)
+    rider = 92
+    db.rrect((rider + 8, ground - 96, rider + 24, ground - 58), 6, fill="#4E3E58")
+    db.poly([(rider - 14, ground - 190), (rider + 22, ground - 190),
+             (rider + 30, ground - 120), (rider - 22, ground - 120)], fill=GRIS_ARMURE)
+    db.ellipse((rider - 8, ground - 222, rider + 22, ground - 192), fill="#B99B7E")
+    db.pieslice((rider - 10, ground - 228, rider + 24, ground - 196), 180, 360,
+                fill=GRIS_ARMURE)
+    db.line([(rider + 24, ground - 176), (rider + 92, ground - 150)], fill=BOIS, width=6)
+    db.poly([(rider + 88, ground - 152), (rider + 106, ground - 146), (rider + 90, ground - 138)],
+            fill=GRIS_ARMURE, outline=INK, width=1)
+    capar = [(96, ground - 116), (176, ground - 116), (188, ground - 76),
+             (160, ground - 58), (100, ground - 58), (84, ground - 84)]
+    db.poly(capar, fill=GRIS_NEUTRE, outline=INK, width=2)
+    da.poly(capar, fill="#FFFFFF")
+
+
+def unite_fusilier(db, da, w, h):
+    """256x320, fusilier de ligne : bicorne + fusil à baïonnette (fusil = accent)."""
+    cx, ground = 120, 300
+    shadow(db, cx, ground + 4, 48)
+    db.rrect((cx - 22, ground - 58, cx - 6, ground), 6, fill="#3E342A")
+    db.rrect((cx + 6, ground - 58, cx + 22, ground), 6, fill="#3E342A")
+    db.poly([(cx - 28, ground - 126), (cx + 28, ground - 126), (cx + 34, ground - 54),
+             (cx - 34, ground - 54)], fill="#3C4A5C")
+    db.poly([(cx - 28, ground - 126), (cx - 8, ground - 126), (cx - 18, ground - 54),
+             (cx - 34, ground - 54)], fill="#4C5E74")
+    db.rrect((cx - 30, ground - 82, cx + 30, ground - 74), 3, fill="#FFFFFF")
+    db.ellipse((cx - 16, ground - 160, cx + 16, ground - 130), fill="#B99B7E")
+    db.poly([(cx - 30, ground - 152), (cx + 30, ground - 152), (cx + 22, ground - 172),
+             (cx - 22, ground - 172)], fill="#2B2620", outline=INK, width=1)
+    db.rrect((cx - 30, ground - 158, cx + 30, ground - 152), 2, fill=OR)
+    db.line([(cx - 52, ground - 70), (cx + 58, ground - 150)], fill=BOIS, width=7)
+    db.line([(cx + 40, ground - 138), (cx + 76, ground - 164)], fill=GRIS_ARMURE, width=4)
+    da.line([(cx - 52, ground - 70), (cx + 58, ground - 150)], fill="#FFFFFF", width=7)
+    da.line([(cx + 40, ground - 138), (cx + 76, ground - 164)], fill="#FFFFFF", width=4)
+    db.rrect((cx - 46, ground - 100, cx - 20, ground - 72), 4, fill="#7E6A48", outline=INK, width=1.5)
+
+
+def unite_canon(db, da, w, h):
+    """256x320, canon de siège : tube de bronze sur affût (tube = accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 90)
+    for x in (48, 160):
+        db.ellipse((x, ground - 60, x + 52, ground - 8), fill="#6E4626", outline=INK, width=2.5)
+        for a in range(6):
+            ang = a * 3.1416 / 3
+            db.line([(x + 26, ground - 34),
+                     (x + 26 + 22 * math.cos(ang), ground - 34 + 22 * math.sin(ang))],
+                    fill="#8A5A34", width=3)
+    db.poly([(64, ground - 92), (192, ground - 92), (176, ground - 48), (80, ground - 48)],
+            fill=BOIS_CLAIR, outline=INK, width=2)
+    db.rrect((40, ground - 130, 196, ground - 96), 12, fill=OR, outline=INK, width=2.5)
+    da.rrect((40, ground - 130, 196, ground - 96), 12, fill="#FFFFFF")
+    db.rrect((36, ground - 128, 56, ground - 98), 6, fill=OR_SOMBRE, outline=INK, width=2)
+
+
+def unite_infanterie_moderne(db, da, w, h):
+    """256x320, fantassin moderne : casque + gilet (gilet = accent)."""
+    cx, ground = 120, 300
+    shadow(db, cx, ground + 4, 48)
+    db.rrect((cx - 22, ground - 56, cx - 6, ground), 6, fill="#3E4A3A")
+    db.rrect((cx + 6, ground - 56, cx + 22, ground), 6, fill="#3E4A3A")
+    db.rrect((cx - 26, ground - 122, cx + 26, ground - 56), 8, fill="#55624E")
+    gilet = (cx - 22, ground - 116, cx + 22, ground - 74)
+    db.rrect(gilet, 5, fill="#4A563E", outline=INK, width=1.5)
+    for x in (cx - 12, cx + 2):
+        db.rrect((x, ground - 112, x + 10, ground - 94), 2, fill="#6B5230")
+    da.rrect(gilet, 5, fill="#FFFFFF")
+    db.ellipse((cx - 16, ground - 158, cx + 16, ground - 128), fill="#B99B7E")
+    db.pieslice((cx - 18, ground - 164, cx + 18, ground - 136), 180, 360, fill="#55624E")
+    db.line([(cx + 24, ground - 96), (cx + 74, ground - 118)], fill="#3E342A", width=7)
+    db.rrect((cx + 58, ground - 126, cx + 84, ground - 112), 2, fill="#2B2620")
+    db.rrect((cx + 28, ground - 92, cx + 40, ground - 78), 2, fill="#2B2620")
+
+
+def unite_char_d_assaut(db, da, w, h):
+    """256x320, char lourd : chenilles + tourelle (tourelle/canon = accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 104)
+    db.rrect((24, ground - 66, 232, ground - 14), 22, fill="#3E342A", outline=INK, width=2.5)
+    for x in range(40, 216, 24):
+        db.rrect((x, ground - 60, x + 12, ground - 20), 3, fill="#5E544A")
+    db.rrect((40, ground - 110, 216, ground - 60), 8, fill="#55624E", outline=INK, width=2.5)
+    db.rrect((40, ground - 110, 130, ground - 60), 8, fill="#63705A")
+    db.rrect((96, ground - 150, 180, ground - 104), 10, fill="#55624E", outline=INK, width=2.5)
+    db.rrect((172, ground - 138, 244, ground - 124), 4, fill="#3E342A", outline=INK, width=1.5)
+    da.rrect((96, ground - 150, 180, ground - 104), 10, fill="#FFFFFF")
+    da.rrect((172, ground - 138, 244, ground - 124), 4, fill="#FFFFFF")
+    db.ellipse((150, ground - 162, 166, ground - 148), fill="#3E4A3A")
+
+
+def unite_artillerie(db, da, w, h):
+    """256x320, artillerie moderne : long tube sur châssis motorisé (tube = accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 104)
+    db.rrect((36, ground - 74, 212, ground - 36), 8, fill="#55624E", outline=INK, width=2.5)
+    for x in (44, 96, 148):
+        db.ellipse((x, ground - 60, x + 40, ground - 20), fill="#3E342A", outline=INK, width=2)
+        db.ellipse((x + 10, ground - 50, x + 30, ground - 30), fill="#5E544A")
+    db.poly([(88, ground - 138), (150, ground - 138), (150, ground - 78), (88, ground - 78)],
+            fill="#63705A", outline=INK, width=2)
+    db.line([(120, ground - 100), (218, ground - 216)], fill="#3E342A", width=12)
+    da.line([(120, ground - 100), (218, ground - 216)], fill="#FFFFFF", width=12)
+    db.ellipse((206, ground - 226, 226, ground - 206), fill="#3E342A")
+
+
+# ------------------------------------------------- Phase 7e — bâtiments
+
+def batiment_palais(db, da, w, h):
+    """Palais : pavillon à fronton + couronne (couronne = accent)."""
+    shadow(db, 112, 214, 80)
+    db.rrect((48, 132, 176, 214), 3, fill="#C2B6A2", outline=INK, width=2.5)
+    db.poly([(40, 136), (112, 88), (184, 136)], fill="#B0A390", outline=INK, width=2)
+    for x in (68, 112, 156):
+        db.rrect((x - 8, 144, x + 8, 214), 2, fill=SABLE, outline=INK, width=1.5)
+    db.rrect((100, 170, 124, 214), 2, fill="#5E4E3A")
+    crown = [(92, 116), (100, 96), (110, 112), (120, 92), (130, 112), (140, 96), (148, 116)]
+    db.poly(crown, fill=OR, outline=INK, width=1.5)
+    da.poly(crown, fill="#FFFFFF")
+
+
+def batiment_temple(db, da, w, h):
+    """Temple : sanctuaire à fronton + brasier sacré (flamme = accent)."""
+    shadow(db, 112, 214, 76)
+    db.rrect((60, 150, 164, 214), 3, fill="#C2B6A2", outline=INK, width=2.5)
+    db.poly([(52, 154), (112, 108), (172, 154)], fill="#B0A390", outline=INK, width=2)
+    for x in (78, 112, 146):
+        db.rrect((x - 6, 162, x + 6, 214), 2, fill=SABLE, outline=INK, width=1.5)
+    db.poly([(100, 144), (124, 144), (118, 162), (106, 162)], fill=GRIS_ARMURE, outline=INK, width=1.5)
+    flame = [(112, 92), (126, 118), (120, 136), (104, 136), (98, 118)]
+    db.poly(flame, fill=ROUGE_JOUEUR, outline=INK, width=1)
+    da.poly(flame, fill="#FFFFFF")
+
+
+def batiment_marche(db, da, w, h):
+    """Marché : étal couvert + pièces de monnaie (pièces = accent)."""
+    shadow(db, 112, 214, 78)
+    awning = [(44, 128), (180, 128), (164, 96), (60, 96)]
+    db.poly(awning, fill="#B0603C", outline=INK, width=2)
+    for x in range(64, 164, 20):
+        db.poly([(x, 128), (x + 10, 128), (x + 8, 110), (x - 2, 110)], fill="#EDE7DA")
+    db.rrect((60, 128, 164, 214), 3, fill=SABLE, outline=INK, width=2.5)
+    db.rrect((76, 168, 148, 178), 2, fill=BOIS, outline=INK, width=1.5)
+    for x in (86, 108, 128):
+        db.ellipse((x, 152, x + 18, 170), fill=OR, outline=INK, width=1.5)
+        da.ellipse((x, 152, x + 18, 170), fill="#FFFFFF")
+    db.rrect((100, 182, 124, 206), 2, fill=BOIS_CLAIR, outline=INK, width=1.5)
+
+
+def batiment_remparts(db, da, w, h):
+    """Remparts : muraille crénelée (crénage = accent)."""
+    shadow(db, 112, 214, 88)
+    db.rrect((36, 128, 188, 214), 2, fill="#8D8D95", outline=INK, width=2.5)
+    db.rrect((36, 128, 188, 146), 2, fill="#9A9AA0", outline=INK, width=2)
+    for x in (40, 72, 104, 136, 168):
+        db.rrect((x, 106, x + 20, 132), 2, fill="#9A9AA0", outline=INK, width=2)
+        da.rrect((x, 106, x + 20, 132), 2, fill="#FFFFFF")
+    for y in (168, 188):
+        db.line([(40, y), (184, y)], fill="#7E7E86", width=3)
+
+
+def batiment_aqueduc(db, da, w, h):
+    """Aqueduc : arche + canal d'eau (l'eau = accent)."""
+    shadow(db, 112, 214, 84)
+    db.rrect((40, 118, 184, 214), 2, fill="#C2B6A2", outline=INK, width=2.5)
+    db.rrect((40, 108, 184, 126), 2, fill="#B0A390", outline=INK, width=2)
+    db.pieslice((64, 148, 160, 244), 180, 360, fill="#1D242B")
+    for x in (52, 168):
+        db.pieslice((x - 10, 178, x + 10, 218), 180, 360, fill="#8D8D95")
+    water = (48, 112, 176, 122)
+    db.rrect(water, 3, fill=EAU_2)
+    da.rrect(water, 3, fill="#FFFFFF")
+
+
+def batiment_banque(db, da, w, h):
+    """Banque : colonnade + fronton gravé d'une pièce (pièce = accent)."""
+    shadow(db, 112, 214, 80)
+    db.rrect((44, 150, 180, 214), 3, fill="#B0A390", outline=INK, width=2.5)
+    db.rrect((44, 138, 180, 152), 2, fill="#C2B6A2", outline=INK, width=2)
+    db.poly([(38, 142), (112, 100), (186, 142)], fill="#8E8A80", outline=INK, width=2)
+    coin = (100, 108, 124, 132)
+    db.ellipse(coin, fill=OR, outline=INK, width=1.5)
+    da.ellipse(coin, fill="#FFFFFF")
+    for x in (62, 90, 134, 162):
+        db.rrect((x - 7, 158, x + 7, 214), 2, fill=SABLE, outline=INK, width=1.5)
+    db.rrect((56, 162, 168, 168), 2, fill="#A5987F")
+
+
+def batiment_cathedrale(db, da, w, h):
+    """Cathédrale : nef gothique + rosace (rosace = accent)."""
+    shadow(db, 112, 214, 82)
+    db.rrect((56, 118, 168, 214), 3, fill="#C2B6A2", outline=INK, width=2.5)
+    db.poly([(48, 122), (112, 66), (176, 122)], fill="#B0A390", outline=INK, width=2)
+    db.rrect((104, 60, 120, 100), 2, fill="#8E8A80", outline=INK, width=2)
+    db.rrect((94, 70, 130, 78), 2, fill="#8E8A80")
+    rose = (94, 128, 130, 164)
+    db.ellipse(rose, fill="#5B6E8C", outline=INK, width=2)
+    da.ellipse(rose, fill="#FFFFFF")
+    db.ellipse((106, 140, 118, 152), fill="#C2B6A2")
+    db.pieslice((92, 176, 132, 216), 180, 360, fill="#5E4E3A")
+    db.rrect((92, 196, 132, 214), 2, fill="#5E4E3A")
+    for x in (64, 156):
+        db.rrect((x - 4, 140, x + 4, 168), 1, fill="#5B6E8C")
+
+
+def batiment_universite(db, da, w, h):
+    """Université : bâtiment à dôme + livre ouvert (livre = accent)."""
+    shadow(db, 112, 214, 82)
+    db.rrect((48, 148, 176, 214), 3, fill="#C2B6A2", outline=INK, width=2.5)
+    dome = (76, 92, 148, 152)
+    db.pieslice(dome, 180, 360, fill="#B0A390", outline=INK, width=2)
+    db.rrect((108, 74, 116, 96), 1, fill=OR)
+    db.ellipse((104, 70, 120, 84), fill=OR, outline=INK, width=1)
+    for x in (66, 96, 128, 158):
+        db.rrect((x - 6, 166, x + 6, 214), 2, fill=SABLE, outline=INK, width=1.5)
+    book = [(72, 196), (112, 184), (152, 196), (112, 208)]
+    db.poly(book, fill="#EDE7DA", outline=INK, width=1.5)
+    db.line([(112, 184), (112, 208)], fill="#A5987F", width=2)
+    da.poly(book, fill="#FFFFFF")
+
+
+def batiment_usine(db, da, w, h):
+    """Usine : hangar à sheds + cheminée fumante (engrenage = accent)."""
+    shadow(db, 112, 214, 84)
+    db.rrect((44, 148, 180, 214), 2, fill="#8A5A34", outline=INK, width=2.5)
+    for x in (60, 92, 124, 156):
+        db.poly([(x, 150), (x + 24, 134), (x + 24, 150)], fill="#6E4626", outline=INK, width=1.5)
+    db.rrect((88, 74, 110, 150), 3, fill="#6E6A62", outline=INK, width=2)
+    db.ellipse((84, 66, 100, 80), fill="#8D8D95")
+    db.ellipse((96, 56, 110, 68), fill="#9A9AA0")
+    gear = (132, 108, 168, 144)
+    db.ellipse(gear, fill=GRIS_ARMURE, outline=INK, width=2)
+    for a in range(8):
+        ang = a * 3.1416 / 4
+        db.ellipse((150 + 26 * math.cos(ang) - 5, 126 + 26 * math.sin(ang) - 5,
+                    150 + 26 * math.cos(ang) + 5, 126 + 26 * math.sin(ang) + 5), fill=GRIS_ARMURE)
+    da.ellipse(gear, fill="#FFFFFF")
+
+
+def batiment_sdi(db, da, w, h):
+    """Défense SDI : radar parabolique (coupelle = accent)."""
+    shadow(db, 112, 214, 74)
+    db.rrect((70, 186, 154, 214), 3, fill="#6E6A62", outline=INK, width=2)
+    db.line([(112, 190), (112, 130)], fill="#6E6A62", width=6)
+    dish = [(60, 140), (164, 96), (176, 120), (72, 164)]
+    db.poly(dish, fill="#9A9AA0", outline=INK, width=2.5)
+    da.poly(dish, fill="#FFFFFF")
+    db.line([(112, 130), (150, 118)], fill="#3E342A", width=3)
+    db.ellipse((146, 112, 158, 124), fill=ROUGE_JOUEUR, outline=INK, width=1)
+
 # ---------------------------------------------------------------- icônes
 
 
@@ -1187,6 +1500,26 @@ def main():
         "unite_barbare_archer": (256, 320, unite_barbare_archer),
         "village_barbare": (224, 256, village_barbare),
         "hutte": (224, 256, hutte),
+        # Phase 7e — unités terrestres complémentaires (Appendice A)
+        "unite_piquier": (256, 320, unite_piquier),
+        "unite_catapulte": (256, 320, unite_catapulte),
+        "unite_chevalier": (256, 320, unite_chevalier),
+        "unite_fusilier": (256, 320, unite_fusilier),
+        "unite_canon": (256, 320, unite_canon),
+        "unite_infanterie_moderne": (256, 320, unite_infanterie_moderne),
+        "unite_char_d_assaut": (256, 320, unite_char_d_assaut),
+        "unite_artillerie": (256, 320, unite_artillerie),
+        # Phase 7e — nouveaux bâtiments (emblèmes)
+        "batiment_palais": (224, 256, batiment_palais),
+        "batiment_temple": (224, 256, batiment_temple),
+        "batiment_marche": (224, 256, batiment_marche),
+        "batiment_remparts": (224, 256, batiment_remparts),
+        "batiment_aqueduc": (224, 256, batiment_aqueduc),
+        "batiment_banque": (224, 256, batiment_banque),
+        "batiment_cathedrale": (224, 256, batiment_cathedrale),
+        "batiment_universite": (224, 256, batiment_universite),
+        "batiment_usine": (224, 256, batiment_usine),
+        "batiment_sdi": (224, 256, batiment_sdi),
     }
     icons = {
         "icone_or": icone_or,
@@ -1312,9 +1645,16 @@ for n in ["barbare_guerrier", "barbare_archer"]:
 for n in ["village_barbare", "hutte"]:
     EXPECTED[f"{n}.png"] = (224, 256)
     EXPECTED[f"{n}_accent.png"] = (224, 256)
-for n in ["grenier", "atelier", "mine_de_fer", "comptoir_commercial", "port", "tribunal"]:
+for n in ["grenier", "atelier", "mine_de_fer", "comptoir_commercial", "port", "tribunal",
+          "palais", "temple", "marche", "remparts", "aqueduc", "banque", "cathedrale",
+          "universite", "usine", "sdi"]:
     EXPECTED[f"batiment_{n}.png"] = (224, 256)
     EXPECTED[f"batiment_{n}_accent.png"] = (224, 256)
+# Phase 7e : unités terrestres complémentaires.
+for n in ["piquier", "catapulte", "chevalier", "fusilier", "canon",
+          "infanterie_moderne", "char_d_assaut", "artillerie"]:
+    EXPECTED[f"unite_{n}.png"] = (256, 320)
+    EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
 for n in ["or", "commerce", "science", "nourriture", "production", "pv", "pm", "fin_tour", "reseau"]:
     EXPECTED[f"icone_{n}.png"] = (64, 64)
 # Phase 7c (R-91) : icônes de ressources 64×64.

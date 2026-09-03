@@ -15,10 +15,22 @@ export interface UnitTypeData {
   isRanged: boolean;
   /** R-87 : technologie requise pour la produire (null/absent = disponible d'office). */
   tech?: string | null;
-  /** R-87/Phase 7a : données seules (Espion, Galère) — non constructibles en v1. */
+  /** R-87/Phase 7a : données seules (Espion, Galère…) — non constructibles en v1. */
   implemented?: boolean;
   /** Unité navale (Galère — Phase 7) : se déplace sur l'eau. */
   aquatic?: boolean;
+  /** Hook naval (Phase 6c) : classe d'eau de l'unité (Galère = "coast", Galion = "ocean"). */
+  navalAccess?: NavalAccess;
+  /** 7e · Soutien naval (mécanique en 7g) : valeur ajoutée à l'attaque d'un
+   *  combat terrestre côtier adjacent (Galion 15, Croiseur 35, Cuirassé 65). */
+  navalSupport?: number;
+  /** 7e · Unité aérienne (Chasseur, Bombardier — mécaniques 7g+). */
+  aerial?: boolean;
+  /** 7e · Population consommée par la ville à la production (Colon : 2 —
+   *  comportement officiel CivRev adopté par Erik le 02/09). */
+  populationCost?: number;
+  /** 7e · Ligne d'amélioration (documentaire — surclassement auto différé). */
+  upgradeTo?: string;
 }
 
 export type TerrainId =
@@ -59,11 +71,14 @@ export interface TerrainData {
   navalAccess?: NavalAccess;
 }
 
-/** R-66 · Bâtiment d'amélioration des terrains (data-driven : buildings.json). */
+/** R-66 · Bâtiment d'amélioration des terrains (data-driven : buildings.json).
+ *  7e : effets de ville structurés (multiplicateurs or/science/production,
+ *  défense de ville, seuil de croissance) + `requiresBuilding`/`replaces`
+ *  (Banque ← Marché, Université ← Bibliothèque, Cathédrale ← Temple). */
 export interface BuildingData {
   id: string;
   name: string;
-  /** Coût de production 🔶 (R-66 : 20/30/40/30/30/40). */
+  /** Coût de production 🔶 (7e : coûts exacts CivFanatics — Temple 40, …). */
   cost: number;
   /** R-60/R-66 : extension du rayon de travail (Tribunal : 1 → total 2). */
   workRadiusBonus: number;
@@ -72,26 +87,115 @@ export interface BuildingData {
   tileBonus: { terrain: TerrainId } & Yields | null;
   /** R-87 : technologie requise pour le construire (null = disponible d'office). */
   tech: string | null;
-  /** Phase 7b : libellé d'effet pour l'UI (Bibliothèque R-88, Caserne R-89) —
-   *  absent pour les bâtiments à bonus de terrain (libellé dérivé). */
+  /** 7e : bâtiment préalable exigé DANS LA VILLE (Banque exige un Marché…). */
+  requiresBuilding?: string;
+  /** 7e : bâtiment RETIRÉ de la ville quand celui-ci est construit (remplacement). */
+  replaces?: string;
+  /** 7e : non constructible via la file de production (Palais — posé par le moteur). */
+  fixed?: boolean;
+  /** 7e : données seules, non constructible (composants du Vaisseau spatial). */
+  implemented?: boolean;
+  /** 7e · Défense de ville : s'ajoute au bonus de la case de ville (T-02) dans
+   *  S_def du défenseur en garnison (Palais +50 %, Remparts +100 %). */
+  cityDefenseBonus?: number;
+  /** 7e · Multiplicateur d'or (Marché ×2, Banque ×4 — conversion or). */
+  goldMult?: number;
+  /** 7e · Multiplicateur de science (Bibliothèque ×1,5, Université ×4). */
+  scienceMult?: number;
+  /** 7e · Multiplicateur de production de la ville (Usine ×2). */
+  productionMult?: number;
+  /** 7e · Réduction du seuil de croissance (Aqueduc : 0.33 — R-63 🔶). */
+  growthThresholdReduction?: number;
+  /** 7e · Culture par citoyen et par tour (Temple 1, Cathédrale 2) — INACTIF
+   *  tant que le moteur culturel n'existe pas (7f), libellé visible. */
+  culturePerCitizen?: number;
+  /** Phase 7b : libellé d'effet pour l'UI — absent pour les bâtiments à bonus
+   *  de terrain (libellé dérivé). */
   effect?: string;
 }
 
-/** R-86 · Technologie (techs.json) — base relationnelle embarquée. */
+/** Ères de l'arbre technologique (7e — utile à l'UI). */
+export type TechEra = 'ancienne' | 'medievale' | 'industrielle' | 'moderne';
+
+/** 7e · Bonus de ville par tour du Premier découvreur (R-105bis 🔶). La
+ *  culture est portée en données mais ignorée par le moteur (7f). */
+export interface PerCityBonus {
+  gold?: number;
+  science?: number;
+  production?: number;
+  commerce?: number;
+  culture?: number;
+  population?: number;
+}
+
+/** 7e · Réduction de coût empire du Premier découvreur (Communisme : Usines
+ *  −33 % ; Réseautage : Universités −50 %). */
+export interface CostDiscount {
+  building: string;
+  /** Fraction du coût retirée (0.33 = −33 %). */
+  pct: number;
+}
+
+/** 7e · Récompense du Premier découvreur (CivRev « First to Discover ») —
+ *  décrite en données ; le moteur applique les champs qu'il sait traiter
+ *  (unité/bâtiment gratuit, or, population instantanée, perCity, remises,
+ *  révélation de carte) et ignore `implemented: false` (Personnages illustres
+ *  7h, unités non implémentées). */
+export interface FirstToDiscoverData {
+  /** Libellé UI. */
+  label: string;
+  unit?: string;
+  building?: string;
+  /** Or immédiat au trésor (Banque 100, Mondialisation 500). */
+  gold?: number;
+  /** +X population DANS TOUTES les villes, instantané (Irrigation, Médias). */
+  population?: number;
+  /** Bonus par ville et par tour, cumulatif entre techs (Littératie +1 science…). */
+  perCity?: PerCityBonus;
+  /** Réductions de coût empire (Communisme, Réseautage). */
+  discounts?: CostDiscount[];
+  /** Toute la carte est révélée (Vol spatial). */
+  mapReveal?: boolean;
+  /** Personnage illustre (7h) — récompense décrite, non appliquée. */
+  greatPerson?: boolean;
+  /** Récompense non applicable en l'état (unité non implémentée, grands hommes). */
+  implemented?: boolean;
+}
+
+/** R-86 · Technologie (techs.json) — base relationnelle embarquée (7e : arbre
+ *  complet à 46 technologies, source « Technologies et Déblocages » d'Erik). */
 export interface TechData {
   id: string;
   name: string;
-  /** Coût de recherche 🔶 (R-86 : 20/20/20/20/30/30/40/40/50). */
+  /** Coût de recherche 🔶 (7e : coûts exacts 20 → 6740). */
   cost: number;
+  /** Ère (UI de l'arbre). */
+  era: TechEra;
   /** Technologies requises (ids existants — vérifié par tests d'intégrité). */
   prereqs: string[];
   unlocks: { units: string[]; buildings: string[]; wonders: string[] };
+  /** 7e · Récompense du Premier découvrir (données). */
+  firstToDiscover?: FirstToDiscoverData;
+  /** 7e · Unités rendues OBSOLÈTES par cette tech (retirées du menu de
+   *  production ; unités existantes conservées — surclassement différé). */
+  obsoleteUnits?: string[];
+  /** 7e · Merveilles rendues obsolètes (données — effets en 7f/7h). */
+  obsoleteWonders?: string[];
 }
 
-/** R-86 · Merveille en données (non constructible en 7a — implemented: false). */
+/** R-86 · Merveille en données (non constructible — effets 7f/7h). 7e : la
+ *  table est complétée (21 merveilles du PDF) avec coût, tech et obsolescence. */
 export interface WonderData {
   id: string;
   name: string;
+  /** Coût de production (données — constructible en 7f/7h). */
+  cost?: number;
+  /** Technologie requise (null = condition spéciale ou disponible d'office). */
+  tech?: string | null;
+  /** Tech qui rend la merveille obsolète (données). */
+  obsoleteBy?: string;
+  /** Libellé d'effet (UI — actif en 7f/7h). */
+  effect?: string;
   implemented: boolean;
 }
 

@@ -102,6 +102,7 @@
   {:else}
     <div class="rows">
       <span class="title">{stats?.name ?? unit.type}{unit.veteran ? ' ★' : ''}{unit.isArmy ? ' (armée)' : ''}</span>
+      {#if stats?.isRanged}<span class="ranged" title="R-59 : attaque depuis sa case, sans avancer, sans riposte de mêlée">🎯 À distance</span>{/if}
       {#if unit.fortified}<span class="fortified" title="Bonus défensif de fortification (R-33)">🛡 Fortifié</span>{/if}
       {#if !mine}<span class="enemy">Ennemi — {unit.owner}</span>{/if}
       {#if mine}
@@ -156,8 +157,14 @@
       {#if attackTargets.length > 0}
         <div class="btns">
           {#each attackTargets as t (t.hex.q + ',' + t.hex.r)}
-            <button type="button" class="danger" disabled={!editable} onclick={() => submitAttack(t.hex)}>
-              Attaquer {t.label} ({t.hex.q},{t.hex.r})
+            <button
+              type="button"
+              class="danger"
+              disabled={!editable}
+              title={stats?.isRanged ? 'Attaque à distance (R-59) : vous restez sur votre case' : undefined}
+              onclick={() => submitAttack(t.hex)}
+            >
+              {stats?.isRanged ? 'Tirer sur' : 'Attaquer'} {t.label} ({t.hex.q},{t.hex.r})
             </button>
           {/each}
         </div>
@@ -181,6 +188,7 @@
   h2 { margin: 0 0 0.4rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa7b2; }
   .rows { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.4rem; }
   .title { font-weight: 700; }
+  .ranged { color: #ce93d8; font-weight: 600; font-size: 0.85rem; }
   .enemy { color: #ef9a9a; }
   .frozen { color: #ffcc80; font-size: 0.85rem; }
   .fortified { color: #90caf9; font-weight: 600; font-size: 0.85rem; }

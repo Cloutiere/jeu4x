@@ -1,17 +1,180 @@
 {
-  "oracle_de_delphes": {
-    "id": "oracle_de_delphes",
-    "name": "Oracle de Delphes",
+  "stonehenge": {
+    "id": "stonehenge",
+    "name": "Stonehenge",
+    "cost": 50,
+    "tech": null,
+    "obsoleteBy": "litteratie",
+    "effect": "Augmente l'efficacité culturelle des Temples de 50 %",
     "implemented": false
   },
   "colosse_de_rhodes": {
     "id": "colosse_de_rhodes",
     "name": "Colosse de Rhodes",
+    "cost": 100,
+    "tech": "travail_du_bronze",
+    "obsoleteBy": "invention",
+    "effect": "Double (×2) la production de Commerce de la ville hôte",
     "implemented": false
   },
   "jardins_suspendus": {
     "id": "jardins_suspendus",
     "name": "Jardins suspendus",
+    "cost": 100,
+    "tech": "poterie",
+    "effect": "Accroît la population de la ville de 50 % immédiatement",
+    "implemented": false
+  },
+  "oracle_de_delphes": {
+    "id": "oracle_de_delphes",
+    "name": "Oracle de Delphes",
+    "cost": 125,
+    "tech": "alphabet",
+    "obsoleteBy": "religion",
+    "effect": "Révèle l'issue exacte de chaque bataille avant d'engager le combat",
+    "implemented": false
+  },
+  "grande_bibliotheque": {
+    "id": "grande_bibliotheque",
+    "name": "Grande Bibliothèque d'Alexandrie",
+    "cost": 150,
+    "tech": "ecriture",
+    "obsoleteBy": "universite",
+    "effect": "Accorde gratuitement toute technologie découverte par 2 autres nations",
+    "implemented": false
+  },
+  "grande_pyramide": {
+    "id": "grande_pyramide",
+    "name": "Grande Pyramide",
+    "cost": 150,
+    "tech": "rites_funeraires",
+    "obsoleteBy": "monarchie",
+    "effect": "Offre un accès immédiat à tous les régimes politiques du jeu",
+    "implemented": false
+  },
+  "grande_muraille": {
+    "id": "grande_muraille",
+    "name": "Grande Muraille",
+    "cost": 150,
+    "tech": "maconnerie",
+    "obsoleteBy": "ingenierie",
+    "effect": "Force toutes les civilisations à signer la paix avec le propriétaire",
+    "implemented": false
+  },
+  "chateau_himeji": {
+    "id": "chateau_himeji",
+    "name": "Château de Himeji",
+    "cost": 150,
+    "tech": "monarchie",
+    "obsoleteBy": "communisme",
+    "effect": "Confère +1 en valeur d'Attaque à toutes les unités de l'empire",
+    "implemented": false
+  },
+  "magna_carta": {
+    "id": "magna_carta",
+    "name": "Magna Carta",
+    "cost": 150,
+    "tech": "democratie",
+    "effect": "Permet aux Tribunaux de produire de la culture urbaine",
+    "implemented": false
+  },
+  "theatre_de_shakespeare": {
+    "id": "theatre_de_shakespeare",
+    "name": "Théâtre de Shakespeare",
+    "cost": 150,
+    "tech": "litteratie",
+    "obsoleteBy": "medias_de_masse",
+    "effect": "Double (×2) la génération de Culture de la ville hôte",
+    "implemented": false
+  },
+  "universite_d_oxford": {
+    "id": "universite_d_oxford",
+    "name": "Université d'Oxford",
+    "cost": 150,
+    "tech": "universite",
+    "effect": "Accorde immédiatement une technologie avancée gratuite",
+    "implemented": false
+  },
+  "compagnie_des_indes": {
+    "id": "compagnie_des_indes",
+    "name": "Compagnie des Indes orientales",
+    "cost": 200,
+    "tech": "navigation",
+    "obsoleteBy": "aviation",
+    "effect": "Offre +1 Commerce sur chaque case océanique exploitée",
+    "implemented": false
+  },
+  "atelier_de_leonard": {
+    "id": "atelier_de_leonard",
+    "name": "Atelier de Léonard",
+    "cost": 200,
+    "tech": "invention",
+    "effect": "Surclasse automatiquement toutes les unités vers leur version la plus récente",
+    "implemented": false
+  },
+  "foire_de_troyes": {
+    "id": "foire_de_troyes",
+    "name": "Foire de Troyes",
+    "cost": 250,
+    "tech": "monnaie",
+    "obsoleteBy": "mondialisation",
+    "effect": "Double (×2) la production totale d'Or dans la ville",
+    "implemented": false
+  },
+  "complexe_militaro_industriel": {
+    "id": "complexe_militaro_industriel",
+    "name": "Complexe militaro-industriel",
+    "cost": 500,
+    "tech": "corporation",
+    "effect": "Réduit drastiquement le coût d'achat et de production des unités",
+    "implemented": false
+  },
+  "nations_unies": {
+    "id": "nations_unies",
+    "name": "Nations Unies",
+    "cost": 500,
+    "tech": null,
+    "effect": "Condition (20 événements culturels) — déclenche immédiatement la Victoire culturelle",
+    "implemented": false
+  },
+  "banque_mondiale": {
+    "id": "banque_mondiale",
+    "name": "Banque mondiale",
+    "cost": 500,
+    "tech": null,
+    "effect": "Condition (20 000 pièces d'or en trésorerie) — déclenche la Victoire économique",
+    "implemented": false
+  },
+  "hollywood": {
+    "id": "hollywood",
+    "name": "Hollywood",
+    "cost": 600,
+    "tech": "medias_de_masse",
+    "effect": "Les Remparts ennemis n'empêchent plus l'assimilation culturelle des cités",
+    "implemented": false
+  },
+  "programme_apollo": {
+    "id": "programme_apollo",
+    "name": "Programme Apollo",
+    "cost": 750,
+    "tech": "vol_spatial",
+    "effect": "Accorde l'accès direct à l'ensemble des technologies restantes",
+    "implemented": false
+  },
+  "projet_manhattan": {
+    "id": "projet_manhattan",
+    "name": "Projet Manhattan",
+    "cost": 750,
+    "tech": "theorie_atomique",
+    "effect": "Octroie le seul et unique missile ICBM de la partie",
+    "implemented": false
+  },
+  "internet": {
+    "id": "internet",
+    "name": "Internet",
+    "cost": 750,
+    "tech": "reseautage",
+    "effect": "Double (×2) la génération globale d'Or dans tout l'empire",
     "implemented": false
   }
 }

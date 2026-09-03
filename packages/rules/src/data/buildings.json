@@ -1,93 +1,216 @@
 {
-  "grenier": {
-    "id": "grenier",
-    "name": "Grenier",
-    "cost": 20,
-    "workRadiusBonus": 0,
-    "tileBonus": {
-      "terrain": "plaine",
-      "food": 1,
-      "production": 0,
-      "commerce": 0
-    },
-    "tech": "poterie"
-  },
-  "atelier": {
-    "id": "atelier",
-    "name": "Atelier",
-    "cost": 30,
-    "workRadiusBonus": 0,
-    "tileBonus": {
-      "terrain": "colline",
-      "food": 0,
-      "production": 2,
-      "commerce": 0
-    },
-    "tech": "travail_du_fer"
-  },
-  "mine_de_fer": {
-    "id": "mine_de_fer",
-    "name": "Mine de fer",
-    "cost": 40,
-    "workRadiusBonus": 0,
-    "tileBonus": {
-      "terrain": "montagne",
-      "food": 0,
-      "production": 4,
-      "commerce": 0
-    },
-    "tech": "travail_du_fer"
-  },
-  "comptoir_commercial": {
-    "id": "comptoir_commercial",
-    "name": "Comptoir commercial",
-    "cost": 30,
-    "workRadiusBonus": 0,
-    "tileBonus": {
-      "terrain": "desert",
-      "food": 0,
-      "production": 0,
-      "commerce": 2
-    },
-    "tech": "code_des_lois"
-  },
-  "port": {
-    "id": "port",
-    "name": "Port",
-    "cost": 30,
-    "workRadiusBonus": 0,
-    "tileBonus": {
-      "terrain": "eau",
-      "food": 1,
-      "production": 0,
-      "commerce": 0
-    },
-    "tech": "navigation"
-  },
-  "tribunal": {
-    "id": "tribunal",
-    "name": "Tribunal",
-    "cost": 40,
-    "workRadiusBonus": 1,
-    "tileBonus": null,
-    "tech": "lettres"
-  },
-  "bibliotheque": {
-    "id": "bibliotheque",
-    "name": "Bibliothèque",
-    "cost": 30,
+  "palais": {
+    "id": "palais",
+    "name": "Palais",
+    "cost": 0,
     "workRadiusBonus": 0,
     "tileBonus": null,
-    "tech": "alphabet",
-    "effect": "Conversion science : ×1,5 — conversion or : +max(1 ; 20 %) science"
+    "tech": null,
+    "fixed": true,
+    "cityDefenseBonus": 0.5,
+    "effect": "Présent uniquement dans la capitale : +50 % de défense pour les unités en garnison"
   },
   "caserne": {
     "id": "caserne",
     "name": "Caserne",
-    "cost": 20,
+    "cost": 40,
     "workRadiusBonus": 0,
     "tileBonus": null,
     "tech": "travail_du_bronze",
-    "effect": "Unités produites vétérans (hors Colon)"
+    "effect": "Unités terrestres produites vétérans (+50 % A/D, hors pacifiques)"
+  },
+  "grenier": {
+    "id": "grenier",
+    "name": "Grenier",
+    "cost": 40,
+    "workRadiusBonus": 0,
+    "tileBonus": { "terrain": "plaine", "food": 2, "production": 0, "commerce": 0 },
+    "tech": "poterie"
+  },
+  "bibliotheque": {
+    "id": "bibliotheque",
+    "name": "Bibliothèque",
+    "cost": 40,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "alphabet",
+    "scienceMult": 1.5,
+    "effect": "Science ×1,5 (conversion science) ; +max(1 ; 20 %) science en conversion or — remplacée par l'Université"
+  },
+  "temple": {
+    "id": "temple",
+    "name": "Temple",
+    "cost": 40,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "rites_funeraires",
+    "culturePerCitizen": 1,
+    "effect": "+1 Culture par citoyen et par tour (effet actif en 7f — culture)"
+  },
+  "comptoir_commercial": {
+    "id": "comptoir_commercial",
+    "name": "Comptoir commercial",
+    "cost": 60,
+    "workRadiusBonus": 0,
+    "tileBonus": { "terrain": "desert", "food": 0, "production": 0, "commerce": 2 },
+    "tech": "code_des_lois"
+  },
+  "atelier": {
+    "id": "atelier",
+    "name": "Atelier",
+    "cost": 60,
+    "workRadiusBonus": 0,
+    "tileBonus": { "terrain": "colline", "food": 0, "production": 2, "commerce": 0 },
+    "tech": "construction"
+  },
+  "marche": {
+    "id": "marche",
+    "name": "Marché",
+    "cost": 60,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "monnaie",
+    "goldMult": 2,
+    "effect": "Or ×2 — remplacé par la Banque"
+  },
+  "tribunal": {
+    "id": "tribunal",
+    "name": "Tribunal",
+    "cost": 80,
+    "workRadiusBonus": 1,
+    "tileBonus": null,
+    "tech": "litteratie",
+    "effect": "Étend le rayon de travail de la ville d'une case (1 → 2)"
+  },
+  "mine_de_fer": {
+    "id": "mine_de_fer",
+    "name": "Mine de fer",
+    "cost": 80,
+    "workRadiusBonus": 0,
+    "tileBonus": { "terrain": "montagne", "food": 0, "production": 4, "commerce": 0 },
+    "tech": "chemin_de_fer"
+  },
+  "port": {
+    "id": "port",
+    "name": "Port",
+    "cost": 100,
+    "workRadiusBonus": 0,
+    "tileBonus": { "terrain": "eau", "food": 1, "production": 0, "commerce": 0 },
+    "tech": "navigation"
+  },
+  "remparts": {
+    "id": "remparts",
+    "name": "Remparts",
+    "cost": 100,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "maconnerie",
+    "cityDefenseBonus": 1.0,
+    "effect": "+100 % de défense en garnison et immunité contre la conversion culturelle (culture en 7f)"
+  },
+  "aqueduc": {
+    "id": "aqueduc",
+    "name": "Aqueduc",
+    "cost": 120,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "ingenierie",
+    "growthThresholdReduction": 0.33,
+    "effect": "Seuil de croissance réduit d'un tiers (+50 % de taux de croissance)"
+  },
+  "banque": {
+    "id": "banque",
+    "name": "Banque",
+    "cost": 120,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "banque",
+    "requiresBuilding": "marche",
+    "replaces": "marche",
+    "goldMult": 4,
+    "effect": "Or ×4 — remplace le Marché"
+  },
+  "cathedrale": {
+    "id": "cathedrale",
+    "name": "Cathédrale",
+    "cost": 160,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "religion",
+    "requiresBuilding": "temple",
+    "replaces": "temple",
+    "culturePerCitizen": 2,
+    "effect": "+2 Culture par citoyen et par tour (culture en 7f) — remplace le Temple"
+  },
+  "universite": {
+    "id": "universite",
+    "name": "Université",
+    "cost": 160,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "universite",
+    "requiresBuilding": "bibliotheque",
+    "replaces": "bibliotheque",
+    "scienceMult": 4,
+    "effect": "Science ×4 — remplace la Bibliothèque"
+  },
+  "usine": {
+    "id": "usine",
+    "name": "Usine",
+    "cost": 200,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "industrialisation",
+    "productionMult": 2,
+    "effect": "Production de la ville ×2"
+  },
+  "sdi": {
+    "id": "sdi",
+    "name": "Défense SDI",
+    "cost": 200,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "supraconducteur",
+    "effect": "Protège la ville et son territoire contre les ICBM (mécanique ICBM en 7g+)"
+  },
+  "vaisseau_carburant": {
+    "id": "vaisseau_carburant",
+    "name": "Vaisseau — Carburant",
+    "cost": 80,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "vol_spatial",
+    "implemented": false,
+    "effect": "Composant du Vaisseau spatial : vitesse du trajet (victoire scientifique, 7h)"
+  },
+  "vaisseau_support_vie": {
+    "id": "vaisseau_support_vie",
+    "name": "Vaisseau — Support de vie",
+    "cost": 120,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "vol_spatial",
+    "implemented": false,
+    "effect": "Composant du Vaisseau spatial : score de fin de partie (victoire scientifique, 7h)"
+  },
+  "vaisseau_propulsion": {
+    "id": "vaisseau_propulsion",
+    "name": "Vaisseau — Propulsion",
+    "cost": 200,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "vol_spatial",
+    "implemented": false,
+    "effect": "Composant du Vaisseau spatial : propulsion (victoire scientifique, 7h)"
+  },
+  "vaisseau_habitation": {
+    "id": "vaisseau_habitation",
+    "name": "Vaisseau — Habitation",
+    "cost": 400,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": "vol_spatial",
+    "implemented": false,
+    "effect": "Composant indispensable au lancement du Vaisseau spatial (victoire scientifique, 7h)"
   }
 }

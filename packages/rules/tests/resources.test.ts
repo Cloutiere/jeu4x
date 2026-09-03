@@ -125,7 +125,7 @@ describe('R-91 · intégrité référentielle de resources.json', () => {
   it('les 7 ressources « vivantes » v1 portent leur tech de techs.json (D4/D6)', () => {
     expect(resourceTable['poisson']!.revealedByTech).toBe('travail_du_bronze');
     expect(resourceTable['fer']!.revealedByTech).toBe('travail_du_fer');
-    expect(resourceTable['soie']!.revealedByTech).toBe('lettres');
+    expect(resourceTable['soie']!.revealedByTech).toBe('litteratie');
     expect(resourceTable['baleine']!.revealedByTech).toBe('navigation');
     expect(resourceTable['boeufs']!.revealedByTech).toBe('equitation');
     expect(resourceTable['betail']!.revealedByTech).toBe('code_des_lois');
@@ -199,8 +199,10 @@ describe('R-93 · bonus de rendement dans tileYield', () => {
     expect(tileYield(map, [], '1,0', ['travail_du_fer'])).toEqual({ food: 0, production: 3, commerce: 0 });
   });
 
-  it('une ressource sans tech (Charbon, Gemmes) compte toujours — D4/D3', () => {
-    expect(tileYield(map, [], '2,0', [])).toEqual({ food: 0, production: 4, commerce: 0 });
+  it('7e (D4 achevé) : le Charbon exige Machine à vapeur ; les Gemmes (sans tech) comptent toujours', () => {
+    // 7e : le Charbon est désormais révélé par machine_a_vapeur (arbre complet).
+    expect(tileYield(map, [], '2,0', [])).toEqual({ food: 0, production: 1, commerce: 0 });
+    expect(tileYield(map, [], '2,0', ['machine_a_vapeur'])).toEqual({ food: 0, production: 4, commerce: 0 });
     expect(tileYield(map, [], '0,1', [])).toEqual({ food: 0, production: 1, commerce: 2 });
   });
 

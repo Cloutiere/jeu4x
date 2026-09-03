@@ -14,8 +14,8 @@
 - Unités v1 : **Guerrier** et **Colon** uniquement (§3).
 - Victoire : **capture de la capitale adverse**. Défaite par forfait après `T-06` timers manqués.
 - v1 : **guerre permanente** entre les deux joueurs (pas de diplomatie jouable). Les règles diplomatiques (§7.7) sont écrites dès maintenant comme points d'accroche pour la Phase 7.
-- Aucune unité à distance en v1 ; leurs règles sont fixées en §7.8 (Catapulte, Canon, Artillerie en Phase 7).
-- Hors v1 (Phase 7) : arbre technologique, autres unités, naval, merveilles, grandes personnes. *(Barbares & huttes : entrés en v1 en Phase 7d — §7.9.)*
+- ~~Aucune unité à distance en v1~~ — **7e : R-59 implémentée réellement** (Catapulte, Canon, Artillerie, §7.8).
+- Hors v1 (Phase 7) : ~~arbre technologique~~ (entré en 7a, **complété en 7e** — §8.1), ~~autres unités terrestres~~ (entrées en 7e), naval, espionnage, merveilles, grandes personnes (7f/7g/7h). *(Barbares & huttes : entrés en v1 en Phase 7d — §7.9.)*
 
 ## 2. Terrains (révision économique du 30/08 — décision d'Erik, modèle Civ Revolution)
 
@@ -45,13 +45,17 @@ Chaque type d'unité : `attaque (A)`, `défense (D)`, `mouvement (M)`, `PV max`,
 
 | Unité | A | D | M | PV max | Coût | Vision | Capacités | Tech |
 |---|---|---|---|---|---|---|---|---|
-| Guerrier | 1 | 1 | 1 | 3 | 10 | 2 | peutAttaquer | — |
-| Colon | 0 | 0 | 2 | 3 | 20 | 2 | peutFonderVille, **non-combattant** | — |
-| Archer *(7a)* | 1 | 2 | 1 | 3 | 15 | 2 | peutAttaquer | Travail du bronze |
+| Guerrier | 1 | 1 | 1 | 3 | 10 | 2 | peutAttaquer | — (obsolète après Travail du fer, R-110) |
+| Colon | 0 | 0 | 2 | 3 | 20 | 2 | peutFonderVille, **non-combattant**, **coût 2 population** (R-112) | — |
+| Archer *(7a)* | 1 | 2 | 1 | 3 | **10** *(7e : corrigé 15→10, sources concordantes 🔶)* | 2 | peutAttaquer | Travail du bronze (obsolète après Démocratie) |
 | Cavalier *(7a)* | 2 | 1 | 2 | 3 | 20 | 2 | peutAttaquer | Équitation |
 | Légion *(7a)* | 2 | 1 | 1 | 3 | 10 | 2 | peutAttaquer | Travail du fer |
 
-*(Données du PDF officiel, ajoutées en 7a ; Espion et Galère existent dans `units.json` mais ne sont pas constructibles en v1 terrestre — mécaniques Phase 7.)*
+*(7e : le roster complet — Piquier, Catapulte 4/1/1 à distance, Chevalier, Fusilier, Canon à distance, Infanterie moderne, Char d'assaut, Artillerie à distance — est en données `units.json` jouable, plus les données seules naval/aérien/spéciales ; source : Appendice A + document « Technologies et Déblocages ». Espion, Caravane, Galère, Galion, Croiseur, Cuirassé, Sous-marin, Chasseur, Bombardier, Milice, ICBM : `implemented:false` — mécaniques 7f/7g.)*
+
+### 3.1bis R-112 · Coût en population du Colon (7e — décision d'Erik du 02/09)
+
+Comportement officiel CivRev adopté : le Colon coûte **20 production + 2 population de la ville** à sa PRODUCTION (la fondation reste la consommation de l'unité elle-même, R-64). Interprétation tranchée : la ville doit avoir `pop ≥ 2` ; à la complétion `pop = max(1, pop − 2)` et les citoyens excédentaires sont retirés (fin de liste, sans re-remplissage). Pop insuffisante à complétion : la file reste **en attente** (progression conservée, comme la case de ville occupée). Événement `PopulationConsumed`.
 
 ### 3.2 R-30 · Non-empilement
 
@@ -145,12 +149,13 @@ Déclenchée quand **les deux joueurs ont verrouillé** ou à l'**échéance du 
 
 ```
 S_att = A × (1 + T-01 si vétéran)
-S_def = D × (1 + T-01 si vétéran) × (1 + bonus défensif du terrain + T-17 si fortifiée)
+S_def = D × (1 + T-01 si vétéran) × (1 + bonus défensif du terrain + T-17 si fortifiée + bâtiments de ville)
 p (l'attaquant touche) = S_att² / (S_att² + S_def²)
 roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaquant perd 1 PV
 ```
 
 - S = 0 pour un camp → il est touché à chaque round (p = 1 ou 0).
+- **7e · Bâtiments de ville** : le défenseur en garnison de SA ville ajoute la somme des `cityDefenseBonus` de ses bâtiments (Palais +50 %, Remparts +100 %, §8.4) au bonus de la case de ville (T-02).
 - Structure calquée sur la convention Civilization (A/D + modificateurs + rounds probabilistes, ancêtre direct de Civ Rev) ; les constantes exactes de Civ Rev n'étant pas publiées, `T-01` et les bonus de terrain sont des cibles de calibrage (§11).
 
 ### 7.5 Repli (règle unifiée)
@@ -177,7 +182,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 
 ### 7.8 Unités à distance
 
-**R-59.** Catapulte, Canon, Artillerie (Phase 7) ; portée 1 🔶. Aucune en v1, mais les règles sont normatives dès maintenant.
+**R-59.** Catapulte, Canon, Artillerie (données 7e, **implémentées en 7e**) ; portée `T-13` 🔶 = 1.
 - **a.** Une unité à distance attaque **depuis sa case** et **n'avance jamais**, même victorieuse (exception à I-2/R-52).
 - **b.** Elle ne subit **aucun dégât en retour** si sa cible n'est pas elle-même une unité à distance (pas de riposte de mêlée).
 - **c.** Cible à distance → échange standard, dégâts mutuels possibles (R-59-b s'applique dans les deux sens).
@@ -237,7 +242,7 @@ Tie-breaks R-81 partout (distance, puis `(q, r)`). **Les barbares ne subissent p
 
 **R-62 · Files de production.** Un seul item à la fois ; la progression est conservée en cas de remplacement. À complétion : l'unité apparaît sur la case de ville (si libre — sinon en attente, 🔶) et la **file est vidée** (validé le 29/08).
 
-**R-63 · Croissance.** La population augmente quand la nourriture cumulée atteint le seuil **`10 × pop`** (règle Civ Revolution confirmée par Erik le 30/08 — la calibration 10→25 du même jour est **annulée** : elle compensait l'ancienne économie sans rendements réels ; avec les vrais rendements §2, le rythme Civ Rev 10×pop redevient la référence). v1 : **pas de consommation de nourriture** (100 % de la nourriture s'accumule, les citoyens ne « mangent » pas) ; à seuil atteint : +1 pop, jauge remise à zéro ; chaque point de population accorde `+T-16` de production et **1 citoyen de plus** (R-60).
+**R-63 · Croissance.** La population augmente quand la nourriture cumulée atteint le seuil **`10 × pop`** (règle Civ Revolution confirmée par Erik le 30/08 — la calibration 10→25 du même jour est **annulée** : elle compensait l'ancienne économie sans rendements réels ; avec les vrais rendements §2, le rythme Civ Rev 10×pop redevient la référence). v1 : **pas de consommation de nourriture** (100 % de la nourriture s'accumule, les citoyens ne « mangent » pas) ; à seuil atteint : +1 pop, jauge remise à zéro ; chaque point de population accorde `+T-16` de production et **1 citoyen de plus** (R-60). **7e : l'Aqueduc réduit le seuil d'un tiers** (`round(10 × pop × 2/3)` 🔶 — §8.4) et l'**Usine double la production de la ville** (§8.4).
 
 **R-64 · Fondation.** `FoundCity` consomme le Colon → ville pop 1, **capitale** si première ville du joueur. Distance minimale entre villes : `T-09`.
 
@@ -249,14 +254,16 @@ Tie-breaks R-81 partout (distance, puis `(q, r)`). **Les barbares ne subissent p
 - un bâtiment n'est constructible **qu'une fois** par ville ; il est **perdu si la ville est capturée** (le captreur ne le récupère pas — 🔶 simplification) ;
 - effets de combat : aucun (le « +50 % combat » de la table §2 est le bonus défensif du terrain colline, déjà en place).
 
-| Bâtiment | Effet | Coût 🔶 |
+| Bâtiment | Effet | Coût (exacts, 7e) |
 |---|---|---|
-| Grenier | +1 N par plaine travaillée | 20 |
-| Atelier | +2 P par colline travaillée | 30 |
-| Mine de fer | +4 P par montagne travaillée | 40 |
-| Comptoir commercial | +2 C par désert travaillé | 30 |
-| Port | +1 N par mer travaillée | 30 |
-| Tribunal | rayon de travail 1 → 2 (6 → 18 cases) | 40 |
+| Grenier | **+2 N par plaine travaillée** (amendement 7e — résout le point ouvert 6c) | 40 |
+| Atelier | +2 P par colline travaillée *(tech : Construction depuis 7e)* | 60 |
+| Mine de fer | +4 P par montagne travaillée *(tech : Chemin de fer depuis 7e)* | 80 |
+| Comptoir commercial | +2 C par désert travaillé | 60 |
+| Port | +1 N par mer travaillée | 100 |
+| Tribunal | rayon de travail 1 → 2 (6 → 18 cases) *(tech : Littératie)* | 80 |
+
+**7e · Coûts exacts et effets de ville — voir §8.4.** Les coûts des bâtiments sont désormais les valeurs officielles (civfanatics.com/civrev/civilopedia/buildings) : plus de coûts 🔶 de calibrage sur les bâtiments.
 
 ### 8.1 Technologies — Phase 7a (ajouté le 31/08, décisions d'Erik)
 
@@ -264,23 +271,17 @@ Tie-breaks R-81 partout (distance, puis `(q, r)`). **Les barbares ne subissent p
 
 **R-85 · Recherche.** Chaque joueur choisit **une technologie à la fois** via `SetResearch(techId)` — action **immédiate** (hors ordres de tour, validée serveur : tech existante, non débloquée, prérequis satisfaits). La science produite par les villes s'accumule sur la tech courante ; **la progression est conservée par technologie** en cas de changement ; le **débordement est reporté** sur la suivante. À complétion : événement `TechResearched` + débloquages immédiats (visibles dans les menus de production au tour suivant au plus tard).
 
-**R-86 · Arbre relationnel.** Les technologies vivent dans `techs.json` : `{id, name, cost 🔶, prereqs[], unlocks{units[], buildings[], wonders[]}}` — avec **tests d'intégrité référentielle** (toute référence existe ; index inverse ; seule Guerrier/Colon et les items sans tech sont constructibles au départ). **Calibrage = édition du JSON + push** (CI déploie). Les **merveilles sont en données mais non constructibles** (effets : Phase 7 suite).
+**R-86 · Arbre relationnel (révisé en 7e — arbre COMPLET).** Les technologies vivent dans `techs.json` : `{id, name, cost 🔶, era, prereqs[], unlocks{units[], buildings[], wonders[]}, firstToDiscover?, obsoleteUnits?, obsoleteWonders?}` — avec **tests d'intégrité référentielle** (toute référence existe ; index inverse ; graphe sans cycle ; seule Guerrier/Colon et les items sans tech sont constructibles au départ — `palais` est `fixed`). **Calibrage = édition du JSON + push** (CI déploie). Les **merveilles sont en données mais non constructibles** (effets : 7f/7h).
 
-| Tech | Coût 🔶 | Prérequis 🔶 | Débloque |
-|---|---|---|---|
-| Alphabet | 20 | — | Bibliothèque ; merveille Oracle de Delphes |
-| Travail du bronze | 20 | — | Archer (15) ; Caserne ; merveille Colosse de Rhodes |
-| Poterie | 20 | — | Grenier ; merveille Jardins suspendus |
-| Équitation | 20 | — | Cavalier (2/1/2, 20) |
-| Travail du fer | 30 | Travail du bronze | Légion (2/1/1, 10) ; Atelier |
-| Écriture | 30 | Alphabet | Espion *(données — mécaniques en Phase 7)* |
-| Lettres | 40 | Écriture | Tribunal |
-| Code des lois | 40 | Lettres | Comptoir commercial |
-| Navigation | 50 | Poterie | Port ; Galère *(données — naval en Phase 7)* |
+**7e · L'arbre compte 46 technologies** (source principale : [`Civilization Révolution Technologies et Déblocages.md`](Civilization%20Révolution%20Technologies%20et%20Déblocages.md), croisée avec [CivFanatics — Technologies CivRev](https://civfanatics.com/civrev/civilopedia/technologies/)) réparties en **4 ères** (ancienne 18, médiévale 6, industrielle 12, moderne 10) avec coûts exacts 20 → 6740 et **prérequis multiples** (2-3). Écarts document/CivFanatics arbitrés en faveur de CivFanatics, marqués 🔶 : Écriture 40, Irrigation 60, Industrialisation 710. Divergence notable : l'**Archer** coûte 10 (15 dans l'ancienne base — corrigé, les deux sources concordent à 10). Les `unlocks` des ressources complètent la R-91 : les 14 ressources « absentes » de 7c ont désormais leur `revealedByTech` (D4 achevé). La table des 4 techs racines reste : Alphabet, Travail du bronze, Équitation, Poterie (20 chacune). Sauts technologiques (majorité des prérequis + finissable ≤ 10 tours) : **documenté, DIFFÉRÉ 7f+**.
 
-*Prérequis proposés d'après [CivRevTechTree_Official.pdf](CivRevTechTree_Official.pdf) (extraction du 31/08) et marqués 🔶 — à calibrer librement, c'est le rôle de la base.*
+**R-109 · Premier découvrir (7e).** Le premier joueur à COMPLÉTER une tech en tire la récompense `firstToDiscover` (données). État : `GameState.firstBy: Record<techId, playerId>` — **migration `schemaVersion` 8→9** (champ additif `firstBy: {}` + Palais posé dans les capitales existantes). Application (moteur, `firstDiscovery.ts`) : or immédiat, **unité gratuite** (case de la première ville — capitale prioritaire — sinon adjacente libre ; ignorée si l'unité n'est pas implémentée), **bâtiment gratuit** (première ville, remplacement appliqué), **population instantanée** (+1 pop dans toutes les villes, citoyens auto-assignés), **bonus perCity par tour** (or/science/production/commerce — cumulés à la Phase C via `empirePerCityBonus`), **remises de coût empire** (Communisme −33 % Usines, Réseautage −50 % Universités, plafond 90 %), **révélation de carte** (Vol spatial). Récompenses décrites mais NON appliquées (documenté) : Personnages illustres (7h), volet culture de `perCity` (7f), unités non implémentées (Espion, Croiseur, Sous-marin, Chasseur, Bombardier, Cuirassé). Événement `FirstDiscovered`.
 
-**R-87 · Débloquage.** Un item de production est **proposé par l'UI et accepté par le serveur** ssi sa technologie (`tech` de sa donnée) est débloquée ou `null`. Les items verrouillés apparaissent grisés avec leur tech requise. Le joueur sans tech choisie accumule sa science en réserve (`scienceStored`) jusqu'au premier choix.
+**R-110 · Obsolescence (7e).** Données `obsoleteUnits[]` par tech : Travail du fer → Guerrier ; Démocratie → Archer ; Navigation → Galère ; Poudre à canon → Piquier ; Production de masse → Fusilier ; Combustion → Chevalier ; Automobile → Canon. Une unité obsolète est **retirée du menu de production** (`isUnitObsolete`) et refusée au `SetProduction` ; les unités existantes sont **conservées**. Surclassement automatique (Atelier de Léonard) : 🔶 différé 7f+. Données `obsoleteWonders[]` (Stonehenge par Littératie, etc.) — effets en 7f/7h.
+
+**R-111 · Remplacement d'infrastructures (7e).** Champs `requiresBuilding` + `replaces` : la **Banque** (120) exige un Marché et le **retire** de la ville ; l'**Université** (160) remplace la Bibliothèque ; la **Cathédrale** (160) remplace le Temple. Validation au `SetProduction` : prérequis de bâtiment manquant = refus. UI : items verrouillés « Requiert : <bâtiment> ».
+
+**R-87 · Débloquage (étendu 7e).** Un item de production est **proposé par l'UI et accepté par le serveur** ssi sa technologie (`tech` de sa donnée) est débloquée ou `null`, **qu'il est implémenté**, **qu'il n'est pas obsolète** (R-110) et, pour un bâtiment, **qu'il n'est pas fixe** (Palais), **pas déjà construit** (R-66) et **sans prérequis de bâtiment manquant** (R-111) — fonctions `isProducible`/`canSetProduction`. Les items verrouillés apparaissent grisés avec leur tech requise. Le joueur sans tech choisie accumule sa science en réserve (`scienceStored`) jusqu'au premier choix.
 
 ### 8.2 Économie de la ville — Phase 7b (ajouté le 01/09/2026, décisions d'Erik)
 
@@ -290,15 +291,15 @@ Tie-breaks R-81 partout (distance, puis `(q, r)`). **Les barbares ne subissent p
 - **Répercussion carte** : les cases **travaillées** par une ville (et sa case de ville) affichent l'icône **or ou science** selon sa conversion, au lieu du commerce ; les cases non travaillées gardent l'icône commerce (potentiel du terrain).
 - Conséquence : toute ville avec ≥ 1 commerce produit 1 or OU 1 science minimum — le calibrage « science 0/tour » (remonté en 7a) disparaît par construction.
 
-**R-88 · Bibliothèque (30 🔶, Alphabet).** Modifie la conversion de sa ville :
+**R-88 · Bibliothèque (40 — coût exact 7e, Alphabet).** Modifie la conversion de sa ville :
 | Conversion de la ville | Sans bibliothèque | Avec bibliothèque |
 |---|---|---|
 | **Or** | `C` or, 0 science | `C` or, `max(1 ; round(C × 0,2))` science |
 | **Science** | 0 or, `C` science | 0 or, `round(C × 1,5)` science |
 
-Arrondi **au plus proche** (round half up). Cas limite tranché : même à **0 commerce**, une ville à bibliothèque génère **1 science/tour** (conversion or). Exemples validés par Erik : 5 commerce en or → 5 or + 1 science ; 12 commerce en or → 12 or + 2 science ; 12 commerce en science → 18 science.
+Arrondi **au plus proche** (round half up). Cas limite tranché : même à **0 commerce**, une ville à bibliothèque génère **1 science/tour** (conversion or). Exemples validés par Erik : 5 commerce en or → 5 or + 1 science ; 12 commerce en or → 12 or + 2 science ; 12 commerce en science → 18 science. **7e** : les multiplicateurs sont data-driven (`scienceMult`/`goldMult`) — Marché ×2 or, Banque ×4 or (R-111 : remplace le Marché), Université ×4 science (R-111 : remplace la Bibliothèque, le bonus résiduel disparaît avec elle).
 
-**R-89 · Caserne (20 🔶, Travail du bronze).** Les **unités produites** par une ville avec Caserne sortent **vétérans** (+50 % A/D, T-01) — **hors Colons** (pacifiques, pas de combat). Ne se cumule pas avec la promotion par combat (R-32) pour les unités déjà vétérans.
+**R-89 · Caserne (40 — coût exact 7e, Travail du bronze).** Les **unités produites** par une ville avec Caserne sortent **vétérans** (+50 % A/D, T-01) — **hors Colons** (pacifiques, pas de combat). Ne se cumule pas avec la promotion par combat (R-32) pour les unités déjà vétérans.
 
 **UI (Phase 7b).** Menu de ville restructuré en tableau de bord (identité / rendements avec durées en tours / citoyens / production à deux niveaux catégorisée). Le clic sur une ville interrompt un brouillon de déplacement en cours (le chemin soumis reste en place). Le bouton « Rendements » de la carte devient un cycle à 3 états : masqué → affiché → affiché **sans villes ni armées** (pour lire les icônes sous les entités).
 
@@ -344,6 +345,36 @@ Arrondi **au plus proche** (round half up). Cas limite tranché : même à **0 c
 **R-93 · Bonus de rendement.** Le rendement d'une case travaillée par une ville s'ajoute les `yields` de sa ressource **si le propriétaire de la ville y a accès** (tech débloquée ou `revealedByTech: null`) — R-60/R-66 : centre + Σ rendements effectifs des cases travaillées ; l'auto-assignation (priorité N > P > C, tie-break R-81) valorise alors naturellement les cases à ressource, déterminisme conservé. **D3 — divergence CivRev documentée** : Gemmes/Or donnent un bonus **direct au trésor** chez CivRev ; chez nous, un seul canal (N/P/C) → mappés **commerce** (`gemmes.commerce: 2`, `or.commerce: 3`), convertis or/science par la ville (R-90). Éditable en données.
 
 **R-94 · Placement sur les cartes.** Tableau optionnel `resources: [{id, q, r}]` **inline dans chaque carte JSON** (D5) — données commises, calibrage par édition. Validations du loader : id connu, terrain de la case ∈ `terrains` de la ressource, au plus une ressource par case, jamais sur une case de capitale. **D6** : les 3 cartes sont dotées (pédagogique : quelques-unes, didactique ; pangée et variée : jeu complet — placements symétriques par miroir ponctuel pour variée-40, comme son terrain).
+
+## 8.4 Bâtiments à effets de ville — Phase 7e (ajouté le 02/09/2026)
+
+Les bâtiments portent des effets **data-driven** (`buildings.json`) appliqués par le moteur. Tous les libellés sont visibles en UI ; les effets culturels sont **inertes jusqu'à 7f** (`culturePerCitizen`).
+
+| Bâtiment | Coût | Tech | Effet (champ moteur) | Actif |
+|---|---|---|---|---|
+| Palais | 0 (`fixed`) | — | +50 % défense de garnison (`cityDefenseBonus: 0.5`) — posé par le moteur dans la capitale (fondation + migration v9) | ✅ |
+| Caserne | 40 | Travail du bronze | Unités terrestres produites vétérans (R-89 ; hors pacifiques) | ✅ |
+| Temple | 40 | Rites funéraires | +1 Culture/citoyen (`culturePerCitizen`) | 7f |
+| Bibliothèque | 40 | Alphabet | Science ×1,5 + science résiduelle en conversion or (R-88, inchangée) | ✅ |
+| Comptoir commercial | 60 | Code de lois | +2 C par désert travaillé | ✅ |
+| Atelier | 60 | Construction | +2 P par colline travaillée | ✅ |
+| Marché | 60 | Monnaie | Or ×2 (`goldMult: 2`) | ✅ |
+| Tribunal | 80 | Littératie | Rayon de travail 1 → 2 | ✅ |
+| Mine de fer | 80 | Chemin de fer | +4 P par montagne travaillée | ✅ |
+| Port | 100 | Navigation | +1 N par mer travaillée (côte seule) | ✅ |
+| Remparts | 100 | Maçonnerie | +100 % défense de garnison (`cityDefenseBonus: 1.0`) + immunité conversion culturelle | ✅ (immunité 7f) |
+| Aqueduc | 120 | Ingénierie | Seuil de croissance −⅓ (`growthThresholdReduction: 0.33` 🔶) — R-63 | ✅ |
+| Banque | 120 | Banque | Or ×4 — R-111 (requiert Marché, le remplace) | ✅ |
+| Cathédrale | 160 | Religion | +2 Culture/citoyen — R-111 (requiert Temple, le remplace) | 7f |
+| Université | 160 | Université | Science ×4 (`scienceMult: 4`) — R-111 (requiert Bibliothèque, la remplace) | ✅ |
+| Usine | 200 | Industrialisation | Production de la ville ×2 (`productionMult`) | ✅ |
+| Défense SDI | 200 | Supraconducteur | Protège des ICBM (mécanique 7g+) | données |
+| Composants du Vaisseau (×4) | 80/120/200/400 | Vol spatial | Victoire scientifique | 7h |
+
+- **Multiplicateurs** : le meilleur multiplicateur présent gagne (`scienceMultOf`/`goldMultOf`, `conversion.ts` — source unique moteur/UI). L'Université remplace la Bibliothèque : le bonus résiduel R-88 disparaît avec elle. L'Usine multiplie la production brute avant le bonus de population (R-63).
+- **Aqueduc** : seuil de croissance `round(10 × pop × (1 − 0.33))` 🔶.
+- **Défense** : les `cityDefenseBonus` s'additionnent dans `S_def` (§7.4) pour le défenseur en garnison de SA ville (Palais 0,5 + Remparts 1,0 → bonus total +150 %).
+- **Migration v8 → v9** : `firstBy: {}` (R-109) + Palais ajouté aux capitales existantes. Les nouvelles fondations reçoivent le Palais directement (R-64, moteur).
 
 ## 9. Phase D — Vision, soins, fin de tour
 

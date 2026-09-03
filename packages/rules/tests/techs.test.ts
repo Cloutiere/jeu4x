@@ -14,6 +14,10 @@ import {
   TECHS,
   WONDERS,
   availableTechs,
+  buildingCostDiscount,
+  canSetProduction,
+  isProducible,
+  isUnitObsolete,
   isUnlocked,
   lockedTechs,
   prereqsMet,
@@ -27,31 +31,33 @@ const buildingTable = buildings as Record<string, BuildingData>;
 const techTable = techs as Record<string, TechData>;
 const wonderTable = wonders as Record<string, WonderData>;
 
-describe('R-86 · intégrité référentielle de la base technologique', () => {
-  it('contient exactement les 9 technologies de la table R-86', () => {
-    expect(Object.keys(techTable).sort()).toEqual([
-      'alphabet',
-      'code_des_lois',
-      'ecriture',
-      'equitation',
-      'lettres',
-      'navigation',
-      'poterie',
-      'travail_du_bronze',
-      'travail_du_fer',
-    ]);
+describe('R-86 · intégrité référentielle de la base technologique (7e : arbre complet)', () => {
+  it('contient exactement les 46 technologies de l’arbre CivRev (source « Technologies et Déblocages »)', () => {
+    expect(Object.keys(techTable)).toHaveLength(46);
+    // Les 4 racines sont bien sans prérequis ; Superconductor clôt l’arbre.
+    expect(techTable['alphabet']!.prereqs).toEqual([]);
+    expect(techTable['travail_du_bronze']!.prereqs).toEqual([]);
+    expect(techTable['equitation']!.prereqs).toEqual([]);
+    expect(techTable['poterie']!.prereqs).toEqual([]);
+    expect(techTable['supraconducteur']!.prereqs).toEqual(['production_de_masse', 'vol_spatial']);
   });
 
-  it('coûts 🔶 de la table R-86 (calibrage = édition du JSON)', () => {
+  it('coûts exacts 7e (20 → 6740) : écarts document/civfanatics arbitrés (Écriture 40, Irrigation 60, Industrialisation 710)', () => {
     expect(techTable['alphabet']!.cost).toBe(20);
-    expect(techTable['travail_du_bronze']!.cost).toBe(20);
-    expect(techTable['poterie']!.cost).toBe(20);
-    expect(techTable['equitation']!.cost).toBe(20);
     expect(techTable['travail_du_fer']!.cost).toBe(30);
-    expect(techTable['ecriture']!.cost).toBe(30);
-    expect(techTable['lettres']!.cost).toBe(40);
-    expect(techTable['code_des_lois']!.cost).toBe(40);
-    expect(techTable['navigation']!.cost).toBe(50);
+    expect(techTable['ecriture']!.cost).toBe(40); // 🔶 document « 30-40 » → CivFanatics 40
+    expect(techTable['irrigation']!.cost).toBe(60); // 🔶 document « 50-60 » → CivFanatics 60
+    expect(techTable['navigation']!.cost).toBe(110);
+    expect(techTable['industrialisation']!.cost).toBe(710); // 🔶 document « 530-710 » → CivFanatics 710
+    expect(techTable['vol_spatial']!.cost).toBe(5860);
+    expect(techTable['supraconducteur']!.cost).toBe(6740);
+  });
+
+  it('chaque tech porte son ère, et les 4 ères sont présentes (UI de l’arbre)', () => {
+    for (const t of Object.values(techTable)) expect(['ancienne', 'medievale', 'industrielle', 'moderne']).toContain(t.era);
+    for (const era of ['ancienne', 'medievale', 'industrielle', 'moderne']) {
+      expect(Object.values(techTable).some((t) => t.era === era), era).toBe(true);
+    }
   });
 
   it('coût > 0 pour toute technologie', () => {
@@ -105,6 +111,7 @@ describe('R-86 · intégrité référentielle de la base technologique', () => {
       }
       for (const id of t.unlocks.wonders) {
         expect(wonderTable[id], `${t.id} débloque la merveille ${id}`).toBeDefined();
+        expect(wonderTable[id]!.tech, `merveille ${id} ↔ tech ${t.id}`).toBe(t.id);
       }
     }
     // toute unité/bâtiment avec une tech est bien référencé par cette tech
@@ -116,9 +123,43 @@ describe('R-86 · intégrité référentielle de la base technologique', () => {
     }
   });
 
-  it('les merveilles sont en données, non implémentées (non constructibles en 7a)', () => {
-    expect(Object.keys(wonderTable).sort()).toEqual(['colosse_de_rhodes', 'jardins_suspendus', 'oracle_de_delphes']);
-    for (const w of Object.values(wonderTable)) expect(w.implemented).toBe(false);
+  it('7e : 21 merveilles en données, non implémentées, coût + tech + obsolescence documentés', () => {
+    expect(Object.keys(wonderTable)).toHaveLength(21);
+    for (const w of Object.values(wonderTable)) {
+      expect(w.implemented).toBe(false);
+      expect(w.cost).toBeGreaterThan(0);
+    }
+    // Merveilles sans tech : conditions spéciales ou disponible d'office.
+    expect(wonderTable['nations_unies']!.tech).toBeNull();
+    expect(wonderTable['banque_mondiale']!.tech).toBeNull();
+    // Obsolescence : la tech qui rend la merveille obsolète existe.
+    for (const w of Object.values(wonderTable)) {
+      if (w.obsoleteBy) expect(techTable[w.obsoleteBy], `${w.id} obsolète par ${w.obsoleteBy}`).toBeDefined();
+    }
+  });
+
+  it('7e · Premier découvrir : récompenses décrites (Travail du fer → Légion, Banque → 100 or)', () => {
+    expect(techTable['travail_du_fer']!.firstToDiscover).toMatchObject({ unit: 'legion' });
+    expect(techTable['maconnerie']!.firstToDiscover).toMatchObject({ building: 'remparts' });
+    expect(techTable['banque']!.firstToDiscover).toMatchObject({ gold: 100 });
+    expect(techTable['litteratie']!.firstToDiscover).toMatchObject({ perCity: { science: 1 } });
+    expect(techTable['irrigation']!.firstToDiscover).toMatchObject({ population: 1 });
+    expect(techTable['monarchie']!.firstToDiscover!.implemented).toBe(false); // Personnage illustre (7h)
+    expect(techTable['alphabet']!.firstToDiscover).toBeUndefined();
+  });
+
+  it('7e · Obsolescence : Guerrier après Travail du fer, Archer après Démocratie, etc. (données)', () => {
+    expect(techTable['travail_du_fer']!.obsoleteUnits).toEqual(['guerrier']);
+    expect(techTable['democratie']!.obsoleteUnits).toEqual(['archer']);
+    expect(techTable['navigation']!.obsoleteUnits).toEqual(['galere']);
+    expect(techTable['poudre_a_canon']!.obsoleteUnits).toEqual(['piquier']);
+    expect(techTable['combustion']!.obsoleteUnits).toEqual(['chevalier']);
+    expect(techTable['automobile']!.obsoleteUnits).toEqual(['canon']);
+    // Les unités obsolètes référencées existent.
+    for (const t of Object.values(techTable)) {
+      for (const id of t.obsoleteUnits ?? []) expect(unitTable[id], `${t.id} rend ${id} obsolète`).toBeDefined();
+      for (const id of t.obsoleteWonders ?? []) expect(wonderTable[id], `${t.id} rend ${id} obsolète`).toBeDefined();
+    }
   });
 
   it('R-87 · au départ, seuls Guerrier et Colon sont constructibles (règle d’Erik)',
@@ -130,21 +171,64 @@ describe('R-86 · intégrité référentielle de la base technologique', () => {
         else expect(producible, u.id).toBe(false);
       }
       for (const b of Object.values(buildingTable)) {
+        // 7e : le Palais est `fixed` (posé par le moteur dans la capitale).
+        if (b.id === 'palais') continue;
         expect(techUnlocked(b.tech ?? null, none), `${b.id} verrouillé au départ`).toBe(false);
       }
     });
 
   it('Espion et Galère : données seules, non constructibles même débloquée', () => {
     expect(isUnlocked({ tech: 'ecriture', implemented: false }, ['ecriture'])).toBe(false);
-    expect(isUnlocked({ tech: 'navigation', implemented: false }, ['navigation'])).toBe(false);
+    expect(isUnlocked({ tech: null, implemented: false }, [])).toBe(false);
     expect(productionDataOf({ kind: 'unit', id: 'espion' })!.implemented).toBe(false);
     expect(productionDataOf({ kind: 'unit', id: 'galere' })!.implemented).toBe(false);
   });
 
-  it('nouvelles unités 7a : Archer 1/2/1 (15), Cavalier 2/1/2 (20), Légion 2/1/1 (10)', () => {
-    expect(unitTable['archer']).toMatchObject({ attack: 1, defense: 2, movement: 1, cost: 15, tech: 'travail_du_bronze' });
-    expect(unitTable['cavalier']).toMatchObject({ attack: 2, defense: 1, movement: 2, cost: 20, tech: 'equitation' });
-    expect(unitTable['legion']).toMatchObject({ attack: 2, defense: 1, movement: 1, cost: 10, tech: 'travail_du_fer' });
+  it('nouvelles unités terrestres 7e (Appendice A) : Archer 1/2/1 (10), Piquier 1/3/1, Catapulte à distance, Chevalier, Fusilier, Canon, Tank, Artillerie, Infanterie moderne', () => {
+    expect(unitTable['archer']).toMatchObject({ attack: 1, defense: 2, movement: 1, cost: 10, tech: 'travail_du_bronze' });
+    expect(unitTable['piquier']).toMatchObject({ attack: 1, defense: 3, movement: 1, cost: 15, tech: 'democratie' });
+    expect(unitTable['catapulte']).toMatchObject({ attack: 4, defense: 1, movement: 1, cost: 20, isRanged: true, tech: 'mathematiques' });
+    expect(unitTable['chevalier']).toMatchObject({ attack: 4, defense: 2, movement: 2, cost: 25, tech: 'feudalite' });
+    expect(unitTable['fusilier']).toMatchObject({ attack: 3, defense: 5, movement: 1, cost: 20, tech: 'poudre_a_canon' });
+    expect(unitTable['canon']).toMatchObject({ attack: 6, defense: 2, movement: 1, cost: 30, isRanged: true, tech: 'metallurgie' });
+    expect(unitTable['char_d_assaut']).toMatchObject({ attack: 10, defense: 6, movement: 3, cost: 50, tech: 'combustion' });
+    expect(unitTable['artillerie']).toMatchObject({ attack: 16, defense: 2, movement: 2, cost: 50, isRanged: true, tech: 'automobile' });
+    expect(unitTable['infanterie_moderne']).toMatchObject({ attack: 4, defense: 8, movement: 1, cost: 30, tech: 'production_de_masse' });
+  });
+});
+
+describe('couche de requête 7e (obsolescence, producibilité, Premier découvrir)', () => {
+  const first = (tech: string): string[] => [tech];
+
+  it('obsoleteUnitsFor : le Guerrier devient obsolète après Travail du fer (données, pas de retrait des unités existantes)', () => {
+    expect(isUnitObsolete('guerrier', [])).toBe(false);
+    expect(isUnitObsolete('guerrier', first('travail_du_fer'))).toBe(true);
+    expect(isUnitObsolete('colon', first('travail_du_fer'))).toBe(false); // jamais obsolète
+  });
+
+  it('isProducible : unité obsolète non productible, bâtiment à prérequis manquant refusé', () => {
+    expect(isProducible({ tech: 'travail_du_fer' }, first('travail_du_fer'))).toBe(true);
+    // Banque exige un Marché dans la ville.
+    expect(isProducible({ tech: 'banque', requiresBuilding: 'marche' }, first('banque'), [])).toBe(false);
+    expect(isProducible({ tech: 'banque', requiresBuilding: 'marche' }, first('banque'), ['marche'])).toBe(true);
+    // Palais : fixed, jamais productible.
+    expect(isProducible({ tech: null, fixed: true }, [])).toBe(false);
+  });
+
+  it('canSetProduction : chaîne complète (tech + obsolescence + doublon + prérequis de bâtiment)', () => {
+    expect(canSetProduction({ kind: 'unit', id: 'guerrier' }, first('travail_du_fer'), [])).toBe(false);
+    expect(canSetProduction({ kind: 'unit', id: 'legion' }, first('travail_du_fer'), [])).toBe(true);
+    expect(canSetProduction({ kind: 'building', id: 'banque' }, first('banque'), ['marche'])).toBe(true);
+    expect(canSetProduction({ kind: 'building', id: 'banque' }, first('banque'), [])).toBe(false);
+    expect(canSetProduction({ kind: 'building', id: 'marche' }, first('banque'), ['banque'])).toBe(false);
+  });
+
+  it('buildingCostDiscount : Communisme −33 % Usines, Réseautage −50 % Universités, plafond 90 %', () => {
+    const firstBy = { communisme: 'p1', reseautage: 'p2' };
+    expect(buildingCostDiscount('usine', firstBy, 'p1')).toBe(0.33);
+    expect(buildingCostDiscount('usine', firstBy, 'p2')).toBe(0);
+    expect(buildingCostDiscount('universite', firstBy, 'p2')).toBe(0.5);
+    expect(buildingCostDiscount('marche', firstBy, 'p1')).toBe(0);
   });
 });
 
@@ -155,13 +239,14 @@ describe('couche de requête (availableTechs / researchable / isUnlocked)', () =
     expect(researchable({ techsUnlocked: [], researching: null })).toEqual(availableTechs({ techsUnlocked: [], researching: null }));
   });
 
-  it('R-86 : Travail du fer exige le Travail du bronze', () => {
+  it('R-86 (révisé 7e) : Travail du fer exige le Travail du bronze ; Mathématiques exige Écriture + Maçonnerie', () => {
     expect(prereqsMet(TECHS['travail_du_fer']!, ['alphabet'])).toBe(false);
     expect(prereqsMet(TECHS['travail_du_fer']!, ['travail_du_bronze'])).toBe(true);
     const after = availableTechs({ techsUnlocked: ['travail_du_bronze'], researching: null }).map((t) => t.id);
     expect(after).toContain('travail_du_fer');
     expect(after).not.toContain('travail_du_bronze'); // déjà débloquée
-    expect(after).not.toContain('lettres'); // prérequis Écriture manquant
+    expect(prereqsMet(TECHS['mathematiques']!, ['ecriture'])).toBe(false);
+    expect(prereqsMet(TECHS['mathematiques']!, ['ecriture', 'maconnerie'])).toBe(true);
   });
 
   it('lockedTechs : les teches non disponibles et non débloquées sont listées', () => {

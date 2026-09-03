@@ -3,6 +3,7 @@
     "id": "alphabet",
     "name": "Alphabet",
     "cost": 20,
+    "era": "ancienne",
     "prereqs": [],
     "unlocks": { "units": [], "buildings": ["bibliotheque"], "wonders": ["oracle_de_delphes"] }
   },
@@ -10,56 +11,428 @@
     "id": "travail_du_bronze",
     "name": "Travail du bronze",
     "cost": 20,
+    "era": "ancienne",
     "prereqs": [],
     "unlocks": { "units": ["archer"], "buildings": ["caserne"], "wonders": ["colosse_de_rhodes"] }
-  },
-  "poterie": {
-    "id": "poterie",
-    "name": "Poterie",
-    "cost": 20,
-    "prereqs": [],
-    "unlocks": { "units": [], "buildings": ["grenier"], "wonders": ["jardins_suspendus"] }
   },
   "equitation": {
     "id": "equitation",
     "name": "Équitation",
     "cost": 20,
+    "era": "ancienne",
     "prereqs": [],
     "unlocks": { "units": ["cavalier"], "buildings": [], "wonders": [] }
+  },
+  "poterie": {
+    "id": "poterie",
+    "name": "Poterie",
+    "cost": 20,
+    "era": "ancienne",
+    "prereqs": [],
+    "unlocks": { "units": [], "buildings": ["grenier"], "wonders": ["jardins_suspendus"] }
+  },
+  "rites_funeraires": {
+    "id": "rites_funeraires",
+    "name": "Rites funéraires",
+    "cost": 30,
+    "era": "ancienne",
+    "prereqs": ["poterie"],
+    "unlocks": { "units": [], "buildings": ["temple"], "wonders": ["grande_pyramide"] }
   },
   "travail_du_fer": {
     "id": "travail_du_fer",
     "name": "Travail du fer",
     "cost": 30,
+    "era": "ancienne",
     "prereqs": ["travail_du_bronze"],
-    "unlocks": { "units": ["legion"], "buildings": ["atelier", "mine_de_fer"], "wonders": [] }
+    "unlocks": { "units": ["legion"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Une Légion gratuite", "unit": "legion" },
+    "obsoleteUnits": ["guerrier"]
+  },
+  "maconnerie": {
+    "id": "maconnerie",
+    "name": "Maçonnerie",
+    "cost": 30,
+    "era": "ancienne",
+    "prereqs": ["poterie"],
+    "unlocks": { "units": [], "buildings": ["remparts"], "wonders": ["grande_muraille"] },
+    "firstToDiscover": { "label": "Des Remparts gratuits dans une ville", "building": "remparts" }
   },
   "ecriture": {
     "id": "ecriture",
     "name": "Écriture",
-    "cost": 30,
-    "prereqs": ["alphabet"],
-    "unlocks": { "units": ["espion"], "buildings": [], "wonders": [] }
-  },
-  "lettres": {
-    "id": "lettres",
-    "name": "Lettres",
     "cost": 40,
-    "prereqs": ["ecriture"],
-    "unlocks": { "units": [], "buildings": ["tribunal"], "wonders": [] }
+    "era": "ancienne",
+    "prereqs": ["alphabet"],
+    "unlocks": { "units": ["espion"], "buildings": [], "wonders": ["grande_bibliotheque"] },
+    "firstToDiscover": { "label": "Un Espion gratuit", "unit": "espion", "implemented": false }
   },
   "code_des_lois": {
     "id": "code_des_lois",
-    "name": "Code des lois",
-    "cost": 40,
-    "prereqs": ["lettres"],
-    "unlocks": { "units": [], "buildings": ["comptoir_commercial"], "wonders": [] }
+    "name": "Code de lois",
+    "cost": 60,
+    "era": "ancienne",
+    "prereqs": ["ecriture", "alphabet"],
+    "unlocks": { "units": [], "buildings": ["comptoir_commercial"], "wonders": [] },
+    "firstToDiscover": { "label": "Un Comptoir commercial gratuit", "building": "comptoir_commercial" }
+  },
+  "construction": {
+    "id": "construction",
+    "name": "Construction",
+    "cost": 60,
+    "era": "ancienne",
+    "prereqs": ["maconnerie", "travail_du_fer"],
+    "unlocks": { "units": [], "buildings": ["atelier"], "wonders": [] },
+    "firstToDiscover": { "label": "Un Atelier gratuit dans une ville", "building": "atelier" }
+  },
+  "irrigation": {
+    "id": "irrigation",
+    "name": "Irrigation",
+    "cost": 60,
+    "era": "ancienne",
+    "prereqs": ["poterie", "maconnerie"],
+    "unlocks": { "units": [], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "+1 Population dans toutes les villes", "population": 1 }
+  },
+  "litteratie": {
+    "id": "litteratie",
+    "name": "Littératie",
+    "cost": 60,
+    "era": "ancienne",
+    "prereqs": ["alphabet", "ecriture"],
+    "unlocks": { "units": [], "buildings": ["tribunal"], "wonders": ["theatre_de_shakespeare"] },
+    "firstToDiscover": { "label": "+1 Science dans toutes les villes", "perCity": { "science": 1 } },
+    "obsoleteWonders": ["stonehenge"]
+  },
+  "mathematiques": {
+    "id": "mathematiques",
+    "name": "Mathématiques",
+    "cost": 70,
+    "era": "ancienne",
+    "prereqs": ["ecriture", "maconnerie"],
+    "unlocks": { "units": ["catapulte"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Une Catapulte gratuite", "unit": "catapulte" }
+  },
+  "monnaie": {
+    "id": "monnaie",
+    "name": "Monnaie",
+    "cost": 80,
+    "era": "ancienne",
+    "prereqs": ["travail_du_bronze", "code_des_lois"],
+    "unlocks": { "units": ["caravane"], "buildings": ["marche"], "wonders": ["foire_de_troyes"] },
+    "firstToDiscover": { "label": "Une Caravane et un Marché gratuits", "unit": "caravane", "building": "marche" }
+  },
+  "monarchie": {
+    "id": "monarchie",
+    "name": "Monarchie",
+    "cost": 120,
+    "era": "ancienne",
+    "prereqs": ["code_des_lois", "ecriture", "rites_funeraires"],
+    "unlocks": { "units": [], "buildings": [], "wonders": ["chateau_himeji"] },
+    "firstToDiscover": { "label": "Un Personnage illustre gratuit", "greatPerson": true, "implemented": false },
+    "obsoleteWonders": ["grande_pyramide"]
+  },
+  "democratie": {
+    "id": "democratie",
+    "name": "Démocratie",
+    "cost": 120,
+    "era": "ancienne",
+    "prereqs": ["litteratie", "code_des_lois"],
+    "unlocks": { "units": ["piquier"], "buildings": [], "wonders": ["magna_carta"] },
+    "firstToDiscover": { "label": "Un Piquier gratuit", "unit": "piquier" },
+    "obsoleteUnits": ["archer"]
   },
   "navigation": {
     "id": "navigation",
     "name": "Navigation",
-    "cost": 50,
-    "prereqs": ["poterie"],
-    "unlocks": { "units": ["galere"], "buildings": ["port"], "wonders": [] }
+    "cost": 110,
+    "era": "ancienne",
+    "prereqs": ["ecriture", "mathematiques"],
+    "unlocks": { "units": ["galion"], "buildings": ["port"], "wonders": ["compagnie_des_indes"] },
+    "firstToDiscover": { "label": "Un Galion gratuit", "unit": "galion", "implemented": false },
+    "obsoleteUnits": ["galere"]
+  },
+  "ingenierie": {
+    "id": "ingenierie",
+    "name": "Ingénierie",
+    "cost": 130,
+    "era": "ancienne",
+    "prereqs": ["construction", "mathematiques"],
+    "unlocks": { "units": [], "buildings": ["aqueduc"], "wonders": [] },
+    "firstToDiscover": { "label": "+1 Production dans toutes les villes", "perCity": { "production": 1 } },
+    "obsoleteWonders": ["grande_muraille"]
+  },
+  "feudalite": {
+    "id": "feudalite",
+    "name": "Féodalité",
+    "cost": 140,
+    "era": "medievale",
+    "prereqs": ["equitation", "monarchie"],
+    "unlocks": { "units": ["chevalier"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Un Chevalier gratuit", "unit": "chevalier" }
+  },
+  "religion": {
+    "id": "religion",
+    "name": "Religion",
+    "cost": 150,
+    "era": "medievale",
+    "prereqs": ["rites_funeraires", "monarchie"],
+    "unlocks": { "units": [], "buildings": ["cathedrale"], "wonders": [] },
+    "firstToDiscover": { "label": "+1 Culture dans toutes les villes", "perCity": { "culture": 1 }, "implemented": false },
+    "obsoleteWonders": ["oracle_de_delphes"]
+  },
+  "invention": {
+    "id": "invention",
+    "name": "Invention",
+    "cost": 190,
+    "era": "medievale",
+    "prereqs": ["litteratie", "ingenierie"],
+    "unlocks": { "units": [], "buildings": [], "wonders": ["atelier_de_leonard"] },
+    "firstToDiscover": { "label": "Un Personnage illustre gratuit", "greatPerson": true, "implemented": false },
+    "obsoleteWonders": ["colosse_de_rhodes"]
+  },
+  "banque": {
+    "id": "banque",
+    "name": "Banque",
+    "cost": 190,
+    "era": "medievale",
+    "prereqs": ["monnaie", "code_des_lois", "litteratie"],
+    "unlocks": { "units": [], "buildings": ["banque"], "wonders": [] },
+    "firstToDiscover": { "label": "100 pièces d'or gratuites", "gold": 100 }
+  },
+  "universite": {
+    "id": "universite",
+    "name": "Université",
+    "cost": 240,
+    "era": "medievale",
+    "prereqs": ["litteratie", "mathematiques", "democratie"],
+    "unlocks": { "units": [], "buildings": ["universite"], "wonders": ["universite_d_oxford"] },
+    "firstToDiscover": { "label": "+1 Science dans toutes les villes", "perCity": { "science": 1 } },
+    "obsoleteWonders": ["grande_bibliotheque"]
+  },
+  "poudre_a_canon": {
+    "id": "poudre_a_canon",
+    "name": "Poudre à canon",
+    "cost": 330,
+    "era": "medievale",
+    "prereqs": ["invention", "feudalite"],
+    "unlocks": { "units": ["fusilier"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Un Fusilier gratuit", "unit": "fusilier" },
+    "obsoleteUnits": ["piquier"]
+  },
+  "machine_a_vapeur": {
+    "id": "machine_a_vapeur",
+    "name": "Machine à vapeur",
+    "cost": 340,
+    "era": "industrielle",
+    "prereqs": ["travail_du_fer", "invention", "ingenierie"],
+    "unlocks": { "units": ["croiseur"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Un Croiseur gratuit", "unit": "croiseur", "implemented": false }
+  },
+  "chemin_de_fer": {
+    "id": "chemin_de_fer",
+    "name": "Chemin de fer",
+    "cost": 350,
+    "era": "industrielle",
+    "prereqs": ["machine_a_vapeur"],
+    "unlocks": { "units": [], "buildings": ["mine_de_fer"], "wonders": [] },
+    "firstToDiscover": { "label": "+2 Production dans toutes les villes", "perCity": { "production": 2 } }
+  },
+  "metallurgie": {
+    "id": "metallurgie",
+    "name": "Métallurgie",
+    "cost": 390,
+    "era": "industrielle",
+    "prereqs": ["ingenierie", "travail_du_fer", "universite"],
+    "unlocks": { "units": ["canon"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Un Canon gratuit", "unit": "canon" }
+  },
+  "imprimerie": {
+    "id": "imprimerie",
+    "name": "Imprimerie",
+    "cost": 390,
+    "era": "industrielle",
+    "prereqs": ["universite", "religion"],
+    "unlocks": { "units": [], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "+1 Culture dans toutes les villes", "perCity": { "culture": 1 }, "implemented": false }
+  },
+  "industrialisation": {
+    "id": "industrialisation",
+    "name": "Industrialisation",
+    "cost": 710,
+    "era": "industrielle",
+    "prereqs": ["machine_a_vapeur", "banque"],
+    "unlocks": { "units": [], "buildings": ["usine"], "wonders": [] },
+    "firstToDiscover": { "label": "+5 Or dans toutes les villes", "perCity": { "gold": 5 } }
+  },
+  "corporation": {
+    "id": "corporation",
+    "name": "La Société",
+    "cost": 720,
+    "era": "industrielle",
+    "prereqs": ["banque", "industrialisation"],
+    "unlocks": { "units": [], "buildings": [], "wonders": ["complexe_militaro_industriel"] },
+    "firstToDiscover": { "label": "+5 Or dans toutes les villes", "perCity": { "gold": 5 } }
+  },
+  "acier": {
+    "id": "acier",
+    "name": "Acier",
+    "cost": 730,
+    "era": "industrielle",
+    "prereqs": ["metallurgie", "machine_a_vapeur"],
+    "unlocks": { "units": ["cuirasse"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Un Cuirassé gratuit", "unit": "cuirasse", "implemented": false }
+  },
+  "communisme": {
+    "id": "communisme",
+    "name": "Communisme",
+    "cost": 770,
+    "era": "industrielle",
+    "prereqs": ["industrialisation", "universite"],
+    "unlocks": { "units": [], "buildings": [], "wonders": [] },
+    "firstToDiscover": {
+      "label": "Coût des Usines réduit de 33 %",
+      "discounts": [{ "building": "usine", "pct": 0.33 }]
+    },
+    "obsoleteWonders": ["chateau_himeji"]
+  },
+  "electricite": {
+    "id": "electricite",
+    "name": "Électricité",
+    "cost": 850,
+    "era": "industrielle",
+    "prereqs": ["metallurgie", "ingenierie", "machine_a_vapeur"],
+    "unlocks": { "units": ["sous_marin"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Un Sous-marin gratuit", "unit": "sous_marin", "implemented": false }
+  },
+  "medias_de_masse": {
+    "id": "medias_de_masse",
+    "name": "Médias de masse",
+    "cost": 880,
+    "era": "industrielle",
+    "prereqs": ["imprimerie", "corporation"],
+    "unlocks": { "units": [], "buildings": [], "wonders": ["hollywood"] },
+    "firstToDiscover": { "label": "+1 Population dans toutes les villes", "population": 1 },
+    "obsoleteWonders": ["theatre_de_shakespeare"]
+  },
+  "production_de_masse": {
+    "id": "production_de_masse",
+    "name": "Production de masse",
+    "cost": 880,
+    "era": "industrielle",
+    "prereqs": ["chemin_de_fer", "industrialisation"],
+    "unlocks": { "units": ["infanterie_moderne"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Une Infanterie moderne gratuite", "unit": "infanterie_moderne" },
+    "obsoleteUnits": ["fusilier"]
+  },
+  "combustion": {
+    "id": "combustion",
+    "name": "Combustion",
+    "cost": 1050,
+    "era": "industrielle",
+    "prereqs": ["machine_a_vapeur", "poudre_a_canon", "metallurgie"],
+    "unlocks": { "units": ["char_d_assaut"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Un Char d'assaut gratuit", "unit": "char_d_assaut" },
+    "obsoleteUnits": ["chevalier"]
+  },
+  "theorie_atomique": {
+    "id": "theorie_atomique",
+    "name": "Théorie atomique",
+    "cost": 1270,
+    "era": "moderne",
+    "prereqs": ["universite", "invention", "electricite"],
+    "unlocks": { "units": [], "buildings": [], "wonders": ["projet_manhattan"] },
+    "firstToDiscover": { "label": "+2 Science dans toutes les villes", "perCity": { "science": 2 } }
+  },
+  "electronique": {
+    "id": "electronique",
+    "name": "Électronique",
+    "cost": 1570,
+    "era": "moderne",
+    "prereqs": ["electricite", "corporation"],
+    "unlocks": { "units": [], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "+2 Commerce dans toutes les villes", "perCity": { "commerce": 2 } }
+  },
+  "aviation": {
+    "id": "aviation",
+    "name": "Aviation",
+    "cost": 1620,
+    "era": "moderne",
+    "prereqs": ["combustion", "metallurgie", "invention"],
+    "unlocks": { "units": ["chasseur"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Un Chasseur gratuit", "unit": "chasseur", "implemented": false },
+    "obsoleteWonders": ["compagnie_des_indes"]
+  },
+  "automobile": {
+    "id": "automobile",
+    "name": "Automobile",
+    "cost": 1780,
+    "era": "moderne",
+    "prereqs": ["combustion", "acier"],
+    "unlocks": { "units": ["artillerie"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Une Artillerie gratuite", "unit": "artillerie" },
+    "obsoleteUnits": ["canon"]
+  },
+  "aviation_avancee": {
+    "id": "aviation_avancee",
+    "name": "Aviation avancée",
+    "cost": 2150,
+    "era": "moderne",
+    "prereqs": ["aviation", "industrialisation"],
+    "unlocks": { "units": ["bombardier"], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "Un Bombardier gratuit", "unit": "bombardier", "implemented": false }
+  },
+  "energie_nucleaire": {
+    "id": "energie_nucleaire",
+    "name": "Énergie nucléaire",
+    "cost": 2150,
+    "era": "moderne",
+    "prereqs": ["theorie_atomique", "production_de_masse"],
+    "unlocks": { "units": [], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "+2 Production dans toutes les villes", "perCity": { "production": 2 } }
+  },
+  "reseautage": {
+    "id": "reseautage",
+    "name": "Réseautage",
+    "cost": 2290,
+    "era": "moderne",
+    "prereqs": ["electronique", "corporation"],
+    "unlocks": { "units": [], "buildings": [], "wonders": ["internet"] },
+    "firstToDiscover": {
+      "label": "Coût des Universités réduit de 50 %",
+      "discounts": [{ "building": "universite", "pct": 0.5 }]
+    }
+  },
+  "mondialisation": {
+    "id": "mondialisation",
+    "name": "Mondialisation",
+    "cost": 3400,
+    "era": "moderne",
+    "prereqs": ["medias_de_masse", "reseautage"],
+    "unlocks": { "units": [], "buildings": [], "wonders": [] },
+    "firstToDiscover": { "label": "500 pièces d'or gratuites", "gold": 500 },
+    "obsoleteWonders": ["foire_de_troyes"]
+  },
+  "vol_spatial": {
+    "id": "vol_spatial",
+    "name": "Vol spatial",
+    "cost": 5860,
+    "era": "moderne",
+    "prereqs": ["aviation_avancee", "electronique", "energie_nucleaire"],
+    "unlocks": {
+      "units": [],
+      "buildings": ["vaisseau_carburant", "vaisseau_support_vie", "vaisseau_propulsion", "vaisseau_habitation"],
+      "wonders": ["programme_apollo"]
+    },
+    "firstToDiscover": { "label": "La carte du monde entière est révélée", "mapReveal": true }
+  },
+  "supraconducteur": {
+    "id": "supraconducteur",
+    "name": "Supraconducteur",
+    "cost": 6740,
+    "era": "moderne",
+    "prereqs": ["production_de_masse", "vol_spatial"],
+    "unlocks": { "units": [], "buildings": ["sdi"], "wonders": [] },
+    "firstToDiscover": { "label": "Un système SDI gratuit", "building": "sdi" }
   }
 }

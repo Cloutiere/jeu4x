@@ -6,8 +6,8 @@
    * prérequis manquants. Sélection = SetResearch (action immédiate) ;
    * changement libre, progression conservée par technologie.
    */
-  import { TECHS, WONDERS, UNIT_TYPES, BUILDINGS, availableTechs, lockedTechs } from '@game/rules';
-  import type { TechData } from '@game/rules';
+  import { TECHS, WONDERS, UNIT_TYPES, BUILDINGS, availableTechs, lockedTechs, ERA_ORDER, ERA_NAMES } from '@game/rules';
+  import type { TechData, TechEra } from '@game/rules';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId } from '../lib/render/interaction.js';
 
@@ -32,6 +32,14 @@
   const available = $derived(player ? availableTechs(player) : []);
   const locked = $derived(player ? lockedTechs(player) : []);
 
+  /** 7e : techs disponibles regroupées PAR ÈRE (Arbre Ancienne → Moderne). */
+  const availableByEra = $derived.by(() => {
+    const map = new Map<TechEra, TechData[]>();
+    for (const era of ERA_ORDER) map.set(era, []);
+    for (const t of available) map.get(t.era)!.push(t);
+    return map;
+  });
+
   function ratio(t: TechData): number {
     if (!player) return 0;
     return Math.min(1, (player.scienceProgress[t.id] ?? 0) / t.cost);
@@ -47,6 +55,16 @@
     }
     for (const id of t.unlocks.buildings) parts.push(BUILDINGS[id]?.name ?? id);
     for (const id of t.unlocks.wonders) parts.push(`Merveille : ${WONDERS[id]?.name ?? id}`);
+    const label = parts.join(' · ');
+    // 7e : la récompense de Premier découvrir est affichée avec la tech.
+    return t.firstToDiscover ? `${label} — 🏅 ${t.firstToDiscover.label}` : label;
+  }
+
+  /** 7e : obsolescences déclenchées par la tech (unités / merveilles). */
+  function obsoleteLabel(t: TechData): string {
+    const parts: string[] = [];
+    for (const id of t.obsoleteUnits ?? []) parts.push(`${UNIT_TYPES[id]?.name ?? id} obsolète`);
+    for (const id of t.obsoleteWonders ?? []) parts.push(`${WONDERS[id]?.name ?? id} obsolète`);
     return parts.join(' · ');
   }
 
@@ -86,29 +104,36 @@
         <p class="hint">Aucune recherche en cours. La science produite s'accumule en réserve jusqu'au premier choix (R-85).</p>
       {/if}
 
-      <h3>Disponibles</h3>
+      <!-- 7e : l'arbre est groupé par ère (Ancienne → Moderne), prérequis tracés. -->
+      {#each ERA_ORDER as era (era)}
+        {#if (availableByEra.get(era) ?? []).length > 0}
+          <h3>{ERA_NAMES[era]}</h3>
+          <ul>
+            {#each availableByEra.get(era)! as t (t.id)}
+              <li class:current={t.id === player.researching}>
+                <button type="button" disabled={!editable} onclick={() => select(t.id)}>
+                  <span class="name">{t.name} <em>({t.cost})</em></span>
+                  <span class="bar"><span class="fill" style:width={`${ratio(t) * 100}%`}></span></span>
+                  <span class="unlocks">{unlocksLabel(t)}</span>
+                  {#if obsoleteLabel(t)}<span class="obsoletes">{obsoleteLabel(t)}</span>{/if}
+                  {#if t.prereqs.length > 0}<span class="hint">Prérequis : {t.prereqs.map((p) => TECHS[p]?.name ?? p).join(', ')}</span>{/if}
+                  {#if ratio(t) > 0}<span class="hint">progression : {player.scienceProgress[t.id] ?? 0} / {t.cost}</span>{/if}
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      {/each}
       {#if available.length === 0}
         <p class="hint">Aucune technologie disponible.</p>
       {/if}
-      <ul>
-        {#each available as t (t.id)}
-          <li class:current={t.id === player.researching}>
-            <button type="button" disabled={!editable} onclick={() => select(t.id)}>
-              <span class="name">{t.name} <em>({t.cost})</em></span>
-              <span class="bar"><span class="fill" style:width={`${ratio(t) * 100}%`}></span></span>
-              <span class="unlocks">{unlocksLabel(t)}</span>
-              {#if ratio(t) > 0}<span class="hint">progression : {player.scienceProgress[t.id] ?? 0} / {t.cost}</span>{/if}
-            </button>
-          </li>
-        {/each}
-      </ul>
 
       {#if locked.length > 0}
         <h3>Verrouillées</h3>
         <ul>
           {#each locked as t (t.id)}
             <li class="locked">
-              <div class="name">{t.name} <em>({t.cost})</em></div>
+              <div class="name">{ERA_NAMES[t.era]} — {t.name} <em>({t.cost})</em></div>
               <div class="unlocks">Requiert : {missingPrereqs(t)}</div>
             </li>
           {/each}
@@ -136,6 +161,7 @@
   .name { font-weight: 700; }
   .name em { font-weight: 400; color: #9aa7b2; }
   .unlocks { font-size: 0.82rem; color: #a8b4be; }
+  .obsoletes { font-size: 0.78rem; color: #b08d5a; }
   .hint { font-size: 0.8rem; color: #8b98a5; }
   button:disabled { opacity: 0.55; cursor: default; }
 </style>

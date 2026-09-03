@@ -2,10 +2,16 @@
   "aluminium": {
     "id": "aluminium",
     "name": "Aluminium",
-    "terrains": ["colline"],
-    "yields": { "food": 0, "production": 4, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Mass Production",
+    "terrains": [
+      "colline"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 4,
+      "commerce": 0
+    },
+    "revealedByTech": "production_de_masse",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 3
@@ -13,8 +19,14 @@
   "betail": {
     "id": "betail",
     "name": "Bétail",
-    "terrains": ["prairie"],
-    "yields": { "food": 3, "production": 0, "commerce": 0 },
+    "terrains": [
+      "prairie"
+    ],
+    "yields": {
+      "food": 3,
+      "production": 0,
+      "commerce": 0
+    },
     "revealedByTech": "code_des_lois",
     "officialTech": "Code of Laws",
     "culture": null,
@@ -24,10 +36,17 @@
   "ble": {
     "id": "ble",
     "name": "Blé",
-    "terrains": ["prairie", "plaine"],
-    "yields": { "food": 2, "production": 0, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Irrigation",
+    "terrains": [
+      "prairie",
+      "plaine"
+    ],
+    "yields": {
+      "food": 2,
+      "production": 0,
+      "commerce": 0
+    },
+    "revealedByTech": "irrigation",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 12
@@ -35,8 +54,14 @@
   "baleine": {
     "id": "baleine",
     "name": "Baleine",
-    "terrains": ["eau"],
-    "yields": { "food": 4, "production": 0, "commerce": 0 },
+    "terrains": [
+      "eau"
+    ],
+    "yields": {
+      "food": 4,
+      "production": 0,
+      "commerce": 0
+    },
     "revealedByTech": "navigation",
     "officialTech": "Navigation",
     "culture": null,
@@ -46,8 +71,14 @@
   "boeufs": {
     "id": "boeufs",
     "name": "Bœufs",
-    "terrains": ["prairie"],
-    "yields": { "food": 0, "production": 2, "commerce": 0 },
+    "terrains": [
+      "prairie"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 2,
+      "commerce": 0
+    },
     "revealedByTech": "equitation",
     "officialTech": "Horseback Riding",
     "culture": null,
@@ -57,10 +88,16 @@
   "caoutchouc": {
     "id": "caoutchouc",
     "name": "Caoutchouc",
-    "terrains": ["foret"],
-    "yields": { "food": 0, "production": 4, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Automobile",
+    "terrains": [
+      "foret"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 4,
+      "commerce": 0
+    },
+    "revealedByTech": "automobile",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 4
@@ -68,10 +105,16 @@
   "charbon": {
     "id": "charbon",
     "name": "Charbon",
-    "terrains": ["colline"],
-    "yields": { "food": 0, "production": 3, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Steam Power",
+    "terrains": [
+      "colline"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 3,
+      "commerce": 0
+    },
+    "revealedByTech": "machine_a_vapeur",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 5
@@ -79,10 +122,16 @@
   "chene": {
     "id": "chene",
     "name": "Chêne",
-    "terrains": ["foret"],
-    "yields": { "food": 0, "production": 3, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Construction",
+    "terrains": [
+      "foret"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 3,
+      "commerce": 0
+    },
+    "revealedByTech": "construction",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 9
@@ -90,10 +139,16 @@
   "encens": {
     "id": "encens",
     "name": "Encens",
-    "terrains": ["prairie"],
-    "yields": { "food": 0, "production": 0, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Ceremonial Burial",
+    "terrains": [
+      "prairie"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 0
+    },
+    "revealedByTech": "rites_funeraires",
+    "officialTech": null,
     "culture": 2,
     "hiddenUntilRevealed": false,
     "spawnWeight": 7
@@ -101,8 +156,14 @@
   "epices": {
     "id": "epices",
     "name": "Épices",
-    "terrains": ["desert"],
-    "yields": { "food": 0, "production": 0, "commerce": 2 },
+    "terrains": [
+      "desert"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 2
+    },
     "revealedByTech": null,
     "officialTech": null,
     "culture": null,
@@ -112,8 +173,14 @@
   "fer": {
     "id": "fer",
     "name": "Fer",
-    "terrains": ["colline"],
-    "yields": { "food": 0, "production": 2, "commerce": 0 },
+    "terrains": [
+      "colline"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 2,
+      "commerce": 0
+    },
     "revealedByTech": "travail_du_fer",
     "officialTech": "Iron Working",
     "culture": null,
@@ -123,8 +190,14 @@
   "gemmes": {
     "id": "gemmes",
     "name": "Gemmes",
-    "terrains": ["montagne"],
-    "yields": { "food": 0, "production": 0, "commerce": 2 },
+    "terrains": [
+      "montagne"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 2
+    },
     "revealedByTech": null,
     "officialTech": null,
     "culture": null,
@@ -134,10 +207,16 @@
   "gibier": {
     "id": "gibier",
     "name": "Gibier",
-    "terrains": ["foret"],
-    "yields": { "food": 3, "production": 0, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Feudalism",
+    "terrains": [
+      "foret"
+    ],
+    "yields": {
+      "food": 3,
+      "production": 0,
+      "commerce": 0
+    },
+    "revealedByTech": "feudalite",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 10
@@ -145,10 +224,16 @@
   "or": {
     "id": "or",
     "name": "Or",
-    "terrains": ["montagne"],
-    "yields": { "food": 0, "production": 0, "commerce": 3 },
-    "revealedByTech": null,
-    "officialTech": "Currency",
+    "terrains": [
+      "montagne"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 3
+    },
+    "revealedByTech": "monnaie",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 4
@@ -156,10 +241,16 @@
   "marbre": {
     "id": "marbre",
     "name": "Marbre",
-    "terrains": ["plaine"],
-    "yields": { "food": 0, "production": 2, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Masonry",
+    "terrains": [
+      "plaine"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 2,
+      "commerce": 0
+    },
+    "revealedByTech": "maconnerie",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 8
@@ -167,10 +258,16 @@
   "petrole": {
     "id": "petrole",
     "name": "Pétrole",
-    "terrains": ["desert"],
-    "yields": { "food": 0, "production": 4, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Combustion",
+    "terrains": [
+      "desert"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 4,
+      "commerce": 0
+    },
+    "revealedByTech": "combustion",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 3
@@ -178,22 +275,36 @@
   "poisson": {
     "id": "poisson",
     "name": "Poisson",
-    "terrains": ["eau"],
-    "yields": { "food": 2, "production": 0, "commerce": 0 },
+    "terrains": [
+      "eau"
+    ],
+    "yields": {
+      "food": 2,
+      "production": 0,
+      "commerce": 0
+    },
     "revealedByTech": "travail_du_bronze",
     "officialTech": "Bronze Working",
     "culture": null,
     "hiddenUntilRevealed": true,
     "spawnWeight": 10,
-    "extraSpawnScale": { "eau": 1.5 }
+    "extraSpawnScale": {
+      "eau": 1.5
+    }
   },
   "soie": {
     "id": "soie",
     "name": "Soie",
-    "terrains": ["plaine"],
-    "yields": { "food": 0, "production": 0, "commerce": 0 },
-    "revealedByTech": "lettres",
-    "officialTech": "Literacy",
+    "terrains": [
+      "plaine"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 0
+    },
+    "revealedByTech": "litteratie",
+    "officialTech": null,
     "culture": 3,
     "hiddenUntilRevealed": true,
     "spawnWeight": 6
@@ -201,10 +312,16 @@
   "soufre": {
     "id": "soufre",
     "name": "Soufre",
-    "terrains": ["desert"],
-    "yields": { "food": 0, "production": 3, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Gunpowder",
+    "terrains": [
+      "desert"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 3,
+      "commerce": 0
+    },
+    "revealedByTech": "poudre_a_canon",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 3
@@ -212,10 +329,16 @@
   "teinture": {
     "id": "teinture",
     "name": "Teinture",
-    "terrains": ["eau"],
-    "yields": { "food": 0, "production": 0, "commerce": 3 },
-    "revealedByTech": null,
-    "officialTech": "Monarchy",
+    "terrains": [
+      "eau"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 3
+    },
+    "revealedByTech": "monarchie",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 6
@@ -223,10 +346,16 @@
   "uranium": {
     "id": "uranium",
     "name": "Uranium",
-    "terrains": ["montagne"],
-    "yields": { "food": 0, "production": 4, "commerce": 0 },
-    "revealedByTech": null,
-    "officialTech": "Nuclear Power",
+    "terrains": [
+      "montagne"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 4,
+      "commerce": 0
+    },
+    "revealedByTech": "energie_nucleaire",
+    "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
     "spawnWeight": 2
@@ -234,8 +363,14 @@
   "vin": {
     "id": "vin",
     "name": "Vin",
-    "terrains": ["plaine"],
-    "yields": { "food": 0, "production": 0, "commerce": 2 },
+    "terrains": [
+      "plaine"
+    ],
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 2
+    },
     "revealedByTech": "poterie",
     "officialTech": "Pottery",
     "culture": null,

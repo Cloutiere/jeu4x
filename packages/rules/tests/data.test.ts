@@ -12,9 +12,11 @@ const buildingTable = buildings as Record<string, BuildingData>;
 const resourceTable = resources as Record<string, ResourceData>;
 
 describe('Données v1 (RULES.md §2-3)', () => {
-  it('contient le roster Phase 7a (base Guerrier/Colon + Archer, Cavalier, Légion ; Espion/Galère données seules)', () => {
+  it('contient le roster terrestre complet 7e + données seules (naval, aérien, spéciaux)', () => {
     expect(Object.keys(unitTable).sort()).toEqual([
-      'archer', 'cavalier', 'colon', 'espion', 'galere', 'guerrier', 'legion',
+      'archer', 'artillerie', 'bombardier', 'canon', 'caravane', 'catapulte', 'cavalier', 'char_d_assaut',
+      'chasseur', 'chevalier', 'colon', 'croiseur', 'cuirasse', 'espion', 'fusilier', 'galere', 'galion',
+      'guerrier', 'icbm', 'infanterie_moderne', 'legion', 'milice', 'piquier', 'sous_marin',
     ]);
   });
 
@@ -29,10 +31,15 @@ describe('Données v1 (RULES.md §2-3)', () => {
     expect(unitTable['guerrier']!.canAttack).toBe(true);
   });
 
-  it('aucune unité à distance en v1 (R-59 arrive en Phase 7)', () => {
-    for (const u of Object.values(unitTable)) {
-      expect(u.isRanged).toBe(false);
-    }
+  it('7e : les unités à distance existent (R-59) — Catapulte, Canon, Artillerie, seules', () => {
+    const ranged = Object.values(unitTable).filter((u) => u.isRanged).map((u) => u.id).sort();
+    expect(ranged).toEqual(['artillerie', 'canon', 'catapulte']);
+    // R-87 : le Colon porte le coût en population officiel (2 — Erik 02/09).
+    expect(unitTable['colon']!.populationCost).toBe(2);
+    // 7e : soutien naval en données (mécanique 7g) — Galion 15, Croiseur 35, Cuirassé 65.
+    expect(unitTable['galion']!.navalSupport).toBe(15);
+    expect(unitTable['croiseur']!.navalSupport).toBe(35);
+    expect(unitTable['cuirasse']!.navalSupport).toBe(65);
   });
 
   it('chaque unité a des stats cohérentes', () => {
@@ -91,29 +98,61 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
     expect(terrainTable['montagne']!.yields).toEqual({ food: 0, production: 1, commerce: 0 });
   });
 
-  it('buildings.json : 8 bâtiments — coûts R-66 + Bibliothèque/Caserne (Phase 7a, 🔶)', () => {
+  it('buildings.json 7e : 22 bâtiments — coûts exacts (Temple 40 … Aqueduc 120) + Palais/Usine/SDI/Vaisseau', () => {
     expect(Object.keys(buildingTable).sort()).toEqual([
-      'atelier', 'bibliotheque', 'caserne', 'comptoir_commercial', 'grenier', 'mine_de_fer', 'port', 'tribunal',
+      'aqueduc', 'atelier', 'banque', 'bibliotheque', 'caserne', 'cathedrale', 'comptoir_commercial', 'grenier',
+      'marche', 'mine_de_fer', 'palais', 'port', 'remparts', 'sdi', 'temple', 'tribunal', 'universite', 'usine',
+      'vaisseau_carburant', 'vaisseau_habitation', 'vaisseau_propulsion', 'vaisseau_support_vie',
     ]);
-    expect(buildingTable['grenier']!.cost).toBe(20);
-    expect(buildingTable['atelier']!.cost).toBe(30);
-    expect(buildingTable['mine_de_fer']!.cost).toBe(40);
-    expect(buildingTable['comptoir_commercial']!.cost).toBe(30);
-    expect(buildingTable['port']!.cost).toBe(30);
-    expect(buildingTable['tribunal']!.cost).toBe(40);
-    // Phase 7a : coûts 🔶 documentés au rapport (effets inertes pour l'instant)
-    expect(buildingTable['bibliotheque']!.cost).toBe(30);
-    expect(buildingTable['caserne']!.cost).toBe(20);
+    // Coûts exacts du document « Technologies et Déblocages » (amendement 7e).
+    expect(buildingTable['palais']!.cost).toBe(0);
+    expect(buildingTable['caserne']!.cost).toBe(40);
+    expect(buildingTable['grenier']!.cost).toBe(40);
+    expect(buildingTable['bibliotheque']!.cost).toBe(40);
+    expect(buildingTable['temple']!.cost).toBe(40);
+    expect(buildingTable['comptoir_commercial']!.cost).toBe(60);
+    expect(buildingTable['atelier']!.cost).toBe(60);
+    expect(buildingTable['marche']!.cost).toBe(60);
+    expect(buildingTable['tribunal']!.cost).toBe(80);
+    expect(buildingTable['mine_de_fer']!.cost).toBe(80);
+    expect(buildingTable['port']!.cost).toBe(100);
+    expect(buildingTable['remparts']!.cost).toBe(100);
+    expect(buildingTable['aqueduc']!.cost).toBe(120);
+    expect(buildingTable['banque']!.cost).toBe(120);
+    expect(buildingTable['cathedrale']!.cost).toBe(160);
+    expect(buildingTable['universite']!.cost).toBe(160);
+    expect(buildingTable['usine']!.cost).toBe(200);
   });
 
-  it('effets R-66 : Grenier +1 N plaine, Atelier +2 P colline, Mine +4 P montagne, Comptoir +2 C désert, Port +1 N mer, Tribunal rayon', () => {
-    expect(buildingTable['grenier']!.tileBonus).toEqual({ terrain: 'plaine', food: 1, production: 0, commerce: 0 });
+  it('effets R-66 révisés 7e : Grenier +2 N plaine (point ouvert 6c résolu), effets de ville structurés', () => {
+    expect(buildingTable['grenier']!.tileBonus).toEqual({ terrain: 'plaine', food: 2, production: 0, commerce: 0 });
     expect(buildingTable['atelier']!.tileBonus).toEqual({ terrain: 'colline', food: 0, production: 2, commerce: 0 });
     expect(buildingTable['mine_de_fer']!.tileBonus).toEqual({ terrain: 'montagne', food: 0, production: 4, commerce: 0 });
     expect(buildingTable['comptoir_commercial']!.tileBonus).toEqual({ terrain: 'desert', food: 0, production: 0, commerce: 2 });
     expect(buildingTable['port']!.tileBonus).toEqual({ terrain: 'eau', food: 1, production: 0, commerce: 0 });
     expect(buildingTable['tribunal']!.tileBonus).toBeNull();
     expect(buildingTable['tribunal']!.workRadiusBonus).toBe(1);
+  });
+
+  it('7e : effets de ville — défense (Palais/Remparts), multiplicateurs (Marché/Banque/Université/Usine), Aqueduc', () => {
+    expect(buildingTable['palais']!.cityDefenseBonus).toBe(0.5);
+    expect(buildingTable['palais']!.fixed).toBe(true);
+    expect(buildingTable['remparts']!.cityDefenseBonus).toBe(1.0);
+    expect(buildingTable['marche']!.goldMult).toBe(2);
+    expect(buildingTable['banque']!.goldMult).toBe(4);
+    expect(buildingTable['bibliotheque']!.scienceMult).toBe(1.5);
+    expect(buildingTable['universite']!.scienceMult).toBe(4);
+    expect(buildingTable['usine']!.productionMult).toBe(2);
+    expect(buildingTable['aqueduc']!.growthThresholdReduction).toBe(0.33);
+  });
+
+  it('7e : remplacements d’infrastructures — Banque ← Marché, Université ← Bibliothèque, Cathédrale ← Temple', () => {
+    expect(buildingTable['banque']).toMatchObject({ requiresBuilding: 'marche', replaces: 'marche' });
+    expect(buildingTable['universite']).toMatchObject({ requiresBuilding: 'bibliotheque', replaces: 'bibliotheque' });
+    expect(buildingTable['cathedrale']).toMatchObject({ requiresBuilding: 'temple', replaces: 'temple' });
+    // Effets culturels : décrits en données, inactifs jusqu’à la 7f.
+    expect(buildingTable['temple']!.culturePerCitizen).toBe(1);
+    expect(buildingTable['cathedrale']!.culturePerCitizen).toBe(2);
   });
 });
 

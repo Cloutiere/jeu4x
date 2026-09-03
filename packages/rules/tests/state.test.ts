@@ -14,10 +14,10 @@ import { TERRAINS } from '../src/data.js';
 import { cityAt, makeState, unit, unitAt } from '../src/fixtures.js';
 
 describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
-  it('la version courante est exportée avec la chaîne de migrations (v8 depuis les barbares, Phase 7d)', () => {
+  it('la version courante est exportée avec la chaîne de migrations (v9 depuis l’arbre complet, Phase 7e)', () => {
     const state = makeState();
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(8);
+    expect(CURRENT_SCHEMA_VERSION).toBe(9);
     expect(MIGRATIONS).toBeTypeOf('object');
     expect(typeof MIGRATIONS[2]).toBe('function');
     expect(typeof MIGRATIONS[3]).toBe('function');
@@ -26,6 +26,30 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
     expect(typeof MIGRATIONS[6]).toBe('function');
     expect(typeof MIGRATIONS[7]).toBe('function');
     expect(typeof MIGRATIONS[8]).toBe('function');
+    expect(typeof MIGRATIONS[9]).toBe('function');
+  });
+
+  it('v8 → v9 (Phase 7e) : firstBy vide + Palais posé dans les capitales, idempotent', () => {
+    const v8 = {
+      schemaVersion: 8,
+      turn: 3,
+      map: {},
+      players: {},
+      units: {},
+      cities: {
+        cap: { id: 'cap', q: 0, r: 0, owner: 'p1', pop: 1, capital: true, foodStored: 0, production: null, workedTiles: [], buildings: [], conversion: 'gold' },
+        ville: { id: 'ville', q: 3, r: 3, owner: 'p1', pop: 2, capital: false, foodStored: 0, production: null, workedTiles: [], buildings: ['grenier'], conversion: 'gold' },
+      },
+      diplomacy: { war: [] },
+      settings: { turnTimerMinutes: null },
+    };
+    const out = migrateState(v8 as unknown as Record<string, unknown>) as unknown as GameState;
+    expect(out.schemaVersion).toBe(9);
+    expect(out.firstBy).toEqual({});
+    expect((out.cities as Record<string, { capital: boolean; buildings: string[] }>)['cap']!.buildings).toEqual(['palais']);
+    expect((out.cities as Record<string, { capital: boolean; buildings: string[] }>)['ville']!.buildings).toEqual(['grenier']);
+    const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
+    expect(twice).toEqual(out);
   });
 
   it('migrateState laisse passer un état à jour à l’identique (chaîne v8→v8 vide)', () => {
@@ -36,11 +60,11 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
 
   it('migrateState rejette une version inconnue ou futuriste', () => {
     expect(() => migrateState({ schemaVersion: 0 })).toThrow();
-    expect(() => migrateState({ schemaVersion: 9 })).toThrow();
+    expect(() => migrateState({ schemaVersion: 10 })).toThrow();
     expect(() => migrateState({})).toThrow();
   });
 
-  it('v7 → v8 (Phase 7d, R-96/R-98) : villages/huttes/mapId additifs, compteurs à zéro, idempotent', () => {
+  it('v7 → v9 : villages/huttes/mapId additifs puis firstBy/Palais (chaîne 7d + 7e)', () => {
     // Un état v7 (ressources, sans barbares) migre avec des tableaux vides et
     // mapId null — l'enrichissement depuis la carte est l'affaire du serveur
     // (applyMapEntities, R-96), qui connaît meta.settings.mapId.
@@ -55,7 +79,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v7 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(8);
+    expect(out.schemaVersion).toBe(9);
     expect(out.villages).toEqual([]);
     expect(out.huts).toEqual([]);
     expect(out.mapId).toBeNull();

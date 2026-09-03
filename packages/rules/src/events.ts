@@ -60,8 +60,29 @@ export type GameEvent =
   | { seq: number; type: 'UnitProduced'; unitId: UnitId; cityId: CityId; owner: PlayerId; unitType: string; at: Hex }
   /** Technologie complétée (R-85, Phase 7a) : déblocages immédiats (R-87). */
   | { seq: number; type: 'TechResearched'; player: PlayerId; tech: string }
+  /** 7e · Premier découvrir : récompense CivRev appliquée au premier joueur
+   *  à compléter la tech (unité/bâtiment gratuit, or, population, perCity,
+   *  remises, révélation de carte). */
+  | {
+      seq: number;
+      type: 'FirstDiscovered';
+      player: PlayerId;
+      tech: string;
+      label: string;
+      unitType?: string;
+      unitIds?: UnitId[];
+      building?: string;
+      cityId?: CityId;
+      gold?: number;
+      population?: number;
+      perCity?: { gold?: number; science?: number; production?: number; commerce?: number };
+      mapReveal?: boolean;
+    }
   /** Croissance d'une ville : +1 pop = +1 citoyen (R-63, Phase 6). */
   | { seq: number; type: 'PopulationGrew'; cityId: CityId; owner: PlayerId; pop: number; at: Hex }
+  /** 7e · Population consommée par la PRODUCTION d'une unité (Colon : 2 pop —
+   *  comportement officiel CivRev adopté par Erik le 02/09). */
+  | { seq: number; type: 'PopulationConsumed'; cityId: CityId; owner: PlayerId; pop: number; byUnitType: string; at: Hex }
   /** Bâtiment construit par une ville (R-66, Phase 6). */
   | { seq: number; type: 'BuildingCompleted'; cityId: CityId; owner: PlayerId; building: string; at: Hex }
   /** Point d'accroche diplomatie (R-58-b) — inactif en v1 (guerre permanente). */
@@ -81,6 +102,14 @@ export type GameEvent =
   | { seq: number; type: 'HutOpened'; hutId: string; byPlayer: PlayerId; byUnitId: UnitId | null; at: Hex; reward: HutReward }
   /** Fin de résolution : newState est l'état du tour indiqué. */
   | { seq: number; type: 'TurnResolved'; turn: number };
+
+/** 7e · Payload de `FirstDiscovered` SANS seq (l'appelant séquence) — partagé
+ *  par le moteur (turn.ts), les actions immédiates (research.ts) et les huttes
+ *  (barbares.ts, cascade science). */
+export type FirstDiscoveredPayload = Omit<
+  Extract<GameEvent, { type: 'FirstDiscovered' }>,
+  'seq'
+>;
 
 /** Références extraites d'un événement, pour le filtrage par brouillard (L5). */
 export interface EventRefs {
@@ -146,7 +175,17 @@ export function eventRefs(event: GameEvent): EventRefs {
     case 'TechResearched':
       refs.players.push(event.player);
       break;
+    case 'FirstDiscovered':
+      refs.players.push(event.player);
+      if (event.unitIds) refs.unitIds.push(...event.unitIds);
+      if (event.cityId) refs.cityIds.push(event.cityId);
+      break;
     case 'PopulationGrew':
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner);
+      hex(event.at);
+      break;
+    case 'PopulationConsumed':
       refs.cityIds.push(event.cityId);
       refs.players.push(event.owner);
       hex(event.at);

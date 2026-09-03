@@ -100,16 +100,18 @@ describe('R-60 · cases travaillées multiples (Phase 6)', () => {
 describe('R-66 · bâtiments (Phase 6)', () => {
   it('SetProduction d’un bâtiment, complétion → city.buildings, événement BuildingCompleted', () => {
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, production: { item: { kind: 'building', id: 'grenier' }, progress: 19 } }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, production: { item: { kind: 'building', id: 'grenier' }, progress: 39 } }],
     });
     const { newState, events } = resolveTurn(state, {}, 1);
+    // 7e : coût exact du Grenier = 40 (progression 39 + 1 produit ce tour)
     expect(cityAt(newState, 0, 0)!.buildings).toEqual(['grenier']);
     expect(events.some((e) => e.type === 'BuildingCompleted' && e.building === 'grenier')).toBe(true);
     expect(cityAt(newState, 0, 0)!.production).toBeNull();
   });
 
   it('R-66 : le Grenier donne +1 N sur chaque plaine travaillée par cette ville', () => {
-    // citoyen assigné manuellement à la plaine : 1 N (+1 Grenier) au lieu de 2 N
+    // 7e : Grenier +2 N (amendement — résout le point ouvert 6c)
+    // citoyen assigné manuellement à la plaine : 1 N (+2 Grenier) au lieu de 2 N
     const state = makeState({
       terrainOverrides: { '0,1': 'plaine' },
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1, buildings: ['grenier'], workedTiles: ['0,1'] }],
@@ -117,8 +119,8 @@ describe('R-66 · bâtiments (Phase 6)', () => {
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
     expect(city.workedTiles).toContain('0,1');
-    // nourriture du tour = 2 (centre) + 1 (plaine) + 1 (Grenier) = 4
-    expect(city.foodStored).toBe(4);
+    // nourriture du tour = 2 (centre) + 1 (plaine) + 2 (Grenier) = 5
+    expect(city.foodStored).toBe(5);
   });
 
   it('R-66 : le Tribunal étend le rayon — une case à distance 2 devient travaillable', () => {
@@ -257,8 +259,8 @@ describe('R-60 · ordre SetWorkedTile (Phase 6)', () => {
 });
 
 describe('Migration v3 → v4 (Phase 6)', () => {
-  it('schemaVersion courant = 7 (ressources R-91, Phase 7c)', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(8);
+  it('schemaVersion courant = 9 (arbre complet, Phase 7e)', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(9);
   });
 
   it('un état v3 migre : workedTiles auto-assignées, buildings [], item string → {kind:"unit"}', () => {
@@ -272,9 +274,10 @@ describe('Migration v3 → v4 (Phase 6)', () => {
     });
     const raw = { ...structuredClone(v3), schemaVersion: 3, cities: { c1: { ...structuredClone(v3.cities['c1']!), workedTiles: undefined, workedTile: null, buildings: undefined, production: { item: 'guerrier', progress: 4 } } } } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(8);
+    expect(out.schemaVersion).toBe(9);
     const c = out.cities['c1']!;
-    expect(c.buildings).toEqual([]);
+    // 7e : la migration v9 pose le Palais dans la capitale.
+    expect(c.buildings).toEqual(['palais']);
     expect('workedTile' in c).toBe(false); // l'ancien champ est supprimé
     expect(c.workedTiles).toHaveLength(1); // auto-assignation (prairie voisine)
     expect(c.production!.item).toEqual({ kind: 'unit', id: 'guerrier' });

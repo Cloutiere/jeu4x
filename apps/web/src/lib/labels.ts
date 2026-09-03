@@ -49,8 +49,12 @@ export function eventLabel(event: GameEvent): string {
       return `${event.unitType} produit par ${event.cityId}`;
     case 'TechResearched':
       return `Technologie complétée : ${event.tech} — déblocages disponibles !`;
+    case 'FirstDiscovered':
+      return `Premier découvrir (${event.tech}) : ${event.label}`;
     case 'PopulationGrew':
       return `${event.cityId} grandit — population ${event.pop}`;
+    case 'PopulationConsumed':
+      return `${event.cityId} : la production de ${event.byUnitType} consomme des citoyens — population ${event.pop}`;
     case 'BuildingCompleted':
       return `${event.building} achevé dans ${event.cityId}`;
     case 'DiplomaticIncident':

@@ -13,6 +13,7 @@
  * R-89 : la Caserne rend les unités produites vétérans (hors Colon) —
  * appliquée dans le moteur (turn.ts, complétion de production).
  */
+import { BUILDINGS } from './data.js';
 import type { CityId, GameState, PlayerId } from './state.js';
 
 /** Choix de conversion du commerce d'une ville (R-90). */
@@ -27,7 +28,31 @@ export function hasLibrary(buildings: string[]): boolean {
 }
 
 /**
+ * 7e · Multiplicateurs de conversion portés par les bâtiments (data-driven :
+ * `scienceMult` / `goldMult` de buildings.json). Le meilleur multiplicateur
+ * présent gagne (le remplacement Banque/Marché rend le cumul improbable mais
+ * la règle reste totale). Défaut ×1 ; Bibliothèque ×1,5 ; Université ×4 ;
+ * Marché ×2 ; Banque ×4.
+ */
+export function scienceMultOf(buildings: string[]): number {
+  let m = 1;
+  for (const id of buildings) m = Math.max(m, BUILDINGS[id]?.scienceMult ?? 1);
+  return m;
+}
+
+export function goldMultOf(buildings: string[]): number {
+  let m = 1;
+  for (const id of buildings) m = Math.max(m, BUILDINGS[id]?.goldMult ?? 1);
+  return m;
+}
+
+/**
  * R-90/R-88 : gains or/science d'une ville pour un commerce total `C`.
+ * 7e : les multiplicateurs sont désormais lus des données (Marché ×2 or,
+ * Banque ×4 or, Université ×4 science). Le comportement Bibliothèque validé
+ * par Erik reste EXACT : science ×1,5 en conversion science ; en conversion
+ * or, +max(1 ; round(C × 0,2)) science tant que la Bibliothèque est présente
+ * (elle disparaît avec l'Université qui la remplace).
  * Source unique partagée par le moteur (Phase C) et l'UI (panneau + carte).
  */
 export function conversionGains(
@@ -36,11 +61,10 @@ export function conversionGains(
   buildings: string[],
 ): { gold: number; science: number } {
   if (conversion === 'science') {
-    const science = hasLibrary(buildings) ? Math.round(commerce * 1.5) : commerce;
-    return { gold: 0, science };
+    return { gold: 0, science: Math.round(commerce * scienceMultOf(buildings)) };
   }
   const science = hasLibrary(buildings) ? Math.max(1, Math.round(commerce * 0.2)) : 0;
-  return { gold: commerce, science };
+  return { gold: commerce * goldMultOf(buildings), science };
 }
 
 export type SetConversionResult =

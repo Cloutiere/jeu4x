@@ -362,7 +362,7 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       foodStored: 0,
       production: null,
       workedTiles: [],
-      buildings: [],
+      buildings: ['palais'], // 7e : le Palais ne vit que dans la capitale
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
     };
     // La case de capitale devient une case de ville (RULES.md §2).
@@ -411,6 +411,7 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
     villages: [],
     huts: [],
     mapId: map.data.id,
+    firstBy: {}, // 7e : Premier découvrir (aucun au départ)
   };
 
   // Vision initiale : rayon des unités (T-07, data-driven) + des villes (T-08).

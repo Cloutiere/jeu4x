@@ -31,6 +31,12 @@ const terrainPath = join(dirname(fileURLToPath(import.meta.url)), '../../../pack
 const TERRAINS = JSON.parse(readFileSync(terrainPath, 'utf8'));
 const techsPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/techs.json');
 const TECHS = JSON.parse(readFileSync(techsPath, 'utf8'));
+// Phase 7e (L2) : le bot produit aléatoirement — items lus des mêmes JSON que
+// le moteur, filtrage R-87 (tech débloquée, implémenté, prérequis de bâtiment).
+const unitsPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/units.json');
+const UNITS = JSON.parse(readFileSync(unitsPath, 'utf8'));
+const buildingsPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/buildings.json');
+const BUILDINGS = JSON.parse(readFileSync(buildingsPath, 'utf8'));
 
 /** R-85 : une tech aléatoire disponible (non débloquée, prérequis satisfaits). */
 function pickResearch(player) {
@@ -40,6 +46,36 @@ function pickResearch(player) {
   );
   if (available.length === 0) return null;
   return available[Math.floor(Math.random() * available.length)];
+}
+
+/**
+ * Phase 7e : un item de production aléatoire VALIDE pour la ville (R-87) —
+ * unités implémentées non obsolètes + bâtiments non possédés dont le
+ * prérequis de bâtiment est satisfait. Le Colon exige la population officielle
+ * (2 — R-112) ; le serveur revalide tout de toute façon.
+ */
+function pickProduction(city, player) {
+  const unlocked = player.techsUnlocked ?? [];
+  const obsolete = new Set();
+  for (const techId of unlocked) for (const u of TECHS[techId]?.obsoleteUnits ?? []) obsolete.add(u);
+  const options = [];
+  for (const u of Object.values(UNITS)) {
+    if (u.implemented === false) continue;
+    if (u.tech && !unlocked.includes(u.tech)) continue;
+    if (obsolete.has(u.id)) continue;
+    if ((u.populationCost ?? 0) > 0 && city.pop < u.populationCost) continue;
+    options.push({ kind: 'unit', id: u.id });
+  }
+  for (const b of Object.values(BUILDINGS)) {
+    if (b.fixed || b.implemented === false) continue;
+    if (city.buildings.includes(b.id)) continue;
+    if (b.replaces && city.buildings.includes(b.replaces)) continue;
+    if (b.tech && !unlocked.includes(b.tech)) continue;
+    if (b.requiresBuilding && !city.buildings.includes(b.requiresBuilding)) continue;
+    options.push({ kind: 'building', id: b.id });
+  }
+  if (options.length === 0) return null;
+  return options[Math.floor(Math.random() * options.length)];
 }
 
 const PROTO = 1;
@@ -206,7 +242,19 @@ async function main() {
         research = tech.id;
       }
     }
-    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s) de position, ${fortifies} fortification(s), ${reassigns} réassignation(s).`);
+    // Phase 7e (L2) : villes sans file de production → un item aléatoire
+    // valide (R-87 inchangé : le moteur filtre et revalide à la résolution).
+    let productions = 0;
+    for (const city of myCities) {
+      const pendingProd = snapshot.orders.some((o) => o.type === 'SetProduction' && o.cityId === city.id);
+      if (city.production || pendingProd) continue;
+      const item = pickProduction(city, me ?? {});
+      if (item) {
+        send({ type: 'SubmitOrder', order: { type: 'SetProduction', cityId: city.id, item } });
+        productions += 1;
+      }
+    }
+    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s) de position, ${fortifies} fortification(s), ${reassigns} réassignation(s), ${productions} production(s).`);
     send({ type: 'EndTurn' });
     lastEndedTurn = state.turn;
   }

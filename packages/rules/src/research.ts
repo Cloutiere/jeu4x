@@ -9,23 +9,39 @@
  * le débordement est reporté en réserve (R-85).
  */
 import { TECHS, prereqsMet } from './techs.js';
-import type { GameEvent } from './events.js';
-import type { GameState, PlayerId } from './state.js';
+import type { FirstDiscoveredPayload, GameEvent } from './events.js';
+import type { GameState, PlayerId, TileKey } from './state.js';
+import { applyFirstToDiscover } from './firstDiscovery.js';
+import { tileWorkable, tileYield, workRadiusOf } from './economy.js';
+import { hexDistance, hexesWithinRadius, tileKeyOf } from './hex.js';
 
 /** Événement TechResearched (sans seq — séquencé par l'appelant). */
 export type TechResearchedPayload = { type: 'TechResearched'; player: PlayerId; tech: string };
 
+/** Callbacks de complétion (l'appelant séquence ses événements). */
+export interface CompletionCallbacks {
+  onResearched?: (playerId: PlayerId, techId: string) => void;
+  /** 7e : appelée si le joueur est le PREMIER à compléter la tech — la
+   *  récompense est déjà appliquée à l'état (or, unité/bâtiment gratuit…).
+   *  `citiesToFill` : villes dont la population a augmenté (citoyens à
+   *  assigner selon le contexte de l'appelant). */
+  onFirstDiscovered?: (payload: FirstDiscoveredPayload, citiesToFill: string[]) => void;
+}
+
 /**
  * Crédite `amount` de science au joueur (Phase C — R-85). Mute `st` (état de
- * travail du moteur) ; `onResearched` est appelé à chaque complétion (l'appelant
- * émet l'événement `TechResearched` avec sa propre séquence).
+ * travail du moteur) ; `callbacks.onResearched` est appelé à chaque complétion
+ * (l'appelant émet l'événement `TechResearched` avec sa propre séquence) et
+ * `callbacks.onFirstDiscovered` après application de la récompense 7e.
  */
 export function creditScience(
   st: GameState,
   playerId: PlayerId,
   amount: number,
-  onResearched?: (playerId: PlayerId, techId: string) => void,
+  callbacks?: CompletionCallbacks | ((playerId: PlayerId, techId: string) => void),
 ): void {
+  // Rétrocompatibilité : l'ancien appelant passait une fonction unique.
+  const cb: CompletionCallbacks = typeof callbacks === 'function' ? { onResearched: callbacks } : (callbacks ?? {});
   if (amount <= 0) return;
   const player = st.players[playerId];
   if (!player) return;
@@ -54,7 +70,48 @@ export function creditScience(
   player.techsUnlocked.sort();
   player.researching = null;
   player.scienceStored += overflow;
-  onResearched?.(playerId, tech.id);
+  cb.onResearched?.(playerId, tech.id);
+  // 7e · Premier découvrir : récompense appliquée ici, événement émis par
+  // l'appelant. L'assignation des nouveaux citoyens reste à l'appelant
+  // (pendingFill en résolution, remplissage append-only pour l'action
+  // immédiate — jamais de re-assignation globale, règle d'Erik R-60).
+  let citiesFilled: string[] = [];
+  applyFirstToDiscover(st, playerId, tech.id, (payload, cities) => {
+    citiesFilled = cities;
+    cb.onFirstDiscovered?.(payload, cities);
+  });
+  for (const cityId of citiesFilled) appendFillWorkedTiles(st, cityId);
+}
+
+/** Remplissage APPEND-ONLY des citoyens manquants (miroir de fillWorkedTiles
+ *  du moteur, hors Board — utilisé par les actions immédiates du serveur). */
+function appendFillWorkedTiles(st: GameState, cityId: string): void {
+  const city = st.cities[cityId];
+  if (!city) return;
+  const radius = workRadiusOf(city.buildings);
+  const cityHex = { q: city.q, r: city.r };
+  const taken = new Set<TileKey>();
+  for (const c of Object.values(st.cities)) {
+    for (const key of c.workedTiles) taken.add(key);
+    taken.add(`${c.q},${c.r}`);
+  }
+  const candidates = hexesWithinRadius(cityHex, radius)
+    .filter((h) => hexDistance(cityHex, h) >= 1)
+    .map((h) => ({ key: tileKeyOf(h), hex: h }))
+    .filter(({ key }) => tileWorkable(st.map, key) && !taken.has(key) && !city.workedTiles.includes(key))
+    .map(({ key, hex }) => ({ key, hex, y: tileYield(st.map, city.buildings, key, st.players[city.owner]?.techsUnlocked ?? [])! }))
+    .sort(
+      (a, b) =>
+        b.y.food - a.y.food ||
+        b.y.production - a.y.production ||
+        b.y.commerce - a.y.commerce ||
+        (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+    );
+  for (const c of candidates) {
+    if (city.workedTiles.length >= city.pop) break;
+    city.workedTiles.push(c.key);
+    taken.add(c.key);
+  }
 }
 
 export type SetResearchResult =
@@ -83,9 +140,15 @@ export function applySetResearch(input: GameState, playerId: PlayerId, techId: s
   const stored = player.scienceStored;
   if (stored > 0) {
     player.scienceStored = 0;
-    creditScience(st, playerId, stored, (pid, tid) => {
-      st.lastEventSeq += 1;
-      events.push({ seq: st.lastEventSeq, type: 'TechResearched', player: pid, tech: tid });
+    creditScience(st, playerId, stored, {
+      onResearched: (pid, tid) => {
+        st.lastEventSeq += 1;
+        events.push({ seq: st.lastEventSeq, type: 'TechResearched', player: pid, tech: tid });
+      },
+      onFirstDiscovered: (payload) => {
+        st.lastEventSeq += 1;
+        events.push({ ...payload, seq: st.lastEventSeq });
+      },
     });
   }
   return { ok: true, state: st, events };

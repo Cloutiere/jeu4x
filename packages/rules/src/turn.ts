@@ -38,13 +38,15 @@ import {
   GROWTH_BASE,
   MIN_CITY_DISTANCE,
   POP_PRODUCTION_BONUS,
+  RANGED_RANGE,
   SETTLER_BOOTY_GOLD,
   VILLAGE_DESTRUCTION_GOLD,
 } from './constants.js';
 import type { DestructionCause, GameEvent, HutReward } from './events.js';
 import { creditScience } from './research.js';
-import { conversionGains, CONVERSION_DEFAULT } from './conversion.js';
-import { isUnlocked, productionDataOf } from './techs.js';
+import { conversionGains, CONVERSION_DEFAULT, goldMultOf, scienceMultOf } from './conversion.js';
+import { canSetProduction, buildingCostDiscount } from './techs.js';
+import { applyFirstToDiscover, empirePerCityBonus } from './firstDiscovery.js';
 import {
   barbarianOrders,
   barbarianUnitType,
@@ -380,6 +382,20 @@ function terrainDefenseBonus(board: Board, hex: Hex): number {
 }
 
 /**
+ * 7e · Défense de ville des BÂTIMENTS (data-driven : `cityDefenseBonus`) —
+ * s'ajoute au bonus de la case de ville (T-02) dans S_def du défenseur en
+ * garnison (Palais +50 %, Remparts +100 %). Le bonus ne profite qu'au
+ * propriétaire de la ville.
+ */
+function cityBuildingDefenseBonus(board: Board, hex: Hex, defenderOwner: PlayerId): number {
+  const city = cityAt(board, hex);
+  if (!city || city.owner !== defenderOwner) return 0;
+  let bonus = 0;
+  for (const id of city.buildings) bonus += BUILDINGS[id]?.cityDefenseBonus ?? 0;
+  return bonus;
+}
+
+/**
  * R-33 : applique les ordres de fortification et les annulations associées.
  *  - `Fortify` → l'unité est fortifiée (état persistant), tout chemin gelé est
  *    effacé (une unité fortifiée ne bouge pas) ;
@@ -459,10 +475,14 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
   const noRiposte = isRanged(attacker) && !isRanged(defender);
   const sAtt = effectiveStrength(aStats.attack, attacker.veteran);
   // T-17 : le bonus de fortification s'ajoute au bonus de terrain (RULES.md §7.4).
+  // 7e : le bonus de défense de ville des bâtiments (Palais, Remparts) s'ajoute
+  // pour le défenseur en garnison de SA ville.
   const sDef = effectiveStrength(
     dStats.defense,
     defender.veteran,
-    terrainDefenseBonus(board, combatTile) + (defender.fortified ? FORTIFY_DEFENSE_BONUS : 0),
+    terrainDefenseBonus(board, combatTile) +
+      (defender.fortified ? FORTIFY_DEFENSE_BONUS : 0) +
+      cityBuildingDefenseBonus(board, combatTile, defender.owner),
   );
   for (let i = 0; i < EXCHANGES_PER_ATTACK && attacker.hp > 0 && defender.hp > 0; i++) {
     if (noRiposte) {
@@ -563,6 +583,12 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
   }
   // Survie mutuelle (passe 1 de R-56) : le perdant est COLLECTÉ, l'allocation
   // des cases de repli est globale, après la fin de tous les combats.
+  if (isRanged(attacker)) {
+    // R-59-a : l'attaquant à distance attaque DEPUIS SA CASE (exception à
+    // R-52) — survie mutuelle, il reste simplement en place (il n'a jamais
+    // quitté sa case, aucun repli n'est dû).
+    return;
+  }
   if (isRanged(defender)) {
     // R-59-d : le défenseur à distance qui ne vainc pas cède systématiquement sa case.
     board.pendingRetreats.push({
@@ -993,16 +1019,29 @@ function allOrdersFlattened(ordersByPlayer: Record<PlayerId, Order[]>): Order[] 
 // Phase C — économie (RULES.md §8, révision Phase 6 : R-60/R-61/R-63/R-66)
 // ---------------------------------------------------------------------------
 
-/** Coût d'un item de production (unité ou bâtiment), null si id inconnu. */
-function productionItemCost(item: ProductionItem): number | null {
+/**
+ * Coût d'un item de production (unité ou bâtiment), null si id inconnu.
+ * 7e : les réductions de coût du Premier découvrir (Communisme −33 % Usines,
+ * Réseautage −50 % Universités) s'appliquent quand le contexte joueur est
+ * fourni — plafonnées à 90 %, coût minimal 1 (déterminisme, R-81).
+ */
+function productionItemCost(item: ProductionItem, st?: GameState, playerId?: PlayerId): number | null {
+  let cost: number | null;
   if (item.kind === 'unit') {
     try {
-      return unitType(item.id).cost;
+      cost = unitType(item.id).cost;
     } catch {
       return null;
     }
+  } else {
+    cost = BUILDINGS[item.id]?.cost ?? null;
   }
-  return BUILDINGS[item.id]?.cost ?? null;
+  if (cost === null) return null;
+  if (st && playerId && item.kind === 'building') {
+    const discount = buildingCostDiscount(item.id, st.firstBy, playerId);
+    if (discount > 0) cost = Math.max(1, Math.round(cost * (1 - discount)));
+  }
+  return cost;
 }
 
 /** La ville possède-t-elle déjà ce bâtiment ? (R-66 : non duplicable) */
@@ -1081,12 +1120,11 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
       const city = board.st.cities[order.cityId];
       if (!city || city.owner !== playerId) continue;
       if (productionItemCost(order.item) === null) continue;
-      // R-87 : item verrouillé (tech non débloquée ou non implémenté) refusé.
-      const pdata = productionDataOf(order.item);
+      // R-87 (étendue 7e) : item verrouillé refusé — tech non débloquée, non
+      // implémenté, unité OBSOLÈTE, bâtiment fixe (Palais), prérequis de
+      // bâtiment manquant (Banque sans Marché) ou déjà possédé (R-66).
       const research = board.st.players[playerId]!;
-      if (!pdata || !isUnlocked(pdata, research.techsUnlocked)) continue;
-      // R-66 : un bâtiment déjà possédé n'est pas (re)constructible.
-      if (order.item.kind === 'building' && hasBuilding(city, order.item.id)) continue;
+      if (!canSetProduction(order.item, research.techsUnlocked, city.buildings)) continue;
       setOrders.push(order);
     }
   }
@@ -1255,7 +1293,7 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       foodStored: 0,
       production: null,
       workedTiles: [],
-      buildings: [],
+      buildings: !ownerHasCity ? ['palais'] : [], // 7e : le Palais ne vit que dans la capitale
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
@@ -1287,55 +1325,93 @@ function processEconomy(board: Board): void {
     const city = board.st.cities[cityId]!;
     const player = board.st.players[city.owner]!;
 
+    // 7e · Premier découvrir : bonus d'empire par ville (Littératie +1 science,
+    // Chemin de fer +2 production, Industrialisation +5 or…). Le volet culture
+    // est ignoré tant que le moteur culturel n'existe pas (7f).
+    const empireBonus = empirePerCityBonus(board.st, city.owner);
+
     // Rendements : centre-ville automatique et gratuit + Σ cases travaillées
     // (base §2 + bonus bâtiments par terrain travaillé R-66 + bonus ressource
     // si le propriétaire y a accès, R-93).
     const cityTile = TERRAINS['ville']!.yields!;
     let food = cityTile.food;
-    let rawProduction = cityTile.production;
-    let commerce = cityTile.commerce;
+    let rawProduction = cityTile.production + empireBonus.production;
+    let commerce = cityTile.commerce + empireBonus.commerce;
     for (const key of city.workedTiles) {
       const y = tileYield(board.st.map, city.buildings, key, player.techsUnlocked)!;
       food += y.food;
       rawProduction += y.production;
       commerce += y.commerce;
     }
-    const prodMult = 1 + POP_PRODUCTION_BONUS * (city.pop - 1); // R-63 🔶
+    // 7e · Multiplicateurs de production (Usine ×2, data-driven).
+    let factoryMult = 1;
+    for (const b of city.buildings) factoryMult = Math.max(factoryMult, BUILDINGS[b]?.productionMult ?? 1);
+    const prodMult = factoryMult * (1 + POP_PRODUCTION_BONUS * (city.pop - 1)); // R-63 🔶
     const production = Math.floor(rawProduction * prodMult);
     // R-90 révisée (Phase 7b) : le commerce est converti en TOTALITÉ en or ou
-    // en science selon le choix de la ville (R-88 : la Bibliothèque modifie
-    // la conversion). Amende R-61 : plus de curseur global.
+    // en science selon le choix de la ville. 7e : Marché ×2 / Banque ×4 or,
+    // Bibliothèque ×1,5 / Université ×4 science (data-driven, conversion.ts).
     const gains = conversionGains(commerce, city.conversion, city.buildings);
-    player.gold += gains.gold;
+    player.gold += gains.gold + empireBonus.gold;
     // R-85 : la science alimente la tech courante (progression par tech,
     // débordement reporté) ou la réserve si aucun choix (`scienceStored`).
-    creditScience(board.st, city.owner, gains.science, (pid, techId) => {
-      emit(board, { type: 'TechResearched', player: pid, tech: techId });
+    // 7e : à la complétion, la récompense de Premier découvrir est appliquée
+    // (firstDiscovery.ts) ; les nouveaux citoyens sont auto-assignés ici.
+    creditScience(board.st, city.owner, gains.science + empireBonus.science, {
+      onResearched: (pid, techId) => {
+        emit(board, { type: 'TechResearched', player: pid, tech: techId });
+      },
+      onFirstDiscovered: (payload, citiesToFill) => {
+        emit(board, payload);
+        for (const id of citiesToFill) board.pendingFill.add(id);
+      },
     });
 
     // R-63 : croissance au seuil 10 × pop (T-15) ; +1 pop = +1 citoyen
     // (auto-assigné) et +T-16 production par pop au-delà de la première.
+    // 7e · Aqueduc : seuil réduit d'un tiers (data-driven 🔶).
+    let growthReduction = 0;
+    for (const b of city.buildings) {
+      growthReduction = Math.max(growthReduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
+    }
     city.foodStored += food;
-    let threshold = GROWTH_BASE * city.pop;
+    let threshold = Math.max(1, Math.round(GROWTH_BASE * city.pop * (1 - growthReduction)));
     while (city.foodStored >= threshold) {
       city.foodStored -= threshold;
       city.pop += 1;
       emit(board, { type: 'PopulationGrew', cityId, owner: city.owner, pop: city.pop, at: { q: city.q, r: city.r } });
       if (city.workedTiles.length < city.pop) fillWorkedTiles(board, city, taken);
-      threshold = GROWTH_BASE * city.pop;
+      threshold = Math.max(1, Math.round(GROWTH_BASE * city.pop * (1 - growthReduction)));
     }
 
     // R-62/R-66 : un seul item, progression conservée ; unité posée sur la
     // case de ville (si libre), bâtiment ajouté à la ville (permanent).
     if (city.production) {
-      const cost = productionItemCost(city.production.item);
+      const cost = productionItemCost(city.production.item, board.st, city.owner);
       if (cost !== null) {
         city.production.progress += production;
         if (city.production.progress >= cost) {
           if (city.production.item.kind === 'unit') {
             const stats = unitType(city.production.item.id);
             const hex = { q: city.q, r: city.r };
-            if (!occupiedByUnit(board, hex)) {
+            // 7e · Coût en population (comportement officiel CivRev adopté
+            // par Erik : le Colon consomme 2 population à sa PRODUCTION) —
+            // la ville garde au moins 1 citoyen ; pop insuffisante = en attente.
+            const popCost = stats.populationCost ?? 0;
+            const popAvailable = city.pop >= Math.max(1, popCost);
+            if (!occupiedByUnit(board, hex) && popAvailable) {
+              if (popCost > 0) {
+                city.pop = Math.max(1, city.pop - popCost);
+                city.workedTiles = city.workedTiles.slice(0, city.pop);
+                emit(board, {
+                  type: 'PopulationConsumed',
+                  cityId,
+                  owner: city.owner,
+                  pop: city.pop,
+                  byUnitType: stats.id,
+                  at: hex,
+                });
+              }
               const unitId = nextId(board.st.units, 'u');
               board.st.units[unitId] = {
                 id: unitId,
@@ -1346,8 +1422,8 @@ function processEconomy(board: Board): void {
                 hp: stats.hpMax,
                 mp: stats.movement,
                 // R-89 (Phase 7b) : la Caserne rend les unités produites
-                // vétérans — hors Colon (pacifique, pas de combat).
-                veteran: hasBuilding(city, 'caserne') && city.production.item.id !== 'colon',
+                // vétérans — hors pacifiques (pas de combat).
+                veteran: hasBuilding(city, 'caserne') && stats.canAttack,
                 isArmy: false,
                 order: null,
                 detainedBy: null,
@@ -1363,12 +1439,18 @@ function processEconomy(board: Board): void {
               });
               city.production = null; // 🔶 file vidée après complétion
             } else {
-              city.production.progress = cost; // en attente 🔶
+              city.production.progress = cost; // en attente 🔶 (case occupée ou pop insuffisante)
             }
           } else {
             // Bâtiment (R-66) : permanent, non duplicable, aucun besoin de case.
+            // 7e · Remplacement : la Banque RETIRE le Marché de la ville (idem
+            // Université/Bibliothèque, Cathédrale/Temple).
             const buildingId = city.production.item.id;
             if (!hasBuilding(city, buildingId)) {
+              const replaced = BUILDINGS[buildingId]?.replaces;
+              if (replaced && hasBuilding(city, replaced)) {
+                city.buildings = city.buildings.filter((b) => b !== replaced);
+              }
               city.buildings.push(buildingId);
               emit(board, {
                 type: 'BuildingCompleted',
@@ -1496,7 +1578,10 @@ export function resolveTurn(
     if (!enemy) continue; // pas d'ennemi présent → fizzle
     if (!areAtWar(st, unit.owner, enemy.owner)) continue; // R-58-a 🔶 (Phase 7)
     if (isPeaceful(unit)) continue; // R-43 : un pacifique n'attaque jamais
-    if (hexDistance(unit, target) !== 1) continue; // cible non adjacente
+    // R-59 : une unité à distance attaque depuis sa case, portée T-13 🔶
+    // (1 = adjacente en v1) — la mêlée exige le contact.
+    const range = isRanged(unit) ? RANGED_RANGE : 1;
+    if (hexDistance(unit, target) > range) continue; // cible hors de portée
     if (unit.mp < 1) continue;
     unit.mp -= 1;
     board.planned.push({ kind: 'attack', at: target, attackerId: unit.id, defenderId: enemy.id });
@@ -1520,7 +1605,9 @@ export function resolveTurn(
       const attacker = st.units[plan.attackerId];
       const defender = st.units[plan.defenderId];
       if (!attacker || !defender) continue; // l'un est mort entre-temps
-      if (hexDistance(attacker, defender) > 1) continue; // plus au contact
+      // R-59 : portée T-13 pour l'attaquant à distance, contact sinon.
+      const range = isRanged(attacker) ? RANGED_RANGE : 1;
+      if (hexDistance(attacker, defender) > range) continue; // plus au contact
       resolveAttack(board, attacker, defender, { q: defender.q, r: defender.r });
     } else if (plan.kind === 'villageAttack') {
       // R-96 (Phase 7d) : le village défend sa case s'il est toujours debout.
