@@ -1558,6 +1558,142 @@ def res_inconnue(d):
 # ---------------------------------------------------------------- génération
 
 
+def unite_galere(db, da, w, h):
+    """256x320, Galère (R-117) : coque de bois, rames, voile carrée (accent)."""
+    cx, ground = 128, 240
+    shadow(db, cx, ground + 6, 96)
+    # coque
+    db.poly([(cx - 100, ground - 46), (cx + 100, ground - 46), (cx + 78, ground - 6),
+             (cx - 78, ground - 6)], fill=BOIS, outline=INK, width=2.5)
+    db.poly([(cx - 100, ground - 46), (cx - 40, ground - 46), (cx - 52, ground - 6),
+             (cx - 78, ground - 6)], fill=BOIS_CLAIR)
+    # vergue + voile carrée (accent)
+    db.line([(cx, ground - 190), (cx, ground - 50)], fill=BOIS, width=7)
+    db.line([(cx - 62, ground - 184), (cx + 62, ground - 184)], fill=BOIS, width=6)
+    db.poly([(cx - 56, ground - 180), (cx + 56, ground - 180), (cx + 48, ground - 84),
+             (cx - 48, ground - 84)], fill="#E8DCC2", outline=INK, width=2)
+    da.poly([(cx - 56, ground - 180), (cx + 56, ground - 180), (cx + 48, ground - 84),
+             (cx - 48, ground - 84)], fill="#FFFFFF")
+    # éper de proue + rames
+    db.poly([(cx - 118, ground - 40), (cx - 98, ground - 40), (cx - 98, ground - 28)],
+            fill="#9EA6B2", outline=INK, width=1.5)
+    for i in range(5):
+        y = ground - 38 + i * 6
+        db.line([(cx - 88, y), (cx - 128, y - 2)], fill=BOIS_CLAIR, width=4)
+        db.line([(cx + 88, y), (cx + 128, y - 2)], fill=BOIS_CLAIR, width=4)
+
+
+def unite_galion(db, da, w, h):
+    """256x320, Galion (R-117) : haut bord, deux mâts, grand foc (accent)."""
+    cx, ground = 128, 240
+    shadow(db, cx, ground + 6, 100)
+    db.poly([(cx - 104, ground - 56), (cx + 104, ground - 56), (cx + 82, ground - 8),
+             (cx - 82, ground - 8)], fill=BOIS, outline=INK, width=2.5)
+    db.poly([(cx + 104, ground - 56), (cx + 82, ground - 8), (cx + 96, ground - 6),
+             (cx + 116, ground - 52)], fill=BOIS_CLAIR)
+    # château arrière
+    db.rrect((cx - 84, ground - 84, cx - 30, ground - 54), 4, fill=BOIS_CLAIR, outline=INK, width=1.5)
+    # deux mâts + voiles (accent sur le grand mât)
+    for mx, top in ((cx - 26, ground - 150), (cx + 34, ground - 200)):
+        db.line([(mx, top), (mx, ground - 52)], fill=BOIS, width=6)
+    db.poly([(cx - 66, ground - 146), (cx + 12, ground - 146), (cx + 6, ground - 84),
+             (cx - 60, ground - 84)], fill="#E8DCC2", outline=INK, width=2)
+    db.poly([(cx + 34, ground - 196), (cx + 92, ground - 196), (cx + 84, ground - 120),
+             (cx + 28, ground - 120)], fill="#E8DCC2", outline=INK, width=2)
+    da.poly([(cx + 34, ground - 196), (cx + 92, ground - 196), (cx + 84, ground - 120),
+             (cx + 28, ground - 120)], fill="#FFFFFF")
+    # pavillon
+    db.poly([(cx + 34, ground - 214), (cx + 66, ground - 208), (cx + 34, ground - 200)],
+            fill="#C25B5B", outline=INK, width=1)
+
+
+def unite_croiseur(db, da, w, h):
+    """256x320, Croiseur (R-117/R-118) : coque grise, tourelle avant, cheminée (accent)."""
+    cx, ground = 128, 240
+    shadow(db, cx, ground + 6, 100)
+    db.poly([(cx - 112, ground - 44), (cx + 112, ground - 44), (cx + 86, ground - 10),
+             (cx - 86, ground - 10)], fill=GRIS_ARMURE, outline=INK, width=2.5)
+    db.poly([(cx - 112, ground - 44), (cx - 40, ground - 44), (cx - 52, ground - 10),
+             (cx - 86, ground - 10)], fill=GRIS_NEUTRE)
+    # superstructure + passerelle
+    db.rrect((cx - 44, ground - 78, cx + 40, ground - 42), 4, fill="#8E8E98", outline=INK, width=1.5)
+    db.rrect((cx - 18, ground - 100, cx + 14, ground - 76), 3, fill=GRIS_NEUTRE, outline=INK, width=1.5)
+    # cheminée (accent)
+    db.rrect((cx - 8, ground - 118, cx + 14, ground - 96), 3, fill="#5E5E68", outline=INK, width=1.5)
+    da.rrect((cx - 8, ground - 118, cx + 14, ground - 96), 3, fill="#FFFFFF")
+    # tourelles
+    db.ellipse((cx + 48, ground - 62, cx + 88, ground - 36), fill=GRIS_ARMURE, outline=INK, width=1.5)
+    db.line([(cx + 68, ground - 50), (cx + 112, ground - 58)], fill="#3E3E48", width=4)
+    db.line([(cx + 68, ground - 50), (cx + 110, ground - 48)], fill="#3E3E48", width=4)
+    # mât radar
+    db.line([(cx - 2, ground - 100), (cx - 2, ground - 138)], fill=GRIS_NEUTRE, width=4)
+
+
+def unite_cuirasse(db, da, w, h):
+    """256x320, Cuirassé (R-117/R-118) : gros bordé, trois tourelles, mât lourd (accent)."""
+    cx, ground = 128, 240
+    shadow(db, cx, ground + 6, 108)
+    db.poly([(cx - 118, ground - 52), (cx + 118, ground - 52), (cx + 90, ground - 10),
+             (cx - 90, ground - 10)], fill="#5E5E68", outline=INK, width=3)
+    db.poly([(cx - 118, ground - 52), (cx - 44, ground - 52), (cx - 56, ground - 10),
+             (cx - 90, ground - 10)], fill="#6E6E78")
+    # superstructure blindée
+    db.rrect((cx - 50, ground - 92, cx + 44, ground - 50), 4, fill=GRIS_ARMURE, outline=INK, width=1.5)
+    db.rrect((cx - 16, ground - 118, cx + 18, ground - 90), 3, fill=GRIS_NEUTRE, outline=INK, width=1.5)
+    # mât lourd (accent)
+    db.line([(cx + 2, ground - 118), (cx + 2, ground - 168)], fill=GRIS_NEUTRE, width=5)
+    da.line([(cx + 2, ground - 118), (cx + 2, ground - 168)], fill="#FFFFFF", width=5)
+    # trois tourelles (deux canons chacune)
+    for tx in (cx - 84, cx + 56, cx + 96):
+        db.ellipse((tx - 18, ground - 66, tx + 18, ground - 44), fill=GRIS_ARMURE, outline=INK, width=1.5)
+        db.line([(tx, ground - 56), (tx + 26, ground - 62)], fill="#3E3E48", width=4)
+        db.line([(tx, ground - 56), (tx + 26, ground - 52)], fill="#3E3E48", width=4)
+
+
+def unite_sous_marin(db, da, w, h):
+    """256x320, Sous-marin (R-117) : coque noire effilée, kiosque, périscope (accent)."""
+    cx, ground = 128, 240
+    shadow(db, cx, ground + 6, 92)
+    # coque effilée
+    db.ellipse((cx - 104, ground - 52, cx + 104, ground - 16), fill="#3A3A42", outline=INK, width=2.5)
+    db.ellipse((cx - 104, ground - 52, cx + 20, ground - 16), fill="#2C2C34")
+    # kiosque + périscope (accent)
+    db.rrect((cx - 16, ground - 82, cx + 24, ground - 50), 5, fill="#4A4A54", outline=INK, width=1.5)
+    db.line([(cx + 6, ground - 82), (cx + 6, ground - 112)], fill=GRIS_NEUTRE, width=4)
+    da.line([(cx + 6, ground - 82), (cx + 6, ground - 112)], fill="#FFFFFF", width=4)
+    db.line([(cx + 6, ground - 112), (cx + 20, ground - 106)], fill=GRIS_NEUTRE, width=3)
+    # hélice + gouvernail
+    db.poly([(cx - 104, ground - 44), (cx - 124, ground - 52), (cx - 124, ground - 20),
+             (cx - 104, ground - 24)], fill="#4A4A54", outline=INK, width=1.5)
+    for i in range(4):
+        db.ellipse((cx - 40 + i * 22, ground - 40, cx - 30 + i * 22, ground - 30), fill="#55555F")
+
+
+def unite_espion(db, da, w, h):
+    """256x320, Espion (R-119) : cape sombre, capuche, dague discrète (accent = fente d'yeux)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 46)
+    # cape longue et sombre
+    db.poly([(cx - 34, ground - 148), (cx + 34, ground - 148), (cx + 44, ground - 50),
+             (cx - 44, ground - 50)], fill="#3A3A46", outline=INK, width=2)
+    db.poly([(cx - 34, ground - 148), (cx - 6, ground - 148), (cx - 18, ground - 50),
+             (cx - 44, ground - 50)], fill="#2C2C36")
+    # capuche
+    db.pieslice((cx - 24, ground - 196, cx + 24, ground - 140), 140, 400,
+                fill="#3A3A46", outline=INK, width=2)
+    # fente d'yeux (accent)
+    db.ellipse((cx - 16, ground - 178, cx + 16, ground - 158), fill="#1A1A22")
+    da.ellipse((cx - 16, ground - 178, cx + 16, ground - 158), fill="#FFFFFF")
+    db.ellipse((cx - 8, ground - 174, cx + 2, ground - 164), fill="#B99B7E")
+    db.ellipse((cx + 6, ground - 174, cx + 16, ground - 164), fill="#B99B7E")
+    # dague dans le dos
+    db.line([(cx + 28, ground - 130), (cx + 52, ground - 176)], fill="#9EA6B2", width=6)
+    db.rrect((cx + 22, ground - 136, cx + 34, ground - 126), 2, fill=BOIS)
+    # ceinture d'outils
+    db.rrect((cx - 36, ground - 92, cx + 36, ground - 82), 3, fill="#231F1A")
+    db.rrect((cx - 6, ground - 100, cx + 6, ground - 74), 3, fill="#8A7A5A", outline=INK, width=1)
+
+
 def main():
     EXPORTS.mkdir(exist_ok=True)
 
@@ -1618,6 +1754,13 @@ def main():
         "unite_artiste": (256, 320, unite_artiste),
         "unite_penseur": (256, 320, unite_penseur),
         "batiment_nations_unies": (224, 256, batiment_nations_unies),
+        # Phase 7g — naval & espionnage (R-117..R-119).
+        "unite_galere": (256, 320, unite_galere),
+        "unite_galion": (256, 320, unite_galion),
+        "unite_croiseur": (256, 320, unite_croiseur),
+        "unite_cuirasse": (256, 320, unite_cuirasse),
+        "unite_sous_marin": (256, 320, unite_sous_marin),
+        "unite_espion": (256, 320, unite_espion),
     }
     icons = {
         "icone_or": icone_or,
@@ -1752,6 +1895,10 @@ for n in ["grenier", "atelier", "mine_de_fer", "comptoir_commercial", "port", "t
 # Phase 7e : unités terrestres complémentaires.
 for n in ["piquier", "catapulte", "chevalier", "fusilier", "canon",
           "infanterie_moderne", "char_d_assaut", "artillerie"]:
+    EXPECTED[f"unite_{n}.png"] = (256, 320)
+    EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
+# Phase 7g : naval & espionnage (R-117..R-119).
+for n in ["galere", "galion", "croiseur", "cuirasse", "sous_marin", "espion"]:
     EXPECTED[f"unite_{n}.png"] = (256, 320)
     EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
 # Phase 7f : GP de culture (Artiste, Penseur).

@@ -15,7 +15,7 @@
 - Victoire : **capture de la capitale adverse**. Défaite par forfait après `T-06` timers manqués.
 - v1 : **guerre permanente** entre les deux joueurs (pas de diplomatie jouable). Les règles diplomatiques (§7.7) sont écrites dès maintenant comme points d'accroche pour la Phase 7.
 - ~~Aucune unité à distance en v1~~ — **7e : R-59 implémentée réellement** (Catapulte, Canon, Artillerie, §7.8).
-- Hors v1 (Phase 7) : ~~arbre technologique~~ (entré en 7a, **complété en 7e** — §8.1), ~~autres unités terrestres~~ (entrées en 7e), naval, espionnage, merveilles, grandes personnes (7f/7g/7h). *(Barbares & huttes : entrés en v1 en Phase 7d — §7.9.)*
+- Hors v1 (Phase 7) : ~~arbre technologique~~ (entré en 7a, **complété en 7e** — §8.1), ~~autres unités terrestres~~ (entrées en 7e), ~~naval & espionnage~~ (entrés en 7g — §8.6), merveilles (7f/7h), grandes personnes (culture 7f — R-114 ; or/science/production/combat 7h). *(Barbares & huttes : entrés en v1 en Phase 7d — §7.9.)*
 
 ## 2. Terrains (révision économique du 30/08 — décision d'Erik, modèle Civ Revolution)
 
@@ -27,8 +27,8 @@
 | Colline | oui | +50 % | **0/1/0** | Atelier | +2 Production |
 | Montagne | **non** (mais **travaillable par les villes**) | — | **0/1/0** | Mine de fer | +4 Production |
 | Désert *(nouveau)* | oui | 0 % | **0/0/1** | Comptoir commercial | +2 Commerce |
-| Mer *(côte — l'ex-« eau », productive)* | **non** (naval en Phase 7) | — | **0/0/2** | Port | +1 Nourriture |
-| Océan *(nouveau 6c — eau profonde)* | **non** (naval en Phase 7) | — | **0/0/2** | — | — |
+| Mer *(côte — l'ex-« eau », productive)* | **naval uniquement** (R-117, 7g) | — | **0/0/2** | Port | +1 Nourriture |
+| Océan *(nouveau 6c — eau profonde)* | **naval uniquement** (R-117, 7g) | — | **0/0/2** | — | — |
 | Case de ville | oui | +50 % (T-02) | 2/1/1 | — | — |
 
 - **C** = commerce : la matière première répartie entre **or** et **science** par le curseur global (R-61). Le champ `gold` des données reste le support du commerce.
@@ -117,8 +117,8 @@ Déclenchée quand **les deux joueurs ont verrouillé** ou à l'**échéance du 
 - case **vide** → l'unité avance ;
 - case occupée par une entité **ennemie stationnaire** (n'ayant pas bougé ce tour) → l'unité **entre** sur la case, un **combat d'attaque** est planifié (§7.2) ;
 - case visée simultanément par un **mover ennemi** déjà arrivé ce tour (le premier occupant a bougé ce tour) → **collision** planifiée (§7.3) ;
-- case occupée par une entité **amie** → l'unité s'arrête sur la case précédente (R-30) ;
-- étape hors carte / terrain infranchissable → chemin invalide, l'unité s'arrête.
+- case occupée par une entité **amie** → l'unité s'arrête sur la case précédente (R-30) — **exception 7g** : si l'occupant ami est un transport à cargaison libre, l'unité terrestre **embarque** (R-117) ;
+- étape hors carte / terrain infranchissable **pour elle** (l'eau est praticable pour les unités navales — R-117) → chemin invalide, l'unité s'arrête.
 
 **R-43 · Unités pacifiques (Colon ; plus tard Espion, Caravane).** Non-combattantes : elles n'attaquent jamais et n'entrent pas dans un combat. Si leur déplacement aboutit sur une case qui sera occupée par un ennemi (déjà prise ou contestée par un mover adverse), elles sont **capturées** — jamais de combat, jamais de comparaison de PV :
 - nations **en guerre** (cas v1) : l'unité est **détruite** et le vainqueur touche un **butin en or** (`T-12`) — décision du 29/08 : pas de conversion d'un colon adverse, trop fort ;
@@ -148,7 +148,7 @@ Déclenchée quand **les deux joueurs ont verrouillé** ou à l'**échéance du 
 ### 7.4 Formule de round
 
 ```
-S_att = A × (1 + T-01 si vétéran)
+S_att = A × (1 + T-01 si vétéran) [+ soutien naval R-118, 7g]
 S_def = D × (1 + T-01 si vétéran) × (1 + bonus défensif du terrain + T-17 si fortifiée + bâtiments de ville)
 p (l'attaquant touche) = S_att² / (S_att² + S_def²)
 roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaquant perd 1 PV
@@ -387,6 +387,37 @@ Base documentaire : la spécification d'Erik [`Culture dans Civilization Revolut
 **R-115 · Installation et jalons.** Ordre **`InstallPerson {unitId, cityId}`** (Phase C) : un GP situé sur la case de sa ville ou **adjacente** s'**installe définitivement** — l'unité est consommée, **+1 jalon** au joueur (`player.cultureMilestones`), événements `InstallPerson` puis `CultureMilestone`. **Merveille contrôlée = 1 jalon** (dynamique) : +1 à la construction ou à la capture, −1 si la ville hôte est prise ou rasée ; les merveilles **survivent à la capture** et changent simplement de propriétaire (champ `city.wonders` — les bâtiments, eux, sont perdus R-66) ; les jalons des GP installés sont **définitifs** (le vol par Espion, 7g, est la seule perte prévue). Chaque variation émet `CultureMilestone {player, delta, total, reason}` (`install` | `wonderBuilt` | `wonderCaptured` | `wonderLost`). Jalons visibles dans l'UI (X/20).
 
 **R-116 · Nations Unies et victoire culturelle.** Merveille **unique à l'empire**, coût **`T-28`** (🔶 300, `nations_unies.cost`), **verrouillée sous 20 jalons**, **non accélérable** (aucun GP ne peut hâter le chantier — la mécanique d'accélération n'existe pas encore). **Suspension** : si les jalons retombent sous 20 pendant la construction (capture d'une ville hôte de merveille), la progression est **gelée** — les marteaux investis sont conservés 🔶 — jusqu'à repasser à 20. Complétion → **`Victory(reason:'culture')`**. **Merveilles actives en 7f** : **Stonehenge** (Temples ×1,5), **Colosse de Rhodes** (commerce de la ville hôte ×2, appliqué au commerce brut AVANT la conversion R-90), **Jardins suspendus** (+50 % de population immédiat — arrondi au plus proche, citoyens auto-assignés). Une merveille **obsolète** (R-110) est retirée du menu de production ; les exemplaires bâtis **conservent** leur effet et leur jalon. La production d'une merveille déjà possédée (ou déjà en chantier) dans l'empire est refusée ; une double complétion concurrente est un no-op documenté (la seconde ne compte pas).
+
+## 8.6 Naval & espionnage — Phase 7g (ajouté le 03/09/2026)
+
+Base : Appendice A (table des unités CivFanatics) et décisions de pilotage 7g d'Erik (03/09/2026) — **transport naval : 1 unité terrestre par Galère/Galion** ; **vol de GP : jalon retiré, escalade T-27 inchangée** ; **soutien naval : s'ajoute à S_att** ; **alternance Artiste/Penseur conservée** ; **rythme T-27 inchangé** (« Palais seul = 20 tours » — la culture exige la démographie, fidèle à CivRev). Unités activées en données : **Galère** (30, sans tech — disponible d'office), **Galion** (30, Navigation), **Croiseur** (40, Machine à vapeur), **Cuirassé** (80, Acier), **Sous-marin** (25, Électricité), **Espion** (25, Écriture). Les unités aériennes restent en données (`implemented:false` — 7h+).
+
+**R-117 · Mouvement naval.** L'eau devient praticable pour les unités `aquatic` UNIQUEMENT :
+- une unité navale entre sur une case d'eau si `terrain.navalAccess === "coast"` (côte), ou si (`terrain.navalAccess === "ocean"` ET `unité.navalAccess === "ocean"`) — **Galère : côte seule** ; **Galion/Croiseur/Cuirassé/Sous-marin : côte ET océan** (hook naval R-107). Les unités terrestres restent bloquées : **T-11 inchangé pour elles** ;
+- **ville portuaire** : une unité navale peut entrer sur la case d'une ville (amie — s'y abriter ; ennemie — l'attaquer/capturer) si la ville est **côtière** (adjacente à une case d'eau) ; la ville n'accepte qu'UNE entité de défense (R-30 : navale OU terrestre) ;
+- une unité navale ne quitte jamais l'eau : aucun terrain terrestre, **PAS de capture d'eau** (les cases d'eau ne sont jamais possédées ni travaillables comme ville) ; combats en mer possibles (mêlée R-51..R-55 ; bonus défensif des terrains d'eau : 0) ;
+- les cases d'eau ne portent ni hutte ni village : aucun effet R-96/R-98 en mer ;
+- **production navale** : une ville NON côtière ne peut pas produire d'unité navale (refus moteur + UI « Requiert : accès à la mer » — interprétation 🔶 documentée) ;
+- **Transport (décision d'Erik)** : Galère et Galion ont une capacité de charge **`cargoCapacity: 1` unité terrestre** (champ data-driven) ; Croiseur/Cuirassé/Sous-marin : 0.
+  - **Embarquement** : une unité terrestre dont le pas de mouvement cible une case occupée par un transport AMI à cargaison libre **embarque** (coût 1 PM, événement `Embark`) — transport en mer ou dans une ville portuaire ; le chemin restant est gelé (repris au tour suivant).
+  - **À bord** (`unit.aboard` ↔ `transport.cargo`) : l'unité embarquée n'est plus une entité de carte — elle n'occupe pas, ne bloque pas, ne défend pas, ne se fait pas attaquer, n'ouvre rien, ne fonde rien, ne capture rien ; sa position **miroite** celle du transport ; elle régénère ses PM (Phase D) comme toute unité.
+  - **Débarquement** : un `Move` d'une unité embarquée dont le **premier pas** est une case TERRESTRE **libre** adjacente au transport débarque (coût 1 PM, événement `Disembark`) puis poursuit normalement (attaque incluse si PM restants) ; premier pas invalide → chemin effacé, l'unité reste à bord.
+  - **Naufrage** : la destruction du transport détruit sa cargaison (événement `UnitDestroyed`, cause `sunk`).
+  - Une armée navale (R-31) ne transporte rien (`cargoCapacity` ignoré pour `isArmy` — interprétation documentée).
+
+**R-118 · Soutien naval.** Un combat **terrestre** (attaquant non-aquatic) adjacent à la côte reçoit en force d'attaque le **meilleur** `navalSupport` des unités navales AMIES occupant une case d'EAU adjacente à la case de combat (données 7e : Galion 15, Croiseur 35, Cuirassé 65) : `S_att = A × (1 + T-01 si vétéran) + navalSupport`. **Un seul navire compte** (MAX, pas de cumul — interprétation 🔶 documentée : 3 cuirassés adjacents ne valent pas un triple bombardement). Ne s'applique PAS aux combats NAVALS (le navire est lui-même l'attaquant) ni aux attaques de villages (R-96).
+
+**R-119 · Espionnage.** L'**Espion** (25, Écriture — pacifique 0/1/2, `spy: true`) s'infiltre via l'ordre **`SpyMission { unitId, cityId, mission: 'stealGreatPerson' }`** (Phase C) :
+- validation moteur : l'unité est un Espion au joueur ; la cible est une ville **ENNEMIE VISIBLE** (R-70, évaluée à la résolution) à **distance ≤ 1** — l'espion n'entre JAMAIS dans la ville (il serait capturé, R-43) ;
+- **vol de GP installé** (décision d'Erik : jalon retiré, escalade inchangée) : si la victime a au moins un jalon « GP installé » (`cultureMilestones − merveilles contrôlées > 0`, R-115) : la victime **perd 1 jalon** (raison `gpStolen`), le voleur en **gagne 1** (le GP est réputé installé d'office dans l'empire voleur — aucun `greatPersonsObtained` ne varie : **l'escalade T-27 est inchangée**) ; l'Espion est **consommé** (`UnitDestroyed`, cause `mission`) ;
+- **échec** (rien à voler — uniquement des merveilles — ou conditions non remplies) : événement `SpyMission { outcome: 'failed' }`, l'Espion **survit** (interprétation 🔶 documentée) ;
+- **détection reportée 7h** (Remparts, contre-espionnage) : la tranche 7g ne détecte pas — la mission réussit toujours quand les conditions sont remplies ;
+- interaction R-116 : si la victime construisait les Nations Unies et repasse sous 20 jalons, la **suspension** s'applique (déjà implémentée en 7f) ;
+- les nouveaux événements (`Embark`, `Disembark`, `SpyMission`, `GreatPersonStolen`) suivent R-73 (filtrés par le brouillard comme les autres).
+
+**R-120 · Victoires restantes (hors périmètre 7g).** Rappel de la matrice des victoires CivRev : **domination** (livrée, R-65), **culturelle** (livrée, R-116), **scientifique** (7h : Vaisseau spatial), **Banque mondiale** (7h+ : 20 000 or — mécanique non écrite).
+
+**Migration `schemaVersion` 10 → 11** : champs ADDITIFS d'unité `aboard: null` et `cargo: null` (les états migrés n'ont aucun transport actif — idempotent). Aucune nouvelle constante T-xx : capacité de charge et soutien naval sont des champs d'unités data-driven (`units.json`).
 
 ## 9. Phase D — Vision, soins, fin de tour
 

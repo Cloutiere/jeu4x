@@ -134,6 +134,8 @@ describe('R-114 · Personnages illustres de culture (seuil T-27 croissant)', () 
       order: null,
       detainedBy: null,
       fortified: true,
+      aboard: null, // 7g · R-117
+      cargo: null,
     };
     const { newState } = resolveTurn(state, {}, 1);
     const gp = Object.values(newState.units).find((u) => u.type === 'artiste');
@@ -166,6 +168,8 @@ describe('R-115 · Installation et jalons culturels', () => {
       order: null,
       detainedBy: null,
       fortified: false,
+      aboard: null, // 7g · R-117
+      cargo: null,
     };
     return state;
   }
@@ -233,6 +237,8 @@ describe('R-115 · Installation et jalons culturels', () => {
       order: null,
       detainedBy: null,
       fortified: false,
+      aboard: null, // 7g · R-117
+      cargo: null,
     };
     host.cities['c1']!.workedTiles = [];
     host.cities['c1']!.pop = Math.min(host.cities['c1']!.pop, 1);
@@ -371,7 +377,7 @@ describe('7f · Migration v9 → v10', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(10);
+    expect(out.schemaVersion).toBe(11); // la chaîne continue (7g)
     expect(out.cities['c1']!.cultureStored).toBe(0);
     expect(out.cities['c1']!.wonders).toEqual([]);
     expect(out.players['p1']!.cultureMilestones).toBe(0);
@@ -452,6 +458,8 @@ describe('7f · e2e : culture → GP → jalons → merveilles → ONU → victo
       order: null,
       detainedBy: null,
       fortified: false,
+      aboard: null, // 7g · R-117
+      cargo: null,
     };
     state.cities['c2']!.workedTiles = [];
     const { newState, events } = resolveTurn(state, {}, 1);

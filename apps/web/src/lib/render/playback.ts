@@ -74,6 +74,11 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   InstallPerson: 360,
   CultureMilestone: 320,
   WonderCompleted: 400,
+  // Phase 7g (R-117..R-119) : naval & espionnage.
+  Embark: 280,
+  Disembark: 280,
+  SpyMission: 420,
+  GreatPersonStolen: 480,
   TurnResolved: 140,
 };
 
@@ -101,6 +106,12 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   InstallPerson: 'good',
   WonderCompleted: 'good',
   CultureMilestone: 'info',
+  // Phase 7g (R-117..R-119) : naval & espionnage — un vol est bon pour le
+  // voleur… mais le toast est neutre (la victime le voit aussi).
+  Embark: 'info',
+  Disembark: 'info',
+  SpyMission: 'info',
+  GreatPersonStolen: 'bad',
 };
 
 const TOAST_LIFETIME = 4000;

@@ -254,6 +254,9 @@
     const state = scene.state;
     const seenUnits = new Set<string>();
     for (const unit of Object.values(state.units)) {
+      // 7g · R-117 : une unité EMBARQUÉE n'est pas rendue (elle est dans le
+      // navire — visible via le panneau du transport, indicateur de charge).
+      if (unit.aboard) continue;
       const key = tileKeyOf(unit);
       if (!scene.visible.has(key)) continue; // ennemi hors vision : absent de l'état de toute façon
       seenUnits.add(unit.id);
@@ -281,6 +284,9 @@
       // Marqueur écu de fortification (R-33).
       const shield = c.getChildByLabel('fortify');
       if (shield) shield.visible = unit.fortified === true;
+      // 7g · R-117 : indicateur de charge du transport.
+      const cargoDot = c.getChildByLabel('cargo');
+      if (cargoDot) cargoDot.visible = unit.cargo != null;
     }
     for (const [id, c] of unitSprites) {
       if (!seenUnits.has(id)) {
@@ -417,6 +423,13 @@
     shield.moveTo(0, -178).lineTo(12, -172).lineTo(12, -162).quadraticCurveTo(12, -152, 0, -148).quadraticCurveTo(-12, -152, -12, -162).lineTo(-12, -172).closePath().fill({ color: 0x90caf9 }).stroke({ width: 2, color: 0x1b3a5c });
     shield.visible = false;
     c.addChild(shield);
+    // 7g · R-117 : indicateur de CHARGE (petit point ambré) — visible quand le
+    // transport porte une unité embarquée.
+    const cargoDot = new Graphics();
+    cargoDot.label = 'cargo';
+    cargoDot.circle(30, -150, 7).fill({ color: 0xffcc80 }).stroke({ width: 2, color: 0x1b1b22 });
+    cargoDot.visible = false;
+    c.addChild(cargoDot);
     c.label = unitId;
     return c;
   }

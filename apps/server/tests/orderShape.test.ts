@@ -33,4 +33,13 @@ describe('orderShapeError · SetProduction (7f, merveilles)', () => {
     expect(orderShapeError({ type: 'InstallPerson', unitId: 'u10' })).not.toBeNull();
     expect(orderShapeError({ type: 'InstallPerson', cityId: 'c1' })).not.toBeNull();
   });
+
+  it('7g · R-119 : accepte SpyMission (vol de GP) et refuse mission/champs invalides', () => {
+    expect(
+      orderShapeError({ type: 'SpyMission', unitId: 'u3', cityId: 'c2', mission: 'stealGreatPerson' }),
+    ).toBeNull();
+    expect(orderShapeError({ type: 'SpyMission', unitId: 'u3', cityId: 'c2', mission: 'assassinate' })).not.toBeNull();
+    expect(orderShapeError({ type: 'SpyMission', unitId: 'u3', mission: 'stealGreatPerson' })).not.toBeNull();
+    expect(orderShapeError({ type: 'SpyMission', cityId: 'c2', mission: 'stealGreatPerson' })).not.toBeNull();
+  });
 });

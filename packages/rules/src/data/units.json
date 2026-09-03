@@ -234,7 +234,8 @@
     "canFoundCity": false,
     "isRanged": false,
     "tech": "ecriture",
-    "implemented": false
+    "implemented": true,
+    "spy": true
   },
   "caravane": {
     "id": "caravane",
@@ -267,7 +268,8 @@
     "aquatic": true,
     "navalAccess": "coast",
     "upgradeTo": "galion",
-    "implemented": false
+    "implemented": true,
+    "cargoCapacity": 1
   },
   "galion": {
     "id": "galion",
@@ -286,7 +288,8 @@
     "navalAccess": "ocean",
     "navalSupport": 15,
     "upgradeTo": "croiseur",
-    "implemented": false
+    "implemented": true,
+    "cargoCapacity": 1
   },
   "croiseur": {
     "id": "croiseur",
@@ -304,7 +307,7 @@
     "aquatic": true,
     "navalAccess": "ocean",
     "navalSupport": 35,
-    "implemented": false
+    "implemented": true
   },
   "cuirasse": {
     "id": "cuirasse",
@@ -322,7 +325,7 @@
     "aquatic": true,
     "navalAccess": "ocean",
     "navalSupport": 65,
-    "implemented": false
+    "implemented": true
   },
   "sous_marin": {
     "id": "sous_marin",
@@ -339,7 +342,7 @@
     "tech": "electricite",
     "aquatic": true,
     "navalAccess": "ocean",
-    "implemented": false
+    "implemented": true
   },
   "chasseur": {
     "id": "chasseur",

@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, wonderProductionIssue, empirePerCityBonus } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain } from '@game/rules';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -173,6 +173,16 @@
     view.state && engine ? view.state.players[engine]?.techsUnlocked ?? [] : ([] as string[]),
   );
 
+  /** 7g · R-117 : la ville est-elle côtière (adjacente à une case d'eau de
+   *  l'état filtré) ? Condition de production des unités navales. */
+  const cityCoastal = $derived.by(() => {
+    if (!city || !view.state) return false;
+    return neighbors(city).some((h) => {
+      const t = view.state!.map[`${h.q},${h.r}`]?.terrain;
+      return !!t && isWaterTerrain(t);
+    });
+  });
+
   interface ProdOption {
     item: ProductionItem;
     name: string;
@@ -206,16 +216,27 @@
   const unitOptions = $derived.by(() => {
     const options: ProdOption[] = [];
     for (const u of Object.values(UNIT_TYPES)) {
-      if (u.implemented === false) continue; // Espion, naval, aérien : pas proposés
+      if (u.implemented === false) continue; // Caravane, aériens, ICBM : pas proposés (7h+)
       if (u.greatPerson) continue; // 7f · R-114 : les GP ne sortent JAMAIS des files
       // 7e · R-110 : les unités obsolètes sont retirées du menu (CivRev).
       if (isUnitObsolete(u.id, techsUnlocked)) continue;
       const effect = u.id === 'colon'
         ? `Fonde une ville (consomme ${u.populationCost ?? 0} population)`
-        : u.isRanged
-          ? `${u.attack}/${u.defense}/${u.movement} — à distance`
-          : `${u.attack}/${u.defense}/${u.movement}`;
-      options.push(optionFor({ kind: 'unit', id: u.id }, u.name, u.cost, effect, u.tech ?? null));
+        : u.aquatic
+          ? `${u.attack}/${u.defense}/${u.movement} — naval (${u.navalAccess === 'ocean' ? 'côte + océan' : 'côte seule'})${u.cargoCapacity ? ' · transporte 1 unité terrestre' : ''}`
+          : u.isRanged
+            ? `${u.attack}/${u.defense}/${u.movement} — à distance`
+            : `${u.attack}/${u.defense}/${u.movement}`;
+      const opt = optionFor({ kind: 'unit', id: u.id }, u.name, u.cost, effect, u.tech ?? null);
+      if (u.aquatic) {
+        // 7g · R-117 : une unité navale exige une ville côtière (accès mer).
+        if (!cityCoastal) {
+          opt.unlocked = false;
+          opt.requires = 'Requiert : accès à la mer';
+          opt.eta = null;
+        }
+      }
+      options.push(opt);
     }
     return sortUnlockedFirst(options);
   });

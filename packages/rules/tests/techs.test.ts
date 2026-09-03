@@ -171,7 +171,7 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     }
   });
 
-  it('R-87 · au départ, seuls Guerrier et Colon sont constructibles (règle d’Erik)',
+  it('R-87 · au départ, seuls Guerrier, Colon et Galère sont constructibles (7g : tech null) (règle d’Erik)',
     () => {
       const none: string[] = [];
       for (const u of Object.values(unitTable)) {
@@ -181,7 +181,7 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
           none,
           [],
         );
-        if (['guerrier', 'colon'].includes(u.id)) expect(producible, u.id).toBe(true);
+        if (['guerrier', 'colon', 'galere'].includes(u.id)) expect(producible, u.id).toBe(true); // 7g : Galère sans tech
         else expect(producible, u.id).toBe(false);
       }
       for (const b of Object.values(buildingTable)) {
@@ -191,11 +191,15 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
       }
     });
 
-  it('Espion et Galère : données seules, non constructibles même débloquée', () => {
+  it('7g : Espion et navales ACTIVÉS ; Caravane reste une donnée seule (isUnlocked)', () => {
     expect(isUnlocked({ tech: 'ecriture', implemented: false }, ['ecriture'])).toBe(false);
     expect(isUnlocked({ tech: null, implemented: false }, [])).toBe(false);
-    expect(productionDataOf({ kind: 'unit', id: 'espion' })!.implemented).toBe(false);
-    expect(productionDataOf({ kind: 'unit', id: 'galere' })!.implemented).toBe(false);
+    expect(productionDataOf({ kind: 'unit', id: 'espion' })!.implemented).toBe(true);
+    expect(productionDataOf({ kind: 'unit', id: 'espion' })!.spy).toBe(true); // R-119
+    expect(productionDataOf({ kind: 'unit', id: 'galere' })!.implemented).toBe(true);
+    expect(productionDataOf({ kind: 'unit', id: 'galere' })!.cargoCapacity).toBe(1); // R-117 (Galion aussi)
+    expect(productionDataOf({ kind: 'unit', id: 'galion' })!.cargoCapacity).toBe(1);
+    expect(productionDataOf({ kind: 'unit', id: 'caravane' })!.implemented).toBe(false); // 7h
   });
 
   it('nouvelles unités terrestres 7e (Appendice A) : Archer 1/2/1 (10), Piquier 1/3/1, Catapulte à distance, Chevalier, Fusilier, Canon, Tank, Artillerie, Infanterie moderne', () => {

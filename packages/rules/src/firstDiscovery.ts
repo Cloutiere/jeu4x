@@ -137,6 +137,8 @@ export function applyFirstToDiscover(
           order: null,
           detainedBy: null,
           fortified: false,
+          aboard: null, // 7g · R-117
+          cargo: null,
         };
         payload.unitType = reward.unit;
         payload.unitIds = [unitId];

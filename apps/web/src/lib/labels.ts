@@ -11,8 +11,8 @@ export function greatPersonLabel(unitTypeId: string): string {
   return unitTypeId === 'artiste' ? 'Artiste illustre' : unitTypeId === 'penseur' ? 'Penseur illustre' : unitTypeId;
 }
 
-/** 7f · Raison d'une variation de jalons culturels. */
-function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost'): string {
+/** 7f · Raison d'une variation de jalons culturels (7g : + gpStolen, R-119). */
+function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'gpStolen'): string {
   switch (reason) {
     case 'install':
       return 'personnage installé';
@@ -22,6 +22,8 @@ function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCapture
       return 'merveille capturée';
     case 'wonderLost':
       return 'merveille perdue';
+    case 'gpStolen':
+      return 'personnage volé par un espion';
   }
 }
 
@@ -97,6 +99,17 @@ export function eventLabel(event: GameEvent): string {
       return `${event.delta > 0 ? '+' : ''}${event.delta} jalon culturel pour ${event.player} (${milestoneReasonLabel(event.reason)}) — total ${event.total}/20`;
     case 'WonderCompleted':
       return `Merveille achevée : ${event.wonder} dans ${event.cityId} (+1 jalon)`;
+    // 7g · R-117/R-119 : naval & espionnage.
+    case 'Embark':
+      return `${event.unitId} embarque à bord de ${event.transportId}`;
+    case 'Disembark':
+      return `${event.unitId} débarque en (${event.at.q},${event.at.r})`;
+    case 'SpyMission':
+      return event.outcome === 'success'
+        ? `L'espion ${event.unitId} a réussi sa mission dans ${event.cityId} !`
+        : `Mission d'espionnage échouée (${event.unitId} → ${event.cityId})`;
+    case 'GreatPersonStolen':
+      return `GP VOLÉ ! ${event.victim} perd un Personnage installé au profit de ${event.thief} (${event.cityId})`;
     case 'Victory': {
       const motifs: Record<string, string> = {
         domination: 'domination (capitale capturée)',

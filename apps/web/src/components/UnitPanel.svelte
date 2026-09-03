@@ -8,7 +8,7 @@
   import { MIN_CITY_DISTANCE, hexDistance, neighbors, unitType } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
-  import { myEngineId, ordersEditable, unitAtHex, cityAtHex } from '../lib/render/interaction.js';
+  import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
   import type { UiState } from '../lib/render/ui.js';
 
   interface Props {
@@ -82,6 +82,8 @@
         return o.tile ? `Citoyen vers (${o.tile})` : 'Citoyen retiré';
       case 'InstallPerson':
         return `Installation dans ${o.cityId}`;
+      case 'SpyMission':
+        return `Mission d'espionnage : ${o.cityId} (vol de GP)`;
     }
   }
 
@@ -109,6 +111,47 @@
     if (!unit) return;
     client.submitOrder({ type: 'InstallPerson', unitId: unit.id, cityId });
   }
+
+  /** 7g · R-117 : infos de transport — le navire sélectionné porte-t-il une
+   *  cargaison ? L'unité sélectionnée est-elle embarquée ? */
+  const cargoUnit = $derived(
+    unit && unit.cargo && view.state ? view.state.units[unit.cargo] ?? null : null,
+  );
+  const transportUnit = $derived(
+    unit && unit.aboard && view.state ? view.state.units[unit.aboard] ?? null : null,
+  );
+
+  /** 7g · R-117 : cases de DÉBARQUEMENT de la cargaison — terrestres libres
+   *  adjacentes au transport (mêmes contraintes que le moteur). */
+  const disembarkTiles = $derived.by(() => {
+    if (!unit || !cargoUnit || !view.state) return [];
+    return neighbors(unit).filter(
+      (h) => enterableKnown(view.state!, cargoUnit, h) && !unitAtHex(view.state!, h),
+    );
+  });
+
+  function disembark(hex: { q: number; r: number }): void {
+    if (!cargoUnit) return;
+    client.submitOrder({ type: 'Move', unitId: cargoUnit.id, path: [hex] });
+  }
+
+  /** 7g · R-119 : villes ENNEMIES VISIBLES adjacentes — mission de vol de GP
+   *  (l'espion n'entre jamais dans la ville : il agit depuis sa case). */
+  const spyTargets = $derived.by(() => {
+    if (!unit || !mine || !editable || !view.state || !stats?.spy) return [];
+    return neighbors(unit)
+      .map((h) => {
+        const city = cityAtHex(view.state!, h);
+        if (!city || city.owner === unit.owner) return null;
+        return { cityId: city.id, hex: h };
+      })
+      .filter((t): t is { cityId: string; hex: { q: number; r: number } } => t !== null);
+  });
+
+  function stealFrom(cityId: string): void {
+    if (!unit) return;
+    client.submitOrder({ type: 'SpyMission', unitId: unit.id, cityId, mission: 'stealGreatPerson' });
+  }
 </script>
 
 <section class="panel">
@@ -119,6 +162,12 @@
     <div class="rows">
       <span class="title">{stats?.name ?? unit.type}{unit.veteran ? ' ★' : ''}{unit.isArmy ? ' (armée)' : ''}</span>
       {#if stats?.isRanged}<span class="ranged" title="R-59 : attaque depuis sa case, sans avancer, sans riposte de mêlée">🎯 À distance</span>{/if}
+      {#if stats?.aquatic}
+        <span class="naval" title="R-117 : navigue sur {stats.navalAccess === 'ocean' ? 'la côte ET l\'océan' : 'la côte seule'}{stats.cargoCapacity ? ` — transporte ${stats.cargoCapacity} unité terrestre` : ''}">
+          ⚓ Naval ({stats.navalAccess === 'ocean' ? 'côte + océan' : 'côte'}){stats.cargoCapacity ? ` — cargaison ${cargoUnit ? '1/1' : '0/1'}` : ''}
+        </span>
+      {/if}
+      {#if unit.aboard}<span class="naval" title="R-117 : l'unité est à bord — donnez un Move vers une case terrestre libre pour débarquer">🚢 À bord de {unit.aboard}</span>{/if}
       {#if unit.fortified}<span class="fortified" title="Bonus défensif de fortification (R-33)">🛡 Fortifié</span>{/if}
       {#if !mine}<span class="enemy">Ennemi — {unit.owner}</span>{/if}
       {#if mine}
@@ -209,6 +258,41 @@
           {/each}
         </div>
       {/if}
+      {#if spyTargets.length > 0}
+        <div class="btns">
+          {#each spyTargets as t (t.cityId)}
+            <button
+              type="button"
+              class="danger"
+              disabled={!editable}
+              title="R-119 : vol d'un Personnage illustre installé — la victime perd 1 jalon, vous en gagnez 1 ; l'espion est consommé. L'échec (rien à voler) est sans frais."
+              onclick={() => stealFrom(t.cityId)}
+            >
+              Mission : voler un GP — {t.cityId}
+            </button>
+          {/each}
+        </div>
+      {/if}
+      {#if cargoUnit}
+        <p class="hint">🚢 Charge : {cargoUnit.type} ({cargoUnit.id}) — débarquez-le ci-dessous ou via un Move terrestre.</p>
+        {#if disembarkTiles.length > 0}
+          <div class="btns">
+            {#each disembarkTiles as h (h.q + ',' + h.r)}
+              <button
+                type="button"
+                class="primary"
+                disabled={!editable}
+                title="R-117 : débarquement — coût 1 PM, la cargaison reprend sa marche ensuite"
+                onclick={() => disembark(h)}
+              >
+                Débarquer en ({h.q},{h.r})
+              </button>
+            {/each}
+          </div>
+        {:else}
+          <p class="hint">Aucune rive libre adjacente — avancez le navire.</p>
+        {/if}
+      {/if}
       <button type="button" class="link" onclick={() => unit && onCenterUnit(unit.id)}>Centrer la caméra (F)</button>
     {/if}
   {/if}
@@ -220,6 +304,7 @@
   .rows { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.4rem; }
   .title { font-weight: 700; }
   .ranged { color: #ce93d8; font-weight: 600; font-size: 0.85rem; }
+  .naval { color: #81d4fa; font-weight: 600; font-size: 0.85rem; }
   .enemy { color: #ef9a9a; }
   .frozen { color: #ffcc80; font-size: 0.85rem; }
   .fortified { color: #90caf9; font-weight: 600; font-size: 0.85rem; }

@@ -37,10 +37,10 @@ describe('migration v4 → v5 (R-85 : champs de recherche additifs)', () => {
     expect(twice).toEqual(once);
   });
 
-  it('migrateState applique toute la chaîne v4 → v10 (CURRENT_SCHEMA_VERSION = 10)', () => {
+  it('migrateState applique toute la chaîne v4 → v11 (CURRENT_SCHEMA_VERSION = 11)', () => {
     const out = migrateState<GameState>(structuredClone(v4));
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(10);
+    expect(CURRENT_SCHEMA_VERSION).toBe(11);
     expect(out.players['p2']!.techsUnlocked).toEqual([]);
   });
 });
@@ -157,13 +157,16 @@ describe('R-87 · déblocage des items de production', () => {
     expect(result.newState.cities['c1']!.production).toBeNull();
   });
 
-  it('item implémenté mais tech débloquée → accepté ; item non implémenté (Espion) → refusé', () => {
+  it('item implémenté mais tech débloquée → accepté ; item non implémenté (Caravane, 7h) → refusé ; Espion activé (7g)', () => {
     const state = scienceCity();
     state.players['p1']!.techsUnlocked = ['travail_du_bronze', 'ecriture'];
     const ok = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'archer' } }] }, state.rngSeed);
     expect(ok.newState.cities['c1']!.production?.item).toEqual({ kind: 'unit', id: 'archer' });
-    const ko = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'espion' } }] }, state.rngSeed);
-    expect(ko.newState.cities['c1']!.production).toBeNull();
+    const ko = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'caravane' } }] }, state.rngSeed);
+    expect(ko.newState.cities['c1']!.production).toBeNull(); // caravane : implemented false (7h)
+    // 7g : l'Espion est maintenant implémenté et son tech est débloqué — la file EST posée.
+    const spy = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'espion' } }] }, state.rngSeed);
+    expect(spy.newState.cities['c1']!.production?.item).toEqual({ kind: 'unit', id: 'espion' });
   });
 
   it('bâtiment déjà en file au moment du déblocage : la file ne change pas (validité préservée)', () => {

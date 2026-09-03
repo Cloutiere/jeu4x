@@ -59,10 +59,11 @@ function pickResearch(player) {
  * unités implémentées non obsolètes (HORS GP, R-114) + bâtiments non possédés
  * dont le prérequis de bâtiment est satisfait + merveilles 7f (R-116 : non
  * bâties/en chantier dans l'empire, ONU exigée à 20 jalons et PRIORISÉE).
- * Le Colon exige la population officielle (2 — R-112) ; le serveur revalide
- * tout de toute façon.
+ * Le Colon exige la population officielle (2 — R-112) ; 7g (R-117) : les
+ * unités NAVALES n'entrent dans le tirage que pour une ville côtière.
+ * Le serveur revalide tout de toute façon.
  */
-function pickProduction(city, player, myCities, cultureMilestones) {
+function pickProduction(city, player, myCities, cultureMilestones, cityIsCoastal) {
   const unlocked = player.techsUnlocked ?? [];
   const obsolete = new Set();
   for (const techId of unlocked) for (const u of TECHS[techId]?.obsoleteUnits ?? []) obsolete.add(u);
@@ -82,6 +83,7 @@ function pickProduction(city, player, myCities, cultureMilestones) {
     if (u.tech && !unlocked.includes(u.tech)) continue;
     if (obsolete.has(u.id)) continue;
     if ((u.populationCost ?? 0) > 0 && city.pop < u.populationCost) continue;
+    if (u.aquatic && !cityIsCoastal) continue; // 7g · R-117 : accès à la mer
     options.push({ kind: 'unit', id: u.id });
   }
   for (const b of Object.values(BUILDINGS)) {
@@ -177,6 +179,92 @@ function randomStep(unit, state, myEngineId) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+const DIRS = [
+  [0, -1],
+  [-1, 0],
+  [-1, 1],
+  [0, 1],
+  [1, 0],
+  [1, -1],
+];
+
+function unitAtHex(state, q, r, owner) {
+  return Object.values(state.units).find((u) => u.q === q && u.r === r && (!owner || u.owner === owner));
+}
+
+/** 7g · R-117 : pas NAVAL — case d'eau connue selon la classe de l'unité
+ *  (navalAccess : 'coast' = côte seule, 'ocean' = côte + océan), libre d'amie. */
+function navalStep(unit, state, myEngineId) {
+  const stats = UNITS[unit.type];
+  const candidates = [];
+  for (const [dq, dr] of DIRS) {
+    const q = unit.q + dq;
+    const r = unit.r + dr;
+    const tile = state.map[`${q},${r}`];
+    if (!tile) continue;
+    const access = TERRAINS[tile.terrain]?.navalAccess;
+    if (!access) continue; // pas de l'eau
+    if (access === 'ocean' && stats.navalAccess !== 'ocean') continue; // côte seule
+    if (unitAtHex(state, q, r, myEngineId)) continue;
+    candidates.push({ q, r });
+  }
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+/** 7g · R-117 : débarquement — case terrestre connue, libre, adjacente. */
+function landStep(unit, state, myEngineId) {
+  const candidates = [];
+  for (const [dq, dr] of DIRS) {
+    const q = unit.q + dq;
+    const r = unit.r + dr;
+    const tile = state.map[`${q},${r}`];
+    if (!tile) continue;
+    if (!TERRAINS[tile.terrain]?.passable) continue;
+    if (unitAtHex(state, q, r)) continue; // débarquement vers une case LIBRE
+    candidates.push({ q, r });
+  }
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+/** 7g · R-117 : transport ami adjacent à cargaison libre (Galère/Galion). */
+function adjacentFreeTransport(unit, state, myEngineId) {
+  for (const [dq, dr] of DIRS) {
+    const q = unit.q + dq;
+    const r = unit.r + dr;
+    const t = unitAtHex(state, q, r, myEngineId);
+    if (t && !t.cargo && !t.isArmy && (UNITS[t.type]?.cargoCapacity ?? 0) > 0) return { q, r };
+  }
+  return null;
+}
+
+/** 7g · R-119 : ville ennemie VISIBLE adjacente avec un GP installé à voler. */
+function spyTarget(unit, state, myEngineId) {
+  for (const [dq, dr] of DIRS) {
+    const q = unit.q + dq;
+    const r = unit.r + dr;
+    const city = Object.values(state.cities).find((c) => c.q === q && c.r === r && c.owner !== myEngineId);
+    if (!city) continue;
+    // GP installés dérivables : jalons du propriétaire − merveilles visibles.
+    const wonders = Object.values(state.cities)
+      .filter((c) => c.owner === city.owner)
+      .flatMap((c) => c.wonders ?? []).length;
+    const gpInstalled = Math.max(0, (state.players[city.owner]?.cultureMilestones ?? 0) - wonders);
+    if (gpInstalled > 0) return city;
+  }
+  return null;
+}
+
+/** 7g · R-117 : la ville est-elle côtière (adjacente à une case d'eau connue) ? */
+function isCoastal(city, state) {
+  for (const [dq, dr] of DIRS) {
+    const tile = state.map[`${city.q + dq},${city.r + dr}`];
+    if (tile && TERRAINS[tile.terrain]?.navalAccess) return true;
+  }
+  return false;
+}
+
 async function main() {
   const token = await loginStub();
   log(`Connecté en tant que « ${NAME} » (dev stub).`);
@@ -215,14 +303,63 @@ async function main() {
     let moves = 0;
     let holds = 0;
     let fortifies = 0;
+    let embarks = 0;
+    let disembarks = 0;
+    let sails = 0;
+    let missions = 0;
     for (const unit of mine) {
       const hasOrder = snapshot.orders.some((o) => 'unitId' in o && o.unitId === unit.id);
       if (hasOrder) continue; // brouillon conservé côté serveur : ne pas doubler
+      const stats = UNITS[unit.type];
+      // 7g · R-117 : unité EMBARQUÉE → débarquement vers une rive libre.
+      if (unit.aboard) {
+        const step = landStep(unit, state, myEngineId);
+        if (step) {
+          send({ type: 'SubmitOrder', order: { type: 'Move', unitId: unit.id, path: [step] } });
+          disembarks += 1;
+        } else {
+          send({ type: 'SubmitOrder', order: { type: 'Hold', unitId: unit.id } });
+          holds += 1;
+        }
+        continue;
+      }
+      // 7g · R-117 : unité navale → navigation sur ses eaux (côte/océan).
+      if (stats?.aquatic) {
+        const step = navalStep(unit, state, myEngineId);
+        if (step && Math.random() < 0.8) {
+          send({ type: 'SubmitOrder', order: { type: 'Move', unitId: unit.id, path: [step] } });
+          sails += 1;
+        } else {
+          send({ type: 'SubmitOrder', order: { type: 'Hold', unitId: unit.id } });
+          holds += 1;
+        }
+        continue;
+      }
+      // 7g · R-119 : l'Espion mène sa mission dès qu'une ville ennemie visible
+      // adjacente a un GP installé à voler.
+      if (stats?.spy) {
+        const target = spyTarget(unit, state, myEngineId);
+        if (target) {
+          send({
+            type: 'SubmitOrder',
+            order: { type: 'SpyMission', unitId: unit.id, cityId: target.id, mission: 'stealGreatPerson' },
+          });
+          missions += 1;
+          continue;
+        }
+      }
       // R-33 : fortifier parfois (état persistant — une unité déjà fortifiée
       // est laissée telle quelle, l'ordre n'est pas consommé).
       if (!unit.fortified && Math.random() < 0.15) {
         send({ type: 'SubmitOrder', order: { type: 'Fortify', unitId: unit.id } });
         fortifies += 1;
+        continue;
+      }
+      // 7g · R-117 : embarquement occasionnel sur un transport ami libre.
+      const transport = adjacentFreeTransport(unit, state, myEngineId);
+      if (transport && Math.random() < 0.35) {
+        send({ type: 'SubmitOrder', order: { type: 'Move', unitId: unit.id, path: [transport] } });
+        embarks += 1;
         continue;
       }
       if (Math.random() < 0.4) {
@@ -275,7 +412,7 @@ async function main() {
     for (const city of myCities) {
       const pendingProd = snapshot.orders.some((o) => o.type === 'SetProduction' && o.cityId === city.id);
       if (city.production || pendingProd) continue;
-      const item = pickProduction(city, me ?? {}, myCities, me?.cultureMilestones ?? 0);
+      const item = pickProduction(city, me ?? {}, myCities, me?.cultureMilestones ?? 0, isCoastal(city, state));
       if (item) {
         send({ type: 'SubmitOrder', order: { type: 'SetProduction', cityId: city.id, item } });
         productions += 1;
@@ -296,7 +433,7 @@ async function main() {
         installs += 1;
       }
     }
-    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s) de position, ${fortifies} fortification(s), ${reassigns} réassignation(s), ${productions} production(s), ${installs} installation(s) de GP.`);
+    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s), ${fortifies} fortif., ${reassigns} réassign., ${productions} prod., ${installs} install. GP, ${sails} navigation(s), ${embarks} embarquement(s), ${disembarks} débarquement(s), ${missions} mission(s) d'espion.`);
     send({ type: 'EndTurn' });
     lastEndedTurn = state.turn;
   }

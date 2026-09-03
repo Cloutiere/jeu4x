@@ -5,7 +5,7 @@
  * l'état filtré autorise (entités présentes = visibles ; cases connues =
  * présentes dans `state.map`). La validation métier reste côté serveur.
  */
-import { hexDistance, neighbors, TERRAINS, tileKeyOf, unitType, workRadiusOf } from '@game/rules';
+import { hexDistance, neighbors, TERRAINS, tileKeyOf, unitType, workRadiusOf, canEnterTerrain, isCoastalCityHex, cargoCapacityOf } from '@game/rules';
 import type { Hex, Order } from '@game/rules';
 import type { CityId, GameState, UnitId } from '@game/shared';
 import type { GameView } from '../gameClient.js';
@@ -32,6 +32,9 @@ export type RightClickAction = { kind: 'moveDraft'; path: Hex[]; unitId: UnitId 
 
 export function unitAtHex(state: GameState, hex: Hex): { id: UnitId; owner: string } | null {
   for (const u of Object.values(state.units)) {
+    // 7g · R-117 : une unité EMBARQUÉE n'est pas une entité de carte — le clic
+    // sur le navire sélectionne le navire (la cargaison est dans son panneau).
+    if (u.aboard) continue;
     if (u.q === hex.q && u.r === hex.r) return { id: u.id, owner: u.owner };
   }
   return null;
@@ -48,6 +51,41 @@ export function cityAtHex(state: GameState, hex: Hex): { id: CityId; owner: stri
 export function passableKnown(state: GameState, hex: Hex): boolean {
   const tile = state.map[tileKeyOf(hex)];
   return !!tile && (TERRAINS[tile.terrain]?.passable ?? false);
+}
+
+/**
+ * 7g · R-117 : case connue et ENTRABLE PAR CETTE UNITÉ — l'eau est praticable
+ * pour les unités navales selon leur classe (`navalAccess`), les villes
+ * portuaires acceptent les navires ; pour un terrestre, identique à
+ * `passableKnown` (T-11 inchangé).
+ */
+export function enterableKnown(state: GameState, unit: { type: string } | null, hex: Hex): boolean {
+  const tile = state.map[tileKeyOf(hex)];
+  if (!tile) return false;
+  if (!unit) return passableKnown(state, hex);
+  try {
+    return canEnterTerrain(unitType(unit.type), tile.terrain, isCoastalCityHex(state.map, hex));
+  } catch {
+    return passableKnown(state, hex);
+  }
+}
+
+/** 7g · R-117 : l'entité occupant la case est-elle un transport ami EMBARQUABLE
+ *  pour cette unité terrestre (cargaison libre, capacité > 0) ? */
+export function boardableTransport(
+  state: GameState,
+  unit: { id: UnitId; owner: string; type: string },
+  occupantId: UnitId,
+): boolean {
+  if (unitType(unit.type).aquatic) return false;
+  const occupant = state.units[occupantId];
+  return (
+    !!occupant &&
+    occupant.owner === unit.owner &&
+    !occupant.isArmy &&
+    !occupant.cargo &&
+    cargoCapacityOf(occupant) > 0
+  );
 }
 
 function areNeighbors(a: Hex, b: Hex): boolean {
@@ -99,13 +137,17 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
       // Clic sur la case courante : no-op si le chemin a commencé, sinon on
       // laisse passer (alternance unité ↔ ville sur une capitale défendue).
       if (ui.draft.path.length > 0) return { kind: 'none' };
-    } else if (areNeighbors(last, hex) && passableKnown(state, hex)) {
+    } else if (areNeighbors(last, hex) && enterableKnown(state, selected, hex)) {
       // Case occupée par un ALLIÉ refusée comme étape de chemin (R-30, polish
-      // Phase 5) — mais le clic retombe sur la sélection : on sélectionne
-      // l'allié. Une case ennemie reste traçable : y entrer déclenche le
-      // combat d'entrée (R-42) — comportement de la Phase 3.
+      // Phase 5) — EXCEPTION 7g : un transport ami à cargaison libre accepte
+      // l'embarquement (R-117). Une case ennemie reste traçable : y entrer
+      // déclenche le combat d'entrée (R-42) — comportement de la Phase 3.
       const occupant = unitAtHex(state, hex);
-      if (!occupant || occupant.owner !== selected.owner) {
+      if (
+        !occupant ||
+        occupant.owner !== selected.owner ||
+        boardableTransport(state, selected, occupant.id)
+      ) {
         return { kind: 'extend', path: [...ui.draft.path, { q: hex.q, r: hex.r }] };
       }
     }
@@ -201,11 +243,18 @@ export function myEngineId(view: GameView): string | null {
  * ou null si aucune case de départ/arrivée invalide ou inatteignable.
  */
 export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
-  if (!passableKnown(state, from) || !passableKnown(state, to)) return null;
+  const fromUnit = unitAtHex(state, from);
+  const mover = fromUnit ? state.units[fromUnit.id] ?? null : null;
+  if (!enterableKnown(state, mover, from) || !enterableKnown(state, mover, to)) return null;
   const destUnit = unitAtHex(state, to);
-  if (destUnit && destUnit.owner === (unitAtHex(state, from)?.owner ?? '')) return null; // allié sur l'arrivée
+  const allyArrival =
+    destUnit && destUnit.owner === (fromUnit?.owner ?? '') &&
+    // 7g · R-117 : embarquement — l'arrivée sur un transport ami libre est légale.
+    !(mover && !unitType(mover.type).aquatic && boardableTransport(state, mover as never, destUnit.id));
+  if (destUnit && allyArrival) return null;
   if (from.q === to.q && from.r === to.r) return [];
-  // BFS avec voisinage trié (q, r) croissant — déterministe.
+  // BFS avec voisinage trié (q, r) croissant — déterministe. 7g : le
+  // voisinage est évalué pour l'unité elle-même (naval ⇒ eau entrable).
   const cameFrom = new Map<string, string | null>();
   const keyOf = (h: Hex): string => `${h.q},${h.r}`;
   const origin = keyOf(from);
@@ -214,7 +263,7 @@ export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
   while (queue.length > 0) {
     const current = queue.shift()!;
     const nexts = neighbors(current)
-      .filter((h) => passableKnown(state, h))
+      .filter((h) => enterableKnown(state, mover, h))
       // pas d'étape intermédiaire sur une unité connue (alliée : interdit R-30 ;
       // ennemie : s'y arrêter pour combattre est un choix explicite, pas un transit)
       .filter((h) => !unitAtHex(state, h))
@@ -270,6 +319,7 @@ export function unitsWithoutOrders(view: GameView): UnitId[] {
     .filter((id) => {
       const u = state.units[id]!;
       if (u.owner !== mine) return false;
+      if (u.aboard) return false; // 7g · R-117 : une cargaison n'a pas d'ordre à donner
       if (u.order) return false; // chemin gelé
       if (u.fortified) return false; // R-33 : tenue permanente
       return !view.orders.some((o) => 'unitId' in o && o.unitId === id);

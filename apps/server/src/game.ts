@@ -164,6 +164,13 @@ export function orderShapeError(order: unknown): string | null {
       // la validité métier (GP, possession, distance ≤ 1) est re-vérifiée
       // par le moteur à la résolution.
       return typeof o.unitId === 'string' && typeof o.cityId === 'string' ? null : 'unité/ville invalides';
+    case 'SpyMission':
+      // 7g · R-119 : mission d'espionnage (vol de GP installé) — la validité
+      // métier (Espion, ville ennemie VISIBLE adjacente, GP installé) est
+      // re-vérifiée par le moteur à la résolution.
+      return typeof o.unitId === 'string' && typeof o.cityId === 'string' && o.mission === 'stealGreatPerson'
+        ? null
+        : 'mission invalide';
     default:
       return 'type d\'ordre inconnu';
   }
@@ -349,7 +356,9 @@ export class GameDO {
 
   /** Dump d'état NON filtré (admin debug — protégé par ADMIN_TOKEN côté Worker).
    *  Phase 7d : inclut un résumé `barbares` (villages, huttes, compteurs).
-   *  Phase 7f : inclut un résumé `culture` (jalons, seuil GP, merveilles, ONU). */
+   *  Phase 7f : inclut un résumé `culture` (jalons, seuil GP, merveilles, ONU).
+   *  Phase 7g : inclut un résumé `naval` (flottes : transports + cargaisons,
+   *  espions, missions d'espionnage en brouillon). */
   private handleAdminDump(): Response {
     const game = this.game;
     const barbares = game
@@ -363,6 +372,31 @@ export class GameDO {
             unitésVivantes: v.spawnedUnits.filter((id) => game.units[id]).length,
           })),
           huts: game.huts.map((h) => ({ id: h.id, q: h.q, r: h.r })),
+        }
+      : null;
+    // 7g · R-117/R-119 : flottes (transports + cargaison), espions, missions.
+    const naval = game
+      ? {
+          transports: Object.values(game.units)
+            .filter((u) => u.cargo !== null || (u.type === 'galere' || u.type === 'galion'))
+            .sort((a, b) => a.id.localeCompare(b.id))
+            .map((u) => ({
+              id: u.id,
+              type: u.type,
+              owner: u.owner,
+              at: { q: u.q, r: u.r },
+              cargo: u.cargo ?? null,
+              cargoType: u.cargo ? game.units[u.cargo]?.type ?? null : null,
+            })),
+          spies: Object.values(game.units)
+            .filter((u) => u.type === 'espion')
+            .sort((a, b) => a.id.localeCompare(b.id))
+            .map((u) => ({ id: u.id, owner: u.owner, at: { q: u.q, r: u.r } })),
+          missionsEnBrouillon: Object.entries(this.orders).flatMap(([pid, orders]) =>
+            orders
+              .filter((o) => o.type === 'SpyMission')
+              .map((o) => ({ player: pid, unitId: (o as { unitId: string }).unitId, cityId: (o as { cityId: string }).cityId })),
+          ),
         }
       : null;
     // 7f · R-113..R-116 : jalons culturels, GP obtenus, seuil courant,
@@ -410,6 +444,7 @@ export class GameDO {
       lastEvents: this.lastEvents,
       barbares,
       culture,
+      naval,
     });
   }
 
@@ -679,6 +714,10 @@ export class GameDO {
         return ownsUnit(order.unitId) && cities[order.cityId]?.owner === engineId
           ? null
           : 'unité ou ville inconnue, ou non possédée';
+      case 'SpyMission':
+        // 7g · R-119 : seule l'unité doit appartenir au joueur (la ville cible
+        // est ENNEMIE par construction — re-validé par le moteur).
+        return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
       default:
         return 'ordre inconnu';
     }

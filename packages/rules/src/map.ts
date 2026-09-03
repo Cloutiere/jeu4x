@@ -392,6 +392,8 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
         order: null,
         detainedBy: null,
         fortified: false,
+        aboard: null, // 7g · R-117
+        cargo: null,
       };
     }
   }

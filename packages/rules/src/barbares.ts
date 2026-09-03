@@ -48,6 +48,8 @@ export function createBarbarianUnit(state: GameState, hex: Hex, type: string): U
     detainedBy: null,
     // R-95 : un barbare ne se fortifie jamais (aucun ordre Fortify généré).
     fortified: false,
+    aboard: null, // 7g : les barbares n'embarquent jamais (aucun navire)
+    cargo: null,
   };
   state.units[id] = unit;
   return unit;

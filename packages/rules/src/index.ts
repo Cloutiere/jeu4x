@@ -14,6 +14,7 @@ export * from './firstDiscovery.js';
 export * from './research.js';
 export * from './conversion.js';
 export * from './culture.js';
+export * from './naval.js';
 export * from './economy.js';
 export * from './barbares.js';
 export * from './map.js';

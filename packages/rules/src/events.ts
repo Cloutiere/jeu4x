@@ -7,8 +7,9 @@
 import type { Hex } from './hex.js';
 import type { CityId, PlayerId, TileKey, UnitId } from './state.js';
 
-/** Cause de destruction d'une unité. */
-export type DestructionCause = 'combat' | 'collision' | 'capture';
+/** Cause de destruction d'une unité. 7g : `sunk` (cargaison d'un navire
+ *  coulé — R-117), `mission` (Espion consommé par une mission réussie — R-119). */
+export type DestructionCause = 'combat' | 'collision' | 'capture' | 'sunk' | 'mission';
 
 /** R-98 · Récompense structurée d'une hutte ouverte (contenu de HutOpened). */
 export type HutReward =
@@ -113,10 +114,22 @@ export type GameEvent =
       player: PlayerId;
       delta: number;
       total: number;
-      reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost';
+      reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'gpStolen';
     }
   /** 7f · R-116 : merveille achevée dans une ville (jalon, effet, ONU → victoire). */
   | { seq: number; type: 'WonderCompleted'; cityId: CityId; owner: PlayerId; wonder: string; at: Hex }
+  /** 7g · R-117 : embarquement d'une unité terrestre sur un transport ami
+   *  (Galère/Galion, capacité 1) — l'unité quitte la carte (à bord). */
+  | { seq: number; type: 'Embark'; unitId: UnitId; owner: PlayerId; transportId: UnitId; at: Hex }
+  /** 7g · R-117 : débarquement — l'unité quitte son transport vers une case
+   *  terrestre libre adjacente. */
+  | { seq: number; type: 'Disembark'; unitId: UnitId; owner: PlayerId; transportId: UnitId; at: Hex }
+  /** 7g · R-119 : mission d'espionnage tentée — `success` (vol effectué,
+   *  espion consommé) ou `failed` (conditions non remplies, espion survit). */
+  | { seq: number; type: 'SpyMission'; unitId: UnitId; owner: PlayerId; cityId: CityId; target: PlayerId; outcome: 'success' | 'failed' }
+  /** 7g · R-119 : un GP installé a été volé (jalon retiré à la victime, jalon
+   *  crédité au voleur — escalade T-27 inchangée, décision d'Erik). */
+  | { seq: number; type: 'GreatPersonStolen'; spyId: UnitId; thief: PlayerId; victim: PlayerId; cityId: CityId; at: Hex }
   /** Fin de résolution : newState est l'état du tour indiqué. */
   | { seq: number; type: 'TurnResolved'; turn: number };
 
@@ -250,6 +263,23 @@ export function eventRefs(event: GameEvent): EventRefs {
     case 'WonderCompleted':
       refs.cityIds.push(event.cityId);
       refs.players.push(event.owner);
+      hex(event.at);
+      break;
+    case 'Embark':
+    case 'Disembark':
+      refs.unitIds.push(event.unitId, event.transportId);
+      refs.players.push(event.owner);
+      hex(event.at);
+      break;
+    case 'SpyMission':
+      refs.unitIds.push(event.unitId);
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner, event.target);
+      break;
+    case 'GreatPersonStolen':
+      refs.unitIds.push(event.spyId);
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.thief, event.victim);
       hex(event.at);
       break;
     case 'TurnResolved':

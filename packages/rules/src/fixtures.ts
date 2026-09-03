@@ -33,6 +33,10 @@ export interface UnitSpec {
   isArmy?: boolean;
   order?: Order | null;
   fortified?: boolean;
+  /** 7g · R-117 : transport en cours (l'unité est la cargaison du navire). */
+  aboard?: UnitId | null;
+  /** 7g · R-117 : cargaison embarquée (le transport porte cette unité). */
+  cargo?: UnitId | null;
 }
 
 export interface CitySpec {
@@ -145,6 +149,8 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       order: spec.order ?? null,
       detainedBy: null,
       fortified: spec.fortified ?? false,
+      aboard: spec.aboard ?? null, // 7g · R-117
+      cargo: spec.cargo ?? null, // 7g · R-117
     };
   });
 

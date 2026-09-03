@@ -14,10 +14,10 @@ import { TERRAINS } from '../src/data.js';
 import { cityAt, makeState, unit, unitAt } from '../src/fixtures.js';
 
 describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
-  it('la version courante est exportée avec la chaîne de migrations (v10 depuis la culture, Phase 7f)', () => {
+  it('la version courante est exportée avec la chaîne de migrations (v11 depuis le naval/espionnage, Phase 7g)', () => {
     const state = makeState();
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(10);
+    expect(CURRENT_SCHEMA_VERSION).toBe(11);
     expect(MIGRATIONS).toBeTypeOf('object');
     expect(typeof MIGRATIONS[2]).toBe('function');
     expect(typeof MIGRATIONS[3]).toBe('function');
@@ -45,7 +45,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v8 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(10); // la chaîne se poursuit jusqu'à la version courante (7f)
+    expect(out.schemaVersion).toBe(11); // la chaîne se poursuit jusqu'à la version courante (7g)
     expect(out.firstBy).toEqual({});
     expect((out.cities as Record<string, { capital: boolean; buildings: string[] }>)['cap']!.buildings).toEqual(['palais']);
     expect((out.cities as Record<string, { capital: boolean; buildings: string[] }>)['ville']!.buildings).toEqual(['grenier']);
@@ -76,7 +76,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(10);
+    expect(out.schemaVersion).toBe(11);
     expect(out.cities['cap']!.cultureStored).toBe(0);
     expect(out.cities['cap']!.wonders).toEqual([]);
     expect(out.players['p1']!.cultureMilestones).toBe(0);
@@ -87,7 +87,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
 
   it('migrateState rejette une version inconnue ou futuriste', () => {
     expect(() => migrateState({ schemaVersion: 0 })).toThrow();
-    expect(() => migrateState({ schemaVersion: 11 })).toThrow();
+    expect(() => migrateState({ schemaVersion: 12 })).toThrow();
     expect(() => migrateState({})).toThrow();
   });
 
@@ -106,7 +106,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v7 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(10); // chaîne complète 7d → 7e → 7f
+    expect(out.schemaVersion).toBe(11); // chaîne complète 7d → 7e → 7f
     expect(out.villages).toEqual([]);
     expect(out.huts).toEqual([]);
     expect(out.mapId).toBeNull();

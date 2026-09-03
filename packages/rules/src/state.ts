@@ -39,7 +39,11 @@ export type Order =
   /** 7f · R-115 : installe DÉFINITIVEMENT un Personnage illustre dans une
    *  ville AMIE (sur sa case ou adjacente) — consomme l'unité, +1 jalon
    *  culturel au joueur. */
-  | { type: 'InstallPerson'; unitId: UnitId; cityId: CityId };
+  | { type: 'InstallPerson'; unitId: UnitId; cityId: CityId }
+  /** 7g · R-119 : mission d'espionnage — infiltration d'une ville ennemie
+   *  VISIBLE adjacente. Tranche 7g : vol de GP installé uniquement (le
+   *  champ `mission` prépare 7h : contre-espionnage, vol de tech). */
+  | { type: 'SpyMission'; unitId: UnitId; cityId: CityId; mission: 'stealGreatPerson' };
 
 /** Item de production (R-62/R-66) : une unité, un bâtiment — ou une merveille
  *  (7f : merveilles à effets simples + Nations Unies, R-116). */
@@ -77,6 +81,13 @@ export interface Unit {
   detainedBy: PlayerId | null;
   /** R-33 : position fortifiée — bonus T-17, persiste tant qu'aucun autre ordre n'est donné. */
   fortified: boolean;
+  /** 7g · R-117 : transport en cours (`aboard` = id du navire porteur) —
+   *  null pour une entité de carte. Une unité à bord n'occupe pas, ne
+   *  bloque pas, ne combat pas ; sa position miroite celle du transport. */
+  aboard: UnitId | null;
+  /** 7g · R-117 : cargaison embarquée (transport uniquement) — au plus une
+   *  unité terrestre par Galère/Galion (cargoCapacity, décision d'Erik). */
+  cargo: UnitId | null;
 }
 
 export interface CityProduction {
@@ -223,7 +234,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 10;
+export const CURRENT_SCHEMA_VERSION = 11;
 
 type AnyState = Record<string, unknown>;
 
@@ -454,6 +465,24 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
     }
     out.players = migratedPlayers;
     return out;
+  },
+  /**
+   * v10 → v11 : Phase 7g — naval & espionnage (R-117). Champs ADDITIFS par
+   * unité : `aboard: null` (transport en cours) et `cargo: null` (cargaison
+   * du navire) — les états migrés n'ont aucun transport actif, idempotent.
+   */
+  11: (state) => {
+    const units = (state.units ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(units).sort()) {
+      const u = units[id]!;
+      migrated[id] = {
+        ...u,
+        aboard: typeof u.aboard === 'string' ? u.aboard : null,
+        cargo: typeof u.cargo === 'string' ? u.cargo : null,
+      };
+    }
+    return { ...state, units: migrated };
   },
 };
 

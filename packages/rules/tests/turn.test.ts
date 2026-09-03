@@ -483,7 +483,7 @@ describe('Phase B · R-56 · allocation globale des replis en deux passes', () =
     const state = deuxPerdants(3, 3);
     state.units['u18'] = {
       id: 'u18', type: 'cible-test', owner: 'p2', q: 3, r: 1, hp: 3, mp: 1,
-      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false,
+      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
     };
     const { newState, events } = resolveTurn(state, orders(), 7);
     const mortsA1 = (newState.units['u1'] === undefined ? 1 : 0) + (newState.units['u7'] === undefined ? 1 : 0);
@@ -605,7 +605,7 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     const state = cityState();
     state.units['u0'] = {
       id: 'u0', type: 'colon', owner: 'p1', q: 0, r: 0, hp: 3, mp: 2,
-      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false,
+      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
     };
     const { newState, events } = resolveTurn(state, {}, 1);
     expect(events.some((e) => e.type === 'UnitProduced')).toBe(false);

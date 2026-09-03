@@ -156,6 +156,10 @@ describe('L6 · Propriétés transversales (fast-check)', () => {
         const { newState } = resolveTurn(state, orders, seed);
         const seen = new Set<string>();
         for (const u of Object.values(newState.units)) {
+          // 7g · R-117 (amendement documenté) : une unité EMBARQUÉE n'est plus
+          // une entité de carte — elle coexiste avec son transport sur la
+          // même case (sa position miroite celle du navire).
+          if (u.aboard) continue;
           const key = `${u.q},${u.r}`;
           expect(seen.has(key)).toBe(false);
           seen.add(key);
@@ -205,6 +209,10 @@ describe('L6 · Propriétés transversales (fast-check)', () => {
         for (const u of Object.values(newState.units)) {
           const tile = newState.map[`${u.q},${u.r}`];
           expect(tile).toBeDefined();
+          // 7g · R-117 (amendement documenté) : une unité embarquée n'est pas
+          // une entité de carte — sa case (miroir du transport) peut être de
+          // l'eau, non praticable pour un terrestre.
+          if (u.aboard) continue;
           expect(TERRAINS[tile!.terrain]!.passable).toBe(true);
         }
         // seq strictement croissants, continuité avec lastEventSeq
@@ -231,6 +239,7 @@ describe('L6 · Propriétés transversales (fast-check)', () => {
             const { newState, events } = resolveTurn(cur, {}, seed + t);
             const seen = new Set<string>();
             for (const u of Object.values(newState.units)) {
+              if (u.aboard) continue; // 7g · R-117 : une cargaison n'occupe pas (amendement documenté)
               const key = `${u.q},${u.r}`;
               expect(seen.has(key)).toBe(false);
               seen.add(key);

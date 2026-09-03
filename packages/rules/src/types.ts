@@ -35,6 +35,11 @@ export interface UnitTypeData {
    *  culture (Artiste/Penseur) — JAMAIS produite par les files (moteur, UI
    *  et bot l'excluent) ; installable dans une ville (R-115). */
   greatPerson?: boolean;
+  /** 7g · R-117 : capacité de TRANSPORT d'unités terrestres (Galère/Galion :
+   *  1 — décision d'Erik ; Croiseur/Cuirassé/Sous-marin : absent = 0). */
+  cargoCapacity?: number;
+  /** 7g · R-119 : l'unité est un Espion (missions d'infiltration R-119). */
+  spy?: boolean;
 }
 
 export type TerrainId =

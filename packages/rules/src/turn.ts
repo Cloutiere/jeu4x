@@ -26,10 +26,17 @@ import {
 import type { Hex } from './hex.js';
 import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId } from './state.js';
 import type { BarbarianVillage, City, CityId, GameState, Order, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
-import { BARBARIAN_ID, BARBARIANS, CULTURE, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS } from './data.js';
+import { BARBARIAN_ID, BARBARIANS, CULTURE, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, isWaterTerrain } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable } from './economy.js';
 import { combatRound, effectiveStrength } from './combat.js';
 import { computeVisibleTiles, recomputeVision } from './fog.js';
+import {
+  canEnterTerrain,
+  cargoCapacityOf,
+  citySiteIsCoastal,
+  isCoastalCityHex,
+  navalSupportFor,
+} from './naval.js';
 import {
   ARMY_SIZE,
   CITY_WORK_RADIUS,
@@ -50,8 +57,10 @@ import {
   cultureGains,
   greatPersonThresholdFor,
   greatPersonTypeFor,
+  installedGreatPersonsOf,
   isGreatPersonType,
   wonderProductionIssue,
+  wondersOwnedBy,
 } from './culture.js';
 import { applyFirstToDiscover, empirePerCityBonus } from './firstDiscovery.js';
 import {
@@ -159,11 +168,16 @@ function sortUnitIds(board: Board): UnitId[] {
   return Object.keys(board.st.units).sort(compareUnitIds);
 }
 
+/**
+ * Entités de carte posées sur une case. 7g · R-117 : les unités EMBARQUÉES
+ * (`aboard`) ne sont plus des entités de carte — elles n'occupent pas, ne
+ * bloquent pas, ne défendent pas et ne sont jamais ciblées.
+ */
 function occupants(board: Board, hex: Hex, except?: UnitId): Unit[] {
   const out: Unit[] = [];
   for (const id of sortUnitIds(board)) {
     const u = board.st.units[id]!;
-    if (id !== except && u.q === hex.q && u.r === hex.r) out.push(u);
+    if (id !== except && u.aboard === null && u.q === hex.q && u.r === hex.r) out.push(u);
   }
   return out;
 }
@@ -228,6 +242,8 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
           order: null,
           detainedBy: null,
           fortified: false,
+          aboard: null,
+          cargo: null,
         };
         reward.unitIds = [unitId];
       }
@@ -281,6 +297,17 @@ function inMapAndPassable(board: Board, hex: Hex): boolean {
   return !!tile && TERRAINS[tile.terrain]!.passable;
 }
 
+/**
+ * 7g · R-117 : l'unité peut-elle ENTRER sur cette case (terrain seul) ?
+ * Terrestre : terrain passable (T-11 inchangé). Navale : eau selon sa classe
+ * (`navalAccess` — côte vs océan, R-107) ou ville portuaire (côtière). */
+function canEnter(board: Board, unit: Unit, hex: Hex): boolean {
+  if (!inRectangle(hex, board.st.mapWidth, board.st.mapHeight)) return false;
+  const tile = board.st.map[tileKeyOf(hex)];
+  if (!tile) return false;
+  return canEnterTerrain(unitType(unit.type), tile.terrain, isCoastalCityHex(board.st.map, hex));
+}
+
 function isPeaceful(unit: Unit): boolean {
   return !unitType(unit.type).canAttack;
 }
@@ -301,6 +328,15 @@ function moveUnit(board: Board, unit: Unit, to: Hex): void {
   board.steps.set(unit.id, (board.steps.get(unit.id) ?? 0) + 1);
   board.moved.add(unit.id);
   emit(board, { type: 'Move', unitId: unit.id, owner: unit.owner, from, to });
+  // 7g · R-117 : la cargaison miroite la position de son transport (aucun
+  // événement propre — elle n'est plus une entité de carte).
+  if (unit.cargo) {
+    const cargo = board.st.units[unit.cargo];
+    if (cargo) {
+      cargo.q = to.q;
+      cargo.r = to.r;
+    }
+  }
 }
 
 /**
@@ -323,9 +359,11 @@ function retreatTarget(
     return origin; // option 1 : la case d'origine, si elle est libre
   }
   // Option 2 : case adjacente libre à la case de combat, par proximité à la
-  // case d'origine, puis (q, r) croissant (R-54-2).
+  // case d'origine, puis (q, r) croissant (R-54-2). 7g · R-117 : la
+  // praticabilité est évaluée pour l'unité elle-même (un naval se replie en
+  // mer, un terrestre sur la terre).
   const candidates = neighbors(combatTile)
-    .filter((h) => inMapAndPassable(board, h))
+    .filter((h) => canEnter(board, loser, h))
     .filter((h) => !occupiedByUnit(board, h))
     // pas de capture par repli : on n'entre pas en repli sur une ville ennemie
     .filter((h) => {
@@ -353,6 +391,12 @@ function kill(board: Board, unit: Unit, cause: DestructionCause, byUnitId: UnitI
     cause,
     byUnitId,
   });
+  // 7g · R-117 : la destruction d'un transport entraîne celle de sa cargaison
+  // (naufrage — la position miroir fait que l'événement tombe sur la même case).
+  if (unit.cargo) {
+    const cargo = board.st.units[unit.cargo];
+    if (cargo) kill(board, cargo, 'sunk', byUnitId);
+  }
 }
 
 /**
@@ -480,7 +524,14 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
   const aStats = unitType(attacker.type);
   const dStats = unitType(defender.type);
   const noRiposte = isRanged(attacker) && !isRanged(defender);
-  const sAtt = effectiveStrength(aStats.attack, attacker.veteran);
+  // 7g · R-118 : soutien naval — un combat terrestre adjacent à la côte avec
+  // une unité navale AMIE en mer reçoit son `navalSupport` en force d'attaque
+  // (MAX d'un seul navire — décision d'Erik : s'ajoute à S_att).
+  const support = navalSupportFor(board.st.map, aStats, attacker.owner, combatTile, (h) => {
+    const u = occupants(board, h)[0];
+    return u ? { owner: u.owner, type: u.type, q: u.q, r: u.r, aboard: u.aboard } : undefined;
+  });
+  const sAtt = effectiveStrength(aStats.attack, attacker.veteran) + support;
   // T-17 : le bonus de fortification s'ajoute au bonus de terrain (RULES.md §7.4).
   // 7e : le bonus de défense de ville des bâtiments (Palais, Remparts) s'ajoute
   // pour le défenseur en garnison de SA ville.
@@ -515,9 +566,16 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
   board.fought.add(defender.id);
 }
 
-/** Avancée du vainqueur (R-52/I-2) — jamais pour une unité à distance (R-59-a). */
+/**
+ * Avancée du vainqueur (R-52/I-2) — jamais pour une unité à distance (R-59-a).
+ * 7g · R-117 (interprétation documentée) : pas d'avancée non plus sur une
+ * case que le vainqueur ne peut pas ENTRER (un terrestre qui coule un navire
+ * en mer reste sur sa rive ; un naval ne débarque pas en tuant le défenseur
+ * d'une ville non portuaire).
+ */
 function advanceIfMelee(board: Board, attacker: Unit, tile: Hex): void {
   if (isRanged(attacker)) return;
+  if (!canEnter(board, attacker, tile)) return;
   if (attacker.q === tile.q && attacker.r === tile.r) return;
   moveUnit(board, attacker, tile);
 }
@@ -828,7 +886,7 @@ function haltedByNewSighting(board: Board, unit: Unit, next: Hex): boolean {
   const nextKey = tileKeyOf(next);
   for (const id of Object.keys(board.st.units).sort(compareUnitIds)) {
     const enemy = board.st.units[id]!;
-    if (enemy.owner === unit.owner) continue;
+    if (enemy.owner === unit.owner || enemy.aboard) continue; // 7g : une cargaison n'est pas une entité de carte
     const key = tileKeyOf(enemy);
     if (key !== nextKey && visible.has(key) && !known.has(key)) return true;
   }
@@ -857,8 +915,70 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
     // ordres (1 pas) sont régénérés à chaque résolution, la halte les figerait.
     if (!isBarbarian(unit.owner) && haltedByNewSighting(board, unit, next)) break; // halte, chemin gelé
 
-    if (!inMapAndPassable(board, next)) {
-      path = []; // R-42 : chemin invalide, l'unité s'arrête
+    // 7g · R-117 : unité EMBARQUÉE — débarquement. Le premier pas doit être
+    // une case TERRESTRE libre adjacente au transport ; l'unité poursuit
+    // ensuite normalement (le reste du chemin suit les règles R-42).
+    if (unit.aboard) {
+      const transport = board.st.units[unit.aboard];
+      if (!transport) {
+        // Sécurité (le naufrage coule toujours sa cargaison) : plus à bord.
+        unit.aboard = null;
+        continue;
+      }
+      const dismountable =
+        hexDistance(transport, next) === 1 &&
+        canEnter(board, unit, next) &&
+        occupants(board, next).length === 0;
+      if (unit.mp > 0 && dismountable) {
+        path.shift();
+        unit.mp -= 1;
+        transport.cargo = null;
+        unit.aboard = null;
+        unit.q = next.q;
+        unit.r = next.r;
+        board.steps.set(unit.id, (board.steps.get(unit.id) ?? 0) + 1);
+        board.moved.add(unit.id);
+        emit(board, {
+          type: 'Disembark',
+          unitId: unit.id,
+          owner: unit.owner,
+          transportId: transport.id,
+          at: { ...next },
+        });
+        continue; // la suite du chemin suit les règles normales (attaque incluse)
+      }
+      path = []; // débarquement impossible : chemin effacé, l'unité reste à bord
+      break;
+    }
+
+    // 7g · R-117 : EMBARQUEMENT — pas d'une unité terrestre vers un transport
+    // ami à cargaison libre (Galère/Galion : 1 unité — décision d'Erik).
+    if (unit.mp > 0 && !unitType(unit.type).aquatic) {
+      const transport = occupants(board, next).find(
+        (u) => u.owner === unit.owner && u.cargo === null && cargoCapacityOf(u) > 0,
+      );
+      if (transport) {
+        path.shift();
+        unit.mp -= 1;
+        transport.cargo = unit.id;
+        unit.aboard = transport.id;
+        unit.q = transport.q;
+        unit.r = transport.r;
+        board.steps.set(unit.id, (board.steps.get(unit.id) ?? 0) + 1);
+        board.moved.add(unit.id);
+        emit(board, {
+          type: 'Embark',
+          unitId: unit.id,
+          owner: unit.owner,
+          transportId: transport.id,
+          at: { q: transport.q, r: transport.r },
+        });
+        continue; // le reste du chemin (gelé) servira au débarquement du tour suivant
+      }
+    }
+
+    if (!canEnter(board, unit, next)) {
+      path = []; // R-42 : chemin invalide (pour cette unité — l'eau est navale, R-117), l'unité s'arrête
       break;
     }
     const here = occupants(board, next);
@@ -988,6 +1108,8 @@ function processFormArmy(board: Board, allOrders: Order[]): void {
       order: null,
       detainedBy: null,
       fortified: false, // R-33 : la formation d'armée annule la fortification
+      aboard: null,
+      cargo: null, // R-117 : une armée ne transporte rien
     };
     for (const m of members) delete board.st.units[m.id];
     board.st.units[armyId] = army;
@@ -1160,6 +1282,14 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
       // prérequis de bâtiment manquant (Banque sans Marché) ou déjà possédé.
       const research = board.st.players[playerId]!;
       if (!canSetProduction(order.item, research.techsUnlocked, city.buildings)) continue;
+      // 7g · R-117 : une unité navale exige une ville côtière (accès à la mer).
+      if (
+        order.item.kind === 'unit' &&
+        unitType(order.item.id).aquatic &&
+        !citySiteIsCoastal(board.st.map, { q: city.q, r: city.r })
+      ) {
+        continue;
+      }
       // 7f · R-116 : unicité d'empire des merveilles + verrou/jalons de l'ONU.
       if (order.item.kind === 'wonder' && wonderSetProductionIssue(board.st, order.item.id, playerId, city.id)) continue;
       setOrders.push(order);
@@ -1278,8 +1408,88 @@ function applyInstallPerson(board: Board, ordersByPlayer: Record<PlayerId, Order
   }
 }
 
-/** R-65 : ville sans défenseur investie → capture (capitale = victoire). R-97 : capture BARBARE → rasement. */
-function processCityCaptures(board: Board): void {
+/**
+ * 7g · R-119 : SpyMission — vol de GP installé (tranche 7g). Un Espion
+ * ADJACENT (distance ≤ 1) à une ville ennemie VISIBLE vole un GP installé si
+ * la victime en possède au moins un (jalons − merveilles contrôlées > 0,
+ * R-115) : −1 jalon à la victime, +1 jalon au voleur (le GP est réputé
+ * installé d'office dans l'empire voleur — aucun `greatPersonsObtained` ne
+ * varie : l'escalade T-27 est inchangée, décision d'Erik) ; l'Espion est
+ * consommé. Échec (rien à voler / conditions non remplies) : l'Espion SURVIT
+ * (interprétation 🔶 documentée). Détection : reportée 7h.
+ */
+function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
+  const orders: Array<Extract<Order, { type: 'SpyMission' }>> = [];
+  for (const playerId of Object.keys(ordersByPlayer).sort()) {
+    for (const order of ordersByPlayer[playerId] ?? []) {
+      if (order.type !== 'SpyMission') continue;
+      const unit = board.st.units[order.unitId];
+      if (!unit || unit.owner !== playerId) continue;
+      if (!unitType(unit.type).spy) continue; // R-119 : Espion uniquement
+      orders.push(order);
+    }
+  }
+  orders.sort((a, b) => compareUnitIds(a.unitId, b.unitId));
+  for (const order of orders) {
+    const unit = board.st.units[order.unitId];
+    const city = board.st.cities[order.cityId];
+    if (!unit || !city) continue; // déjà consommé (ordre antérieur du lot) / ville disparue
+    if (city.owner === unit.owner) continue; // ville AMIE : pas de mission
+    const victim = board.st.players[city.owner];
+    if (!victim) continue; // (aucune ville barbare — garde-fou)
+    const visible = computeVisibleTiles(board.st, unit.owner).has(tileKeyOf(city));
+    const adjacent = hexDistance(unit, city) <= 1;
+    const stealable =
+      installedGreatPersonsOf(victim.cultureMilestones, wondersOwnedBy(board.st.cities, city.owner).length) > 0;
+    if (!visible || !adjacent || !stealable) {
+      emit(board, {
+        type: 'SpyMission',
+        unitId: unit.id,
+        owner: unit.owner,
+        cityId: city.id,
+        target: city.owner,
+        outcome: 'failed',
+      });
+      continue;
+    }
+    emit(board, {
+      type: 'SpyMission',
+      unitId: unit.id,
+      owner: unit.owner,
+      cityId: city.id,
+      target: city.owner,
+      outcome: 'success',
+    });
+    emit(board, {
+      type: 'GreatPersonStolen',
+      spyId: unit.id,
+      thief: unit.owner,
+      victim: city.owner,
+      cityId: city.id,
+      at: { q: city.q, r: city.r },
+    });
+    victim.cultureMilestones -= 1;
+    emit(board, {
+      type: 'CultureMilestone',
+      player: city.owner,
+      delta: -1,
+      total: victim.cultureMilestones,
+      reason: 'gpStolen',
+    });
+    const thief = board.st.players[unit.owner]!;
+    thief.cultureMilestones += 1;
+    emit(board, {
+      type: 'CultureMilestone',
+      player: unit.owner,
+      delta: 1,
+      total: thief.cultureMilestones,
+      reason: 'gpStolen',
+    });
+    kill(board, unit, 'mission', null); // l'Espion est consommé par sa mission
+  }
+}
+
+/** R-65 : ville sans défenseur investie → capture (capitale = victoire). R-97 : capture BARBARE → rasement. */function processCityCaptures(board: Board): void {
   for (const cityId of Object.keys(board.st.cities).sort()) {
     const city = board.st.cities[cityId]!;
     const hex = { q: city.q, r: city.r };
@@ -1397,9 +1607,15 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
   foundOrders.sort((a, b) => compareUnitIds(a.unitId, b.unitId));
   for (const order of foundOrders) {
     const unit = board.st.units[order.unitId];
-    if (!unit || unit.detainedBy || !unitType(unit.type).canFoundCity) continue;
+    // 7g · R-117 : une unité EMBARQUÉE ne fonde rien (elle n'est pas sur la
+    // carte — le débarquement d'abord).
+    if (!unit || unit.detainedBy || unit.aboard || !unitType(unit.type).canFoundCity) continue;
     const hex = { q: unit.q, r: unit.r };
     if (cityAt(board, hex)) continue;
+    // Fondation sur un terrain praticable uniquement (jamais sur l'eau —
+    // garde-fou : un terrestre ne se tient de toute façon jamais sur l'eau).
+    const tile = board.st.map[tileKeyOf(hex)];
+    if (!tile || !TERRAINS[tile.terrain]!.passable) continue;
     // T-09 : distance minimale à toute ville existante.
     if (Object.values(board.st.cities).some((c) => hexDistance(c, hex) < MIN_CITY_DISTANCE)) continue;
     const ownerHasCity = Object.values(board.st.cities).some((c) => c.owner === unit.owner);
@@ -1542,6 +1758,8 @@ function processEconomy(board: Board): void {
           order: null,
           detainedBy: null,
           fortified: false,
+          aboard: null,
+          cargo: null,
         };
         emit(board, {
           type: 'GreatPersonSpawned',
@@ -1606,6 +1824,8 @@ function processEconomy(board: Board): void {
                 order: null,
                 detainedBy: null,
                 fortified: false,
+                aboard: null,
+                cargo: null,
               };
               emit(board, {
                 type: 'UnitProduced',
@@ -1857,6 +2077,7 @@ export function resolveTurn(
   // ---- Phase C : économie (R-60 à R-66) + barbares (R-96 : villages).
   applySetProduction(board, allOrders);
   applyInstallPerson(board, allOrders); // 7f · R-115
+  applySpyMissions(board, allOrders); // 7g · R-119
   processCityCaptures(board);
   processFoundCity(board, allOrders);
   processVillages(board);

@@ -41,6 +41,10 @@ export interface ProductionData {
   implemented?: boolean | undefined;
   /** 7f : Personnage illustre (artiste/penseur) — jamais productible (R-114). */
   greatPerson?: boolean | undefined;
+  /** 7g · R-117 : capacité de transport (Galère/Galion : 1). */
+  cargoCapacity?: number | undefined;
+  /** 7g · R-119 : unité Espion (missions d'infiltration). */
+  spy?: boolean | undefined;
   /** 7e : bâtiment préalable exigé dans la ville (Banque ← Marché…). */
   requiresBuilding?: string | undefined;
   /** 7e : bâtiment retiré de la ville à la construction (remplacement). */
@@ -50,7 +54,7 @@ export interface ProductionData {
 }
 
 function unitAsItem(u: UnitTypeData): ProductionData {
-  return { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson };
+  return { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson, cargoCapacity: u.cargoCapacity, spy: u.spy };
 }
 
 function buildingAsItem(b: BuildingData): ProductionData {
