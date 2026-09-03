@@ -238,17 +238,36 @@ Tie-breaks R-81 partout (distance, puis `(q, r)`). **Les barbares ne subissent p
 - **Assignation** : automatique à la fondation/à la croissance (meilleure case libre par priorité nourriture > production > commerce, tie-break déterministe R-81), **re-assignable manuellement** via le nouvel ordre `SetWorkedTile` (ville, case) — dans le rayon, libre (non travaillée par une autre ville).
 - La ville affiche ses rendements cumulés (nourriture, production, commerce) — visibles dans le menu de ville et sous forme d'indicateurs sur la carte (affichage masquable).
 
+**R-60bis · Citoyens intérieurs (7i — D4, doc « Moteur Ville Civilization Revolution »).** Quand la population dépasse les cases exploitables (avant Tribunal, saturation, ou désassignation manuelle), les citoyens non affectés au terrain deviennent **ouvriers intérieurs** au **centre-ville** avec un rendement **par tranche démographique** (table data-driven `growth.json` — calibrage sans code, libellés CivRev) :
+
+| Tranche de pop | Qualification | Rendement par citoyen intérieur |
+|---|---|---|
+| 1-6 | Ouvrier (*Laborer*) | +1 Production |
+| 7-12 | Vendeur (*Vendor*) | +1 Production, +1 Commerce |
+| 13-18 | Commerçant (*Trader*) | +1 Production, +2 Commerce |
+| 19-24 | Marchand (*Merchant*) | +1 Production, +3 Commerce |
+| 25-30 | Importateur (*Importer*) | +1 Production, +4 Commerce |
+| 31 | Exportateur (*Exporter*) | +1 Production, +5 Commerce |
+
+Les modificateurs de gouvernement (R-121) s'appliquent selon leur nature (la production intérieure subit le +50 % Communisme, le commerce intérieur le +50 % Démocratie). **Réassignation** : priorité à l'affectation extérieure — un citoyen intérieur redevient travailleur de terrain dès qu'une case est disponible (Tribunal posé, croissance, fondation) ; les intérieurs comblent le reste (ordre déterministe R-81).
+
 **R-61 · Répartition du commerce.** ~~Répartie par un curseur global science/or (défaut `T-14` = 50/50)~~ — **remplacée par R-90 le 01/09/2026** (conversion binaire par ville ; le curseur global `player.scienceRatio` est déprécié).
 
 **R-62 · Files de production.** Un seul item à la fois ; la progression est conservée en cas de remplacement. À complétion : l'unité apparaît sur la case de ville (si libre — sinon en attente, 🔶) et la **file est vidée** (validé le 29/08).
 
-**R-63 · Croissance.** La population augmente quand la nourriture cumulée atteint le seuil **`10 × pop`** (règle Civ Revolution confirmée par Erik le 30/08 — la calibration 10→25 du même jour est **annulée** : elle compensait l'ancienne économie sans rendements réels ; avec les vrais rendements §2, le rythme Civ Rev 10×pop redevient la référence). v1 : **pas de consommation de nourriture** (100 % de la nourriture s'accumule, les citoyens ne « mangent » pas) ; à seuil atteint : +1 pop, jauge remise à zéro ; chaque point de population accorde `+T-16` de production et **1 citoyen de plus** (R-60). **7e : l'Aqueduc réduit le seuil d'un tiers** (`round(10 × pop × 2/3)` 🔶 — §8.4) et l'**Usine double la production de la ville** (§8.4).
+**R-63 · Croissance (révision 7i — D1/D2, doc d'Erik ; remplace la révision 30/08 « 10 × pop » et la v1 « pas de consommation »).**
+- **D1 — La nourriture se consomme** : chaque citoyen consomme **1 nourriture par tour** ; seul le **surplus** (`récolte − population`) alimente la réserve de croissance `foodStored`. En déficit, la réserve se vide ; à 0, la croissance s'arrête — **pas de famine ni de décès** (interprétation 🔶 documentée : le doc ne couvre pas la famine). La « pompe à colons » du doc devient possible (République : −1 pop par colon, repousse en quelques tours).
+- **D2 — Seuils NON LINÉAIRES** : la population augmente quand `foodStored` atteint le seuil de la table **`growth.json`** (`growthThresholds`, indexée par la population **CIBLE** ; courbe exponentielle proposée `5 × 1,25^(n−2)` arrondie — **toute la table est 🔶** pour calibrage d'Erik, sans toucher au code). À seuil atteint : +1 pop (jauge soustraite du seuil, surplus conservé), **+1 citoyen auto-assigné** (R-60) et `+T-16` production par pop au-delà de la première. **Plafond absolu : population 31** — croissance bloquée au-delà (`growthThresholdFor` retourne null).
+- **7e : l'Aqueduc réduit le seuil d'un tiers** (multiplicateur `growthThresholdReduction` sur la valeur de table 🔶) et l'**Usine double la production de la ville** (§8.4).
 
-**R-64 · Fondation.** `FoundCity` consomme le Colon → ville pop 1, **capitale** si première ville du joueur. Distance minimale entre villes : `T-09`.
+**R-64 · Fondation (révision 7i — D3/D5, doc d'Erik).** `FoundCity` consomme le Colon → ville **capitale** si première ville du joueur. Distance minimale entre villes : `T-09`.
+- **D3 — Population initiale par ÈRE** : l'ère de l'empire = l'**ère la plus avancée des technologies débloquées** (champ `era` de `techs.json`) → Ère Antique **2**, Médiévale **3**, Industrielle **4**, Moderne **5** (table `founderPopByEra` de `growth.json`). La ville démarre avec ses citoyens **auto-assignés** (R-60). Les **capitales préfabriquées** des cartes démarrent aussi à pop 2 🔶 (ère Antique — à confirmer). Les traits de civilisation (Chine +1, Rome Moderne 6, Mongols villages→pop 1) sont des clés de `civilizations.json` préparées en **7j** — ignorées en 1v1 sans civils.
+- **D5 — Fonder sur une ressource la DÉTRUIT** définitivement (la case devient une case de ville, la ressource est effacée) ; événement **`ResourceDestroyed`** 🔶 (libellé à calibrer) ; l'UI avertit avant de fonder sur une case à ressource visible.
 
 **R-65 · Capture de ville.** Ville sans défenseur investie : changement de propriétaire, pop −1 (min 1), file de production effacée. **Capturer la capitale adverse = victoire (domination).**
 
 **R-66 · Bâtiments d'amélioration des terrains (ajouté le 30/08).** Construits via la **file de production de la ville** (même mécanique que les unités, `SetProduction`), une fois bâtis ils sont **permanents et propres à la ville** :
+- **7i · R-66 (rév.) — centre-ville** : la case de ville garantit **au minimum 1 Production** quel que soit le terrain, et son **commerce évolue avec le palier démographique** (interprétation 🔶 : commerce du centre = valeur de la tranche R-60bis — 0 pour pop ≤ 6, jusqu'à +5 à pop 31 ; données `growth.json`) ;
 - le bonus du bâtiment s'applique à **chaque case travaillée de son terrain** par cette ville (ex. Grenier : +1 N à chaque plaine travaillée par cette ville) ;
 - le **Tribunal** est l'exception : il étend le rayon de travail de la ville de **1 à 2** (6 → 18 cases exploitables) ;
 - un bâtiment n'est constructible **qu'une fois** par ville ; il est **perdu si la ville est capturée** (le captreur ne le récupère pas — 🔶 simplification) ;
@@ -372,7 +391,8 @@ Les bâtiments portent des effets **data-driven** (`buildings.json`) appliqués 
 | Composants du Vaisseau (×4) | 80/120/200/400 | Vol spatial | Victoire scientifique | 7h |
 
 - **Multiplicateurs** : le meilleur multiplicateur présent gagne (`scienceMultOf`/`goldMultOf`, `conversion.ts` — source unique moteur/UI). L'Université remplace la Bibliothèque : le bonus résiduel R-88 disparaît avec elle. L'Usine multiplie la production brute avant le bonus de population (R-63).
-- **Aqueduc** : seuil de croissance `round(10 × pop × (1 − 0.33))` 🔶.
+- **Aqueduc** : seuil de croissance réduit d'un tiers sur la **table growth.json** (7i — `round(seuil × (1 − 0.33))` 🔶 ; la formule « 10 × pop » est obsolète).
+- **Migration 7i — décision documentée : PAS de migration `schemaVersion` 12→13** : tout est recalculé à la résolution (surplus, seuils, intérieurs, commerce du centre) — aucun champ persisté nouveau ni sémantique modifiée (`foodStored` reste une réserve ; la transition s'applique naturellement au premier tour résolu après déploiement).
 - **Défense** : les `cityDefenseBonus` s'additionnent dans `S_def` (§7.4) pour le défenseur en garnison de SA ville (Palais 0,5 + Remparts 1,0 → bonus total +150 %).
 - **Migration v8 → v9** : `firstBy: {}` (R-109) + Palais ajouté aux capitales existantes. Les nouvelles fondations reçoivent le Palais directement (R-64, moteur).
 
@@ -489,7 +509,7 @@ Interprétation Anarchie (voir R-122) : aucun bonus de l'ancien OU du nouveau r�
 | T-12 | `settlerBootyGold` | 10 (moitié du coût) 🔶 |
 | T-13 | `rangedRange` | 1 🔶 |
 | T-14 | `scienceRatioDefault` | ~~0.5~~ **déprécié le 01/09/2026** — remplacé par R-90 (conversion binaire par ville) |
-| T-15 | `growthBase` | **10 (seuil = 10 × pop)** — règle Civ Rev confirmée par Erik le 30/08 ; la calibration 10→25 du même jour est annulée (elle compensait l'absence de rendements réels) |
+| T-15 | `growthBase` | **OBSOLÈTE (7i)** — remplacé par la table `growth.json` (`growthThresholds` indexée par population cible, courbe proposée 5 × 1,25^(n−2) 🔶 ; plafond 31 ; fondateur par ère `founderPopByEra` 2/3/4/5 🔶 ; tranches R-60bis 🔶) |
 | T-16 | `popProductionBonus` | 0.25 🔶 |
 | T-17 | `fortifyDefenseBonus` | 0.25 🔶 (R-33, ajouté le 30/08) |
 | T-18 | `barbarianSpawnInterval` | 3 🔶 (R-96, Phase 7d — valeur dans `barbares.json`) |

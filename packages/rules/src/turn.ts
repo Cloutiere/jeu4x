@@ -42,7 +42,6 @@ import {
   CITY_WORK_RADIUS,
   EXCHANGES_PER_ATTACK,
   FORTIFY_DEFENSE_BONUS,
-  GROWTH_BASE,
   MIN_CITY_DISTANCE,
   POP_PRODUCTION_BONUS,
   RANGED_RANGE,
@@ -69,6 +68,14 @@ import {
 } from './culture.js';
 import type { YieldGreatPersonType } from './culture.js';
 import { effectsFor, isInAnarchy, landCombatBonus, populationCostOf } from './governments.js';
+// 7i · R-63 rév. (D1/D2), R-60bis (D4), R-64 rév. (D3) — croissance CivRev.
+import {
+  GROWTH,
+  growthThresholdFor,
+  foundingPopFor,
+  interiorCitizenFor,
+  interiorCountOf,
+} from './growth.js';
 import { applyFirstToDiscover, empirePerCityBonus } from './firstDiscovery.js';
 import {
   barbarianOrders,
@@ -1744,13 +1751,22 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     // T-09 : distance minimale à toute ville existante.
     if (Object.values(board.st.cities).some((c) => hexDistance(c, hex) < MIN_CITY_DISTANCE)) continue;
     const ownerHasCity = Object.values(board.st.cities).some((c) => c.owner === unit.owner);
+    // 7i · D3 · R-64 (rév.) : population initiale selon l'ÈRE de l'empire
+    // (la plus avancée des technologies débloquées — Antique 2, Médiévale 3,
+    // Industrielle 4, Moderne 5 — données growth.json). Les citoyens sont
+    // auto-assignés en Phase C (board.pendingFill — R-60).
+    const founderPop = foundingPopFor(board.st.players[unit.owner]?.techsUnlocked ?? []);
+    // 7i · D5 · R-64 (rév.) : fonder SUR une ressource la détruit
+    // définitivement (elle est effacée avec le terrain, déjà le cas —
+    // l'événement le documente désormais dans le journal).
+    const destroyedResource = tile.resource ?? null;
     const cityId = nextId(board.st.cities, 'c');
     board.st.cities[cityId] = {
       id: cityId,
       q: hex.q,
       r: hex.r,
       owner: unit.owner,
-      pop: 1,
+      pop: founderPop,
       capital: !ownerHasCity,
       foodStored: 0,
       production: null,
@@ -1765,8 +1781,11 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
     delete board.st.units[unit.id];
-    board.pendingFill.add(cityId); // le premier citoyen est auto-assigné en Phase C
+    board.pendingFill.add(cityId); // les citoyens initiaux sont auto-assignés en Phase C
     emit(board, { type: 'CityFounded', cityId, owner: unit.owner, at: hex, capital: !ownerHasCity, byUnitId: unit.id });
+    if (destroyedResource) {
+      emit(board, { type: 'ResourceDestroyed', resource: destroyedResource, at: hex, cityId, owner: unit.owner });
+    }
   }
 }
 
@@ -1806,16 +1825,29 @@ function processEconomy(board: Board): void {
     // Rendements : centre-ville automatique et gratuit + Σ cases travaillées
     // (base §2 + bonus bâtiments par terrain travaillé R-66 + bonus ressource
     // si le propriétaire y a accès, R-93).
+    // 7i · R-66 (rév.) : le centre-ville garantit AU MINIMUM 1 Production
+    // (quel que soit le terrain) et son commerce évolue avec la tranche
+    // démographique (D4 — interprétation 🔶 : commerce du centre = valeur de
+    // la tranche, données growth.json).
     const cityTile = TERRAINS['ville']!.yields!;
+    const tier = interiorCitizenFor(city.pop);
     let food = cityTile.food;
-    let rawProduction = cityTile.production + empireBonus.production;
-    let commerce = cityTile.commerce + empireBonus.commerce;
+    let rawProduction = Math.max(GROWTH.cityCenter.minProduction, cityTile.production) + empireBonus.production;
+    let commerce = (GROWTH.cityCenter.commerceByTier ? tier.commerce : cityTile.commerce) + empireBonus.commerce;
     for (const key of city.workedTiles) {
       const y = tileYield(board.st.map, city.buildings, key, player.techsUnlocked)!;
       food += y.food;
       rawProduction += y.production;
       commerce += y.commerce;
     }
+    // 7i · D4 · R-60bis : les citoyens NON affectés au terrain (pop dépassant
+    // les cases exploitables — avant Tribunal, saturation) sont des ouvriers
+    // intérieurs au centre-ville : +production/+commerce PAR citoyen selon la
+    // tranche. Réintégration au terrain dès qu'une case est disponible
+    // (fillWorkedTiles — priorité extérieure, les intérieurs comblent le reste).
+    const interior = interiorCountOf(city.pop, city.workedTiles.length);
+    rawProduction += interior * tier.production;
+    commerce += interior * tier.commerce;
     // 7f · R-113/R-116 : le Colosse de Rhodes DOUBLE le commerce brut de la
     // ville hôte (avant la conversion or/science R-90) — data-driven.
     let wonderCommerceMult = 1;
@@ -1853,21 +1885,25 @@ function processEconomy(board: Board): void {
       },
     });
 
-    // R-63 : croissance au seuil 10 × pop (T-15) ; +1 pop = +1 citoyen
-    // (auto-assigné) et +T-16 production par pop au-delà de la première.
-    // 7e · Aqueduc : seuil réduit d'un tiers (data-driven 🔶).
+    // 7i · D1 · R-63 (rév.) : chaque citoyen CONSOMME 1 nourriture par tour —
+    // seul le SURPLUS (récolte − population) alimente la réserve. En déficit
+    // la réserve se vide et, à 0, la croissance s'arrête — PAS de famine ni
+    // de décès (interprétation 🔶 documentée : le doc ne couvre pas la famine).
+    // D2 · seuils NON LINÉAIRES (table growth.json, indexée par la population
+    // CIBLE — courbe exponentielle 🔶) ; plafond absolu 31 (croissance
+    // bloquée au-delà). Aqueduc : seuil réduit d'un tiers (data-driven).
     let growthReduction = 0;
     for (const b of city.buildings) {
       growthReduction = Math.max(growthReduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
     }
-    city.foodStored += food;
-    let threshold = Math.max(1, Math.round(GROWTH_BASE * city.pop * (1 - growthReduction)));
-    while (city.foodStored >= threshold) {
+    city.foodStored = Math.max(0, city.foodStored + food - city.pop);
+    let threshold = growthThresholdFor(city.pop, growthReduction);
+    while (threshold !== null && city.foodStored >= threshold) {
       city.foodStored -= threshold;
       city.pop += 1;
       emit(board, { type: 'PopulationGrew', cityId, owner: city.owner, pop: city.pop, at: { q: city.q, r: city.r } });
       if (city.workedTiles.length < city.pop) fillWorkedTiles(board, city, taken);
-      threshold = Math.max(1, Math.round(GROWTH_BASE * city.pop * (1 - growthReduction)));
+      threshold = growthThresholdFor(city.pop, growthReduction);
     }
 
     // 7f · R-113 : rendement culturel de la ville (scalaire sur la démographie :
@@ -2035,6 +2071,14 @@ function processEconomy(board: Board): void {
                 city.buildings = city.buildings.filter((b) => b !== replaced);
               }
               city.buildings.push(buildingId);
+              // 7i · D4 · R-60bis : le Tribunal élargit le rayon — les
+              // citoyens intérieurs redeviennent travailleurs de terrain
+              // (priorité à l'affectation extérieure) DÈS CE TOUR : le
+              // pendingFill est propre à la résolution, on remplit ici.
+              if ((BUILDINGS[buildingId]?.workRadiusBonus ?? 0) > 0) {
+                board.pendingFill.add(cityId);
+                fillWorkedTiles(board, city, taken);
+              }
               emit(board, {
                 type: 'BuildingCompleted',
                 cityId,

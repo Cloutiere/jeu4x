@@ -78,8 +78,9 @@ describe('R-109 · Premier découvrir (7e)', () => {
     });
     state.firstBy = { industrialisation: 'p1' }; // récompense perCity {gold: 5}
     const { newState } = resolveTurn(state, {}, 1);
-    // 2 villes × (5 or de récompense + 1 or du commerce de la case de ville).
-    expect(newState.players['p1']!.gold).toBe(12);
+    // 2 villes × 5 or de récompense. 7i · R-66 (rév.) : plus d'or de centre
+    // à pop ≤ 6 (le commerce du centre suit la tranche).
+    expect(newState.players['p1']!.gold).toBe(10);
   });
 });
 
@@ -161,18 +162,19 @@ describe('R-111 · Marché/Banque : multiplicateurs d’or et REMPLACEMENT (7e)'
 });
 
 describe('7e · Effets de bâtiments actifs', () => {
-  it('Aqueduc : seuil de croissance réduit d’un tiers (12+4 nourriture fait croître avec Aqueduc, pas sans)', () => {
+  it('Aqueduc : seuil de croissance réduit d’un tiers (surplus 4 fait croître avec Aqueduc, pas sans — 7i D1/D2)', () => {
     const withAqueduct = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 12, buildings: ['aqueduc'], workedTiles: ['1,0', '0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, buildings: ['aqueduc'], workedTiles: ['1,0', '0,1'] }],
     });
     const without = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 12, workedTiles: ['1,0', '0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: ['1,0', '0,1'] }],
     });
     const grown = resolveTurn(withAqueduct, {}, 1).newState;
     const notGrown = resolveTurn(without, {}, 1).newState;
-    // Seuil sans Aqueduc : 10×2 = 20 → 16 < 20, pas de croissance.
+    // Surplus = récolte 6 (centre 2 + 2 prairies) − 2 citoyens = 4.
+    // Seuil sans Aqueduc (table growth.json) : 6 → 4 < 6, pas de croissance.
     expect(notGrown.cities['c1']!.pop).toBe(2);
-    // Seuil avec Aqueduc 🔶 : round(20 × 0,67) = 13 → 16 ≥ 13, croissance.
+    // Seuil avec Aqueduc 🔶 : round(6 × 0,67) = 4 → 4 ≥ 4, croissance.
     expect(grown.cities['c1']!.pop).toBe(3);
   });
 

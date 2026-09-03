@@ -25,6 +25,7 @@ import { CURRENT_SCHEMA_VERSION } from './state.js';
 import type { ResourceId } from './types.js';
 import { SCIENCE_RATIO_DEFAULT, VISION_RADIUS_CITY } from './constants.js';
 import { CONVERSION_DEFAULT } from './conversion.js';
+import { autoAssignWorkedTiles } from './economy.js';
 import { hexesWithinRadius } from './hex.js';
 
 export interface MapPlayerSpawn {
@@ -364,7 +365,10 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       q: spawn.capital.q,
       r: spawn.capital.r,
       owner: spawn.id,
-      pop: 1,
+      // 7i · D3 · R-64 (rév.) : les capitales préfabriquées démarrent à pop 2
+      // (proposal 🔶 confirmée au handoff 7i — ère Antique) avec leurs 2
+      // citoyens auto-assignés (R-60).
+      pop: 2,
       capital: true,
       foodStored: 0,
       production: null,
@@ -379,6 +383,13 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
     };
     // La case de capitale devient une case de ville (RULES.md §2).
     mapRecord[tileKeyOf(spawn.capital)] = { terrain: 'ville', resource: null };
+    // 7i · D3 · R-60 : les 2 citoyens initiaux sont auto-assignés dès la
+    // création (meilleures cases libres, priorité N > P > C — R-81).
+    cities[id]!.workedTiles = autoAssignWorkedTiles(mapRecord, Object.values(cities), {
+      ...cities[id]!,
+      q: spawn.capital.q,
+      r: spawn.capital.r,
+    });
   });
 
   const units: GameState['units'] = {};

@@ -5,7 +5,7 @@
    * Le client ne calcule aucune règle : les boutons reflètent ce que l'état
    * filtré autorise ; la validation finale reste serveur.
    */
-  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf } from '@game/rules';
+  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
@@ -27,6 +27,15 @@
   const editable = $derived(ordersEditable(view));
   const stats = $derived(unit ? unitType(unit.type) : null);
   const draftHere = $derived(ui.draft && unit && ui.draft.unitId === unit.id ? ui.draft : null);
+
+  /** 7i · D5 · R-64 (rév.) : la case du colon porte-t-elle une ressource
+   *  connue ? Fonder la DÉTRUIT définitivement — avertissement avant l'ordre. */
+  const resourceOnTile = $derived.by(() => {
+    if (!unit || !view.state) return null;
+    const tile = view.state.map[`${unit.q},${unit.r}`];
+    if (!tile?.resource) return null;
+    return tile.resource === RESOURCE_UNKNOWN ? 'une ressource (identité non révélée)' : (RESOURCES[tile.resource]?.name ?? tile.resource);
+  });
   const currentOrder = $derived(
     unit ? view.orders.find((o) => 'unitId' in o && o.unitId === unit.id) ?? null : null,
   );
@@ -256,10 +265,15 @@
           </button>
         {/if}
         {#if stats?.canFoundCity}
+          {#if resourceOnTile}
+            <p class="found-warning" title="R-64 (rév., 7i D5) : la ressource sous la ville serait effacée du jeu">
+              ⚠ Fonder ici détruirait DÉFINITIVEMENT {resourceOnTile} — préférez une case voisine.
+            </p>
+          {/if}
           <button
             type="button"
             disabled={!editable || cityTooClose}
-            title={cityTooClose ? `Une ville connue est à distance < ${MIN_CITY_DISTANCE} (T-09) — déplacez le colon.` : undefined}
+            title={cityTooClose ? `Une ville connue est à distance < ${MIN_CITY_DISTANCE} (T-09) — déplacez le colon.` : resourceOnTile ? 'La ressource de cette case sera détruite (R-64 rév.)' : 'Fonde une ville (pop initiale selon l\'ère — R-64 rév.)'}
             onclick={() => unit && client.submitOrder({ type: 'FoundCity', unitId: unit.id })}
           >
             Fonder une ville
@@ -371,4 +385,5 @@
   button.link { background: none; border: none; color: #7fb3ff; text-decoration: underline; padding: 0.2rem 0; font-size: 0.82rem; }
   .odds { color: #ffe082; font-size: 0.8rem; }
   .oracle-note { color: #ce93d8; font-size: 0.8rem; margin: 0.2rem 0; }
+  .found-warning { color: #ffcc80; font-size: 0.78rem; margin: 0.2rem 0; }
 </style>

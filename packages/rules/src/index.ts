@@ -17,6 +17,7 @@ export * from './culture.js';
 export * from './governments.js';
 export * from './naval.js';
 export * from './economy.js';
+export * from './growth.js';
 export * from './barbares.js';
 export * from './map.js';
 export * from './fog.js';

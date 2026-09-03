@@ -92,8 +92,9 @@ describe('R-60 · cases travaillées multiples (Phase 6)', () => {
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
     const foodPerTile = 2; // prairies
-    const expectedFood = 2 + foodPerTile * city.workedTiles.length; // centre 2 N
-    expect(city.foodStored).toBe(expectedFood); // pas de croissance si < 20
+    // 7i · D1 · R-63 (rév.) : la réserve reçoit le SURPLUS = récolte − pop.
+    const expectedFood = 2 + foodPerTile * city.workedTiles.length - city.pop; // centre 2 N
+    expect(city.foodStored).toBe(expectedFood);
   });
 });
 
@@ -119,8 +120,9 @@ describe('R-66 · bâtiments (Phase 6)', () => {
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
     expect(city.workedTiles).toContain('0,1');
-    // nourriture du tour = 2 (centre) + 1 (plaine) + 2 (Grenier) = 5
-    expect(city.foodStored).toBe(5);
+    // nourriture du tour = 2 (centre) + 1 (plaine) + 2 (Grenier) = 5 ;
+    // réserve = SURPLUS = 5 − 1 citoyen (D1 · R-63 rév.) = 4
+    expect(city.foodStored).toBe(4);
   });
 
   it('R-66 : le Tribunal étend le rayon — une case à distance 2 devient travaillable', () => {

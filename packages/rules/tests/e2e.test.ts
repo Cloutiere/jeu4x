@@ -74,7 +74,8 @@ describe('Campagne multi-tours (critère 2)', () => {
     expect(allEvents.some((e) => e.type === 'CityFounded')).toBe(true);
     expect(state.units['u2']).toBeUndefined(); // colon consommé (R-64)
     const newCity = Object.values(state.cities).find((c) => c.q === 3 && c.r === 0)!;
-    expect(newCity).toMatchObject({ owner: 'p1', capital: false, pop: 1 });
+    // 7i · D3 : fondation à pop 2 (ère Antique) — 2 citoyens auto-assignés
+    expect(newCity).toMatchObject({ owner: 'p1', capital: false, pop: 2 });
     expect(state.map['3,0']!.terrain).toBe('ville');
 
     // Tour 3 : u5 marche vers le guerrier ennemi ; u3 avance aussi.
@@ -90,8 +91,9 @@ describe('Campagne multi-tours (critère 2)', () => {
     expect(allEvents.some((e) => e.type === 'Captured' && e.outcome === 'destroyed')).toBe(true);
     expect(allEvents.some((e) => e.type === 'BootyGold' && e.player === 'p2' && e.amount === 10)).toBe(true);
     expect(state.units['u5']).toBeUndefined();
-    // T-12 : butin 10 + les revenus de c2 (1 or/tour × 3 tours, R-60/R-61)
-    expect(state.players['p2']!.gold).toBe(13);
+    // T-12 : butin 10. 7i · R-66 (rév.) : le commerce du centre suit la
+    // tranche démographique (0 pour pop ≤ 6) — c2 ne génère plus d'or de centre.
+    expect(state.players['p2']!.gold).toBe(10);
 
     // Tour 4 : le guerrier p1 se met en marche (chemin multi-tours).
     step({ p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }] }] }, 14);
@@ -185,7 +187,12 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     return makeState({
       width: 12,
       height: 12,
-      terrainOverrides: { '5,6': 'plaine', '3,5': 'montagne' },
+      // 7i : anneau 1 en plaine (1 N) — la consommation D1 rend la croissance
+      // moins triviale et rend le scénario lisible.
+      terrainOverrides: {
+        '4,5': 'plaine', '4,6': 'plaine', '5,4': 'plaine',
+        '5,6': 'plaine', '6,4': 'plaine', '6,5': 'plaine', '3,5': 'montagne',
+      },
       units: [{ id: 'u1', type: 'colon', owner: 'p1', q: 5, r: 5 }],
     });
   }
@@ -202,31 +209,35 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
       allEvents.push(...r.events);
     };
 
-    // Tour 1 : fondation. Pop 1 → 1 citoyen auto-assigné (prairie 2 N) ;
-    // nourriture/tour = 2 (centre) + 2 (citoyen) = 4.
+    // Tour 1 : fondation. 7i · D3 : pop 2 → 2 citoyens auto-assignés
+    // (plaines 1 N) ; réserve = SURPLUS = (2+1+1) récolte − 2 citoyens = 2
+    // (7i · D1 · R-63 rév.).
     step({ p1: [{ type: 'FoundCity', unitId: 'u1' }] });
     const cityId = Object.keys(state.cities)[0]!;
-    expect(state.cities[cityId]!.pop).toBe(1);
-    expect(state.cities[cityId]!.workedTiles.length).toBe(1);
-    expect(state.cities[cityId]!.foodStored).toBe(4);
-
-    // Tours 2-3 : croissance au seuil 10 × pop (R-63) → pop 2.
-    step({});
-    step({});
     expect(state.cities[cityId]!.pop).toBe(2);
-    expect(allEvents.some((e) => e.type === 'PopulationGrew')).toBe(true);
-    expect(state.cities[cityId]!.workedTiles.length).toBe(2); // +1 citoyen auto-assigné (R-60)
+    expect(state.cities[cityId]!.workedTiles.length).toBe(2);
+    expect(state.cities[cityId]!.foodStored).toBe(2);
 
-    // Tour 4 : ville pleine (pop 2, 2 citoyens) → on désassigne d'abord
-    // (règle d'Erik : pas d'échange automatique) + Grenier en file (20 🔶).
+    // Tours 2-3 : surplus 2/tour → réserve 6 = seuil vers pop 3 (growth.json)
+    // → croissance au tour 3.
+    step({});
+    step({});
+    expect(state.cities[cityId]!.pop).toBe(3);
+    expect(allEvents.some((e) => e.type === 'PopulationGrew')).toBe(true);
+    expect(state.cities[cityId]!.workedTiles.length).toBe(3); // +1 citoyen auto-assigné (R-60)
+
+    // Tour 4 : ville pleine (pop 3, 3 citoyens) → on désassigne d'abord
+    // (règle d'Erik : pas d'échange automatique) + Grenier en file.
+    // Le citoyen intérieur (7i · R-60bis) produit : 1 (centre) + 1 (intérieur)
+    // → floor(2 × 1,5) = 3 marteaux/tour (bonus pop R-63).
     step({
       p1: [
         { type: 'SetWorkedTile', cityId, tile: null },
         { type: 'SetProduction', cityId, item: { kind: 'building', id: 'grenier' } },
       ],
     });
-    expect(state.cities[cityId]!.workedTiles).toHaveLength(1);
-    expect(state.cities[cityId]!.production!.progress).toBe(1); // 1/tour à pop 2
+    expect(state.cities[cityId]!.workedTiles).toHaveLength(2);
+    expect(state.cities[cityId]!.production!.progress).toBe(3); // production du tour : centre 1 + intérieur 1 (R-60bis) × bonus pop
 
     // Tour 5 : le citoyen libéré est assigné à la plaine (5,6).
     step({ p1: [{ type: 'SetWorkedTile', cityId, tile: '5,6' }] });
@@ -244,15 +255,26 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     // nourriture du tour suivant intègre le bonus (centre + Σ rendements
     // effectifs des cases travaillées, Grenier compris).
     const tiles = [...state.cities[cityId]!.workedTiles];
-    const expectedFood =
-      2 + tiles.reduce((acc, key) => acc + tileYield(state.map, ['grenier'], key)!.food, 0);
-    // stock remis à zéro pour isoler la mesure d'un tour (sinon la croissance
-    // R-63 peut se déclencher pendant la mesure)
+    // stock remis à zéro + population forcée à 4 pour isoler la mesure d'un
+    // tour (sinon la croissance R-63 rév. se déclencherait : le surplus du
+    // Grenier atteint pile le seuil de la table)
     state.cities[cityId]!.foodStored = 0;
+    state.cities[cityId]!.pop = 4;
+    // 7i · D1 : la réserve reçoit le SURPLUS (récolte − population).
+    const expectedFood =
+      2 + tiles.reduce((acc, key) => acc + tileYield(state.map, ['grenier'], key)!.food, 0) -
+      state.cities[cityId]!.pop;
     step({});
     expect(state.cities[cityId]!.foodStored).toBe(expectedFood);
-    expect(expectedFood).toBeGreaterThan(2 + tiles.length); // le bonus se sent vraiment
+    expect(expectedFood).toBeGreaterThan(
+      2 + tiles.reduce((a, k) => a + tileYield(state.map, [], k)!.food, 0) - state.cities[cityId]!.pop,
+    ); // le bonus du Grenier se sent vraiment
 
+    // 7i : stock et population recadrés pour garder le scénario déterministe
+    // (la consommation D1 + la table de croissance feraient pousser la ville
+    // pendant les tours suivants).
+    state.cities[cityId]!.foodStored = 0;
+    state.cities[cityId]!.pop = 3;
     // Tribunal en file (40 🔶), achevé au tour suivant.
     state.cities[cityId]!.production = { item: { kind: 'building', id: 'tribunal' }, progress: 79 };
     step({}); // 79 + production du tour → complété (coût exact 7e : 80)

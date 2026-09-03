@@ -62,6 +62,8 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   TechResearched: 400,
   FirstDiscovered: 460,
   BuildingCompleted: 320,
+  // 7i (D5) : ressource détruite par une fondation.
+  ResourceDestroyed: 320,
   DiplomaticIncident: 300,
   Victory: 400,
   // Phase 7h (R-122/R-124) : gouvernements & vaisseau spatial.

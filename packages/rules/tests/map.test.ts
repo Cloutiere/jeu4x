@@ -186,7 +186,7 @@ describe('L3 · Cartes 40×40 commises', () => {
 });
 
 describe('L3 · createInitialState', () => {
-  it('capitales fondées (pop 1, capital), unités placées, guerre permanente, vision initiale', async () => {
+  it('capitales fondées (pop 2 — 7i D3, capital), unités placées, guerre permanente, vision initiale', async () => {
     const loaded = await loadBuiltinMap('pangee-40');
     const state = createInitialState(loaded, 42);
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
@@ -194,8 +194,11 @@ describe('L3 · createInitialState', () => {
     expect(state.rngSeed).toBe(42);
     expect(Object.keys(state.cities)).toEqual(['c1', 'c2']);
     for (const city of Object.values(state.cities)) {
-      expect(city.pop).toBe(1);
+      // 7i · D3 · R-64 (rév.) : capitales préfabriquées à pop 2 (proposal 🔶)
+      expect(city.pop).toBe(2);
       expect(city.capital).toBe(true);
+      // les 2 citoyens initiaux sont auto-assignés (R-60)
+      expect(city.workedTiles).toHaveLength(2);
       // la case de capitale porte le terrain "ville" (RULES.md §2)
       expect(state.map[tileKeyOf(city)]!.terrain).toBe('ville');
     }

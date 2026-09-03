@@ -38,10 +38,9 @@ export const FORTIFY_DEFENSE_BONUS = 0.25;
 
 /** R-61 · Part du commerce allouée à la science (curseur global, défaut 50/50). 🔶 */
 export const SCIENCE_RATIO_DEFAULT = 0.5;
-/** R-63 · Seuil de croissance : base × population courante (règle Civ Rev,
- *  confirmée par Erik le 30/08 — la calibration 10→25 du même jour, qui
- *  compensait l'absence de rendements réels, est ANNULÉE avec la révision
- *  économique §2 : retour à 10). */
+/** R-63 · OBSOLÈTE depuis 7i (D1/D2) : le seuil 10 × pop est remplacé par la
+ *  table growth.json (growthThresholds, indexée par population cible) — la
+ *  constante n'est plus lue par le moteur (source : packages/rules/src/growth.ts). */
 export const GROWTH_BASE = 10;
 /** R-63 · Modulation de la production par point de population au-delà du premier. 🔶 */
 export const POP_PRODUCTION_BONUS = 0.25;

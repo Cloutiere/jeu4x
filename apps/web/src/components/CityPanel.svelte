@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap } from '@game/rules';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -54,10 +54,13 @@
   );
   const player = $derived(city ? view.state?.players[city.owner] ?? null : null);
 
-  /** Cumuls de la ville : centre gratuit + Σ cases travaillées + bonus bâtiments (R-60/R-66). */
+  /** Cumuls de la ville : centre gratuit (7i · R-66 rév. : commerce de
+   *  tranche) + Σ cases travaillées + citoyens intérieurs (7i · R-60bis). */
   const yields = $derived.by(() => {
     if (!city || !view.state) return null;
-    const t = { food: 2, production: 1, commerce: 1 }; // case de ville (R-60)
+    const tier = interiorCitizenFor(city.pop);
+    const interior = interiorCountOf(city.pop, city.workedTiles.length);
+    const t = { food: 2, production: Math.max(1, 1) + interior * tier.production, commerce: tier.commerce + interior * tier.commerce };
     for (const key of city.workedTiles) {
       const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
       if (!y) continue;
@@ -68,15 +71,21 @@
     return t;
   });
 
+  /** 7i · D1 : surplus alimentaire = récolte − population (cœur pédagogique). */
+  const foodSurplus = $derived(yields && city ? yields.food - city.pop : 0);
+
+
   /** R-90/R-88 : répartition or/science selon la conversion de la ville (source unique moteur). */
   const gains = $derived(
     yields && city ? conversionGains(yields.commerce, city.conversion, city.buildings) : null,
   );
 
-  /** Production par tour de la ville (miroir Phase C : raw × Usine × (1 + 0,25×(pop−1)), R-63 🔶 + 7e). */
+  /** Production par tour de la ville (miroir Phase C : raw × Usine × (1 + 0,25×(pop−1)), R-63 🔶 + 7e + citoyens intérieurs 7i). */
   const prodPerTurn = $derived.by(() => {
     if (!city || !view.state) return 0;
-    let raw = 1; // case de ville
+    const tier = interiorCitizenFor(city.pop);
+    const interior = interiorCountOf(city.pop, city.workedTiles.length);
+    let raw = 1 + interior * tier.production; // case de ville (min 1 P — R-66 rév.) + intérieurs
     for (const key of city.workedTiles) {
       const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
       if (y) raw += y.production;
@@ -91,28 +100,21 @@
       : null,
   );
 
-  /** Nourriture par tour (miroir Phase C) → ETA de croissance (R-63). */
-  const foodPerTurn = $derived.by(() => {
-    if (!city || !view.state) return 0;
-    let f = 2; // case de ville
-    for (const key of city.workedTiles) {
-      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
-      if (y) f += y.food;
-    }
-    return f;
-  });
-
-  /** R-63 (+7e Aqueduc) : jauge de croissance — nourriture accumulée / seuil 10 × pop (−⅓ avec Aqueduc 🔶). */
+  /** 7i · D1/D2 · R-63 (rév.) : jauge de croissance — surplus alimentaire vs
+   *  seuil de la table growth.json (population cible, 🔶) ; plafond 31. */
+  const atPopulationCap = $derived(!!city && city.pop >= populationCap());
   const growthThreshold = $derived.by(() => {
     if (!city) return 0;
     let reduction = 0;
     for (const b of city.buildings) reduction = Math.max(reduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
-    return Math.max(1, Math.round(10 * city.pop * (1 - reduction)));
+    return growthThresholdFor(city.pop, reduction) ?? 0;
   });
-  const growthRatio = $derived(city ? Math.max(0, Math.min(1, city.foodStored / growthThreshold)) : 0);
+  const growthRatio = $derived(
+    city && growthThreshold > 0 ? Math.max(0, Math.min(1, city.foodStored / growthThreshold)) : 0,
+  );
   const growthEta = $derived(
-    city && foodPerTurn > 0 && city.foodStored < growthThreshold
-      ? Math.ceil((growthThreshold - city.foodStored) / foodPerTurn)
+    city && foodSurplus > 0 && growthThreshold > 0 && city.foodStored < growthThreshold
+      ? Math.ceil((growthThreshold - city.foodStored) / foodSurplus)
       : null,
   );
 
@@ -181,6 +183,10 @@
     return { assigns, unassigns, effective, toAssign: city.pop - effective, tiles };
   });
   const hasPending = $derived(pending.unassigns > 0 || pending.assigns.length > 0);
+  /** 7i · D4 · R-60bis : citoyens intérieurs — tranche et rendement courants. */
+  const tierYields = $derived(city ? interiorCitizenFor(city.pop) : { label: '', production: 0, commerce: 0 });
+  const tierLabel = $derived(tierYields.label);
+  const interiorCount = $derived(city ? interiorCountOf(city.pop, pending.effective) : 0);
 
   /**
    * Items de production : unités 7a + bâtiments — FILTRÉS par déblocage
@@ -352,6 +358,10 @@
   function projectedYields(tiles: string[]): { food: number; production: number; commerce: number } {
     const t = { food: 2, production: 1, commerce: 1 }; // case de ville (R-60)
     if (!view.state || !city) return t;
+    const tier = interiorCitizenFor(city.pop);
+    const interior = interiorCountOf(city.pop, tiles.length);
+    t.production = 1 + interior * tier.production;
+    t.commerce = tier.commerce + interior * tier.commerce;
     for (const key of tiles) {
       const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
       if (!y) continue;
@@ -418,10 +428,20 @@
       </div>
       {#if hasPending}<p class="hint pending-note">▲ valeurs projetées (réassignation en attente)</p>{/if}
       {#if mine}
-        <div class="gauge" title="Croissance : seuil 10 × pop (R-63)">
+        <!-- 7i · D1 · R-63 (rév.) : la consommation de nourriture, cœur pédagogique -->
+        <p
+          class="food-line"
+          class:deficit={foodSurplus < 0}
+          title="R-63 (rév.) : chaque citoyen consomme 1 nourriture par tour — seul le surplus alimente la réserve de croissance"
+        >
+          Nourriture : {shown.food} récoltée − {city.pop} citoyen{city.pop > 1 ? 's' : ''} =
+          <strong>{foodSurplus > 0 ? '+' : ''}{foodSurplus}</strong> /tour
+          {#if foodSurplus < 0}<span class="warn"> (déficit — croissance à l'arrêt)</span>{/if}
+        </p>
+        <div class="gauge" title="Croissance (7i · D2) : surplus vs seuil de la table growth.json (population cible {city.pop + 1})">
           <span class="lab"><img src="/art/icone_nourriture.png" alt="" onerror={hideImg} /> {city.foodStored} / {growthThreshold}</span>
           <div class="bar"><div class="fill growth-fill" style:width={`${growthRatio * 100}%`}></div></div>
-          <span class="eta">{growthEta !== null ? `${growthEta} tour${growthEta > 1 ? 's' : ''}` : '—'}</span>
+          <span class="eta">{atPopulationCap ? 'Plafond (31)' : growthEta !== null ? `${growthEta} tour${growthEta > 1 ? 's' : ''}` : foodSurplus <= 0 ? '—' : ''}</span>
         </div>
         <div class="gauge" title="Culture (R-113) : +Palais / +Temples·Cathédrales × population — Personnage illustre au seuil (T-27, ×2 par GP obtenu)">
           <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> {city.cultureStored} / {gpThreshold}</span>
@@ -460,6 +480,13 @@
           </div>
         {:else}
           <p class="hint">Aucun citoyen assigné — cliquez une case sur la carte.</p>
+        {/if}
+        <!-- 7i · D4 · R-60bis : citoyens intérieurs au centre-ville -->
+        {#if interiorCount > 0}
+          <p class="hint interior" title="R-60bis : les citoyens non affectés au terrain travaillent au centre-ville — rendement par tranche démographique (growth.json)">
+            <strong>{interiorCount}</strong> citoyen{interiorCount > 1 ? 's' : ''} intérieur{interiorCount > 1 ? 's' : ''} au centre-ville :
+            <strong>{tierLabel}</strong> (+{tierYields.production} P{tierYields.commerce > 0 ? `, +${tierYields.commerce} C` : ''} chacun)
+          </p>
         {/if}
         <button
           type="button"
@@ -615,6 +642,10 @@
   .buildings { display: flex; flex-wrap: wrap; gap: 0.35rem; }
   .building { padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid #3c7a52; background: #243b2b; font-size: 0.8rem; }
   .hint { margin: 0.15rem 0; color: #8b98a5; font-size: 0.82rem; }
+  .food-line { margin: 0.15rem 0; color: #a5d6a7; font-size: 0.84rem; }
+  .food-line.deficit { color: #ef9a9a; }
+  .food-line .warn { color: #ef9a9a; font-style: italic; }
+  .interior { color: #b39ddb; }
   .btns { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }
   .queue { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.4rem; margin: 0.35rem 0 0.5rem; }
   .opt { text-align: left; padding: 0.4rem 0.55rem; border-radius: 8px; border: 1px solid #46525c; background: #27313a; color: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 0.1rem; }

@@ -28,7 +28,12 @@ import { unitType } from '../src/data.js';
 
 /** Capitale prête à produire (techs fournies) sur une carte prairie. */
 function productionState(government = 'despotisme'): GameState {
-  const state = makeState({ cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 3 }] });
+  // 7i · R-66 (rév.) : case d'eau travaillée — le commerce du centre suit la
+  // tranche (0 pop ≤ 6), il faut du commerce de terrain pour l'or.
+  const state = makeState({
+    terrainOverrides: { '2,1': 'eau' },
+    cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 3, workedTiles: ['2,1'] }],
+  });
   state.players['p1']!.government = government;
   return state;
 }
@@ -78,7 +83,12 @@ describe('R-121 · Modificateurs économiques (avant/après, même seed)', () =>
     expect(conversionGains(1, 'gold', [], { goldMult: 1.5, scienceMult: 1.5 })).toEqual({ gold: 2, science: 0 });
     expect(conversionGains(4, 'science', [], { scienceMult: 1.5 })).toEqual({ gold: 0, science: 6 });
     // e2e même seed : le trésor démocratique dépasse celui du despotisme
-    const base = { cities: [{ owner: 'p1', q: 2, r: 2, capital: true }] };
+    // 7i · R-66 (rév.) : le commerce du centre suit la tranche (0 pop ≤ 6) —
+    // une case d'eau travaillée (0/0/2) porte le commerce.
+    const base = {
+      terrainOverrides: { '2,1': 'eau' } as const,
+      cities: [{ owner: 'p1', q: 2, r: 2, capital: true, workedTiles: ['2,1'] }],
+    };
     const despotisme = resolveTurn(makeState(base), {}, 42).newState;
     const democratie = resolveTurn(
       (() => {

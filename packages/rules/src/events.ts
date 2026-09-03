@@ -84,6 +84,9 @@ export type GameEvent =
   /** 7e · Population consommée par la PRODUCTION d'une unité (Colon : 2 pop —
    *  comportement officiel CivRev adopté par Erik le 02/09). */
   | { seq: number; type: 'PopulationConsumed'; cityId: CityId; owner: PlayerId; pop: number; byUnitType: string; at: Hex }
+  /** 7i · D5 · R-64 (rév.) : fonder une ville sur une case à ressource la
+   *  DÉTRUIT définitivement (effacée de la carte). */
+  | { seq: number; type: 'ResourceDestroyed'; resource: string; at: Hex; cityId: CityId | null; owner: PlayerId }
   /** Bâtiment construit par une ville (R-66, Phase 6). */
   | { seq: number; type: 'BuildingCompleted'; cityId: CityId; owner: PlayerId; building: string; at: Hex }
   /** Point d'accroche diplomatie (R-58-b) — inactif en v1 (guerre permanente). */
@@ -223,6 +226,11 @@ export function eventRefs(event: GameEvent): EventRefs {
       break;
     case 'PopulationConsumed':
       refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner);
+      hex(event.at);
+      break;
+    case 'ResourceDestroyed':
+      if (event.cityId) refs.cityIds.push(event.cityId);
       refs.players.push(event.owner);
       hex(event.at);
       break;

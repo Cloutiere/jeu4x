@@ -344,10 +344,16 @@ describe('7f · Effets des merveilles activées', () => {
   it('Colosse de Rhodes : commerce de la ville ×2 AVANT conversion (or ou science)', () => {
     const withColosse = capitalCity();
     withColosse.cities['c1']!.wonders = ['colosse_de_rhodes'];
+    // 7i · R-66 (rév.) : le commerce du centre suit la tranche (0 pop ≤ 6) —
+    // une case désert travaillée (0/0/1) porte le commerce de la ville.
+    withColosse.map['0,1'] = { terrain: 'desert', resource: null };
+    withColosse.cities['c1']!.workedTiles = ['0,1', '1,0', '0,2', '1,2'];
     const rWith = resolveTurn(withColosse, {}, 1).newState;
     const without = capitalCity();
+    without.map['0,1'] = { terrain: 'desert', resource: null };
+    without.cities['c1']!.workedTiles = ['0,1', '1,0', '0,2', '1,2'];
     const rWithout = resolveTurn(without, {}, 1).newState;
-    // La case de ville donne 1 commerce — doublé à 2 or (conversion or par défaut).
+    // 1 commerce (désert) — doublé à 2 or (conversion or par défaut).
     expect(rWith.players['p1']!.gold).toBe(2);
     expect(rWithout.players['p1']!.gold).toBe(1);
   });

@@ -554,8 +554,9 @@ describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () 
       units: [{ id: 'u1', type: 'colon', owner: 'p1', q: 0, r: 0 }],
     });
     const { newState } = resolveTurn(state, { p1: [{ type: 'FoundCity', unitId: 'u1' }] }, 1);
-    // rayon T-08b = 1 : la forêt (1,0) perd face à la prairie (0,1) — nourriture d'abord
-    expect(cityAt(newState, 0, 0)!.workedTiles).toEqual(['0,1']);
+    // 7i · D3 · R-64 (rév.) : la ville fondée démarre à pop 2 — 2 citoyens
+    // auto-assignés (la forêt (1,0) perd face aux prairies — nourriture d'abord)
+    expect(cityAt(newState, 0, 0)!.workedTiles).toEqual(['0,1', '1,0']);
   });
 
   it('R-60 : une ville existante sans réassignation ne se re-remplit pas (désassignation respectée)', () => {
@@ -568,19 +569,22 @@ describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () 
   });
 
   it('R-90 (révisée 7b) : conversion binaire par ville — or par défaut, science sur choix', () => {
-    // commerce v1 = 1 (case de ville) + 0 (prairie) → conversion or (défaut)
+    // 7i · R-66 (rév.) : le commerce du centre suit la tranche (0 pop ≤ 6) —
+    // la mer travaillée (0/0/2) porte le commerce de la ville.
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true }],
+      terrainOverrides: { '0,1': 'eau' },
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, workedTiles: ['0,1'] }],
     });
     const r = resolveTurn(state, {}, 1);
     expect(r.newState.players['p1']!.scienceStored).toBe(0);
-    expect(r.newState.players['p1']!.gold).toBe(1);
+    expect(r.newState.players['p1']!.gold).toBe(2);
     // conversion science (amende R-61 : plus de curseur, choix par ville)
     const state2 = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, conversion: 'science' }],
+      terrainOverrides: { '0,1': 'eau' },
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, conversion: 'science', workedTiles: ['0,1'] }],
     });
     const r2 = resolveTurn(state2, {}, 1);
-    expect(r2.newState.players['p1']!.scienceStored).toBe(1);
+    expect(r2.newState.players['p1']!.scienceStored).toBe(2);
     expect(r2.newState.players['p1']!.gold).toBe(0);
   });
 });
@@ -616,31 +620,34 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     const state = cityState();
     state.cities['c1']!.production = { item: { kind: 'unit', id: 'colon' }, progress: 5 };
     const { newState } = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'guerrier' } }] }, 1);
-    expect(cityAt(newState, 0, 0)!.production).toEqual({ item: { kind: 'unit', id: 'guerrier' }, progress: 6 });
+    // 7i · D4 · R-60bis : le citoyen intérieur produit +1 P → production 2/tour
+    expect(cityAt(newState, 0, 0)!.production).toEqual({ item: { kind: 'unit', id: 'guerrier' }, progress: 7 });
   });
 
-  it('R-63 : croissance au seuil 10 × pop (T-15, règle Civ Rev — révision 30/08)', () => {
+  it('R-63 (rév. 7i · D1/D2) : croissance au seuil de la table — surplus = récolte − population', () => {
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 8, workedTiles: ['0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 2, workedTiles: ['0,1'] }],
     });
     const { newState, events } = resolveTurn(state, {}, 1);
-    // nourriture du tour = 2 (ville) + 2 (prairie travaillée) = 4 → 8 + 4 = 12 ≥ 10
+    // récolte = 2 (centre) + 2 (prairie) = 4 ; surplus = 4 − 1 citoyen = 3
+    // → réserve 5 = seuil vers pop 2 (growth.json) → croissance.
     const city = cityAt(newState, 0, 0)!;
     expect(city.pop).toBe(2);
-    expect(city.foodStored).toBe(2); // 12 − 10, seuil suivant 20 non atteint
+    expect(city.foodStored).toBe(0); // 5 − 5, seuil suivant (6) non atteint
     expect(events.some((e) => e.type === 'PopulationGrew' && e.pop === 2)).toBe(true);
     // R-60 : +1 pop = +1 citoyen auto-assigné
     expect(city.workedTiles.length).toBe(2);
   });
 
-  it('R-63 : sous le seuil 10 × pop → pas de croissance', () => {
+  it('R-63 (rév. 7i · D1/D2) : sous le seuil de la table → pas de croissance', () => {
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 2, workedTiles: ['0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 2, workedTiles: [] }],
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
+    // récolte 2 (centre), surplus = 2 − 1 = 1 → réserve 3 < seuil 5
     expect(city.pop).toBe(1);
-    expect(city.foodStored).toBe(6);
+    expect(city.foodStored).toBe(3);
   });
 });
 
@@ -652,7 +659,9 @@ describe('Phase C · R-64/R-65 · fondation et capture de ville', () => {
     const { newState, events } = resolveTurn(state, { p1: [{ type: 'FoundCity', unitId: 'u1' }] }, 1);
     expect(newState.units['u1']).toBeUndefined();
     const city = cityAt(newState, 5, 5)!;
-    expect(city).toMatchObject({ owner: 'p1', pop: 1, capital: true });
+    // 7i · D3 : fondation à pop 2 (ère Antique) — 2 citoyens auto-assignés
+    expect(city).toMatchObject({ owner: 'p1', pop: 2, capital: true });
+    expect(city.workedTiles).toHaveLength(2);
     expect(newState.map['5,5']!.terrain).toBe('ville');
     expect(events.some((e) => e.type === 'CityFounded' && e.capital === true)).toBe(true);
   });
