@@ -54,7 +54,8 @@
 
 ## 4. Déploiement
 
-- Commit + push `main` → CI `deploy.yml` (build, tests, typecheck, `wrangler deploy --env prod`).
+- Commits `20067ed` (feat) + `3f9c751` (docs) + push `main` → CI `deploy.yml` **run #44 : success** (`wrangler deploy --env prod`).
+- Vérifications en ligne : serveur prod `https://game-4x-server-prod.erik-ai-studio.workers.dev` → HTTP 200 ; sprites 7h servis (`icone_gouvernement.png`, `unite_scientifique.png`, `unite_leader.png` → 200). Le stub `/auth/dev` est désactivé en prod (Google OAuth uniquement — attendu) : la vérification interactive en ligne (menu de gouvernement, anarchie, vaisseau) est à faire par Erik via son login Google — liste ci-dessous.
 
 ## 5. Vérifications en ligne pour Erik
 
