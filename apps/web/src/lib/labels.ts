@@ -1,9 +1,29 @@
 /**
  * Libellés français des événements (L4/L5) — réutilisés par le journal,
  * les toasts du playback et le mode debug. Phase 7d : libellés barbares
- * (R-95..R-98) avec le nom de la récompense de hutte.
+ * (R-95..R-98) avec le nom de la récompense de hutte. Phase 7f : culture
+ * (GP, jalons, merveilles, ONU — R-113..R-116).
  */
 import type { GameEvent, HutReward } from '@game/shared';
+
+/** 7f · Nom fr d'un type de GP (artiste/penseur). */
+export function greatPersonLabel(unitTypeId: string): string {
+  return unitTypeId === 'artiste' ? 'Artiste illustre' : unitTypeId === 'penseur' ? 'Penseur illustre' : unitTypeId;
+}
+
+/** 7f · Raison d'une variation de jalons culturels. */
+function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost'): string {
+  switch (reason) {
+    case 'install':
+      return 'personnage installé';
+    case 'wonderBuilt':
+      return 'merveille construite';
+    case 'wonderCaptured':
+      return 'merveille capturée';
+    case 'wonderLost':
+      return 'merveille perdue';
+  }
+}
 
 /** R-98 : libellé d'une récompense de hutte. */
 export function hutRewardLabel(reward: HutReward): string {
@@ -69,6 +89,23 @@ export function eventLabel(event: GameEvent): string {
       return `Ville ${event.cityId} RASÉE par les barbares (${event.owner} la perd)`;
     case 'HutOpened':
       return `Hutte ${event.hutId} ouverte par ${event.byPlayer} : ${hutRewardLabel(event.reward)}`;
+    case 'GreatPersonSpawned':
+      return `${greatPersonLabel(event.unitType)} apparaît dans ${event.cityId} (${event.owner}) — jauge remise à zéro`;
+    case 'InstallPerson':
+      return `${greatPersonLabel(event.unitType)} s'installe définitivement dans ${event.cityId} (+1 jalon)`;
+    case 'CultureMilestone':
+      return `${event.delta > 0 ? '+' : ''}${event.delta} jalon culturel pour ${event.player} (${milestoneReasonLabel(event.reason)}) — total ${event.total}/20`;
+    case 'WonderCompleted':
+      return `Merveille achevée : ${event.wonder} dans ${event.cityId} (+1 jalon)`;
+    case 'Victory': {
+      const motifs: Record<string, string> = {
+        domination: 'domination (capitale capturée)',
+        forfeit: 'forfait',
+        razedCapital: 'capitale rasée',
+        culture: 'culturelle (Nations Unies)',
+      };
+      return `VICTOIRE de ${event.winner} (${motifs[event.reason] ?? event.reason})`;
+    }
     case 'TurnResolved':
       return `— Fin du tour ${event.turn - 1}, tour ${event.turn} —`;
     default:

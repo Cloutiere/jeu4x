@@ -14,10 +14,10 @@ import { TERRAINS } from '../src/data.js';
 import { cityAt, makeState, unit, unitAt } from '../src/fixtures.js';
 
 describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
-  it('la version courante est exportée avec la chaîne de migrations (v9 depuis l’arbre complet, Phase 7e)', () => {
+  it('la version courante est exportée avec la chaîne de migrations (v10 depuis la culture, Phase 7f)', () => {
     const state = makeState();
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(9);
+    expect(CURRENT_SCHEMA_VERSION).toBe(10);
     expect(MIGRATIONS).toBeTypeOf('object');
     expect(typeof MIGRATIONS[2]).toBe('function');
     expect(typeof MIGRATIONS[3]).toBe('function');
@@ -27,6 +27,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
     expect(typeof MIGRATIONS[7]).toBe('function');
     expect(typeof MIGRATIONS[8]).toBe('function');
     expect(typeof MIGRATIONS[9]).toBe('function');
+    expect(typeof MIGRATIONS[10]).toBe('function');
   });
 
   it('v8 → v9 (Phase 7e) : firstBy vide + Palais posé dans les capitales, idempotent', () => {
@@ -44,7 +45,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v8 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(9);
+    expect(out.schemaVersion).toBe(10); // la chaîne se poursuit jusqu'à la version courante (7f)
     expect(out.firstBy).toEqual({});
     expect((out.cities as Record<string, { capital: boolean; buildings: string[] }>)['cap']!.buildings).toEqual(['palais']);
     expect((out.cities as Record<string, { capital: boolean; buildings: string[] }>)['ville']!.buildings).toEqual(['grenier']);
@@ -58,9 +59,35 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
     expect(out).toEqual(state);
   });
 
+  it('v9 → v10 (Phase 7f) : cultureStored/wonders par ville + jalons/GP par joueur, idempotent', () => {
+    const v9 = {
+      schemaVersion: 9,
+      turn: 3,
+      map: {},
+      players: {
+        p1: { id: 'p1', gold: 0, science: 0, techsUnlocked: [], scienceProgress: {}, vision: { explored: [], visible: [] }, missedTurns: 0 },
+      },
+      units: {},
+      cities: {
+        cap: { id: 'cap', q: 0, r: 0, owner: 'p1', pop: 1, capital: true, foodStored: 0, production: null, workedTiles: [], buildings: ['palais'], conversion: 'gold' },
+      },
+      firstBy: {},
+      diplomacy: { war: [] },
+      settings: { turnTimerMinutes: null },
+    };
+    const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
+    expect(out.schemaVersion).toBe(10);
+    expect(out.cities['cap']!.cultureStored).toBe(0);
+    expect(out.cities['cap']!.wonders).toEqual([]);
+    expect(out.players['p1']!.cultureMilestones).toBe(0);
+    expect(out.players['p1']!.greatPersonsObtained).toBe(0);
+    const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
+    expect(twice).toEqual(out);
+  });
+
   it('migrateState rejette une version inconnue ou futuriste', () => {
     expect(() => migrateState({ schemaVersion: 0 })).toThrow();
-    expect(() => migrateState({ schemaVersion: 10 })).toThrow();
+    expect(() => migrateState({ schemaVersion: 11 })).toThrow();
     expect(() => migrateState({})).toThrow();
   });
 
@@ -79,7 +106,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v7 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(9);
+    expect(out.schemaVersion).toBe(10); // chaîne complète 7d → 7e → 7f
     expect(out.villages).toEqual([]);
     expect(out.huts).toEqual([]);
     expect(out.mapId).toBeNull();

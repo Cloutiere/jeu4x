@@ -12,7 +12,8 @@
  * gratuit (dans la première ville — capitale par cityId croissant), population
  * instantanée, révélation de carte. Décrites mais ignorées (documenté) :
  * Personnages illustres (7h), récompenses `implemented: false` (unités non
- * implémentées : Espion, Croiseur…), volet culture de `perCity` (7f).
+ * implémentées : Espion, Croiseur…). Le volet CULTURE de `perCity` est appliqué
+ * depuis 7f (R-113 — `empirePerCityBonus`).
  *
  * Pur et déterministe (R-80/R-81/R-82) : mute l'état de TRAVAIL du moteur
  * (copie de résolution) — jamais un état diffusé.
@@ -35,12 +36,13 @@ function primaryCity(st: GameState, playerId: PlayerId): (typeof st.cities)[stri
   return cities[0] ?? null;
 }
 
-/** Somme des bonus de ville par tour des techs dont le joueur est Premier découvreur. */
+/** Somme des bonus de ville par tour des techs dont le joueur est Premier découvreur.
+ *  7f : le volet CULTURE est activé (R-109/R-113 — Religion, Imprimerie +1). */
 export function empirePerCityBonus(
   st: GameState,
   playerId: PlayerId,
-): Required<Pick<PerCityBonus, 'gold' | 'science' | 'production' | 'commerce'>> {
-  const out = { gold: 0, science: 0, production: 0, commerce: 0 };
+): Required<Pick<PerCityBonus, 'gold' | 'science' | 'production' | 'commerce' | 'culture'>> {
+  const out = { gold: 0, science: 0, production: 0, commerce: 0, culture: 0 };
   for (const techId of Object.keys(TECHS).sort()) {
     if (st.firstBy[techId] !== playerId) continue;
     const perCity = TECHS[techId]!.firstToDiscover?.perCity;
@@ -49,6 +51,7 @@ export function empirePerCityBonus(
     out.science += perCity.science ?? 0;
     out.production += perCity.production ?? 0;
     out.commerce += perCity.commerce ?? 0;
+    out.culture += perCity.culture ?? 0;
   }
   return out;
 }

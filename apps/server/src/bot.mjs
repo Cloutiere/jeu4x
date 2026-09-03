@@ -37,6 +37,12 @@ const unitsPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packag
 const UNITS = JSON.parse(readFileSync(unitsPath, 'utf8'));
 const buildingsPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/buildings.json');
 const BUILDINGS = JSON.parse(readFileSync(buildingsPath, 'utf8'));
+// Phase 7f (L2) : les merveilles à effets simples + l'ONU entrent dans les
+// choix du bot (R-116) ; les constantes culturelles viennent de culture.json.
+const wondersPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/wonders.json');
+const WONDERS = JSON.parse(readFileSync(wondersPath, 'utf8'));
+const culturePath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/culture.json');
+const CULTURE = JSON.parse(readFileSync(culturePath, 'utf8'));
 
 /** R-85 : une tech aléatoire disponible (non débloquée, prérequis satisfaits). */
 function pickResearch(player) {
@@ -50,17 +56,29 @@ function pickResearch(player) {
 
 /**
  * Phase 7e : un item de production aléatoire VALIDE pour la ville (R-87) —
- * unités implémentées non obsolètes + bâtiments non possédés dont le
- * prérequis de bâtiment est satisfait. Le Colon exige la population officielle
- * (2 — R-112) ; le serveur revalide tout de toute façon.
+ * unités implémentées non obsolètes (HORS GP, R-114) + bâtiments non possédés
+ * dont le prérequis de bâtiment est satisfait + merveilles 7f (R-116 : non
+ * bâties/en chantier dans l'empire, ONU exigée à 20 jalons et PRIORISÉE).
+ * Le Colon exige la population officielle (2 — R-112) ; le serveur revalide
+ * tout de toute façon.
  */
-function pickProduction(city, player) {
+function pickProduction(city, player, myCities, cultureMilestones) {
   const unlocked = player.techsUnlocked ?? [];
   const obsolete = new Set();
   for (const techId of unlocked) for (const u of TECHS[techId]?.obsoleteUnits ?? []) obsolete.add(u);
+  const obsoleteWonders = new Set();
+  for (const techId of unlocked) for (const w of TECHS[techId]?.obsoleteWonders ?? []) obsoleteWonders.add(w);
+  const empireWonders = new Set(myCities.flatMap((c) => c.wonders ?? []));
+  const empireChantiers = new Set(
+    myCities.filter((c) => c.production?.item?.kind === 'wonder').map((c) => c.production.item.id),
+  );
   const options = [];
+  // R-116 : à 20 jalons, le bot VISE l'ONU (victoire culturelle) — ajoutée en
+  // tête, le tirage aléatoire la laisse gagner avec les autres options sinon.
+  const unLocked = cultureMilestones >= CULTURE.milestonesTarget;
+  if (unLocked) options.unshift({ kind: 'wonder', id: 'nations_unies' });
   for (const u of Object.values(UNITS)) {
-    if (u.implemented === false) continue;
+    if (u.implemented === false || u.greatPerson) continue; // R-114 : GP jamais produits
     if (u.tech && !unlocked.includes(u.tech)) continue;
     if (obsolete.has(u.id)) continue;
     if ((u.populationCost ?? 0) > 0 && city.pop < u.populationCost) continue;
@@ -73,6 +91,13 @@ function pickProduction(city, player) {
     if (b.tech && !unlocked.includes(b.tech)) continue;
     if (b.requiresBuilding && !city.buildings.includes(b.requiresBuilding)) continue;
     options.push({ kind: 'building', id: b.id });
+  }
+  for (const w of Object.values(WONDERS)) {
+    if (w.implemented === false || w.cultureVictory) continue; // ONU déjà priorisée
+    if (w.tech && !unlocked.includes(w.tech)) continue;
+    if (obsoleteWonders.has(w.id)) continue;
+    if (empireWonders.has(w.id) || empireChantiers.has(w.id)) continue; // unicité R-116
+    options.push({ kind: 'wonder', id: w.id });
   }
   if (options.length === 0) return null;
   return options[Math.floor(Math.random() * options.length)];
@@ -244,17 +269,34 @@ async function main() {
     }
     // Phase 7e (L2) : villes sans file de production → un item aléatoire
     // valide (R-87 inchangé : le moteur filtre et revalide à la résolution).
+    // Phase 7f (R-116) : le bot vise l'ONU à 20 jalons et bâtit les merveilles
+    // à effets simples quand il peut.
     let productions = 0;
     for (const city of myCities) {
       const pendingProd = snapshot.orders.some((o) => o.type === 'SetProduction' && o.cityId === city.id);
       if (city.production || pendingProd) continue;
-      const item = pickProduction(city, me ?? {});
+      const item = pickProduction(city, me ?? {}, myCities, me?.cultureMilestones ?? 0);
       if (item) {
         send({ type: 'SubmitOrder', order: { type: 'SetProduction', cityId: city.id, item } });
         productions += 1;
       }
     }
-    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s) de position, ${fortifies} fortification(s), ${reassigns} réassignation(s), ${productions} production(s).`);
+    // Phase 7f (R-115) : le bot installe DÈS QUE POSSIBLE ses GP dans une
+    // ville amie (sur leur case ou adjacente) — 1 jalon culturel par GP.
+    let installs = 0;
+    for (const unit of mine) {
+      if (!UNITS[unit.type]?.greatPerson) continue;
+      if (snapshot.orders.some((o) => o.type === 'InstallPerson' && o.unitId === unit.id)) continue;
+      const target = myCities.find((c) => {
+        const d = (Math.abs(unit.q - c.q) + Math.abs(unit.r - c.r) + Math.abs(unit.q + unit.r - c.q - c.r)) / 2;
+        return d <= 1;
+      });
+      if (target) {
+        send({ type: 'SubmitOrder', order: { type: 'InstallPerson', unitId: unit.id, cityId: target.id } });
+        installs += 1;
+      }
+    }
+    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s) de position, ${fortifies} fortification(s), ${reassigns} réassignation(s), ${productions} production(s), ${installs} installation(s) de GP.`);
     send({ type: 'EndTurn' });
     lastEndedTurn = state.turn;
   }

@@ -50,6 +50,8 @@ export interface CitySpec {
   buildings?: string[];
   /** Conversion du commerce (R-90) — sinon 'gold' (défaut). */
   conversion?: 'gold' | 'science';
+  /** 7f · Merveilles hébergées (R-115) — survivent à la capture. */
+  wonders?: string[];
 }
 
 export interface MakeStateOptions {
@@ -118,6 +120,8 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       scienceProgress: {},
       techsUnlocked: [],
       scienceStored: 0,
+      cultureMilestones: 0, // 7f · R-115
+      greatPersonsObtained: 0, // 7f · R-114
       vision: { explored: [], visible: [] },
       missedTurns: 0,
     };
@@ -160,6 +164,8 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       workedTiles: spec.workedTiles ?? [],
       buildings: spec.buildings ?? [],
       conversion: spec.conversion ?? CONVERSION_DEFAULT,
+      cultureStored: 0, // 7f · R-113
+      wonders: spec.wonders ?? [], // 7f · R-115
     };
   });
 

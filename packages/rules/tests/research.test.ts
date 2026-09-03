@@ -37,10 +37,10 @@ describe('migration v4 → v5 (R-85 : champs de recherche additifs)', () => {
     expect(twice).toEqual(once);
   });
 
-  it('migrateState applique toute la chaîne v4 → v9 (CURRENT_SCHEMA_VERSION = 9)', () => {
+  it('migrateState applique toute la chaîne v4 → v10 (CURRENT_SCHEMA_VERSION = 10)', () => {
     const out = migrateState<GameState>(structuredClone(v4));
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(9);
+    expect(CURRENT_SCHEMA_VERSION).toBe(10);
     expect(out.players['p2']!.techsUnlocked).toEqual([]);
   });
 });

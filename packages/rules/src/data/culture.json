@@ -1,0 +1,5 @@
+{
+  "greatPersonThresholdBase": 20,
+  "greatPersonThresholdGrowth": 2,
+  "milestonesTarget": 20
+}

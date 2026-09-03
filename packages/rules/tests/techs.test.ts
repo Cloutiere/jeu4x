@@ -123,15 +123,24 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     }
   });
 
-  it('7e : 21 merveilles en données, non implémentées, coût + tech + obsolescence documentés', () => {
+  it('7e : 21 merveilles en données, coût + tech + obsolescence documentés — 4 ACTIVÉES en 7f', () => {
     expect(Object.keys(wonderTable)).toHaveLength(21);
+    const active = Object.values(wonderTable)
+      .filter((w) => w.implemented)
+      .map((w) => w.id)
+      .sort();
+    // 7f (R-116) : Stonehenge, Colosse de Rhodes, Jardins suspendus et les
+    // Nations Unies sont constructibles ; les autres attendent 7h.
+    expect(active).toEqual(['colosse_de_rhodes', 'jardins_suspendus', 'nations_unies', 'stonehenge']);
     for (const w of Object.values(wonderTable)) {
-      expect(w.implemented).toBe(false);
       expect(w.cost).toBeGreaterThan(0);
     }
     // Merveilles sans tech : conditions spéciales ou disponible d'office.
     expect(wonderTable['nations_unies']!.tech).toBeNull();
     expect(wonderTable['banque_mondiale']!.tech).toBeNull();
+    // T-28 🔶 : coût des Nations Unies (calibrage 7f, tranche pilotage).
+    expect(wonderTable['nations_unies']!.cost).toBe(300);
+    expect(wonderTable['nations_unies']!.cultureVictory).toBe(true);
     // Obsolescence : la tech qui rend la merveille obsolète existe.
     for (const w of Object.values(wonderTable)) {
       if (w.obsoleteBy) expect(techTable[w.obsoleteBy], `${w.id} obsolète par ${w.obsoleteBy}`).toBeDefined();
@@ -166,7 +175,12 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     () => {
       const none: string[] = [];
       for (const u of Object.values(unitTable)) {
-        const producible = u.implemented !== false && techUnlocked(u.tech ?? null, none);
+        // 7f : isProducible exclut aussi les GP (artiste/penseur — R-114).
+        const producible = isProducible(
+          { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson },
+          none,
+          [],
+        );
         if (['guerrier', 'colon'].includes(u.id)) expect(producible, u.id).toBe(true);
         else expect(producible, u.id).toBe(false);
       }

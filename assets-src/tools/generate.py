@@ -997,6 +997,89 @@ def unite_artillerie(db, da, w, h):
     db.ellipse((206, ground - 226, 226, ground - 206), fill="#3E342A")
 
 
+# ------------------------------------------------- Phase 7f — culture (R-113..R-116)
+
+def unite_artiste(db, da, w, h):
+    """256x320, Artiste illustre (R-114) : palette et pinceau, béret (accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 30, ground - 142), (cx + 30, ground - 142), (cx + 38, ground - 50),
+             (cx - 38, ground - 50)], fill="#C4A4D6", outline=INK, width=2)
+    db.poly([(cx - 30, ground - 142), (cx - 8, ground - 142), (cx - 16, ground - 50),
+             (cx - 38, ground - 50)], fill="#B18CE0")
+    db.ellipse((cx - 14, ground - 178, cx + 14, ground - 150), fill="#B99B7E", outline=INK, width=1.5)
+    # béret (accent)
+    beret = [(cx - 22, ground - 182), (cx + 22, ground - 182), (cx + 14, ground - 200),
+             (cx - 14, ground - 200)]
+    db.poly(beret, fill="#7A5A96", outline=INK, width=1.5)
+    da.poly(beret, fill="#FFFFFF")
+    # palette + taches de peinture (accent)
+    db.ellipse((cx + 26, ground - 108, cx + 84, ground - 72), fill="#A8794F", outline=INK, width=2)
+    for tx, ty in ((cx + 42, ground - 96), (cx + 62, ground - 88), (cx + 54, ground - 78)):
+        db.ellipse((tx, ty, tx + 10, ty + 10), fill="#E8D44A")
+        da.ellipse((tx, ty, tx + 10, ty + 10), fill="#FFFFFF")
+    # pinceau levé
+    db.line([(cx + 44, ground - 78), (cx + 58, ground - 160)], fill=BOIS, width=5)
+    db.poly([(cx + 54, ground - 160), (cx + 66, ground - 172), (cx + 62, ground - 156)],
+            fill="#C25B5B", outline=INK, width=1)
+    # bras tenant la palette
+    db.line([(cx + 18, ground - 120), (cx + 44, ground - 96)], fill="#C4A4D6", width=10)
+
+
+def unite_penseur(db, da, w, h):
+    """256x320, Penseur illustre (R-114) : gros livre ouvert, laurier (accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 30, ground - 142), (cx + 30, ground - 142), (cx + 38, ground - 50),
+             (cx - 38, ground - 50)], fill="#7F9EC7", outline=INK, width=2)
+    db.poly([(cx - 30, ground - 142), (cx - 8, ground - 142), (cx - 16, ground - 50),
+             (cx - 38, ground - 50)], fill="#93B0D6")
+    db.ellipse((cx - 14, ground - 178, cx + 14, ground - 150), fill="#B99B7E", outline=INK, width=1.5)
+    # couronne de laurier (accent)
+    for a in range(-70, 71, 35):
+        lx = cx + 20 * math.cos(math.radians(a + 90)) * 0.9
+        ly = ground - 186 + 8 * math.sin(math.radians(a))
+        db.ellipse((lx - 4, ly - 4, lx + 4, ly + 4), fill=FORET_2, outline=INK, width=1)
+        da.ellipse((lx - 4, ly - 4, lx + 4, ly + 4), fill="#FFFFFF")
+    # gros livre ouvert (tranche = accent)
+    db.poly([(cx - 52, ground - 96), (cx - 6, ground - 110), (cx + 40, ground - 96),
+             (cx + 40, ground - 56), (cx - 6, ground - 68), (cx - 52, ground - 56)],
+            fill="#8A5A3A", outline=INK, width=2)
+    db.poly([(cx - 6, ground - 110), (cx + 40, ground - 96), (cx + 40, ground - 56),
+             (cx - 6, ground - 68)], fill="#A3714A", outline=INK, width=1.5)
+    db.line([(cx - 6, ground - 110), (cx - 6, ground - 68)], fill="#6B452A", width=2.5)
+    db.line([(cx - 42, ground - 84), (cx - 14, ground - 92)], fill="#E3D19A", width=3)
+    db.line([(cx + 4, ground - 90), (cx + 30, ground - 82)], fill="#E3D19A", width=3)
+    da.line([(cx - 42, ground - 84), (cx - 14, ground - 92)], fill="#FFFFFF", width=3)
+    da.line([(cx + 4, ground - 90), (cx + 30, ground - 82)], fill="#FFFFFF", width=3)
+    # bras soutenant le livre
+    db.line([(cx + 22, ground - 118), (cx + 34, ground - 100)], fill="#7F9EC7", width=10)
+
+
+def batiment_nations_unies(db, da, w, h):
+    """Nations Unies (R-116) : assemblée sous drapeaux, globe terrestre (accent)."""
+    shadow(db, 112, 214, 84)
+    db.rrect((40, 130, 184, 214), 3, fill="#C2B6A2", outline=INK, width=2.5)
+    db.rrect((40, 122, 184, 138), 2, fill="#B0A390", outline=INK, width=2)
+    for x in (58, 112, 166):
+        db.rrect((x - 8, 146, x + 8, 214), 2, fill=SABLE, outline=INK, width=1.5)
+    # drapeaux de part et d'autre
+    for x, flip in ((58, -1), (166, 1)):
+        db.line([(x, 60), (x, 130)], fill="#6B5230", width=3)
+        db.poly([(x, 62), (x + 22 * flip, 70), (x, 78)], fill="#7FA9CC", outline=INK, width=1.5)
+        da.poly([(x, 62), (x + 22 * flip, 70), (x, 78)], fill="#FFFFFF")
+    # globe terrestre (accent)
+    db.ellipse((92, 76, 132, 116), fill=EAU_1, outline=INK, width=2)
+    da.ellipse((92, 76, 132, 116), fill="#FFFFFF")
+    db.arc((96, 82, 128, 110), 300, 60, fill=EAU_2, width=2)
+    db.ellipse((104, 84, 116, 96), fill="#8FA84E")
+    db.rrect((96, 168, 128, 214), 2, fill="#5E4E3A")
+
+
 # ------------------------------------------------- Phase 7e — bâtiments
 
 def batiment_palais(db, da, w, h):
@@ -1219,6 +1302,17 @@ def icone_reseau(d):
     d.ellipse((26, 26, 38, 38), fill=SCIENCE, outline=INK, width=2.5)
     d.line([(18, 44), (46, 44)], fill=INK, width=3)
     d.line([(26, 51), (38, 51)], fill=INK, width=3)
+
+
+def icone_culture(d):
+    """Culture (Phase 7f, R-113) : lyre violette — jalons culturels."""
+    d.line([(16, 12), (16, 40)], fill="#7A5A96", width=4)
+    d.line([(48, 12), (48, 40)], fill="#7A5A96", width=4)
+    d.arc((16, 14, 48, 46), 190, 350, fill="#9C6FD6", width=4)
+    d.arc((22, 18, 42, 42), 200, 340, fill="#9C6FD6", width=3)
+    d.ellipse((12, 40, 24, 52), fill="#7A5A96", outline=INK, width=2)
+    d.ellipse((40, 40, 52, 52), fill="#7A5A96", outline=INK, width=2)
+    d.ellipse((26, 20, 38, 32), fill="#C4A4D6", outline=INK, width=2)
 
 
 # ---------------------------------------------------------------- ressources (Phase 7c, R-91)
@@ -1520,6 +1614,10 @@ def main():
         "batiment_universite": (224, 256, batiment_universite),
         "batiment_usine": (224, 256, batiment_usine),
         "batiment_sdi": (224, 256, batiment_sdi),
+        # Phase 7f — culture (R-113..R-116) : GP de culture + ONU.
+        "unite_artiste": (256, 320, unite_artiste),
+        "unite_penseur": (256, 320, unite_penseur),
+        "batiment_nations_unies": (224, 256, batiment_nations_unies),
     }
     icons = {
         "icone_or": icone_or,
@@ -1531,6 +1629,7 @@ def main():
         "icone_pm": icone_pm,
         "icone_fin_tour": icone_fin_tour,
         "icone_reseau": icone_reseau,
+        "icone_culture": icone_culture,
     }
     # Phase 7c (R-91) : ressources — nommage res_<id> aligné sur resources.json.
     resources = {
@@ -1647,7 +1746,7 @@ for n in ["village_barbare", "hutte"]:
     EXPECTED[f"{n}_accent.png"] = (224, 256)
 for n in ["grenier", "atelier", "mine_de_fer", "comptoir_commercial", "port", "tribunal",
           "palais", "temple", "marche", "remparts", "aqueduc", "banque", "cathedrale",
-          "universite", "usine", "sdi"]:
+          "universite", "usine", "sdi", "nations_unies"]:
     EXPECTED[f"batiment_{n}.png"] = (224, 256)
     EXPECTED[f"batiment_{n}_accent.png"] = (224, 256)
 # Phase 7e : unités terrestres complémentaires.
@@ -1655,7 +1754,11 @@ for n in ["piquier", "catapulte", "chevalier", "fusilier", "canon",
           "infanterie_moderne", "char_d_assaut", "artillerie"]:
     EXPECTED[f"unite_{n}.png"] = (256, 320)
     EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
-for n in ["or", "commerce", "science", "nourriture", "production", "pv", "pm", "fin_tour", "reseau"]:
+# Phase 7f : GP de culture (Artiste, Penseur).
+for n in ["artiste", "penseur"]:
+    EXPECTED[f"unite_{n}.png"] = (256, 320)
+    EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
+for n in ["or", "commerce", "science", "nourriture", "production", "pv", "pm", "fin_tour", "reseau", "culture"]:
     EXPECTED[f"icone_{n}.png"] = (64, 64)
 # Phase 7c (R-91) : icônes de ressources 64×64.
 for n in ["aluminium", "baleine", "betail", "ble", "boeufs", "caoutchouc", "charbon",

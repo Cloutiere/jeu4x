@@ -90,7 +90,7 @@ export type GameEvent =
   /** Victoire — v1 : 'domination' (capture de la capitale adverse, R-65),
    *  'forfait' (T-06) ou 'razedCapital' (capitale rasée par les barbares,
    *  R-97 — Phase 7d : le propriétaire perd, l'adversaire réel gagne). */
-  | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' | 'forfeit' | 'razedCapital' }
+  | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' | 'forfeit' | 'razedCapital' | 'culture' }
   /** R-96 · Engendrement d'une unité barbare par un village (Phase 7d). */
   | { seq: number; type: 'BarbarianSpawned'; unitId: UnitId; villageId: string; owner: PlayerId; at: Hex }
   /** R-96 · Village barbare détruit (0 PV) — or T-20 au vainqueur (BootyGold). */
@@ -100,6 +100,23 @@ export type GameEvent =
   | { seq: number; type: 'CityRazed'; cityId: CityId; owner: PlayerId; byPlayer: PlayerId; at: Hex }
   /** R-98 · Hutte ouverte — récompense tirée au RNG seedé (table huttes.json). */
   | { seq: number; type: 'HutOpened'; hutId: string; byPlayer: PlayerId; byUnitId: UnitId | null; at: Hex; reward: HutReward }
+  /** 7f · R-114 : Personnage illustre de culture engendré par une ville (seuil
+   *  T-27 franchi) — unité pacifique Artiste/Penseur. */
+  | { seq: number; type: 'GreatPersonSpawned'; unitId: UnitId; unitType: string; cityId: CityId; owner: PlayerId; at: Hex }
+  /** 7f · R-115 : un GP s'installe définitivement dans une ville amie (+1 jalon). */
+  | { seq: number; type: 'InstallPerson'; unitId: UnitId; unitType: string; cityId: CityId; owner: PlayerId; at: Hex }
+  /** 7f · R-115/R-116 : variation des jalons culturels (GP installés,
+   *  merveilles construites/capturées/perdues) — `total` = compteur résultant. */
+  | {
+      seq: number;
+      type: 'CultureMilestone';
+      player: PlayerId;
+      delta: number;
+      total: number;
+      reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost';
+    }
+  /** 7f · R-116 : merveille achevée dans une ville (jalon, effet, ONU → victoire). */
+  | { seq: number; type: 'WonderCompleted'; cityId: CityId; owner: PlayerId; wonder: string; at: Hex }
   /** Fin de résolution : newState est l'état du tour indiqué. */
   | { seq: number; type: 'TurnResolved'; turn: number };
 
@@ -218,6 +235,21 @@ export function eventRefs(event: GameEvent): EventRefs {
       break;
     case 'HutOpened':
       refs.players.push(event.byPlayer);
+      hex(event.at);
+      break;
+    case 'GreatPersonSpawned':
+    case 'InstallPerson':
+      refs.unitIds.push(event.unitId);
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner);
+      hex(event.at);
+      break;
+    case 'CultureMilestone':
+      refs.players.push(event.player);
+      break;
+    case 'WonderCompleted':
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner);
       hex(event.at);
       break;
     case 'TurnResolved':

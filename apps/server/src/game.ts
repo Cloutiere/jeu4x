@@ -25,6 +25,7 @@ import {
   resolveTurn,
   applySetResearch,
   applySetConversion,
+  greatPersonThresholdFor,
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, LoadedMap, Order, PlayerId, ProgenReport, UnitId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
@@ -70,8 +71,8 @@ export interface GameMeta {
   createdAt: number;
   /** Échéance du timer courant, epoch ms — null si pas de timer. */
   deadline: number | null;
-  /** Motif de fin (admin/debug) : domination | forfeit | abandoned. */
-  finishedReason?: 'domination' | 'forfeit' | 'abandoned';
+  /** Motif de fin (admin/debug) : domination | forfeit | abandoned | culture (7f). */
+  finishedReason?: 'domination' | 'forfeit' | 'abandoned' | 'culture';
   /** Phase 6b : rapport de génération de la carte procédurale (seed, ratio
    *  terre, checksum de fertilité) — consigné pour le dump admin. */
   progen?: ProgenReport;
@@ -123,8 +124,9 @@ function isHex(v: unknown): v is { q: number; r: number } {
   );
 }
 
-/** Validation structurelle côté serveur (le moteur re-valide tout à la résolution). */
-function orderShapeError(order: unknown): string | null {
+/** Validation structurelle côté serveur (le moteur re-valide tout à la résolution).
+ *  Exportée pour tests — pure, aucune dépendance au GameDO. */
+export function orderShapeError(order: unknown): string | null {
   if (typeof order !== 'object' || order === null) return 'ordre absent';
   const o = order as Record<string, unknown>;
   switch (o.type) {
@@ -147,7 +149,8 @@ function orderShapeError(order: unknown): string | null {
       if (typeof o.cityId !== 'string') return 'ville invalide';
       const item = o.item as Record<string, unknown> | undefined;
       if (!item || typeof item !== 'object') return 'item invalide';
-      if (item.kind !== 'unit' && item.kind !== 'building') return 'kind d’item invalide';
+      // 7f : les merveilles (R-116) sont un kind de production à part entière.
+      if (item.kind !== 'unit' && item.kind !== 'building' && item.kind !== 'wonder') return 'kind d’item invalide';
       return typeof item.id === 'string' ? null : 'id d’item invalide';
     }
     case 'SetWorkedTile':
@@ -156,6 +159,11 @@ function orderShapeError(order: unknown): string | null {
       return typeof o.cityId === 'string' && (o.tile === null || typeof o.tile === 'string')
         ? null
         : 'ville/case invalides';
+    case 'InstallPerson':
+      // 7f · R-115 : installe un Personnage illustre dans une ville amie —
+      // la validité métier (GP, possession, distance ≤ 1) est re-vérifiée
+      // par le moteur à la résolution.
+      return typeof o.unitId === 'string' && typeof o.cityId === 'string' ? null : 'unité/ville invalides';
     default:
       return 'type d\'ordre inconnu';
   }
@@ -340,7 +348,8 @@ export class GameDO {
   }
 
   /** Dump d'état NON filtré (admin debug — protégé par ADMIN_TOKEN côté Worker).
-   *  Phase 7d : inclut un résumé `barbares` (villages, huttes, compteurs). */
+   *  Phase 7d : inclut un résumé `barbares` (villages, huttes, compteurs).
+   *  Phase 7f : inclut un résumé `culture` (jalons, seuil GP, merveilles, ONU). */
   private handleAdminDump(): Response {
     const game = this.game;
     const barbares = game
@@ -356,6 +365,42 @@ export class GameDO {
           huts: game.huts.map((h) => ({ id: h.id, q: h.q, r: h.r })),
         }
       : null;
+    // 7f · R-113..R-116 : jalons culturels, GP obtenus, seuil courant,
+    // merveilles par ville, chantiers de merveilles en cours.
+    const culture = game
+      ? {
+          players: Object.fromEntries(
+            Object.keys(game.players)
+              .sort()
+              .map((id) => {
+                const p = game.players[id]!;
+                return [
+                  id,
+                  {
+                    cultureMilestones: p.cultureMilestones,
+                    greatPersonsObtained: p.greatPersonsObtained,
+                    seuilGpCourant: greatPersonThresholdFor(p.greatPersonsObtained),
+                  },
+                ];
+              }),
+          ),
+          cities: Object.fromEntries(
+            Object.keys(game.cities)
+              .sort()
+              .map((id) => {
+                const c = game.cities[id]!;
+                return [
+                  id,
+                  {
+                    cultureStored: c.cultureStored,
+                    wonders: c.wonders,
+                    production: c.production?.item.kind === 'wonder' ? c.production.item.id : null,
+                  },
+                ];
+              }),
+          ),
+        }
+      : null;
     return jsonResponse({
       meta: this.meta,
       state: this.game,
@@ -364,6 +409,7 @@ export class GameDO {
       resolving: this.resolving,
       lastEvents: this.lastEvents,
       barbares,
+      culture,
     });
   }
 
@@ -628,6 +674,11 @@ export class GameDO {
       case 'SetProduction':
       case 'SetWorkedTile':
         return cities[order.cityId]?.owner === engineId ? null : `ville ${order.cityId} inconnue ou non possédée`;
+      case 'InstallPerson':
+        // 7f · R-115 : l'unité ET la ville doivent appartenir au joueur.
+        return ownsUnit(order.unitId) && cities[order.cityId]?.owner === engineId
+          ? null
+          : 'unité ou ville inconnue, ou non possédée';
       default:
         return 'ordre inconnu';
     }
@@ -704,7 +755,11 @@ export class GameDO {
       await tx.delete('resolving');
     });
     if (this.game.winner) {
-      await this.finishGame('domination', this.game.winner as EnginePlayerId, result.events);
+      // Motif de méta dérivé du dernier événement Victory (7f : victoire
+      // culturelle → 'culture' ; les autres raisons restent 'domination').
+      const victory = [...result.events].reverse().find((e) => e.type === 'Victory');
+      const reason = victory && victory.type === 'Victory' && victory.reason === 'culture' ? 'culture' : 'domination';
+      await this.finishGame(reason, this.game.winner as EnginePlayerId, result.events);
       return;
     }
     await this.scheduleTimer();
@@ -728,7 +783,7 @@ export class GameDO {
   }
 
   private async finishGame(
-    reason: 'domination' | 'forfeit' | 'abandoned',
+    reason: 'domination' | 'forfeit' | 'abandoned' | 'culture',
     winner: EnginePlayerId | null,
     events: GameEvent[],
     forState?: GameState,

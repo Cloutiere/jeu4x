@@ -9,9 +9,11 @@ import buildingsJson from './data/buildings.json' with { type: 'json' };
 import resourcesJson from './data/resources.json' with { type: 'json' };
 import barbaresJson from './data/barbares.json' with { type: 'json' };
 import huttesJson from './data/huttes.json' with { type: 'json' };
+import cultureJson from './data/culture.json' with { type: 'json' };
 import type {
   BarbariansData,
   BuildingData,
+  CultureData,
   HuttesData,
   ResourceData,
   TerrainData,
@@ -27,6 +29,8 @@ export const RESOURCES: Record<string, ResourceData> = resourcesJson as Record<s
 export const BARBARIANS: BarbariansData = barbaresJson as unknown as BarbariansData;
 /** R-98/R-99 · Phase 7d : table des récompenses de huttes (huttes.json). */
 export const HUT_REWARDS: HuttesData = huttesJson as unknown as HuttesData;
+/** 7f · Phase 7f : constantes culturelles (culture.json — T-27, jalons). */
+export const CULTURE: CultureData = cultureJson as unknown as CultureData;
 /** R-95 · Id du pseudo-joueur barbare. */
 export const BARBARIAN_ID: string = BARBARIANS.barbarianId;
 

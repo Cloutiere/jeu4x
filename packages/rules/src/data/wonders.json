@@ -5,8 +5,9 @@
     "cost": 50,
     "tech": null,
     "obsoleteBy": "litteratie",
+    "templeCultureMult": 1.5,
     "effect": "Augmente l'efficacité culturelle des Temples de 50 %",
-    "implemented": false
+    "implemented": true
   },
   "colosse_de_rhodes": {
     "id": "colosse_de_rhodes",
@@ -14,16 +15,18 @@
     "cost": 100,
     "tech": "travail_du_bronze",
     "obsoleteBy": "invention",
+    "commerceMult": 2,
     "effect": "Double (×2) la production de Commerce de la ville hôte",
-    "implemented": false
+    "implemented": true
   },
   "jardins_suspendus": {
     "id": "jardins_suspendus",
     "name": "Jardins suspendus",
     "cost": 100,
     "tech": "poterie",
+    "populationGainPct": 0.5,
     "effect": "Accroît la population de la ville de 50 % immédiatement",
-    "implemented": false
+    "implemented": true
   },
   "oracle_de_delphes": {
     "id": "oracle_de_delphes",
@@ -132,10 +135,11 @@
   "nations_unies": {
     "id": "nations_unies",
     "name": "Nations Unies",
-    "cost": 500,
+    "cost": 300,
     "tech": null,
-    "effect": "Condition (20 événements culturels) — déclenche immédiatement la Victoire culturelle",
-    "implemented": false
+    "cultureVictory": true,
+    "effect": "Condition (20 jalons culturels) — déclenche immédiatement la Victoire culturelle",
+    "implemented": true
   },
   "banque_mondiale": {
     "id": "banque_mondiale",

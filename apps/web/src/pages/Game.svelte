@@ -14,6 +14,7 @@
   import { get } from 'svelte/store';
   import type { GameEvent } from '@game/shared';
   import type { Hex } from '@game/rules';
+  import { CULTURE, TECHS } from '@game/rules';
   import { createGameClient } from '../lib/gameClient.js';
   import type { GameClient } from '../lib/gameClient.js';
   import { createUiState, selectNothing } from '../lib/render/ui.js';
@@ -25,8 +26,7 @@
   import GameCanvas from '../lib/render/GameCanvas.svelte';
   import UnitPanel from '../components/UnitPanel.svelte';
   import CityPanel from '../components/CityPanel.svelte';
-import ResearchPanel from '../components/ResearchPanel.svelte';
-import { TECHS } from '@game/rules';
+  import ResearchPanel from '../components/ResearchPanel.svelte';
   import Journal from '../components/Journal.svelte';
 
   let { code }: { code: string } = $props();
@@ -34,13 +34,14 @@ import { TECHS } from '@game/rules';
   let lastReplayedSeq = -1;
   const playback = new Playback();
 
-  // Toasts d'erreur réseau/ordres (les toasts d'événements viennent du playback).
+  // Toasts d'erreur réseau/ordres + annonces culturelles 7f (ONU disponible /
+  // suspendue) — les toasts d'événements viennent du playback.
   const toasts = playback.toasts;
-  let errorToasts = $state<Array<{ id: number; text: string }>>([]);
+  let errorToasts = $state<Array<{ id: number; text: string; kind: 'good' | 'bad' | 'info' }>>([]);
   let errorToastId = 1;
-  function pushErrorToast(text: string): void {
+  function pushErrorToast(text: string, kind: 'good' | 'bad' | 'info' = 'bad'): void {
     const id = errorToastId++;
-    errorToasts = [...errorToasts, { id, text }];
+    errorToasts = [...errorToasts, { id, text, kind }];
     setTimeout(() => {
       errorToasts = errorToasts.filter((t) => t.id !== id);
     }, 5000);
@@ -77,8 +78,26 @@ import { TECHS } from '@game/rules';
   }
 
   // Rejouer tout événement fraîchement ajouté au journal (dédoublonné par seq
-  // côté réducteur — cf. gameClient.ts).
+  // côté réducteur — cf. gameClient.ts). 7f : annonces ONU disponible /
+  // suspendue au passage du seuil de jalons (R-116).
+  let lastMilestones = -1;
   const unsubReplay = view.subscribe((v) => {
+    const target = CULTURE.milestonesTarget;
+    const pid = myEngineId(v);
+    const player = pid && v.state ? v.state.players[pid] : null;
+    if (player) {
+      const m = player.cultureMilestones;
+      if (lastMilestones >= 0 && lastMilestones < target && m >= target) {
+        pushErrorToast('Nations Unies disponibles ! 20 jalons culturels atteints — construisez-les pour la victoire culturelle.', 'good');
+      }
+      if (lastMilestones >= target && m < target) {
+        const unEnChantier = pid && v.state
+          ? Object.values(v.state.cities).some((c) => c.owner === pid && c.production?.item.kind === 'wonder' && c.production.item.id === 'nations_unies')
+          : false;
+        if (unEnChantier) pushErrorToast('Nations Unies SUSPENDUES — jalons sous 20 (marteaux conservés).', 'bad');
+      }
+      lastMilestones = m;
+    }
     if (v.events.length === 0) return;
     const fresh = v.events.filter((e) => e.seq > lastReplayedSeq);
     if (fresh.length === 0) return;
@@ -211,6 +230,22 @@ import { TECHS } from '@game/rules';
     const id = myEngineId(v);
     return id && v.state ? (v.state.players[id]?.gold ?? 0) : 0;
   });
+
+  // 7f · R-115/R-116 : jalons culturels du joueur (GP installés + merveilles
+  // contrôlées) — le détail est DÉRIVÉ de l'état (source unique moteur).
+  const MILESTONES_TARGET = CULTURE.milestonesTarget;
+  const myCulture = $derived.by(() => {
+    const v = $view;
+    const id = myEngineId(v);
+    const p = id && v.state ? v.state.players[id] : null;
+    const ownCities = id && v.state ? Object.values(v.state.cities).filter((c) => c.owner === id) : [];
+    const wonderCount = ownCities.reduce((acc, c) => acc + c.wonders.length, 0);
+    const milestones = p?.cultureMilestones ?? 0;
+    return { milestones, wonderCount, installed: Math.max(0, milestones - wonderCount) };
+  });
+  const milestonesDetail = $derived(
+    `Jalons culturels : ${myCulture.installed} personnage(s) illustre(s) installé(s) + ${myCulture.wonderCount} merveille(s) contrôlée(s) — ${MILESTONES_TARGET} requis pour les Nations Unies (R-115/R-116)`,
+  );
   const myResearch = $derived.by(() => {
     const v = $view;
     const id = myEngineId(v);
@@ -262,6 +297,10 @@ import { TECHS } from '@game/rules';
     <span class="res" title="Or du joueur">
       <img src="/art/icone_or.png" alt="Or" onerror={hideImg} />
       {myGold}
+    </span>
+    <span class="res" title={milestonesDetail}>
+      <img src="/art/icone_culture.png" alt="Jalons culturels" onerror={hideImg} />
+      {myCulture.milestones}/{MILESTONES_TARGET}
     </span>
     <button type="button" class="research" title="Choix technologique (R-85)" onclick={() => (showResearch = !showResearch)}>
       <img src="/art/icone_science.png" alt="Science" onerror={hideImg} />
@@ -339,7 +378,15 @@ import { TECHS } from '@game/rules';
             <h1>{victoryEvent?.winner === myEngineId($view) ? 'Victoire !' : 'Défaite…'}</h1>
             <p>
               {victoryEvent
-                ? `Vainqueur : ${victoryEvent.winner} — motif : ${victoryEvent.reason === 'forfeit' ? 'forfait' : 'domination (capitale capturée)'}`
+                ? `Vainqueur : ${victoryEvent.winner} — motif : ${
+                    victoryEvent.reason === 'forfeit'
+                      ? 'forfait'
+                      : victoryEvent.reason === 'culture'
+                        ? 'culturelle (Nations Unies achevées — R-116)'
+                        : victoryEvent.reason === 'razedCapital'
+                          ? 'capitale rasée'
+                          : 'domination (capitale capturée)'
+                  }`
                 : `Vainqueur : ${$view.state?.winner ?? '?'}`}
             </p>
             <a class="primary-btn" href="#/lobby">Retour au lobby</a>
@@ -369,7 +416,7 @@ import { TECHS } from '@game/rules';
       <div class="toast {t.kind}">{t.text}</div>
     {/each}
     {#each errorToasts as t (t.id)}
-      <div class="toast bad">{t.text}</div>
+      <div class="toast {t.kind}">{t.text}</div>
     {/each}
   </div>
 </main>

@@ -34,10 +34,13 @@ export const ERA_NAMES: Record<TechEra, string> = {
   moderne: 'Ère moderne',
 };
 
-/** R-87 : item de production (unité ou bâtiment) tel que porté par les données. */
+/** R-87 : item de production (unité, bâtiment ou merveille) tel que porté par
+ *  les données. */
 export interface ProductionData {
   tech: string | null;
   implemented?: boolean | undefined;
+  /** 7f : Personnage illustre (artiste/penseur) — jamais productible (R-114). */
+  greatPerson?: boolean | undefined;
   /** 7e : bâtiment préalable exigé dans la ville (Banque ← Marché…). */
   requiresBuilding?: string | undefined;
   /** 7e : bâtiment retiré de la ville à la construction (remplacement). */
@@ -47,18 +50,26 @@ export interface ProductionData {
 }
 
 function unitAsItem(u: UnitTypeData): ProductionData {
-  return { tech: u.tech ?? null, implemented: u.implemented };
+  return { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson };
 }
 
 function buildingAsItem(b: BuildingData): ProductionData {
   return { tech: b.tech, implemented: b.implemented, requiresBuilding: b.requiresBuilding, replaces: b.replaces, fixed: b.fixed };
 }
 
+function wonderAsItem(w: WonderData): ProductionData {
+  return { tech: w.tech ?? null, implemented: w.implemented };
+}
+
 /** Données de débloquage d'un item de production (R-87) — null si id inconnu. */
-export function productionDataOf(item: { kind: 'unit' | 'building'; id: string }): ProductionData | null {
+export function productionDataOf(item: { kind: 'unit' | 'building' | 'wonder'; id: string }): ProductionData | null {
   if (item.kind === 'unit') {
     const u = UNIT_TYPES[item.id];
     return u ? unitAsItem(u) : null;
+  }
+  if (item.kind === 'wonder') {
+    const w = WONDERS[item.id];
+    return w ? wonderAsItem(w) : null;
   }
   const b = BUILDINGS[item.id];
   return b ? buildingAsItem(b) : null;
@@ -101,8 +112,12 @@ export function isUnitObsolete(unitId: string, techsUnlocked: readonly string[])
 /**
  * 7e · R-87 (étendue) : un item est PRODUCTIBLE ssi débloqué (tech + implé-
  * mentation), non obsolète (unités) et, pour un bâtiment, sans prérequis de
- * bâtiment manquant ni caractère fixe (Palais). La ville n'est pas toujours
- * connue (recherche d'UI) : passer `cityBuildings` pour la validation complète.
+ * bâtiment manquant ni caractère fixe (Palais). 7f : les GP (artiste/penseur)
+ * ne sont JAMAIS productibles (R-114 — engendrés par la culture seulement).
+ * Les contraintes d'EMPIRE des merveilles (unicité, jalons ONU) sont vérifiées
+ * par `wonderProductionIssue` (culture.ts) — elles exigent l'état complet.
+ * La ville n'est pas toujours connue (recherche d'UI) : passer `cityBuildings`
+ * pour la validation complète.
  */
 export function isProducible(
   item: ProductionData,
@@ -111,6 +126,7 @@ export function isProducible(
 ): boolean {
   if (!isUnlocked(item, techsUnlocked)) return false;
   if (item.fixed) return false;
+  if (item.greatPerson) return false;
   if (item.requiresBuilding && cityBuildings && !cityBuildings.includes(item.requiresBuilding)) return false;
   return true;
 }
@@ -123,7 +139,7 @@ function unitObsoleteIn(item: ProductionData, id: string, techsUnlocked: readonl
 
 /** 7e : validations serveur complètes (moteur — applySetProduction). */
 export function canSetProduction(
-  item: { kind: 'unit' | 'building'; id: string },
+  item: { kind: 'unit' | 'building' | 'wonder'; id: string },
   techsUnlocked: readonly string[],
   cityBuildings: readonly string[],
 ): boolean {

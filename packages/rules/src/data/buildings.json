@@ -8,7 +8,8 @@
     "tech": null,
     "fixed": true,
     "cityDefenseBonus": 0.5,
-    "effect": "Présent uniquement dans la capitale : +50 % de défense pour les unités en garnison"
+    "culturePerTurn": 1,
+    "effect": "Présent uniquement dans la capitale : +50 % de défense pour les unités en garnison, +1 Culture par tour (7f, R-113)"
   },
   "caserne": {
     "id": "caserne",
@@ -45,7 +46,7 @@
     "tileBonus": null,
     "tech": "rites_funeraires",
     "culturePerCitizen": 1,
-    "effect": "+1 Culture par citoyen et par tour (effet actif en 7f — culture)"
+    "effect": "+1 Culture par citoyen et par tour (R-113)"
   },
   "comptoir_commercial": {
     "id": "comptoir_commercial",
@@ -140,7 +141,7 @@
     "requiresBuilding": "temple",
     "replaces": "temple",
     "culturePerCitizen": 2,
-    "effect": "+2 Culture par citoyen et par tour (culture en 7f) — remplace le Temple"
+    "effect": "+2 Culture par citoyen et par tour — remplace le Temple"
   },
   "universite": {
     "id": "universite",

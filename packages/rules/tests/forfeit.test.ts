@@ -71,7 +71,7 @@ describe('L0 · T-06 · forfait (compteur missedTurns tenu par le serveur)', () 
 
 describe('L0 · Migrations (chaîne de migrations, DESIGN.md §3.8)', () => {
   it(`CURRENT_SCHEMA_VERSION vaut ${CURRENT_SCHEMA_VERSION} et les migrations v2/v3/v4/v5/v6/v7 existent`, () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(9);
+    expect(CURRENT_SCHEMA_VERSION).toBe(10);
     expect(typeof MIGRATIONS[2]).toBe('function');
     expect(typeof MIGRATIONS[3]).toBe('function');
     expect(typeof MIGRATIONS[4]).toBe('function');
@@ -80,9 +80,10 @@ describe('L0 · Migrations (chaîne de migrations, DESIGN.md §3.8)', () => {
     expect(typeof MIGRATIONS[7]).toBe('function');
     expect(typeof MIGRATIONS[8]).toBe('function');
     expect(typeof MIGRATIONS[9]).toBe('function');
+    expect(typeof MIGRATIONS[10]).toBe('function');
   });
 
-  it('un état v1 (sans missedTurns) migre jusqu’à v9 avec missedTurns = 0 et fortified = false', () => {
+  it('un état v1 (sans missedTurns) migre jusqu’à v10 avec missedTurns = 0 et fortified = false', () => {
     const v2 = makeState();
     const v1Raw = migrateState<Record<string, unknown>>({
       ...structuredClone(v2),
@@ -92,7 +93,7 @@ describe('L0 · Migrations (chaîne de migrations, DESIGN.md §3.8)', () => {
         p2: { id: 'p2', gold: 0, science: 0, scienceRatio: 0.5, vision: { explored: [], visible: [] }, missedTurns: 2 },
       },
     } as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(v1Raw.schemaVersion).toBe(9);
+    expect(v1Raw.schemaVersion).toBe(10);
     expect(v1Raw.players['p1']!.missedTurns).toBe(0);
     // un champ déjà présent est conservé
     expect(v1Raw.players['p2']!.missedTurns).toBe(2);

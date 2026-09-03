@@ -251,6 +251,57 @@ function buildUnitGraphics(): Record<string, { base: Graphics; accent: Graphics 
 
     out.colon = { base, accent: acc };
   }
+  // 7f · R-114 : Personnages illustres de culture — Artiste (palette + pinceau)
+  // et Penseur (livre), silhouettes élancées distinctes des combattants.
+  {
+    const cx = UNIT_W / 2;
+    const feet = UNIT_H - 10;
+    const base = g();
+    base.ellipse(cx, feet - 4, 50, 16).fill({ color: 0x000000, alpha: 0.25 });
+    base.rect(cx - 20, feet - 76, 16, 50).fill({ color: 0x5b5148 }); // jambes
+    base.rect(cx + 6, feet - 76, 16, 50).fill({ color: 0x5b5148 });
+    base.poly([cx, feet - 200, cx - 36, feet - 84, cx + 36, feet - 84]).fill({ color: 0xc4a4d6 }); // tunique violette
+    base.circle(cx, feet - 208, 24).fill({ color: 0xc7bbae }); // tête
+    base.circle(cx - 8, feet - 212, 3.5).fill({ color: 0x2b2620 });
+    base.circle(cx + 8, feet - 212, 3.5).fill({ color: 0x2b2620 });
+    base.ellipse(cx + 46, feet - 130, 26, 20).fill({ color: 0xa8794f }); // palette
+    base.circle(cx + 52, feet - 250, 6).fill({ color: 0x8a6f4a }); // pinceau (poignée)
+    base.rect(cx + 50, feet - 246, 4, 60).fill({ color: 0x7a6f62 });
+    base.poly([cx, feet - 200, cx - 36, feet - 84, cx + 36, feet - 84]).stroke({ width: 5, color: OUTLINE });
+    base.circle(cx, feet - 208, 24).stroke({ width: 5, color: OUTLINE });
+    base.ellipse(cx + 46, feet - 130, 26, 20).stroke({ width: 4, color: OUTLINE });
+
+    const acc = g();
+    acc.circle(cx + 38, feet - 136, 6).fill({ color: 0xffffff }); // taches de peinture
+    acc.circle(cx + 52, feet - 122, 6).fill({ color: 0xffffff });
+    acc.circle(cx + 44, feet - 112, 5).fill({ color: 0xffffff });
+    acc.poly([cx - 18, feet - 232, cx + 18, feet - 232, cx + 10, feet - 210, cx - 10, feet - 210]).fill({ color: 0xffffff }); // béret
+
+    out.artiste = { base, accent: acc };
+  }
+  {
+    const cx = UNIT_W / 2;
+    const feet = UNIT_H - 10;
+    const base = g();
+    base.ellipse(cx, feet - 4, 50, 16).fill({ color: 0x000000, alpha: 0.25 });
+    base.rect(cx - 20, feet - 76, 16, 50).fill({ color: 0x5b5148 }); // jambes
+    base.rect(cx + 6, feet - 76, 16, 50).fill({ color: 0x5b5148 });
+    base.poly([cx, feet - 200, cx - 36, feet - 84, cx + 36, feet - 84]).fill({ color: 0x7f9ec7 }); // robe bleu-gris
+    base.circle(cx, feet - 208, 24).fill({ color: 0xc7bbae }); // tête
+    base.circle(cx - 8, feet - 212, 3.5).fill({ color: 0x2b2620 });
+    base.circle(cx + 8, feet - 212, 3.5).fill({ color: 0x2b2620 });
+    base.rect(cx - 44, feet - 150, 34, 44).fill({ color: 0x8a5a3a }); // livre
+    base.rect(cx - 44, feet - 150, 34, 44).stroke({ width: 4, color: OUTLINE });
+    base.poly([cx, feet - 200, cx - 36, feet - 84, cx + 36, feet - 84]).stroke({ width: 5, color: OUTLINE });
+    base.circle(cx, feet - 208, 24).stroke({ width: 5, color: OUTLINE });
+
+    const acc = g();
+    acc.rect(cx - 44, feet - 132, 34, 6).fill({ color: 0xffffff }); // tranche du livre
+    acc.poly([cx - 18, feet - 236, cx + 18, feet - 236, cx, feet - 258]).fill({ color: 0xffffff }); // couronne de laurier
+    acc.rect(cx - 34, feet - 144, 4, 32).fill({ color: 0xffffff }); // pages
+
+    out.penseur = { base, accent: acc };
+  }
   return out;
 }
 
@@ -472,7 +523,7 @@ const TILE_ASSETS: Record<TerrainId, string> = {
   ville: 'tile_ville_sol',
 };
 
-const UNIT_IDS = ['guerrier', 'colon'];
+const UNIT_IDS = ['guerrier', 'colon', 'artiste', 'penseur'];
 
 async function texOrFallback(name: string, fallback: Texture): Promise<Texture> {
   try {

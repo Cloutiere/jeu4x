@@ -31,6 +31,10 @@ export interface UnitTypeData {
   populationCost?: number;
   /** 7e · Ligne d'amélioration (documentaire — surclassement auto différé). */
   upgradeTo?: string;
+  /** 7f · Personnage illustre (R-114) : unité pacifique engendrée par la
+   *  culture (Artiste/Penseur) — JAMAIS produite par les files (moteur, UI
+   *  et bot l'excluent) ; installable dans une ville (R-115). */
+  greatPerson?: boolean;
 }
 
 export type TerrainId =
@@ -109,6 +113,8 @@ export interface BuildingData {
   /** 7e · Culture par citoyen et par tour (Temple 1, Cathédrale 2) — INACTIF
    *  tant que le moteur culturel n'existe pas (7f), libellé visible. */
   culturePerCitizen?: number;
+  /** 7f · Culture FLAT par tour (Palais : 1 — capitale uniquement). */
+  culturePerTurn?: number;
   /** Phase 7b : libellé d'effet pour l'UI — absent pour les bâtiments à bonus
    *  de terrain (libellé dérivé). */
   effect?: string;
@@ -124,6 +130,8 @@ export interface PerCityBonus {
   science?: number;
   production?: number;
   commerce?: number;
+  /** 7f · Volet culture du Premier découvrir ACTIVÉ (R-109/R-113 : Religion,
+   *  Imprimerie +1). */
   culture?: number;
   population?: number;
 }
@@ -183,20 +191,43 @@ export interface TechData {
   obsoleteWonders?: string[];
 }
 
-/** R-86 · Merveille en données (non constructible — effets 7f/7h). 7e : la
- *  table est complétée (21 merveilles du PDF) avec coût, tech et obsolescence. */
+/** R-86 · Merveille en données. 7f : les merveilles à effets simples sont
+ *  ACTIVÉES (`implemented: true`) et portent leurs effets en champs
+ *  data-driven ; les autres restent en données (7h : gouvernements, combat,
+ *  découvertes). */
 export interface WonderData {
   id: string;
   name: string;
-  /** Coût de production (données — constructible en 7f/7h). */
+  /** Coût de production (T-28 pour les Nations Unies : 300 🔶). */
   cost?: number;
   /** Technologie requise (null = condition spéciale ou disponible d'office). */
   tech?: string | null;
-  /** Tech qui rend la merveille obsolète (données). */
+  /** Tech qui rend la merveille obsolète (données — R-110). */
   obsoleteBy?: string;
+  /** 7f · Multiplicateur de la culture « Temple/Cathédrale » de la ville
+   *  (Stonehenge ×1,5 🔶 — R-113). */
+  templeCultureMult?: number;
+  /** 7f · Multiplicateur du commerce brut de la ville hôte (Colosse ×2 —
+   *  avant la conversion or/science R-90). */
+  commerceMult?: number;
+  /** 7f · Gain de population immédiat à la complétion (Jardins : 0,5 =
+   *  +50 %, arrondi au plus proche). */
+  populationGainPct?: number;
+  /** 7f · Complétion = Victoire culturelle (R-116 — Nations Unies). */
+  cultureVictory?: boolean;
   /** Libellé d'effet (UI — actif en 7f/7h). */
   effect?: string;
   implemented: boolean;
+}
+
+/** 7f · Constantes culturelles (culture.json) — calibrage par édition (R-99). */
+export interface CultureData {
+  /** T-27 · Seuil de culture par ville pour engendrer un GP (base). */
+  greatPersonThresholdBase: number;
+  /** T-27 · Le seuil est MULTIPLIÉ par ce facteur à chaque GP obtenu par l'empire. */
+  greatPersonThresholdGrowth: number;
+  /** Jalons culturels requis pour les Nations Unies (et la victoire). */
+  milestonesTarget: number;
 }
 
 // ---------------------------------------------------------------------------

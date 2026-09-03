@@ -339,6 +339,8 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       scienceProgress: {},
       techsUnlocked: [],
       scienceStored: 0,
+      cultureMilestones: 0, // 7f · R-115
+      greatPersonsObtained: 0, // 7f · R-114
       vision: { explored: [], visible: [] },
       missedTurns: 0,
     };
@@ -364,6 +366,8 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       workedTiles: [],
       buildings: ['palais'], // 7e : le Palais ne vit que dans la capitale
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
+      cultureStored: 0, // 7f · R-113
+      wonders: [], // 7f · R-115
     };
     // La case de capitale devient une case de ville (RULES.md §2).
     mapRecord[tileKeyOf(spawn.capital)] = { terrain: 'ville', resource: null };

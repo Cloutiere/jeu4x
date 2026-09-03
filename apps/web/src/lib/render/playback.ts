@@ -69,6 +69,11 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   VillageDestroyed: 420,
   CityRazed: 420,
   HutOpened: 360,
+  // Phase 7f (R-113..R-116) : culture.
+  GreatPersonSpawned: 380,
+  InstallPerson: 360,
+  CultureMilestone: 320,
+  WonderCompleted: 400,
   TurnResolved: 140,
 };
 
@@ -91,6 +96,11 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   HutOpened: 'good',
   CityRazed: 'bad',
   BarbarianSpawned: 'bad',
+  // Phase 7f (R-113..R-116) : GP, installation, jalons, merveilles, ONU.
+  GreatPersonSpawned: 'good',
+  InstallPerson: 'good',
+  WonderCompleted: 'good',
+  CultureMilestone: 'info',
 };
 
 const TOAST_LIFETIME = 4000;
@@ -290,6 +300,12 @@ export class Playback {
         this.pushFx(ev.at, 'destroy', dur);
         break;
       case 'HutOpened':
+        this.pushFx(ev.at, 'good', dur);
+        break;
+      // Phase 7f (R-113..R-116) : culture — GP posé, installation, merveille.
+      case 'GreatPersonSpawned':
+      case 'InstallPerson':
+      case 'WonderCompleted':
         this.pushFx(ev.at, 'good', dur);
         break;
       default:

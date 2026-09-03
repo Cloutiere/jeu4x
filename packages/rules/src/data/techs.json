@@ -178,7 +178,7 @@
     "era": "medievale",
     "prereqs": ["rites_funeraires", "monarchie"],
     "unlocks": { "units": [], "buildings": ["cathedrale"], "wonders": [] },
-    "firstToDiscover": { "label": "+1 Culture dans toutes les villes", "perCity": { "culture": 1 }, "implemented": false },
+    "firstToDiscover": { "label": "+1 Culture dans toutes les villes", "perCity": { "culture": 1 } },
     "obsoleteWonders": ["oracle_de_delphes"]
   },
   "invention": {
@@ -254,7 +254,7 @@
     "era": "industrielle",
     "prereqs": ["universite", "religion"],
     "unlocks": { "units": [], "buildings": [], "wonders": [] },
-    "firstToDiscover": { "label": "+1 Culture dans toutes les villes", "perCity": { "culture": 1 }, "implemented": false }
+    "firstToDiscover": { "label": "+1 Culture dans toutes les villes", "perCity": { "culture": 1 } }
   },
   "industrialisation": {
     "id": "industrialisation",

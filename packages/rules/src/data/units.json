@@ -1,4 +1,34 @@
 {
+  "artiste": {
+    "id": "artiste",
+    "name": "Artiste illustre",
+    "attack": 0,
+    "defense": 0,
+    "movement": 2,
+    "hpMax": 3,
+    "cost": 20,
+    "visionRadius": 2,
+    "canAttack": false,
+    "canFoundCity": false,
+    "isRanged": false,
+    "tech": null,
+    "greatPerson": true
+  },
+  "penseur": {
+    "id": "penseur",
+    "name": "Penseur illustre",
+    "attack": 0,
+    "defense": 0,
+    "movement": 2,
+    "hpMax": 3,
+    "cost": 20,
+    "visionRadius": 2,
+    "canAttack": false,
+    "canFoundCity": false,
+    "isRanged": false,
+    "tech": null,
+    "greatPerson": true
+  },
   "guerrier": {
     "id": "guerrier",
     "name": "Guerrier",

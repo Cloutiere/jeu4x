@@ -35,11 +35,16 @@ export type Order =
   /** R-60 (Phase 6) : assigne un citoyen à une case (rayon de travail, libre,
    *  travaillable) ; désassigner = cibler null. Un ciblage d'une case déjà
    *  travaillée par la MÊME ville est un échange (re-assignation). */
-  | { type: 'SetWorkedTile'; cityId: CityId; tile: TileKey | null };
+  | { type: 'SetWorkedTile'; cityId: CityId; tile: TileKey | null }
+  /** 7f · R-115 : installe DÉFINITIVEMENT un Personnage illustre dans une
+   *  ville AMIE (sur sa case ou adjacente) — consomme l'unité, +1 jalon
+   *  culturel au joueur. */
+  | { type: 'InstallPerson'; unitId: UnitId; cityId: CityId };
 
-/** Item de production (R-62/R-66) : une unité ou un bâtiment. */
+/** Item de production (R-62/R-66) : une unité, un bâtiment — ou une merveille
+ *  (7f : merveilles à effets simples + Nations Unies, R-116). */
 export interface ProductionItem {
-  kind: 'unit' | 'building';
+  kind: 'unit' | 'building' | 'wonder';
   id: string;
 }
 
@@ -98,6 +103,11 @@ export interface City {
   /** R-90 (Phase 7b) : conversion du commerce — 'gold' | 'science' (défaut or,
    *  réinitialisé à la capture). Amende R-61 : plus de curseur global. */
   conversion: 'gold' | 'science';
+  /** 7f · R-113 : culture accumulée vers le prochain Personnage illustre. */
+  cultureStored: number;
+  /** 7f · R-115 : merveilles hébergées — SURVIVENT à la capture (elles
+   *  changent de propriétaire avec la ville, contrairement aux bâtiments). */
+  wonders: string[];
 }
 
 export interface Vision {
@@ -150,6 +160,10 @@ export interface Player {
   techsUnlocked: string[];
   /** R-85 : science accumulée sans choix de tech — versée au premier choix. */
   scienceStored: number;
+  /** 7f · R-115 : jalons culturels (GP installés + merveilles contrôlées). */
+  cultureMilestones: number;
+  /** 7f · R-114 : GP de culture obtenus (le seuil T-27 double à chaque obtention). */
+  greatPersonsObtained: number;
   vision: Vision;
   /** Timers manqués consécutifs (forfait T-06 — géré côté serveur, Phase 1). */
   missedTurns: number;
@@ -209,7 +223,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 type AnyState = Record<string, unknown>;
 
@@ -403,6 +417,42 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       migrated[id] = { ...c, buildings };
     }
     out.cities = migrated;
+    return out;
+  },
+  /**
+   * v9 → v10 : Phase 7f — culture (R-113..R-116). Champs ADDITIFS, défauts
+   * neutres (les parties en cours n'ont accumulé aucune culture, aucun jalon,
+   * aucun GP, aucune merveille en ville) — idempotent si les champs existent :
+   *  - chaque ville : `cultureStored: 0` (R-113) et `wonders: []` (R-115 —
+   *    les merveilles survivent à la capture, contrairement aux bâtiments) ;
+   *  - chaque joueur : `cultureMilestones: 0` (R-115) et
+   *    `greatPersonsObtained: 0` (R-114). Les GP eux-mêmes sont des unités de
+   *    type spécial (artiste/penseur) — aucune transformation des unités.
+   */
+  10: (state) => {
+    const out: AnyState = { ...state };
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedCities: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      migratedCities[id] = {
+        ...c,
+        cultureStored: typeof c.cultureStored === 'number' ? c.cultureStored : 0,
+        wonders: Array.isArray(c.wonders) ? c.wonders : [],
+      };
+    }
+    out.cities = migratedCities;
+    const players = (state.players ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedPlayers: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(players).sort()) {
+      const p = players[id]!;
+      migratedPlayers[id] = {
+        ...p,
+        cultureMilestones: typeof p.cultureMilestones === 'number' ? p.cultureMilestones : 0,
+        greatPersonsObtained: typeof p.greatPersonsObtained === 'number' ? p.greatPersonsObtained : 0,
+      };
+    }
+    out.players = migratedPlayers;
     return out;
   },
 };

@@ -3,8 +3,10 @@ import units from '../src/data/units.json' with { type: 'json' };
 import terrains from '../src/data/terrain.json' with { type: 'json' };
 import buildings from '../src/data/buildings.json' with { type: 'json' };
 import resources from '../src/data/resources.json' with { type: 'json' };
-import { isWaterTerrain } from '../src/data.js';
-import type { BuildingData, ResourceData, TerrainData, TerrainId, UnitTypeData } from '../src/types.js';
+import cultureData from '../src/data/culture.json' with { type: 'json' };
+import { CULTURE, isWaterTerrain } from '../src/data.js';
+import { isProducible } from '../src/techs.js';
+import type { BuildingData, CultureData, ResourceData, TerrainData, TerrainId, UnitTypeData } from '../src/types.js';
 
 const unitTable = units as Record<string, UnitTypeData>;
 const terrainTable = terrains as Record<string, TerrainData>;
@@ -12,11 +14,11 @@ const buildingTable = buildings as Record<string, BuildingData>;
 const resourceTable = resources as Record<string, ResourceData>;
 
 describe('Données v1 (RULES.md §2-3)', () => {
-  it('contient le roster terrestre complet 7e + données seules (naval, aérien, spéciaux)', () => {
+  it('contient le roster terrestre complet 7e + GP de culture 7f + données seules (naval, aérien, spéciaux)', () => {
     expect(Object.keys(unitTable).sort()).toEqual([
-      'archer', 'artillerie', 'bombardier', 'canon', 'caravane', 'catapulte', 'cavalier', 'char_d_assaut',
+      'archer', 'artillerie', 'artiste', 'bombardier', 'canon', 'caravane', 'catapulte', 'cavalier', 'char_d_assaut',
       'chasseur', 'chevalier', 'colon', 'croiseur', 'cuirasse', 'espion', 'fusilier', 'galere', 'galion',
-      'guerrier', 'icbm', 'infanterie_moderne', 'legion', 'milice', 'piquier', 'sous_marin',
+      'guerrier', 'icbm', 'infanterie_moderne', 'legion', 'milice', 'penseur', 'piquier', 'sous_marin',
     ]);
   });
 
@@ -96,6 +98,38 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
   it('montagne : infranchissable mais travaillable (rendements 0/1/0)', () => {
     expect(terrainTable['montagne']!.passable).toBe(false);
     expect(terrainTable['montagne']!.yields).toEqual({ food: 0, production: 1, commerce: 0 });
+  });
+
+  it('7f · R-114 : les GP de culture (Artiste/Penseur) sont pacifiques 0/0/2 et JAMAIS productibles', () => {
+    for (const id of ['artiste', 'penseur']) {
+      const gp = unitTable[id]!;
+      expect(gp).toMatchObject({
+        attack: 0,
+        defense: 0,
+        movement: 2,
+        canAttack: false,
+        canFoundCity: false,
+        isRanged: false,
+        tech: null,
+        greatPerson: true,
+      });
+      // R-114 : les GP ne sortent JAMAIS des files de production.
+      expect(isProducible({ tech: null, greatPerson: true }, [], [])).toBe(false);
+    }
+  });
+
+  it('7f · culture.json : constantes T-27 et jalons (chargées dans CULTURE, éditables)', () => {
+    const data = cultureData as unknown as CultureData;
+    expect(data).toEqual(CULTURE);
+    expect(CULTURE.greatPersonThresholdBase).toBe(20); // T-27 🔶
+    expect(CULTURE.greatPersonThresholdGrowth).toBe(2); // ×2 par GP obtenu
+    expect(CULTURE.milestonesTarget).toBe(20); // jalons pour l'ONU / la victoire
+  });
+
+  it('7f · R-113 : le Palais porte sa culture FLAT (1/tour, capitale) — Temple/Cathédrale par citoyen', () => {
+    expect(buildingTable['palais']!.culturePerTurn).toBe(1);
+    expect(buildingTable['temple']!.culturePerCitizen).toBe(1);
+    expect(buildingTable['cathedrale']!.culturePerCitizen).toBe(2);
   });
 
   it('buildings.json 7e : 22 bâtiments — coûts exacts (Temple 40 … Aqueduc 120) + Palais/Usine/SDI/Vaisseau', () => {

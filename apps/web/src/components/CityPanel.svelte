@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, wonderProductionIssue, empirePerCityBonus } from '@game/rules';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -119,6 +119,19 @@
   /** R-60 : rayon de travail courant (Tribunal → 2). */
   const workRadius = $derived(city ? workRadiusOf(city.buildings) : 1);
 
+  /** 7f · R-113/R-114 : culture par tour de la ville + jauge vers le GP
+   *  (seuil T-27, ×2 à chaque GP obtenu par l'empire). */
+  const culturePerTurn = $derived.by(() => {
+    if (!city || !view.state || !engine) return 0;
+    const empireBonus = empirePerCityBonus(view.state, engine);
+    return cultureGains(city, empireBonus.culture, view.state.players[engine]?.techsUnlocked ?? []);
+  });
+  const gpThreshold = $derived.by(() => {
+    if (!view.state || !engine) return CULTURE.greatPersonThresholdBase;
+    return greatPersonThresholdFor(view.state.players[engine]?.greatPersonsObtained ?? 0);
+  });
+  const cultureRatio = $derived(city ? Math.max(0, Math.min(1, city.cultureStored / gpThreshold)) : 0);
+
   /**
    * Réassignations en attente (retour immédiat) : les ordres SetWorkedTile
    * soumis pour cette ville, appliqués en miroir de ce que fera le moteur —
@@ -194,6 +207,7 @@
     const options: ProdOption[] = [];
     for (const u of Object.values(UNIT_TYPES)) {
       if (u.implemented === false) continue; // Espion, naval, aérien : pas proposés
+      if (u.greatPerson) continue; // 7f · R-114 : les GP ne sortent JAMAIS des files
       // 7e · R-110 : les unités obsolètes sont retirées du menu (CivRev).
       if (isUnitObsolete(u.id, techsUnlocked)) continue;
       const effect = u.id === 'colon'
@@ -204,6 +218,41 @@
       options.push(optionFor({ kind: 'unit', id: u.id }, u.name, u.cost, effect, u.tech ?? null));
     }
     return sortUnlockedFirst(options);
+  });
+
+  /**
+   * 7f · R-116 : merveilles implémentées (Stonehenge, Colosse, Jardins + ONU).
+   * Le verrouillage complet (unicité d'empire, jalons de l'ONU, obsolescence)
+   * passe par wonderProductionIssue — même validation que le moteur.
+   */
+  const wonderOptions = $derived.by(() => {
+    if (!city || !view.state || !engine) return [];
+    const player = view.state.players[engine];
+    const ownCities = Object.values(view.state.cities).filter((c) => c.owner === engine);
+    const ctx = {
+      techsUnlocked,
+      empireWondersBuilt: ownCities.flatMap((c) => c.wonders),
+      empireWondersInProduction: ownCities
+        .filter((c) => c.id !== city.id && c.production?.item.kind === 'wonder')
+        .map((c) => (c.production!.item as { kind: 'wonder'; id: string }).id),
+      cultureMilestones: player?.cultureMilestones ?? 0,
+    };
+    const options: ProdOption[] = [];
+    for (const w of Object.values(WONDERS)) {
+      if (w.implemented === false) continue;
+      const issue = wonderProductionIssue(w.id, ctx);
+      const eta = issue === null && prodPerTurn > 0 ? Math.ceil((w.cost ?? 0) / prodPerTurn) : null;
+      options.push({
+        item: { kind: 'wonder', id: w.id },
+        name: w.name,
+        cost: w.cost ?? 0,
+        effect: w.effect ?? '',
+        unlocked: issue === null,
+        requires: issue,
+        eta,
+      });
+    }
+    return options;
   });
 
   const buildingOptions = $derived.by(() => {
@@ -333,6 +382,11 @@
           <div class="bar"><div class="fill growth-fill" style:width={`${growthRatio * 100}%`}></div></div>
           <span class="eta">{growthEta !== null ? `${growthEta} tour${growthEta > 1 ? 's' : ''}` : '—'}</span>
         </div>
+        <div class="gauge" title="Culture (R-113) : +Palais / +Temples·Cathédrales × population — Personnage illustre au seuil (T-27, ×2 par GP obtenu)">
+          <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> {city.cultureStored} / {gpThreshold}</span>
+          <div class="bar"><div class="fill culture-fill" style:width={`${cultureRatio * 100}%`}></div></div>
+          <span class="eta">{culturePerTurn} culture/tour</span>
+        </div>
       {/if}
     {/if}
 
@@ -372,13 +426,23 @@
       </div>
     {/if}
 
-    <!-- 4. Bâtiments possédés -->
+    <!-- 4. Bâtiments + merveilles possédés -->
     {#if city.buildings.length > 0}
       <div class="block">
         <h3>Bâtiments</h3>
         <div class="btns">
           {#each city.buildings as b (b)}
             <span class="building" title={BUILDINGS[b]?.effect ?? tileEffectLabel(BUILDINGS[b] ?? ({} as never))}>{BUILDINGS[b]?.name ?? b}</span>
+          {/each}
+        </div>
+      </div>
+    {/if}
+    {#if city.wonders.length > 0}
+      <div class="block">
+        <h3>Merveilles (+1 jalon chacune)</h3>
+        <div class="btns">
+          {#each city.wonders as w (w)}
+            <span class="wonder" title={WONDERS[w]?.effect ?? w}>{WONDERS[w]?.name ?? w}</span>
           {/each}
         </div>
       </div>
@@ -439,6 +503,24 @@
             </button>
           {/each}
         </div>
+
+        <h3>Produire — merveilles (7f)</h3>
+        <div class="queue">
+          {#each wonderOptions as opt (opt.item.kind + ':' + opt.item.id)}
+            <button
+              type="button"
+              class="opt wonder-btn"
+              class:locked={!opt.unlocked}
+              disabled={!editable || !opt.unlocked}
+              title={opt.unlocked ? opt.effect : (opt.requires ?? 'verrouillée')}
+              onclick={() => setProduction(opt.item)}
+            >
+              <b>{opt.name} ({opt.cost})</b>
+              <span class="fx">{opt.unlocked ? opt.effect : (opt.requires ?? 'verrouillée')}</span>
+              {#if opt.eta !== null}<span class="turns"> · {opt.eta} tour{opt.eta > 1 ? 's' : ''}</span>{/if}
+            </button>
+          {/each}
+        </div>
         {#if city.production}
           <button type="button" class="cancel" disabled={!editable} onclick={() => city && client.cancelCityOrder(city.id)}>Annuler la production</button>
         {/if}
@@ -467,6 +549,9 @@
   .bar { height: 8px; background: #12161a; border-radius: 4px; overflow: hidden; border: 1px solid #3a4148; flex: 1; }
   .fill { height: 100%; background: #f0c419; }
   .growth-fill { background: #81c784; }
+  .culture-fill { background: #ba68c8; }
+  .wonder { padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid #b8863c; background: #3c3222; font-size: 0.8rem; color: #ffd54f; }
+  .opt.wonder-btn { border-color: #8d6e3c; background: #332b1e; }
   .eta { font-size: 0.8rem; color: #a5d6a7; white-space: nowrap; }
   .prodcur { display: flex; align-items: center; gap: 0.55rem; }
   .prodcur .name { font-weight: 700; }

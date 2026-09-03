@@ -354,7 +354,7 @@ Les bâtiments portent des effets **data-driven** (`buildings.json`) appliqués 
 |---|---|---|---|---|
 | Palais | 0 (`fixed`) | — | +50 % défense de garnison (`cityDefenseBonus: 0.5`) — posé par le moteur dans la capitale (fondation + migration v9) | ✅ |
 | Caserne | 40 | Travail du bronze | Unités terrestres produites vétérans (R-89 ; hors pacifiques) | ✅ |
-| Temple | 40 | Rites funéraires | +1 Culture/citoyen (`culturePerCitizen`) | 7f |
+| Temple | 40 | Rites funéraires | +1 Culture/citoyen (`culturePerCitizen`) | ✅ (7f, R-113) |
 | Bibliothèque | 40 | Alphabet | Science ×1,5 + science résiduelle en conversion or (R-88, inchangée) | ✅ |
 | Comptoir commercial | 60 | Code de lois | +2 C par désert travaillé | ✅ |
 | Atelier | 60 | Construction | +2 P par colline travaillée | ✅ |
@@ -362,10 +362,10 @@ Les bâtiments portent des effets **data-driven** (`buildings.json`) appliqués 
 | Tribunal | 80 | Littératie | Rayon de travail 1 → 2 | ✅ |
 | Mine de fer | 80 | Chemin de fer | +4 P par montagne travaillée | ✅ |
 | Port | 100 | Navigation | +1 N par mer travaillée (côte seule) | ✅ |
-| Remparts | 100 | Maçonnerie | +100 % défense de garnison (`cityDefenseBonus: 1.0`) + immunité conversion culturelle | ✅ (immunité 7f) |
+| Remparts | 100 | Maçonnerie | +100 % défense de garnison (`cityDefenseBonus: 1.0`) + immunité conversion culturelle | ✅ (immunité inactive tant que la conversion culturelle n'existe pas — reportée 7g/7h) |
 | Aqueduc | 120 | Ingénierie | Seuil de croissance −⅓ (`growthThresholdReduction: 0.33` 🔶) — R-63 | ✅ |
 | Banque | 120 | Banque | Or ×4 — R-111 (requiert Marché, le remplace) | ✅ |
-| Cathédrale | 160 | Religion | +2 Culture/citoyen — R-111 (requiert Temple, le remplace) | 7f |
+| Cathédrale | 160 | Religion | +2 Culture/citoyen — R-111 (requiert Temple, le remplace) | ✅ (7f, R-113) |
 | Université | 160 | Université | Science ×4 (`scienceMult: 4`) — R-111 (requiert Bibliothèque, la remplace) | ✅ |
 | Usine | 200 | Industrialisation | Production de la ville ×2 (`productionMult`) | ✅ |
 | Défense SDI | 200 | Supraconducteur | Protège des ICBM (mécanique 7g+) | données |
@@ -375,6 +375,18 @@ Les bâtiments portent des effets **data-driven** (`buildings.json`) appliqués 
 - **Aqueduc** : seuil de croissance `round(10 × pop × (1 − 0.33))` 🔶.
 - **Défense** : les `cityDefenseBonus` s'additionnent dans `S_def` (§7.4) pour le défenseur en garnison de SA ville (Palais 0,5 + Remparts 1,0 → bonus total +150 %).
 - **Migration v8 → v9** : `firstBy: {}` (R-109) + Palais ajouté aux capitales existantes. Les nouvelles fondations reçoivent le Palais directement (R-64, moteur).
+
+## 8.5 Culture & victoire culturelle — Phase 7f (ajouté le 02/09/2026)
+
+Base documentaire : la spécification d'Erik [`Culture dans Civilization Revolution.md`](Culture%20dans%20Civilization%20Revolution.md). Constantes culturelles : `culture.json` (calibrage par édition, même philosophie que barbares.json R-99) ; coût des merveilles : `wonders.json`. **Décisions de tranche (pilotage 7f)** : la **conversion culturelle passive est REPORTÉE** (elle exige un concept de territoire — 7g/7h) ; les GP couverts ici sont ceux de la **culture** (Artiste, Penseur — les GP or/science/production/combat viendront en 7g/7h) ; **trois merveilles à effets simples sont activées** (sinon les 20 jalons seraient inatteignables avec les seuls GP).
+
+**R-113 · Rendement culturel.** Par ville et par tour : **Palais** +`culturePerTurn` 🔶 (1 — capitale uniquement, le Palais n'existe que là) + Σ bâtiments `culturePerCitizen` × **population** (Temple +1/citoyen, Cathédrale +2/citoyen — R-111 : elle remplace le Temple) + le bonus empire `perCity.culture` du Premier découvrir (R-109 : Religion et Imprimerie +1 — activées en 7f). **Stonehenge** multiplie par 🔶 1,5 la part `culturePerCitizen` (lignée Temple/Cathédrale) tant qu'il n'est pas obsolète (Littératie, R-110). La culture est **scalaire sur la démographie** (20 pop × Cathédrale = 40 🔶, exemple du document d'Erik). Accumulée **par ville** (`city.cultureStored`) ; les ressources à culture (Encens/Soie, D2) restent ignorées (en suspens, 7g/7h).
+
+**R-114 · Personnages Illustres de culture.** Quand la culture accumulée d'une ville atteint le **seuil `T-27`** (base 🔶 20, **×2** à chaque GP obtenu **par l'empire** — `player.greatPersonsObtained`, doc : « le seuil augmente à chaque nouveau personnage ») : un **GP de culture** apparaît — unité **pacifique 0/0/2** (`greatPerson: true`), type **Artiste** ou **Penseur en alternance déterministe** 🔶 (Artiste d'abord, index = compteur avant incrément ; le tirage seedé resterait possible, interprétation documentée), posé sur la **case de la ville** (sinon première case adjacente libre — perdu si aucune, comme la récompense R-98) ; événement `GreatPersonSpawned` ; la jauge est remise à zéro **par soustraction du seuil** (miroir R-63, le surplus est conservé) ; au plus **un GP par ville et par tour** ; `greatPersonsObtained` est incrémenté — le seuil monte pour TOUTES les villes de l'empire. Les GP ne sont **jamais produites par les files** (moteur, UI et bot les excluent) ; capturés en guerre ils sont détruits (R-43) **sans** jalon.
+
+**R-115 · Installation et jalons.** Ordre **`InstallPerson {unitId, cityId}`** (Phase C) : un GP situé sur la case de sa ville ou **adjacente** s'**installe définitivement** — l'unité est consommée, **+1 jalon** au joueur (`player.cultureMilestones`), événements `InstallPerson` puis `CultureMilestone`. **Merveille contrôlée = 1 jalon** (dynamique) : +1 à la construction ou à la capture, −1 si la ville hôte est prise ou rasée ; les merveilles **survivent à la capture** et changent simplement de propriétaire (champ `city.wonders` — les bâtiments, eux, sont perdus R-66) ; les jalons des GP installés sont **définitifs** (le vol par Espion, 7g, est la seule perte prévue). Chaque variation émet `CultureMilestone {player, delta, total, reason}` (`install` | `wonderBuilt` | `wonderCaptured` | `wonderLost`). Jalons visibles dans l'UI (X/20).
+
+**R-116 · Nations Unies et victoire culturelle.** Merveille **unique à l'empire**, coût **`T-28`** (🔶 300, `nations_unies.cost`), **verrouillée sous 20 jalons**, **non accélérable** (aucun GP ne peut hâter le chantier — la mécanique d'accélération n'existe pas encore). **Suspension** : si les jalons retombent sous 20 pendant la construction (capture d'une ville hôte de merveille), la progression est **gelée** — les marteaux investis sont conservés 🔶 — jusqu'à repasser à 20. Complétion → **`Victory(reason:'culture')`**. **Merveilles actives en 7f** : **Stonehenge** (Temples ×1,5), **Colosse de Rhodes** (commerce de la ville hôte ×2, appliqué au commerce brut AVANT la conversion R-90), **Jardins suspendus** (+50 % de population immédiat — arrondi au plus proche, citoyens auto-assignés). Une merveille **obsolète** (R-110) est retirée du menu de production ; les exemplaires bâtis **conservent** leur effet et leur jalon. La production d'une merveille déjà possédée (ou déjà en chantier) dans l'empire est refusée ; une double complétion concurrente est un no-op documenté (la seconde ne compte pas).
 
 ## 9. Phase D — Vision, soins, fin de tour
 
@@ -418,6 +430,8 @@ Les bâtiments portent des effets **data-driven** (`buildings.json`) appliqués 
 | T-24 | `hutScienceBoost` | 20 🔶 (R-98, Phase 7d) |
 | T-25 | `hutGoldMin` | 15 🔶 (R-98, Phase 7d) |
 | T-26 | `hutGoldMax` | 50 🔶 (R-98, Phase 7d) |
+| T-27 | `greatPersonThresholdBase` | 20 🔶 (R-114, Phase 7f — `culture.json` ; croissance ×2 par GP obtenu : `greatPersonThresholdGrowth`) |
+| T-28 | `unitedNationsCost` | 300 🔶 (R-116, Phase 7f — `wonders.json` `nations_unies.cost`) |
 
 *(T-18..T-26 : la source des valeurs est `barbares.json`/`huttes.json` — R-99 ; `constants.ts` les ré-exporte. Le texte de R-96 du handoff citait `T-24` pour le cap par village et la liste des constantes `T-22` : normalisé **T-22**, erratum signalé au rapport.)*
 

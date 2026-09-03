@@ -80,6 +80,8 @@
         return 'Production';
       case 'SetWorkedTile':
         return o.tile ? `Citoyen vers (${o.tile})` : 'Citoyen retiré';
+      case 'InstallPerson':
+        return `Installation dans ${o.cityId}`;
     }
   }
 
@@ -93,6 +95,20 @@
     if (!unit || !view.state) return false;
     return Object.values(view.state.cities).some((c) => hexDistance(c, unit) < MIN_CITY_DISTANCE);
   });
+
+  /** 7f · R-115 : villes AMIES sur la case du GP ou adjacentes — installation
+   *  définitive (+1 jalon culturel, le GP est consommé). */
+  const installTargets = $derived.by(() => {
+    if (!unit || !mine || !editable || !view.state || !stats?.greatPerson) return [];
+    return Object.values(view.state.cities)
+      .filter((c) => c.owner === unit.owner && hexDistance(c, unit) <= 1)
+      .map((c) => ({ id: c.id }));
+  });
+
+  function installIn(cityId: string): void {
+    if (!unit) return;
+    client.submitOrder({ type: 'InstallPerson', unitId: unit.id, cityId });
+  }
 </script>
 
 <section class="panel">
@@ -174,6 +190,21 @@
           {#each cityEntries as t (t.hex.q + ',' + t.hex.r)}
             <button type="button" disabled={!editable} onclick={() => enterCity(t.hex)}>
               Entrer dans la ville {t.label} ({t.hex.q},{t.hex.r})
+            </button>
+          {/each}
+        </div>
+      {/if}
+      {#if installTargets.length > 0}
+        <div class="btns">
+          {#each installTargets as t (t.id)}
+            <button
+              type="button"
+              class="primary"
+              disabled={!editable}
+              title="R-115 : installation DÉFINITIVE — le GP est consommé, +1 jalon culturel (20 requis pour les Nations Unies)"
+              onclick={() => installIn(t.id)}
+            >
+              S'installer dans {t.id} (+1 jalon)
             </button>
           {/each}
         </div>
