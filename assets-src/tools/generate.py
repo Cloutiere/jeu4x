@@ -1669,6 +1669,125 @@ def unite_sous_marin(db, da, w, h):
         db.ellipse((cx - 40 + i * 22, ground - 40, cx - 30 + i * 22, ground - 30), fill="#55555F")
 
 
+# ------------------------------------------------- Phase 7h — gouvernements & GP restants (R-121..R-125)
+
+def unite_scientifique(db, da, w, h):
+    """256x320, Scientifique illustre (R-123) : blouse blanche, fiole bulante (accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 30, ground - 142), (cx + 30, ground - 142), (cx + 38, ground - 50),
+             (cx - 38, ground - 50)], fill="#DDE3E6", outline=INK, width=2)
+    db.poly([(cx - 30, ground - 142), (cx - 8, ground - 142), (cx - 16, ground - 50),
+             (cx - 38, ground - 50)], fill="#C9D2D8")
+    db.ellipse((cx - 14, ground - 178, cx + 14, ground - 150), fill="#B99B7E", outline=INK, width=1.5)
+    # lunettes rondes (accent)
+    db.ellipse((cx - 14, ground - 172, cx - 2, ground - 160), outline=INK, width=2)
+    db.ellipse((cx + 2, ground - 172, cx + 14, ground - 160), outline=INK, width=2)
+    da.ellipse((cx - 14, ground - 172, cx - 2, ground - 160), fill="#FFFFFF")
+    da.ellipse((cx + 2, ground - 172, cx + 14, ground - 160), fill="#FFFFFF")
+    # fiole bulante (accent)
+    db.ellipse((cx + 30, ground - 96, cx + 58, ground - 68), fill="#6FA3B8", outline=INK, width=2)
+    db.rrect((cx + 40, ground - 112, cx + 48, ground - 94), 1, fill="#6FA3B8", outline=INK, width=1)
+    da.ellipse((cx + 34, ground - 100, cx + 42, ground - 92), fill="#FFFFFF")
+    for bx, by in ((cx + 44, ground - 104), (cx + 52, ground - 92)):
+        db.ellipse((bx, by, bx + 5, by + 5), fill="#DDE3E6", outline=INK, width=1)
+    # bras tenant la fiole
+    db.line([(cx + 18, ground - 120), (cx + 40, ground - 96)], fill="#DDE3E6", width=10)
+
+
+def unite_mogul(db, da, w, h):
+    """256x320, Mogul illustre (R-123) : caftan pourpre, sac d'or (accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 30, ground - 142), (cx + 30, ground - 142), (cx + 38, ground - 50),
+             (cx - 38, ground - 50)], fill="#8C5A3C", outline=INK, width=2)
+    db.poly([(cx - 30, ground - 142), (cx - 8, ground - 142), (cx - 16, ground - 50),
+             (cx - 38, ground - 50)], fill="#7A4C30")
+    db.line([(cx, ground - 142), (cx, ground - 56)], fill="#D9B45C", width=3)
+    db.ellipse((cx - 14, ground - 178, cx + 14, ground - 150), fill="#B99B7E", outline=INK, width=1.5)
+    # turban (accent)
+    db.ellipse((cx - 20, ground - 196, cx + 20, ground - 168), fill="#6B4C8C", outline=INK, width=2)
+    db.rrect((cx - 6, ground - 196, cx + 6, ground - 188), 2, fill="#D9B45C")
+    da.ellipse((cx - 20, ground - 196, cx + 20, ground - 168), fill="#FFFFFF")
+    # sac d'or (accent : pièces)
+    db.poly([(cx + 24, ground - 88), (cx + 60, ground - 88), (cx + 66, ground - 56),
+             (cx + 18, ground - 56)], fill="#C9A85C", outline=INK, width=2)
+    db.line([(cx + 36, ground - 88), (cx + 32, ground - 100)], fill="#8A7A5A", width=3)
+    for gx, gy in ((cx + 34, ground - 74), (cx + 48, ground - 70)):
+        db.ellipse((gx, gy, gx + 10, gy + 10), fill="#E8C96A", outline=INK, width=1)
+        da.ellipse((gx + 2, gy + 2, gx + 6, gy + 6), fill="#FFFFFF")
+    db.line([(cx + 18, ground - 118), (cx + 40, ground - 92)], fill="#8C5A3C", width=10)
+
+
+def unite_ingenieur(db, da, w, h):
+    """256x320, Ingénieur illustre (R-123) : casque, engrenage, plan roulé (accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 30, ground - 142), (cx + 30, ground - 142), (cx + 38, ground - 50),
+             (cx - 38, ground - 50)], fill="#C79A4A", outline=INK, width=2)
+    db.poly([(cx - 30, ground - 142), (cx - 8, ground - 142), (cx - 16, ground - 50),
+             (cx - 38, ground - 50)], fill="#B2873C")
+    db.rrect((cx - 16, ground - 100, cx + 16, ground - 56), 2, fill="#8A7A5A", outline=INK, width=1)
+    db.ellipse((cx - 14, ground - 178, cx + 14, ground - 150), fill="#B99B7E", outline=INK, width=1.5)
+    # casque jaune (accent)
+    db.pieslice((cx - 20, ground - 200, cx + 20, ground - 158), 180, 360,
+                fill="#E8C96A", outline=INK, width=2)
+    da.pieslice((cx - 20, ground - 200, cx + 20, ground - 158), 180, 360, fill="#FFFFFF")
+    db.line([(cx - 24, ground - 160), (cx + 24, ground - 160)], fill=INK, width=2)
+    # engrenage (accent)
+    for a in range(0, 360, 45):
+        tx = cx + 44 + 14 * math.cos(math.radians(a))
+        ty = ground - 78 + 14 * math.sin(math.radians(a))
+        db.ellipse((tx - 4, ty - 4, tx + 4, ty + 4), fill="#9EA6B2", outline=INK, width=1)
+        da.ellipse((tx - 4, ty - 4, tx + 4, ty + 4), fill="#FFFFFF")
+    db.ellipse((cx + 30, ground - 92, cx + 58, ground - 64), fill="#9EA6B2", outline=INK, width=2)
+    db.ellipse((cx + 40, ground - 82, cx + 48, ground - 74), fill="#1D242B")
+    # plan roulé sous le bras
+    db.rrect((cx - 56, ground - 110, cx - 20, ground - 96), 4, fill="#E3D19A", outline=INK, width=1.5)
+
+
+def unite_leader(db, da, w, h):
+    """256x320, Leader illustre (R-123) : uniforme, épée levée, médailles (accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 30, ground - 142), (cx + 30, ground - 142), (cx + 38, ground - 50),
+             (cx - 38, ground - 50)], fill="#3C5A7A", outline=INK, width=2)
+    db.poly([(cx - 30, ground - 142), (cx - 8, ground - 142), (cx - 16, ground - 50),
+             (cx - 38, ground - 50)], fill="#324A66")
+    db.ellipse((cx - 14, ground - 178, cx + 14, ground - 150), fill="#B99B7E", outline=INK, width=1.5)
+    # casquette à visière (accent)
+    db.rrect((cx - 20, ground - 196, cx + 20, ground - 176), 3, fill="#2C3E52", outline=INK, width=2)
+    db.ellipse((cx - 22, ground - 178, cx + 22, ground - 170), fill="#D9B45C", outline=INK, width=1.5)
+    da.ellipse((cx - 6, ground - 194, cx + 6, ground - 182), fill="#FFFFFF")
+    # médailles (accent)
+    for mx in (cx - 18, cx - 6):
+        db.ellipse((mx, ground - 124, mx + 10, ground - 114), fill="#D9B45C", outline=INK, width=1)
+        da.ellipse((mx + 2, ground - 122, mx + 6, ground - 118), fill="#FFFFFF")
+    # épée levée
+    db.line([(cx + 34, ground - 96), (cx + 52, ground - 180)], fill="#9EA6B2", width=6)
+    da.line([(cx + 34, ground - 96), (cx + 52, ground - 180)], fill="#FFFFFF", width=6)
+    db.line([(cx + 26, ground - 112), (cx + 44, ground - 112)], fill="#D9B45C", width=5)
+    db.rrect((cx + 30, ground - 100, cx + 40, ground - 90), 2, fill=BOIS)
+
+
+def icone_gouvernement(d):
+    """Gouvernement (Phase 7h, R-121) : colonne / portique."""
+    d.rrect((8, 48, 56, 56), 2, fill="#C2B6A2", outline=INK, width=2)
+    d.rrect((6, 8, 58, 14), 2, fill="#C2B6A2", outline=INK, width=2)
+    d.pieslice((14, 12, 50, 44), 180, 360, fill="#C2B6A2", outline=INK, width=2)
+    for x in (16, 28, 40, 52):
+        d.rrect((x - 4, 18, x + 4, 44), 1, fill="#E3D19A", outline=INK, width=1)
+    d.ellipse((26, 2, 38, 14), fill="#D9B45C", outline=INK, width=2)
+
+
 def unite_espion(db, da, w, h):
     """256x320, Espion (R-119) : cape sombre, capuche, dague discrète (accent = fente d'yeux)."""
     cx, ground = 128, 300
@@ -1761,6 +1880,11 @@ def main():
         "unite_cuirasse": (256, 320, unite_cuirasse),
         "unite_sous_marin": (256, 320, unite_sous_marin),
         "unite_espion": (256, 320, unite_espion),
+        # Phase 7h — GP restants (R-123) : Scientifique, Mogul, Ingénieur, Leader.
+        "unite_scientifique": (256, 320, unite_scientifique),
+        "unite_mogul": (256, 320, unite_mogul),
+        "unite_ingenieur": (256, 320, unite_ingenieur),
+        "unite_leader": (256, 320, unite_leader),
     }
     icons = {
         "icone_or": icone_or,
@@ -1773,6 +1897,8 @@ def main():
         "icone_fin_tour": icone_fin_tour,
         "icone_reseau": icone_reseau,
         "icone_culture": icone_culture,
+        # Phase 7h (R-121) : menu de gouvernement.
+        "icone_gouvernement": icone_gouvernement,
     }
     # Phase 7c (R-91) : ressources — nommage res_<id> aligné sur resources.json.
     resources = {
@@ -1905,7 +2031,11 @@ for n in ["galere", "galion", "croiseur", "cuirasse", "sous_marin", "espion"]:
 for n in ["artiste", "penseur"]:
     EXPECTED[f"unite_{n}.png"] = (256, 320)
     EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
-for n in ["or", "commerce", "science", "nourriture", "production", "pv", "pm", "fin_tour", "reseau", "culture"]:
+# Phase 7h : GP restants (R-123) + icône gouvernement (R-121).
+for n in ["scientifique", "mogul", "ingenieur", "leader"]:
+    EXPECTED[f"unite_{n}.png"] = (256, 320)
+    EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
+for n in ["or", "commerce", "science", "nourriture", "production", "pv", "pm", "fin_tour", "reseau", "culture", "gouvernement"]:
     EXPECTED[f"icone_{n}.png"] = (64, 64)
 # Phase 7c (R-91) : icônes de ressources 64×64.
 for n in ["aluminium", "baleine", "betail", "ble", "boeufs", "caoutchouc", "charbon",

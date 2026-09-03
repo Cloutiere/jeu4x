@@ -220,6 +220,15 @@ export interface WonderData {
   populationGainPct?: number;
   /** 7f · Complétion = Victoire culturelle (R-116 — Nations Unies). */
   cultureVictory?: boolean;
+  /** 7h · R-125 : +1 Attaque à toutes les unités de l'empire (Himeji). */
+  attackBonusEmpire?: number;
+  /** 7h · R-125 : accès à tous les régimes sans tech (Grande Pyramide). */
+  allGovernments?: boolean;
+  /** 7h · R-125 : +X culture/tour à la ville hôte si elle possède le Tribunal
+   *  (Magna Carta : 1). */
+  tribunalCulturePerTurn?: number;
+  /** 7h · R-125 : révèle l'issue du combat avant confirmation (Oracle — UI). */
+  battleForeknowledge?: boolean;
   /** Libellé d'effet (UI — actif en 7f/7h). */
   effect?: string;
   implemented: boolean;
@@ -233,6 +242,64 @@ export interface CultureData {
   greatPersonThresholdGrowth: number;
   /** Jalons culturels requis pour les Nations Unies (et la victoire). */
   milestonesTarget: number;
+  /** 7h · T-30 · Seuil de base des accumulateurs or/science/production des
+   *  nouveaux GP (R-123) — ×2 par GP de CE TYPE obtenu. */
+  greatPersonYieldThresholdBase: number;
+  /** 7h · T-30 · Croissance du seuil par GP obtenu du même type (R-123). */
+  greatPersonYieldThresholdGrowth: number;
+  /** 7h · T-31 · Victoires de combat de l'empire pour engendrer un Leader (R-123). */
+  leaderGpVictories: number;
+}
+
+// ---------------------------------------------------------------------------
+// Gouvernements — Phase 7h (RULES.md §8.7, R-121/R-122)
+// ---------------------------------------------------------------------------
+
+/** R-121 · Modificateurs d'un régime (governments.json — valeurs exactes du
+ *  document d'Erik). Tous les champs sont optionnels : Despotisme n'en porte
+ *  aucun. */
+export interface GovernmentEffects {
+  /** République : coût en population du Colon (1 au lieu de 2 — amende R-112). */
+  settlerPopCost?: number;
+  /** Monarchie : multiplicateur de la culture du Palais (×2 — amende R-113). */
+  palaceCultureMult?: number;
+  /** Démocratie : multiplicateurs d'or et de science des villes (+50 %). */
+  goldMult?: number;
+  scienceMult?: number;
+  /** Démocratie : pacifisme (hooks posés, sans effet en 1v1 — R-121). */
+  pacifism?: boolean;
+  /** Fondamentalisme : +1 fixe Attaque/Défense des unités terrestres (§7.4). */
+  landAttackBonus?: number;
+  landDefenseBonus?: number;
+  /** Fondamentalisme : science des Bibliothèques/Universités neutralisée (R-88). */
+  zeroLibraryScience?: boolean;
+  /** Communisme : multiplicateur de production des villes (+50 %). */
+  productionMult?: number;
+  /** Communisme : culture des Temples/Cathédrales annulée (R-113). */
+  zeroTempleCulture?: boolean;
+  /** Despotisme : hook 7i (nukes sans pénalité culturelle — inerte). */
+  nuclearWithoutPenalty?: boolean;
+}
+
+/** R-121 · Régime politique (governments.json) — data-driven. */
+export interface GovernmentData {
+  id: string;
+  name: string;
+  /** Technologie requise (null = disponible d'office / Grande Pyramide). */
+  tech: string | null;
+  /** Régime de départ (Despotisme). */
+  default?: boolean;
+  effects: GovernmentEffects;
+  /** Libellés UI (bonus / pénalité). */
+  effectLabel: string;
+  penaltyLabel: string | null;
+}
+
+/** R-99/R-121 · Configuration gouvernements (governments.json). */
+export interface GovernmentsData {
+  /** T-29 · Durée de l'Anarchie après un changement manuel (R-122). */
+  anarchyTurns: number;
+  governments: Record<string, GovernmentData>;
 }
 
 // ---------------------------------------------------------------------------

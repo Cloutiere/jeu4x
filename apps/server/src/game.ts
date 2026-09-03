@@ -25,6 +25,7 @@ import {
   resolveTurn,
   applySetResearch,
   applySetConversion,
+  applySetGovernment,
   greatPersonThresholdFor,
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, LoadedMap, Order, PlayerId, ProgenReport, UnitId } from '@game/rules';
@@ -72,7 +73,7 @@ export interface GameMeta {
   /** Échéance du timer courant, epoch ms — null si pas de timer. */
   deadline: number | null;
   /** Motif de fin (admin/debug) : domination | forfeit | abandoned | culture (7f). */
-  finishedReason?: 'domination' | 'forfeit' | 'abandoned' | 'culture';
+  finishedReason?: 'domination' | 'forfeit' | 'abandoned' | 'culture' | 'science';
   /** Phase 6b : rapport de génération de la carte procédurale (seed, ratio
    *  terre, checksum de fertilité) — consigné pour le dump admin. */
   progen?: ProgenReport;
@@ -435,6 +436,48 @@ export class GameDO {
           ),
         }
       : null;
+    // 7h · R-121..R-124 : régimes, anarchie, GP par type, victoires de combat,
+    // composants du Vaisseau spatial (dérivés des villes — R-124).
+    const gouvernements = game
+      ? {
+          players: Object.fromEntries(
+            Object.keys(game.players)
+              .sort()
+              .map((id) => {
+                const p = game.players[id]!;
+                return [
+                  id,
+                  {
+                    regime: p.government,
+                    anarchyUntil: p.anarchyUntil,
+                    enAnarchie: typeof p.anarchyUntil === 'number' && game.turn < p.anarchyUntil,
+                    gpParType: p.greatPersonsByType,
+                    victoiresCombat: p.combatVictories,
+                  },
+                ];
+              }),
+          ),
+          vaisseau: Object.fromEntries(
+            Object.keys(game.players)
+              .sort()
+              .map((id) => {
+                const batis = new Set<string>();
+                for (const c of Object.values(game.cities)) {
+                  if (c.owner === id) for (const b of c.buildings) batis.add(b);
+                }
+                return [
+                  id,
+                  {
+                    habitation: batis.has('vaisseau_habitation'),
+                    support_vie: batis.has('vaisseau_support_vie'),
+                    carburant: batis.has('vaisseau_carburant'),
+                    propulsion: batis.has('vaisseau_propulsion'),
+                  },
+                ];
+              }),
+          ),
+        }
+      : null;
     return jsonResponse({
       meta: this.meta,
       state: this.game,
@@ -445,6 +488,7 @@ export class GameDO {
       barbares,
       culture,
       naval,
+      gouvernements,
     });
   }
 
@@ -580,6 +624,9 @@ export class GameDO {
             (msg as { target: 'gold' | 'science' }).target,
           );
           break;
+        case 'SetGovernment':
+          await this.handleSetGovernment(ws, att.playerId, (msg as { government: string }).government);
+          break;
         case 'ResyncRequest':
           this.sendWelcome(ws);
           {
@@ -693,6 +740,42 @@ export class GameDO {
     this.broadcast((pid) => this.snapshotFor(pid, null));
   }
 
+  /**
+   * R-122 · SetGovernment (Phase 7h) — action IMMÉDIATE (pas un ordre de tour),
+   * même contrat que SetResearch/SetConversion : appliquée à la réception
+   * (moteur pur applySetGovernment — la forme est validée AVANT, leçon 7f),
+   * persistée, puis diffusée immédiatement aux deux clients. Autorisée en
+   * phase « orders », même verrouillé ; refusée pendant la résolution.
+   * L'événement GovernmentChanged est ajouté au journal diffusé (toast UI).
+   */
+  private async handleSetGovernment(ws: WebSocket, playerId: PlayerId, government: string): Promise<void> {
+    if (typeof government !== 'string' || government.length === 0) {
+      return this.sendOrderRejection(ws, 'government requis');
+    }
+    if (!this.game || !this.meta || this.meta.status !== 'active') {
+      return this.sendOrderRejection(ws, 'adoption impossible (partie non active)');
+    }
+    if (this.game.phase !== 'orders') {
+      return this.sendOrderRejection(ws, 'gouvernement non modifiable (résolution en cours)');
+    }
+    const engineId = this.engineIdOf(playerId);
+    const result = applySetGovernment(this.game, engineId, government);
+    if (!result.ok) return this.sendOrderRejection(ws, result.reason);
+    this.game = result.state;
+    this.game.lastEventSeq += 1;
+    const event: GameEvent = {
+      seq: this.game.lastEventSeq,
+      type: 'GovernmentChanged',
+      player: engineId,
+      government,
+      anarchy: result.anarchy,
+    };
+    this.lastEvents = [...this.lastEvents, event];
+    await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
+    this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'gouvernement mis à jour' });
+    this.broadcast((pid) => this.snapshotFor(pid, null));
+  }
+
   private orderOwnerError(engineId: EnginePlayerId, order: Order): string | null {
     const units = this.game?.units ?? {};
     const cities = this.game?.cities ?? {};
@@ -797,7 +880,10 @@ export class GameDO {
       // Motif de méta dérivé du dernier événement Victory (7f : victoire
       // culturelle → 'culture' ; les autres raisons restent 'domination').
       const victory = [...result.events].reverse().find((e) => e.type === 'Victory');
-      const reason = victory && victory.type === 'Victory' && victory.reason === 'culture' ? 'culture' : 'domination';
+      const reason =
+        victory && victory.type === 'Victory' && (victory.reason === 'culture' || victory.reason === 'science')
+          ? victory.reason
+          : 'domination';
       await this.finishGame(reason, this.game.winner as EnginePlayerId, result.events);
       return;
     }
@@ -822,7 +908,7 @@ export class GameDO {
   }
 
   private async finishGame(
-    reason: 'domination' | 'forfeit' | 'abandoned' | 'culture',
+    reason: 'domination' | 'forfeit' | 'abandoned' | 'culture' | 'science',
     winner: EnginePlayerId | null,
     events: GameEvent[],
     forState?: GameState,

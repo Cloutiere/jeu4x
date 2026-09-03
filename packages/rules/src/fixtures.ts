@@ -126,6 +126,11 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       scienceStored: 0,
       cultureMilestones: 0, // 7f · R-115
       greatPersonsObtained: 0, // 7f · R-114
+      government: 'despotisme', // 7h · R-121
+      anarchyUntil: null, // 7h · R-122
+      greatPersonsByType: {}, // 7h · R-123
+      combatVictories: 0, // 7h · T-31
+      techsUnlockedThisTurn: [], // 7h · R-122
       vision: { explored: [], visible: [] },
       missedTurns: 0,
     };
@@ -172,6 +177,9 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       conversion: spec.conversion ?? CONVERSION_DEFAULT,
       cultureStored: 0, // 7f · R-113
       wonders: spec.wonders ?? [], // 7f · R-115
+      gpAccumGold: 0, // 7h · R-123
+      gpAccumScience: 0,
+      gpAccumProd: 0,
     };
   });
 

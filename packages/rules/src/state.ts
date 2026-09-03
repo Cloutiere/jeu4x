@@ -119,6 +119,11 @@ export interface City {
   /** 7f · R-115 : merveilles hébergées — SURVIVENT à la capture (elles
    *  changent de propriétaire avec la ville, contrairement aux bâtiments). */
   wonders: string[];
+  /** 7h · R-123 : accumulateurs de GP à rendement (or/science/production) —
+   *  gains de Phase C accumulés vers le seuil T-30. */
+  gpAccumGold: number;
+  gpAccumScience: number;
+  gpAccumProd: number;
 }
 
 export interface Vision {
@@ -175,6 +180,20 @@ export interface Player {
   cultureMilestones: number;
   /** 7f · R-114 : GP de culture obtenus (le seuil T-27 double à chaque obtention). */
   greatPersonsObtained: number;
+  /** 7h · R-121 : régime politique actif (governments.json — défaut despotisme). */
+  government: string;
+  /** 7h · R-122 : tour JUSQU'AUQUEL l'Anarchie s'applique (tour + T-29) —
+   *  null = pas d'anarchie. Pendant la résolution où `state.turn <
+   *  anarchyUntil`, marteaux/fioles/or/culture à zéro et GP gelés. */
+  anarchyUntil: number | null;
+  /** 7h · R-123 : GP obtenus PAR TYPE (escalade T-30 par type ; T-27 reste
+   *  porté par `greatPersonsObtained` — les compteurs sont indépendants). */
+  greatPersonsByType: Record<string, number>;
+  /** 7h · R-123 · T-31 : victoires de combat de l'empire (coups fatals R-32). */
+  combatVictories: number;
+  /** 7h · R-122 : technologies complétées pendant la DERNIÈRE résolution —
+   *  fenêtre d'adoption sans Anarchie (invitation du conseiller). */
+  techsUnlockedThisTurn: string[];
   vision: Vision;
   /** Timers manqués consécutifs (forfait T-06 — géré côté serveur, Phase 1). */
   missedTurns: number;
@@ -234,7 +253,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 11;
+export const CURRENT_SCHEMA_VERSION = 12;
 
 type AnyState = Record<string, unknown>;
 
@@ -483,6 +502,47 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       };
     }
     return { ...state, units: migrated };
+  },
+  /**
+   * v11 → v12 : Phase 7h — gouvernements, GP restants, victoire scientifique
+   * (RULES.md §8.7, R-121..R-125). Champs ADDITIFS, défauts neutres :
+   *  - par joueur : `government: 'despotisme'` (régime de départ R-121),
+   *    `anarchyUntil: null` (R-122), `greatPersonsByType: {}` (escalade par
+   *    type R-123), `combatVictories: 0` (T-31), `techsUnlockedThisTurn: []`
+   *    (R-122) — idempotent ;
+   *  - par ville : `gpAccumGold/Science/Prod: 0` (accumulateurs R-123).
+   * Les composants du vaisseau sont DÉRIVÉS des villes (R-124 — choix
+   * documenté) : aucune transformation des bâtiments.
+   */
+  12: (state) => {
+    const players = (state.players ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedPlayers: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(players).sort()) {
+      const p = players[id]!;
+      migratedPlayers[id] = {
+        ...p,
+        government: typeof p.government === 'string' ? p.government : 'despotisme',
+        anarchyUntil: typeof p.anarchyUntil === 'number' ? p.anarchyUntil : null,
+        greatPersonsByType:
+          p.greatPersonsByType && typeof p.greatPersonsByType === 'object' && !Array.isArray(p.greatPersonsByType)
+            ? p.greatPersonsByType
+            : {},
+        combatVictories: typeof p.combatVictories === 'number' ? p.combatVictories : 0,
+        techsUnlockedThisTurn: Array.isArray(p.techsUnlockedThisTurn) ? p.techsUnlockedThisTurn : [],
+      };
+    }
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedCities: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      migratedCities[id] = {
+        ...c,
+        gpAccumGold: typeof c.gpAccumGold === 'number' ? c.gpAccumGold : 0,
+        gpAccumScience: typeof c.gpAccumScience === 'number' ? c.gpAccumScience : 0,
+        gpAccumProd: typeof c.gpAccumProd === 'number' ? c.gpAccumProd : 0,
+      };
+    }
+    return { ...state, players: migratedPlayers, cities: migratedCities };
   },
 };
 

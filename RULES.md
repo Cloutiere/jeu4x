@@ -15,7 +15,7 @@
 - Victoire : **capture de la capitale adverse**. Défaite par forfait après `T-06` timers manqués.
 - v1 : **guerre permanente** entre les deux joueurs (pas de diplomatie jouable). Les règles diplomatiques (§7.7) sont écrites dès maintenant comme points d'accroche pour la Phase 7.
 - ~~Aucune unité à distance en v1~~ — **7e : R-59 implémentée réellement** (Catapulte, Canon, Artillerie, §7.8).
-- Hors v1 (Phase 7) : ~~arbre technologique~~ (entré en 7a, **complété en 7e** — §8.1), ~~autres unités terrestres~~ (entrées en 7e), ~~naval & espionnage~~ (entrés en 7g — §8.6), merveilles (7f/7h), grandes personnes (culture 7f — R-114 ; or/science/production/combat 7h). *(Barbares & huttes : entrés en v1 en Phase 7d — §7.9.)*
+- Hors v1 (Phase 7) : ~~arbre technologique~~ (entré en 7a, **complété en 7e** — §8.1), ~~autres unités terrestres~~ (entrées en 7e), ~~naval & espionnage~~ (entrés en 7g — §8.6), ~~gouvernements, GP restants, victoire scientifique~~ (entrés en 7h — §8.7), merveilles (7f/7h), grandes personnes (culture 7f — R-114 ; or/science/production/combat 7h — R-123). *(Barbares & huttes : entrés en v1 en Phase 7d — §7.9.)*
 
 ## 2. Terrains (révision économique du 30/08 — décision d'Erik, modèle Civ Revolution)
 
@@ -419,6 +419,46 @@ Base : Appendice A (table des unités CivFanatics) et décisions de pilotage 7g 
 
 **Migration `schemaVersion` 10 → 11** : champs ADDITIFS d'unité `aboard: null` et `cargo: null` (les états migrés n'ont aucun transport actif — idempotent). Aucune nouvelle constante T-xx : capacité de charge et soutien naval sont des champs d'unités data-driven (`units.json`).
 
+## 8.7 Gouvernements, GP restants & victoire scientifique — Phase 7h (ajouté le 03/09/2026)
+
+Base documentaire : la spécification d'Erik [`Gouvernements Civilization Revolution.md`](Gouvernements%20Civilization%20Revolution.md) — **elle fait foi, valeurs exactes**. Toutes les données vivent dans **`governments.json`** (data-driven, calibrage sans code — même philosophie R-99/R-113) ; les thresholds GP restants dans **`culture.json`**.
+
+**R-121 · Gouvernements.** Six régimes (`governments.json`) avec les modificateurs EXACTS du document d'Erik :
+
+| Régime | Tech | Bonus | Pénalité |
+|---|---|---|---|
+| **Despotisme** (défaut) | — | nukes sans pénalité culturelle (hook 7i) | aucun |
+| **République** | Code des lois | **coût pop du Colon = 1** (amende R-112 : 2 → 1) | aucun |
+| **Monarchie** | Monarchie | **culture du Palais ×2** (amende R-113) | aucun |
+| **Démocratie** | Démocratie | **+50 % Or et Science de toutes les villes** (appliqué aux gains de conversion R-90, avant la répartition — round half up) | pacifisme : interdiction de déclarer la guerre, acceptation obligatoire des paix, nukes interdits — **hooks posés mais SANS EFFET en 1v1 guerre permanente** (la diplomatie n'existe pas : aucun ordre de déclaration de paix/guerre n'est jouable) — documenté explicitement |
+| **Fondamentalisme** | Religion | **+1 Attaque et +1 Défense fixes à toutes les unités terrestres** (s'ajoutent dans `S_att`/`S_def` §7.4 — aquatique exclus) | **science des Bibliothèques et Universités = 0** (multiplicateurs R-88 neutralisés : `scienceMult` traité à 1, résiduel Bibliothèque en conversion or supprimé) |
+| **Communisme** | Communisme | **+50 % Production (marteaux) de toutes les villes** (round half up, après Usine/pop R-63) | **culture des Temples/Cathédrales = 0** (part `culturePerCitizen` R-113 annulée ; le Palais et les merveilles restent) |
+
+Interprétation Anarchie (voir R-122) : aucun bonus de l'ancien OU du nouveau régime pendant l'anarchie. Interprétation food : le document cite marteaux/fioles/or/culture — la nourriture N'EST PAS paralysée (croissance normale, interprétation documentée).
+
+**R-122 · Transitions et Anarchie.** `SetGovernment { government }` — **action immédiate** (même contrat que `SetResearch`/`SetConversion`) :
+- **transition manuelle** (tout autre moment) : le régime est actif immédiatement mais **1 tour d'Anarchie** (`player.anarchyUntil` 🔶 = tour + 1) : pendant la résolution suivante, marteaux, fioles, or et culture **tombent à zéro**, AUCUN bonus ancien/nouveau ne s'applique, **les GP ne spawn pas** (tous types) ; `SetGovernment` est **refusé pendant l'anarchie** (interprétation tranchée : pas de re-programmation, l'action est simple) ;
+- **à la complétion de la tech de gouvernement** : bascule **sans Anarchie** (invitation du conseiller : toast + bouton — l'UI propose l'adoption pendant le tour qui suit la complétion ; le moteur suit l'état `techsUnlockedThisTurn` réinitialisé à chaque résolution) ;
+- **Grande Pyramide** (merveille) = accès à tous les régimes sans tech (l'Anarchie manuelle s'applique normalement) ;
+- validation : régime existant, non déjà actif, disponible (tech débloquée OU Grande Pyramide contrôlée), hors anarchie. Événement `GovernmentChanged { player, government, anarchy }` (filtré fog R-73 — l'adoption adverse n'est visible que si le joueur est connu ; l'événement est public côté journal, le champ anarchy n'expose rien).
+
+**R-123 · GP restants.** Quatre nouveaux GP (données `units.json`, `greatPerson: true`, pacifiques 0/0/2, jamais produits par les files — comme R-114) :
+- **Scientifique** (science), **Mogul** (or), **Ingénieur** (production) : **spawn par ville** au seuil de leur rendement accumulé — mécanique R-114 transposée : chaque ville accumule ses gains or/science/production (Phase C) dans trois accumulateurs (`city.gpAccumGold/Science/Prod`) ; seuil **T-30 🔶 20** ×2 par GP de CE TYPE obtenu par l'empire (`player.greatPersonsByType`) ; **installation = 1 jalon** (R-115, tous types, raison `install`) ; **alternance déterministe par type** comme R-114 : au plus **un GP par ville et par tour** (tous types confondus, ordre déterministe : culture → science → or → production), posé sur la case de la ville sinon adjacente libre (perdu sinon — interprétation R-114) ;
+- **Leader** (combat) : seuil **T-31 🔶 20 victoires de combat de l'empire** (`player.combatVictories` — incrémenté à chaque coup fatal R-32 signé par une unité du joueur, villages compris) ; spawn sur la **capitale** (sinon première ville — interprétation documentée) ;
+- l'Anarchie gèle tous les spawns (R-122). Les compteurs d'escalade sont **par type** : un GP Scientifique obtenu ne fait pas monter le seuil culturel T-27 (et inversement).
+
+**R-124 · Victoire scientifique.** Les **4 composants du vaisseau** (données 7e : `vaisseau_habitation` 400, `vaisseau_support_vie` 120, `vaisseau_carburant` 80, `vaisseau_propulsion` 200, tech Vol spatial) → **les 4 contrôlés par le joueur** (villes quelconques, `city.buildings`) → événement `Launch { player }` → **`Victory(reason:'science')`**. Suivi DÉRIVÉ des villes (choix documenté : pas de compteur joueur — les composants sont des bâtiments, la capture les détruit comme R-66). Les composants sont activés (`implemented: true`) en 7h.
+
+**R-125 · Merveilles tractables (activées 7h).**
+- **Château de Himeji** : **+1 Attaque à toutes les unités de l'empire** (valeur exacte du doc d'Erik — s'ajoute à `S_att` §7.4, cumulable avec Fondamentalisme et soutien naval R-118) ;
+- **Grande Pyramide** : accès à tous les régimes sans tech (R-122) ;
+- **Magna Carta** : **Tribunal = +1 culture/tour** 🔶 (la ville hôte doit posséder le Tribunal — data-driven `wonder.tribunalCulturePerTurn`) ;
+- **Oracle** : l'**issue exacte du combat est révélée avant confirmation** (UI 🔶 — helper pur `combatOdds` §7.4 ; interprétation : la « révélation » affiche probabilités et vainqueur attendu, le tir seedé restant à la résolution) ;
+- **Grande Bibliothèque** : en données mais **sans effet en 1v1** (exige « découverte par 2 autres nations » — impossible en 1v1 🔶, activera en multi) ;
+- R-115/R-116 s'appliquent : merveille = 1 jalon, survit à la capture, unicité d'empire, obsolescence (Himeji par Communisme, Grande Pyramide par Monarchie, Oracle par Religion — données inchangées).
+
+**Migration `schemaVersion` 11 → 12** : champs ADDITIFS — par joueur : `government: 'despotisme'`, `anarchyUntil: null`, `greatPersonsByType: {}` (compteurs par type, escalade R-123), `combatVictories: 0` (T-31), `techsUnlockedThisTurn: []` (R-122) ; par ville : `gpAccumGold: 0`, `gpAccumScience: 0`, `gpAccumProd: 0` (accumulateurs R-123). Composants du vaisseau : DÉRIVÉS des villes (choix documenté — R-124). Idempotent.
+
 ## 9. Phase D — Vision, soins, fin de tour
 
 - **R-70 · Vision** : rayon `T-07` (unité) / `T-08` (ville), **distance uniquement** — aucun blocage par terrain. Recalcul par joueur à chaque résolution ; 3 états (inexploré / exploré-masqué / visible). `getFilteredState(state, player)` ne diffuse jamais d'entité hors du champ visible.
@@ -463,6 +503,9 @@ Base : Appendice A (table des unités CivFanatics) et décisions de pilotage 7g 
 | T-26 | `hutGoldMax` | 50 🔶 (R-98, Phase 7d) |
 | T-27 | `greatPersonThresholdBase` | 20 🔶 (R-114, Phase 7f — `culture.json` ; croissance ×2 par GP obtenu : `greatPersonThresholdGrowth`) |
 | T-28 | `unitedNationsCost` | 300 🔶 (R-116, Phase 7f — `wonders.json` `nations_unies.cost`) |
+| T-29 | `anarchyTurns` | 1 🔶 (R-122, Phase 7h — `governments.json` `anarchyTurns`) |
+| T-30 | `greatPersonYieldThresholdBase` | 20 🔶 (R-123, Phase 7h — `culture.json` `greatPersonYieldThresholdBase` ; ×2 par GP de ce type : `greatPersonYieldThresholdGrowth`) |
+| T-31 | `leaderGpVictories` | 20 🔶 (R-123, Phase 7h — `culture.json` `leaderGpVictories`) |
 
 *(T-18..T-26 : la source des valeurs est `barbares.json`/`huttes.json` — R-99 ; `constants.ts` les ré-exporte. Le texte de R-96 du handoff citait `T-24` pour le cap par village et la liste des constantes `T-22` : normalisé **T-22**, erratum signalé au rapport.)*
 

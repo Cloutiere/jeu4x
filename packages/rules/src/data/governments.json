@@ -1,0 +1,71 @@
+{
+  "anarchyTurns": 1,
+  "governments": {
+    "despotisme": {
+      "id": "despotisme",
+      "name": "Despotisme",
+      "tech": null,
+      "default": true,
+      "effects": {
+        "nuclearWithoutPenalty": true
+      },
+      "effectLabel": "Aucun bonus de rendement ; lancement d'armes nucléaires sans pénalité culturelle (7i)",
+      "penaltyLabel": null
+    },
+    "republique": {
+      "id": "republique",
+      "name": "République",
+      "tech": "code_des_lois",
+      "effects": {
+        "settlerPopCost": 1
+      },
+      "effectLabel": "Coût en population du Colon réduit à 1 (au lieu de 2)",
+      "penaltyLabel": null
+    },
+    "monarchie": {
+      "id": "monarchie",
+      "name": "Monarchie",
+      "tech": "monarchie",
+      "effects": {
+        "palaceCultureMult": 2
+      },
+      "effectLabel": "Production de Culture du Palais doublée",
+      "penaltyLabel": null
+    },
+    "democratie": {
+      "id": "democratie",
+      "name": "Démocratie",
+      "tech": "democratie",
+      "effects": {
+        "goldMult": 1.5,
+        "scienceMult": 1.5,
+        "pacifism": true
+      },
+      "effectLabel": "+50 % de production d'Or et de Science (Commerce)",
+      "penaltyLabel": "Interdiction de déclarer la guerre, acceptation obligatoire des traités de paix, armes nucléaires désactivées (sans effet en 1v1 : la diplomatie n'existe pas)"
+    },
+    "fondamentalisme": {
+      "id": "fondamentalisme",
+      "name": "Fondamentalisme",
+      "tech": "religion",
+      "effects": {
+        "landAttackBonus": 1,
+        "landDefenseBonus": 1,
+        "zeroLibraryScience": true
+      },
+      "effectLabel": "+1 en Attaque et en Défense pour toutes les unités terrestres",
+      "penaltyLabel": "Annulation totale de la Science générée par les Bibliothèques et Universités"
+    },
+    "communisme": {
+      "id": "communisme",
+      "name": "Communisme",
+      "tech": "communisme",
+      "effects": {
+        "productionMult": 1.5,
+        "zeroTempleCulture": true
+      },
+      "effectLabel": "+50 % de Production industrielle (Marteaux) dans toutes les villes",
+      "penaltyLabel": "Annulation totale de la Culture générée par les Temples et Cathédrales"
+    }
+  }
+}

@@ -43,6 +43,10 @@ const wondersPath = join(dirname(fileURLToPath(import.meta.url)), '../../../pack
 const WONDERS = JSON.parse(readFileSync(wondersPath, 'utf8'));
 const culturePath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/culture.json');
 const CULTURE = JSON.parse(readFileSync(culturePath, 'utf8'));
+// Phase 7h (L2) : le bot adopte ses régimes (R-122) et vise les composants du
+// Vaisseau spatial en fin d'arbre (R-124) — données gouvernements/buildings.
+const govsPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/governments.json');
+const GOVERNMENTS = JSON.parse(readFileSync(govsPath, 'utf8')).governments;
 
 /** R-85 : une tech aléatoire disponible (non débloquée, prérequis satisfaits). */
 function pickResearch(player) {
@@ -103,6 +107,51 @@ function pickProduction(city, player, myCities, cultureMilestones, cityIsCoastal
   }
   if (options.length === 0) return null;
   return options[Math.floor(Math.random() * options.length)];
+}
+
+/**
+ * 7h · R-122 : le régime à adopter — République dès Code des lois, puis
+ * Démocratie ou Communisme selon les rendements de l'empire (or/science vs
+ * production), LORSQUE la tech a été complétée CE tour (bascule sans
+ * Anarchie — l'invitation du conseiller). Sinon : null (pas d'adoption, le
+ * bot évite de payer un tour d'Anarchie).
+ */
+function pickGovernment(me, myCities, state) {
+  const fresh = me.techsUnlockedThisTurn ?? [];
+  const current = me.government ?? 'despotisme';
+  const canFree = (id) => {
+    const tech = GOVERNMENTS[id]?.tech;
+    return current !== id && (!tech || fresh.includes(tech));
+  };
+  if (canFree('republique')) return 'republique';
+  // Démocratie vs Communisme selon les rendements d'EMPIRE : commerce total
+  // des cases travaillées (or/science) contre production totale — approximation
+  // documentée, le moteur reste la seule source de vérité.
+  let commerce = 0;
+  let production = 0;
+  for (const c of myCities) {
+    for (const key of [...(c.workedTiles ?? []), `${c.q},${c.r}`]) {
+      const tile = state.map[key];
+      const y = tile && TERRAINS[tile.terrain]?.yields;
+      if (!y) continue;
+      commerce += y.gold ?? y.commerce ?? 0;
+      production += y.production ?? 0;
+    }
+  }
+  if (commerce >= production && canFree('democratie')) return 'democratie';
+  if (production > commerce && canFree('communisme')) return 'communisme';
+  // Fallback : un régime frais disponible vaut mieux que rien.
+  if (canFree('democratie')) return 'democratie';
+  if (canFree('communisme')) return 'communisme';
+  return null;
+}
+
+const SHIP_COMPONENTS = ['vaisseau_habitation', 'vaisseau_support_vie', 'vaisseau_carburant', 'vaisseau_propulsion'];
+
+/** 7h · R-124 : un composant du vaisseau manquant (fin d'arbre — Vol spatial). */
+function missingShipComponent(myCities) {
+  const batis = new Set(myCities.flatMap((c) => c.buildings ?? []));
+  return SHIP_COMPONENTS.find((id) => !batis.has(id)) ?? null;
 }
 
 const PROTO = 1;
@@ -404,6 +453,15 @@ async function main() {
         research = tech.id;
       }
     }
+    // 7h · R-122 : adoption de régime SANS Anarchie (bascule du conseiller).
+    let adopted = null;
+    if (me) {
+      const gov = pickGovernment(me, myCities, state);
+      if (gov) {
+        send({ type: 'SetGovernment', government: gov });
+        adopted = gov;
+      }
+    }
     // Phase 7e (L2) : villes sans file de production → un item aléatoire
     // valide (R-87 inchangé : le moteur filtre et revalide à la résolution).
     // Phase 7f (R-116) : le bot vise l'ONU à 20 jalons et bâtit les merveilles
@@ -412,7 +470,13 @@ async function main() {
     for (const city of myCities) {
       const pendingProd = snapshot.orders.some((o) => o.type === 'SetProduction' && o.cityId === city.id);
       if (city.production || pendingProd) continue;
-      const item = pickProduction(city, me ?? {}, myCities, me?.cultureMilestones ?? 0, isCoastal(city, state));
+      // 7h · R-124 : en fin d'arbre, le bot bâtit en priorité les composants
+      // du Vaisseau spatial manquants (Vol spatial débloqué).
+      const component =
+        (me?.techsUnlocked ?? []).includes('vol_spatial') ? missingShipComponent(myCities) : null;
+      const item = component
+        ? { kind: 'building', id: component }
+        : pickProduction(city, me ?? {}, myCities, me?.cultureMilestones ?? 0, isCoastal(city, state));
       if (item) {
         send({ type: 'SubmitOrder', order: { type: 'SetProduction', cityId: city.id, item } });
         productions += 1;
@@ -433,7 +497,7 @@ async function main() {
         installs += 1;
       }
     }
-    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s), ${fortifies} fortif., ${reassigns} réassign., ${productions} prod., ${installs} install. GP, ${sails} navigation(s), ${embarks} embarquement(s), ${disembarks} débarquement(s), ${missions} mission(s) d'espion.`);
+    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s), ${fortifies} fortif., ${reassigns} réassign., ${productions} prod., ${installs} install. GP, ${sails} navigation(s), ${embarks} embarquement(s), ${disembarks} débarquement(s), ${missions} mission(s) d'espion.${adopted ? ` Régime adopté : ${adopted}.` : ''}`);
     send({ type: 'EndTurn' });
     lastEndedTurn = state.turn;
   }

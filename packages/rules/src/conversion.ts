@@ -55,16 +55,29 @@ export function goldMultOf(buildings: string[]): number {
  * (elle disparaît avec l'Université qui la remplace).
  * Source unique partagée par le moteur (Phase C) et l'UI (panneau + carte).
  */
+export interface ConversionGovOptions {
+  /** 7h · R-121 · Fondamentalisme : science des Bibliothèques/Universités = 0. */
+  zeroLibraryScience?: boolean;
+  /** 7h · R-121 · Démocratie : +50 % or/science de toutes les villes (avant répartition). */
+  goldMult?: number;
+  scienceMult?: number;
+}
+
 export function conversionGains(
   commerce: number,
   conversion: Conversion,
   buildings: string[],
+  gov: ConversionGovOptions = {},
 ): { gold: number; science: number } {
+  const sciMult = gov.zeroLibraryScience ? 1 : scienceMultOf(buildings);
   if (conversion === 'science') {
-    return { gold: 0, science: Math.round(commerce * scienceMultOf(buildings)) };
+    return { gold: 0, science: Math.round(commerce * sciMult * (gov.scienceMult ?? 1)) };
   }
-  const science = hasLibrary(buildings) ? Math.max(1, Math.round(commerce * 0.2)) : 0;
-  return { gold: commerce * goldMultOf(buildings), science };
+  const science = !gov.zeroLibraryScience && hasLibrary(buildings) ? Math.max(1, Math.round(commerce * 0.2)) : 0;
+  return {
+    gold: Math.round(commerce * goldMultOf(buildings) * (gov.goldMult ?? 1)),
+    science: Math.round(science * (gov.scienceMult ?? 1)),
+  };
 }
 
 export type SetConversionResult =

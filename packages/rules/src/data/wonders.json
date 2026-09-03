@@ -35,7 +35,8 @@
     "tech": "alphabet",
     "obsoleteBy": "religion",
     "effect": "Révèle l'issue exacte de chaque bataille avant d'engager le combat",
-    "implemented": false
+    "implemented": true,
+    "battleForeknowledge": true
   },
   "grande_bibliotheque": {
     "id": "grande_bibliotheque",
@@ -53,7 +54,8 @@
     "tech": "rites_funeraires",
     "obsoleteBy": "monarchie",
     "effect": "Offre un accès immédiat à tous les régimes politiques du jeu",
-    "implemented": false
+    "implemented": true,
+    "allGovernments": true
   },
   "grande_muraille": {
     "id": "grande_muraille",
@@ -71,7 +73,8 @@
     "tech": "monarchie",
     "obsoleteBy": "communisme",
     "effect": "Confère +1 en valeur d'Attaque à toutes les unités de l'empire",
-    "implemented": false
+    "implemented": true,
+    "attackBonusEmpire": 1
   },
   "magna_carta": {
     "id": "magna_carta",
@@ -79,7 +82,8 @@
     "cost": 150,
     "tech": "democratie",
     "effect": "Permet aux Tribunaux de produire de la culture urbaine",
-    "implemented": false
+    "implemented": true,
+    "tribunalCulturePerTurn": 1
   },
   "theatre_de_shakespeare": {
     "id": "theatre_de_shakespeare",

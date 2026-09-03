@@ -123,15 +123,19 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     }
   });
 
-  it('7e : 21 merveilles en données, coût + tech + obsolescence documentés — 4 ACTIVÉES en 7f', () => {
+  it('7e : 21 merveilles en données, coût + tech + obsolescence documentés — 8 ACTIVÉES (7f + 7h R-125)', () => {
     expect(Object.keys(wonderTable)).toHaveLength(21);
     const active = Object.values(wonderTable)
       .filter((w) => w.implemented)
       .map((w) => w.id)
       .sort();
-    // 7f (R-116) : Stonehenge, Colosse de Rhodes, Jardins suspendus et les
+    // 7f (R-116) : Stonehenge, Colosse de Rhodes, Jardins suspendus, ONU ;
+    // 7h (R-125) : Himeji, Grande Pyramide, Magna Carta, Oracle.
     // Nations Unies sont constructibles ; les autres attendent 7h.
-    expect(active).toEqual(['colosse_de_rhodes', 'jardins_suspendus', 'nations_unies', 'stonehenge']);
+    expect(active).toEqual([
+      'chateau_himeji', 'colosse_de_rhodes', 'grande_pyramide', 'jardins_suspendus',
+      'magna_carta', 'nations_unies', 'oracle_de_delphes', 'stonehenge',
+    ]);
     for (const w of Object.values(wonderTable)) {
       expect(w.cost).toBeGreaterThan(0);
     }

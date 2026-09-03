@@ -91,7 +91,13 @@ export type GameEvent =
   /** Victoire — v1 : 'domination' (capture de la capitale adverse, R-65),
    *  'forfait' (T-06) ou 'razedCapital' (capitale rasée par les barbares,
    *  R-97 — Phase 7d : le propriétaire perd, l'adversaire réel gagne). */
-  | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' | 'forfeit' | 'razedCapital' | 'culture' }
+  | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' | 'forfeit' | 'razedCapital' | 'culture' | 'science' }
+  /** 7h · R-122 : adoption d'un régime — `anarchy: true` = transition manuelle
+   *  (1 tour d'Anarchie), `false` = bascule à la complétion de la tech. */
+  | { seq: number; type: 'GovernmentChanged'; player: PlayerId; government: string; anarchy: boolean }
+  /** 7h · R-124 : les 4 composants du Vaisseau spatial sont contrôlés —
+   *  lancement (précède immédiatement Victory 'science'). */
+  | { seq: number; type: 'Launch'; player: PlayerId; at: Hex }
   /** R-96 · Engendrement d'une unité barbare par un village (Phase 7d). */
   | { seq: number; type: 'BarbarianSpawned'; unitId: UnitId; villageId: string; owner: PlayerId; at: Hex }
   /** R-96 · Village barbare détruit (0 PV) — or T-20 au vainqueur (BootyGold). */
@@ -231,6 +237,13 @@ export function eventRefs(event: GameEvent): EventRefs {
       break;
     case 'Victory':
       refs.players.push(event.winner);
+      break;
+    case 'GovernmentChanged':
+      refs.players.push(event.player);
+      break;
+    case 'Launch':
+      refs.players.push(event.player);
+      hex(event.at);
       break;
     case 'BarbarianSpawned':
       refs.unitIds.push(event.unitId);

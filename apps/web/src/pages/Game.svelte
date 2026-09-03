@@ -14,7 +14,7 @@
   import { get } from 'svelte/store';
   import type { GameEvent } from '@game/shared';
   import type { Hex } from '@game/rules';
-  import { CULTURE, TECHS } from '@game/rules';
+  import { CULTURE, GOVERNMENTS, TECHS } from '@game/rules';
   import { createGameClient } from '../lib/gameClient.js';
   import type { GameClient } from '../lib/gameClient.js';
   import { createUiState, selectNothing } from '../lib/render/ui.js';
@@ -28,11 +28,23 @@
   import CityPanel from '../components/CityPanel.svelte';
   import ResearchPanel from '../components/ResearchPanel.svelte';
   import Journal from '../components/Journal.svelte';
+  import GovernmentPanel from '../components/GovernmentPanel.svelte';
 
   let { code }: { code: string } = $props();
 
   let lastReplayedSeq = -1;
   const playback = new Playback();
+
+  // 7h · R-122 : les techs de GOUVERNEMENT (invitation du conseiller —
+  // bascule sans Anarchie pendant le tour qui suit leur complétion).
+  const GOVERNMENT_TECHS = Object.values(GOVERNMENTS)
+    .map((g) => g.tech)
+    .filter((t): t is string => !!t);
+  const GOVERNMENT_TECH_NAMES: Record<string, string> = Object.fromEntries(
+    Object.values(GOVERNMENTS)
+      .filter((g) => g.tech)
+      .map((g) => [g.tech as string, g.name]),
+  );
 
   // Toasts d'erreur réseau/ordres + annonces culturelles 7f (ONU disponible /
   // suspendue) — les toasts d'événements viennent du playback.
@@ -102,6 +114,28 @@
     const fresh = v.events.filter((e) => e.seq > lastReplayedSeq);
     if (fresh.length === 0) return;
     lastReplayedSeq = fresh[fresh.length - 1]!.seq;
+    // 7h · R-122/R-124 : annonces conseiller (tech de gouvernement),
+    // changement de régime et lancement du vaisseau.
+    for (const e of fresh) {
+      if (e.type === 'TechResearched' && e.player === pid && GOVERNMENT_TECHS.includes(e.tech)) {
+        const regime = GOVERNMENT_TECH_NAMES[e.tech] ?? e.tech;
+        pushErrorToast(`Conseiller : ${e.tech} découverte — adoptez ${regime} SANS Anarchie (menu Gouvernement).`, 'good');
+      }
+      if (e.type === 'GovernmentChanged') {
+        pushErrorToast(
+          e.anarchy
+            ? 'Changement de gouvernement — ANARCHIE pendant 1 tour (rendements à zéro).'
+            : 'Nouveau gouvernement adopté sans Anarchie.',
+          e.anarchy ? 'bad' : 'good',
+        );
+      }
+      if (e.type === 'Launch') {
+        pushErrorToast(
+          e.player === pid ? 'Vaisseau spatial lancé !' : 'Le vaisseau spatial adverse a été lancé…',
+          e.player === pid ? 'good' : 'bad',
+        );
+      }
+    }
     playback.enqueue(fresh);
   });
 
@@ -224,6 +258,17 @@
 
   // Phase 7a : menu de choix technologique (R-85).
   let showResearch = $state(false);
+  // 7h · R-121/R-122 : menu de gouvernement + bandeau d'Anarchie.
+  let showGovernment = $state(false);
+  const myGovernment = $derived.by(() => {
+    const id = myEngineId($view);
+    return (id && $view.state ? $view.state.players[id]?.government : null) ?? 'despotisme';
+  });
+  const myInAnarchy = $derived.by(() => {
+    const id = myEngineId($view);
+    const p = id && $view.state ? $view.state.players[id] : null;
+    return !!p && typeof p.anarchyUntil === 'number' && $view.turn < p.anarchyUntil;
+  });
 
   const myGold = $derived.by(() => {
     const v = $view;
@@ -265,6 +310,26 @@
     return v.players.find((p) => p.id === v.playerId)?.name ?? '';
   });
 
+  // 7h · R-124 : composants du Vaisseau spatial contrôlés par le joueur
+  // (dérivés des bâtiments des villes — source unique moteur).
+  const SHIP_COMPONENTS = $derived.by(() => {
+    const engine = myEngineId($view);
+    const built = new Set<string>(
+      engine && $view.state
+        ? Object.values($view.state.cities)
+            .filter((c) => c.owner === engine)
+            .flatMap((c) => c.buildings)
+        : [],
+    );
+    const defs: Array<[string, string]> = [
+      ['vaisseau_habitation', 'Habitation (400)'],
+      ['vaisseau_support_vie', 'Support de vie (120)'],
+      ['vaisseau_carburant', 'Carburant (80)'],
+      ['vaisseau_propulsion', 'Propulsion (200)'],
+    ];
+    return defs.map(([cid, name]) => ({ id: cid, name, built: built.has(cid) }));
+  });
+
   const victoryEvent = $derived.by(() => {
     const v = $view;
     for (let i = v.events.length - 1; i >= 0; i--) {
@@ -302,6 +367,10 @@
       <img src="/art/icone_culture.png" alt="Jalons culturels" onerror={hideImg} />
       {myCulture.milestones}/{MILESTONES_TARGET}
     </span>
+    <button type="button" class="gov" class:anarchy={myInAnarchy} title="Gouvernement (R-121/R-122)" onclick={() => (showGovernment = !showGovernment)}>
+      <img src="/art/icone_gouvernement.png" alt="Gouvernement" onerror={hideImg} />
+      {GOVERNMENTS[myGovernment]?.name ?? myGovernment}
+    </button>
     <button type="button" class="research" title="Choix technologique (R-85)" onclick={() => (showResearch = !showResearch)}>
       <img src="/art/icone_science.png" alt="Science" onerror={hideImg} />
       {#if myResearch.tech}
@@ -373,6 +442,9 @@
             {#if $view.phase === 'resolving'}Résolution du tour…{:else}Relecture du tour — clic sur la carte pour accélérer{/if}
           </div>
         {/if}
+        {#if myInAnarchy}
+          <div class="anarchy-banner">⚔️ ANARCHIE — marteaux, fioles, or et culture à zéro ce tour (R-122)</div>
+        {/if}
         {#if showVictory}
           <div class="victory">
             <h1>{victoryEvent?.winner === myEngineId($view) ? 'Victoire !' : 'Défaite…'}</h1>
@@ -383,9 +455,11 @@
                       ? 'forfait'
                       : victoryEvent.reason === 'culture'
                         ? 'culturelle (Nations Unies achevées — R-116)'
-                        : victoryEvent.reason === 'razedCapital'
-                          ? 'capitale rasée'
-                          : 'domination (capitale capturée)'
+                        : victoryEvent.reason === 'science'
+                          ? 'scientifique (Vaisseau spatial lancé — R-124)'
+                          : victoryEvent.reason === 'razedCapital'
+                            ? 'capitale rasée'
+                            : 'domination (capitale capturée)'
                   }`
                 : `Vainqueur : ${$view.state?.winner ?? '?'}`}
             </p>
@@ -398,6 +472,23 @@
         {#if myName}<p class="me">Vous jouez : <strong>{myName}</strong></p>{/if}
         <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} />
         <CityPanel view={$view} ui={$ui} {client} />
+        {#if $view.state && myEngineId($view)}
+          <section class="ship" aria-label="Vaisseau spatial">
+            <h3>Vaisseau spatial (victoire scientifique — R-124)</h3>
+            <ul>
+              {#each SHIP_COMPONENTS as comp (comp.id)}
+                <li class:done={comp.built}>
+                  {comp.built ? '✅' : '⬜'} {comp.name}
+                </li>
+              {/each}
+            </ul>
+            {#if SHIP_COMPONENTS.every((c) => c.built)}
+              <p class="ready">4/4 composants — lancement !</p>
+            {:else}
+              <p class="shiphint">Construisez les 4 composants (tech Vol spatial) dans vos villes.</p>
+            {/if}
+          </section>
+        {/if}
         <Journal view={$view} />
         <details class="raw">
           <summary>État brut (debug)</summary>
@@ -409,6 +500,10 @@
 
   {#if showResearch && $view.state}
     <ResearchPanel view={$view} {client} onClose={() => (showResearch = false)} />
+  {/if}
+
+  {#if showGovernment && $view.state}
+    <GovernmentPanel view={$view} {client} onClose={() => (showGovernment = false)} />
   {/if}
 
   <div class="toasts" role="status">
@@ -433,6 +528,16 @@
   .research .minibar { display: inline-block; width: 4rem; height: 7px; background: #12161a; border: 1px solid #3a4148; border-radius: 4px; overflow: hidden; }
   .research .minifill { display: block; height: 100%; background: #6fa3b8; }
   .research .reserve { color: #ffe082; font-style: normal; }
+  .gov { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .gov img { width: 16px; height: 16px; }
+  .gov.anarchy { border-color: #a35b45; background: #3a2420; }
+  .anarchy-banner { position: absolute; top: 3.2rem; left: 50%; transform: translateX(-50%); background: #3a2420e6; border: 1px solid #a35b45; padding: 0.4rem 1rem; border-radius: 999px; font-size: 0.9rem; font-weight: 600; color: #ffab91; }
+  .ship { border: 1px solid #3a4148; border-radius: 8px; padding: 0.6rem 0.8rem; background: #1d242b; }
+  .ship h3 { margin: 0 0 0.35rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa7b2; }
+  .ship ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.88rem; }
+  .ship li.done { color: #81c784; }
+  .ship .ready { color: #81c784; font-weight: 600; margin: 0.3rem 0 0; }
+  .ship .shiphint { color: #8b98a5; font-size: 0.8rem; margin: 0.3rem 0 0; }
   .net { font-size: 0.8rem; color: #8b98a5; }
   .res { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 600; }
   .res img { width: 18px; height: 18px; vertical-align: middle; }

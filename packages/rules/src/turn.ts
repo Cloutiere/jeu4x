@@ -56,12 +56,19 @@ import { WONDERS, canSetProduction, buildingCostDiscount } from './techs.js';
 import {
   cultureGains,
   greatPersonThresholdFor,
+  isWonderObsolete,
   greatPersonTypeFor,
   installedGreatPersonsOf,
   isGreatPersonType,
+  leaderGpVictoriesNeeded,
   wonderProductionIssue,
+  wonderAttackBonusEmpireOf,
   wondersOwnedBy,
+  yieldGpThresholdFor,
+  YIELD_GP_TYPES,
 } from './culture.js';
+import type { YieldGreatPersonType } from './culture.js';
+import { effectsFor, isInAnarchy, landCombatBonus, populationCostOf } from './governments.js';
 import { applyFirstToDiscover, empirePerCityBonus } from './firstDiscovery.js';
 import {
   barbarianOrders,
@@ -456,6 +463,12 @@ function cityBuildingDefenseBonus(board: Board, hex: Hex, defenderOwner: PlayerI
  * ordre et un Fortify (impossible via le serveur, qui remplace par sujet),
  * l'annulation s'applique d'abord puis le Fortify — la fortification prime.
  */
+/** R-32/R-123 : un coup fatal signé = 1 victoire de combat de l'empire (T-31). */
+function recordCombatVictory(board: Board, winner: Unit): void {
+  const player = board.st.players[winner.owner];
+  if (player) player.combatVictories += 1;
+}
+
 function applyFortifyOrders(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
   const fortify = new Set<UnitId>();
   const cancel = new Set<UnitId>();
@@ -531,17 +544,33 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
     const u = occupants(board, h)[0];
     return u ? { owner: u.owner, type: u.type, q: u.q, r: u.r, aboard: u.aboard } : undefined;
   });
-  const sAtt = effectiveStrength(aStats.attack, attacker.veteran) + support;
+  // 7h · R-122 : aucun bonus de régime/merveille pendant l'Anarchie.
+  // 7h · R-125 : Himeji (+1 Attaque à toutes les unités de l'empire) —
+  // tant que la merveille n'est pas obsolète (Communisme, R-110).
+  // 7h · R-121 : Fondamentalisme (+1 Attaque aux unités TERRESTRES).
+  // R-95 : les barbares ne sont pas dans `players` — aucun bonus de régime.
+  const attPlayer = board.st.players[attacker.owner];
+  const defPlayer = board.st.players[defender.owner];
+  const attAnarchy = attPlayer ? isInAnarchy(attPlayer, board.st.turn) : true;
+  const defAnarchy = defPlayer ? isInAnarchy(defPlayer, board.st.turn) : true;
+  const sAtt =
+    effectiveStrength(aStats.attack, attacker.veteran) +
+    support +
+    (attPlayer && !attAnarchy
+      ? wonderAttackBonusEmpireOf(Object.values(board.st.cities), attacker.owner, attPlayer.techsUnlocked) +
+        landCombatBonus(effectsFor(attPlayer), aStats, 'attack')
+      : 0);
   // T-17 : le bonus de fortification s'ajoute au bonus de terrain (RULES.md §7.4).
   // 7e : le bonus de défense de ville des bâtiments (Palais, Remparts) s'ajoute
-  // pour le défenseur en garnison de SA ville.
+  // pour le défenseur en garnison de SA ville. 7h · R-121 : Fondamentalisme
+  // (+1 Défense aux unités terrestres).
   const sDef = effectiveStrength(
     dStats.defense,
     defender.veteran,
     terrainDefenseBonus(board, combatTile) +
       (defender.fortified ? FORTIFY_DEFENSE_BONUS : 0) +
       cityBuildingDefenseBonus(board, combatTile, defender.owner),
-  );
+  ) + (defPlayer && !defAnarchy ? landCombatBonus(effectsFor(defPlayer), dStats, 'defense') : 0);
   for (let i = 0; i < EXCHANGES_PER_ATTACK && attacker.hp > 0 && defender.hp > 0; i++) {
     if (noRiposte) {
       defender.hp -= 1;
@@ -598,12 +627,14 @@ function repeatedAttacks(
     if (defender.hp <= 0) {
       kill(board, defender, 'combat', attacker.id);
       attacker.veteran = true; // R-32 : coup fatal
+      recordCombatVictory(board, attacker); // 7h · R-123 (T-31)
       if (advanceOnKill) advanceIfMelee(board, attacker, combatTile);
       return;
     }
     if (attacker.hp <= 0) {
       kill(board, attacker, 'combat', defender.id);
       defender.veteran = true; // R-32
+      recordCombatVictory(board, defender); // 7h · R-123 (T-31)
       return;
     }
     if (++guard > 10_000) throw new Error('R-55 : boucle non terminale (bug)');
@@ -638,12 +669,14 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
   if (defender.hp <= 0) {
     kill(board, defender, 'combat', attacker.id);
     attacker.veteran = true; // R-32
+    recordCombatVictory(board, attacker); // 7h · R-123 (T-31)
     advanceIfMelee(board, attacker, combatTile);
     return;
   }
   if (attacker.hp <= 0) {
     kill(board, attacker, 'combat', defender.id);
     defender.veteran = true; // R-32
+    recordCombatVictory(board, defender); // 7h · R-123 (T-31)
     return;
   }
   // Survie mutuelle (passe 1 de R-56) : le perdant est COLLECTÉ, l'allocation
@@ -739,6 +772,7 @@ function resolveVillageAttack(board: Board, attacker: Unit, village: BarbarianVi
   if (village.hp <= 0) {
     destroyVillage(board, village, attacker.owner, attacker.id);
     attacker.veteran = true; // R-32 : coup fatal
+    recordCombatVictory(board, attacker); // 7h · R-123 (T-31)
     // R-52 : l'attaquant avance — il est déjà entré sur la case (Phase A).
     return;
   }
@@ -767,6 +801,7 @@ function repeatedVillageAttacks(board: Board, attacker: Unit, village: Barbarian
     if (village.hp <= 0) {
       destroyVillage(board, village, attacker.owner, attacker.id);
       attacker.veteran = true;
+      recordCombatVictory(board, attacker); // 7h · R-123 (T-31)
       return;
     }
     if (attacker.hp <= 0) {
@@ -1593,6 +1628,96 @@ function processVillages(board: Board): void {
   }
 }
 
+/**
+ * 7f/7h · R-114/R-123 : engendre un Personnage illustre d'un type donné sur la
+ * case de la ville (sinon première case adjacente libre — perdu si aucune,
+ * interprétation R-114). Incrémente le compteur PAR TYPE (escalade T-30) ;
+ * `greatPersonsObtained` (T-27 culturel) n'est incrémenté que pour les GP de
+ * culture (artiste/penseur) — escalades indépendantes (R-123).
+ */
+function spawnGreatPerson(board: Board, city: City, gpType: string): void {
+  const player = board.st.players[city.owner]!;
+  const gpStats = unitType(gpType);
+  const cityHex = { q: city.q, r: city.r };
+  const spot = occupiedByUnit(board, cityHex) ? (freeSpawnTiles(board.st, cityHex, 1)[0] ?? null) : cityHex;
+  if (gpStats.greatPerson) player.greatPersonsByType[gpType] = (player.greatPersonsByType[gpType] ?? 0) + 1;
+  if (gpType === 'artiste' || gpType === 'penseur') player.greatPersonsObtained += 1; // R-114 : seuil T-27
+  if (!spot) return; // aucune case libre : le GP est perdu (interprétation documentée)
+  const gpId = nextId(board.st.units, 'u');
+  board.st.units[gpId] = {
+    id: gpId,
+    type: gpType,
+    owner: city.owner,
+    q: spot.q,
+    r: spot.r,
+    hp: gpStats.hpMax,
+    mp: gpStats.movement,
+    veteran: false,
+    isArmy: false,
+    order: null,
+    detainedBy: null,
+    fortified: false,
+    aboard: null,
+    cargo: null,
+  };
+  emit(board, {
+    type: 'GreatPersonSpawned',
+    unitId: gpId,
+    unitType: gpType,
+    cityId: city.id,
+    owner: city.owner,
+    at: spot,
+  });
+}
+
+/**
+ * 7h · R-124 · Victoire scientifique : les 4 composants du Vaisseau spatial
+ * contrôlés par le joueur (villes quelconques — suivi DÉRIVÉ des bâtiments,
+ * R-66 : une capture les détruit) → événement Launch + Victory 'science'.
+ */
+const SHIP_COMPONENTS = ['vaisseau_habitation', 'vaisseau_support_vie', 'vaisseau_carburant', 'vaisseau_propulsion'];
+
+function checkScienceVictory(board: Board): void {
+  if (board.st.winner) return;
+  for (const playerId of Object.keys(board.st.players).sort()) {
+    const buildings = new Set<string>();
+    for (const id of Object.keys(board.st.cities).sort()) {
+      const city = board.st.cities[id]!;
+      if (city.owner !== playerId) continue;
+      for (const b of city.buildings) buildings.add(b);
+    }
+    if (SHIP_COMPONENTS.every((c) => buildings.has(c))) {
+      const capital = Object.values(board.st.cities)
+        .filter((c) => c.owner === playerId)
+        .sort((a, b) => compareCityIds(a.id, b.id))
+        .find((c) => c.capital) ?? Object.values(board.st.cities).filter((c) => c.owner === playerId)[0];
+      emit(board, { type: 'Launch', player: playerId, at: { q: capital!.q, r: capital!.r } });
+      board.st.winner = playerId;
+      emit(board, { type: 'Victory', winner: playerId, reason: 'science' });
+      return;
+    }
+  }
+}
+
+/**
+ * 7h · R-123 · GP Leader : spawn sur la capitale (sinon première ville —
+ * interprétation documentée) au seuil T-31 de victoires de combat de l'empire.
+ * Seuil FIXE (pas de croissance ×2 — interprétation documentée).
+ */
+function checkLeaderGreatPerson(board: Board): void {
+  for (const playerId of Object.keys(board.st.players).sort()) {
+    const player = board.st.players[playerId]!;
+    if (isInAnarchy(player, board.st.turn)) continue; // R-122 : GP gelés
+    if ((player.greatPersonsByType['leader'] ?? 0) > 0) continue; // seuil fixe : un seul Leader
+    if (player.combatVictories < leaderGpVictoriesNeeded()) continue;
+    const city = Object.values(board.st.cities)
+      .filter((c) => c.owner === playerId)
+      .sort((a, b) => compareCityIds(a.id, b.id))
+      .find((c) => c.capital);
+    if (city) spawnGreatPerson(board, city, 'leader');
+  }
+}
+
 /** R-64 : fondation de ville (consomme le Colon), exécutée en Phase C. */
 function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
   const foundOrders: Array<Extract<Order, { type: 'FoundCity' }>> = [];
@@ -1634,6 +1759,9 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
       cultureStored: 0, // 7f · R-113
       wonders: [], // 7f · R-115
+      gpAccumGold: 0, // 7h · R-123
+      gpAccumScience: 0,
+      gpAccumProd: 0,
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
     delete board.st.units[unit.id];
@@ -1664,6 +1792,12 @@ function processEconomy(board: Board): void {
     const city = board.st.cities[cityId]!;
     const player = board.st.players[city.owner]!;
 
+    // 7h · R-121/R-122 : Anarchie — marteaux, fioles, or et culture TOMBENT À
+    // ZÉRO (la nourriture n'est PAS paralysée — interprétation documentée) ;
+    // aucun bonus ancien/nouveau, GP gelés, production gelée.
+    const anarchy = isInAnarchy(player, board.st.turn);
+    // 7h · R-121 : effets du régime actif (aucun effet pendant l'Anarchie).
+    const govEffects = anarchy ? {} : effectsFor(player);
     // 7e · Premier découvrir : bonus d'empire par ville (Littératie +1 science,
     // Chemin de fer +2 production, Industrialisation +5 or…). Le volet culture
     // est ignoré tant que le moteur culturel n'existe pas (7f).
@@ -1691,11 +1825,19 @@ function processEconomy(board: Board): void {
     let factoryMult = 1;
     for (const b of city.buildings) factoryMult = Math.max(factoryMult, BUILDINGS[b]?.productionMult ?? 1);
     const prodMult = factoryMult * (1 + POP_PRODUCTION_BONUS * (city.pop - 1)); // R-63 🔶
-    const production = Math.floor(rawProduction * prodMult);
+    // 7h · R-121 · Communisme : +50 % de Production (marteaux) de toutes les
+    // villes (round half up, après Usine/pop R-63).
+    const production = anarchy
+      ? 0 // R-122 : production gelée
+      : Math.round(Math.floor(rawProduction * prodMult) * (govEffects.productionMult ?? 1));
     // R-90 révisée (Phase 7b) : le commerce est converti en TOTALITÉ en or ou
     // en science selon le choix de la ville. 7e : Marché ×2 / Banque ×4 or,
     // Bibliothèque ×1,5 / Université ×4 science (data-driven, conversion.ts).
-    const gains = conversionGains(commerce, city.conversion, city.buildings);
+    // 7h · R-121 : Démocratie +50 % or/science (avant répartition) ;
+    // Fondamentalisme : science Bibliothèque/Université = 0.
+    const gains = anarchy
+      ? { gold: 0, science: 0 } // R-122 : fioles et or à zéro
+      : conversionGains(commerce, city.conversion, city.buildings, govEffects);
     player.gold += gains.gold + empireBonus.gold;
     // R-85 : la science alimente la tech courante (progression par tech,
     // débordement reporté) ou la réserve si aucun choix (`scienceStored`).
@@ -1731,47 +1873,38 @@ function processEconomy(board: Board): void {
     // 7f · R-113 : rendement culturel de la ville (scalaire sur la démographie :
     // Palais + Temples/Cathédrales × pop, Stonehenge ×1,5) + bonus empire
     // perCity.culture (R-109) — accumulation PAR VILLE.
-    city.cultureStored += cultureGains(city, empireBonus.culture, player.techsUnlocked);
-    // 7f · R-114 : seuil T-27 (base 20 🔶, ×2 par GP obtenu PAR L'EMPIRE) —
-    // au plus un GP par ville et par tour ; le surplus est conservé (miroir
-    // R-63). Posé sur la case de la ville, sinon case adjacente libre.
-    const gpThreshold = greatPersonThresholdFor(player.greatPersonsObtained);
-    if (city.cultureStored >= gpThreshold) {
-      city.cultureStored -= gpThreshold;
-      const gpType = greatPersonTypeFor(player.greatPersonsObtained);
-      player.greatPersonsObtained += 1;
-      const gpStats = unitType(gpType);
-      const cityHex = { q: city.q, r: city.r };
-      const spot = occupiedByUnit(board, cityHex) ? (freeSpawnTiles(board.st, cityHex, 1)[0] ?? null) : cityHex;
-      if (spot) {
-        const gpId = nextId(board.st.units, 'u');
-        board.st.units[gpId] = {
-          id: gpId,
-          type: gpType,
-          owner: city.owner,
-          q: spot.q,
-          r: spot.r,
-          hp: gpStats.hpMax,
-          mp: gpStats.movement,
-          veteran: false,
-          isArmy: false,
-          order: null,
-          detainedBy: null,
-          fortified: false,
-          aboard: null,
-          cargo: null,
-        };
-        emit(board, {
-          type: 'GreatPersonSpawned',
-          unitId: gpId,
-          unitType: gpType,
-          cityId,
-          owner: city.owner,
-          at: spot,
-        });
+    // 7h · R-123 : accumulateurs de GP à rendement par ville (or/science/
+    // production) — les mêmes gains que ceux crédités en Phase C, vers le
+    // seuil T-30. Gelés en Anarchie (gains déjà à zéro ci-dessus).
+    city.gpAccumGold += gains.gold + empireBonus.gold;
+    city.gpAccumScience += gains.science + empireBonus.science;
+    city.gpAccumProd += production;
+    // 7h · R-121/R-122 : culture à zéro pendant l'Anarchie ; Monarchie (Palais
+    // ×2) et Communisme (Temples/Cathédrales = 0) via les effets de régime ;
+    // Magna Carta (Tribunal +1) via les merveilles (R-125).
+    city.cultureStored += anarchy
+      ? 0
+      : cultureGains(city, empireBonus.culture, player.techsUnlocked, govEffects);
+    // 7f/7h · R-114/R-123 : seuils de GP — au plus UN GP par ville et par tour
+    // (tous types confondus), ordre déterministe : culture → science → or →
+    // production. Le surplus est conservé (miroir R-63). Posé sur la case de
+    // la ville, sinon case adjacente libre (perdu si aucune). GP gelés en
+    // Anarchie (R-122).
+    if (!anarchy) {
+      const gpThreshold = greatPersonThresholdFor(player.greatPersonsObtained);
+      if (city.cultureStored >= gpThreshold) {
+        city.cultureStored -= gpThreshold;
+        spawnGreatPerson(board, city, greatPersonTypeFor(player.greatPersonsObtained));
+      } else if (city.gpAccumScience >= yieldGpThresholdFor('scientifique', player.greatPersonsByType)) {
+        city.gpAccumScience -= yieldGpThresholdFor('scientifique', player.greatPersonsByType);
+        spawnGreatPerson(board, city, 'scientifique');
+      } else if (city.gpAccumGold >= yieldGpThresholdFor('mogul', player.greatPersonsByType)) {
+        city.gpAccumGold -= yieldGpThresholdFor('mogul', player.greatPersonsByType);
+        spawnGreatPerson(board, city, 'mogul');
+      } else if (city.gpAccumProd >= yieldGpThresholdFor('ingenieur', player.greatPersonsByType)) {
+        city.gpAccumProd -= yieldGpThresholdFor('ingenieur', player.greatPersonsByType);
+        spawnGreatPerson(board, city, 'ingenieur');
       }
-      // Aucune case libre : le GP est perdu (interprétation documentée R-114,
-      // comme l'unité gratuite d'une hutte R-98).
     }
 
     // R-62/R-66 : un seul item, progression conservée ; unité posée sur la
@@ -1793,7 +1926,9 @@ function processEconomy(board: Board): void {
             // 7e · Coût en population (comportement officiel CivRev adopté
             // par Erik : le Colon consomme 2 population à sa PRODUCTION) —
             // la ville garde au moins 1 citoyen ; pop insuffisante = en attente.
-            const popCost = stats.populationCost ?? 0;
+            // 7h · R-121 : la République réduit le coût pop du Colon à 1
+            // (amende R-112 — les autres coûts inchangés).
+            const popCost = populationCostOf(stats.populationCost ?? 0, player);
             const popAvailable = city.pop >= Math.max(1, popCost);
             if (!occupiedByUnit(board, hex) && popAvailable) {
               if (popCost > 0) {
@@ -1948,6 +2083,11 @@ export function resolveTurn(
 ): TurnResult {
   const st: GameState = structuredClone(inputState);
   st.phase = 'resolving';
+  // 7h · R-122 : la fenêtre d'adoption sans Anarchie porte sur les techs
+  // complétées pendant CETTE résolution (le conseiller invite au tour suivant).
+  for (const playerId of Object.keys(st.players).sort()) {
+    st.players[playerId]!.techsUnlockedThisTurn = [];
+  }
 
   // R-95/R-97 (Phase 7d) : les barbares jouent avec les MÊMES phases — leurs
   // ordres sont générés en tête de résolution par une fonction pure et
@@ -2083,6 +2223,10 @@ export function resolveTurn(
   processVillages(board);
   applySetWorkedTile(board, allOrders);
   processEconomy(board);
+  // 7h · R-123 : GP Leader au seuil T-31 de victoires de combat (spawn capitale).
+  checkLeaderGreatPerson(board);
+  // 7h · R-124 : victoire scientifique — les 4 composants du vaisseau contrôlés.
+  checkScienceVictory(board);
 
   // ---- Phase D : vision (R-70), soins (R-71), PM (R-72).
   recomputeVision(st);

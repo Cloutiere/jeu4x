@@ -25,7 +25,12 @@
     "name": "Grenier",
     "cost": 40,
     "workRadiusBonus": 0,
-    "tileBonus": { "terrain": "plaine", "food": 2, "production": 0, "commerce": 0 },
+    "tileBonus": {
+      "terrain": "plaine",
+      "food": 2,
+      "production": 0,
+      "commerce": 0
+    },
     "tech": "poterie"
   },
   "bibliotheque": {
@@ -53,7 +58,12 @@
     "name": "Comptoir commercial",
     "cost": 60,
     "workRadiusBonus": 0,
-    "tileBonus": { "terrain": "desert", "food": 0, "production": 0, "commerce": 2 },
+    "tileBonus": {
+      "terrain": "desert",
+      "food": 0,
+      "production": 0,
+      "commerce": 2
+    },
     "tech": "code_des_lois"
   },
   "atelier": {
@@ -61,7 +71,12 @@
     "name": "Atelier",
     "cost": 60,
     "workRadiusBonus": 0,
-    "tileBonus": { "terrain": "colline", "food": 0, "production": 2, "commerce": 0 },
+    "tileBonus": {
+      "terrain": "colline",
+      "food": 0,
+      "production": 2,
+      "commerce": 0
+    },
     "tech": "construction"
   },
   "marche": {
@@ -88,7 +103,12 @@
     "name": "Mine de fer",
     "cost": 80,
     "workRadiusBonus": 0,
-    "tileBonus": { "terrain": "montagne", "food": 0, "production": 4, "commerce": 0 },
+    "tileBonus": {
+      "terrain": "montagne",
+      "food": 0,
+      "production": 4,
+      "commerce": 0
+    },
     "tech": "chemin_de_fer"
   },
   "port": {
@@ -96,7 +116,12 @@
     "name": "Port",
     "cost": 100,
     "workRadiusBonus": 0,
-    "tileBonus": { "terrain": "eau", "food": 1, "production": 0, "commerce": 0 },
+    "tileBonus": {
+      "terrain": "eau",
+      "food": 1,
+      "production": 0,
+      "commerce": 0
+    },
     "tech": "navigation"
   },
   "remparts": {
@@ -181,7 +206,7 @@
     "workRadiusBonus": 0,
     "tileBonus": null,
     "tech": "vol_spatial",
-    "implemented": false,
+    "implemented": true,
     "effect": "Composant du Vaisseau spatial : vitesse du trajet (victoire scientifique, 7h)"
   },
   "vaisseau_support_vie": {
@@ -191,7 +216,7 @@
     "workRadiusBonus": 0,
     "tileBonus": null,
     "tech": "vol_spatial",
-    "implemented": false,
+    "implemented": true,
     "effect": "Composant du Vaisseau spatial : score de fin de partie (victoire scientifique, 7h)"
   },
   "vaisseau_propulsion": {
@@ -201,7 +226,7 @@
     "workRadiusBonus": 0,
     "tileBonus": null,
     "tech": "vol_spatial",
-    "implemented": false,
+    "implemented": true,
     "effect": "Composant du Vaisseau spatial : propulsion (victoire scientifique, 7h)"
   },
   "vaisseau_habitation": {
@@ -211,7 +236,7 @@
     "workRadiusBonus": 0,
     "tileBonus": null,
     "tech": "vol_spatial",
-    "implemented": false,
+    "implemented": true,
     "effect": "Composant indispensable au lancement du Vaisseau spatial (victoire scientifique, 7h)"
   }
 }

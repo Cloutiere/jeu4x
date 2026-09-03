@@ -154,6 +154,14 @@ export interface AdminDump {
     villages: Array<{ id: string; q: number; r: number; hp: number; spawnCountdown: number; unitésVivantes: number }>;
     huts: Array<{ id: string; q: number; r: number }>;
   } | null;
+  /** Phase 7h : résumé gouvernements + Vaisseau spatial (R-121..R-124). */
+  gouvernements?: {
+    players: Record<
+      string,
+      { regime: string; anarchyUntil: number | null; enAnarchie: boolean; gpParType: Record<string, number>; victoiresCombat: number }
+    >;
+    vaisseau: Record<string, Record<string, boolean>>;
+  };
 }
 
 /** Dump NON filtré d'une partie (endpoint admin, protégé par ADMIN_TOKEN). */

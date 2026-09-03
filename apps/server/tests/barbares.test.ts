@@ -116,7 +116,7 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     });
 
     const dump = await adminDump(code);
-    expect(dump.state!.schemaVersion).toBe(11); // migré (v11, Phase 7g) puis enrichi
+    expect(dump.state!.schemaVersion).toBe(12); // migré (version courante, Phase 7g) puis enrichi
     expect(dump.state!.mapId).toBe('pangee-40');
     expect(dump.state!.villages).toHaveLength(3);
     expect(dump.state!.huts).toHaveLength(2);

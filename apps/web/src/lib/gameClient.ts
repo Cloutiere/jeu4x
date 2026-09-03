@@ -51,6 +51,8 @@ export interface GameClient {
   setResearch(techId: string): void;
   /** R-90 (Phase 7b) : conversion or/science de la ville — action immédiate. */
   setConversion(cityId: CityId, target: 'gold' | 'science'): void;
+  /** R-122 (Phase 7h) : adoption d'un régime politique — action immédiate. */
+  setGovernment(government: string): void;
   resync(): void;
   close(): void;
 }
@@ -215,6 +217,9 @@ export function createGameClient(
     },
     setConversion(cityId, target) {
       handle.send({ type: 'SetConversion', cityId, target });
+    },
+    setGovernment(government) {
+      handle.send({ type: 'SetGovernment', government });
     },
     resync,
     close() {

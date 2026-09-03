@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain } from '@game/rules';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -131,6 +131,26 @@
     return greatPersonThresholdFor(view.state.players[engine]?.greatPersonsObtained ?? 0);
   });
   const cultureRatio = $derived(city ? Math.max(0, Math.min(1, city.cultureStored / gpThreshold)) : 0);
+
+  /**
+   * 7h · R-123 : jauges des GP à rendement (or / science / production) —
+   * accumulateurs par ville, seuil T-30 (×2 par GP du même type obtenu).
+   * Au plus un GP par ville et par tour (culture prioritaire — R-123).
+   */
+  const YIELD_GAUGES: Array<{ key: 'gpAccumGold' | 'gpAccumScience' | 'gpAccumProd'; type: 'mogul' | 'scientifique' | 'ingenieur'; label: string; icon: string }> = [
+    { key: 'gpAccumScience', type: 'scientifique', label: 'GP Scientifique', icon: '/art/icone_science.png' },
+    { key: 'gpAccumGold', type: 'mogul', label: 'GP Mogul', icon: '/art/icone_or.png' },
+    { key: 'gpAccumProd', type: 'ingenieur', label: 'GP Ingénieur', icon: '/art/icone_production.png' },
+  ];
+  const gpYieldGauges = $derived.by(() => {
+    if (!city || !view.state || !engine) return [];
+    const byType = view.state.players[engine]?.greatPersonsByType ?? {};
+    return YIELD_GAUGES.map((g) => {
+      const threshold = yieldGpThresholdFor(g.type, byType);
+      const stored = city[g.key] ?? 0;
+      return { ...g, threshold, stored, ratio: Math.max(0, Math.min(1, stored / threshold)) };
+    });
+  });
 
   /**
    * Réassignations en attente (retour immédiat) : les ordres SetWorkedTile
@@ -408,6 +428,13 @@
           <div class="bar"><div class="fill culture-fill" style:width={`${cultureRatio * 100}%`}></div></div>
           <span class="eta">{culturePerTurn} culture/tour</span>
         </div>
+        {#each gpYieldGauges as g (g.type)}
+          <div class="gauge" title="{g.label} (R-123) : accumulateur de la ville — seuil T-30 (×2 par GP du même type obtenu)">
+            <span class="lab"><img src={g.icon} alt="" onerror={hideImg} /> {g.stored} / {g.threshold}</span>
+            <div class="bar"><div class="fill gp-fill" style:width={`${g.ratio * 100}%`}></div></div>
+            <span class="eta">{g.label}</span>
+          </div>
+        {/each}
       {/if}
     {/if}
 
@@ -571,6 +598,7 @@
   .fill { height: 100%; background: #f0c419; }
   .growth-fill { background: #81c784; }
   .culture-fill { background: #ba68c8; }
+  .gp-fill { background: #b39ddb; }
   .wonder { padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid #b8863c; background: #3c3222; font-size: 0.8rem; color: #ffd54f; }
   .opt.wonder-btn { border-color: #8d6e3c; background: #332b1e; }
   .eta { font-size: 0.8rem; color: #a5d6a7; white-space: nowrap; }

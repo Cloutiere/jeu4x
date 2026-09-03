@@ -26,6 +26,19 @@ export function combatRound(sAtt: number, sDef: number, roll: number): RoundWinn
   return roll < p ? 'defender' : 'attacker';
 }
 
+/**
+ * 7h · R-125 (Oracle) : probabilité que l'ATTAQUANT touche un round
+ * S_att² / (S_att² + S_def²) — helper pur exposé pour l'UI de pré-confirmation
+ * (l'issue exacte affichée = probabilités + vainqueur attendu ; le tir seedé
+ * reste à la résolution — interprétation 🔶 documentée).
+ */
+export function combatOdds(sAtt: number, sDef: number): number {
+  const a2 = sAtt * sAtt;
+  const d2 = sDef * sDef;
+  if (a2 + d2 === 0) return 0;
+  return a2 / (a2 + d2);
+}
+
 export interface ExchangeResult {
   attackerHp: number;
   defenderHp: number;

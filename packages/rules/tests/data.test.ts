@@ -14,12 +14,18 @@ const buildingTable = buildings as Record<string, BuildingData>;
 const resourceTable = resources as Record<string, ResourceData>;
 
 describe('Données v1 (RULES.md §2-3)', () => {
-  it('contient le roster terrestre complet 7e + GP de culture 7f + données seules (naval, aérien, spéciaux)', () => {
+  it('contient le roster terrestre complet 7e + GP de culture 7f + GP restants 7h (R-123) + données seules (naval, aérien, spéciaux)', () => {
     expect(Object.keys(unitTable).sort()).toEqual([
       'archer', 'artillerie', 'artiste', 'bombardier', 'canon', 'caravane', 'catapulte', 'cavalier', 'char_d_assaut',
       'chasseur', 'chevalier', 'colon', 'croiseur', 'cuirasse', 'espion', 'fusilier', 'galere', 'galion',
-      'guerrier', 'icbm', 'infanterie_moderne', 'legion', 'milice', 'penseur', 'piquier', 'sous_marin',
+      'guerrier', 'icbm', 'infanterie_moderne', 'ingenieur', 'leader', 'legion', 'milice', 'mogul', 'penseur',
+      'piquier', 'scientifique', 'sous_marin',
     ]);
+    // 7h · R-123 : les 4 nouveaux GP sont des personnages illustres pacifiques.
+    for (const id of ['scientifique', 'mogul', 'ingenieur', 'leader']) {
+      expect(unitTable[id]!.greatPerson).toBe(true);
+      expect(unitTable[id]!.canAttack).toBe(false);
+    }
   });
 
   it('Guerrier 1/1/1, Colon 0/0/2 (référence Civ Rev)', () => {

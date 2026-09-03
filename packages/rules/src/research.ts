@@ -68,6 +68,10 @@ export function creditScience(
   delete player.scienceProgress[current];
   if (!player.techsUnlocked.includes(tech.id)) player.techsUnlocked.push(tech.id);
   player.techsUnlocked.sort();
+  // 7h · R-122 : la tech complète la fenêtre d'adoption sans Anarchie du
+  // régime correspondant (invitation du conseiller — réinitialisée à chaque
+  // résolution, R-122).
+  player.techsUnlockedThisTurn = [...(player.techsUnlockedThisTurn ?? []), tech.id];
   player.researching = null;
   player.scienceStored += overflow;
   cb.onResearched?.(playerId, tech.id);

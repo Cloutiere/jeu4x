@@ -64,6 +64,9 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   BuildingCompleted: 320,
   DiplomaticIncident: 300,
   Victory: 400,
+  // Phase 7h (R-122/R-124) : gouvernements & vaisseau spatial.
+  GovernmentChanged: 320,
+  Launch: 520,
   // Phase 7d (R-95..R-98) : barbares & huttes.
   BarbarianSpawned: 320,
   VillageDestroyed: 420,
@@ -301,6 +304,13 @@ export class Playback {
       case 'PopulationGrew':
       case 'BuildingCompleted':
         this.pushFx(ev.at, 'good', dur);
+        break;
+          // Phase 7h (R-122/R-124) : gouvernements & vaisseau spatial.
+      case 'GovernmentChanged':
+        this.pushToast('Changement de gouvernement', 'info');
+        break;
+      case 'Launch':
+        this.pushToast('Vaisseau spatial lancé !', 'good');
         break;
       // Phase 7d (R-95..R-98) : barbares & huttes.
       case 'BarbarianSpawned':

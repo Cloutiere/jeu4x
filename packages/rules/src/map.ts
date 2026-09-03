@@ -341,6 +341,11 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       scienceStored: 0,
       cultureMilestones: 0, // 7f · R-115
       greatPersonsObtained: 0, // 7f · R-114
+      government: 'despotisme', // 7h · R-121
+      anarchyUntil: null, // 7h · R-122
+      greatPersonsByType: {}, // 7h · R-123
+      combatVictories: 0, // 7h · T-31
+      techsUnlockedThisTurn: [], // 7h · R-122
       vision: { explored: [], visible: [] },
       missedTurns: 0,
     };
@@ -368,6 +373,9 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
       cultureStored: 0, // 7f · R-113
       wonders: [], // 7f · R-115
+      gpAccumGold: 0, // 7h · R-123
+      gpAccumScience: 0,
+      gpAccumProd: 0,
     };
     // La case de capitale devient une case de ville (RULES.md §2).
     mapRecord[tileKeyOf(spawn.capital)] = { terrain: 'ville', resource: null };

@@ -65,7 +65,19 @@ export interface CultureCity {
  * R-109 : Religion/Imprimerie). Scalaire sur la démographie : 20 pop ×
  * Cathédrale = 40 🔶. Arrondi au plus proche de la part multipliée (R-88).
  */
-export function cultureGains(city: CultureCity, empireCulture = 0, techsUnlocked: readonly string[] = []): number {
+export interface CultureGovOptions {
+  /** 7h · R-121 · Monarchie : culture du Palais ×2. */
+  palaceCultureMult?: number;
+  /** 7h · R-121 · Communisme : culture des Temples/Cathédrales = 0. */
+  zeroTempleCulture?: boolean;
+}
+
+export function cultureGains(
+  city: CultureCity,
+  empireCulture = 0,
+  techsUnlocked: readonly string[] = [],
+  gov: CultureGovOptions = {},
+): number {
   let flat = 0;
   let perCitizen = 0;
   for (const id of city.buildings) {
@@ -74,6 +86,23 @@ export function cultureGains(city: CultureCity, empireCulture = 0, techsUnlocked
     if (b.culturePerTurn) flat += b.culturePerTurn;
     if (b.culturePerCitizen) perCitizen += b.culturePerCitizen;
   }
+  // 7h · R-121 : Monarchie double la culture du PALAIS (part culturePerTurn).
+  if (gov.palaceCultureMult) flat *= gov.palaceCultureMult;
+  // 7h · R-125 · Magna Carta : Tribunal = +1 culture/tour (ville hôte,
+  // tant que la merveille n'est pas obsolète).
+  let tribunalCulture = 0;
+  if (city.buildings.includes('tribunal')) {
+    for (const wonderId of city.wonders) {
+      const w = WONDERS[wonderId];
+      if (!w?.tribunalCulturePerTurn) continue;
+      if (isWonderObsolete(wonderId, techsUnlocked)) continue;
+      tribunalCulture = Math.max(tribunalCulture, w.tribunalCulturePerTurn);
+    }
+  }
+  flat += tribunalCulture;
+  // 7h · R-121 : Communisme annule la part Temples/Cathédrales (le Palais
+  // et les merveilles restent).
+  if (gov.zeroTempleCulture) perCitizen = 0;
   let templeMult = 1;
   for (const wonderId of city.wonders) {
     const w = WONDERS[wonderId];
@@ -148,4 +177,51 @@ export function wondersOwnedBy(
     out.push(...[...c.wonders].sort());
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// 7h · R-123 — GP restants (Scientifique/Mogul/Ingénieur/Leader)
+// ---------------------------------------------------------------------------
+
+/** 7h · GP à rendement (accumulateurs par ville — R-123). */
+export const YIELD_GP_TYPES = ['scientifique', 'mogul', 'ingenieur'] as const;
+export type YieldGreatPersonType = (typeof YIELD_GP_TYPES)[number];
+
+/**
+ * R-123 · T-30 · Seuil d'un accumulateur de GP à rendement : base 🔶 20
+ * (culture.json), ×2 par GP de CE TYPE déjà obtenu par l'empire
+ * (`player.greatPersonsByType[type]`). Le Leader (T-31) a un seuil FIXE
+ * (victoires de combat — interprétation documentée : pas de croissance).
+ */
+export function yieldGpThresholdFor(type: YieldGreatPersonType, greatPersonsByType: Record<string, number>): number {
+  void type;
+  const base = CULTURE.greatPersonYieldThresholdBase ?? CULTURE.greatPersonThresholdBase;
+  const growth = CULTURE.greatPersonYieldThresholdGrowth ?? CULTURE.greatPersonThresholdGrowth;
+  return base * Math.pow(growth, Math.max(0, greatPersonsByType[type] ?? 0));
+}
+
+/** R-123 · T-31 · Seuil de victoires de combat pour le GP Leader. */
+export function leaderGpVictoriesNeeded(): number {
+  return CULTURE.leaderGpVictories ?? CULTURE.greatPersonThresholdBase;
+}
+
+/**
+ * 7h · R-125 · Himeji : somme des `attackBonusEmpire` des merveilles contrôlées
+ * par l'empire (toutes villes), non obsolètes pour le joueur (R-110). Pur :
+ * l'appelant (moteur) évalue l'Anarchie (aucun bonus pendant R-122).
+ */
+export function wonderAttackBonusEmpireOf(
+  cities: Array<{ owner: PlayerId; wonders: string[] }>,
+  playerId: PlayerId,
+  techsUnlocked: readonly string[],
+): number {
+  let bonus = 0;
+  for (const city of cities) {
+    if (city.owner !== playerId) continue;
+    for (const wonderId of [...city.wonders].sort()) {
+      const w = WONDERS[wonderId];
+      if (w?.attackBonusEmpire && !isWonderObsolete(wonderId, techsUnlocked)) bonus += w.attackBonusEmpire;
+    }
+  }
+  return bonus;
 }

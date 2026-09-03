@@ -278,6 +278,9 @@ describe('R-115 · Installation et jalons culturels', () => {
       conversion: 'gold',
       cultureStored: 0,
       wonders: [],
+      gpAccumGold: 0,
+      gpAccumScience: 0,
+      gpAccumProd: 0,
     };
     const r2 = resolveTurn(
       other,
@@ -377,7 +380,7 @@ describe('7f · Migration v9 → v10', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(11); // la chaîne continue (7g)
+    expect(out.schemaVersion).toBe(12); // la chaîne continue (7h)
     expect(out.cities['c1']!.cultureStored).toBe(0);
     expect(out.cities['c1']!.wonders).toEqual([]);
     expect(out.players['p1']!.cultureMilestones).toBe(0);
@@ -444,6 +447,9 @@ describe('7f · e2e : culture → GP → jalons → merveilles → ONU → victo
       conversion: 'gold',
       cultureStored: 0,
       wonders: ['colosse_de_rhodes'],
+      gpAccumGold: 0,
+      gpAccumScience: 0,
+      gpAccumProd: 0,
     };
     state.units['uInv'] = {
       id: 'uInv',

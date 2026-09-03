@@ -27,6 +27,35 @@ async function readySockets(settings: GameCreationSettings) {
   return { code, alice, bob, welcomeA, welcomeB, snapA, snapB };
 }
 
+describe('GameDO · SetGovernment (7h · R-122)', () => {
+  it('refuse un régime sans tech, refuse le régime actif, applique et diffuse une action valide', async () => {
+    const { code, alice, bob } = await readySockets(NO_TIMER);
+
+    // Régime déjà actif (despotisme) → refus métier clair.
+    alice.send({ type: 'SetGovernment', government: 'despotisme' });
+    const ack1 = (await alice.waitFor('OrderAck')) as { accepted: boolean; reason: string | null };
+    expect(ack1.accepted).toBe(false);
+    expect(ack1.reason).toBe('régime déjà actif');
+
+    // Sans la tech (Code des lois) → refus « Requiert ».
+    alice.send({ type: 'SetGovernment', government: 'republique' });
+    const ack2 = (await alice.waitFor('OrderAck')) as { accepted: boolean; reason: string | null };
+    expect(ack2.accepted).toBe(false);
+    expect(ack2.reason).toContain('Requiert');
+
+    // L'adoption d'un régime accessible SANS tech n'existe pas (toutes les
+    // autres exigent une tech) — le chemin d'acceptation est couvert par le
+    // moteur (phase7h.test.ts) et le scénario GUI vs bot.
+
+    // Le dump admin expose le résumé gouvernements (7h).
+    const dump = await adminDump(code);
+    expect(dump.gouvernements).toBeDefined();
+    expect(dump.gouvernements!.players['p1']!.regime).toBe('despotisme');
+    expect(dump.gouvernements!.vaisseau).toBeDefined();
+    void bob;
+  });
+});
+
 describe('GameDO · temps réel à deux onglets', () => {
   it('les deux sockets reçoivent le même état initial et la même résolution', async () => {
     const { code, alice, bob, welcomeA, welcomeB, snapA, snapB } = await readySockets(NO_TIMER);

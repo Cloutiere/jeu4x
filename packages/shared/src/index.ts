@@ -84,6 +84,12 @@ export type ClientToServerMessage = ProtoMessage &
      *  ordres de tour) : validée et appliquée à la réception, diffusion
      *  immédiate (Phase 7b). */
     | { type: 'SetConversion'; cityId: CityId; target: 'gold' | 'science' }
+    /** R-122 (7h) · Adoption d'un régime politique — ACTION IMMÉDIATE (hors
+     *  ordres de tour, même contrat que SetResearch/SetConversion) : validée
+     *  et appliquée à la réception, diffusion immédiate. Transition manuelle
+     *  = 1 tour d'Anarchie (T-29) ; bascule sans Anarchie à la complétion de
+     *  la tech (fenêtre R-122). */
+    | { type: 'SetGovernment'; government: string }
     /** --- Messages de lobby (socket LobbyDO) --- */
     | { type: 'CreateGame'; settings: GameCreationSettings }
     | { type: 'JoinGame'; code: string }
