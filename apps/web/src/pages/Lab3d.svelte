@@ -26,11 +26,13 @@
   import { onMount, untrack } from 'svelte';
   import * as THREE from 'three';
   import {
+    allKnownTechs,
     createInitialState,
     generateProceduralMap,
     getFilteredState,
     resolveTurn,
     tileKeyOf,
+    tileYield,
     unitType,
   } from '@game/rules';
   import type { GameState, Hex, Order } from '@game/rules';
@@ -85,6 +87,8 @@
   let filtered: GameState | null = null;
   /** Terrain complet de la VRAIE carte (pour le bench 40×40 — pire cas). */
   let terrainComplet: Record<string, string> = {};
+  /** Mêmes tuiles au format des fonctions d'économie (tileYield — bench). */
+  let terrainCompletMap: Record<string, { terrain: string }> = {};
   let capital: Hex | null = null;
   // Version des données de scène (incrémentée par tout changement état/UI/survol).
   // Déclarées AVANT ui.subscribe : le callback de subscribe s'exécute immédiatement.
@@ -120,6 +124,7 @@
   function construireEtatReel(): void {
     const result = generateProceduralMap(seed);
     terrainComplet = { ...result.map.terrain };
+    terrainCompletMap = Object.fromEntries(Object.entries(terrainComplet).map(([k, t]) => [k, { terrain: t }]));
     const initial = createInitialState(result.map, seed);
     // Un tour RÉEL : le Colon p1 fonde sa capitale (R-64), p2 reste passif.
     const colon = Object.values(initial.units).find((u) => u.owner === 'p1' && unitType(u.type).canFoundCity);
@@ -150,6 +155,27 @@
     for (const city of Object.values(filtered.cities)) {
       for (const key of city.workedTiles) worked.set(key, city.owner);
     }
+
+    // --- L2 : lueur = rendement RÉEL (miroir exact des helpers moteur) -------
+    const etat = filtered;
+    const moi = etat.players['p1'];
+    const techs = moi?.techsUnlocked ?? [];
+    const tousTechs = allKnownTechs(etat);
+    const civ = moi && moi.civId !== 'neutre' ? { civId: moi.civId, era: moi.era } : undefined;
+    const villeQuiTravaille = new Map<string, (typeof etat.cities)[string]>();
+    for (const city of Object.values(etat.cities)) {
+      for (const key of city.workedTiles) villeQuiTravaille.set(key, city);
+    }
+    /** Case travaillée : tileYield complet (bâtiments R-66, civ R-146,
+     *  ressources R-93, merveilles R-132) ; case non travaillée : base +
+     *  ressource identifiée — même règle que l'overlay 2D de GameCanvas. */
+    const allumeDe = (key: string, terrain: string) => {
+      const map = (carteEntiere ? terrainCompletMap : etat.map) as Parameters<typeof tileYield>[0];
+      const city = villeQuiTravaille.get(key);
+      const y = tileYield(map, city ? city.buildings : [], key, techs, city?.wonders ?? [], tousTechs, city && civ ? civ : undefined);
+      return y ? { bus: y.food, cpu: y.production, ram: y.commerce } : undefined;
+    };
+
     const tiles: TileDraw[] = [];
     if (carteEntiere) {
       // Bench : terrain complet de la vraie carte, exploration synthétique
@@ -157,7 +183,7 @@
       for (const [key, terrain] of Object.entries(terrainComplet)) {
         const [q, r] = key.split(',').map(Number);
         if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
-        tiles.push({ q, r, terrain, fog: 'visible', lit: terrain === 'ville' || worked.has(key) });
+        tiles.push({ q, r, terrain, fog: 'visible', allume: allumeDe(key, terrain) });
       }
     } else {
       for (const [key, tile] of Object.entries(filtered.map)) {
@@ -169,7 +195,7 @@
           q, r,
           terrain: tile.terrain,
           fog: visible.has(key) ? 'visible' : 'explored',
-          lit: tile.terrain === 'ville' || worked.has(key),
+          allume: allumeDe(key, tile.terrain),
         });
       }
     }

@@ -32,14 +32,23 @@ const FOG_DIM = new THREE.Color(0x4e4e5c);
 
 export type FogState = 'visible' | 'explored';
 
+/** Glyphes allumés par famille (rendement RÉEL — miroir `tileYield` : bus =
+ *  nourriture, CPU = production, RAM = commerce). Comptes bruts : world3d
+ *  borne au potentiel affiché de chaque famille. */
+export interface Allumage3D {
+  bus: number;
+  cpu: number;
+  ram: number;
+}
+
 /** Une tuile à dessiner (déjà filtrée : l'inexploré n'arrive JAMAIS ici — §4.4). */
 export interface TileDraw {
   q: number;
   r: number;
   terrain: string;
   fog: FogState;
-  /** Case « allumée » (travaillée par une ville ou case de ville — rendement actif). */
-  lit: boolean;
+  /** Rendement réel de la case (L2) ; absent = actifs de base de la spec. */
+  allume?: Allumage3D;
 }
 
 export interface World3DStats {
@@ -349,15 +358,22 @@ export class TerrainWorld {
       };
 
       const g = spec.glyphe;
-      const actifs = t.lit ? g.total : g.actifs;
-      if (g.famille === 'bus') poserBus(voiesBus(g.total), actifs, 0);
-      else if (g.famille === 'cpu') poserCpu(empreintesCpu(g.total), masquee ? 0 : actifs);
-      else if (g.famille === 'ram') poserRam(slotsRam(g.total), masquee ? 0 : actifs);
+      // Rendement RÉEL (L2 — miroir exact de `tileYield`) : chaque famille
+      // s'allume selon la composante du rendement de la case, bornée au
+      // potentiel affiché (total = base + bonus de bâtiment). Sans info
+      // (`allume` absent — bench), actifs de base de la spec.
+      const a = t.allume;
+      const limite = (v: number, total: number) => Math.max(0, Math.min(v, total));
+      if (g.famille === 'bus') poserBus(voiesBus(g.total), limite(a?.bus ?? g.actifs, g.total), 0);
+      else if (g.famille === 'cpu') poserCpu(empreintesCpu(g.total), masquee ? 0 : limite(a?.cpu ?? g.actifs, g.total));
+      else if (g.famille === 'ram') poserRam(slotsRam(g.total), masquee ? 0 : limite(a?.ram ?? g.actifs, g.total));
       if (spec.glypheSecond) {
         const g2 = spec.glypheSecond;
-        // eau : RAM (commerce) toujours allumée ; bus soumis au Port (lit).
-        if (g2.famille === 'ram') poserRam(slotsRam(g2.total, spec.glypheSecondZ ?? 0), masquee ? 0 : g2.actifs);
-        else poserBus(voiesBus(g2.total), t.lit ? 1 : 0, spec.glypheSecondZ ?? 0);
+        // eau : RAM (commerce, base 2) selon le rendement réel ; bus selon la
+        // nourriture — le Port (+1 nourriture sur l'eau) allume la voie, sans
+        // Port la nourriture de base 0 la laisse pâle (comme la vitrine).
+        if (g2.famille === 'ram') poserRam(slotsRam(g2.total, spec.glypheSecondZ ?? 0), masquee ? 0 : limite(a?.ram ?? g2.actifs, g2.total));
+        else poserBus(voiesBus(g2.total), limite(a?.bus ?? g2.actifs, g2.total), spec.glypheSecondZ ?? 0);
       }
     }
 
