@@ -10,6 +10,7 @@
    */
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
+  import * as THREE from 'three';
   import { hexToPixel, inRectangle, tileKeyOf, unitType, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS } from '@game/rules';
   import type { GameState, Hex } from '@game/rules';
   import type { Order } from '@game/shared';
@@ -25,6 +26,14 @@
   import type { Point } from './arrows.js';
   import { clickAction, myEngineId } from './interaction.js';
   import type { ClickAction } from './interaction.js';
+  // Chantier V1 (L3) — couche hybride : terrain Three.js + sprites PixiJS
+  // projetés (option B du spike), derrière un flag de repli (défaut : 2D).
+  import { Stage3D } from '../render3d/stage3d.js';
+  import { TerrainWorld, mapBoundsWorld, pickHex3D, hexWorldPos, hexAtWorld } from '../render3d/world3d.js';
+  import type { TileDraw } from '../render3d/world3d.js';
+  import { elevationDe } from '../render3d/optionA.js';
+  import { contexteRendement, allumeDe } from '../render3d/rendement.js';
+  import type { ContexteRendement } from '../render3d/rendement.js';
 
   interface Props {
     client: GameClient;
@@ -48,6 +57,9 @@
      *  dessiné en teinte verte (riche) → rouge (pauvre). Optionnel : absent du
      *  jeu réel, fourni uniquement par le labo de calibrage. */
     fertilityHeatmap?: Record<string, number> | null;
+    /** Chantier V1 (L3) : terrain en vraie 3D (option B hybride) — flag de
+     *  repli, DÉFAUT FAUX (rendu 2D conservé jusqu'à l'acceptation d'Erik). */
+    mode3d?: boolean;
   }
 
   let {
@@ -63,6 +75,7 @@
     showYields = false,
     hideEntities = false,
     fertilityHeatmap = null,
+    mode3d = false,
   }: Props = $props();
 
   // La bascule de l'overlay de rendements reconstruit la surcouche ; le
@@ -139,6 +152,39 @@
   let rafId = 0;
   let fallbackInterval: ReturnType<typeof setInterval> | null = null;
 
+  // --- Chantier V1 (L3) : couche 3D hybride (terrain Three.js en fond, les
+  // entités/surcouche PixiJS restent projetées par la caméra 3D partagée). ---
+  let stage3d: Stage3D | null = null;
+  let terrain3d: TerrainWorld | null = null;
+  let canvas3d: HTMLCanvasElement | null = null;
+  let rendement: ContexteRendement | null = null;
+  /** 3D actif = flag du parent ET moteur 3D monté (setup réussi). */
+  const mode3dActif = (): boolean => mode3d && !!stage3d && !!terrain3d;
+  /**
+   * Positionne un enfant de couche en coordonnées MONDE (px moteur) et
+   * l'« estampe » pour la reprojection 3D par frame (`__wx/__wy/__ws`). En 2D
+   * le conteneur `world` porte la caméra — l'estampille est simplement ignorée.
+   */
+  function poser3d(c: Container, x: number, y: number): void {
+    c.position.set(x, y);
+    const t = c as Container & { __wx?: number; __wy?: number; __ws?: number };
+    t.__wx = x;
+    t.__wy = y;
+    t.__ws = c.scale.x;
+  }
+  /** Géométrie « absolue » (flèches, chemins) tracée en coordonnées monde —
+   *  redessinée in-place à chaque frame en 3D depuis ces points. */
+  interface Suivi3D {
+    points: Point[];
+    width: number;
+    color: number;
+    alpha: number;
+    dashed?: boolean;
+    tete?: boolean;
+    pastille?: boolean;
+  }
+  type Suivable = Graphics & { __suivi3d?: Suivi3D };
+
   function onNewView(v: GameView): void {
     scene.view = v;
     scene.state = v.state;
@@ -151,7 +197,9 @@
     if (v.state) {
       bounds = mapBounds(HEX_SIZE, v.state.mapWidth, v.state.mapHeight);
       camera.clamp(bounds, vw, vh);
+      if (stage3d) stage3d.cam.bounds = mapBoundsWorld(v.state.mapWidth, v.state.mapHeight);
     }
+    if (v.state && mode3d) rendement = contexteRendement(v.state, scene.myId);
     tilesDirty = true;
     entitiesDirty = true;
     overlayDirty = true;
@@ -171,8 +219,14 @@
     const focus = myCities[0] ?? myUnits[0];
     if (!focus) return;
     centered = true;
-    camera.centerOn(hexToPixel(focus, HEX_SIZE).x, hexToPixel(focus, HEX_SIZE).y, vw, vh);
-    camera.clamp(bounds, vw, vh);
+    if (mode3dActif()) {
+      const { x, z } = hexWorldPos(focus);
+      stage3d!.cam.centerOn(x, z);
+      stage3d!.cam.clamp(vw, vh);
+    } else {
+      camera.centerOn(hexToPixel(focus, HEX_SIZE).x, hexToPixel(focus, HEX_SIZE).y, vw, vh);
+      camera.clamp(bounds, vw, vh);
+    }
     cameraChanged = true;
   }
 
@@ -277,7 +331,7 @@
         const b = hexToPixel(anim.to, HEX_SIZE);
         c.position.set(a.x + (b.x - a.x) * anim.t, a.y + (b.y - a.y) * anim.t);
       } else {
-        c.position.set(p.x, p.y);
+        poser3d(c, p.x, p.y);
       }
       // PV (override de combat pendant le playback).
       const hp = playback.hpOf(unit.id, unit.hp);
@@ -321,7 +375,7 @@
         citySprites.set(city.id, c);
       }
       const p = hexToPixel(city, HEX_SIZE);
-      c.position.set(p.x, p.y);
+      poser3d(c, p.x, p.y);
       // Progression de production (R-62) : barre or + pop.
       const prodFill = c.getChildByLabel('prodFill') as Sprite;
       const popText = c.getChildByLabel('pop') as Text;
@@ -357,7 +411,7 @@
         villageSprites.set(village.id, c);
       }
       const p = hexToPixel(village, HEX_SIZE);
-      c.position.set(p.x, p.y);
+      poser3d(c, p.x, p.y);
       const tint = scene.visible.has(key) ? 0xffffff : 0x70707e;
       const accent = c.getChildByLabel('accent') as Sprite;
       if (accent) accent.tint = tint;
@@ -388,7 +442,7 @@
         hutSprites.set(hut.id, c);
       }
       const p = hexToPixel(hut, HEX_SIZE);
-      c.position.set(p.x, p.y);
+      poser3d(c, p.x, p.y);
       const tint = scene.visible.has(key) ? 0xffffff : 0x70707e;
       const accent = c.getChildByLabel('accent') as Sprite;
       if (accent) accent.tint = tint;
@@ -414,7 +468,7 @@
         artefactSprites.set(artefact.id, c);
       }
       const p = hexToPixel(artefact, HEX_SIZE);
-      c.position.set(p.x, p.y);
+      poser3d(c, p.x, p.y);
       const tint = scene.visible.has(key) ? 0xffffff : 0x8a8a98;
       const accent = c.getChildByLabel('accent') as Sprite;
       if (accent) accent.tint = scene.visible.has(key) ? 0xffd479 : tint;
@@ -602,7 +656,7 @@
     }
     artefactPingGlow.visible = true;
     const p = hexToPixel(hex, HEX_SIZE);
-    artefactPingGlow.position.set(p.x, p.y);
+    poser3d(artefactPingGlow, p.x, p.y);
   }
 
   /** Surcouche : sélection, brouillon de chemin, ordres soumis, possessions. */
@@ -792,6 +846,12 @@
         gr.lineTo(p.x, p.y);
       }
       gr.stroke({ width: 6, color: 0xffe082, alpha: 0.75 });
+      if (origin) {
+        (gr as Suivable).__suivi3d = {
+          points: [origin, ...draft.path.map((step) => hexToPixel(step, HEX_SIZE))],
+          width: 6, color: 0xffe082, alpha: 0.75,
+        };
+      }
       overlayLayer.addChild(gr);
       for (const step of draft.path) {
         const dot = new Graphics();
@@ -902,6 +962,7 @@
     // Pastille discrète à l'origine (départ lisible même sur un chemin court).
     gr.circle(points[0]!.x, points[0]!.y, 8).fill({ color, alpha });
     gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
+    (gr as Suivable).__suivi3d = { points, width: 6, color, alpha, dashed, tete: true, pastille: true };
     overlayLayer.addChild(gr);
   }
 
@@ -920,6 +981,7 @@
       gr.stroke({ width: 7, color, alpha: 0.85 });
       gr.circle(a.x, a.y, 9).fill({ color, alpha: 0.85 });
       gr.poly(arrowHeadPoints(a, b, 36).flatMap((p) => [p.x, p.y])).fill({ color, alpha: 0.95 });
+      (gr as Suivable).__suivi3d = { points: [a, b], width: 7, color, alpha: 0.85, tete: true, pastille: true };
       effectsLayer.addChild(gr);
     }
     for (const fx of playback.fxList) {
@@ -963,7 +1025,7 @@
       tickInner(tickerDeltaMs);
     } catch (err) {
       // Surface l'erreur une fois pour le débogage (dev) sans tuer la boucle.
-      (window as unknown as Record<string, unknown>).__tickError = String(err);
+      (window as unknown as Record<string, unknown>).__tickError = err instanceof Error ? (err.stack ?? String(err)) : String(err);
       if (rafId) cancelAnimationFrame(rafId);
       if (fallbackInterval !== null) clearInterval(fallbackInterval);
       rafId = 0;
@@ -977,7 +1039,14 @@
     const dt = Math.min(100, now - lastFrame);
     lastFrame = now;
     playback.update(dt);
-    if (tilesDirty || cameraChanged) {
+    if (mode3dActif()) {
+      // Terrain 3D : rebuild seulement quand les DONNÉES changent (tuiles
+      // instanciées dessinées en entier quel que soit le zoom — bench L0).
+      if (tilesDirty) {
+        mettreAJourTerrain3d();
+        tilesDirty = false;
+      }
+    } else if (tilesDirty || cameraChanged) {
       rebuildTiles();
       tilesDirty = false;
     }
@@ -990,8 +1059,10 @@
       overlayDirty = false;
     }
     if (cameraChanged) {
-      world.position.set(camera.x, camera.y);
-      world.scale.set(camera.scale);
+      if (!mode3dActif()) {
+        world.position.set(camera.x, camera.y);
+        world.scale.set(camera.scale);
+      }
       cameraChanged = false;
     }
     if (playback.active) {
@@ -1002,9 +1073,14 @@
         if (!c) continue;
         const a = hexToPixel(anim.from, HEX_SIZE);
         const b = hexToPixel(anim.to, HEX_SIZE);
-        c.position.set(a.x + (b.x - a.x) * anim.t, a.y + (b.y - a.y) * anim.t);
+        poser3d(c, a.x + (b.x - a.x) * anim.t, a.y + (b.y - a.y) * anim.t);
       }
       rebuildEffects();
+    }
+    if (mode3dActif()) {
+      projeterCalques3d();
+      terrain3d!.tick(dt / 1000, true);
+      terrain3d!.breathe(now / 1000, true);
     }
     if (playback.active !== lastPlaybackActive) {
       lastPlaybackActive = playback.active;
@@ -1012,6 +1088,96 @@
       onPlaybackActive?.(playback.active);
     }
     void tickerDeltaMs;
+  }
+
+  // --- Chantier V1 (L3) : terrain 3D, picking et projection -----------------
+
+  /** Construit les tuiles à dessiner depuis l'état FILTRÉ (inexploré absent,
+   *  §4.4) avec le rendement RÉEL (miroir tileYield — render3d/rendement). */
+  function mettreAJourTerrain3d(): void {
+    if (!terrain3d || !scene.state || !rendement) return;
+    const tiles: TileDraw[] = [];
+    for (const [key, tile] of Object.entries(scene.state.map)) {
+      const [q, r] = key.split(',').map(Number);
+      if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+      tiles.push({
+        q, r,
+        terrain: tile.terrain,
+        fog: scene.visible.has(key) ? 'visible' : 'explored',
+        allume: allumeDe(rendement, key),
+      });
+    }
+    terrain3d.update(tiles);
+  }
+
+  /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping linéaire. */
+  function hexSousEcran(x: number, y: number): Hex | null {
+    if (mode3dActif()) {
+      return pickHex3D(x, y, vw, vh, stage3d!.cam, (hex) => scene.state?.map[tileKeyOf(hex)]?.terrain ?? null);
+    }
+    return screenToHex(x, y, camera, HEX_SIZE);
+  }
+
+  /** Reprojecte chaque frame les couches PixiJS (entités, ressources,
+   *  surcouche, effets) dans l'espace écran de la caméra 3D. Les enfants
+   *  « estampés » (position monde) sont projetés ; les géométries absolues
+   *  (flèches, chemins — `__suivi3d`) sont redessinées in-place, point par
+   *  point (chaque point suit l'élévation de SA case). En 2D cette fonction
+   *  n'est pas appelée : le conteneur `world` porte la caméra. */
+  function projeterCalques3d(): void {
+    const cam = stage3d!.cam;
+    /** Point monde (px moteur) → point écran + échelle locale. */
+    const projeterPoint = (wx: number, wy: number): { x: number; y: number; k: number } | null => {
+      const hex = hexAtWorld(wx / HEX_SIZE, wy / HEX_SIZE);
+      const elev = elevationDe(scene.state?.map[tileKeyOf(hex)]?.terrain);
+      const p = cam.project(new THREE.Vector3(wx / HEX_SIZE, elev + 0.05, wy / HEX_SIZE), vw, vh);
+      return p ? { x: p.x, y: p.y, k: p.pxPerUnit / HEX_SIZE } : null;
+    };
+    const redessinerSuivi = (gr: Suivable, k: number, pf: (p: Point) => Point): void => {
+      const s = gr.__suivi3d!;
+      gr.clear();
+      const pts = s.points.map(pf);
+      if (pts.length < 2) return;
+      const segs = segmentsOf(pts);
+      for (const [a, b] of s.dashed ? segs.flatMap(([a, b]) => dashSegments(a, b)) : segs) gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
+      gr.stroke({ width: s.width * k, color: s.color, alpha: s.alpha });
+      if (s.pastille) gr.circle(pts[0]!.x, pts[0]!.y, 8 * k).fill({ color: s.color, alpha: s.alpha });
+      if (s.tete) {
+        const [lastFrom, lastTo] = segs[segs.length - 1]!;
+        gr.poly(arrowHeadPoints(lastFrom, lastTo, 34 * k).flatMap((p) => [p.x, p.y])).fill({ color: s.color, alpha: Math.min(1, s.alpha + 0.1) });
+      }
+    };
+    for (const [layer, reconstruiteEnBloc] of [[entitiesLayer, false], [overlayLayer, true], [effectsLayer, true]] as const) {
+      for (const child of layer.children) {
+        const c = child as Container & Suivable & { __wx?: number; __wy?: number; __ws?: number };
+        if (c.__suivi3d) {
+          const s = c.__suivi3d;
+          const premiere = projeterPoint(s.points[0]!.x, s.points[0]!.y);
+          if (!premiere) { c.visible = false; continue; }
+          c.visible = true;
+          c.position.set(0, 0);
+          redessinerSuivi(c, premiere.k, (p) => {
+            const pr = projeterPoint(p.x, p.y);
+            return pr ? { x: pr.x, y: pr.y } : { x: premiere.x, y: premiere.y };
+          });
+        } else {
+          // Couche reconstruite en bloc (overlay/effets) : la position courante
+          // VIENT d'être posée en coordonnées monde — on l'estampe. Les couches
+          // incrémentales (entités) passent par poser3d explicitement.
+          if (c.__wx === undefined || c.__wy === undefined) {
+            if (!reconstruiteEnBloc) continue;
+            c.__wx = c.x; c.__wy = c.y; c.__ws = c.scale.x;
+          }
+          const wx = c.__wx, wy = c.__wy;
+          if (wx === undefined || wy === undefined) continue;
+          const pr = projeterPoint(wx, wy);
+          if (!pr) { c.visible = false; continue; }
+          c.visible = true;
+          c.position.set(pr.x, pr.y);
+          c.scale.set((c.__ws ?? 1) * pr.k);
+        }
+      }
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -1072,9 +1238,9 @@
   function updateTip(e: PointerEvent): void {
     if (!app) return;
     const p = canvasPos(e);
-    const hex = screenToHex(p.x, p.y, camera, HEX_SIZE);
+    const hex = hexSousEcran(p.x, p.y);
     const state = scene.state;
-    if (!state || !inRectangle(hex, state.mapWidth, state.mapHeight)) {
+    if (!hex || !state || !inRectangle(hex, state.mapWidth, state.mapHeight)) {
       tip = null;
       tipHex = null;
       return;
@@ -1103,8 +1269,13 @@
     const dy = p.y - pointer.y;
     if (!dragging && Math.hypot(dx, dy) > PAN_THRESHOLD) dragging = true;
     if (dragging) {
-      camera.panBy(dx, dy);
-      camera.clamp(bounds, vw, vh);
+      if (mode3dActif()) {
+        stage3d!.cam.panBy(dx, dy, vh);
+        stage3d!.cam.clamp(vw, vh);
+      } else {
+        camera.panBy(dx, dy);
+        camera.clamp(bounds, vw, vh);
+      }
       cameraChanged = true;
     }
     pointer = p;
@@ -1123,7 +1294,8 @@
       return;
     }
     if (!scene.view) return;
-    const hex = screenToHex(p.x, p.y, camera, HEX_SIZE);
+    const hex = hexSousEcran(p.x, p.y);
+    if (!hex) return;
     onAction(clickAction(scene.view, scene.ui, hex));
   }
 
@@ -1131,8 +1303,12 @@
     e.preventDefault();
     const p = canvasPos(e);
     const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-    if (camera.zoomAt(p.x, p.y, factor)) {
-      camera.clamp(bounds, vw, vh);
+    const changed = mode3dActif()
+      ? stage3d!.cam.zoomAt(p.x, p.y, vw, vh, factor)
+      : camera.zoomAt(p.x, p.y, factor);
+    if (changed) {
+      if (mode3dActif()) stage3d!.cam.clamp(vw, vh);
+      else camera.clamp(bounds, vw, vh);
       cameraChanged = true;
     }
   }
@@ -1141,7 +1317,9 @@
     e.preventDefault();
     if (playback.active) return;
     if (!scene.view) return onCancelDraft();
-    onRightClick(screenToHex(canvasPos(e).x, canvasPos(e).y, camera, HEX_SIZE));
+    const hex = hexSousEcran(canvasPos(e).x, canvasPos(e).y);
+    if (!hex) return;
+    onRightClick(hex);
   }
 
   function onKey(e: KeyboardEvent): void {
@@ -1158,6 +1336,13 @@
 
   function centerOnHex(hex: Hex): void {
     if (!app) return;
+    if (mode3dActif()) {
+      const { x, z } = hexWorldPos(hex);
+      stage3d!.cam.centerOn(x, z);
+      stage3d!.cam.clamp(vw, vh);
+      cameraChanged = true;
+      return;
+    }
     const p = hexToPixel(hex, HEX_SIZE);
     camera.centerOn(p.x, p.y, vw, vh);
     camera.clamp(bounds, vw, vh);
@@ -1174,6 +1359,7 @@
   // ---------------------------------------------------------------------
 
   $effect(() => {
+    void mode3d; // bascule 2D ↔ 3D : remontage complet du rendu (flag de repli)
     void setup();
     return () => {
       teardown();
@@ -1182,10 +1368,19 @@
   onDestroy(() => teardown());
 
   async function setup(): Promise<void> {
-    if (!host || disposed) return;
+    disposed = false;
+    if (!host) return;
+    // Chantier V1 (L3) : en 3D, le canvas Three.js est posé SOUS le canvas
+    // PixiJS (posé ensuite) — il reçoit les entrées via Pixi au-dessus.
+    if (mode3d && !canvas3d) {
+      canvas3d = document.createElement('canvas');
+      canvas3d.style.position = 'absolute';
+      canvas3d.style.inset = '0';
+      host.appendChild(canvas3d);
+    }
     const application = new Application();
     await application.init({
-      background: '#141a20',
+      ...(mode3d ? { backgroundAlpha: 0 } : { background: '#141a20' }),
       antialias: true,
       resolution: Math.min(2, window.devicePixelRatio || 1),
       autoDensity: true,
@@ -1198,6 +1393,13 @@
     }
     app = application;
     host.appendChild(application.canvas);
+    if (mode3d && canvas3d) {
+      // Superposition stricte : le canvas Pixi (entités + surcouche) doit
+      // recouvrir exactement le canvas 3D, sinon les entrées partent sur le
+      // canvas Three et les entités défilent hors du cadre.
+      application.canvas.style.position = 'absolute';
+      application.canvas.style.inset = '0';
+    }
 
     // Assets réels (/art/, SPEC-ART) avec fallback placeholder fichier par fichier.
     textures = await loadTextures(application.renderer);
@@ -1209,6 +1411,23 @@
     effectsLayer = new Container();
     world.addChild(tilesLayer, resourceLayer, overlayLayer, entitiesLayer, effectsLayer);
     application.stage.addChild(world);
+    if (mode3d && canvas3d) {
+      // Terrain en 3D ; les icônes de ressources 2D sont masquées (les
+      // glyphes de ressource dédiés restent 🔶 V2 — pas de double lecture).
+      tilesLayer.visible = false;
+      resourceLayer.visible = false;
+      stage3d = new Stage3D(canvas3d);
+      stage3d.setBloom(false); // 🔶 calibrage bloom (rapport L0 §9) : éteint dans le jeu
+      stage3d.resize(vw, vh);
+      terrain3d = new TerrainWorld(stage3d.scene, { capacity: 1700, bloom: false });
+      if (scene.state) {
+        stage3d.cam.bounds = mapBoundsWorld(scene.state.mapWidth, scene.state.mapHeight);
+        rendement = contexteRendement(scene.state, scene.myId);
+      }
+      // La caméra 2D n'est plus la source de vérité : recentre la 3D sur la
+      // même cible (maybeCenter repart de `centered` si déjà fait).
+      centered = false;
+    }
 
     vw = host.clientWidth || 800;
     vh = host.clientHeight || 600;
@@ -1232,9 +1451,19 @@
     if (import.meta.env.DEV) {
       (window as unknown as Record<string, unknown>).__game = {
         clickHex: (q: number, r: number) => onAction(clickAction(scene.view!, scene.ui, { q, r })),
+        // Picking réel (2D ou 3D selon le flag) — vérifications GUI automatisées.
+        pickAt: (x: number, y: number) => { const h = hexSousEcran(x, y); return h ? `${h.q},${h.r}` : null; },
         centerOn: (q: number, r: number) => centerOnHex({ q, r }),
         camera: () => ({ x: camera.x, y: camera.y, scale: camera.scale }),
         screenOf: (q: number, r: number) => {
+          if (mode3dActif()) {
+            const { x, z } = hexWorldPos({ q, r });
+            const p = stage3d!.cam.project(
+              new THREE.Vector3(x, elevationDe(scene.state?.map[tileKeyOf({ q, r })]?.terrain) + 0.05, z),
+              vw, vh,
+            );
+            return p ? { x: p.x, y: p.y } : null;
+          }
           const w = hexToPixel({ q, r }, HEX_SIZE);
           return { x: w.x * camera.scale + camera.x, y: w.y * camera.scale + camera.y };
         },
@@ -1247,6 +1476,10 @@
       vw = Math.max(1, entry.contentRect.width);
       vh = Math.max(1, entry.contentRect.height);
       app.renderer.resize(vw, vh);
+      if (stage3d) {
+        stage3d.resize(vw, vh);
+        stage3d.cam.clamp(vw, vh);
+      }
       camera.clamp(bounds, vw, vh);
       cameraChanged = true;
       tilesDirty = true;
@@ -1263,6 +1496,7 @@
       const now = performance.now();
       tick(Math.min(100, now - lastFrame));
       lastFrame = now;
+      stage3d?.render();
       application2.renderer.render(application2.stage);
     };
     const rafLoop = (): void => {
@@ -1343,6 +1577,18 @@
     resizeObserver?.disconnect();
     if (rafId) cancelAnimationFrame(rafId);
     if (fallbackInterval !== null) clearInterval(fallbackInterval);
+    if (terrain3d) {
+      terrain3d.dispose();
+      terrain3d = null;
+    }
+    if (stage3d) {
+      stage3d.dispose();
+      stage3d = null;
+    }
+    if (canvas3d) {
+      canvas3d.remove();
+      canvas3d = null;
+    }
     if (app) {
       const canvas = app.canvas;
       canvas.removeEventListener('pointerdown', onPointerDown);
@@ -1355,6 +1601,24 @@
       app.destroy(true, { children: true, texture: true, textureSource: true });
       app = null;
     }
+    // app.destroy détruit tous les conteneurs : les caches de sprites doivent
+    // être purgés, sinon le remontage (bascule 2D ↔ 3D) réutilise des objets
+    // détruits — position null, crash du ticker (poser3d / rebuild*).
+    tileSprites.clear();
+    resourceSprites.clear();
+    unitSprites.clear();
+    citySprites.clear();
+    villageSprites.clear();
+    hutSprites.clear();
+    artefactSprites.clear();
+    artefactPingGlow = null;
+    textures = null;
+    world = new Container();
+    tilesLayer = new Container();
+    resourceLayer = new Container();
+    overlayLayer = new Container();
+    entitiesLayer = new Container();
+    effectsLayer = new Container();
   }
 </script>
 

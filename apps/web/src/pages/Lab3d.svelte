@@ -26,7 +26,6 @@
   import { onMount, untrack } from 'svelte';
   import * as THREE from 'three';
   import {
-    allKnownTechs,
     createInitialState,
     generateProceduralMap,
     getFilteredState,
@@ -41,6 +40,7 @@
   import type { ClickAction } from '../lib/render/interaction.js';
   import { createUiState } from '../lib/render/ui.js';
   import type { UiState } from '../lib/render/ui.js';
+  import { contexteRendement, allumeDe as allumeDans } from '../lib/render3d/rendement.js';
   import { FOV } from '../lib/render3d/camera3d.js';
   import { Stage3D } from '../lib/render3d/stage3d.js';
   import { TerrainWorld, mapBoundsWorld, pickHex3D, hexWorldPos } from '../lib/render3d/world3d.js';
@@ -157,33 +157,25 @@
     }
 
     // --- L2 : lueur = rendement RÉEL (miroir exact des helpers moteur) -------
-    const etat = filtered;
-    const moi = etat.players['p1'];
-    const techs = moi?.techsUnlocked ?? [];
-    const tousTechs = allKnownTechs(etat);
-    const civ = moi && moi.civId !== 'neutre' ? { civId: moi.civId, era: moi.era } : undefined;
-    const villeQuiTravaille = new Map<string, (typeof etat.cities)[string]>();
-    for (const city of Object.values(etat.cities)) {
-      for (const key of city.workedTiles) villeQuiTravaille.set(key, city);
-    }
-    /** Case travaillée : tileYield complet (bâtiments R-66, civ R-146,
-     *  ressources R-93, merveilles R-132) ; case non travaillée : base +
-     *  ressource identifiée — même règle que l'overlay 2D de GameCanvas. */
-    const allumeDe = (key: string, terrain: string) => {
-      const map = (carteEntiere ? terrainCompletMap : etat.map) as Parameters<typeof tileYield>[0];
-      const city = villeQuiTravaille.get(key);
-      const y = tileYield(map, city ? city.buildings : [], key, techs, city?.wonders ?? [], tousTechs, city && civ ? civ : undefined);
-      return y ? { bus: y.food, cpu: y.production, ram: y.commerce } : undefined;
+    // Calcul partagé avec le jeu (render3d/rendement.ts) — pas de logique
+    // dupliquée. Le bench remplace seulement la carte (terrain complet
+    // synthétique, exploration pire-cas).
+    const ctxRendement = contexteRendement(filtered, 'p1');
+    const ctxBench: typeof ctxRendement = {
+      ...ctxRendement,
+      map: terrainCompletMap as Parameters<typeof tileYield>[0],
     };
+    const allumeDe = (key: string): ReturnType<typeof allumeDans> =>
+      allumeDans(carteEntiere ? ctxBench : ctxRendement, key);
 
     const tiles: TileDraw[] = [];
     if (carteEntiere) {
       // Bench : terrain complet de la vraie carte, exploration synthétique
-      // (pire cas d'instanciation — 1600 tuiles visibles, glyphes allumés).
+      // (pire cas d'instanciation — 1600 tuiles visibles, rendements réels).
       for (const [key, terrain] of Object.entries(terrainComplet)) {
         const [q, r] = key.split(',').map(Number);
         if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
-        tiles.push({ q, r, terrain, fog: 'visible', allume: allumeDe(key, terrain) });
+        tiles.push({ q, r, terrain, fog: 'visible', allume: allumeDe(key) });
       }
     } else {
       for (const [key, tile] of Object.entries(filtered.map)) {
@@ -195,7 +187,7 @@
           q, r,
           terrain: tile.terrain,
           fog: visible.has(key) ? 'visible' : 'explored',
-          allume: allumeDe(key, tile.terrain),
+          allume: allumeDe(key),
         });
       }
     }

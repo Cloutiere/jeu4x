@@ -553,16 +553,35 @@ function bakeEntity(renderer: Renderer, e: { base: Graphics; accent: Graphics })
 
 /** Génère TOUTES les textures placeholder (à appeler après `app.init`). */
 export function createTextures(renderer: Renderer): GameTextures {
+  // Les 6 unités « illustres » sont des ALIAS (même Graphics que leur unité
+  // source — 7j/R-126) et bake() détruit le Graphics après cuisson : un
+  // partage sans cache re-cuirait un objet détruit (crash generateTexture,
+  // cf. rapport L0 §8.1 — carte noire au chargement). Chaque Graphics est
+  // donc cuit UNE SEULE FOIS et les alias partagent la même Texture.
+  const cuits = new Map<Graphics, Texture>();
+  const bakeOnce = (gr: Graphics): Texture => {
+    let tex = cuits.get(gr);
+    if (!tex) {
+      tex = bake(renderer, gr);
+      cuits.set(gr, tex);
+    }
+    return tex;
+  };
+  const bakeEntityOnce = (e: { base: Graphics; accent: Graphics }): EntityTexture => ({
+    base: bakeOnce(e.base),
+    accent: bakeOnce(e.accent),
+  });
+
   const tileGraphics = buildTileGraphics();
   const tiles = {} as Record<TerrainId, Texture>;
   for (const [id, gr] of Object.entries(tileGraphics)) {
-    tiles[id as TerrainId] = bake(renderer, gr);
+    tiles[id as TerrainId] = bakeOnce(gr);
   }
 
   const unitGraphics = buildUnitGraphics();
   const units: Record<string, EntityTexture> = {};
   for (const [id, e] of Object.entries(unitGraphics)) {
-    units[id] = bakeEntity(renderer, e);
+    units[id] = bakeEntityOnce(e);
   }
 
   const px = Texture.WHITE;
@@ -580,20 +599,20 @@ export function createTextures(renderer: Renderer): GameTextures {
       ...units,
       // R-95 (Phase 7d) : variantes barbares — accent gris-brun au rendu
       // (playerColor('barbarien')), silhouettes distinctes des joueurs.
-      barbare_guerrier: bakeEntity(renderer, barbarianUnits.guerrier!),
-      barbare_archer: bakeEntity(renderer, barbarianUnits.archer!),
+      barbare_guerrier: bakeEntityOnce(barbarianUnits.guerrier!),
+      barbare_archer: bakeEntityOnce(barbarianUnits.archer!),
     },
     cities: {
-      settlement: bakeEntity(renderer, buildSettlementGraphics()),
-      capital: bakeEntity(renderer, buildCapitalGraphics()),
+      settlement: bakeEntityOnce(buildSettlementGraphics()),
+      capital: bakeEntityOnce(buildCapitalGraphics()),
     },
     // R-96/R-98 : village barbare et hutte bonus (placeholders cuisés ; les
     // assets réels remplacent via loadTextures).
-    villageBarbare: bakeEntity(renderer, buildVillageBarbareGraphics()),
-    hutte: bakeEntity(renderer, buildHutGraphics()),
+    villageBarbare: bakeEntityOnce(buildVillageBarbareGraphics()),
+    hutte: bakeEntityOnce(buildHutGraphics()),
     // 7o · R-153 : artefacts (placeholders — assets réels via generate.py).
     artefacts: Object.fromEntries(
-      ARTEFACT_IDS.map((id) => [id, bakeEntity(renderer, buildArtefactGraphics(id))]),
+      ARTEFACT_IDS.map((id) => [id, bakeEntityOnce(buildArtefactGraphics(id))]),
     ) as Record<string, EntityTexture>,
     yieldIcons,
     resources: {},

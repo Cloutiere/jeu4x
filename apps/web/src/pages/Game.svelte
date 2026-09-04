@@ -355,6 +355,14 @@
   // Phase 6 L3 : overlay des rendements N/P/C — cycle 3 états (Phase 7b) :
   // 0 masqué → 1 affiché → 2 affiché SANS villes/armées (lire les rendements
   // sous les entités) → 0.
+  // Chantier V1 (L3) : rendu 3D du terrain (option B hybride) — flag de repli
+  // DÉFAUT DÉSACTIVÉ (rendu 2D conservé jusqu'à l'acceptation visuelle d'Erik).
+  let rendu3d = $state(typeof localStorage !== 'undefined' && localStorage.getItem('rendu3d') === '1');
+  function basculerRendu3d(): void {
+    rendu3d = !rendu3d;
+    localStorage.setItem('rendu3d', rendu3d ? '1' : '0');
+  }
+
   let yieldMode = $state<0 | 1 | 2>(0);
   const showYields = $derived(yieldMode > 0);
   const hideEntities = $derived(yieldMode === 2);
@@ -584,6 +592,14 @@
     >
       Rendements{yieldMode === 1 ? ' ✓' : yieldMode === 2 ? ' (seuls)' : ''}
     </button>
+    <button
+      type="button"
+      class:active-toggle={rendu3d}
+      title="Rendu 3D du terrain (chantier V1 — le rendu 2D reste disponible : ce bouton est un flag de repli)"
+      onclick={basculerRendu3d}
+    >
+      3D
+    </button>
     {#if devMode}<a href={`#/debug/${code}`}>Debug</a>{/if}
   </header>
 
@@ -603,6 +619,7 @@
           {playback}
           {showYields}
           {hideEntities}
+          mode3d={rendu3d}
           onAction={handleAction}
           onRightClick={handleRightClick}
           onCancelDraft={cancelDraft}
