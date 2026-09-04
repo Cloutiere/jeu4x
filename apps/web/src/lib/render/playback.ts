@@ -86,6 +86,8 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   VillageDestroyed: 420,
   CityRazed: 420,
   HutOpened: 360,
+  // 7o · R-153 : artefact (relique) activé.
+  ArtifactActivated: 900,
   // Phase 7f (R-113..R-116) : culture.
   GreatPersonSpawned: 380,
   InstallPerson: 360,
@@ -128,6 +130,8 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   // ville rasée / barbares engendrés (bad).
   VillageDestroyed: 'good',
   HutOpened: 'good',
+  // 7o · R-153 : artefact activé (relique revendiquée).
+  ArtifactActivated: 'good',
   CityRazed: 'bad',
   BarbarianSpawned: 'bad',
   // Phase 7f (R-113..R-116) : GP, installation, jalons, merveilles, ONU.
@@ -369,6 +373,11 @@ export class Playback {
         this.pushFx(ev.at, 'destroy', dur);
         break;
       case 'HutOpened':
+        this.pushFx(ev.at, 'good', dur);
+        break;
+      // 7o · R-153/R-155 : artefact activé (fx sur la case), indice de hutte
+      // (toast via TOAST_KINDS/eventLabel — le libellé porte l'indice).
+      case 'ArtifactActivated':
         this.pushFx(ev.at, 'good', dur);
         break;
       // Phase 7f (R-113..R-116) : culture — GP posé, installation, merveille.

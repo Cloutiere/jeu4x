@@ -144,6 +144,39 @@ function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCapture
   }
 }
 
+/** 7o · R-154 : libellé de l'effet d'un artefact activé (journal/toast). */
+export function artefactEffectLabel(
+  effect: string,
+  ev: { gold?: number; techs?: string[]; unitType?: string },
+): string {
+  switch (effect) {
+    case 'merveilleGratuiteAuChoix':
+      return 'choisissez une Merveille gratuite (édifice et ville)';
+    case 'templesVersCathedrales':
+      return 'Temple gratuit dans chaque ville ; les Temples deviennent des Cathédrales';
+    case 'orParEre':
+      return `+${ev.gold ?? 0} or dans la trésorerie`;
+    case 'personnagesGratuits':
+      return '3 Personnages Illustres rejoignent votre empire';
+    case 'uniteMilitaireParEre':
+      return `une unité militaire se joint à vous : ${unitLabelOf(ev.unitType)}`;
+    case 'troisTechsLesMoinsCheres':
+      return `technologies complétées : ${(ev.techs ?? []).join(', ')}`;
+    default:
+      return effect;
+  }
+}
+
+function unitLabelOf(typeId: string | undefined): string {
+  if (!typeId) return '?';
+  const labels: Record<string, string> = {
+    chevalier: 'Chevalier',
+    canon: 'Canon',
+    char_d_assaut: 'Char d’assaut',
+  };
+  return labels[typeId] ?? typeId;
+}
+
 /** R-98 : libellé d'une récompense de hutte. */
 export function hutRewardLabel(reward: HutReward): string {
   switch (reward.kind) {
@@ -157,6 +190,11 @@ export function hutRewardLabel(reward: HutReward): string {
       return `carte révélée (rayon ${reward.radius})`;
     case 'ambush':
       return `EMBUSCADE — ${reward.unitIds.length} barbare(s) !`;
+    case 'artefact_indice':
+      // 7o · R-155 : indice artefact — nombre restant ou position révélée.
+      return reward.position
+        ? `un temple caché : artefact repéré en (${reward.position.q},${reward.position.r})`
+        : `${reward.remaining} artefact(s) encore inexploré(s)`;
     case 'nothing':
       return 'rien';
   }
@@ -208,6 +246,8 @@ export function eventLabel(event: GameEvent): string {
       return `Ville ${event.cityId} RASÉE par les barbares (${event.owner} la perd)`;
     case 'HutOpened':
       return `Hutte ${event.hutId} ouverte par ${event.byPlayer} : ${hutRewardLabel(event.reward)}`;
+    case 'ArtifactActivated':
+      return `Artefact « ${event.name} » activé par ${event.byPlayer} — ${artefactEffectLabel(event.effect, event)}`;
     case 'GreatPersonSpawned':
       return `${greatPersonLabel(event.unitType)} apparaît dans ${event.cityId} (${event.owner}) — jauge remise à zéro`;
     case 'InstallPerson':

@@ -101,6 +101,12 @@ export type ClientToServerMessage = ProtoMessage &
      *  = 1 tour d'Anarchie (T-29) ; bascule sans Anarchie à la complétion de
      *  la tech (fenêtre R-122). */
     | { type: 'SetGovernment'; government: string }
+    /** 7o · R-154 · Choix Angkor Wat (artefact — merveille gratuite) — ACTION
+     *  IMMÉDIATE (hors ordres de tour, même contrat que SetGovernment) :
+     *  validée et appliquée à la réception (moteur pur applyAngkorChoice),
+     *  diffusion immédiate. N'existe que lorsqu'un droit est en attente
+     *  (`pendingArtefactChoices`). */
+    | { type: 'ChooseWonder'; cityId: CityId; wonderId: string }
     /** --- Messages de lobby (socket LobbyDO) --- */
     | { type: 'CreateGame'; settings: GameCreationSettings }
     /** 7n · R-145 : `civId` (+ `wonderId` pour la Merveille Antique de

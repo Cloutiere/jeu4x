@@ -375,6 +375,7 @@
               <tr><td>Tentatives</td><td>{report.attempts}</td></tr>
               <tr><td>Ressources</td><td>{report.counts.resources}</td></tr>
               <tr><td>Villages / Huttes</td><td>{report.counts.villages} / {report.counts.huts}</td></tr>
+              <tr><td>Artefacts (7o)</td><td>{report.counts.artefacts}</td></tr>
             </tbody>
           </table>
         {:else if !error}

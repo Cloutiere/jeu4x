@@ -137,6 +137,9 @@ import {
   drawHutReward,
   freeSpawnTiles,
 } from './barbares.js';
+// 7o · R-151..R-156 — artefacts (reliques) : activation Phase A + effets.
+import { activateArtefactAt, applyArtefactIndiceReward } from './artefacts.js';
+import type { ArtefactActivationContext } from './artefacts.js';
 
 export interface TurnResult {
   newState: GameState;
@@ -407,6 +410,15 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
     }
     case 'nothing':
       break;
+    case 'artefact_indice':
+      // 7o · R-155 : indice artefact — nombre restant OU position (RNG 50/50,
+      // table huttes.json) ; la position est révélée par l'application.
+      {
+        const hint = applyArtefactIndiceReward(board.st, opener.owner, hut, board.rng);
+        reward.remaining = hint.remaining;
+        if (hint.position) reward.position = hint.position;
+      }
+      break;
   }
 
   emit(board, {
@@ -417,6 +429,19 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
     at: { q: hut.q, r: hut.r },
     reward,
   });
+}
+
+/**
+ * 7o · R-153 : contexte d'activation des artefacts (Board → artefacts.ts) —
+ * l'émission (seq) et les aides de spawn restent liées au Board de résolution.
+ */
+function artefactCtxOf(board: Board): ArtefactActivationContext {
+  return {
+    st: board.st,
+    emit: (event) => emit(board, event),
+    freeSpawnTile: (center) => freeSpawnTiles(board.st, center, 1)[0] ?? null,
+    occupiedByUnit: (hex) => occupants(board, hex).length > 0,
+  };
 }
 
 function inMapAndPassable(board: Board, hex: Hex): boolean {
@@ -1264,6 +1289,7 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
         unit.mp -= 1;
         moveUnit(board, unit, next);
         openHutAt(board, next, unit);
+        activateArtefactAt(artefactCtxOf(board), unit, next); // 7o · R-153
         board.planned.push({ kind: 'villageAttack', at: next, attackerId: unit.id, villageId: village.id });
         break;
       }
@@ -1272,6 +1298,7 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
       unit.mp -= 1;
       moveUnit(board, unit, next);
       openHutAt(board, next, unit); // R-98 : ouverture à l'entrée (Phase A)
+      activateArtefactAt(artefactCtxOf(board), unit, next); // 7o · R-153 : entrée sur la case / Atlantide adjacente
       continue;
     }
     // 7m · R-143 · INFILTRATION : un espion ENTRE dans une ville (amie :
@@ -1304,6 +1331,7 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
       unit.mp -= 1;
       moveUnit(board, unit, next);
       openHutAt(board, next, unit);
+      activateArtefactAt(artefactCtxOf(board), unit, next); // 7o · R-153
       continue;
     }
     // Occupants ennemis.
@@ -1357,6 +1385,7 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
     unit.mp -= 1;
     moveUnit(board, unit, next);
     openHutAt(board, next, unit); // R-98 : la hutte s'ouvre avant le combat planifié
+    activateArtefactAt(artefactCtxOf(board), unit, next); // 7o · R-153
     board.planned.push({ kind: 'attack', at: next, attackerId: unit.id, defenderId: defender.id });
     break;
   }

@@ -25,6 +25,7 @@ import type { LoadedMap, MapData, MapPlayerSpawn } from '../map.js';
 import { TERRAINS, isWaterTerrain } from '../data.js';
 import type { TerrainId } from '../types.js';
 import { createRng } from '../rng.js';
+import { artefactsForMap } from '../artefacts.js';
 import { resolveProgenSettings } from './settings.js';
 import type { ProgenSettings } from './settings.js';
 import { generateTerrain } from './geo.js';
@@ -57,7 +58,8 @@ export interface ProgenReport {
   /** Phase 6c : répartition des eaux classifiées (côte vs océan profond). */
   coastTiles: number;
   oceanTiles: number;
-  counts: { resources: number; villages: number; huts: number };
+  /** 7o · R-151 : artefacts tirés et posés (reliques). */
+  counts: { resources: number; villages: number; huts: number; artefacts: number };
   /** Checksum d'équité : fertilité des 2 spawns sur la carte complète. */
   fertility: {
     p1: number;
@@ -213,9 +215,17 @@ export function generateProceduralMap(
       // cartes préfabriquées (aucun changement du loader — critère #3).
       const map = parseMap(data);
 
-      const [s1, s2] = map.spawns;
+      // 7o · R-151/R-152 : tirage et placement des artefacts (déterministe —
+      // graine dédiée dérivée du seed de partie ; Atlantide en haute mer,
+      // priorité aux îles). Portés par le MapData (labo #/progen, dump admin)
+      // et repris tels quels par createInitialState.
+      const artefacts = artefactsForMap(map, master);
+      data.artefacts = artefacts.map((a) => ({ artefactId: a.artefactId, q: a.q, r: a.r }));
+      const loaded: LoadedMap = { ...map, artefacts };
+
+      const [s1, s2] = loaded.spawns;
       if (!s1 || !s2) throw new ProgenPlacementError('spawns manquants');
-      const connected = landConnected(map, s1.capital, s2.capital);
+      const connected = landConnected(loaded, s1.capital, s2.capital);
       // Archipel : les spawns peuvent être sur des îles séparées — la
       // connexité terrestre n'est PAS requise (contact au naval, Phase 7).
       if (!connected && settings.continents !== 3) {
@@ -225,7 +235,7 @@ export function generateProceduralMap(
       let landTiles = 0;
       let coastTiles = 0;
       let oceanTiles = 0;
-      for (const t of Object.values(map.terrain)) {
+      for (const t of Object.values(loaded.terrain)) {
         if (isWaterTerrain(t as TerrainId)) {
           if (t === 'ocean') oceanTiles += 1;
           else coastTiles += 1;
@@ -236,10 +246,10 @@ export function generateProceduralMap(
       const totalTiles = data.width * data.height;
 
       const lookup: TerrainLookup = {
-        terrainAt: (h) => map.terrain[tileKeyOf(h)] as TerrainId | undefined,
+        terrainAt: (h) => loaded.terrain[tileKeyOf(h)] as TerrainId | undefined,
         resourceAt: (h) => {
           const key = tileKeyOf(h);
-          const found = map.resources.find((r) => tileKeyOf({ q: r.q, r: r.r }) === key);
+          const found = loaded.resources.find((r) => tileKeyOf({ q: r.q, r: r.r }) === key);
           return found ? found.id : null;
         },
       };
@@ -258,7 +268,7 @@ export function generateProceduralMap(
         landRatio: landTiles / totalTiles,
         coastTiles,
         oceanTiles,
-        counts: { resources: map.resources.length, villages: map.villages.length, huts: map.huts.length },
+        counts: { resources: loaded.resources.length, villages: loaded.villages.length, huts: loaded.huts.length, artefacts: loaded.artefacts.length },
         fertility: {
           p1,
           p2,
@@ -270,7 +280,7 @@ export function generateProceduralMap(
         },
         connected,
       };
-      return { map, report };
+      return { map: loaded, report };
     } catch (err) {
       if (err instanceof ProgenPlacementError) {
         lastCause = err.message;

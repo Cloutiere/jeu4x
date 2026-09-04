@@ -10,7 +10,7 @@
    */
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS } from '@game/rules';
   import type { GameState, Hex } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -121,6 +121,10 @@
   // R-96/R-98 (Phase 7d) : villages barbares et huttes bonus.
   const villageSprites = new Map<string, Container>();
   const hutSprites = new Map<string, Container>();
+  // 7o · R-153 : artefacts (reliques) explorés — même traitement de fog.
+  const artefactSprites = new Map<string, Container>();
+  /** 7o · R-155 : lueur de survol (ping de présence sous le brouillard 🔶). */
+  let artefactPingGlow: Graphics | null = null;
 
   let tilesDirty = true;
   let entitiesDirty = true;
@@ -397,6 +401,32 @@
         hutSprites.delete(id);
       }
     }
+    // 7o · R-153 : artefacts — visibles dès que la case est explorée (comme
+    // les huttes) ; un artefact inexploré n'existe pas dans l'état filtré.
+    const seenArtefacts = new Set<string>();
+    for (const artefact of state.artefacts) {
+      const key = tileKeyOf(artefact);
+      seenArtefacts.add(artefact.id);
+      let c = artefactSprites.get(artefact.id);
+      if (!c) {
+        c = buildArtefactContainer(artefact.artefactId);
+        entitiesLayer.addChild(c);
+        artefactSprites.set(artefact.id, c);
+      }
+      const p = hexToPixel(artefact, HEX_SIZE);
+      c.position.set(p.x, p.y);
+      const tint = scene.visible.has(key) ? 0xffffff : 0x8a8a98;
+      const accent = c.getChildByLabel('accent') as Sprite;
+      if (accent) accent.tint = scene.visible.has(key) ? 0xffd479 : tint;
+      const base = c.getChildByLabel('base') as Sprite;
+      if (base) base.tint = tint;
+    }
+    for (const [id, c] of artefactSprites) {
+      if (!seenArtefacts.has(id)) {
+        c.destroy({ children: true });
+        artefactSprites.delete(id);
+      }
+    }
   }
 
   function buildUnitContainer(unitId: string, type: string, owner: string): Container {
@@ -532,6 +562,47 @@
     c.addChild(base, accent);
     c.label = hutId;
     return c;
+  }
+
+  /** 7o · R-153 : artefact (relique) — accent doré au rendu. */
+  function buildArtefactContainer(artefactId: string): Container {
+    const c = new Container();
+    const tex = textures!.artefacts[artefactId] ?? textures!.hutte;
+    const base = new Sprite(tex.base);
+    base.label = 'base';
+    base.anchor.set(0.5, 1);
+    base.scale.set(0.5);
+    base.y = 46;
+    const accent = new Sprite(tex.accent);
+    accent.label = 'accent';
+    accent.anchor.set(0.5, 1);
+    accent.scale.set(0.5);
+    accent.y = 46;
+    accent.tint = 0xffd479; // or : relique précieuse
+    c.addChild(base, accent);
+    c.label = artefactId;
+    return c;
+  }
+
+  /** 7o · R-155 : lueur discrète au SURVOL d'une case masquée portant un
+   *  artefact (ping de présence — canon du « bourdonnement », audio différé).
+   *  L'identité reste cachée : la lueur seule, aucune donnée révélée. */
+  function updateArtefactPing(hex: Hex, state: GameState): void {
+    const hovered = state.artifactPings?.some((a) => a.q === hex.q && a.r === hex.r) ?? false;
+    if (!hovered) {
+      if (artefactPingGlow) artefactPingGlow.visible = false;
+      return;
+    }
+    if (!artefactPingGlow) {
+      artefactPingGlow = new Graphics();
+      for (const [r, alpha] of [[52, 0.10], [38, 0.16], [26, 0.24]] as const) {
+        artefactPingGlow.circle(0, 0, r).fill({ color: 0xd9a93f, alpha });
+      }
+      effectsLayer.addChild(artefactPingGlow);
+    }
+    artefactPingGlow.visible = true;
+    const p = hexToPixel(hex, HEX_SIZE);
+    artefactPingGlow.position.set(p.x, p.y);
   }
 
   /** Surcouche : sélection, brouillon de chemin, ordres soumis, possessions. */
@@ -990,6 +1061,11 @@
     for (const h of state.huts) {
       if (h.q === hex.q && h.r === hex.r) lines.push('Hutte');
     }
+    for (const a of state.artefacts) {
+      if (a.q === hex.q && a.r === hex.r) {
+        lines.push(`Artefact : ${ARTEFACTS.pool[a.artefactId]?.name ?? a.artefactId}`);
+      }
+    }
     return lines;
   }
 
@@ -1007,6 +1083,8 @@
     if (tipHex !== key) {
       tipHex = key;
       tip = { x: p.x, y: p.y, lines: buildTipLines(hex) };
+      // 7o · R-155 : la lueur suit le survol des cases masquées à artefact.
+      if (state.artifactPings?.length) updateArtefactPing(hex, state);
     } else if (tip) {
       tip = { ...tip, x: p.x, y: p.y };
     }

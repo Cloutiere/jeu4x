@@ -24,6 +24,8 @@ export * from './economyOr.js';
 export * from './espionnage.js';
 /** 7n — Civilisations & traits (R-145..R-150, civilizations.json / eras.json). */
 export * from './civilizations.js';
+/** 7o — Artefacts / reliques (R-151..R-156, artefacts.json). */
+export * from './artefacts.js';
 export * from './barbares.js';
 export * from './map.js';
 export * from './fog.js';

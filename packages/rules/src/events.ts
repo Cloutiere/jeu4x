@@ -15,13 +15,16 @@ import type { TechEra } from './types.js';
  *  l'élimination SANS COMBAT d'un espion hors ville (R-142). */
 export type DestructionCause = 'combat' | 'collision' | 'capture' | 'sunk' | 'mission' | 'nuke';
 
-/** R-98 · Récompense structurée d'une hutte ouverte (contenu de HutOpened). */
+/** R-98 · Récompense structurée d'une hutte ouverte (contenu de HutOpened).
+ *  7o · R-155 : `artefact_indice` — le nombre d'artefacts restants, ou la
+ *  position d'un artefact (case révélée à l'ouvreur). */
 export type HutReward =
   | { kind: 'gold'; amount: number }
   | { kind: 'unit'; unitType: string; unitIds: UnitId[] }
   | { kind: 'science'; amount: number }
   | { kind: 'reveal'; radius: number }
   | { kind: 'ambush'; unitIds: UnitId[] }
+  | { kind: 'artefact_indice'; remaining: number; position?: { q: number; r: number } }
   | { kind: 'nothing' };
 
 export type GameEvent =
@@ -122,6 +125,26 @@ export type GameEvent =
   | { seq: number; type: 'CityRazed'; cityId: CityId; owner: PlayerId; byPlayer: PlayerId; at: Hex }
   /** R-98 · Hutte ouverte — récompense tirée au RNG seedé (table huttes.json). */
   | { seq: number; type: 'HutOpened'; hutId: string; byPlayer: PlayerId; byUnitId: UnitId | null; at: Hex; reward: HutReward }
+  /** 7o · R-153 · Artefact activé (relique revendiquée) — l'artefact disparaît
+   *  définitivement et son effet est appliqué. `gold`/`techs`/`unitIds`/
+   *  `unitType` portent l'effet direct (or des Sept Cités, techs de
+   *  l'Atlantide, unité des Templiers, GP de Confucius) ; Angkor Wat n'en
+   *  porte pas (le choix ouvre une action immédiate `ChooseWonder`). */
+  | {
+      seq: number;
+      type: 'ArtifactActivated';
+      artefactId: string;
+      artefact: string;
+      name: string;
+      effect: string;
+      byPlayer: PlayerId;
+      byUnitId: UnitId | null;
+      at: Hex;
+      gold?: number;
+      techs?: string[];
+      unitIds?: UnitId[];
+      unitType?: string;
+    }
   /** 7f · R-114 : Personnage illustre de culture engendré par une ville (seuil
    *  T-27 franchi) — unité pacifique Artiste/Penseur. */
   | { seq: number; type: 'GreatPersonSpawned'; unitId: UnitId; unitType: string; cityId: CityId; owner: PlayerId; at: Hex }
@@ -416,6 +439,11 @@ export function eventRefs(event: GameEvent): EventRefs {
       break;
     case 'HutOpened':
       refs.players.push(event.byPlayer);
+      hex(event.at);
+      break;
+    case 'ArtifactActivated':
+      refs.players.push(event.byPlayer);
+      if (event.byUnitId) refs.unitIds.push(event.byUnitId);
       hex(event.at);
       break;
     case 'GreatPersonSpawned':

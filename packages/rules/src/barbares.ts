@@ -231,13 +231,16 @@ export function drawHutReward(rng: SeededRng): HutReward {
 export function freeSpawnTiles(state: GameState, center: Hex, count: number): Hex[] {
   const villageKeys = new Set(state.villages.map((v) => tileKeyOf(v)));
   const cityKeys = new Set(Object.values(state.cities).map((c) => tileKeyOf(c)));
+  // 7o · R-152/R-153 : une case d'artefact n'est pas un site d'engendrement
+  // (une unité qui y APPARAÎT n'active pas — seule l'entrée active, R-153).
+  const artefactKeys = new Set(state.artefacts?.map((a) => tileKeyOf(a)) ?? []);
   const out: Hex[] = [];
   for (const h of neighbors(center)) {
     if (out.length >= count) break;
     const key = tileKeyOf(h);
     if (!passable(state, h)) continue;
     if (unitAt(state, h)) continue;
-    if (cityKeys.has(key) || villageKeys.has(key)) continue;
+    if (cityKeys.has(key) || villageKeys.has(key) || artefactKeys.has(key)) continue;
     out.push(h);
   }
   return out;

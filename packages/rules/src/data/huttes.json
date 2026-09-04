@@ -7,8 +7,9 @@
     { "kind": "gold", "weight": 30, "amountMin": 15, "amountMax": 50 },
     { "kind": "unit", "weight": 20 },
     { "kind": "science", "weight": 15 },
-    { "kind": "reveal", "weight": 15 },
+    { "kind": "reveal", "weight": 12 },
     { "kind": "ambush", "weight": 10 },
+    { "kind": "artefact_indice", "weight": 8 },
     { "kind": "nothing", "weight": 10 }
   ]
 }

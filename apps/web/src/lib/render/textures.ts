@@ -13,7 +13,10 @@
  */
 import { Assets, Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
-import { RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
+import { ARTEFACTS, RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
+
+/** 7o · R-151 : les 6 artefacts du jeu de base (DLC jamais générés). */
+export const ARTEFACT_IDS: string[] = Object.keys(ARTEFACTS.pool).filter((id) => !ARTEFACTS.pool[id]!.dlcOnly).sort();
 import type { TerrainId } from '@game/rules';
 
 /** Couleurs d'accent joueurs — SPEC-ART §3.3/§4 (extensible à 8). */
@@ -45,6 +48,8 @@ export interface GameTextures {
   villageBarbare: EntityTexture;
   /** R-98 (Phase 7d) : hutte bonus. */
   hutte: EntityTexture;
+  /** 7o · R-153 : sprites des artefacts (clé = id du pool artefacts.json). */
+  artefacts: Record<string, EntityTexture>;
   /** Icônes de rendement pour l'overlay N/P/C (null si asset absent). */
   yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null; gold: Texture | null; science: Texture | null };
   /** R-91 : sprites des ressources (clé = id de resources.json, null si asset absent). */
@@ -467,6 +472,69 @@ function buildHutGraphics(): { base: Graphics; accent: Graphics } {
   return { base, accent: acc };
 }
 
+/** 7o · R-153 : artefacts (reliques) — placeholders de secours. Les assets
+ *  réels (artefact_<id>.png) sont générés par assets-src/tools/generate.py ;
+ *  ici, un socle + une silhouette distincte par relique (accent doré). */
+function buildArtefactGraphics(id: string): { base: Graphics; accent: Graphics } {
+  const cx = 112;
+  const ground = 210;
+  const base = g();
+  base.ellipse(cx, ground, 58, 14).fill({ color: 0x000000, alpha: 0.22 });
+  // Socle commun (pierre) — la relique au-dessus porte l'identité.
+  base.rect(cx - 44, ground - 22, 88, 22).fill({ color: 0x8f8a80 });
+  base.rect(cx - 44, ground - 22, 88, 22).stroke({ width: 5, color: OUTLINE });
+  const acc = g();
+  const GOLD = 0xffffff; // teinté doré au rendu (buildArtefactContainer)
+  switch (id) {
+    case 'angkor_wat': // temple à trois tours
+      for (const [dx, h, w] of [[-28, 54, 24], [0, 84, 30], [28, 54, 24]] as const) {
+        base.rect(cx + dx! - w / 2, ground - 22 - h, w, h).fill({ color: 0x9b8f7a });
+        base.rect(cx + dx! - w / 2, ground - 22 - h, w, h).stroke({ width: 4, color: OUTLINE });
+        acc.poly([cx + dx!, ground - 22 - h - 22, cx + dx! - w / 2, ground - 22 - h, cx + dx! + w / 2, ground - 22 - h]).fill({ color: GOLD });
+      }
+      break;
+    case 'arche_alliance': // coffre doré porté par deux bâtons
+      base.rect(cx - 34, ground - 78, 68, 46).fill({ color: 0x8a6d35 });
+      base.rect(cx - 34, ground - 78, 68, 46).stroke({ width: 5, color: OUTLINE });
+      base.rect(cx - 44, ground - 108, 6, 62).fill({ color: 0x6b5433 });
+      base.rect(cx + 38, ground - 108, 6, 62).fill({ color: 0x6b5433 });
+      acc.rect(cx - 34, ground - 78, 68, 14).fill({ color: GOLD });
+      break;
+    case 'sept_cites_or': // cité dorée (trois dômes)
+      for (const [dx, r] of [[-26, 18], [0, 26], [26, 18]] as const) {
+        base.circle(cx + dx!, ground - 22 - r, r).fill({ color: 0x9b8f7a });
+        base.circle(cx + dx!, ground - 22 - r, r).stroke({ width: 4, color: OUTLINE });
+        acc.poly([cx + dx! - r, ground - 22 - r, cx + dx!, ground - 22 - 2 * r - 8, cx + dx! + r, ground - 22 - r]).fill({ color: GOLD });
+      }
+      break;
+    case 'ecole_confucius': // rouleau de bambou ouvert
+      base.rect(cx - 36, ground - 74, 72, 50).fill({ color: 0xb49b6c });
+      base.rect(cx - 36, ground - 74, 72, 50).stroke({ width: 5, color: OUTLINE });
+      for (let i = 0; i < 3; i++) base.rect(cx - 24, ground - 64 + i * 12, 48, 4).fill({ color: 0x6b5433 });
+      acc.rect(cx - 36, ground - 74, 72, 8).fill({ color: GOLD });
+      break;
+    case 'chevaliers_templiers': // écu à croix
+      base.poly([cx - 30, ground - 96, cx + 30, ground - 96, cx + 30, ground - 48, cx, ground - 26, cx - 30, ground - 48]).fill({ color: 0x7d7d88 });
+      base.poly([cx - 30, ground - 96, cx + 30, ground - 96, cx + 30, ground - 48, cx, ground - 26, cx - 30, ground - 48]).stroke({ width: 5, color: OUTLINE });
+      acc.rect(cx - 7, ground - 92, 14, 62).fill({ color: GOLD });
+      acc.rect(cx - 26, ground - 74, 52, 14).fill({ color: GOLD });
+      break;
+    case 'atlantide': // temple englouti — flancs + trident de vagues
+      base.rect(cx - 26, ground - 92, 52, 58).fill({ color: 0x6e7a86 });
+      base.rect(cx - 26, ground - 92, 52, 58).stroke({ width: 5, color: OUTLINE });
+      base.ellipse(cx, ground - 34, 60, 12).fill({ color: 0x3e6e9e });
+      acc.poly([cx, ground - 118, cx - 18, ground - 92, cx + 18, ground - 92]).fill({ color: GOLD });
+      acc.ellipse(cx, ground - 34, 60, 12).fill({ color: 0x9cc4e4, alpha: 0.8 });
+      break;
+    default: // relique générique
+      base.circle(cx, ground - 52, 28).fill({ color: 0x8f8a80 });
+      base.circle(cx, ground - 52, 28).stroke({ width: 5, color: OUTLINE });
+      acc.circle(cx, ground - 52, 14).fill({ color: GOLD });
+      break;
+  }
+  return { base, accent: acc };
+}
+
 // ---------------------------------------------------------------------------
 // Cuisson des textures via le renderer (les Graphics sont détruits après).
 // ---------------------------------------------------------------------------
@@ -523,6 +591,10 @@ export function createTextures(renderer: Renderer): GameTextures {
     // assets réels remplacent via loadTextures).
     villageBarbare: bakeEntity(renderer, buildVillageBarbareGraphics()),
     hutte: bakeEntity(renderer, buildHutGraphics()),
+    // 7o · R-153 : artefacts (placeholders — assets réels via generate.py).
+    artefacts: Object.fromEntries(
+      ARTEFACT_IDS.map((id) => [id, bakeEntity(renderer, buildArtefactGraphics(id))]),
+    ) as Record<string, EntityTexture>,
     yieldIcons,
     resources: {},
     px,
@@ -605,7 +677,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const resourceIds = [...Object.keys(RESOURCES).sort(), RESOURCE_UNKNOWN];
   // Phase 7d (R-95) : variantes barbares (accent gris-brun au rendu).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, units, barbareUnits, settlement, capital, villageBarbare, hutte, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
+  const [tiles, units, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     Promise.all(
       UNIT_IDS.filter((id) => fallback.units[id]).map((id) =>
@@ -621,6 +693,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     entityOrFallback('ville_capitale', fallback.cities.capital),
     entityOrFallback('village_barbare', fallback.villageBarbare),
     entityOrFallback('hutte', fallback.hutte),
+    Promise.all(ARTEFACT_IDS.map((id) => entityOrFallback(`artefact_${id}`, fallback.artefacts[id]!).then((t) => [id, t] as const))),
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
@@ -643,6 +716,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     cities: { settlement, capital },
     villageBarbare,
     hutte,
+    artefacts: Object.fromEntries(artefactTextures) as Record<string, EntityTexture>,
     yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon, gold: goldIcon, science: scienceIcon },
     resources: Object.fromEntries(resourceIcons),
     px: fallback.px,

@@ -79,6 +79,9 @@ export interface MakeStateOptions {
   villages?: Array<{ q: number; r: number; hp?: number; spawnCountdown?: number }>;
   /** R-98/Phase 7d : huttes bonus (id 'h{n}' par (q,r) croissant). */
   huts?: Array<{ q: number; r: number }>;
+  /** 7o · R-151 : artefacts posés (id 'a{n}' par (q,r) croissant) — les
+   *  tests placent directement la relique à activer. */
+  artefacts?: Array<{ artefactId: string; q: number; r: number }>;
   /** Phase 7d : id de carte d'origine (enrichissement serveur). */
   mapId?: string | null;
 }
@@ -210,6 +213,9 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
   }));
   const hutSpecs = [...(opts.huts ?? [])].sort((a, b) => a.q - b.q || a.r - b.r);
   const huts: GameState['huts'] = hutSpecs.map((h, i) => ({ id: `h${i + 1}`, q: h.q, r: h.r }));
+  // 7o · R-151 : artefacts posés comme depuis une carte (ids par (q,r) croissant).
+  const artefactSpecs = [...(opts.artefacts ?? [])].sort((a, b) => a.q - b.q || a.r - b.r);
+  const artefacts: GameState['artefacts'] = artefactSpecs.map((a, i) => ({ id: `a${i + 1}`, artefactId: a.artefactId, q: a.q, r: a.r }));
 
   const state: GameState = {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -228,6 +234,8 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
     diplomacy: { war: warPairs },
     villages,
     huts,
+    artefacts,
+    pendingArtefactChoices: [],
     mapId: opts.mapId ?? null,
     firstBy: {}, // 7e : Premier découvrir (aucun au départ)
   };

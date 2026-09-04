@@ -781,6 +781,96 @@ def hutte(db, da, w, h):
     db.line([(166, 210), (172, 198)], fill=FORET_2, width=3)
 
 
+
+# ---------------------------------------------------------------------------
+# Phase 7o — Artefacts / reliques (RULES.md §7.10, R-151..R-156).
+# 224×256 comme les bâtiments ; socle de pierre commun, relique distinctive
+# au-dessus, accent blanc (doré au rendu GameCanvas).
+# ---------------------------------------------------------------------------
+
+def artefact_socle(db, da, w, h):
+    """Socle de pierre commun + ombre (la relique pose par-dessus)."""
+    shadow(db, 112, 216, 64)
+    db.rrect((64, 196, 160, 216), 5, fill="#8F8A80", outline=INK, width=2.5)
+    db.rrect((74, 188, 150, 200), 4, fill="#A09A90", outline=INK, width=2)
+
+
+def artefact_angkor_wat(db, da, w, h):
+    """Angkor Wat — temple khmer à trois tours dorées (merveille au choix)."""
+    artefact_socle(db, da, w, h)
+    for dx, h_top, wdt in ((-32, 62, 26), (0, 92, 32), (32, 62, 26)):
+        x0, y0 = 112 + dx - wdt // 2, 188 - h_top
+        db.rrect((x0, y0, x0 + wdt, 190), 3, fill="#B7A98C", outline=INK, width=2)
+        db.rrect((x0, y0 + 10, x0 + wdt, y0 + 14), 0, fill="#8A7A5A")
+        spire = [(112 + dx, y0 - 18), (x0, y0), (x0 + wdt, y0)]
+        da.poly(spire, fill="#FFFFFF")
+        db.poly(spire, outline=INK, width=2)
+    db.line([(80, 156), (144, 156)], fill=OR, width=2.5)
+
+
+def artefact_arche_alliance(db, da, w, h):
+    """Arche d'Alliance — coffre d'acacia doré porté par deux bâtons."""
+    artefact_socle(db, da, w, h)
+    db.rrect((66, 122, 72, 190), 0, fill="#6B5433", outline=INK, width=2)
+    db.rrect((152, 122, 158, 190), 0, fill="#6B5433", outline=INK, width=2)
+    db.rrect((74, 132, 150, 190), 4, fill="#9A7B3C", outline=INK, width=2.5)
+    db.rrect((70, 120, 154, 136), 6, fill="#A8862C", outline=INK, width=2.5)
+    da.rrect((70, 120, 154, 134), 6, fill="#FFFFFF")
+    da.ellipse((104, 150, 120, 166), fill="#FFFFFF")
+    db.ellipse((106, 152, 118, 164), fill=OR_SOMBRE)
+
+
+def artefact_sept_cites_or(db, da, w, h):
+    """Sept Cités d'Or — cité dorée aux trois dômes (trésor selon l'ère)."""
+    artefact_socle(db, da, w, h)
+    for dx, r in ((-28, 17), (0, 25), (28, 17)):
+        cx = 112 + dx
+        cy = 188 - r
+        db.ellipse((cx - r, cy - r, cx + r, cy + r), fill="#C0A050", outline=INK, width=2)
+        dome = [(cx - r, cy - 2), (cx, cy - 2 * r - 12), (cx + r, cy - 2)]
+        da.poly(dome, fill="#FFFFFF")
+        db.rrect((cx - r + 4, cy + r - 6, cx + r - 4, 190), 0, fill="#B7A98C")
+    db.poly([(76, 196), (148, 196), (154, 212), (70, 212)], fill="#8A6D35", outline=INK, width=2)
+
+
+def artefact_ecole_confucius(db, da, w, h):
+    """École de Confucius — rouleaux de bambou et tablette des maîtres."""
+    artefact_socle(db, da, w, h)
+    db.rrect((68, 128, 156, 190), 4, fill="#C4A874", outline=INK, width=2.5)
+    for i in range(3):
+        y = 142 + i * 14
+        db.line([(80, y), (144, y)], fill="#6B5433", width=2.5)
+    da.rrect((68, 128, 156, 138), 0, fill="#FFFFFF")
+    db.rrect((64, 122, 160, 132), 4, fill="#7A5C3A", outline=INK, width=2)
+    db.rrect((64, 184, 160, 194), 4, fill="#7A5C3A", outline=INK, width=2)
+
+
+def artefact_chevaliers_templiers(db, da, w, h):
+    """Chevaliers Templiers — écu de croisé à croix dorée (unité selon l'ère)."""
+    artefact_socle(db, da, w, h)
+    shield = [(76, 116), (148, 116), (148, 168), (112, 196), (76, 168)]
+    db.poly(shield, fill="#8A8A96", outline=INK, width=2.5)
+    da.rrect((105, 120, 119, 186), 0, fill="#FFFFFF")
+    da.rrect((84, 140, 140, 154), 0, fill="#FFFFFF")
+    for x in (84, 112, 140):
+        db.ellipse((x - 3, 120, x + 3, 126), fill=GRIS_NEUTRE)
+
+
+def artefact_atlantide(db, da, w, h):
+    """Cité Perdue d'Atlantide — temple englouti, flots sur le flanc (haute mer)."""
+    artefact_socle(db, da, w, h)
+    db.rrect((86, 110, 138, 186), 0, fill="#6E7A86", outline=INK, width=2.5)
+    db.rrect((98, 126, 126, 142), 0, fill="#4E5A66")
+    db.rrect((98, 152, 126, 168), 0, fill="#4E5A66")
+    spire = [(112, 88), (86, 112), (138, 112)]
+    db.poly(spire, fill="#5E6A76", outline=INK, width=2.5)
+    da.poly(spire, fill="#FFFFFF")
+    # flots montants (l'océan la garde — activation navale adjacente, R-153)
+    for y in (168, 182):
+        db.line([(70, y), (94, y - 6), (118, y), (142, y - 6), (166, y)], fill=EAU_2, width=4)
+    da.ellipse((70, 176, 166, 194), fill="#9CC4E4")
+
+
 def batiment_bibliotheque(db, da, w, h):
 
     """Bibliotheque : facade a arc + rangees de livres (livres = accent)."""
@@ -2013,6 +2103,13 @@ def main():
         "unite_barbare_archer": (256, 320, unite_barbare_archer),
         "village_barbare": (224, 256, village_barbare),
         "hutte": (224, 256, hutte),
+        # Phase 7o — artefacts / reliques (RULES.md §7.10, R-151..R-156)
+        "artefact_angkor_wat": (224, 256, artefact_angkor_wat),
+        "artefact_arche_alliance": (224, 256, artefact_arche_alliance),
+        "artefact_sept_cites_or": (224, 256, artefact_sept_cites_or),
+        "artefact_ecole_confucius": (224, 256, artefact_ecole_confucius),
+        "artefact_chevaliers_templiers": (224, 256, artefact_chevaliers_templiers),
+        "artefact_atlantide": (224, 256, artefact_atlantide),
         # Phase 7e — unités terrestres complémentaires (Appendice A)
         "unite_piquier": (256, 320, unite_piquier),
         "unite_catapulte": (256, 320, unite_catapulte),

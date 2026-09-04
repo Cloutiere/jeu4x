@@ -434,8 +434,9 @@ export interface BarbariansData {
   units: { initial: string; escalated: string };
 }
 
-/** R-98 · Nature d'une récompense de hutte. */
-export type HutRewardKind = 'gold' | 'unit' | 'science' | 'reveal' | 'ambush' | 'nothing';
+/** R-98 · Nature d'une récompense de hutte. 7o · R-155 : `artefact_indice`
+ *  (indice sur les artefacts — nombre restant ou position). */
+export type HutRewardKind = 'gold' | 'unit' | 'science' | 'reveal' | 'ambush' | 'artefact_indice' | 'nothing';
 
 /** R-98/R-99 · Entrée pondérée de la table de récompenses (huttes.json). */
 export interface HutRewardDef {
@@ -458,6 +459,72 @@ export interface HuttesData {
   freeUnit: string;
   /** Table pondérée — tir au RNG seedé (R-80), somme des poids > 0. */
   rewards: HutRewardDef[];
+}
+
+// ---------------------------------------------------------------------------
+// 7o · Artefacts (reliques) — RULES.md §7.10 (R-151..R-156). Données
+// artefacts.json — calibrage sans code (même philosophie R-99/R-113).
+// ---------------------------------------------------------------------------
+
+/** R-154 · Effet d'un artefact (catalogue fermé — test d'intégrité). */
+export type ArtefactEffect =
+  | 'merveilleGratuiteAuChoix'
+  | 'templesVersCathedrales'
+  | 'orParEre'
+  | 'personnagesGratuits'
+  | 'uniteMilitaireParEre'
+  | 'troisTechsLesMoinsCheres'
+  | 'dlc';
+
+/** R-154 · Mode d'activation (R-153) : entrée sur la case (terre) ou unité
+ *  navale adjacente (Atlantide). */
+export type ArtefactActivation = 'terre' | 'oceanAdjacent';
+
+/** R-156 · Un artefact du pool (artefacts.json). */
+export interface ArtefactData {
+  id: string;
+  name: string;
+  effect: ArtefactEffect;
+  effectLabel: string;
+  activation: ArtefactActivation;
+  /** 7o : les 6 DLC sont en données mais JAMAIS générés (R-151). */
+  dlcOnly: boolean;
+}
+
+/** R-156 · Paramètres de calibrage des artefacts (artefacts.json params). */
+export interface ArtefactParams {
+  /** T-38 · Nombre d'artefacts par carte (canon 3–6). */
+  count: number;
+  countMin: number;
+  countMax: number;
+  /** R-151 · Atlantide toujours dans le tirage 🔶 (canon : « presque systématiquement »). */
+  atlantisAlwaysDrawn: boolean;
+  /** T-39 · Placement : atoll/île isolée ≤ N cases, artefacts continentaux au
+   *  plus M (rare), distance minimale aux deux départs, espacement entre
+   *  artefacts (R-152). */
+  islandMaxSize: number;
+  maxMainland: number;
+  minDistanceToCapitals: number;
+  spacing: number;
+  /** T-40 · Atlantide : océan profond à ≥ N cases de toute terre (R-152). */
+  atlantisMinLandDistance: number;
+  /** T-41 · Or des Sept Cités d'Or par ère (×2 Espagne `tresorsDouble`). */
+  septCitesOrByEra: Record<string, number>;
+  /** T-42 · Unité des Chevaliers Templiers par ère (R-154). */
+  templiersUnitByEra: Record<string, string>;
+  /** T-43 · GP de l'École de Confucius ; techs de l'Atlantide. */
+  confuciusGpCount: number;
+  atlantideTechCount: number;
+  /** R-155 · Indice de hutte : probabilité « position » (vs nombre restant). */
+  indicePositionChance: number;
+  /** R-155 · Tech de révélation complète (Vol Spatial). */
+  volSpatialTech: string;
+}
+
+/** R-156 · Configuration complète (artefacts.json). */
+export interface ArtefactsData {
+  params: ArtefactParams;
+  pool: Record<string, ArtefactData>;
 }
 
 /**

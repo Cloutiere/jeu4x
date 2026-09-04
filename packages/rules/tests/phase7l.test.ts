@@ -189,7 +189,7 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
       diplomacy: { war: [] },
     };
     const out = migrateState(v14 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(17); // la chaîne continue (7m)
+    expect(out.schemaVersion).toBe(18); // la chaîne continue (7m)
     expect(out.players['p1']!.treasury).toBe(123); // report de l'ancien or (zéro perte)
     expect(out.players['p1']!.economyMilestonesClaimed).toBe(0);
     expect('gold' in out.players['p1']!).toBe(false);

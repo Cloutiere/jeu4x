@@ -427,6 +427,7 @@ describe("Phase 6c · Comptage ressources × terrain (outil de labo d'Erik)", ()
       data: { id: 't', name: 'Test', width: 2, height: 1, legend: {}, rows: [], players: [] } as unknown as MapData,
       terrain: { '0,0': 'prairie', '1,0': 'ocean' },
       spawns: [],
+      artefacts: [],
       resources: [
         { id: 'betail', q: 0, r: 0 },
         { id: 'poisson', q: 1, r: 0 },

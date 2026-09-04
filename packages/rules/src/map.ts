@@ -19,14 +19,15 @@
  */
 import { colRowToHex, hexDistance, inRectangle, tileKeyOf } from './hex.js';
 import type { Hex } from './hex.js';
-import { BARBARIANS, RESOURCES, TERRAINS, unitType } from './data.js';
-import type { PlayerId, Tile, GameState, City, BarbarianVillage, Hut } from './state.js';
+import { ARTEFACTS, BARBARIANS, RESOURCES, TERRAINS, unitType } from './data.js';
+import type { PlayerId, Tile, GameState, City, BarbarianVillage, Hut, Artefact } from './state.js';
 import { CURRENT_SCHEMA_VERSION } from './state.js';
 import type { ResourceId } from './types.js';
 import { SCIENCE_RATIO_DEFAULT, VISION_RADIUS_CITY } from './constants.js';
 import { CONVERSION_DEFAULT } from './conversion.js';
 import { autoAssignWorkedTiles } from './economy.js';
 import { hexesWithinRadius } from './hex.js';
+import { artefactsForMap } from './artefacts.js';
 import {
   eraOfTechCount,
   civStartTechs,
@@ -68,6 +69,14 @@ export interface MapHut {
   r: number;
 }
 
+/** 7o · R-151/R-152 : artefact posé sur la carte (tirage seedé — génération
+ *  procédurale ou cartes fixes ; les ids 'a1'… sont affectés à la pose). */
+export interface MapArtefact {
+  artefactId: string;
+  q: number;
+  r: number;
+}
+
 /** Cartes commises (chargées statiquement — migration/enrichissement synchrones). */
 export type BuiltinMapId = 'pedagogique-40' | 'pangee-40' | 'variee-40';
 
@@ -85,6 +94,10 @@ export interface MapData {
   villages?: MapVillage[];
   /** R-98/Phase 7d : huttes bonus (2 par carte). */
   huts?: MapHut[];
+  /** 7o · R-151/R-152 : artefacts tirés par seed (posés par le générateur
+   *  procédural ; les cartes préfabriquées sont tirées à la création d'état —
+   *  R-151 — et ne portent rien en JSON). */
+  artefacts?: MapArtefact[];
   /** Phase 6c (demande d'Erik) : mode de démarrage — 'capital' (défaut : la
    *  ville existe dès l'initialisation) ou 'colon' : AUCUNE ville au départ,
    *  un Colon occupe le site réservé (`capital`, qui ne devient une ville que
@@ -100,6 +113,9 @@ export interface LoadedMap {
   resources: MapResource[];
   villages: MapVillage[];
   huts: MapHut[];
+  /** 7o · R-151 : artefacts portés par la carte (génération procédurale ;
+   *  absent/vide pour les cartes préfabriquées — tirage à la création d'état). */
+  artefacts: MapArtefact[];
 }
 
 export class MapValidationError extends Error {
@@ -273,12 +289,13 @@ export function parseMap(raw: unknown): LoadedMap {
   const entities = [
     ...(data.villages ?? []).map((v) => ({ kind: 'village' as const, ...v })),
     ...(data.huts ?? []).map((h) => ({ kind: 'hut' as const, ...h })),
+    ...(data.artefacts ?? []).map((a) => ({ kind: 'artefact' as const, ...a })),
   ];
   if (issues.every((i) => !i.startsWith('rows') && !i.startsWith('légende'))) {
     const capitalKeys = new Set((data.players ?? []).map((p) => tileKeyOf(p.capital)));
     const seenEntities = new Set<string>();
     for (const e of entities) {
-      const label = e.kind === 'village' ? 'village' : 'hutte';
+      const label = e.kind === 'village' ? 'village' : e.kind === 'hut' ? 'hutte' : 'artefact';
       const key = tileKeyOf(e);
       if (!inRectangle(e, width, height)) {
         issues.push(`${label} hors carte (${key})`);
@@ -289,21 +306,48 @@ export function parseMap(raw: unknown): LoadedMap {
         issues.push(`${label} hors carte (${key})`);
         continue;
       }
-      if (!TERRAINS[t]!.passable) {
+      // 7o · R-153 : un artefact terrestre exige une case praticable ;
+      // l'Atlantide (activation navale) exige l'OCÉAN profond.
+      if (e.kind === 'artefact') {
+        const artefactData = ARTEFACTS.pool[(e as { artefactId?: string }).artefactId ?? ''];
+        if (!artefactData) {
+          issues.push(`artefact inconnu : "${(e as { artefactId?: string }).artefactId ?? ''}" (${key})`);
+          continue;
+        }
+        if (artefactData.dlcOnly) {
+          issues.push(`artefact DLC jamais généré : "${artefactData.id}" (${key})`);
+          continue;
+        }
+        const expectsOcean = artefactData.activation === 'oceanAdjacent';
+        if (expectsOcean && t !== 'ocean') {
+          issues.push(`artefact ${artefactData.id} hors océan profond (${t} en ${key})`);
+        }
+        if (!expectsOcean && !TERRAINS[t]!.passable) {
+          issues.push(`artefact ${artefactData.id} sur terrain infranchissable (${t} en ${key})`);
+        }
+      } else if (!TERRAINS[t]!.passable) {
         issues.push(`${label} sur terrain infranchissable (${t}) en ${key}`);
       }
       if (capitalKeys.has(key)) {
         issues.push(`${label} sur une case de capitale (${key})`);
       }
       if (seenEntities.has(key)) {
-        issues.push(`plus d'un village/hutte sur la case ${key}`);
+        issues.push(`plus d'un village/hutte/artefact sur la case ${key}`);
       }
       seenEntities.add(key);
     }
   }
 
   if (issues.length) throw new MapValidationError(issues);
-  return { data, terrain, spawns: data.players, resources, villages: data.villages ?? [], huts: data.huts ?? [] };
+  return {
+    data,
+    terrain,
+    spawns: data.players,
+    resources,
+    villages: data.villages ?? [],
+    huts: data.huts ?? [],
+    artefacts: data.artefacts ?? [],
+  };
 }
 
 import pedagogiqueJson from './data/maps/pedagogique-40.json' with { type: 'json' };
@@ -485,9 +529,22 @@ export function createInitialState(
     // Villages/huttes réellement posés par applyMapEntities ci-dessous (R-96/R-98).
     villages: [],
     huts: [],
+    // 7o · R-151 : artefacts tirés ci-dessous (création de carte).
+    artefacts: [],
+    pendingArtefactChoices: [],
     mapId: map.data.id,
     firstBy: {}, // 7e : Premier découvrir (aucun au départ)
   };
+
+  // 7o · R-151/R-152 : tirage et placement des artefacts (déterministe — même
+  // seed → mêmes artefacts, cartes procédurales ET préfabriquées). Une carte
+  // procédurale porte déjà sa liste (posée à la génération, même seed) : elle
+  // fait foi ; les cartes préfabriquées sont tirées ici.
+  const artefacts: Artefact[] =
+    map.artefacts.length > 0
+      ? [...map.artefacts].sort((a, b) => a.q - b.q || a.r - b.r).map((a, i) => ({ id: `a${i + 1}`, artefactId: a.artefactId, q: a.q, r: a.r }))
+      : artefactsForMap(map, rngSeed);
+  state.artefacts = artefacts;
 
   // Vision initiale : rayon des unités (T-07, data-driven) + des villes (T-08).
   for (const spawn of map.spawns) {

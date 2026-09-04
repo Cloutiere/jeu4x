@@ -91,7 +91,7 @@ describe('R-99 · Données barbares.json / huttes.json', () => {
   });
 
   it('R-99 : huttes.json — table fermée, poids valides, bornes or cohérentes (T-24..T-26)', () => {
-    const kinds: HutReward['kind'][] = ['gold', 'unit', 'science', 'reveal', 'ambush', 'nothing'];
+    const kinds: HutReward['kind'][] = ['gold', 'unit', 'science', 'reveal', 'ambush', 'artefact_indice', 'nothing']; // 7o · R-155
     const total = HUT_REWARDS.rewards.reduce((a, r) => a + r.weight, 0);
     expect(total).toBeGreaterThan(0);
     for (const def of HUT_REWARDS.rewards) {

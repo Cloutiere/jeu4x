@@ -53,6 +53,8 @@ export interface GameClient {
   setConversion(cityId: CityId, target: 'gold' | 'science'): void;
   /** R-122 (Phase 7h) : adoption d'un régime politique — action immédiate. */
   setGovernment(government: string): void;
+  /** 7o · R-154 : choix Angkor Wat (merveille + ville) — action immédiate. */
+  chooseWonder(cityId: CityId, wonderId: string): void;
   resync(): void;
   close(): void;
 }
@@ -220,6 +222,9 @@ export function createGameClient(
     },
     setGovernment(government) {
       handle.send({ type: 'SetGovernment', government });
+    },
+    chooseWonder(cityId, wonderId) {
+      handle.send({ type: 'ChooseWonder', cityId, wonderId });
     },
     resync,
     close() {

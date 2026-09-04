@@ -242,7 +242,7 @@
         { "key": "techGratuite", "tech": "navigation", "label": "Connaissance de la technologie Navigation" }
       ],
       "eras": {
-        "ancienne": [{ "key": "tresorsDouble", "mult": 2, "label": "Or obtenu lors de l'exploration des trésors et artefacts doublé (huttes 🔶 — artefacts : phase suivante)" }],
+        "ancienne": [{ "key": "tresorsDouble", "mult": 2, "label": "Or des trésors doublé (huttes et artefact Sept Cités d'Or — R-98/R-154)" }],
         "medievale": [{ "key": "navalAttack", "amount": 1, "label": "+1 en Combat Naval" }],
         "industrielle": [{ "key": "empireGoldMult", "mult": 1.5, "label": "+50 % de production globale d'or" }],
         "moderne": [{ "key": "terrainBonus", "terrain": "colline", "production": 1, "label": "+1 en Production sur les cases de Collines" }]

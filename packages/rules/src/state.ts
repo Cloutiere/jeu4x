@@ -211,6 +211,31 @@ export interface Hut {
   r: number;
 }
 
+/**
+ * 7o · R-151/R-152 · Artefact (relique) posé sur la carte — une seule
+ * activation : retiré de l'état (disparaît pour les deux joueurs, R-153).
+ * L'id de pool (`artefactId`) porte l'identité et l'effet (artefacts.json).
+ */
+export interface Artefact {
+  /** 'a1', 'a2'… — affecté par (q, r) croissant à la pose (R-81). */
+  id: string;
+  /** Id du pool artefacts.json ('angkor_wat', 'atlantide'…). */
+  artefactId: string;
+  q: number;
+  r: number;
+}
+
+/**
+ * 7o · R-154 · Choix ANGKOR WAT en attente : l'activation a ouvert le droit à
+ * une merveille gratuite — le joueur choisit merveille + ville via l'action
+ * immédiate `ChooseWonder` (serveur — hors ordres de tour, miroir
+ * SetResearch/SetGovernment). Vide une fois le choix appliqué.
+ */
+export interface PendingArtefactChoice {
+  player: PlayerId;
+  artefactId: string;
+}
+
 export interface Player {
   id: PlayerId;
   /** 7n · R-145 · Civilisation du joueur (civilizations.json — 'neutre' pour
@@ -297,6 +322,15 @@ export interface GameState {
   villages: BarbarianVillage[];
   /** R-98/Phase 7d : huttes bonus non ouvertes (une ouverte est retirée). */
   huts: Hut[];
+  /** 7o · R-151/R-152 : artefacts (reliques) non activés (un activé est
+   *  retiré — R-153). Tirés à la création de carte (R-151). */
+  artefacts: Artefact[];
+  /** 7o · R-154 : choix Angkor Wat en attente (merveille gratuite au choix). */
+  pendingArtefactChoices: PendingArtefactChoice[];
+  /** 7o · R-155 : pings de SURVOL — cases d'artefacts inexplorés, diffusées
+   *  SANS identité (canon du « bourdonnement » ; lueur au survol, UI 🔶).
+   *  JAMAIS persisté : posé uniquement par getFilteredState. */
+  artifactPings?: Array<{ q: number; r: number }>;
   /** Phase 7d : id de la carte d'origine — null pour les états v7 migrés avant
    *  enrichissement serveur (applyMapEntities). */
   mapId: string | null;
@@ -322,7 +356,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 17;
+export const CURRENT_SCHEMA_VERSION = 18;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -785,6 +819,19 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       };
     }
     return { ...state, players: migratedPlayers, cities: migratedCities };
+  },
+  /**
+   * v17 → v18 : Phase 7o — Artefacts (RULES.md §7.10, R-151..R-156). Champs
+   * ADDITIFS, idempotents : `artefacts: []` (aucun artefact dans les états
+   * migrés — les artefacts naissent à la CRÉATION de carte, R-151 ; aucune
+   * enrichissement rétroactif) et `pendingArtefactChoices: []` (choix Angkor
+   * Wat en attente — R-154, aucun dans les états migrés).
+   */
+  18: (state) => {
+    const out: AnyState = { ...state };
+    if (!Array.isArray(state.artefacts)) out.artefacts = [];
+    if (!Array.isArray(state.pendingArtefactChoices)) out.pendingArtefactChoices = [];
+    return out;
   },
 };
 

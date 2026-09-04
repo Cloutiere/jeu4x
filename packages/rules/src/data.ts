@@ -12,7 +12,9 @@ import huttesJson from './data/huttes.json' with { type: 'json' };
 import cultureJson from './data/culture.json' with { type: 'json' };
 import espionnageJson from './data/espionnage.json' with { type: 'json' };
 import figuresJson from './data/figures.json' with { type: 'json' };
+import artefactsJson from './data/artefacts.json' with { type: 'json' };
 import type {
+  ArtefactsData,
   BarbariansData,
   BuildingData,
   CultureData,
@@ -39,6 +41,14 @@ export const CULTURE: CultureData = cultureJson as unknown as CultureData;
 export const FIGURES = figuresJson as unknown as FiguresData;
 /** 7m · R-138..R-144 · Configuration espionnage (espionnage.json — T-33..T-35). */
 export const ESPIONNAGE_DATA: EspionnageData = espionnageJson as unknown as EspionnageData;
+/** 7o · R-156 · Configuration des artefacts (artefacts.json — T-38..T-43). */
+export const ARTEFACTS: ArtefactsData = artefactsJson as unknown as ArtefactsData;
+/** 7o · R-154 · Artefact par id (pool artefacts.json — DLC compris, jamais générés). */
+export function artefact(id: string) {
+  const a = ARTEFACTS.pool[id];
+  if (!a) throw new Error(`Artefact inconnu : ${id}`);
+  return a;
+}
 /** R-95 · Id du pseudo-joueur barbare. */
 export const BARBARIAN_ID: string = BARBARIANS.barbarianId;
 

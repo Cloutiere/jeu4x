@@ -371,7 +371,7 @@ describe('7j · Migration v12 → v13 (fusion `penseur`, renommages D2, champs S
     };
     const out = migrateState(v12 as unknown as Record<string, unknown>) as unknown as GameState;
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(17); // 7m : migration additive nukesLaunched (R-139)
+    expect(CURRENT_SCHEMA_VERSION).toBe(18); // 7m : migration additive nukesLaunched (R-139)
  // 7l : trésorerie + paliers
     expect(out.units['u1']!.type).toBe('artiste_penseur'); // fusion D1
     expect(out.units['u2']!.type).toBe('artiste_penseur');

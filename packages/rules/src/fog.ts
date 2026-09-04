@@ -183,6 +183,18 @@ export function getFilteredState(state: GameState, playerId: PlayerId): GameStat
   // CivRev-fidèle) ; inexploré = absent de l'état diffusé.
   clone.villages = clone.villages.filter((v) => explored.has(`${v.q},${v.r}`));
   clone.huts = clone.huts.filter((h) => explored.has(`${h.q},${h.r}`));
+  // 7o · R-153/R-155 : un artefact sur case inexplorée N'EXISTE PAS côté
+  // client (identité, id et effet filtrés). Le canon du « bourdonnement » au
+  // survol est porté par `artifactPings` — la case seule, SANS identité (le
+  // marqueur discret au survol est affiché par l'UI 🔶). Les pings sont
+  // dérivés de la liste COMPLÈTE (avant filtrage — sinon toujours vide).
+  clone.artifactPings = clone.artefacts
+    .filter((a) => !explored.has(`${a.q},${a.r}`))
+    .map((a) => ({ q: a.q, r: a.r }));
+  clone.artefacts = clone.artefacts.filter((a) => explored.has(`${a.q},${a.r}`));
+  // 7o · R-154 : les choix Angkor Wat en attente sont PRIVÉS (le droit du
+  // rival n'est pas une information publique).
+  clone.pendingArtefactChoices = clone.pendingArtefactChoices.filter((c) => c.player === playerId);
 
   for (const otherId of Object.keys(clone.players)) {
     if (otherId === playerId) {

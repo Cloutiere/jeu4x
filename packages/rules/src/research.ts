@@ -15,6 +15,7 @@ import type { GameState, PlayerId, TileKey } from './state.js';
 import { applyFirstToDiscover } from './firstDiscovery.js';
 import { tileWorkable, tileYield, workRadiusOf } from './economy.js';
 import { hexDistance, hexesWithinRadius, tileKeyOf } from './hex.js';
+import { revealWholeMapOnTech } from './artefacts.js';
 
 /** Événement TechResearched (sans seq — séquencé par l'appelant). */
 export type TechResearchedPayload = { type: 'TechResearched'; player: PlayerId; tech: string };
@@ -79,6 +80,10 @@ export function creditScience(
   player.techsUnlockedThisTurn = [...(player.techsUnlockedThisTurn ?? []), tech.id];
   player.researching = null;
   player.treasury += overflow; // R-134 : surplus de recherche converti 1:1 en or
+  // 7o · R-155 : Vol Spatial révèle la carte ENTIÈRE au chercheur (miroir de
+  // la révélation Premier découvrir) — les artefacts restants deviennent
+  // visibles par le filtrage standard.
+  revealWholeMapOnTech(st, playerId, tech.id);
   cb.onResearched?.(playerId, tech.id);
   // 7e · Premier découvrir : récompense appliquée ici, événement émis par
   // l'appelant. L'assignation des nouveaux citoyens reste à l'appelant

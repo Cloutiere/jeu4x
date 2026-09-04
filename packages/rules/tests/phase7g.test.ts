@@ -481,9 +481,9 @@ describe('Phase 7g · Migration v10 → v11', () => {
     });
     const raw = { ...structuredClone(v10), schemaVersion: 10 } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(17);
+    expect(out.schemaVersion).toBe(18);
     expect(out.units['u1']).toMatchObject({ aboard: null, cargo: null });
-    expect(CURRENT_SCHEMA_VERSION).toBe(17); // 7m : nukesLaunched (R-139)
+    expect(CURRENT_SCHEMA_VERSION).toBe(18); // 7m : nukesLaunched (R-139)
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
     expect(twice).toEqual(out);
   });

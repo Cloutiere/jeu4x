@@ -1,0 +1,117 @@
+{
+  "params": {
+    "count": 4,
+    "countMin": 3,
+    "countMax": 6,
+    "atlantisAlwaysDrawn": true,
+    "islandMaxSize": 5,
+    "maxMainland": 2,
+    "minDistanceToCapitals": 6,
+    "atlantisMinLandDistance": 2,
+    "spacing": 4,
+    "septCitesOrByEra": { "ancienne": 200, "medievale": 250, "industrielle": 300, "moderne": 400 },
+    "templiersUnitByEra": { "ancienne": "chevalier", "medievale": "chevalier", "industrielle": "canon", "moderne": "char_d_assaut" },
+    "confuciusGpCount": 3,
+    "atlantideTechCount": 3,
+    "indicePositionChance": 0.5,
+    "volSpatialTech": "vol_spatial"
+  },
+  "pool": {
+    "angkor_wat": {
+      "id": "angkor_wat",
+      "name": "Angkor Wat",
+      "effect": "merveilleGratuiteAuChoix",
+      "effectLabel": "Construit immédiatement une Merveille gratuite de votre choix dans une de vos villes",
+      "activation": "terre",
+      "dlcOnly": false
+    },
+    "arche_alliance": {
+      "id": "arche_alliance",
+      "name": "Arche d'Alliance",
+      "effect": "templesVersCathedrales",
+      "effectLabel": "Temple gratuit dans chaque ville sans Temple ; les Temples existants deviennent des Cathédrales",
+      "activation": "terre",
+      "dlcOnly": false
+    },
+    "sept_cites_or": {
+      "id": "sept_cites_or",
+      "name": "Sept Cités d'Or",
+      "effect": "orParEre",
+      "effectLabel": "Verse un trésor d'or à votre trésorerie selon l'ère (200 à 400)",
+      "activation": "terre",
+      "dlcOnly": false
+    },
+    "ecole_confucius": {
+      "id": "ecole_confucius",
+      "name": "École de Confucius",
+      "effect": "personnagesGratuits",
+      "effectLabel": "Accorde immédiatement 3 Personnages Illustres à votre empire",
+      "activation": "terre",
+      "dlcOnly": false
+    },
+    "chevaliers_templiers": {
+      "id": "chevaliers_templiers",
+      "name": "Chevaliers Templiers",
+      "effect": "uniteMilitaireParEre",
+      "effectLabel": "Rejoint votre empire avec une unité militaire avancée selon l'ère (Chevalier, Canon ou Char d'assaut)",
+      "activation": "terre",
+      "dlcOnly": false
+    },
+    "atlantide": {
+      "id": "atlantide",
+      "name": "Cité Perdue d'Atlantide",
+      "effect": "troisTechsLesMoinsCheres",
+      "effectLabel": "Complète immédiatement les 3 technologies les moins coûteuses non débloquées",
+      "activation": "oceanAdjacent",
+      "dlcOnly": false
+    },
+    "cour_camelot": {
+      "id": "cour_camelot",
+      "name": "Cour de Camelot",
+      "effect": "dlc",
+      "effectLabel": "Convertit instantanément tous les Cavaliers en Chevaliers (DLC)",
+      "activation": "terre",
+      "dlcOnly": true
+    },
+    "grand_sphinx": {
+      "id": "grand_sphinx",
+      "name": "Grand Sphinx",
+      "effect": "dlc",
+      "effectLabel": "Transition immédiate vers n'importe quel régime (DLC)",
+      "activation": "terre",
+      "dlcOnly": true
+    },
+    "aiguille_pharaon": {
+      "id": "aiguille_pharaon",
+      "name": "Aiguille du Pharaon",
+      "effect": "dlc",
+      "effectLabel": "Débloque instantanément une technologie de pointe (DLC)",
+      "activation": "terre",
+      "dlcOnly": true
+    },
+    "armee_terracotte": {
+      "id": "armee_terracotte",
+      "name": "Armée de Terracotte",
+      "effect": "dlc",
+      "effectLabel": "Confère la promotion Éclaireur à toutes les unités militaires (DLC)",
+      "activation": "terre",
+      "dlcOnly": true
+    },
+    "rayon_paix_tesla": {
+      "id": "rayon_paix_tesla",
+      "name": "Rayon de la Paix de Tesla",
+      "effect": "dlc",
+      "effectLabel": "Met fin à toutes les guerres actives (DLC)",
+      "activation": "terre",
+      "dlcOnly": true
+    },
+    "tour_babel": {
+      "id": "tour_babel",
+      "name": "Tour de Babel",
+      "effect": "dlc",
+      "effectLabel": "Établit le contact diplomatique avec toutes les civilisations (DLC)",
+      "activation": "terre",
+      "dlcOnly": true
+    }
+  }
+}

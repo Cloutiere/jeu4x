@@ -14,10 +14,10 @@
   import { get } from 'svelte/store';
   import type { GameEvent } from '@game/shared';
   import type { Hex } from '@game/rules';
-  import { CULTURE, GOVERNMENTS, TECHS, conversionGains, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, nextEconomyMilestone, allKnownTechs, interiorCitizenFor, activeTraitsOf } from '@game/rules';
+  import { CULTURE, GOVERNMENTS, TECHS, WONDERS, angkorEligibleWonders, conversionGains, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, nextEconomyMilestone, allKnownTechs, interiorCitizenFor, activeTraitsOf } from '@game/rules';
   import { civName, civLeader } from '../lib/labels.js';
   import { createGameClient } from '../lib/gameClient.js';
-  import type { GameClient } from '../lib/gameClient.js';
+  import type { GameClient, GameView } from '../lib/gameClient.js';
   import { createUiState, selectNothing } from '../lib/render/ui.js';
   import type { UiStore } from '../lib/render/ui.js';
   import { Playback } from '../lib/render/playback.js';
@@ -288,6 +288,28 @@
   // 7l · C7 · R-130 (rév.) : villes avec une RÉSERVE de marteaux sans projet —
   // le joueur DOIT choisir un projet (dialogue forcé, miroir « unités sans ordre »).
   let salvageCities = $state<Array<{ id: string; amount: number }>>([]);
+
+  // ---------------------------------------------------------------------
+  // 7o · R-154 : choix ANGKOR WAT (artefact activé — merveille gratuite au
+  // choix : édifice + ville). Modale auto-ouverte tant qu'un droit est en
+  // attente ; « Décider plus tard » la referme (le droit subsiste).
+  // ---------------------------------------------------------------------
+
+  let angkorWonder = $state<string | null>(null);
+  let angkorCity = $state<string | null>(null);
+  let angkorDismissed = $state(false);
+
+  function myAngkorPending(v: GameView | null, pid: string | null): boolean {
+    return !!v?.state && !!pid && v.state.pendingArtefactChoices.some((c) => c.player === pid);
+  }
+
+  function confirmAngkor(): void {
+    if (!angkorWonder || !angkorCity) return;
+    client.chooseWonder(angkorCity, angkorWonder);
+    angkorDismissed = true;
+    angkorWonder = null;
+    angkorCity = null;
+  }
 
   function requestEndTurn(): void {
     const v = get(view);
@@ -633,6 +655,47 @@
             </div>
           </div>
         {/if}
+        {#if myAngkorPending($view, myEngineId($view)) && !angkorDismissed}
+          <!-- 7o · R-154 : Angkor Wat — choix de la merveille ET de la ville. -->
+          <div class="victory idle-dialog angkor-dialog">
+            <h2>🏛️ Angkor Wat — une Merveille gratuite !</h2>
+            <p>
+              L'artefact activé construit <strong>immédiatement</strong> la Merveille de votre choix
+              dans une de vos villes (coût ignoré — R-154). Les Merveilles déjà bâties, obsolètes,
+              ou à condition de victoire ne sont pas proposées.
+            </p>
+            <div class="angkor-cols">
+              <div>
+                <h3>Merveille</h3>
+                <ul class="angkor-list">
+                  {#each angkorEligibleWonders($view.state) as w (w)}
+                    <li>
+                      <button type="button" class:selected={angkorWonder === w} onclick={() => (angkorWonder = w)} title={WONDERS[w]?.effect ?? w}>
+                        {WONDERS[w]?.name ?? w}
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+              <div>
+                <h3>Ville</h3>
+                <ul class="angkor-list">
+                  {#each Object.values($view.state.cities).filter((c) => c.owner === myEngineId($view)).sort((a, b) => (a.capital === b.capital ? (a.id < b.id ? -1 : 1) : a.capital ? -1 : 1)) as c (c.id)}
+                    <li>
+                      <button type="button" class:selected={angkorCity === c.id} onclick={() => (angkorCity = c.id)}>
+                        {c.id}{c.capital ? ' — capitale' : ''} ({c.q},{c.r})
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+            </div>
+            <div class="btns">
+              <button type="button" class="primary-btn" disabled={!angkorWonder || !angkorCity} onclick={confirmAngkor}>Construire la Merveille</button>
+              <button type="button" onclick={() => (angkorDismissed = true)}>Décider plus tard</button>
+            </div>
+          </div>
+        {/if}
         {#if busy}
           <div class="banner">
             {#if $view.phase === 'resolving'}Résolution du tour…{:else}Relecture du tour — clic sur la carte pour accélérer{/if}
@@ -768,6 +831,11 @@
   .idle-dialog .btns { display: flex; gap: 0.6rem; }
   .idle-dialog button { padding: 0.4rem 1rem; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; cursor: pointer; }
   .nuke-dialog h2 { color: #ffb74d; }
+  .angkor-dialog { max-width: 760px; }
+  .angkor-cols { display: flex; gap: 1.2rem; justify-content: center; }
+  .angkor-list { list-style: none; margin: 0; padding: 0; max-height: 42vh; overflow: auto; display: flex; flex-direction: column; gap: 0.25rem; }
+  .angkor-list button { padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; cursor: pointer; width: 100%; text-align: left; }
+  .angkor-list button.selected { border-color: #d9a93f; background: #3a3222; color: #ffd479; }
   .nuke-warn { color: #ef9a9a; font-weight: 600; max-width: 34rem; }
   .nuke-hint { color: #8b98a5; font-size: 0.82rem; max-width: 34rem; }
   .primary-btn { background: #2e5e3f; border: 1px solid #3c7a52; padding: 0.5rem 1.2rem; border-radius: 6px; color: inherit; text-decoration: none; }

@@ -235,6 +235,40 @@ Tie-breaks R-81 partout (distance, puis `(q, r)`). **Les barbares ne subissent p
 
 **Interprétations d'implémentation (signalées au rapport)** : entrer sur une hutte n'ouvre que lors d'un **pas de mouvement** (repli/collision gagnante n'ouvrent pas) ; une hutte sous ennemi s'ouvre à l'entrée (avant le combat planifié) ; le RNG est consommé **dès la Phase A** pour les récompenses (amendement R-80 documenté) ; l'escalade s'applique aux embuscades (guerrier des huttes excepté, table R-98) ; un colon entrant sur un village barbare est capturé (I-4).
 
+### 7.10 Artefacts (reliques) — Phase 7o (ajouté le 04/09/2026)
+
+Base documentaire : la spécification d'Erik [`Artefacts Dans Civilization Revolution.md`](Artefacts%20Dans%20Civilization%20Revolution.md) — **elle fait foi**. Sources croisées : [CivFanatics — Relics](https://civfanatics.com/civrev/civilopedia/relics/), [Civilization Wiki — Artifacts (CivRev)](https://civilization.fandom.com/wiki/Artifacts_(CivRev)). **Périmètre canon : les 6 artefacts du jeu de base** ; les 6 DLC (Camelot, Sphinx, Aiguille, Terracotte, Rayon de Tesla, Babel) sont exclus v1 (`dlcOnly: true` en données, jamais générés).
+
+**Décisions de tranche (pilotage 7o, veto Erik possible)** : tirage 🔶 **4** artefacts par carte (canon « 3 à 6 ») ; **Atlantide toujours dans le tirage** 🔶 (canon : « presque systématiquement » — défaut : toujours) ; l'or des Sept Cités suit le multiplicateur `tresorsDouble` espagnol (hook R-146 déjà posé en 7n) ; les merveilles à condition dynamique (Nations Unies, Banque mondiale) et stratégique (Projet Manhattan) **ne sont pas choisibles via Angkor** 🔶 (un octroi gratuit contournerait leurs verrous R-116/R-137/R-138) ; l'indice de hutte est **une seule entrée de table** dont l'effet (nombre restant **ou** position) est tiré au RNG 50/50 🔶 ; le survol d'une case masquée portant un artefact expose un **marqueur de présence discret** 🔶 (le canon décrit un bourdonnement sonore — l'audio est différé : défaut lueur au survol, présence seule, jamais l'identité).
+
+**R-151 · Tirage.** À la création de la carte (procédurale **et** préfabriquée), un tirage **sans remise** de `count` 🔶 (**4**, borné 3–6 — `artefacts.json`) artefacts parmi le **pool de 6** ; RNG **dédié dérivé du seed de partie** (R-80 — même seed → même tirage et même placement, rejouable ; le tirage ne consomme PAS le RNG de résolution) ; chaque artefact est **unique** sur la carte et **disparaît définitivement** à son activation. L'**Atlantide fait partie du tirage** 🔶 (défaut : toujours) ; les autres artefacts sont tirés sans remise parmi les 5 restants.
+
+**R-152 · Placement.** Posé à la génération de la carte (progen : dans le `MapData` — cartes fixes : tiré par le même algorithme à la création, depuis le terrain commis) :
+- **artefacts terrestres** : priorité aux **îles isolées / atolls** — cases de terre d'une composante connexe (BFS) de taille ≤ `islandMaxSize` 🔶 (5), à distance ≥ `minDistanceToCapitals` 🔶 (6) des **deux** départs ; à défaut, cases du continent principal **les plus éloignées** des départs — au plus `maxMainland` 🔶 (2) artefacts continentaux (rare, canon « 1 à 2 possibles » ; sauf si le plancher canon de 3 artefacts l'exige — carte sans îles candidates) ;
+- **Atlantide** : océan profond (`ocean`) à distance ≥ `atlantisMinLandDistance` 🔶 (2) de toute terre ; repli (carte sans océan profond) : la case d'eau la plus éloignée des départs ;
+- les candidats sont classés par **équidistance** (distance minimale aux deux départs, décroissante), tie-break `(q, r)` croissant (R-81), espacement minimal `spacing` 🔶 (4) entre artefacts posés. **Interprétation 🔶 documentée** : la symétrie miroir 6b (R-102) s'applique au **choix des cases** (équidistance aux deux départs — aucun déséquilibre structurel), PAS à la duplication : les artefacts sont uniques et disputés (deux Atlantides violeraient l'unicité R-151) ;
+- jamais sur une case de capitale, de village ou de hutte (au plus une entité par case — parseMap) ; une ressource sous un artefact reste permise (miroir villages, CivRev).
+
+**R-153 · Activation.** Miroir R-98 : l'activation a lieu lors d'un **pas de mouvement** (Phase A) — **entrée sur la case** pour un artefact terrestre (toute unité des civilisations, pacifique comprise ; les barbares n'activent pas — R-95) ; **exception Atlantide** : aucune entrée ni débarquement — une **unité navale sur une case ADJACENTE** (distance ≤ 1, entrée de la case comprise) suffit (canon). **Une seule fois** : l'artefact disparaît de l'état ; événement `ArtifactActivated` (filtré fog R-73) ; l'effet est appliqué immédiatement (Phase A — aucun RNG consulté, les effets sont directs). Le repli/collision gagnant n'active pas ; le débarquement seul non plus (miroir des interprétations huttes). Un artefact activé disparaît **pour les deux joueurs** ; un artefact sur case inexplorée **n'existe pas côté client** (fog R-70).
+
+**R-154 · Catalogue et effets (`artefacts.json` — data-driven).**
+
+| Artefact | Effet (défauts d'implémentation 🔶) |
+|---|---|
+| **Angkor Wat** | Une **merveille gratuite** au **choix du joueur** : action immédiate `ChooseWonder { cityId, wonderId }` — merveille **non construite n'importe où** (R-129), **non obsolète** (R-128), implémentée, **hors victoire/stratégique** (Nations Unies, Banque mondiale, Projet Manhattan 🔶) ; **ville amie** quelconque ; la merveille est posée avec la complétion canonique (jalon R-131, effets de complétion R-132 — Jardins compris ; les victoires n'existent pas pour la liste admise). Le choix reste **en attente** (`pendingArtefactChoices`) tant qu'il n'est pas fait. |
+| **Arche d'Alliance** | **Temple gratuit** dans chaque ville sans Temple ni Cathédrale ; **Temples existants → Cathédrales** (remplacement R-111). |
+| **Sept Cités d'Or** | **Or à la trésorerie selon l'Ère** 🔶 : Ancienne 200, Médiévale 250, Industrielle 300, Moderne 400 — **×2 Espagne** (`tresorsDouble`, hook R-146). |
+| **École de Confucius** | **3 GP gratuits** 🔶 — classes par **rotation R-127** (indices `greatPersonsObtained` + i), posés à la **capitale** (sinon première cité — case libre adjacente), **sans jalon** (miroir C2) ; l'escalade T-27/T-30 s'applique (toute obtention compte, canaux confondus). |
+| **Chevaliers Templiers** | Une **unité militaire selon l'Ère** 🔶 — Ancienne/Médiévale → **Chevalier**, Industrielle → **Canon**, Moderne → **Char d'assaut** (table data-driven) ; remplacement par l'**unique de la civ** (R-148) ; posé sur la case de l'artefact (occupée par l'activateur → première case adjacente libre — perdu si aucune). |
+| **Cité Perdue d'Atlantide** | **Complète les 3 technologies les moins coûteuses non débloquées** — octroi direct (ni `firstBy` ni Premier découvrir), tri déterministe **coût croissant puis id** (R-81) ; la tech en cours fait partie du pool (sa complétion libère le choix de recherche) ; la « manipulation » décrite par le doc (chercher les techs bon marché avant d'approcher l'artefact) est un **comportement canon préservé**. |
+
+**R-155 · Détection sous le brouillard.** Trois leviers canon :
+1. **Survol** 🔶 : l'état diffusé expose pour chaque artefact non exploré un **ping de présence** (`artifactPings` — case seule, sans identité ni id) ; l'UI affiche une lueur discrète **au survol** de la case (canon : bourdonnement sonore — audio différé) ; l'identité, elle, reste filtrée (un artefact inexploré n'existe pas — R-153) ;
+2. **Huttes** : la table `huttes.json` (R-99) s'enrichit de la récompense **`artefact_indice`** 🔶 — tirage RNG 50/50 🔶 entre le **nombre d'artefacts restants** (sur la carte) et la **position d'un artefact** (le plus proche de la hutte, tie R-81) ; une position révélée ajoute la case à `explored` (l'artefact devient visible comme tout artefact exploré) ; l'événement `HutOpened` porte l'indice (filtrage standard — il touche l'ouvreur) ;
+3. **Vol Spatial** : compléter la technologie révèle **la carte entière** au chercheur (miroir de la révélation Premier découvrir R-109) — les artefacts restants deviennent visibles par le filtrage standard (aucune règle spécifique).
+
+**R-156 · Données & migration.** Tout le calibrage vit dans **`artefacts.json`** (pool, mode d'activation, effets, tables d'or et d'unités par ère, paramètres de placement) — **zéro durcissement de règle dans le code** (R-99/R-91). **Migration `schemaVersion` 17 → 18** : champs ADDITIFS `artefacts: []` et `pendingArtefactChoices: []` — les parties migrées n'ont aucun artefact (aucun enrichissement rétroactif : les artefacts naissent à la création de carte), idempotent.
+
 ## 8. Phase C — Économie (modèle Civ Revolution)
 
 **R-60 · Cases travaillées par ville (révision 30/08 — modèle Civ Revolution).**
@@ -744,6 +778,12 @@ Base documentaire : la spécification d'Erik [`Guide Civilisations Civilization 
 | T-35 | `stealGoldPct` | 0.5 🔶 (R-143, Phase 7m — `espionnage.json` ; part de la trésorerie volée) |
 | T-36 | `eraThresholds` | 5 / 14 / 24 🔶 (R-147, Phase 7n — `eras.json` ; ère par COMPAGE de techs, transition au tour suivant) |
 | T-37 | `overrunBaseRatio` | 6 🔶 (R-149, Phase 7n — `civilizations.json` params ; ratio d'ÉCRASEMENT canon, abaissé à 4 par le trait Zoulou) |
+| T-38 | `artefactCount` | 4 🔶, canon 3–6 (R-151, Phase 7o — `artefacts.json` ; tirage sans remise, Atlantide toujours) |
+| T-39 | `artefactPlacement` | îles ≤ 5 cases, ≥ 6 des départs, continent ≤ 2, espacement 4 🔶 (R-152 — `artefacts.json`) |
+| T-40 | `atlantisOceanDistance` | 2 🔶 (R-152 — océan profond `ocean`, distance à toute terre ; `artefacts.json`) |
+| T-41 | `septCitesOrByEra` | 200 / 250 / 300 / 400 🔶 (R-154 — `artefacts.json` ; ×2 Espagne `tresorsDouble`) |
+| T-42 | `templiersUnitByEra` | chevalier / chevalier / canon / char d'assaut 🔶 (R-154 — `artefacts.json`) |
+| T-43 | `confuciusGpCount` · `atlantideTechCount` | 3 · 3 🔶 (R-154 — `artefacts.json`) |
 
 *(T-18..T-26 : la source des valeurs est `barbares.json`/`huttes.json` — R-99 ; `constants.ts` les ré-exporte. Le texte de R-96 du handoff citait `T-24` pour le cap par village et la liste des constantes `T-22` : normalisé **T-22**, erratum signalé au rapport. T-33..T-35 : source `espionnage.json` (R-138..R-144, Phase 7m).)*
 

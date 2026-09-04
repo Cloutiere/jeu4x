@@ -27,6 +27,9 @@ import {
   applySetResearch,
   applySetConversion,
   applySetGovernment,
+  applyAngkorChoice,
+  angkorEligibleWonders,
+  artefactsForMap,
   greatPersonThresholdFor,
   allKnownTechs,
   nextEconomyMilestone,
@@ -670,6 +673,25 @@ export class GameDO {
           ),
         }
       : null;
+    // 7o · R-154 : artefacts — tirage de GÉNÉRATION (rejoué depuis la carte +
+    // seed, déterministe), restants dans l'état, choix Angkor en attente ;
+    // « découverts/activés » = générés − restants.
+    const artefacts = game
+      ? (() => {
+          try {
+            const generated = artefactsForMap(loadMapForGame(this.meta!.settings, this.meta!.seed).map, this.meta!.seed);
+            const restants = new Set(game.artefacts.map((a) => `${a.artefactId}@${a.q},${a.r}`));
+            return {
+              generes: generated.map((a) => ({ artefact: a.artefactId, at: { q: a.q, r: a.r } })),
+              restants: game.artefacts.map((a) => ({ id: a.id, artefact: a.artefactId, at: { q: a.q, r: a.r } })),
+              actives: generated.filter((a) => !restants.has(`${a.artefactId}@${a.q},${a.r}`)).map((a) => a.artefactId),
+              choixAngkorEnAttente: game.pendingArtefactChoices,
+            };
+          } catch {
+            return { erreur: 'carte indisponible' };
+          }
+        })()
+      : null;
     return jsonResponse({
       meta: this.meta,
       state: this.game,
@@ -685,6 +707,7 @@ export class GameDO {
       economie,
       nucleaire,
       espionnage,
+      artefacts,
     });
   }
 
@@ -822,6 +845,14 @@ export class GameDO {
           break;
         case 'SetGovernment':
           await this.handleSetGovernment(ws, att.playerId, (msg as { government: string }).government);
+          break;
+        case 'ChooseWonder':
+          await this.handleChooseWonder(
+            ws,
+            att.playerId,
+            (msg as { cityId: string }).cityId,
+            (msg as { wonderId: string }).wonderId,
+          );
           break;
         case 'ResyncRequest':
           this.sendWelcome(ws);
@@ -969,6 +1000,37 @@ export class GameDO {
     this.lastEvents = [...this.lastEvents, event];
     await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'gouvernement mis à jour' });
+    this.broadcast((pid) => this.snapshotFor(pid, null));
+  }
+
+  /**
+   * 7o · R-154 · ChooseWonder (Angkor Wat) — ACTION IMMÉDIATE (pas un ordre
+   * de tour), même contrat que SetGovernment : appliquée à la réception
+   * (moteur pur applyAngkorChoice — la forme du MESSAGE est contrôlée ici,
+   * la validité métier par le moteur), persistée, puis diffusée immédiatement
+   * aux deux clients. Autorisée en phase « orders », même verrouillé ; refusée
+   * pendant la résolution. Les événements (WonderCompleted, CultureMilestone)
+   * prolongent le journal diffusé.
+   */
+  private async handleChooseWonder(ws: WebSocket, playerId: PlayerId, cityId: string, wonderId: string): Promise<void> {
+    if (typeof cityId !== 'string' || cityId.length === 0 || typeof wonderId !== 'string' || wonderId.length === 0) {
+      return this.sendOrderRejection(ws, 'cityId et wonderId requis');
+    }
+    if (!this.game || !this.meta || this.meta.status !== 'active') {
+      return this.sendOrderRejection(ws, 'choix impossible (partie non active)');
+    }
+    if (this.game.phase !== 'orders') {
+      return this.sendOrderRejection(ws, 'choix non modifiable (résolution en cours)');
+    }
+    const engineId = this.engineIdOf(playerId);
+    const result = applyAngkorChoice(this.game, engineId, cityId, wonderId);
+    if (!result.ok) return this.sendOrderRejection(ws, result.reason);
+    this.game = result.state;
+    if (result.events.length > 0) {
+      this.lastEvents = [...this.lastEvents, ...result.events];
+    }
+    await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
+    this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'merveille accordée' });
     this.broadcast((pid) => this.snapshotFor(pid, null));
   }
 
