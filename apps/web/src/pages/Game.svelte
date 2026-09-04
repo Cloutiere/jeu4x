@@ -285,11 +285,13 @@
     const p = id && v.state ? v.state.players[id] : null;
     const ownCities = id && v.state ? Object.values(v.state.cities).filter((c) => c.owner === id) : [];
     const wonderCount = ownCities.reduce((acc, c) => acc + c.wonders.length, 0);
+    // 7j · R-126 : les GP INSTALLÉS sont listés explicitement (settledGreatPersons).
+    const installed = ownCities.reduce((acc, c) => acc + c.settledGreatPersons.length, 0);
     const milestones = p?.cultureMilestones ?? 0;
-    return { milestones, wonderCount, installed: Math.max(0, milestones - wonderCount) };
+    return { milestones, wonderCount, installed };
   });
   const milestonesDetail = $derived(
-    `Jalons culturels : ${myCulture.installed} personnage(s) illustre(s) installé(s) + ${myCulture.wonderCount} merveille(s) contrôlée(s) — ${MILESTONES_TARGET} requis pour les Nations Unies (R-115/R-116)`,
+    `Jalons culturels (7j : comptés à l’obtention) — ${myCulture.installed} GP installé(s) + ${myCulture.wonderCount} merveille(s) contrôlée(s) — ${MILESTONES_TARGET} requis pour les Nations Unies (R-126/R-116)`,
   );
   const myResearch = $derived.by(() => {
     const v = $view;

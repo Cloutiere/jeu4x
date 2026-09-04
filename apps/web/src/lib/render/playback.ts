@@ -77,6 +77,7 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   // Phase 7f (R-113..R-116) : culture.
   GreatPersonSpawned: 380,
   InstallPerson: 360,
+  GreatPersonConsumed: 380,
   CultureMilestone: 320,
   WonderCompleted: 400,
   // Phase 7g (R-117..R-119) : naval & espionnage.
@@ -109,6 +110,7 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   // Phase 7f (R-113..R-116) : GP, installation, jalons, merveilles, ONU.
   GreatPersonSpawned: 'good',
   InstallPerson: 'good',
+  GreatPersonConsumed: 'good',
   WonderCompleted: 'good',
   CultureMilestone: 'info',
   // Phase 7g (R-117..R-119) : naval & espionnage — un vol est bon pour le
@@ -330,6 +332,9 @@ export class Playback {
       case 'InstallPerson':
       case 'WonderCompleted':
         this.pushFx(ev.at, 'good', dur);
+        break;
+      case 'GreatPersonConsumed':
+        // L'effet consume est empire/ville : sans hex dédiée fiable, toast seul.
         break;
       default:
         break;

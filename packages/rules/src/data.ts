@@ -10,11 +10,13 @@ import resourcesJson from './data/resources.json' with { type: 'json' };
 import barbaresJson from './data/barbares.json' with { type: 'json' };
 import huttesJson from './data/huttes.json' with { type: 'json' };
 import cultureJson from './data/culture.json' with { type: 'json' };
+import figuresJson from './data/figures.json' with { type: 'json' };
 import type {
   BarbariansData,
   BuildingData,
   CultureData,
   HuttesData,
+  FiguresData,
   ResourceData,
   TerrainData,
   TerrainId,
@@ -31,6 +33,8 @@ export const BARBARIANS: BarbariansData = barbaresJson as unknown as BarbariansD
 export const HUT_REWARDS: HuttesData = huttesJson as unknown as HuttesData;
 /** 7f · Phase 7f : constantes culturelles (culture.json — T-27, jalons). */
 export const CULTURE: CultureData = cultureJson as unknown as CultureData;
+/** 7j · R-126 · Figures historiques par classe de GP + tech associée (ciblage R-127). */
+export const FIGURES = figuresJson as unknown as FiguresData;
 /** R-95 · Id du pseudo-joueur barbare. */
 export const BARBARIAN_ID: string = BARBARIANS.barbarianId;
 

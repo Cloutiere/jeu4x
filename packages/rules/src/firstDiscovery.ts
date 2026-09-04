@@ -26,6 +26,7 @@ import type { GameState, PlayerId } from './state.js';
 import type { FirstDiscoveredPayload } from './events.js';
 import type { PerCityBonus } from './types.js';
 import { TECHS } from './techs.js';
+import { figureClassForTech } from './culture.js';
 import { freeSpawnTiles } from './barbares.js';
 
 /** Première ville du joueur : capitale d'abord, sinon cityId croissant (R-81). */
@@ -143,6 +144,49 @@ export function applyFirstToDiscover(
         payload.unitType = reward.unit;
         payload.unitIds = [unitId];
       }
+    }
+  }
+
+  // 7j · D5.1 · R-109 étendu : récompense GP du Premier découvrir — le doc
+  // accorde un GP gratuit au Premier découvreur de l'Invention (Léonard de
+  // Vinci — Bâtisseur) et de la Monarchie (Roi David — Leader). La classe est
+  // celle de la figure rattachée à la tech (figures.json · R-126) ; posé sur
+  // la case de la première ville (sinon adjacente libre — comme l'unité
+  // gratuite). Jalon à l'obtention (R-126) : crédité ici.
+  if (reward.greatPerson) {
+    const gpClass = figureClassForTech(techId) ?? 'artiste_penseur'; // repli déterministe 🔶
+    const gpStats = unitType(gpClass);
+    const player = st.players[playerId]!;
+    player.greatPersonsByType[gpClass] = (player.greatPersonsByType[gpClass] ?? 0) + 1;
+    player.greatPersonsObtained += 1;
+    player.cultureMilestones += 1; // jalon À L'OBTENTION (R-126)
+    const city = primaryCity(st, playerId);
+    let spot: Hex | null = null;
+    if (city) {
+      const hex = { q: city.q, r: city.r };
+      const occupied = Object.values(st.units).some((u) => u.q === hex.q && u.r === hex.r);
+      spot = occupied ? (freeSpawnTiles(st, hex, 1)[0] ?? null) : hex;
+    }
+    if (spot) {
+      const unitId = nextId(st.units, 'u');
+      st.units[unitId] = {
+        id: unitId,
+        type: gpClass,
+        owner: playerId,
+        q: spot.q,
+        r: spot.r,
+        hp: gpStats.hpMax,
+        mp: gpStats.movement,
+        veteran: false,
+        isArmy: false,
+        order: null,
+        detainedBy: null,
+        fortified: false,
+        aboard: null,
+        cargo: null,
+      };
+      payload.greatPerson = gpClass;
+      payload.unitIds = [...(payload.unitIds ?? []), unitId];
     }
   }
 

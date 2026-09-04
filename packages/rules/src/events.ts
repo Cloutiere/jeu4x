@@ -78,6 +78,9 @@ export type GameEvent =
       population?: number;
       perCity?: { gold?: number; science?: number; production?: number; commerce?: number };
       mapReveal?: boolean;
+      /** 7j · D5.1 · R-109 étendu : classe du GP gratuit engendré
+       *  (Premier découvrir de l'Invention / de la Monarchie). */
+      greatPerson?: string;
     }
   /** Croissance d'une ville : +1 pop = +1 citoyen (R-63, Phase 6). */
   | { seq: number; type: 'PopulationGrew'; cityId: CityId; owner: PlayerId; pop: number; at: Hex }
@@ -115,6 +118,9 @@ export type GameEvent =
   | { seq: number; type: 'GreatPersonSpawned'; unitId: UnitId; unitType: string; cityId: CityId; owner: PlayerId; at: Hex }
   /** 7f · R-115 : un GP s'installe définitivement dans une ville amie (+1 jalon). */
   | { seq: number; type: 'InstallPerson'; unitId: UnitId; unitType: string; cityId: CityId; owner: PlayerId; at: Hex }
+  /** 7j · R-126 : un GP est CONSOMMÉ (Consume) — effet massif immédiat selon
+   *  la classe, le GP disparaît ; `effect` décrit l'effet appliqué (UI). */
+  | { seq: number; type: 'GreatPersonConsumed'; unitId: UnitId; unitType: string; player: PlayerId; cityId: CityId | null; effect: string }
   /** 7f · R-115/R-116 : variation des jalons culturels (GP installés,
    *  merveilles construites/capturées/perdues) — `total` = compteur résultant. */
   | {
@@ -123,7 +129,7 @@ export type GameEvent =
       player: PlayerId;
       delta: number;
       total: number;
-      reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'gpStolen';
+      reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'gpStolen' | 'obtain';
     }
   /** 7f · R-116 : merveille achevée dans une ville (jalon, effet, ONU → victoire). */
   | { seq: number; type: 'WonderCompleted'; cityId: CityId; owner: PlayerId; wonder: string; at: Hex }
@@ -277,6 +283,11 @@ export function eventRefs(event: GameEvent): EventRefs {
       refs.cityIds.push(event.cityId);
       refs.players.push(event.owner);
       hex(event.at);
+      break;
+    case 'GreatPersonConsumed':
+      refs.unitIds.push(event.unitId);
+      refs.players.push(event.player);
+      if (event.cityId) refs.cityIds.push(event.cityId);
       break;
     case 'CultureMilestone':
       refs.players.push(event.player);

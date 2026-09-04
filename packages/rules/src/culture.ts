@@ -14,13 +14,32 @@
  *  - Stonehenge multiplie la part « Temple/Cathédrale » du rendement ;
  *  - les merveilles SURVIVENT à la capture (champ city.wonders).
  */
-import { BUILDINGS, CULTURE, unitType } from './data.js';
+import { BUILDINGS, CULTURE, FIGURES, unitType } from './data.js';
 import { TECHS, WONDERS } from './techs.js';
+import type { FigureEntry } from './types.js';
 import type { CityId, PlayerId } from './state.js';
 
-/** Types de GP de culture — alternance déterministe (R-114 🔶). */
-export const GREAT_PERSON_TYPES = ['artiste', 'penseur'] as const;
-export type GreatPersonType = (typeof GREAT_PERSON_TYPES)[number];
+/**
+ * 7j · R-114 (rév. D1/D2) · Les SIX classes canoniques de GP (doc d'Erik,
+ * tableau Consume/Settle) : Grand Artiste / Penseur (fusion de l'ancienne
+ * alternance `artiste`/`penseur` 🔶 — décision du doc), Grand Bâtisseur
+ * (ex-`ingenieur`), Grand Savant (ex-`scientifique`), Grand Explorateur /
+ * Industriel (ex-`mogul`), Grand Humanitaire (NOUVEAU — R-123 complétée) et
+ * Grand Leader. Ordre canonique utilisé par la rotation de repli (R-127 🔶).
+ */
+export const GP_CLASSES = [
+  'artiste_penseur',
+  'batisseur',
+  'savant',
+  'explorateur',
+  'humanitaire',
+  'leader',
+] as const;
+export type GreatPersonClass = (typeof GP_CLASSES)[number];
+
+/** Compat d'écriture : le nom historique désigne désormais la classe fusionnée. */
+export const GREAT_PERSON_TYPES = GP_CLASSES;
+export type GreatPersonType = GreatPersonClass;
 
 /**
  * R-114 · Seuil de culture (T-27) pour engendrer un GP : base 🔶 20,
@@ -35,14 +54,38 @@ export function greatPersonThresholdFor(greatPersonsObtained: number): number {
 }
 
 /**
- * R-114 🔶 · Type de GP engendré : ALTERNANCE déterministe sur le compteur
- * d'obtention (Artiste au premier GP, Penseur au second, …). Interprétation
- * documentée : le handoff offrait « alternance déterministe ou tirage seedé »
- * — l'alternance est retenue (simple, sans tir, lisibilité parfaite).
+ * 7j · R-127 🔶 (D5.2) · Ciblage technologique de l'identité : la classe du GP
+ * engendré par le canal CULTURE est celle de la figure rattachée à la tech EN
+ * COURS DE RECHERCHE du joueur (figures.json) ; sans figure associée, rotation
+ * déterministe sur l'ordre canonique des 6 classes (index = compteur
+ * d'obtention). Aucun RNG (R-80) — pondération déterministe par défaut du
+ * handoff 7j (l'alternative tirage seedé R-80 reste possible, non retenue).
  */
-export function greatPersonTypeFor(greatPersonsObtained: number): GreatPersonType {
-  const index = ((greatPersonsObtained % GREAT_PERSON_TYPES.length) + GREAT_PERSON_TYPES.length) % GREAT_PERSON_TYPES.length;
-  return GREAT_PERSON_TYPES[index]!;
+export function greatPersonClassFor(researching: string | null, greatPersonsObtained: number): GreatPersonClass {
+  const targeted = figureClassForTech(researching);
+  if (targeted) return targeted;
+  const index = ((greatPersonsObtained % GP_CLASSES.length) + GP_CLASSES.length) % GP_CLASSES.length;
+  return GP_CLASSES[index]!;
+}
+
+/** 7j · R-126 · Classe de la figure rattachée à une tech (null si aucune). */
+export function figureClassForTech(techId: string | null | undefined): GreatPersonClass | null {
+  if (!techId) return null;
+  for (const cls of GP_CLASSES) {
+    const figures = FIGURES.classes[cls]?.figures ?? [];
+    if (figures.some((f: FigureEntry) => f.tech === techId)) return cls;
+  }
+  return null;
+}
+
+/** 7j · R-126 · Première figure d'une classe rattachée à une tech (libellés UI). */
+export function figureNameForTech(techId: string): string | null {
+  for (const cls of GP_CLASSES) {
+    for (const f of FIGURES.classes[cls]?.figures ?? []) {
+      if ((f as FigureEntry).tech === techId) return f.name;
+    }
+  }
+  return null;
 }
 
 /** 7f · Vue minimale d'une ville pour les calculs culturels (moteur ET UI). */
@@ -152,11 +195,51 @@ export function wonderProductionIssue(wonderId: string, ctx: WonderProductionCon
   return null;
 }
 
-/** R-115 · Compte les GP installés dérivables : jalons − merveilles contrôlées
+/** 7j · R-126 · Compte les GP installés dérivables : jalons − merveilles contrôlées
  *  (le détail UI « GP installés / merveilles » est dérivé de l'état, source
- *  unique). */
+ *  unique). 7j : les jalons sont comptés À L'OBTENTION (doc : « chaque GP
+ *  obtenu compte comme un Jalon Culturel ») — pour le VOL (R-119), la liste
+ *  réelle des installés fait foi : voir `settledGreatPersonsOfCities`. */
 export function installedGreatPersonsOf(cultureMilestones: number, wonderCount: number): number {
   return Math.max(0, cultureMilestones - wonderCount);
+}
+
+/** 7j · R-126 · Nombre de GP INSTALLÉS d'un joueur : Σ des listes
+ *  `city.settledGreatPersons` (source unique — les GP « en attente de choix »
+ *  ne sont pas installés et ne peuvent pas être volés, doc d'Erik). */
+export function settledGreatPersonsOfCities(
+  cities: Record<CityId, { owner: PlayerId; settledGreatPersons?: string[] }>,
+  playerId: PlayerId,
+): number {
+  let total = 0;
+  for (const id of Object.keys(cities).sort()) {
+    const c = cities[id]!;
+    if (c.owner !== playerId) continue;
+    total += c.settledGreatPersons?.length ?? 0;
+  }
+  return total;
+}
+
+/**
+ * 7j · R-126 · Facteur de COÛT des bâtiments d'une ville dû aux GP
+ * Bâtisseur installés : ×0,5 par Bâtisseur (doc : « réduit de 50 % le coût
+ * en marteaux de tous les futurs bâtiments ») — cumulatif multiplicatif 🔶.
+ * Pur.
+ */
+export function settledGpCostFactor(city: { settledGreatPersons?: string[] }, cls: string): number {
+  const n = city.settledGreatPersons?.filter((t) => t === cls).length ?? 0;
+  return Math.pow(0.5, n);
+}
+
+/**
+ * 7j · R-126 · Multiplicateur de rendement d'une ville dû aux GP INSTALLÉS
+ * (Settle) : +50 % par GP installé de la classe donnée (doc d'Erik : « +50 %
+ * de production de X dans la cité hôte ») — cumulatif additif 🔶 (deux Savants
+ * installés = +100 %), interprétation documentée. Pur.
+ */
+export function settledGpMultiplier(city: { settledGreatPersons?: string[] }, cls: string): number {
+  const n = city.settledGreatPersons?.filter((t) => t === cls).length ?? 0;
+  return 1 + 0.5 * n;
 }
 
 /** Type d'une unité GP (artiste/penseur) — garde-fou typé. */
@@ -183,8 +266,12 @@ export function wondersOwnedBy(
 // 7h · R-123 — GP restants (Scientifique/Mogul/Ingénieur/Leader)
 // ---------------------------------------------------------------------------
 
-/** 7h · GP à rendement (accumulateurs par ville — R-123). */
-export const YIELD_GP_TYPES = ['scientifique', 'mogul', 'ingenieur'] as const;
+/** 7j · GP à rendement (accumulateurs par ville — R-123 complétée) : Grand
+ *  Savant (science), Grand Explorateur / Industriel (or), Grand Bâtisseur
+ *  (production). Le Grand Humanitaire (croissance — surplus alimentaire) suit
+ *  le MÊME modèle (accumulateur `city.gpAccumFood`, même seuil T-30 🔶) ;
+ *  Leader conserve son canal victoires (T-31). */
+export const YIELD_GP_TYPES = ['savant', 'explorateur', 'batisseur'] as const;
 export type YieldGreatPersonType = (typeof YIELD_GP_TYPES)[number];
 
 /**
@@ -193,7 +280,10 @@ export type YieldGreatPersonType = (typeof YIELD_GP_TYPES)[number];
  * (`player.greatPersonsByType[type]`). Le Leader (T-31) a un seuil FIXE
  * (victoires de combat — interprétation documentée : pas de croissance).
  */
-export function yieldGpThresholdFor(type: YieldGreatPersonType, greatPersonsByType: Record<string, number>): number {
+export function yieldGpThresholdFor(
+  type: YieldGreatPersonType | 'humanitaire',
+  greatPersonsByType: Record<string, number>,
+): number {
   void type;
   const base = CULTURE.greatPersonYieldThresholdBase ?? CULTURE.greatPersonThresholdBase;
   const growth = CULTURE.greatPersonYieldThresholdGrowth ?? CULTURE.greatPersonThresholdGrowth;

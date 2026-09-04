@@ -9,6 +9,7 @@
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
   import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap } from '@game/rules';
+  import { greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -139,10 +140,13 @@
    * accumulateurs par ville, seuil T-30 (×2 par GP du même type obtenu).
    * Au plus un GP par ville et par tour (culture prioritaire — R-123).
    */
-  const YIELD_GAUGES: Array<{ key: 'gpAccumGold' | 'gpAccumScience' | 'gpAccumProd'; type: 'mogul' | 'scientifique' | 'ingenieur'; label: string; icon: string }> = [
-    { key: 'gpAccumScience', type: 'scientifique', label: 'GP Scientifique', icon: '/art/icone_science.png' },
-    { key: 'gpAccumGold', type: 'mogul', label: 'GP Mogul', icon: '/art/icone_or.png' },
-    { key: 'gpAccumProd', type: 'ingenieur', label: 'GP Ingénieur', icon: '/art/icone_production.png' },
+  // 7j · D2 · R-123 complétée : 6 classes — Savant (science), Explorateur (or),
+  // Bâtisseur (production), Humanitaire (croissance, accumulateur gpAccumFood).
+  const YIELD_GAUGES: Array<{ key: 'gpAccumGold' | 'gpAccumScience' | 'gpAccumProd' | 'gpAccumFood'; type: 'explorateur' | 'savant' | 'batisseur' | 'humanitaire'; label: string; icon: string }> = [
+    { key: 'gpAccumScience', type: 'savant', label: 'Grand Savant', icon: '/art/icone_science.png' },
+    { key: 'gpAccumGold', type: 'explorateur', label: 'Grand Explorateur', icon: '/art/icone_or.png' },
+    { key: 'gpAccumProd', type: 'batisseur', label: 'Grand Bâtisseur', icon: '/art/icone_production.png' },
+    { key: 'gpAccumFood', type: 'humanitaire', label: 'Grand Humanitaire', icon: '/art/icone_nourriture.png' },
   ];
   const gpYieldGauges = $derived.by(() => {
     if (!city || !view.state || !engine) return [];
@@ -449,12 +453,20 @@
           <span class="eta">{culturePerTurn} culture/tour</span>
         </div>
         {#each gpYieldGauges as g (g.type)}
-          <div class="gauge" title="{g.label} (R-123) : accumulateur de la ville — seuil T-30 (×2 par GP du même type obtenu)">
+          <div class="gauge" title="{g.label} (R-123 complétée) : accumulateur de la ville — seuil T-30 (×2 par GP de la même classe obtenu)">
             <span class="lab"><img src={g.icon} alt="" onerror={hideImg} /> {g.stored} / {g.threshold}</span>
             <div class="bar"><div class="fill gp-fill" style:width={`${g.ratio * 100}%`}></div></div>
             <span class="eta">{g.label}</span>
           </div>
         {/each}
+        {#if city.settledGreatPersons.length > 0}
+          <p class="settled-gps" title="7j · R-126 : GP INSTALLÉS — multiplicateurs permanents de rendement de cette cité">
+            GP installés :
+            {#each city.settledGreatPersons as gpCls, i (i)}
+              <span class="chip" title="{settleEffectLabel(gpCls)}">{greatPersonLabel(gpCls)} — {settleEffectLabel(gpCls)}</span>
+            {/each}
+          </p>
+        {/if}
       {/if}
     {/if}
 

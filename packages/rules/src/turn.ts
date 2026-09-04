@@ -51,12 +51,15 @@ import {
 import type { DestructionCause, GameEvent, HutReward } from './events.js';
 import { creditScience } from './research.js';
 import { conversionGains, CONVERSION_DEFAULT, goldMultOf, scienceMultOf } from './conversion.js';
-import { WONDERS, canSetProduction, buildingCostDiscount } from './techs.js';
+import { WONDERS, TECHS, canSetProduction, buildingCostDiscount } from './techs.js';
 import {
   cultureGains,
   greatPersonThresholdFor,
   isWonderObsolete,
-  greatPersonTypeFor,
+  greatPersonClassFor,
+  settledGpMultiplier,
+  settledGpCostFactor,
+  settledGreatPersonsOfCities,
   installedGreatPersonsOf,
   isGreatPersonType,
   leaderGpVictoriesNeeded,
@@ -1405,48 +1408,203 @@ function takenTilesExcluding(board: Board, cityId: string | null): Set<TileKey> 
 }
 
 /**
- * 7f · R-115 : InstallPerson — un Personnage illustre s'installe DÉFINITIVE-
- * MENT dans une ville amie, sur sa case ou ADJACENTE (distance ≤ 1) : l'unité
- * est consommée et le joueur gagne 1 jalon culturel. Ordre Phase C ; un ordre
- * invalide (unité/ville non possédée, pas un GP, trop loin) est ignoré.
+ * 7j · R-126 : GreatPersonAction — le joueur choisit, pour CHAQUE GP obtenu,
+ * entre Consume (effet massif immédiat, le GP disparaît) et Settle
+ * (installation permanente dans une ville amie — multiplicateur de rendement).
+ * `InstallPerson` (7f · R-115) reste accepté comme ALIAS de Settle (compat
+ * clients 7f/7h). Le jalon est déjà compté À L'OBTENTION (spawn, R-126) :
+ * aucune des deux actions n'en accorde. Un ordre invalide (unité/ville non
+ * possédée, pas un GP, trop loin, Consume sans effet v1) est ignoré — le GP
+ * reste « en attente de choix » (et ne peut pas être volé, R-119 révisée).
  */
-function applyInstallPerson(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
-  const orders: Array<Extract<Order, { type: 'InstallPerson' }>> = [];
+interface GpAction {
+  playerId: PlayerId;
+  action: 'consume' | 'settle';
+  unitId: UnitId;
+  cityId: CityId;
+}
+
+function applyGreatPersonActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
+  const actions: GpAction[] = [];
   for (const playerId of Object.keys(ordersByPlayer).sort()) {
     for (const order of ordersByPlayer[playerId] ?? []) {
-      if (order.type !== 'InstallPerson') continue;
-      const unit = board.st.units[order.unitId];
-      const city = board.st.cities[order.cityId];
+      let action: 'consume' | 'settle' | null = null;
+      let unitId: UnitId | null = null;
+      let cityId: CityId | null = null;
+      if (order.type === 'GreatPersonAction') {
+        action = order.action;
+        unitId = order.unitId;
+        cityId = order.cityId;
+      } else if (order.type === 'InstallPerson') {
+        action = 'settle'; // alias historique (R-115)
+        unitId = order.unitId;
+        cityId = order.cityId;
+      }
+      if (!action || !unitId || !cityId) continue;
+      const unit = board.st.units[unitId];
+      const city = board.st.cities[cityId];
       if (!unit || unit.owner !== playerId) continue;
       if (!city || city.owner !== playerId) continue; // ville AMIE uniquement
       if (!isGreatPersonType(unit.type)) continue; // R-114 : GP seulement
       if (hexDistance(unit, city) > 1) continue; // sur la case ou adjacente
-      orders.push(order);
+      actions.push({ playerId, action, unitId, cityId });
     }
   }
-  orders.sort((a, b) => compareUnitIds(a.unitId, b.unitId));
-  for (const order of orders) {
-    const unit = board.st.units[order.unitId];
-    const city = board.st.cities[order.cityId];
-    if (!unit || !city) continue; // déjà consommé par un ordre antérieur du lot
-    const player = board.st.players[unit.owner]!;
+  actions.sort((a, b) => compareUnitIds(a.unitId, b.unitId) || a.action.localeCompare(b.action));
+  for (const a of actions) {
+    const unit = board.st.units[a.unitId];
+    const city = board.st.cities[a.cityId];
+    if (!unit || !city) continue; // déjà consommé par une action antérieure du lot
+    if (a.action === 'settle') {
+      // Settle (R-126) : installation permanente — multiplicateur de rendement
+      // de la cité hôte (processEconomy lit `city.settledGreatPersons`).
+      delete board.st.units[unit.id];
+      city.settledGreatPersons.push(unit.type);
+      emit(board, {
+        type: 'InstallPerson',
+        unitId: unit.id,
+        unitType: unit.type,
+        cityId: city.id,
+        owner: unit.owner,
+        at: { q: unit.q, r: unit.r },
+      });
+      continue;
+    }
+    // Consume (R-126) — effet massif immédiat par classe ; le GP disparaît.
+    // 7j · tranches inactives v1 (doc : flip culturel Artiste/Penseur, injection
+    // d'or Explorateur — phase 7l) : l'ordre est IGNORÉ, le GP reste en attente.
+    const applied = applyGreatPersonConsume(board, unit, city);
+    if (!applied) continue;
     delete board.st.units[unit.id];
-    player.cultureMilestones += 1;
     emit(board, {
-      type: 'InstallPerson',
+      type: 'GreatPersonConsumed',
       unitId: unit.id,
       unitType: unit.type,
-      cityId: city.id,
-      owner: unit.owner,
-      at: { q: unit.q, r: unit.r },
-    });
-    emit(board, {
-      type: 'CultureMilestone',
       player: unit.owner,
-      delta: 1,
-      total: player.cultureMilestones,
-      reason: 'install',
+      cityId: city.id,
+      effect: applied,
     });
+  }
+}
+
+/**
+ * 7j · R-126 · Effets CONSUME par classe (doc d'Erik, tableau). Retourne le
+ * libellé de l'effet appliqué, ou null si l'effet est inactif/impossible (le
+ * GP reste alors en attente de choix). Mute l'état de TRAVAIL du moteur.
+ *  - Bâtisseur : achève la production en cours (unité, bâtiment ou merveille) ;
+ *  - Savant : achève la recherche active (Premier découvrir applicable — la
+ *    complétion passe par `creditScience`, comme une découverte normale) ;
+ *  - Humanitaire : +1 pop à TOUTES les cités de l'empire ;
+ *  - Leader : toutes les unités militaires (canAttack) → Vétéran ;
+ *  - Artiste/Penseur & Explorateur : reportés v1 (inactifs).
+ */
+function applyGreatPersonConsume(board: Board, unit: Unit, city: City): string | null {
+  const player = board.st.players[unit.owner]!;
+  switch (unit.type) {
+    case 'batisseur': {
+      const prod = city.production;
+      if (!prod || productionItemCost(prod.item, board.st, unit.owner) === null) return null;
+      const at = { q: city.q, r: city.r };
+      if (prod.item.kind === 'unit') {
+        const stats = unitType(prod.item.id);
+        const hex = occupiedByUnit(board, at) ? (freeSpawnTiles(board.st, at, 1)[0] ?? null) : at;
+        if (!hex) return null; // aucune case : en attente (comme R-62)
+        const unitId = nextId(board.st.units, 'u');
+        board.st.units[unitId] = {
+          id: unitId,
+          type: prod.item.id,
+          owner: unit.owner,
+          q: hex.q,
+          r: hex.r,
+          hp: stats.hpMax,
+          mp: stats.movement,
+          // R-89 + 7j · R-126 : Caserne OU Leader installé → vétéran.
+          veteran: (hasBuilding(city, 'caserne') || settledGpMultiplier(city, 'leader') > 1) && stats.canAttack,
+          isArmy: false,
+          order: null,
+          detainedBy: null,
+          fortified: false,
+          aboard: null,
+          cargo: null,
+        };
+        emit(board, { type: 'UnitProduced', unitId, cityId: city.id, owner: unit.owner, unitType: prod.item.id, at: hex });
+      } else if (prod.item.kind === 'wonder') {
+        const wonderId = prod.item.id;
+        const wonderData = WONDERS[wonderId];
+        const empireHas = Object.values(board.st.cities).some(
+          (c) => c.owner === unit.owner && c.wonders.includes(wonderId),
+        );
+        if (!wonderData || empireHas) return null; // déjà bâtie (R-116) : en attente
+        city.wonders.push(wonderId);
+        player.cultureMilestones += 1;
+        emit(board, { type: 'WonderCompleted', cityId: city.id, owner: unit.owner, wonder: wonderId, at });
+        emit(board, {
+          type: 'CultureMilestone',
+          player: unit.owner,
+          delta: 1,
+          total: player.cultureMilestones,
+          reason: 'wonderBuilt',
+        });
+        if (wonderData.cultureVictory) {
+          board.st.winner = unit.owner;
+          emit(board, { type: 'Victory', winner: unit.owner, reason: 'culture' });
+        }
+      } else {
+        const buildingId = prod.item.id;
+        if (hasBuilding(city, buildingId)) return null; // déjà dotée : en attente
+        const replaced = BUILDINGS[buildingId]?.replaces;
+        if (replaced && hasBuilding(city, replaced)) {
+          city.buildings = city.buildings.filter((b) => b !== replaced);
+        }
+        city.buildings.push(buildingId);
+        city.buildings.sort();
+        emit(board, { type: 'BuildingCompleted', cityId: city.id, owner: unit.owner, building: buildingId, at });
+      }
+      city.production = null;
+      return 'production achevée';
+    }
+    case 'savant': {
+      const techId = player.researching;
+      const tech = techId ? TECHS[techId] : null;
+      if (!techId || !tech) return null; // aucune recherche active : en attente
+      const progress = player.scienceProgress[techId] ?? 0;
+      creditScience(board.st, unit.owner, Math.max(1, tech.cost - progress), {
+        onResearched: (pid, tid) => emit(board, { type: 'TechResearched', player: pid, tech: tid }),
+        onFirstDiscovered: (payload, citiesToFill) => {
+          emit(board, payload);
+          for (const id of citiesToFill) board.pendingFill.add(id);
+        },
+      });
+      return 'recherche achevée';
+    }
+    case 'humanitaire': {
+      // +1 pop à TOUTES les cités de l'empire (citoyens auto-assignés en
+      // Phase C — pendingFill). La croissance reste bornée par le cap pop 31
+      // (R-63, growth.json) appliqué à la boucle de croissance normale.
+      for (const cityId of Object.keys(board.st.cities).sort()) {
+        const c = board.st.cities[cityId]!;
+        if (c.owner !== unit.owner) continue;
+        c.pop += 1;
+        board.pendingFill.add(cityId);
+        emit(board, { type: 'PopulationGrew', cityId, owner: unit.owner, pop: c.pop, at: { q: c.q, r: c.r } });
+      }
+      return '+1 population partout';
+    }
+    case 'leader': {
+      let promoted = 0;
+      for (const id of Object.keys(board.st.units).sort()) {
+        const u = board.st.units[id]!;
+        if (u.owner !== unit.owner) continue;
+        if (!unitType(u.type).canAttack) continue; // militaires uniquement
+        if (!u.veteran) {
+          u.veteran = true;
+          promoted += 1;
+        }
+      }
+      return promoted > 0 ? 'vétérans partout' : null; // rien à promouvoir : en attente
+    }
+    default:
+      return null; // Artiste/Penseur (flip culturel) & Explorateur (or) : reportés v1
   }
 }
 
@@ -1481,8 +1639,9 @@ function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     if (!victim) continue; // (aucune ville barbare — garde-fou)
     const visible = computeVisibleTiles(board.st, unit.owner).has(tileKeyOf(city));
     const adjacent = hexDistance(unit, city) <= 1;
-    const stealable =
-      installedGreatPersonsOf(victim.cultureMilestones, wondersOwnedBy(board.st.cities, city.owner).length) > 0;
+    // 7j · D4.3 : seuls les GP INSTALLÉS (settledGreatPersons) peuvent être
+    // volés — un GP « en attente de choix » est insaisissable (doc d'Erik).
+    const stealable = settledGreatPersonsOfCities(board.st.cities, city.owner) > 0;
     if (!visible || !adjacent || !stealable) {
       emit(board, {
         type: 'SpyMission',
@@ -1510,6 +1669,18 @@ function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       cityId: city.id,
       at: { q: city.q, r: city.r },
     });
+    // 7j · D4.3 : le GP volé est RETIRÉ de la liste d'installation de la ville
+    // cible (le plus récemment installé — déterministe) et réputé installé
+    // d'office dans la capitale du voleur (sinon première ville — R-81) : le
+    // bonus Settle change de camp, l'escalade T-27/T-30 est inchangée
+    // (décision d'Erik, R-119).
+    const stolen = board.st.cities[city.id]?.settledGreatPersons.pop();
+    if (stolen) {
+      const thiefCities = Object.values(board.st.cities)
+        .filter((c) => c.owner === unit.owner)
+        .sort((a, b) => Number(b.capital) - Number(a.capital) || compareCityIds(a.id, b.id));
+      thiefCities[0]?.settledGreatPersons.push(stolen);
+    }
     victim.cultureMilestones -= 1;
     emit(board, {
       type: 'CultureMilestone',
@@ -1636,19 +1807,33 @@ function processVillages(board: Board): void {
 }
 
 /**
- * 7f/7h · R-114/R-123 : engendre un Personnage illustre d'un type donné sur la
- * case de la ville (sinon première case adjacente libre — perdu si aucune,
- * interprétation R-114). Incrémente le compteur PAR TYPE (escalade T-30) ;
- * `greatPersonsObtained` (T-27 culturel) n'est incrémenté que pour les GP de
- * culture (artiste/penseur) — escalades indépendantes (R-123).
+ * 7f/7h · R-114/R-123 (rév. 7j · R-126) : engendre un Personnage illustre de
+ * la classe donnée sur la case de la ville (sinon première case adjacente
+ * libre — perdu si aucune, interprétation R-114). 7j · D3/D4 : le JALON
+ * CULTUREL est compté À L'OBTENTION (doc d'Erik : « chaque GP obtenu compte
+ * comme un Jalon Culturel »), quel que soit l'usage ultérieur (Consume ou
+ * Settle) — l'installation (Settle, R-126) n'accorde PLUS de jalon.
+ * Escalades : compteur PAR TYPE (T-30) et `greatPersonsObtained` (T-27) pour
+ * TOUTE classe — le doc : « le seuil augmente à chaque nouveau personnage »
+ * 🔶 (décision : toutes les classes font grimper le seuil culturel).
  */
 function spawnGreatPerson(board: Board, city: City, gpType: string): void {
   const player = board.st.players[city.owner]!;
   const gpStats = unitType(gpType);
   const cityHex = { q: city.q, r: city.r };
   const spot = occupiedByUnit(board, cityHex) ? (freeSpawnTiles(board.st, cityHex, 1)[0] ?? null) : cityHex;
-  if (gpStats.greatPerson) player.greatPersonsByType[gpType] = (player.greatPersonsByType[gpType] ?? 0) + 1;
-  if (gpType === 'artiste' || gpType === 'penseur') player.greatPersonsObtained += 1; // R-114 : seuil T-27
+  if (gpStats.greatPerson) {
+    player.greatPersonsByType[gpType] = (player.greatPersonsByType[gpType] ?? 0) + 1;
+    player.greatPersonsObtained += 1; // R-114 : seuil T-27 — 7j : toutes classes
+    player.cultureMilestones += 1; // 7j · D3/D4 : jalon à l'OBTENTION (R-126)
+    emit(board, {
+      type: 'CultureMilestone',
+      player: city.owner,
+      delta: 1,
+      total: player.cultureMilestones,
+      reason: 'obtain',
+    });
+  }
   if (!spot) return; // aucune case libre : le GP est perdu (interprétation documentée)
   const gpId = nextId(board.st.units, 'u');
   board.st.units[gpId] = {
@@ -1778,6 +1963,8 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       gpAccumGold: 0, // 7h · R-123
       gpAccumScience: 0,
       gpAccumProd: 0,
+      gpAccumFood: 0, // 7j · R-123 complétée (canal Humanitaire)
+      settledGreatPersons: [], // 7j · R-126
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
     delete board.st.units[unit.id];
@@ -1867,9 +2054,16 @@ function processEconomy(board: Board): void {
     // Bibliothèque ×1,5 / Université ×4 science (data-driven, conversion.ts).
     // 7h · R-121 : Démocratie +50 % or/science (avant répartition) ;
     // Fondamentalisme : science Bibliothèque/Université = 0.
-    const gains = anarchy
+    const rawGains = anarchy
       ? { gold: 0, science: 0 } // R-122 : fioles et or à zéro
       : conversionGains(commerce, city.conversion, city.buildings, govEffects);
+    // 7j · R-126 · Settle : les GP INSTALLÉS multiplient le rendement de leur
+    // cité hôte (+50 % par GP installé de la classe, additif 🔶) — Savant
+    // (science) et Grand Explorateur / Industriel (or). Arrondi au plus proche.
+    const gains = {
+      gold: Math.round(rawGains.gold * settledGpMultiplier(city, 'explorateur')),
+      science: Math.round(rawGains.science * settledGpMultiplier(city, 'savant')),
+    };
     player.gold += gains.gold + empireBonus.gold;
     // R-85 : la science alimente la tech courante (progression par tech,
     // débordement reporté) ou la réserve si aucun choix (`scienceStored`).
@@ -1896,7 +2090,18 @@ function processEconomy(board: Board): void {
     for (const b of city.buildings) {
       growthReduction = Math.max(growthReduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
     }
-    city.foodStored = Math.max(0, city.foodStored + food - city.pop);
+    // 7j · R-126 · Settle · Humanitaire : +50 % du taux de croissance (le
+    // SURPLUS alimentaire est multiplié, additif 🔶, arrondi au plus proche) ;
+    // un déficit n'est PAS amplifié.
+    // 7j · R-123 complétée · surplus alimentaire (récolte − population) —
+    // alimente aussi l'accumulateur de croissance du Grand Humanitaire
+    // (crédité plus bas, surplus > 0 uniquement 🔶).
+    const foodSurplus = food - city.pop;
+    // 7j · R-126 · Settle · Humanitaire : +50 % du taux de croissance (le
+    // SURPLUS alimentaire est multiplié, additif 🔶, arrondi au plus proche) ;
+    // un déficit n'est PAS amplifié.
+    const settledSurplus = foodSurplus > 0 ? Math.round(foodSurplus * settledGpMultiplier(city, 'humanitaire')) : foodSurplus;
+    city.foodStored = Math.max(0, city.foodStored + settledSurplus);
     let threshold = growthThresholdFor(city.pop, growthReduction);
     while (threshold !== null && city.foodStored >= threshold) {
       city.foodStored -= threshold;
@@ -1920,33 +2125,51 @@ function processEconomy(board: Board): void {
     // Magna Carta (Tribunal +1) via les merveilles (R-125).
     city.cultureStored += anarchy
       ? 0
-      : cultureGains(city, empireBonus.culture, player.techsUnlocked, govEffects);
+      : Math.round(
+          cultureGains(city, empireBonus.culture, player.techsUnlocked, govEffects) *
+            settledGpMultiplier(city, 'artiste_penseur'),
+        );
+    // 7j · R-123 complétée · canal Humanitaire : l'excédent alimentaire
+    // (surplus > 0 uniquement — un déficit ne détruit pas l'accumulation 🔶)
+    // alimente l'accumulateur de croissance.
+    if (foodSurplus > 0) city.gpAccumFood += foodSurplus;
     // 7f/7h · R-114/R-123 : seuils de GP — au plus UN GP par ville et par tour
-    // (tous types confondus), ordre déterministe : culture → science → or →
-    // production. Le surplus est conservé (miroir R-63). Posé sur la case de
+    // (toutes classes confondues), ordre déterministe : culture → science → or
+    // → production → croissance (R-123 complétée). Le surplus est conservé (miroir R-63). Posé sur la case de
     // la ville, sinon case adjacente libre (perdu si aucune). GP gelés en
     // Anarchie (R-122).
     if (!anarchy) {
       const gpThreshold = greatPersonThresholdFor(player.greatPersonsObtained);
       if (city.cultureStored >= gpThreshold) {
         city.cultureStored -= gpThreshold;
-        spawnGreatPerson(board, city, greatPersonTypeFor(player.greatPersonsObtained));
-      } else if (city.gpAccumScience >= yieldGpThresholdFor('scientifique', player.greatPersonsByType)) {
-        city.gpAccumScience -= yieldGpThresholdFor('scientifique', player.greatPersonsByType);
-        spawnGreatPerson(board, city, 'scientifique');
-      } else if (city.gpAccumGold >= yieldGpThresholdFor('mogul', player.greatPersonsByType)) {
-        city.gpAccumGold -= yieldGpThresholdFor('mogul', player.greatPersonsByType);
-        spawnGreatPerson(board, city, 'mogul');
-      } else if (city.gpAccumProd >= yieldGpThresholdFor('ingenieur', player.greatPersonsByType)) {
-        city.gpAccumProd -= yieldGpThresholdFor('ingenieur', player.greatPersonsByType);
-        spawnGreatPerson(board, city, 'ingenieur');
+        spawnGreatPerson(board, city, greatPersonClassFor(player.researching, player.greatPersonsObtained));
+      } else if (city.gpAccumScience >= yieldGpThresholdFor('savant', player.greatPersonsByType)) {
+        city.gpAccumScience -= yieldGpThresholdFor('savant', player.greatPersonsByType);
+        spawnGreatPerson(board, city, 'savant');
+      } else if (city.gpAccumGold >= yieldGpThresholdFor('explorateur', player.greatPersonsByType)) {
+        city.gpAccumGold -= yieldGpThresholdFor('explorateur', player.greatPersonsByType);
+        spawnGreatPerson(board, city, 'explorateur');
+      } else if (city.gpAccumProd >= yieldGpThresholdFor('batisseur', player.greatPersonsByType)) {
+        city.gpAccumProd -= yieldGpThresholdFor('batisseur', player.greatPersonsByType);
+        spawnGreatPerson(board, city, 'batisseur');
+      } else if (city.gpAccumFood >= yieldGpThresholdFor('humanitaire', player.greatPersonsByType)) {
+        // 7j · R-123 complétée · canal CROISSANCE du Grand Humanitaire :
+        // excédent alimentaire cumulé (même modèle T-30 🔶, data-driven).
+        city.gpAccumFood -= yieldGpThresholdFor('humanitaire', player.greatPersonsByType);
+        spawnGreatPerson(board, city, 'humanitaire');
       }
     }
 
     // R-62/R-66 : un seul item, progression conservée ; unité posée sur la
     // case de ville (si libre), bâtiment ajouté à la ville (permanent).
     if (city.production) {
-      const cost = productionItemCost(city.production.item, board.st, city.owner);
+      let cost = productionItemCost(city.production.item, board.st, city.owner);
+      // 7j · R-126 · Settle · Bâtisseur : −50 % de marteaux sur tous les
+      // FUTURS BÂTIMENTS de la cité hôte (×0,5 par Bâtisseur installé 🔶 —
+      // les unités et merveilles ne sont PAS réduites, doc d'Erik).
+      if (cost !== null && city.production.item.kind === 'building') {
+        cost = Math.max(1, Math.round(cost * settledGpCostFactor(city, 'batisseur')));
+      }
       if (cost !== null) {
         // 7f · R-116 : les Nations Unies sont SUSPENDUES tant que les jalons
         // sont sous le seuil — progression gelée (marteaux conservés 🔶).
@@ -1990,7 +2213,10 @@ function processEconomy(board: Board): void {
                 mp: stats.movement,
                 // R-89 (Phase 7b) : la Caserne rend les unités produites
                 // vétérans — hors pacifiques (pas de combat).
-                veteran: hasBuilding(city, 'caserne') && stats.canAttack,
+                // 7j · R-126 · Settle · Leader : les NOUVELLES unités de la
+                // cité hôte sont vétérans (interprétation 🔶 du « +3 XP /
+                // effet Caserne » du doc — le moteur n'a pas de model d'XP).
+                veteran: (hasBuilding(city, 'caserne') || settledGpMultiplier(city, 'leader') > 1) && stats.canAttack,
                 isArmy: false,
                 order: null,
                 detainedBy: null,
@@ -2260,7 +2486,7 @@ export function resolveTurn(
 
   // ---- Phase C : économie (R-60 à R-66) + barbares (R-96 : villages).
   applySetProduction(board, allOrders);
-  applyInstallPerson(board, allOrders); // 7f · R-115
+  applyGreatPersonActions(board, allOrders); // 7j · R-126 (alias InstallPerson R-115)
   applySpyMissions(board, allOrders); // 7g · R-119
   processCityCaptures(board);
   processFoundCity(board, allOrders);

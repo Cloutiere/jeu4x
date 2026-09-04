@@ -225,7 +225,7 @@ describe('R-122 · Transitions et Anarchie', () => {
     const setup = (anarchy: boolean) => {
       const s = productionState('republique');
       s.players['p1']!.techsUnlocked = ['code_des_lois', 'rites_funeraires'];
-      s.players['p1']!.greatPersonsByType = { ingenieur: 0 };
+      s.players['p1']!.greatPersonsByType = { batisseur: 0 };
       s.cities['c1']!.production = { item: { kind: 'building', id: 'temple' }, progress: 0 };
       s.cities['c1']!.gpAccumProd = 19; // juste sous le seuil T-30
       s.cities['c1']!.gpAccumScience = 19;
@@ -257,9 +257,9 @@ describe('R-122 · Transitions et Anarchie', () => {
 
 describe('R-123 · GP restants (Scientifique, Mogul, Ingénieur, Leader)', () => {
   it('T-30 : seuil de base 20, ×2 par GP de CE type obtenu (escalade par type indépendante)', () => {
-    expect(yieldGpThresholdFor('scientifique', {})).toBe(20);
-    expect(yieldGpThresholdFor('scientifique', { scientifique: 1 })).toBe(40);
-    expect(yieldGpThresholdFor('mogul', { mogul: 2 })).toBe(80);
+    expect(yieldGpThresholdFor('savant', {})).toBe(20);
+    expect(yieldGpThresholdFor('savant', { savant: 1 })).toBe(40);
+    expect(yieldGpThresholdFor('explorateur', { explorateur: 2 })).toBe(80);
     // L’escalade culturelle (T-27) est indépendante des GP à rendement.
     expect(greatPersonThresholdFor(0)).toBe(20);
     expect(leaderGpVictoriesNeeded()).toBe(20); // T-31
@@ -272,9 +272,11 @@ describe('R-123 · GP restants (Scientifique, Mogul, Ingénieur, Leader)', () =>
     const spawned = result.events.find((e) => e.type === 'GreatPersonSpawned');
     expect(spawned).toBeDefined();
     if (spawned?.type !== 'GreatPersonSpawned') return;
-    expect(spawned.unitType).toBe('scientifique');
-    expect(result.newState.players['p1']!.greatPersonsByType['scientifique']).toBe(1);
-    expect(Object.values(result.newState.units).some((u) => u.type === 'scientifique')).toBe(true);
+    expect(spawned.unitType).toBe('savant');
+    // 7j : le jalon est compté À L'OBTENTION (R-126).
+    expect(result.newState.players['p1']!.cultureMilestones).toBeGreaterThanOrEqual(1);
+    expect(result.newState.players['p1']!.greatPersonsByType['savant']).toBe(1);
+    expect(Object.values(result.newState.units).some((u) => u.type === 'savant')).toBe(true);
   });
 
   it('spawn du Mogul (or) et de l’Ingénieur (production) — ordre déterministe culture → science → or → production', () => {
@@ -285,7 +287,7 @@ describe('R-123 · GP restants (Scientifique, Mogul, Ingénieur, Leader)', () =>
     const spawned = result.events.filter((e) => e.type === 'GreatPersonSpawned');
     expect(spawned).toHaveLength(1); // au plus un GP par ville et par tour
     if (spawned[0]?.type !== 'GreatPersonSpawned') return;
-    expect(spawned[0]!.unitType).toBe('mogul'); // l’or passe avant la production
+    expect(spawned[0]!.unitType).toBe('explorateur'); // l’or passe avant la production
   });
 
   it('un GP au seuil exact re-substrait le seuil (le surplus est conservé, miroir R-63)', () => {
@@ -295,14 +297,17 @@ describe('R-123 · GP restants (Scientifique, Mogul, Ingénieur, Leader)', () =>
     expect(out.cities['c1']!.gpAccumScience).toBe(5);
   });
 
-  it('installation = 1 jalon culturel (R-115, tous types)', () => {
+  it('7j · R-126 : le jalon est compté À L’OBTENTION ; le settle enregistre l’installation sans jalon', () => {
     const s = productionState();
     s.cities['c1']!.gpAccumScience = 20;
     const first = resolveTurn(s, {}, 42).newState;
-    const gp = Object.values(first.units).find((u) => u.type === 'scientifique')!;
+    const mileAtObtain = first.players['p1']!.cultureMilestones;
+    expect(mileAtObtain).toBeGreaterThanOrEqual(1); // jalon d’obtention (R-126)
+    const gp = Object.values(first.units).find((u) => u.type === 'savant')!;
     const second = resolveTurn(first, { p1: [{ type: 'InstallPerson', unitId: gp.id, cityId: 'c1' }] }, 42);
     expect(second.events.some((e) => e.type === 'InstallPerson')).toBe(true);
-    expect(second.newState.players['p1']!.cultureMilestones).toBe(1);
+    expect(second.newState.players['p1']!.cultureMilestones).toBe(mileAtObtain); // pas de re-compte
+    expect(Object.values(second.newState.cities).some((c) => c.settledGreatPersons.includes('savant'))).toBe(true);
   });
 
   it('Leader : spawn sur la capitale à T-31 victoires de combat de l’empire', () => {
@@ -357,7 +362,7 @@ describe('R-124 · Victoire scientifique (Vaisseau spatial)', () => {
       wonders: [],
       gpAccumGold: 0,
       gpAccumScience: 0,
-      gpAccumProd: 0,
+      gpAccumProd: 0, gpAccumFood: 0, settledGreatPersons: [],
     };
     const result = resolveTurn(s, {}, 42);
     expect(result.events.some((e) => e.type === 'Launch' && e.player === 'p1')).toBe(true);
@@ -398,7 +403,7 @@ describe('Migration v11 → v12 (Phase 7h)', () => {
       cities: { c1: { id: 'c1', q: 0, r: 0, wonders: ['stonehenge'] } },
     };
     const out = migrateState(v11 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(12);
+    expect(out.schemaVersion).toBe(13);
     expect(out.players['p1']!.government).toBe('despotisme');
     expect(out.players['p1']!.anarchyUntil).toBeNull();
     expect(out.players['p1']!.greatPersonsByType).toEqual({});

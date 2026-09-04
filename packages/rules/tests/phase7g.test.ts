@@ -389,6 +389,8 @@ describe('Phase 7g · R-119 — espionnage', () => {
       cities: [{ id: 'c2', owner: 'p2', q: H(1, 2).q, r: H(1, 2).r, capital: true }],
     });
     state.players['p2']!.cultureMilestones = 3; // 3 GP installés (aucune merveille)
+    // 7j · D4.3 : les GP volables sont ceux de la liste d'installation.
+    state.cities['c2']!.settledGreatPersons = ['artiste_penseur', 'savant', 'batisseur'];
     state.players['p2']!.greatPersonsObtained = 5;
     const result = resolveTurn(
       state,
@@ -450,6 +452,8 @@ describe('Phase 7g · R-119 — espionnage', () => {
       ],
     });
     state.players['p2']!.cultureMilestones = 20;
+    // 7j : au moins un GP installé pour que le vol réussisse.
+    state.cities['c2']!.settledGreatPersons = ['artiste_penseur'];
     state.players['p2']!.techsUnlocked = ['religion']; // l'ONU exige Religion
     const result = resolveTurn(
       state,
@@ -477,9 +481,9 @@ describe('Phase 7g · Migration v10 → v11', () => {
     });
     const raw = { ...structuredClone(v10), schemaVersion: 10 } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(12);
+    expect(out.schemaVersion).toBe(13);
     expect(out.units['u1']).toMatchObject({ aboard: null, cargo: null });
-    expect(CURRENT_SCHEMA_VERSION).toBe(12);
+    expect(CURRENT_SCHEMA_VERSION).toBe(13); // 7j
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
     expect(twice).toEqual(out);
   });
@@ -509,6 +513,8 @@ describe('Phase 7g · e2e naval + espionnage', () => {
       ],
     });
     state.players['p2']!.cultureMilestones = 2; // GP installés (aucune merveille)
+    // 7j : le vol cible un GP INSTALLÉ (liste settledGreatPersons).
+    state.cities['c4']!.settledGreatPersons = ['artiste_penseur', 'savant'];
 
     // Tour 1 — embarquement + traversée d'un pas + vol de GP contre c4.
     const t1 = resolveTurn(

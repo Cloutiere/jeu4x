@@ -15,7 +15,9 @@ import { CULTURE } from '../src/data.js';
 import {
   cultureGains,
   greatPersonThresholdFor,
-  greatPersonTypeFor,
+  greatPersonClassFor,
+  settledGpMultiplier,
+  settledGreatPersonsOfCities,
   isWonderObsolete,
   wonderProductionIssue,
 } from '../src/culture.js';
@@ -81,17 +83,17 @@ describe('R-113 · Rendement culturel (scalaire sur la démographie)', () => {
 });
 
 describe('R-114 · Personnages illustres de culture (seuil T-27 croissant)', () => {
-  it('au seuil 20 🔶 : un GP (Artiste d’abord) apparaît, la jauge est soustraite, le compteur empire monte', () => {
+  it('au seuil 20 🔶 : un GP apparaît, la jauge est soustraite, le compteur empire monte', () => {
     const state = capitalCity(['temple']);
     state.cities['c1']!.cultureStored = 19; // 5/tour → franchit 20 ce tour
     const { newState, events } = resolveTurn(state, {}, 1);
-    const gp = Object.values(newState.units).find((u) => u.type === 'artiste');
+    const gp = Object.values(newState.units).find((u) => u.type === 'artiste_penseur');
     expect(gp).toBeDefined();
     expect(gp!.owner).toBe('p1');
     expect(gp!.q).toBe(0); // posé sur la case de la ville (libre)
     expect(newState.cities['c1']!.cultureStored).toBe(4); // 19 + 5 − 20 (surplus conservé)
     expect(newState.players['p1']!.greatPersonsObtained).toBe(1);
-    expect(events.some((e) => e.type === 'GreatPersonSpawned' && e.unitType === 'artiste')).toBe(true);
+    expect(events.some((e) => e.type === 'GreatPersonSpawned' && e.unitType === 'artiste_penseur')).toBe(true);
   });
 
   it('le seuil DOUBLE à chaque GP obtenu par l’empire (T-27 : 20 → 40 → 80…)', () => {
@@ -108,14 +110,19 @@ describe('R-114 · Personnages illustres de culture (seuil T-27 croissant)', () 
     expect(Object.values(newState.units)).toHaveLength(0);
     state.cities['c1']!.cultureStored = 35;
     const r2 = resolveTurn(state, {}, 1).newState;
-    // Alternance : ce deuxième GP est un PENSEUR (index 1).
-    expect(Object.values(r2.units).some((u) => u.type === 'penseur')).toBe(true); // 40 ≥ 40
+    // Rotation (sans recherche, R-127) : compteur = 1 → index 1 = Bâtisseur.
+    expect(Object.values(r2.units).some((u) => u.type === 'batisseur')).toBe(true); // 40 ≥ 40
   });
 
-  it('alternance déterministe 🔶 : Artiste puis Penseur (interprétation documentée)', () => {
-    expect(greatPersonTypeFor(0)).toBe('artiste');
-    expect(greatPersonTypeFor(1)).toBe('penseur');
-    expect(greatPersonTypeFor(2)).toBe('artiste');
+  it('ciblage technologique 🔶 (R-127, D5.2) : la classe de la figure de la tech en cours est priorisée ; rotation sinon', () => {
+    // Machine à vapeur → James Watt (Bâtisseur) : ciblage déterministe.
+    expect(greatPersonClassFor('machine_a_vapeur', 0)).toBe('batisseur');
+    // Monarchie → Roi David (Leader).
+    expect(greatPersonClassFor('monarchie', 0)).toBe('leader');
+    // Tech sans figure (ex. Démocratie) : rotation déterministe sur 6 classes.
+    expect(greatPersonClassFor('democratie', 0)).toBe('artiste_penseur');
+    expect(greatPersonClassFor('democratie', 5)).toBe('leader');
+    expect(greatPersonClassFor('democratie', 6)).toBe('artiste_penseur');
   });
 
   it('case de ville occupée : le GP apparaît sur une case adjacente libre (tri (q,r) — R-81)', () => {
@@ -138,7 +145,7 @@ describe('R-114 · Personnages illustres de culture (seuil T-27 croissant)', () 
       cargo: null,
     };
     const { newState } = resolveTurn(state, {}, 1);
-    const gp = Object.values(newState.units).find((u) => u.type === 'artiste');
+    const gp = Object.values(newState.units).find((u) => u.type === 'artiste_penseur');
     expect(gp).toBeDefined();
     expect(hexDistance(gp!, { q: 0, r: 0 })).toBe(1); // adjacent
     expect(gp!.id).not.toBe('u9');
@@ -146,9 +153,9 @@ describe('R-114 · Personnages illustres de culture (seuil T-27 croissant)', () 
 
   it('un GP n’est JAMAIS produisible par les files (moteur — R-114)', () => {
     const state = capitalCity();
-    const r = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'artiste' } }] }, 1);
+    const r = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'artiste_penseur' } }] }, 1);
     expect(r.newState.cities['c1']!.production).toBeNull();
-    expect(canSetProduction({ kind: 'unit', id: 'penseur' }, [], [])).toBe(false);
+    expect(canSetProduction({ kind: 'unit', id: 'artiste_penseur' }, [], [])).toBe(false);
   });
 });
 
@@ -157,7 +164,7 @@ describe('R-115 · Installation et jalons culturels', () => {
     const state = capitalCity(['temple']);
     state.units['u1'] = {
       id: 'u1',
-      type: 'artiste',
+      type: 'artiste_penseur',
       owner: 'p1',
       q: 1,
       r: 0, // adjacent à c1 (0,0)
@@ -174,16 +181,32 @@ describe('R-115 · Installation et jalons culturels', () => {
     return state;
   }
 
-  it('InstallPerson consomme le GP et accorde +1 jalon (événements InstallPerson + CultureMilestone)', () => {
+  it('7j · R-126 : InstallPerson (alias Settle) consomme le GP, enregistre l’installation — jalon DÉJÀ compté à l’obtention', () => {
+    const state = stateWithGp();
+    state.players['p1']!.cultureMilestones = 1; // jalon d'obtention (spawn simulé par fixture)
     const { newState, events } = resolveTurn(
-      stateWithGp(),
-      { p1: [{ type: 'InstallPerson', unitId: 'u1', cityId: 'c1' }] },
+      state,
+      { p1: [{ type: 'GreatPersonAction', unitId: 'u1', action: 'settle', cityId: 'c1' }] },
       1,
     );
     expect(newState.units['u1']).toBeUndefined(); // GP consommé
+    // Le jalon n'est PAS re-compté au settle (R-126 : jalon à l'obtention).
     expect(newState.players['p1']!.cultureMilestones).toBe(1);
-    expect(events.some((e) => e.type === 'InstallPerson' && e.unitType === 'artiste' && e.cityId === 'c1')).toBe(true);
-    expect(events.some((e) => e.type === 'CultureMilestone' && e.delta === 1 && e.total === 1 && e.reason === 'install')).toBe(true);
+    expect(newState.cities['c1']!.settledGreatPersons).toEqual(['artiste_penseur']);
+    expect(settledGreatPersonsOfCities(newState.cities, 'p1')).toBe(1);
+    expect(events.some((e) => e.type === 'InstallPerson' && e.unitType === 'artiste_penseur' && e.cityId === 'c1')).toBe(true);
+  });
+
+  it('7j · R-126 : InstallPerson (ordre historique R-115) reste accepté comme alias de Settle', () => {
+    const state = stateWithGp();
+    state.players['p1']!.cultureMilestones = 1;
+    const { newState } = resolveTurn(
+      state,
+      { p1: [{ type: 'InstallPerson', unitId: 'u1', cityId: 'c1' }] },
+      1,
+    );
+    expect(newState.units['u1']).toBeUndefined();
+    expect(newState.cities['c1']!.settledGreatPersons).toEqual(['artiste_penseur']);
   });
 
   it('InstallPerson refusé : ville ennemie, ville trop loin, unité non-GP', () => {
@@ -280,7 +303,7 @@ describe('R-115 · Installation et jalons culturels', () => {
       wonders: [],
       gpAccumGold: 0,
       gpAccumScience: 0,
-      gpAccumProd: 0,
+      gpAccumProd: 0, gpAccumFood: 0, settledGreatPersons: [],
     };
     const r2 = resolveTurn(
       other,
@@ -386,7 +409,7 @@ describe('7f · Migration v9 → v10', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(12); // la chaîne continue (7h)
+    expect(out.schemaVersion).toBe(13); // la chaîne continue (7j)
     expect(out.cities['c1']!.cultureStored).toBe(0);
     expect(out.cities['c1']!.wonders).toEqual([]);
     expect(out.players['p1']!.cultureMilestones).toBe(0);
@@ -411,12 +434,16 @@ describe('7f · e2e : culture → GP → jalons → merveilles → ONU → victo
     state.cities['c1']!.cultureStored = 19;
     let result = resolveTurn(state, {}, 1);
     state = result.newState;
-    const gp = Object.values(state.units).find((u) => u.type === 'artiste' || u.type === 'penseur');
+    const gp = Object.values(state.units).find((u) => u.type === 'artiste_penseur' || u.type === 'penseur');
     expect(gp).toBeDefined(); // Artiste (1er GP)
     expect(state.players['p1']!.greatPersonsObtained).toBe(1);
+    expect(state.players['p1']!.cultureMilestones).toBe(20); // 7j : jalon À L’OBTENTION
     result = resolveTurn(state, { p1: [{ type: 'InstallPerson', unitId: gp!.id, cityId: 'c1' }] }, 2);
     state = result.newState;
-    expect(state.players['p1']!.cultureMilestones).toBe(20);
+    // Le settle ne re-compte pas (R-126). ⚠ 7j : un GP d'accumulateur
+    // (Bâtisseur — production) peut apparaître au même tour et ajouter SON
+    // jalon d'obtention — d'où le ≥.
+    expect(state.players['p1']!.cultureMilestones).toBeGreaterThanOrEqual(20);
 
     // 2. L'ONU est constructible à 20 jalons — posée en file (coût 300).
     result = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'wonder', id: 'nations_unies' } }] }, 3);
@@ -430,7 +457,7 @@ describe('7f · e2e : culture → GP → jalons → merveilles → ONU → victo
     expect(state.cities['c1']!.wonders).toContain('nations_unies');
     expect(state.winner).toBe('p1');
     expect(result.events.some((e) => e.type === 'Victory' && e.reason === 'culture')).toBe(true);
-    expect(state.players['p1']!.cultureMilestones).toBe(21);
+    expect(state.players['p1']!.cultureMilestones).toBeGreaterThanOrEqual(21); // jalons d'obtention (7j) + ONU
     expect(CULTURE.milestonesTarget).toBe(20);
   });
 
@@ -455,7 +482,7 @@ describe('7f · e2e : culture → GP → jalons → merveilles → ONU → victo
       wonders: ['colosse_de_rhodes'],
       gpAccumGold: 0,
       gpAccumScience: 0,
-      gpAccumProd: 0,
+      gpAccumProd: 0, gpAccumFood: 0, settledGreatPersons: [],
     };
     state.units['uInv'] = {
       id: 'uInv',

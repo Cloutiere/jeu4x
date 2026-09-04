@@ -1,0 +1,46 @@
+{
+  "_comment": "Phase 7j · R-126 — Figures historiques des Grands Personnages (doc d'Erik « Merveilles et Personnages », tableau Consume/Settle). Le ciblage technologique 🔶 (R-127) : la classe de la figure rattachée à la tech EN COURS DE RECHERCHE est priorisée au prochain jalon culturel ; tie-break déterministe (rotation). Aucun RNG (R-80).",
+  "classes": {
+    "artiste_penseur": {
+      "figures": [
+        { "name": "Ésope", "tech": "ecriture" },
+        { "name": "Homère", "tech": "alphabet" },
+        { "name": "Platon", "tech": "poterie" },
+        { "name": "J. S. Bach", "tech": "religion" }
+      ]
+    },
+    "batisseur": {
+      "figures": [
+        { "name": "Chéops", "tech": "maconnerie" },
+        { "name": "Léonard de Vinci", "tech": "invention" },
+        { "name": "James Watt", "tech": "machine_a_vapeur" }
+      ]
+    },
+    "humanitaire": {
+      "figures": [
+        { "name": "Thomas Becket", "tech": "feudalite" },
+        { "name": "Frederick Douglass", "tech": "chemin_de_fer" }
+      ]
+    },
+    "explorateur": {
+      "figures": [
+        { "name": "Marco Polo", "tech": "monnaie" },
+        { "name": "Christophe Colomb", "tech": "banque" },
+        { "name": "Roald Amundsen", "tech": "combustion" }
+      ]
+    },
+    "leader": {
+      "figures": [
+        { "name": "Agamemnon", "tech": "travail_du_fer" },
+        { "name": "Roi David", "tech": "monarchie" }
+      ]
+    },
+    "savant": {
+      "figures": [
+        { "name": "Archimède", "tech": "ingenierie" },
+        { "name": "Confucius", "tech": "litteratie" },
+        { "name": "Albert Einstein", "tech": "theorie_atomique" }
+      ]
+    }
+  }
+}

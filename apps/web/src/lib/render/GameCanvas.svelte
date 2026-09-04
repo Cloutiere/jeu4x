@@ -278,9 +278,13 @@
       // PV (override de combat pendant le playback).
       const hp = playback.hpOf(unit.id, unit.hp);
       const ratio = Math.max(0, Math.min(1, hp / unitType(unit.type).hpMax));
-      const fill = c.getChildByLabel('hpFill') as Sprite;
-      fill.width = 76 * ratio;
-      fill.tint = hpBarColor(ratio);
+      const fill = c.getChildByLabel('hpFill') as Sprite | null;
+      // 7j : garde-fou — un type sans sprite (données éditées) ne doit pas
+      // tuer la boucle de rendu (le crash du ticker gelait les clics carte).
+      if (fill) {
+        fill.width = 76 * ratio;
+        fill.tint = hpBarColor(ratio);
+      }
       // Marqueur écu de fortification (R-33).
       const shield = c.getChildByLabel('fortify');
       if (shield) shield.visible = unit.fortified === true;

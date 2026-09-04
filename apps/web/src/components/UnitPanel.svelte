@@ -9,6 +9,7 @@
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
+  import { consumeEffectLabel, settleEffectLabel } from '../lib/labels.js';
   import type { UiState } from '../lib/render/ui.js';
 
   interface Props {
@@ -90,7 +91,9 @@
       case 'SetWorkedTile':
         return o.tile ? `Citoyen vers (${o.tile})` : 'Citoyen retiré';
       case 'InstallPerson':
-        return `Installation dans ${o.cityId}`;
+        return `Installation (Settle) dans ${o.cityId}`;
+      case 'GreatPersonAction':
+        return o.action === 'settle' ? `Installation (Settle) dans ${o.cityId}` : `Utilisation (Consume) — ${o.cityId}`;
       case 'SpyMission':
         return `Mission d'espionnage : ${o.cityId} (vol de GP)`;
     }
@@ -116,9 +119,16 @@
       .map((c) => ({ id: c.id }));
   });
 
+  /** 7j · R-126 : Settle — installation permanente dans la cité hôte. */
   function installIn(cityId: string): void {
     if (!unit) return;
-    client.submitOrder({ type: 'InstallPerson', unitId: unit.id, cityId });
+    client.submitOrder({ type: 'GreatPersonAction', action: 'settle', unitId: unit.id, cityId });
+  }
+
+  /** 7j · R-126 : Consume — effet massif immédiat, le GP disparaît. */
+  function consumeIn(cityId: string): void {
+    if (!unit) return;
+    client.submitOrder({ type: 'GreatPersonAction', action: 'consume', unitId: unit.id, cityId });
   }
 
   /** 7g · R-117 : infos de transport — le navire sélectionné porte-t-il une
@@ -311,17 +321,34 @@
         </div>
       {/if}
       {#if installTargets.length > 0}
+        <!-- 7j · R-126 : dialogue Consume/Settle — le jalon est déjà compté à
+             l'obtention ; les effets reportés v1 sont grisés « reporté ». -->
         <div class="btns">
           {#each installTargets as t (t.id)}
             <button
               type="button"
               class="primary"
               disabled={!editable}
-              title="R-115 : installation DÉFINITIVE — le GP est consommé, +1 jalon culturel (20 requis pour les Nations Unies)"
+              title="R-126 : installation permanente — {settleEffectLabel(unit.type)}"
               onclick={() => installIn(t.id)}
             >
-              S'installer dans {t.id} (+1 jalon)
+              Installer dans {t.id} (Settle — {settleEffectLabel(unit.type)})
             </button>
+            {#if consumeEffectLabel(unit.type)}
+              <button
+                type="button"
+                class="danger"
+                disabled={!editable}
+                title="R-126 : effet massif immédiat, le GP disparaît"
+                onclick={() => consumeIn(t.id)}
+              >
+                Utiliser maintenant (Consume — {consumeEffectLabel(unit.type)})
+              </button>
+            {:else}
+              <button type="button" disabled title="Effet reporté : flip culturel (territoire, en suspens) / injection d'or (trésorerie, phase 7l)">
+                Consume — reporté (7l / territoire)
+              </button>
+            {/if}
           {/each}
         </div>
       {/if}

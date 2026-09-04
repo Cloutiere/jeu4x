@@ -71,7 +71,7 @@ describe('L0 · T-06 · forfait (compteur missedTurns tenu par le serveur)', () 
 
 describe('L0 · Migrations (chaîne de migrations, DESIGN.md §3.8)', () => {
   it(`CURRENT_SCHEMA_VERSION vaut ${CURRENT_SCHEMA_VERSION} et les migrations v2/v3/v4/v5/v6/v7 existent`, () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(12);
+    expect(CURRENT_SCHEMA_VERSION).toBe(13); // 7j
     expect(typeof MIGRATIONS[2]).toBe('function');
     expect(typeof MIGRATIONS[3]).toBe('function');
     expect(typeof MIGRATIONS[4]).toBe('function');

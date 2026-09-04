@@ -302,6 +302,15 @@ function buildUnitGraphics(): Record<string, { base: Graphics; accent: Graphics 
 
     out.penseur = { base, accent: acc };
   }
+  // 7j · R-126 : les 6 classes canoniques — artiste/penseur fusionnés,
+  // renommages D2 + humanitaire. En attendant des silhouettes dédiées 🔶,
+  // chaque nouvelle classe RÉUTILISE une silhouette existante (art dédiée 7k).
+  out.artiste_penseur = out.artiste!;
+  out.savant = out.penseur!;
+  out.batisseur = out.guerrier!;
+  out.explorateur = out.colon!;
+  out.humanitaire = out.penseur!;
+  out.leader = out.guerrier!;
   return out;
 }
 
@@ -523,7 +532,8 @@ const TILE_ASSETS: Record<TerrainId, string> = {
   ville: 'tile_ville_sol',
 };
 
-const UNIT_IDS = ['guerrier', 'colon', 'artiste', 'penseur'];
+// 7j · R-126 : les 6 classes canoniques (art unite_<id>.png optionnelle).
+const UNIT_IDS = ['guerrier', 'colon', 'artiste', 'penseur', 'artiste_penseur', 'batisseur', 'savant', 'explorateur', 'humanitaire', 'leader'];
 
 async function texOrFallback(name: string, fallback: Texture): Promise<Texture> {
   try {

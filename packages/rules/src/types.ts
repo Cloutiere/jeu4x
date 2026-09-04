@@ -252,6 +252,21 @@ export interface CultureData {
 }
 
 // ---------------------------------------------------------------------------
+// 7j · R-126 — Figures historiques des GP (figures.json)
+// ---------------------------------------------------------------------------
+
+/** 7j · R-126 : une figure historique, rattachée à sa tech (ciblage R-127). */
+export interface FigureEntry {
+  name: string;
+  tech: string;
+}
+
+/** 7j · R-126 : figures par classe de GP (clé = id de classe GP). */
+export interface FiguresData {
+  classes: Record<string, { figures: FigureEntry[] }>;
+}
+
+// ---------------------------------------------------------------------------
 // Gouvernements — Phase 7h (RULES.md §8.7, R-121/R-122)
 // ---------------------------------------------------------------------------
 

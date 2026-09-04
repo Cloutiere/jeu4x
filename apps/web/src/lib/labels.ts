@@ -6,14 +6,62 @@
  */
 import type { GameEvent, HutReward } from '@game/shared';
 
-/** 7f · Nom fr d'un type de GP (artiste/penseur). */
+/** 7j · R-126 · Nom fr des 6 classes canoniques de GP. */
+const GP_CLASS_LABELS: Record<string, string> = {
+  artiste_penseur: 'Grand Artiste / Penseur',
+  batisseur: 'Grand Bâtisseur',
+  savant: 'Grand Savant',
+  explorateur: 'Grand Explorateur / Industriel',
+  humanitaire: 'Grand Humanitaire',
+  leader: 'Grand Leader',
+};
+
+/** 7j · R-126 · Nom fr d'une classe de GP. */
 export function greatPersonLabel(unitTypeId: string): string {
-  return unitTypeId === 'artiste' ? 'Artiste illustre' : unitTypeId === 'penseur' ? 'Penseur illustre' : unitTypeId;
+  return GP_CLASS_LABELS[unitTypeId] ?? unitTypeId;
+}
+
+/** 7j · R-126 · Effet CONSUME par classe (libellé UI) ; null si reporté v1. */
+export function consumeEffectLabel(unitTypeId: string): string | null {
+  switch (unitTypeId) {
+    case 'batisseur':
+      return 'Achève la production en cours';
+    case 'savant':
+      return 'Achève la recherche en cours';
+    case 'humanitaire':
+      return '+1 pop à toutes vos cités';
+    case 'leader':
+      return 'Toutes vos unités militaires deviennent vétérans';
+    default:
+      return null; // Artiste/Penseur (flip), Explorateur (or, 7l) : reportés
+  }
+}
+
+/** 7j · R-126 · Effet SETTLE par classe (libellé UI). */
+export function settleEffectLabel(unitTypeId: string): string {
+  switch (unitTypeId) {
+    case 'artiste_penseur':
+      return '+50 % Culture dans la cité';
+    case 'batisseur':
+      return '−50 % marteaux des futurs bâtiments de la cité';
+    case 'savant':
+      return '+50 % Science dans la cité';
+    case 'explorateur':
+      return '+50 % Or dans la cité';
+    case 'humanitaire':
+      return '+50 % croissance de la cité';
+    case 'leader':
+      return 'Nouvelles unités de la cité vétérans';
+    default:
+      return unitTypeId;
+  }
 }
 
 /** 7f · Raison d'une variation de jalons culturels (7g : + gpStolen, R-119). */
-function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'gpStolen'): string {
+function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'gpStolen' | 'obtain'): string {
   switch (reason) {
+    case 'obtain':
+      return 'personnage obtenu (7j)'; // R-126 : jalon à l'obtention
     case 'install':
       return 'personnage installé';
     case 'wonderBuilt':
@@ -94,7 +142,9 @@ export function eventLabel(event: GameEvent): string {
     case 'GreatPersonSpawned':
       return `${greatPersonLabel(event.unitType)} apparaît dans ${event.cityId} (${event.owner}) — jauge remise à zéro`;
     case 'InstallPerson':
-      return `${greatPersonLabel(event.unitType)} s'installe définitivement dans ${event.cityId} (+1 jalon)`;
+      return `${greatPersonLabel(event.unitType)} s'installe dans ${event.cityId} — ${settleEffectLabel(event.unitType)}`;
+    case 'GreatPersonConsumed':
+      return `${greatPersonLabel(event.unitType)} CONSOMMÉ : ${event.effect} (${event.player})`;
     case 'CultureMilestone':
       return `${event.delta > 0 ? '+' : ''}${event.delta} jalon culturel pour ${event.player} (${milestoneReasonLabel(event.reason)}) — total ${event.total}/20`;
     case 'WonderCompleted':
@@ -109,7 +159,11 @@ export function eventLabel(event: GameEvent): string {
         ? `L'espion ${event.unitId} a réussi sa mission dans ${event.cityId} !`
         : `Mission d'espionnage échouée (${event.unitId} → ${event.cityId})`;
     case 'GreatPersonStolen':
-      return `GP VOLÉ ! ${event.victim} perd un Personnage installé au profit de ${event.thief} (${event.cityId})`;
+      return `GP VOLÉ ! ${event.victim} perd un Personnage installé au profit de ${event.thief} (${event.cityId}) — réinstallé dans l'empire voleur (7j)`;
+    case 'FirstDiscovered':
+      return event.greatPerson
+        ? `${event.label} (${event.player}) : ${greatPersonLabel(event.greatPerson)} rejoint votre empire !`
+        : `Premier découvrir : ${event.label} (${event.player})`;
     case 'Victory': {
       const motifs: Record<string, string> = {
         domination: 'domination (capitale capturée)',

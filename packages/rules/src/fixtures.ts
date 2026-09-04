@@ -180,6 +180,8 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       gpAccumGold: 0, // 7h · R-123
       gpAccumScience: 0,
       gpAccumProd: 0,
+      gpAccumFood: 0, // 7j · R-123 complétée (canal Humanitaire)
+      settledGreatPersons: [], // 7j · R-126
     };
   });
 

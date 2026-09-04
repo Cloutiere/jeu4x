@@ -40,6 +40,13 @@ export type Order =
    *  ville AMIE (sur sa case ou adjacente) — consomme l'unité, +1 jalon
    *  culturel au joueur. */
   | { type: 'InstallPerson'; unitId: UnitId; cityId: CityId }
+  /** 7j · R-126 : choix Consume/Settle d'un Personnage illustre. Consume :
+   *  effet massif immédiat selon la classe, le GP DISPARAÎT. Settle :
+   *  installation permanente dans la ville cible (amie, sur sa case ou
+   *  adjacente — comme R-115) : multiplicateur de rendement permanent.
+   *  `InstallPerson` reste accepté comme alias historique de
+   *  `GreatPersonAction{action:'settle'}` (compat des clients 7f/7h). */
+  | { type: 'GreatPersonAction'; unitId: UnitId; action: 'consume' | 'settle'; cityId: CityId }
   /** 7g · R-119 : mission d'espionnage — infiltration d'une ville ennemie
    *  VISIBLE adjacente. Tranche 7g : vol de GP installé uniquement (le
    *  champ `mission` prépare 7h : contre-espionnage, vol de tech). */
@@ -124,6 +131,13 @@ export interface City {
   gpAccumGold: number;
   gpAccumScience: number;
   gpAccumProd: number;
+  /** 7j · R-123 complétée · accumulateur de CROISSANCE (surplus alimentaire
+   *  crédité en Phase C) vers le seuil T-30 — canal du Grand Humanitaire. */
+  gpAccumFood: number;
+  /** 7j · R-126 · GP INSTALLÉS dans la ville (Settle), dans l'ordre
+   *  d'installation (ids de classe GP) — source unique des multiplicateurs
+   *  Settle et du vol d'installé (R-119 révisée). */
+  settledGreatPersons: string[];
 }
 
 export interface Vision {
@@ -253,7 +267,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 12;
+export const CURRENT_SCHEMA_VERSION = 13;
 
 type AnyState = Record<string, unknown>;
 
@@ -543,6 +557,59 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       };
     }
     return { ...state, players: migratedPlayers, cities: migratedCities };
+  },
+  /**
+   * v12 → v13 : Phase 7j — classes canoniques de GP, Consume/Settle (RULES.md
+   * §8.8, R-114 rév. / R-123 complétée / R-126 / R-127). SANS PERTE :
+   *  - unités : types d'GP RENOMMÉS — `artiste`/`penseur` fusionnés en
+   *    `artiste_penseur` (D1, rév. R-114), `scientifique`→`savant`,
+   *    `mogul`→`explorateur`, `ingenieur`→`batisseur` (D2) — idempotent ;
+   *  - compteurs `greatPersonsByType` : mêmes renommages + FUSION des compteurs
+   *    `artiste`+`penseur` dans `artiste_penseur` (l'escalade T-27/T-30 reste
+   *    exacte) ;
+   *  - par ville : `gpAccumFood: 0` (canal Humanitaire — additif) et
+   *    `settledGreatPersons: []` (Settle R-126 — additif, aucun GP installé
+   *    dans les états migrés : l'installation n'était pas enregistrée).
+   */
+  13: (state) => {
+    const UNIT_RENAMES: Record<string, string> = {
+      artiste: 'artiste_penseur',
+      penseur: 'artiste_penseur',
+      scientifique: 'savant',
+      mogul: 'explorateur',
+      ingenieur: 'batisseur',
+    };
+    const units = (state.units ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedUnits: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(units).sort()) {
+      const u = units[id]!;
+      migratedUnits[id] = { ...u, type: UNIT_RENAMES[u.type as string] ?? u.type };
+    }
+    const players = (state.players ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedPlayers: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(players).sort()) {
+      const p = players[id]!;
+      const byType = (p.greatPersonsByType && typeof p.greatPersonsByType === 'object' && !Array.isArray(p.greatPersonsByType)
+        ? p.greatPersonsByType
+        : {}) as Record<string, number>;
+      const merged: Record<string, number> = {};
+      for (const key of Object.keys(byType).sort()) {
+        const nk = UNIT_RENAMES[key] ?? key;
+        merged[nk] = (merged[nk] ?? 0) + (byType[key] ?? 0);
+      }
+      migratedPlayers[id] = { ...p, greatPersonsByType: merged };
+    }
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedCities: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      migratedCities[id] = {
+        ...c,
+        gpAccumFood: typeof c.gpAccumFood === 'number' ? c.gpAccumFood : 0,
+        settledGreatPersons: Array.isArray(c.settledGreatPersons) ? c.settledGreatPersons : [],
+      };
+    }
+    return { ...state, units: migratedUnits, players: migratedPlayers, cities: migratedCities };
   },
 };
 

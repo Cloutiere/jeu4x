@@ -165,6 +165,12 @@ export function orderShapeError(order: unknown): string | null {
       // la validité métier (GP, possession, distance ≤ 1) est re-vérifiée
       // par le moteur à la résolution.
       return typeof o.unitId === 'string' && typeof o.cityId === 'string' ? null : 'unité/ville invalides';
+    case 'GreatPersonAction':
+      // 7j · R-126 : choix Consume/Settle d'un GP — la validité métier (GP,
+      // possession, ville amie ≤ 1, effet actif) est re-vérifiée par le moteur.
+      return typeof o.unitId === 'string' && typeof o.cityId === 'string' && (o.action === 'consume' || o.action === 'settle')
+        ? null
+        : 'action/unité/ville invalides';
     case 'SpyMission':
       // 7g · R-119 : mission d'espionnage (vol de GP installé) — la validité
       // métier (Espion, ville ennemie VISIBLE adjacente, GP installé) est
@@ -794,6 +800,12 @@ export class GameDO {
         return cities[order.cityId]?.owner === engineId ? null : `ville ${order.cityId} inconnue ou non possédée`;
       case 'InstallPerson':
         // 7f · R-115 : l'unité ET la ville doivent appartenir au joueur.
+        return ownsUnit(order.unitId) && cities[order.cityId]?.owner === engineId
+          ? null
+          : 'unité ou ville inconnue, ou non possédée';
+      case 'GreatPersonAction':
+        // 7j · R-126 : l'unité ET la ville (cible de l'effet) appartiennent au
+        // joueur ; l'effet Consume actif est re-vérifié par le moteur.
         return ownsUnit(order.unitId) && cities[order.cityId]?.owner === engineId
           ? null
           : 'unité ou ville inconnue, ou non possédée';

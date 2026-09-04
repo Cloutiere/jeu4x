@@ -157,7 +157,10 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     expect(techTable['banque']!.firstToDiscover).toMatchObject({ gold: 100 });
     expect(techTable['litteratie']!.firstToDiscover).toMatchObject({ perCity: { science: 1 } });
     expect(techTable['irrigation']!.firstToDiscover).toMatchObject({ population: 1 });
-    expect(techTable['monarchie']!.firstToDiscover!.implemented).toBe(false); // Personnage illustre (7h)
+    // 7j · D5.1 : récompense GP du Premier découvrir ACTIVÉE (Invention,
+    // Monarchie) — la classe vient de figures.json (ciblage R-126/R-127).
+    expect(techTable['monarchie']!.firstToDiscover!.greatPerson).toBe(true);
+    expect(techTable['invention']!.firstToDiscover!.greatPerson).toBe(true);
     expect(techTable['alphabet']!.firstToDiscover).toBeUndefined();
   });
 

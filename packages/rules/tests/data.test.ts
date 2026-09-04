@@ -15,14 +15,16 @@ const resourceTable = resources as Record<string, ResourceData>;
 
 describe('Données v1 (RULES.md §2-3)', () => {
   it('contient le roster terrestre complet 7e + GP de culture 7f + GP restants 7h (R-123) + données seules (naval, aérien, spéciaux)', () => {
+    // 7j · D1/D2 : fusion Artiste/Penseur → artiste_penseur ; renommages
+    // scientifique→savant, mogul→explorateur, ingenieur→batisseur ; + humanitaire.
     expect(Object.keys(unitTable).sort()).toEqual([
-      'archer', 'artillerie', 'artiste', 'bombardier', 'canon', 'caravane', 'catapulte', 'cavalier', 'char_d_assaut',
-      'chasseur', 'chevalier', 'colon', 'croiseur', 'cuirasse', 'espion', 'fusilier', 'galere', 'galion',
-      'guerrier', 'icbm', 'infanterie_moderne', 'ingenieur', 'leader', 'legion', 'milice', 'mogul', 'penseur',
-      'piquier', 'scientifique', 'sous_marin',
+      'archer', 'artillerie', 'artiste_penseur', 'batisseur', 'bombardier', 'canon', 'caravane', 'catapulte',
+      'cavalier', 'char_d_assaut', 'chasseur', 'chevalier', 'colon', 'croiseur', 'cuirasse', 'espion',
+      'explorateur', 'fusilier', 'galere', 'galion', 'guerrier', 'humanitaire', 'icbm', 'infanterie_moderne',
+      'leader', 'legion', 'milice', 'piquier', 'savant', 'sous_marin',
     ]);
-    // 7h · R-123 : les 4 nouveaux GP sont des personnages illustres pacifiques.
-    for (const id of ['scientifique', 'mogul', 'ingenieur', 'leader']) {
+    // 7h/7j · R-123 complétée : les GP à rendement sont des personnages pacifiques.
+    for (const id of ['savant', 'explorateur', 'batisseur', 'humanitaire', 'leader']) {
       expect(unitTable[id]!.greatPerson).toBe(true);
       expect(unitTable[id]!.canAttack).toBe(false);
     }
@@ -106,8 +108,8 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
     expect(terrainTable['montagne']!.yields).toEqual({ food: 0, production: 1, commerce: 0 });
   });
 
-  it('7f · R-114 : les GP de culture (Artiste/Penseur) sont pacifiques 0/0/2 et JAMAIS productibles', () => {
-    for (const id of ['artiste', 'penseur']) {
+  it('7f/7j · R-114 (rév.) : les GP sont pacifiques 0/0/2 et JAMAIS productibles (6 classes)', () => {
+    for (const id of ['artiste_penseur', 'batisseur', 'savant', 'explorateur', 'humanitaire', 'leader']) {
       const gp = unitTable[id]!;
       expect(gp).toMatchObject({
         attack: 0,

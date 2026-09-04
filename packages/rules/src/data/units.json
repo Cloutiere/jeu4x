@@ -1,22 +1,7 @@
 {
-  "artiste": {
+  "artiste_penseur": {
     "id": "artiste",
-    "name": "Artiste illustre",
-    "attack": 0,
-    "defense": 0,
-    "movement": 2,
-    "hpMax": 3,
-    "cost": 20,
-    "visionRadius": 2,
-    "canAttack": false,
-    "canFoundCity": false,
-    "isRanged": false,
-    "tech": null,
-    "greatPerson": true
-  },
-  "penseur": {
-    "id": "penseur",
-    "name": "Penseur illustre",
+    "name": "Grand Artiste / Penseur",
     "attack": 0,
     "defense": 0,
     "movement": 2,
@@ -406,9 +391,9 @@
     "tech": null,
     "implemented": false
   },
-  "scientifique": {
+  "savant": {
     "id": "scientifique",
-    "name": "Scientifique illustre",
+    "name": "Grand Savant",
     "attack": 0,
     "defense": 0,
     "movement": 2,
@@ -421,9 +406,9 @@
     "tech": null,
     "greatPerson": true
   },
-  "mogul": {
+  "explorateur": {
     "id": "mogul",
-    "name": "Mogul illustre",
+    "name": "Grand Explorateur / Industriel",
     "attack": 0,
     "defense": 0,
     "movement": 2,
@@ -436,9 +421,24 @@
     "tech": null,
     "greatPerson": true
   },
-  "ingenieur": {
+  "batisseur": {
     "id": "ingenieur",
-    "name": "Ingénieur illustre",
+    "name": "Grand Bâtisseur",
+    "attack": 0,
+    "defense": 0,
+    "movement": 2,
+    "hpMax": 3,
+    "cost": 20,
+    "visionRadius": 2,
+    "canAttack": false,
+    "canFoundCity": false,
+    "isRanged": false,
+    "tech": null,
+    "greatPerson": true
+  },
+  "humanitaire": {
+    "id": "humanitaire",
+    "name": "Grand Humanitaire",
     "attack": 0,
     "defense": 0,
     "movement": 2,
@@ -453,7 +453,7 @@
   },
   "leader": {
     "id": "leader",
-    "name": "Leader illustre",
+    "name": "Grand Leader",
     "attack": 0,
     "defense": 0,
     "movement": 2,

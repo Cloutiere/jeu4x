@@ -34,6 +34,14 @@ describe('orderShapeError · SetProduction (7f, merveilles)', () => {
     expect(orderShapeError({ type: 'InstallPerson', cityId: 'c1' })).not.toBeNull();
   });
 
+  it('7j · R-126 : accepte GreatPersonAction (consume/settle + ville) et refuse action invalide', () => {
+    expect(orderShapeError({ type: 'GreatPersonAction', unitId: 'u10', action: 'consume', cityId: 'c1' })).toBeNull();
+    expect(orderShapeError({ type: 'GreatPersonAction', unitId: 'u10', action: 'settle', cityId: 'c1' })).toBeNull();
+    expect(orderShapeError({ type: 'GreatPersonAction', unitId: 'u10', action: 'both', cityId: 'c1' })).not.toBeNull();
+    expect(orderShapeError({ type: 'GreatPersonAction', action: 'settle', cityId: 'c1' })).not.toBeNull();
+    expect(orderShapeError({ type: 'GreatPersonAction', unitId: 'u10', action: 'settle' })).not.toBeNull();
+  });
+
   it('7g · R-119 : accepte SpyMission (vol de GP) et refuse mission/champs invalides', () => {
     expect(
       orderShapeError({ type: 'SpyMission', unitId: 'u3', cityId: 'c2', mission: 'stealGreatPerson' }),

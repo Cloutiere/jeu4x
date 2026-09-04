@@ -11,3 +11,4 @@ dist/
 .env.local
 client_secret_*.json
 dev-logs/
+dump7j*.json (dumps debug locaux)

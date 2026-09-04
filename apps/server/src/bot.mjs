@@ -482,18 +482,19 @@ async function main() {
         productions += 1;
       }
     }
-    // Phase 7f (R-115) : le bot installe DÈS QUE POSSIBLE ses GP dans une
-    // ville amie (sur leur case ou adjacente) — 1 jalon culturel par GP.
+    // 7j · R-126 : le bot SETTLE DÈS QUE POSSIBLE ses GP dans une ville amie
+    // (choix déterministe simple 🔶 — Settle toujours, jamais Consume) via la
+    // nouvelle forme d'ordre GreatPersonAction.
     let installs = 0;
     for (const unit of mine) {
       if (!UNITS[unit.type]?.greatPerson) continue;
-      if (snapshot.orders.some((o) => o.type === 'InstallPerson' && o.unitId === unit.id)) continue;
+      if (snapshot.orders.some((o) => (o.type === 'GreatPersonAction' || o.type === 'InstallPerson') && o.unitId === unit.id)) continue;
       const target = myCities.find((c) => {
         const d = (Math.abs(unit.q - c.q) + Math.abs(unit.r - c.r) + Math.abs(unit.q + unit.r - c.q - c.r)) / 2;
         return d <= 1;
       });
       if (target) {
-        send({ type: 'SubmitOrder', order: { type: 'InstallPerson', unitId: unit.id, cityId: target.id } });
+        send({ type: 'SubmitOrder', order: { type: 'GreatPersonAction', action: 'settle', unitId: unit.id, cityId: target.id } });
         installs += 1;
       }
     }
