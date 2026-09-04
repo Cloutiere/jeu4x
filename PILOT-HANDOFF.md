@@ -27,7 +27,7 @@
 Erik exprime souvent ses idées en vrac ou en documents de recherche. Ton travail : les affiner, **découper en tranches implémentables** (jamais un chantier interdépendant en une phase — la culture a pris 7f/7g/7h/7i), proposer des **défauts avec veto possible** (il répond « validé » ou corrige), et préparer les **hooks d'avenir** (ex. `navalAccess` avant le naval, `StartPlacementStrategy` avant le multi-joueurs, `era` avant les populations par ère).
 
 ### Écriture d'un handoff (structure standard)
-1. **Préalables** : lecture des docs normatifs, baseline (tests + typecheck verts, ~556 actuellement), `schemaVersion` courant (**12**), leçons récentes ;
+1. **Préalables** : lecture des docs normatifs, baseline (tests + typecheck verts, ~580 actuellement), `schemaVersion` courant (**13**), leçons récentes ;
 2. **Contexte** : ce qui existe, ce qui manque, pourquoi maintenant ;
 3. **Décisions de tranche proposées** (veto possible) quand il y a un choix de design ;
 4. **Mission L0→Ln dans l'ordre** : données → moteur (test-first) → serveur → UI → assets (via `assets-src/tools/generate.py` + `sync-art`) → vérification (e2e + GUI vs bot + captures dans `dev-logs/`) → déploiement (CI automatique au push `main`) ;
@@ -58,7 +58,7 @@ Erik exprime souvent ses idées en vrac ou en documents de recherche. Ton travai
 **Victoires implémentées** : domination, culture, scientifique. **Restantes** : économique (Banque mondiale, 20 000 or — 7l), ICBM (7m).
 
 **File d'attente** (replanifiée le 03/09 — Erik a fourni « Civilization Revolution _ Merveilles et Personnages.md », nouvelle orientation) :
-1. **7j — Personnages Illustres : classes canoniques, Consume/Settle** — ✅ **handoff prêt : HANDOFF-PHASE7J.md** (fusion Artiste/Penseur, renommages, Grand Humanitaire, choix Consume/Settle, Premier découvrir GP, ciblage technologique 🔶) — **à lancer** ;
+1. **7j — Personnages Illustres : classes canoniques, Consume/Settle** — ✅ **complétée le 04/09** (REPORT-PHASE7J.md, commit `8eb8d83`, CI success, prod saine) : fusion Artiste/Penseur (R-114 rév.), 6 classes canoniques dont le Grand Humanitaire nouveau (canal croissance `gpAccumFood`), ordre `GreatPersonAction` Consume/Settle (R-126, `orderShapeError` validé en premier), jalon à l'obtention, `city.settledGreatPersons` (seuls les installés émettent/volables, R-119 rév.), Premier découvrir GP (Invention→Bâtisseur, Monarchie→Leader), ciblage technologique déterministe (R-127, `figures.json`), **migration 12→13**. **580 tests verts**. Bug réel trouvé en vivo : sprites des classes renommées → crash du ticker de rendu (corrigé, alias silhouettes 🔶 art dédiée en 7k). **Reste à vérifier en ligne avec le login d'Erik** : le dialogue Consume/Settle au clic sur un GP (non rejouable en automatisation — canvas), les boutons grisés « reporté », les chips GP installés. 🔶 à calibrer : seuil Humanitaire (réutilise T-30), jalon à l'obtention pour toutes classes, multiplicateurs Settle additifs, Leader « +3 XP » = vétérans.
 2. **7k — Merveilles restantes & règles canoniques** (doc §Merveilles) : obsolescence **GLOBALE** (écart détecté : notre `isWonderObsolete` est par-owner), exclusivité mondiale, récupération des marteaux (réorientation même tour), merveille = Jalon culturel (vérifier), effets restants data-driven (Alexandrie, Shakespeare, Oxford, Cie des Indes, Léonard, Foire de Troyes, Complexe militaro-industriel, Hollywood, Apollo, Internet), Grande Muraille (trêve forcée — sémantique 1v1 à cadrer), **audit des 8 merveilles actives contre le doc** (modèle 7i) ;
 3. **7l — Or & trésorerie** : trésorerie joueur (n'existe pas — le commerce est converti à 100 % en or OU science, R-90), rush-buy, Banque mondiale (victoire économique 20 000 or), canaux GP par or (500 / 10 000), consume Explorateur (injection d'or, reporté de 7j) ;
 4. **7m — Fin de partie militaire & espionnage** : ICBM/SDI (données déjà présentes : `units.json` icbm, `buildings.json` sdi, Projet Manhattan), contre-espionnage ;
@@ -87,7 +87,7 @@ Erik exprime souvent ses idées en vrac ou en documents de recherche. Ton travai
 
 ## 7. Ta première action probable
 
-1. **7j est cadrée et le handoff est prêt** (HANDOFF-PHASE7J.md, 03/09 — Personnages Illustres Consume/Settle, d'après le doc d'Erik « Merveilles et Personnages ») : le lancer chez un agent d'implémentation.
-2. Recueillir ses votes de calibrage (§4, liste « calibrage en attente ») et les consigner dans RULES.md/`growth.json`.
-3. **Demander à Erik son doc de recherche « Civilisations »** (16 civs, bonus de départ + par ère) — prérequis de la 7n. Second doc utile ensuite : territoire/frontières & conversion culturelle (prérequis du flip culturel).
-4. À l'acceptation de 7j : préparer le handoff **7k — Merveilles** (détail dans §4), puis 7l/7m selon la file.
+1. **7j est livrée et vérifiée le 04/09** (580 tests, prod saine, commits `8eb8d83`/`cf9c4b9`) — reste la confirmation du dialogue Consume/Settle en ligne par Erik (liste dans §4). Son **doc « Guide Civilisations »** est committé (prérequis 7n).
+2. Recueillir ses votes de calibrage (§4 : liste 7i + les 🔶 7j : seuil Humanitaire, multiplicateurs Settle additifs, Leader = vétérans, jalon à l'obtention toutes classes) et les consigner dans RULES.md/JSON.
+3. **Préparer le handoff 7k — Merveilles restantes & règles canoniques** (détail dans §4 : obsolescence GLOBALE à réviser, exclusivité, récupération de marteaux, audit des 8 merveilles actives contre le doc d'Erik, art dédiée des 6 classes GP). Le doc « Merveilles et Personnages » §Merveilles fait foi.
+4. Puis 7l (or & trésorerie) et 7m (ICBM/SDI + contre-espionnage) selon la file.
