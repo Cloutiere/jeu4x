@@ -13,7 +13,9 @@
  *
  * SPIKE L0 : cette spec est partagée par les DEUX architectures candidates (A = Three.js seul,
  * B = terrain Three.js + entités PixiJS) — preuve qu'elle est indépendante du renderer.
- * Le portage L1 en fera une source data-driven complète (assets-src / visuel.json 🔶).
+ * L1a : synchronisée sur le calibrage commité du prototype (68f6f5a — désert « sable
+ * délavé » mat, puce CPU cœur vert doux, quincunx ±0.30, parois foncer(haut, 0.45)).
+ * Le portage L1b en fera une source data-driven complète (assets-src / visuel.json 🔶).
  */
 
 /** Couleur unique des glyphes (bus/CPU/RAM) — la forme distingue la ressource. */
@@ -51,7 +53,16 @@ export interface SpecTerrain {
   glypheSecond?: SpecGlyphe | null;
   /** Décalage z des glyphes secondaires. */
   glypheSecondZ?: number;
+  /**
+   * Matière du substrat (calibrage 68f6f5a) : le désert (ton pâle) est MAT et
+   * quasi non émissif, sinon il paraît illuminé. Les autres terrains gardent
+   * leur légère lueur (défaut MATERIAU_DEFAUT).
+   */
+  materiau?: { emissive: number; roughness: number; metalness: number };
 }
+
+/** Matière par défaut du substrat (prototype tuiles3d.js — « légère lueur »). */
+export const MATERIAU_DEFAUT = { emissive: 0.45, roughness: 0.6, metalness: 0.12 } as const;
 
 /** Niveau de marche : élévation sémantique (prototype : eau −0.40, base 0, colline +0.30, montagne +0.62). */
 const E_EAU = -0.4;
@@ -63,14 +74,14 @@ export const TERRAINS3D: Record<string, SpecTerrain> = {
   prairie: {
     nom: 'Secteur Mémoire Flux',
     elev: E_BASE,
-    haut: 0x1e6b58, bas: 0x0d382e, cote: 0x0d2f27,
+    haut: 0x1e6b58, bas: 0x0d382e, cote: 0x0e3028,
     detail: 'grille',
     glyphe: { famille: 'bus', total: 2, actifs: 2 },
   },
   plaine: {
     nom: 'Cluster de Données',
     elev: E_BASE,
-    haut: 0x5e6b2f, bas: 0x2a3319, cote: 0x232b15,
+    haut: 0x5e6b2f, bas: 0x2a3319, cote: 0x2a3015,
     detail: 'grille',
     // Décision d'Erik du 04/09 : plaine = 3 bus (Grenier +2) — RULES.md à réaligner.
     glyphe: { famille: 'bus', total: 3, actifs: 1 },
@@ -78,36 +89,38 @@ export const TERRAINS3D: Record<string, SpecTerrain> = {
   foret: {
     nom: "Matrice d'Algorithmes Bruts",
     elev: E_BASE,
-    haut: 0x134b33, bas: 0x08251a, cote: 0x061d14,
+    haut: 0x134b33, bas: 0x08251a, cote: 0x092217,
     detail: 'stries',
     glyphe: { famille: 'cpu', total: 2, actifs: 2 },
   },
   colline: {
     nom: 'Nœud de Processeurs',
     elev: E_COLLINE,
-    haut: 0x2b5570, bas: 0x12293b, cote: 0x0e2231,
+    haut: 0x2b5570, bas: 0x12293b, cote: 0x132632,
     detail: 'hachure',
     glyphe: { famille: 'cpu', total: 3, actifs: 1 },
   },
   montagne: {
     nom: 'Noyau Quantique Solide',
     elev: E_MONTAGNE,
-    haut: 0x4a3e6e, bas: 0x221b38, cote: 0x1b1530,
+    haut: 0x4a3e6e, bas: 0x221b38, cote: 0x211c32,
     detail: 'facettes',
     glyphe: { famille: 'cpu', total: 5, actifs: 1 },
   },
   desert: {
     nom: 'Bus à Bruit Statique',
     elev: E_BASE,
-    haut: 0x75582b, bas: 0x382912, cote: 0x2c2010,
+    // « Sable délavé » mat (calibrage 68f6f5a) — voir materiau.
+    haut: 0x8b8166, bas: 0x4c4738, cote: 0x3f3a2e,
     detail: 'bruit',
+    materiau: { emissive: 0.12, roughness: 0.95, metalness: 0 },
     glyphe: { famille: 'ram', total: 3, actifs: 1 },
   },
   // Id moteur « eau » = Mer (Réseau Sub-Éthéré Fibre).
   eau: {
     nom: 'Réseau Sub-Éthéré (Fibre)',
     elev: E_EAU,
-    haut: 0x14526b, bas: 0x082938, cote: 0x061f2b,
+    haut: 0x14526b, bas: 0x082938, cote: 0x092530,
     detail: 'ondes',
     glyphe: { famille: 'ram', total: 2, actifs: 2 },
     glypheSecond: { famille: 'bus', total: 1, actifs: 0 },
@@ -116,7 +129,7 @@ export const TERRAINS3D: Record<string, SpecTerrain> = {
   ocean: {
     nom: 'Réseau Sub-Éthéré profond',
     elev: E_EAU,
-    haut: 0x0e3450, bas: 0x061a2a, cote: 0x051220,
+    haut: 0x0e3450, bas: 0x061a2a, cote: 0x061724,
     detail: 'ondes',
     glyphe: { famille: 'ram', total: 2, actifs: 2 },
     glypheSecond: { famille: 'bus', total: 1, actifs: 0 },
@@ -125,14 +138,14 @@ export const TERRAINS3D: Record<string, SpecTerrain> = {
   ville: {
     nom: 'Case de ville',
     elev: E_BASE,
-    haut: 0x14333d, bas: 0x0a1c24, cote: 0x08161d,
+    haut: 0x14333d, bas: 0x0a1c24, cote: 0x09171b,
     detail: 'plein',
     glyphe: null, // la ville (structure) occupe la case
   },
   cratere: {
     nom: 'Cratère',
     elev: E_BASE,
-    haut: 0x33333a, bas: 0x191920, cote: 0x121218,
+    haut: 0x33333a, bas: 0x191920, cote: 0x17171a,
     detail: 'facettes',
     glyphe: null, // déclinaison stérile 7m — calque L2
   },
@@ -156,8 +169,8 @@ export function empreintesCpu(n: number): Array<[number, number]> {
   if (n === 1) return [[0, 0]];
   if (n === 2) return [[-0.25, 0], [0.25, 0]];
   if (n === 3) return [[0, 0.24], [-0.27, -0.17], [0.27, -0.17]];
-  // quincunx (montagne, n=5)
-  return [[0, 0], [-0.28, -0.28], [0.28, -0.28], [-0.28, 0.28], [0.28, 0.28]];
+  // quincunx (montagne, n=5) — écartement ±0.30 (calibrage 68f6f5a)
+  return [[0, 0], [-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]];
 }
 
 /** Emplacements des barrettes RAM : [x, z]. */
@@ -172,9 +185,8 @@ export function slotsRam(n: number, zOffset = 0): Array<[number, number]> {
 // Le rendu déterministe (RNG seedé du prototype, variantes fixes) est conservé.
 // ---------------------------------------------------------------------------
 
-const SEED = 20260904;
-
-function mulberry32(seed: number): () => number {
+/** RNG seedé du prototype (design.js) — aussi utilisé par world3d (jitter CPU). */
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return function () {
     a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -183,6 +195,9 @@ function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/** Seed du prototype (design.js) — jitter CPU déterministe de world3d. */
+export const SEED = 20260904;
 
 function hexPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number): void {
   ctx.beginPath();

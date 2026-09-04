@@ -19,8 +19,8 @@ import * as THREE from 'three';
 import { hexToPixel, pixelToHex } from '@game/rules';
 import type { Hex } from '@game/rules';
 import {
-  BAS, LONG_BUS, NEON, TERRAINS3D,
-  empreintesCpu, slotsRam, substratCanvas, voiesBus,
+  BAS, LONG_BUS, NEON, TERRAINS3D, MATERIAU_DEFAUT, SEED,
+  empreintesCpu, mulberry32, slotsRam, substratCanvas, voiesBus,
 } from './spec3d.js';
 import type { Camera3D } from './camera3d.js';
 
@@ -114,9 +114,10 @@ const GEO = {
   top: hexTopGeometry(),
   wall: hexWallGeometry(),
   busLane: new THREE.BoxGeometry(LONG_BUS, 0.035, 0.1),
-  cpuSocle: new THREE.BoxGeometry(0.2, 0.035, 0.2),
-  cpuDie: new THREE.BoxGeometry(0.11, 0.03, 0.11),
-  cpuPin: new THREE.BoxGeometry(0.024, 0.012, 0.2),
+  // Dimensions CPU calibrées (68f6f5a) : socle 0.26, die 0.15, broches ±0.146.
+  cpuSocle: new THREE.BoxGeometry(0.26, 0.035, 0.26),
+  cpuDie: new THREE.BoxGeometry(0.15, 0.03, 0.15),
+  cpuPin: new THREE.BoxGeometry(0.024, 0.012, 0.26),
   ramSocle: new THREE.BoxGeometry(0.11, 0.045, 0.11),
   ramStick: new THREE.BoxGeometry(0.08, 1, 0.08),
 };
@@ -148,16 +149,27 @@ class Pool {
   }
 }
 
-/** Matériau de glyphes : couple (allumé, pâle) — portage tuiles3d.js. */
-function matGlyphe(emissive: number, lit: boolean, intensity: number): THREE.MeshStandardMaterial {
+/** Matériaux de glyphes : couples (allumé, pâle) par famille — calibrage 68f6f5a
+ * (puce CPU à cœur vert doux 0x58C79A allumé à 0.5, voir tuiles3d.js). */
+function matGlyphe(
+  emissive: number,
+  lit: boolean,
+  intensity: number,
+  opts: { roughLit: number; roughDim: number; metalLit: number; metalDim: number; colorLit?: number; colorDim?: number },
+): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
-    color: lit ? 0x0a2e33 : 0x0e2430,
+    color: (lit ? opts.colorLit : opts.colorDim) ?? (lit ? 0x0a2e33 : 0x0e2430),
     emissive,
     emissiveIntensity: lit ? intensity : 0.05,
-    roughness: lit ? 0.4 : 0.85,
-    metalness: lit ? 0.15 : 0.05,
+    roughness: lit ? opts.roughLit : opts.roughDim,
+    metalness: lit ? opts.metalLit : opts.metalDim,
   });
 }
+const MAT_BUS = {
+  roughLit: 0.4, roughDim: 0.85, metalLit: 0.1, metalDim: 0.05, colorDim: 0x0d2430,
+} as const;
+const MAT_DIE = { roughLit: 0.4, roughDim: 0.7, metalLit: 0.2, metalDim: 0.2 } as const;
+const MAT_RAM = { roughLit: 0.5, roughDim: 0.8, metalLit: 0.1, metalDim: 0.05 } as const;
 
 export interface TerrainWorldOpts {
   /** Capacity initiale des pools (nb de tuiles max — reconstruit si dépassé). */
@@ -190,6 +202,9 @@ export class TerrainWorld {
 
   private capacities = 0;
   private disposed = false;
+  /** Cache des teintes de parois (cote par terrain). */
+  private cotes = new Map<string, THREE.Color>();
+  private tmpColor = new THREE.Color();
 
   constructor(private scene: THREE.Scene, private opts: TerrainWorldOpts) {
     this.allocate(opts.capacity);
@@ -206,24 +221,33 @@ export class TerrainWorld {
     clear(this.stickLit); clear(this.stickDim);
     if (this.pulses) { s.remove(this.pulses); this.pulses.geometry.dispose(); }
 
-    // Face supérieure par terrain (texture peinte, cache).
+    // Face supérieure par terrain (texture peinte, cache). Le substrat est
+    // émissif (emissiveMap = texture) avec la « légère lueur » du prototype ;
+    // le désert (materiau) est mat et quasi non émissif — calibrage 68f6f5a.
     for (const id of Object.keys(TERRAINS3D)) {
-      const tex = new THREE.CanvasTexture(substratCanvas(id, 256));
+      const spec = TERRAINS3D[id]!;
+      const m = spec.materiau ?? MATERIAU_DEFAUT;
+      const tex = new THREE.CanvasTexture(substratCanvas(id, 512));
       tex.anisotropy = 4;
       tex.colorSpace = THREE.SRGBColorSpace;
-      const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.62, metalness: 0.12 });
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex, emissive: 0xffffff, emissiveMap: tex,
+        emissiveIntensity: m.emissive, roughness: m.roughness, metalness: m.metalness,
+      });
       this.tops.set(id, new Pool(GEO.top, mat, capacity, s));
     }
+    // Parois : teinte par terrain via instanceColor (cote = foncer(haut, 0.45)
+    // du prototype) × teinte de fog, matériau blanc neutre.
     this.walls = new Pool(GEO.wall, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.15 }), capacity, s);
-    this.busLit = new Pool(GEO.busLane, matGlyphe(NEON, true, 1.05), capacity * 4, s);
-    this.busDim = new Pool(GEO.busLane, matGlyphe(NEON, false, 0.05), capacity * 4, s);
+    this.busLit = new Pool(GEO.busLane, matGlyphe(NEON, true, 1.05, MAT_BUS), capacity * 4, s);
+    this.busDim = new Pool(GEO.busLane, matGlyphe(NEON, false, 0.05, MAT_BUS), capacity * 4, s);
     this.cpuSocle = new Pool(GEO.cpuSocle, new THREE.MeshStandardMaterial({ color: 0x0b2231, roughness: 0.9, metalness: 0.2 }), capacity * 6, s);
-    this.dieLit = new Pool(GEO.cpuDie, matGlyphe(0x9fffe8, true, 0.95), capacity * 6, s);
-    this.dieDim = new Pool(GEO.cpuDie, matGlyphe(0x9fffe8, false, 0.05), capacity * 6, s);
+    this.dieLit = new Pool(GEO.cpuDie, matGlyphe(0x58c79a, true, 0.5, MAT_DIE), capacity * 6, s);
+    this.dieDim = new Pool(GEO.cpuDie, matGlyphe(0x58c79a, false, 0.05, MAT_DIE), capacity * 6, s);
     this.pins = new Pool(GEO.cpuPin, new THREE.MeshStandardMaterial({ color: 0x7e8c96, roughness: 0.3, metalness: 0.85 }), capacity * 24, s);
     this.ramSocle = new Pool(GEO.ramSocle, this.cpuSocle.mesh.material as THREE.Material, capacity * 4, s);
-    this.stickLit = new Pool(GEO.ramStick, matGlyphe(0x2ce8be, true, 0.8), capacity * 4, s);
-    this.stickDim = new Pool(GEO.ramStick, matGlyphe(0x2ce8be, false, 0.05), capacity * 4, s);
+    this.stickLit = new Pool(GEO.ramStick, matGlyphe(0x2ce8be, true, 0.8, MAT_RAM), capacity * 4, s);
+    this.stickDim = new Pool(GEO.ramStick, matGlyphe(0x2ce8be, false, 0.05, MAT_RAM), capacity * 4, s);
 
     const pulseGeo = new THREE.BufferGeometry();
     this.pulsePositions = new Float32Array(capacity * 12 * 3);
@@ -253,6 +277,7 @@ export class TerrainWorld {
     const scale = new THREE.Vector3();
     const white = new THREE.Color(0xffffff);
     const dim = FOG_DIM;
+    const axeY = new THREE.Vector3(0, 1, 0);
 
     for (const t of tiles) {
       const spec = TERRAINS3D[t.terrain];
@@ -267,7 +292,10 @@ export class TerrainWorld {
       pos.set(x, spec.elev, z);
       scale.set(1, spec.elev - BAS, 1);
       m.compose(pos, q, scale);
-      this.walls.push(m, tint);
+      let cote = this.cotes.get(t.terrain);
+      if (!cote) { cote = new THREE.Color(spec.cote); this.cotes.set(t.terrain, cote); }
+      this.tmpColor.copy(cote).multiply(tint);
+      this.walls.push(m, this.tmpColor);
 
       if (!spec.glyphe) continue; // case de ville / cratère : structure, pas de glyphes
 
@@ -285,19 +313,23 @@ export class TerrainWorld {
         });
       };
       const poserCpu = (pts: Array<[number, number]>, litCount: number) => {
+        // Jitter/rotation déterministes par tuile (prototype tuiles3d.js, calibrage 68f6f5a).
+        const rnd = mulberry32(SEED ^ (t.q * 92821) ^ (t.r * 31337));
         pts.forEach(([cx, cz], i) => {
           const lit = i < litCount;
-          for (const [px, pz, rot] of [[-0.112, 0, 0], [0.112, 0, 0], [0, -0.112, Math.PI / 2], [0, 0.112, Math.PI / 2]] as const) {
-            pos.set(x + cx + px, spec.elev + 0.006, z + cz + pz); scale.set(1, 1, 1);
-            q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot);
+          const jx = (rnd() - 0.5) * 0.04, jz = (rnd() - 0.5) * 0.04;
+          const ry = (rnd() - 0.5) * 0.16;
+          for (const [px, pz, rot] of [[-0.146, 0, 0], [0.146, 0, 0], [0, -0.146, Math.PI / 2], [0, 0.146, Math.PI / 2]] as const) {
+            pos.set(x + cx + jx + px, spec.elev + 0.006, z + cz + jz + pz); scale.set(1, 1, 1);
+            q.setFromAxisAngle(axeY, rot + ry);
             m.compose(pos, q, scale);
             this.pins.push(m);
           }
-          q.identity();
-          pos.set(x + cx, spec.elev + 0.0175, z + cz); scale.set(1, 1, 1);
+          q.setFromAxisAngle(axeY, ry);
+          pos.set(x + cx + jx, spec.elev + 0.0175, z + cz + jz); scale.set(1, 1, 1);
           m.compose(pos, q, scale);
           this.cpuSocle.push(m);
-          pos.y = spec.elev + 0.0175 + 0.032;
+          pos.y = spec.elev + 0.0175 + 0.0325;
           m.compose(pos, q, scale);
           (lit ? this.dieLit : this.dieDim).push(m);
         });
@@ -361,15 +393,16 @@ export class TerrainWorld {
     this.pulses.visible = this.pulseCount > 0 && animation;
   }
 
-  /** Respiration des matériaux allumés (optionnelle). */
+  /** Respiration des matériaux allumés (optionnelle) — fréquences/amplitudes
+   * par famille du prototype (tuiles3d.js loop). */
   breathe(time: number, animation: boolean): void {
-    const breatheOf = (pool: Pool, base: number, phase: number) => {
+    const breatheOf = (pool: Pool, base: number, amp: number, freq: number, phase: number) => {
       const mat = pool.mesh.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = animation ? base + 0.2 * Math.sin(time * 2.4 + phase) : base;
+      mat.emissiveIntensity = animation ? base + amp * Math.sin(time * freq + phase) : base;
     };
-    breatheOf(this.busLit, 1.0, 0);
-    breatheOf(this.dieLit, 0.9, 1.0);
-    breatheOf(this.stickLit, 0.75, 2.0);
+    breatheOf(this.busLit, 1.0, 0.22, 2.6, 0);
+    breatheOf(this.dieLit, 0.5, 0.1, 2.2, 1.0);
+    breatheOf(this.stickLit, 0.75, 0.18, 2.9, 2.0);
   }
 
   dispose(): void {
