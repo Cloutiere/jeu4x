@@ -2,7 +2,7 @@
   "barbarianId": "barbarien",
   "spawnInterval": 3,
   "aggroRadius": 6,
-  "villageDestructionGold": 25,
+  "villageDestructionGold": 50,
   "villageHP": 3,
   "villageDefense": 1,
   "capPerVillage": 2,

@@ -175,7 +175,7 @@ describe('Phase A · R-43 · unités pacifiques', () => {
     const { newState, events } = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] }] }, 1);
     expect(newState.units['u1']).toBeUndefined();
     expect(unit(newState, 'u2')).toMatchObject({ q: 1, r: 0 }); // le Guerrier ne bouge pas
-    expect(newState.players['p2']!.gold).toBe(10); // T-12
+    expect(newState.players['p2']!.treasury).toBe(10); // T-12
     const captured = events.find((e) => e.type === 'Captured');
     expect(captured).toMatchObject({ unitId: 'u1', byPlayer: 'p2', outcome: 'destroyed' });
     expect(events.some((e) => e.type === 'BootyGold' && e.amount === 10)).toBe(true);
@@ -192,7 +192,7 @@ describe('Phase A · R-43 · unités pacifiques', () => {
     });
     const { newState, events } = resolveTurn(state, { p2: [{ type: 'Move', unitId: 'u2', path: [{ q: 1, r: 0 }] }] }, 1);
     expect(newState.units['u1']).toBeUndefined();
-    expect(newState.players['p2']!.gold).toBe(10);
+    expect(newState.players['p2']!.treasury).toBe(10);
     expect(unit(newState, 'u2')).toMatchObject({ q: 1, r: 0 }); // avancée sur la case
     expect(events.some((e) => e.type === 'Captured' && e.outcome === 'destroyed')).toBe(true);
   });
@@ -399,7 +399,7 @@ describe('Phase B · R-53 · collisions', () => {
     };
     const { newState } = resolveTurn(state, orders, 1);
     expect(newState.units['u2']).toBeUndefined(); // colon capturé
-    expect(newState.players['p1']!.gold).toBe(10);
+    expect(newState.players['p1']!.treasury).toBe(10);
     expect(unit(newState, 'u1')).toMatchObject({ q: 1, r: 0 });
   });
 });
@@ -577,7 +577,7 @@ describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () 
     });
     const r = resolveTurn(state, {}, 1);
     expect(r.newState.players['p1']!.scienceStored).toBe(0);
-    expect(r.newState.players['p1']!.gold).toBe(2);
+    expect(r.newState.players['p1']!.treasury).toBe(2);
     // conversion science (amende R-61 : plus de curseur, choix par ville)
     const state2 = makeState({
       terrainOverrides: { '0,1': 'eau' },
@@ -585,7 +585,7 @@ describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () 
     });
     const r2 = resolveTurn(state2, {}, 1);
     expect(r2.newState.players['p1']!.scienceStored).toBe(2);
-    expect(r2.newState.players['p1']!.gold).toBe(0);
+    expect(r2.newState.players['p1']!.treasury).toBe(0);
   });
 });
 
@@ -624,16 +624,16 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     expect(cityAt(newState, 0, 0)!.production).toEqual({ item: { kind: 'unit', id: 'guerrier' }, progress: 7 });
   });
 
-  it('R-63 (rév. 7i · D1/D2) : croissance au seuil de la table — surplus = récolte − population', () => {
+  it('R-63 (rév. 7l · C4) : croissance au seuil de la table LINÉAIRE 10 × n — surplus = récolte − population', () => {
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 2, workedTiles: ['0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 7, workedTiles: ['0,1'] }],
     });
     const { newState, events } = resolveTurn(state, {}, 1);
     // récolte = 2 (centre) + 2 (prairie) = 4 ; surplus = 4 − 1 citoyen = 3
-    // → réserve 5 = seuil vers pop 2 (growth.json) → croissance.
+    // → réserve 10 = seuil vers pop 2 (7l · C4 : 10 × n, ici 10 × 1) → croissance.
     const city = cityAt(newState, 0, 0)!;
     expect(city.pop).toBe(2);
-    expect(city.foodStored).toBe(0); // 5 − 5, seuil suivant (6) non atteint
+    expect(city.foodStored).toBe(0); // 10 − 10, seuil suivant (20) non atteint
     expect(events.some((e) => e.type === 'PopulationGrew' && e.pop === 2)).toBe(true);
     // R-60 : +1 pop = +1 citoyen auto-assigné
     expect(city.workedTiles.length).toBe(2);
@@ -645,7 +645,7 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
-    // récolte 2 (centre), surplus = 2 − 1 = 1 → réserve 3 < seuil 5
+    // récolte 2 (centre), surplus = 2 − 1 = 1 → réserve 3 < seuil 10 (C4)
     expect(city.pop).toBe(1);
     expect(city.foodStored).toBe(3);
   });
@@ -792,7 +792,7 @@ describe('R-58 · points d’accroche diplomatie (inactifs en v1)', () => {
     const { newState, events } = resolveTurn(state, { p2: [{ type: 'Move', unitId: 'u2', path: [{ q: 5, r: 5 }] }] }, 1);
     const colon = unit(newState, 'u1');
     expect(colon.detainedBy).toBe('p2');
-    expect(newState.players['p2']!.gold).toBe(0);
+    expect(newState.players['p2']!.treasury).toBe(0);
     expect(events.some((e) => e.type === 'Captured' && e.outcome === 'detained')).toBe(true);
   });
 });

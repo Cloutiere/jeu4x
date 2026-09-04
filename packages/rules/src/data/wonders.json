@@ -147,7 +147,7 @@
   "nations_unies": {
     "id": "nations_unies",
     "name": "Nations Unies",
-    "cost": 300,
+    "cost": 500,
     "tech": null,
     "cultureVictory": true,
     "effect": "Condition (20 jalons culturels) — déclenche immédiatement la Victoire culturelle",
@@ -158,8 +158,10 @@
     "name": "Banque mondiale",
     "cost": 500,
     "tech": null,
-    "effect": "Condition (20 000 pièces d'or en trésorerie) — déclenche la Victoire économique",
-    "implemented": false
+    "effect": "Condition (20 000 pièces d'or en trésorerie, non débitée — R-137) — déclenche la Victoire économique ; interdite au rush-buy (R-135)",
+    "implemented": true,
+    "economicVictory": true,
+    "treasuryRequired": 20000
   },
   "hollywood": {
     "id": "hollywood",

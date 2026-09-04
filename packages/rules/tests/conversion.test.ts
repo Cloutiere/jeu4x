@@ -123,25 +123,25 @@ describe('R-90/R-88 · Phase C — la conversion alimente or et science (resolve
 
   it('R-90 : conversion or → or = 1, science = 0 (réserve vide sans tech choisie)', () => {
     const { newState } = resolveTurn(stateWithConversion('gold'), { p1: [], p2: [] }, 7);
-    expect(newState.players.p1!.gold).toBe(1);
+    expect(newState.players.p1!.treasury).toBe(1);
     expect(newState.players.p1!.scienceStored).toBe(0);
   });
 
   it('R-90 : conversion science → science = 2 en réserve, or = 0', () => {
     const { newState } = resolveTurn(stateWithConversion('science'), { p1: [], p2: [] }, 7);
-    expect(newState.players.p1!.gold).toBe(0);
+    expect(newState.players.p1!.treasury).toBe(0);
     expect(newState.players.p1!.scienceStored).toBe(1);
   });
 
   it('R-88 : ville à bibliothèque en conversion or → 1 or + 1 science (max(1 ; round(0,2)))', () => {
     const { newState } = resolveTurn(stateWithConversion('gold', ['bibliotheque']), { p1: [], p2: [] }, 7);
-    expect(newState.players.p1!.gold).toBe(1);
+    expect(newState.players.p1!.treasury).toBe(1);
     expect(newState.players.p1!.scienceStored).toBe(1);
   });
 
   it('R-88 : ville à bibliothèque en conversion science → round(1,5) = 2 science, 0 or', () => {
     const { newState } = resolveTurn(stateWithConversion('science', ['bibliotheque']), { p1: [], p2: [] }, 7);
-    expect(newState.players.p1!.gold).toBe(0);
+    expect(newState.players.p1!.treasury).toBe(0);
     expect(newState.players.p1!.scienceStored).toBe(2);
   });
 
@@ -234,7 +234,7 @@ describe('migration v5 → v6 (R-90)', () => {
       },
     };
     const out = migrateState(v5 as unknown as Record<string, unknown>) as unknown as Record<string, never>;
-    expect(out.schemaVersion).toBe(14);
+    expect(out.schemaVersion).toBe(15);
     const cities = out.cities as unknown as Record<string, { conversion: string }>;
     expect(cities.c1!.conversion).toBe('gold');
     expect(cities.c2!.conversion).toBe('science');

@@ -196,13 +196,15 @@
     "yields": {
       "food": 0,
       "production": 0,
-      "commerce": 2
+      "commerce": 0
     },
     "revealedByTech": null,
     "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": 4
+    "spawnWeight": 4,
+    "directGold": 2,
+    "effect": "+2 or/tour versés directement à la trésorerie quand la case est travaillée (canon — rév. R-134)"
   },
   "gibier": {
     "id": "gibier",
@@ -230,13 +232,15 @@
     "yields": {
       "food": 0,
       "production": 0,
-      "commerce": 3
+      "commerce": 0
     },
     "revealedByTech": "monnaie",
     "officialTech": null,
     "culture": null,
     "hiddenUntilRevealed": false,
-    "spawnWeight": 4
+    "spawnWeight": 4,
+    "directGold": 3,
+    "effect": "+3 or/tour versés directement à la trésorerie quand la case est travaillée (canon, dès Monnaie — rév. R-134)"
   },
   "marbre": {
     "id": "marbre",

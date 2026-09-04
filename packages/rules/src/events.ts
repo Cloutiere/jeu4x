@@ -56,7 +56,10 @@ export type GameEvent =
   /** Fusion d'armée réussie (R-31/R-44) : les 3 membres deviennent l'entité unitId. */
   | { seq: number; type: 'ArmyFormed'; unitId: UnitId; owner: PlayerId; memberIds: UnitId[]; at: Hex }
   | { seq: number; type: 'CityFounded'; cityId: CityId; owner: PlayerId; at: Hex; capital: boolean; byUnitId: UnitId | null }
-  | { seq: number; type: 'CityCaptured'; cityId: CityId; fromOwner: PlayerId; toOwner: PlayerId; at: Hex }
+  /** R-65 : ville sans défenseur investie → capture (capitale = victoire). R-97 : capture BARBARE → rasement. */
+  /** 7l · R-134 : `plunder` = sac de ville — part de la trésorerie du perdant
+   *  créditée au captreur (economy.json `cityCapturePlunderPct` 🔶 0.5). */
+  | { seq: number; type: 'CityCaptured'; cityId: CityId; fromOwner: PlayerId; toOwner: PlayerId; at: Hex; plunder?: number }
   /** Production d'une unité par une ville (R-62). */
   | { seq: number; type: 'UnitProduced'; unitId: UnitId; cityId: CityId; owner: PlayerId; unitType: string; at: Hex }
   /** Technologie complétée (R-85, Phase 7a) : déblocages immédiats (R-87). */
@@ -95,9 +98,11 @@ export type GameEvent =
   /** Point d'accroche diplomatie (R-58-b) — inactif en v1 (guerre permanente). */
   | { seq: number; type: 'DiplomaticIncident'; between: [PlayerId, PlayerId]; at: Hex }
   /** Victoire — v1 : 'domination' (capture de la capitale adverse, R-65),
-   *  'forfait' (T-06) ou 'razedCapital' (capitale rasée par les barbares,
-   *  R-97 — Phase 7d : le propriétaire perd, l'adversaire réel gagne). */
-  | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' | 'forfeit' | 'razedCapital' | 'culture' | 'science' }
+   *  'forfait' (T-06), 'razedCapital' (capitale rasée par les barbares,
+   *  R-97 — Phase 7d), 'culture' (Nations Unies — R-116), 'science'
+   *  (Vaisseau spatial — R-124) ou 'economique' (Banque mondiale — 7l ·
+   *  R-137). */
+  | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' | 'forfeit' | 'razedCapital' | 'culture' | 'science' | 'economique' }
   /** 7h · R-122 : adoption d'un régime — `anarchy: true` = transition manuelle
    *  (1 tour d'Anarchie), `false` = bascule à la complétion de la tech. */
   | { seq: number; type: 'GovernmentChanged'; player: PlayerId; government: string; anarchy: boolean }
@@ -135,20 +140,48 @@ export type GameEvent =
   | { seq: number; type: 'WonderCompleted'; cityId: CityId; owner: PlayerId; wonder: string; at: Hex }
   /**
    * 7k · R-130 · M3 · Récupération de marteaux : un rival a complété la
-   * merveille qui était en chantier dans `cityId` — les marteaux investis
-   * (`amount`) sont conservés en attente (`outcome: 'available'`) et doivent
-   * être réaffectés par un SetProduction pendant la fenêtre (T-32 🔶) ;
-   * `outcome: 'dissipated'` = fenêtre expirée, marteaux dissipés.
+   * merveille qui était en chantier dans `cityId` (ou départage C8 d'une
+   * complétion simultanée) — les marteaux investis (`amount`) basculent en
+   * RÉSERVE PERMANENTE (`pendingSalvage`, 7l · C7 : plus de dissipation,
+   * révisée — le littéral 'dissipated' de 7k est RETIRÉ de l'union, choix
+   * documenté). La réserve finance le projet choisi par le joueur (R-130
+   * rév.) jusqu'à épuisement.
    */
   | {
       seq: number;
       type: 'HammerSalvage';
       cityId: CityId;
       owner: PlayerId;
-      /** Merveille concernée — null pour une dissipation (rappel différé). */
+      /** Merveille concernée — null pour un départage C8 sans mérite. */
       wonder: string | null;
       amount: number;
-      outcome: 'available' | 'dissipated';
+      outcome: 'available';
+    }
+  /** 7l · R-136 · Palier économique franchi (trésorerie ≥ seuil, une seule
+   *  fois, dans l'ordre des seuils) — `reward` est la clé de récompense
+   *  (settler | tech | greatPerson | granary | population | aqueduct |
+   *  worldBank) et `label` le libellé FR (economy.json). */
+  | {
+      seq: number;
+      type: 'EconomyMilestone';
+      player: PlayerId;
+      threshold: number;
+      reward: string;
+      label: string;
+    }
+  /** 7l · R-135 · Achat instantané (rush-buy) : la production courante de la
+   *  ville est complétée immédiatement, la trésorerie est débitée du coût
+   *  (marteaux restants × facteur d'ère × réductions — R-135). Les
+   *  événements de complétion usuels suivent (UnitProduced, BuildingCompleted,
+   *  WonderCompleted…). */
+  | {
+      seq: number;
+      type: 'RushBuy';
+      cityId: CityId;
+      owner: PlayerId;
+      item: { kind: 'unit' | 'building' | 'wonder'; id: string };
+      cost: number;
+      at: Hex;
     }
   /** 7k · R-132 · Atelier de Léonard : les unités obsolètes de l'empire ont
    *  été mises à niveau (R-111 — `upgradeTo` en chaîne, vétérans/PV conservés). */
@@ -320,6 +353,14 @@ export function eventRefs(event: GameEvent): EventRefs {
     case 'HammerSalvage':
       refs.cityIds.push(event.cityId);
       refs.players.push(event.owner);
+      break;
+    case 'EconomyMilestone':
+      refs.players.push(event.player);
+      break;
+    case 'RushBuy':
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner);
+      hex(event.at);
       break;
     case 'UnitsUpgraded':
       refs.players.push(event.player);

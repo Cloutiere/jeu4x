@@ -126,11 +126,22 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
     }
   });
 
-  it('7f · culture.json : constantes T-27 et jalons (chargées dans CULTURE, éditables)', () => {
+  it('7l · C5 · culture.json : TABLE CANON des seuils culturels T-27 (ancres Erik) + jalons', () => {
     const data = cultureData as unknown as CultureData;
     expect(data).toEqual(CULTURE);
-    expect(CULTURE.greatPersonThresholdBase).toBe(20); // T-27 🔶
-    expect(CULTURE.greatPersonThresholdGrowth).toBe(2); // ×2 par GP obtenu
+    // 7l · C5 : la table canon remplace le « 20 ×2 » de 7f — ancres d'Erik
+    // (150, 267, 417, 600, 817, 1067, 1350, 1667, 2017, 2400, 15e = 4817,
+    // 20e = 8067), écarts croissant d'environ +33,33.
+    expect(CULTURE.greatPersonCultureThresholds[0]).toBe(150);
+    expect(CULTURE.greatPersonCultureThresholds[1]).toBe(267);
+    expect(CULTURE.greatPersonCultureThresholds[2]).toBe(417);
+    expect(CULTURE.greatPersonCultureThresholds[3]).toBe(600);
+    expect(CULTURE.greatPersonCultureThresholds[4]).toBe(817);
+    expect(CULTURE.greatPersonCultureThresholds[5]).toBe(1067);
+    expect(CULTURE.greatPersonCultureThresholds[6]).toBe(1350);
+    expect(CULTURE.greatPersonCultureThresholds[7]).toBe(1667);
+    expect(CULTURE.greatPersonCultureThresholds[14]).toBe(4817); // 15e
+    expect(CULTURE.greatPersonCultureThresholds[19]).toBe(8067); // 20e
     expect(CULTURE.milestonesTarget).toBe(20); // jalons pour l'ONU / la victoire
   });
 

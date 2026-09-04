@@ -203,7 +203,7 @@ export interface TechData {
 export interface WonderData {
   id: string;
   name: string;
-  /** Coût de production (T-28 pour les Nations Unies : 300 🔶). */
+  /** Coût de production (T-28 pour les Nations Unies : 500 — rév. 7l · C11). */
   cost?: number;
   /** Technologie requise (null = condition spéciale ou disponible d'office). */
   tech?: string | null;
@@ -220,6 +220,12 @@ export interface WonderData {
   populationGainPct?: number;
   /** 7f · Complétion = Victoire culturelle (R-116 — Nations Unies). */
   cultureVictory?: boolean;
+  /** 7l · R-137 · Complétion = Victoire économique (Banque mondiale).
+   *  Interdite au rush-buy (R-135). */
+  economicVictory?: boolean;
+  /** 7l · R-137 · Trésorerie EXIGÉE (condition, jamais débitée) : la merveille
+   *  est verrouillée et sa progression gelée tant que `treasury` est dessous. */
+  treasuryRequired?: number;
   /** 7h · R-125 : +1 Attaque à toutes les unités de l'empire (Himeji). */
   attackBonusEmpire?: number;
   /** 7h · R-125 : accès à tous les régimes sans tech (Grande Pyramide). */
@@ -260,10 +266,13 @@ export interface WonderData {
 
 /** 7f · Constantes culturelles (culture.json) — calibrage par édition (R-99). */
 export interface CultureData {
-  /** T-27 · Seuil de culture par ville pour engendrer un GP (base). */
-  greatPersonThresholdBase: number;
-  /** T-27 · Le seuil est MULTIPLIÉ par ce facteur à chaque GP obtenu par l'empire. */
-  greatPersonThresholdGrowth: number;
+  /** T-27 rév. 7l · C5 · Table canon des seuils de culture du canal culture
+   *  (indexée par le nombre de GP DÉJÀ obtenus : 150, 267, 417, 600… — R-114).
+   *  Au-delà de la table, la formule (greatPersonCultureGap) extrapole. */
+  greatPersonCultureThresholds: number[];
+  /** 7l · C5 · Paramètres de la formule de génération/extrapolation
+   *  (écart initial 117, croissance +33,33 par pas — ancres d'Erik). */
+  greatPersonCultureGap: { base: number; growth: number };
   /** Jalons culturels requis pour les Nations Unies (et la victoire). */
   milestonesTarget: number;
   /** 7h · T-30 · Seuil de base des accumulateurs or/science/production des
@@ -273,9 +282,8 @@ export interface CultureData {
   greatPersonYieldThresholdGrowth: number;
   /** 7h · T-31 · Victoires de combat de l'empire pour engendrer un Leader (R-123). */
   leaderGpVictories: number;
-  /** 7k · T-32 · R-130 · Fenêtre de réaffectation des marteaux récupérés
-   *  (tours avant dissipation — 🔶 calibrable). */
-  hammerSalvageWindow: number;
+  // 7l · C7 : `hammerSalvageWindow` (T-32) est ABROGÉ — la réserve de marteaux
+  // est permanente (R-130 rév.), plus aucune dissipation.
 }
 
 // ---------------------------------------------------------------------------
@@ -444,6 +452,10 @@ export interface ResourceData {
    *  travaillée par une ville dont le propriétaire a accès (R-93). D3 :
    *  Gemmes/Or mappés commerce. */
   yields: Yields;
+  /** 7l · R-134 · Or versé DIRECTEMENT à la trésorerie par tour quand la
+   *  case est travaillée (canon : Gemmes +2, Or +3 — correction du canal
+   *  commerce D3 de 7c). null/absent = pas d'or direct. */
+  directGold?: number;
   /** R-92/D1 : technologie exigée (accès au bonus + visibilité si
    *  `hiddenUntilRevealed`). null = visible et active d'office (D4). */
   revealedByTech: string | null;

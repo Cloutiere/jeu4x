@@ -83,35 +83,37 @@ describe('R-113 · Rendement culturel (scalaire sur la démographie)', () => {
 });
 
 describe('R-114 · Personnages illustres de culture (seuil T-27 croissant)', () => {
-  it('au seuil 20 🔶 : un GP apparaît, la jauge est soustraite, le compteur empire monte', () => {
+  it('7l · C5 : au seuil 150 (table canon) un GP apparaît, la jauge est soustraite, le compteur empire monte', () => {
     const state = capitalCity(['temple']);
-    state.cities['c1']!.cultureStored = 19; // 5/tour → franchit 20 ce tour
+    state.cities['c1']!.cultureStored = 149; // 5/tour → franchit 150 ce tour
     const { newState, events } = resolveTurn(state, {}, 1);
     const gp = Object.values(newState.units).find((u) => u.type === 'artiste_penseur');
     expect(gp).toBeDefined();
     expect(gp!.owner).toBe('p1');
     expect(gp!.q).toBe(0); // posé sur la case de la ville (libre)
-    expect(newState.cities['c1']!.cultureStored).toBe(4); // 19 + 5 − 20 (surplus conservé)
+    expect(newState.cities['c1']!.cultureStored).toBe(4); // 149 + 5 − 150 (surplus conservé)
     expect(newState.players['p1']!.greatPersonsObtained).toBe(1);
     expect(events.some((e) => e.type === 'GreatPersonSpawned' && e.unitType === 'artiste_penseur')).toBe(true);
   });
 
-  it('le seuil DOUBLE à chaque GP obtenu par l’empire (T-27 : 20 → 40 → 80…)', () => {
-    expect(greatPersonThresholdFor(0)).toBe(20);
-    expect(greatPersonThresholdFor(1)).toBe(40);
-    expect(greatPersonThresholdFor(2)).toBe(80);
-    // Après 1 GP obtenu, une ville à 5 culture/tour : 34 + 5 = 39 < 40 ne
-    // suffit plus ; 35 + 5 = 40 franchit le nouveau seuil.
+  it('7l · C5 : le seuil suit la TABLE CANON (150 → 267 → 417 — écarts +117, +150, +183)', () => {
+    expect(greatPersonThresholdFor(0)).toBe(150);
+    expect(greatPersonThresholdFor(1)).toBe(267);
+    expect(greatPersonThresholdFor(2)).toBe(417);
+    expect(greatPersonThresholdFor(14)).toBe(4817); // 15e GP (ancre Erik)
+    expect(greatPersonThresholdFor(19)).toBe(8067); // 20e GP (ancre Erik)
+    // Après 1 GP obtenu, une ville à 5 culture/tour : 261 + 5 = 266 < 267 ne
+    // suffit plus ; 262 + 5 = 267 franchit le nouveau seuil.
     const state = capitalCity(['temple']);
     state.players['p1']!.greatPersonsObtained = 1;
-    state.cities['c1']!.cultureStored = 34;
+    state.cities['c1']!.cultureStored = 261;
     const { newState } = resolveTurn(state, {}, 1);
-    expect(newState.cities['c1']!.cultureStored).toBe(39); // pas de GP
+    expect(newState.cities['c1']!.cultureStored).toBe(266); // pas de GP
     expect(Object.values(newState.units)).toHaveLength(0);
-    state.cities['c1']!.cultureStored = 35;
+    state.cities['c1']!.cultureStored = 262;
     const r2 = resolveTurn(state, {}, 1).newState;
     // Rotation (sans recherche, R-127) : compteur = 1 → index 1 = Bâtisseur.
-    expect(Object.values(r2.units).some((u) => u.type === 'batisseur')).toBe(true); // 40 ≥ 40
+    expect(Object.values(r2.units).some((u) => u.type === 'batisseur')).toBe(true); // 267 ≥ 267
   });
 
   it('ciblage technologique 🔶 (R-127, D5.2) : la classe de la figure de la tech en cours est priorisée ; rotation sinon', () => {
@@ -127,7 +129,7 @@ describe('R-114 · Personnages illustres de culture (seuil T-27 croissant)', () 
 
   it('case de ville occupée : le GP apparaît sur une case adjacente libre (tri (q,r) — R-81)', () => {
     const state = capitalCity(['temple']);
-    state.cities['c1']!.cultureStored = 19;
+    state.cities['c1']!.cultureStored = 149;
     state.units['u9'] = {
       id: 'u9',
       type: 'guerrier',
@@ -342,20 +344,20 @@ describe('R-116 · Nations Unies : verrou, suspension, victoire culturelle', () 
   });
 
   it('suspendue si les jalons retombent sous 20 pendant la construction (progression gelée, marteaux conservés)', () => {
-    const state = unState(19, 299); // un tour de production suffirait sinon
+    const state = unState(19, 499); // un tour de production suffirait sinon
     const { newState } = resolveTurn(state, {}, 1);
     expect(newState.cities['c1']!.production?.item).toEqual({ kind: 'wonder', id: 'nations_unies' });
-    expect(newState.cities['c1']!.production!.progress).toBe(299); // gelée 🔶
+    expect(newState.cities['c1']!.production!.progress).toBe(499); // gelée 🔶
     expect(newState.winner).toBeNull();
     // Les jalons reviennent à 20 : la construction reprend et achève l'ONU.
-    const resumed = unState(20, 299);
+    const resumed = unState(20, 499);
     const r2 = resolveTurn(resumed, {}, 1);
     expect(r2.newState.winner).toBe('p1');
   });
 
-  it('complétion à 20 jalons → Victory(reason: culture) (coût T-28 🔶 300)', () => {
-    expect(WONDERS['nations_unies']!.cost).toBe(300);
-    const state = unState(20, 299);
+  it('complétion à 20 jalons → Victory(reason: culture) (coût T-28 rév. 7l · C11 : 500)', () => {
+    expect(WONDERS['nations_unies']!.cost).toBe(500);
+    const state = unState(20, 499);
     const { newState, events } = resolveTurn(state, {}, 1);
     expect(newState.cities['c1']!.wonders).toEqual(['nations_unies']);
     expect(newState.winner).toBe('p1');
@@ -377,8 +379,8 @@ describe('7f · Effets des merveilles activées', () => {
     without.cities['c1']!.workedTiles = ['0,1', '1,0', '0,2', '1,2'];
     const rWithout = resolveTurn(without, {}, 1).newState;
     // 1 commerce (désert) — doublé à 2 or (conversion or par défaut).
-    expect(rWith.players['p1']!.gold).toBe(2);
-    expect(rWithout.players['p1']!.gold).toBe(1);
+    expect(rWith.players['p1']!.treasury).toBe(2);
+    expect(rWithout.players['p1']!.treasury).toBe(1);
   });
 
   it('Stonehenge obsolète (Littératie) : effet retiré du moteur mais jalon conservé', () => {
@@ -409,7 +411,7 @@ describe('7f · Migration v9 → v10', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(14); // la chaîne continue (7j)
+    expect(out.schemaVersion).toBe(15); // la chaîne continue (7l)
     expect(out.cities['c1']!.cultureStored).toBe(0);
     expect(out.cities['c1']!.wonders).toEqual([]);
     expect(out.players['p1']!.cultureMilestones).toBe(0);
@@ -430,8 +432,8 @@ describe('7f · e2e : culture → GP → jalons → merveilles → ONU → victo
     state.players['p1']!.techsUnlocked = ['poterie', 'travail_du_bronze', 'industrialisation'];
     state.players['p1']!.cultureMilestones = 19; // accélération par fixture (handoff L4-1)
 
-    // 1. Un GP apparaît au seuil puis s'installe : jalon 20 → l'ONU se débloque.
-    state.cities['c1']!.cultureStored = 19;
+    // 1. Un GP apparaît au seuil (7l · C5 : 150) puis s'installe : jalon 20 → l'ONU se débloque.
+    state.cities['c1']!.cultureStored = 149;
     let result = resolveTurn(state, {}, 1);
     state = result.newState;
     const gp = Object.values(state.units).find((u) => u.type === 'artiste_penseur' || u.type === 'penseur');
@@ -445,11 +447,11 @@ describe('7f · e2e : culture → GP → jalons → merveilles → ONU → victo
     // jalon d'obtention — d'où le ≥.
     expect(state.players['p1']!.cultureMilestones).toBeGreaterThanOrEqual(20);
 
-    // 2. L'ONU est constructible à 20 jalons — posée en file (coût 300).
+    // 2. L'ONU est constructible à 20 jalons — posée en file (coût 500 — C11).
     result = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'wonder', id: 'nations_unies' } }] }, 3);
     state = result.newState;
     expect(state.cities['c1']!.production?.item).toEqual({ kind: 'wonder', id: 'nations_unies' });
-    state.cities['c1']!.production!.progress = 299; // accélération par fixture (handoff L4-1)
+    state.cities['c1']!.production!.progress = 499; // accélération par fixture (handoff L4-1)
 
     // 3. Production → complétion → VICTOIRE CULTURELLE.
     result = resolveTurn(state, {}, 4);

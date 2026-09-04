@@ -7,8 +7,8 @@ import { describe, expect, it } from 'vitest';
 import type { GameEvent } from '@game/shared';
 import { eventLabel } from '../src/lib/labels.js';
 
-describe('7k · R-130 — libellé HammerSalvage (marteaux récupérables / dissipés)', () => {
-  it('« available » : signale la récupération et invite à réaffecter dans le tour', () => {
+describe('7l · C7 — libellé HammerSalvage (réserve PERMANENTE — plus de dissipation)', () => {
+  it('« available » : signale la réserve et invite à choisir un projet', () => {
     const ev = {
       seq: 1,
       type: 'HammerSalvage',
@@ -20,10 +20,11 @@ describe('7k · R-130 — libellé HammerSalvage (marteaux récupérables / diss
     } as GameEvent;
     const label = eventLabel(ev);
     expect(label).toContain('30 marteaux');
-    expect(label).toContain('réaffectez');
+    expect(label).toContain('choisissez un projet');
   });
 
-  it('« dissipated » : signale la dissipation (fenêtre expirée, T-32 🔶)', () => {
+  it("7l · C7 : le littéral « dissipated » est RETIRÉ de l'union (choix documenté) — le libellé ne le mentionne plus", () => {
+    // La réserve ne se dissipe plus : le libellé unique invite au choix d'un projet.
     const ev = {
       seq: 2,
       type: 'HammerSalvage',
@@ -31,9 +32,9 @@ describe('7k · R-130 — libellé HammerSalvage (marteaux récupérables / diss
       owner: 'p1',
       wonder: null,
       amount: 30,
-      outcome: 'dissipated',
+      outcome: 'available',
     } as GameEvent;
-    expect(eventLabel(ev)).toContain('dissipés');
+    expect(eventLabel(ev)).toContain('choisissez un projet');
   });
 });
 

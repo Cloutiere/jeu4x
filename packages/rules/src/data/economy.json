@@ -1,0 +1,73 @@
+{
+  "eraRushFactors": {
+    "ancienne": 2,
+    "medievale": 3,
+    "industrielle": 5,
+    "moderne": 8
+  },
+  "rushFactorsNote": "R-135 🔶 : ancrés sur les exemples du doc d'Erik — Antique ×2 (Guerrier 10 → 20-30, Pyramides 150 → 300-450), Médiévale ×3 (Marché 60 → 180, Banque 120 → 360, Pyramides 150 → 450), Moderne ×8 (Bibliothèque 40 → 320, Banque 120 → 960) ; Industrielle ×5 PROPOSÉ (aucun exemple exact — à calibrer).",
+  "rushForbiddenWonders": [
+    "banque_mondiale",
+    "nations_unies"
+  ],
+  "milestones": [
+    {
+      "threshold": 100,
+      "reward": "settler",
+      "label": "Colon gratuit à la capitale",
+      "unit": "colon"
+    },
+    {
+      "threshold": 250,
+      "reward": "tech",
+      "label": "Technologie économique gratuite (Monnaie ou Bancaire)"
+    },
+    {
+      "threshold": 500,
+      "reward": "greatPerson",
+      "label": "Grand Personnage gratuit"
+    },
+    {
+      "threshold": 1000,
+      "reward": "granary",
+      "label": "Grenier gratuit dans toutes les villes",
+      "building": "grenier"
+    },
+    {
+      "threshold": 2000,
+      "reward": "population",
+      "label": "+1 Population dans toutes les villes"
+    },
+    {
+      "threshold": 5000,
+      "reward": "aqueduct",
+      "label": "Aqueduc gratuit dans toutes les villes",
+      "building": "aqueduc"
+    },
+    {
+      "threshold": 10000,
+      "reward": "greatPerson",
+      "label": "Second Grand Personnage gratuit"
+    },
+    {
+      "threshold": 20000,
+      "reward": "worldBank",
+      "label": "Banque mondiale débloquée"
+    }
+  ],
+  "milestoneTechIds": [
+    "monnaie",
+    "bancaire"
+  ],
+  "cityCapturePlunderPct": 0.5,
+  "cityCapturePlunderNote": "R-134 🔶 : part de la trésorerie du perdant versée au captreur à la prise d'une ville (sources muettes — à calibrer).",
+  "interestRatePct": 0.02,
+  "interestNote": "R-134 🔶 (hook 7n) : intérêts passifs de trésorerie — actifs uniquement pour une civilisation dotée du trait (clé 'interets', civilizations.json 7n).",
+  "interestTraitKey": "interets",
+  "explorerGoldInjection": {
+    "ancienne": 50,
+    "medievale": 100,
+    "industrielle": 200,
+    "moderne": 400
+  }
+}

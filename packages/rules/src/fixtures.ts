@@ -117,7 +117,9 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
   for (const id of players) {
     playerRecords[id] = {
       id,
-      gold: 0,
+      // 7l · R-134 : la trésorerie remplace l'ancien champ or (R-134).
+      treasury: 0,
+      economyMilestonesClaimed: 0,
       science: 0,
       scienceRatio: SCIENCE_RATIO_DEFAULT,
       researching: null,

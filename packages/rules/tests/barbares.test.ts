@@ -80,7 +80,7 @@ describe('R-99 · Données barbares.json / huttes.json', () => {
   it('R-99/T-18..T-23 : barbares.json porte les constantes, types d’escalade connus', () => {
     expect(BARBARIANS.spawnInterval).toBe(3); // T-18
     expect(BARBARIANS.aggroRadius).toBe(6); // T-19
-    expect(BARBARIANS.villageDestructionGold).toBe(25); // T-20
+    expect(BARBARIANS.villageDestructionGold).toBe(50); // T-20 (7l · R-134 : canon +50 or — était 25 🔶 7d)
     expect(BARBARIANS.villageHP).toBe(3); // T-21
     expect(BARBARIANS.capPerVillage).toBe(2); // T-22
     expect(BARBARIANS.escalationTurn).toBe(15); // T-23
@@ -402,7 +402,7 @@ describe('R-96 · Villages barbares', () => {
     expect(state.units['u1']!.q).toBe(5); // l’attaquant est sur la case libérée (R-52)
     expect(state.units['u1']!.r).toBe(5);
     expect(events.filter((e) => e.type === 'VillageDestroyed')).toHaveLength(1);
-    expect(state.players['p1']!.gold).toBe(BARBARIANS.villageDestructionGold);
+    expect(state.players['p1']!.treasury).toBe(BARBARIANS.villageDestructionGold);
     const booty = events.find((e) => e.type === 'BootyGold');
     expect(booty).toMatchObject({ player: 'p1', amount: BARBARIANS.villageDestructionGold, sourceVillageId: 'v1' });
   });
@@ -521,7 +521,7 @@ describe('R-98 · Huttes bonus', () => {
     if (opened.reward.kind !== 'gold') throw new Error('impossible');
     expect(opened.reward.amount).toBeGreaterThanOrEqual(15); // T-25
     expect(opened.reward.amount).toBeLessThanOrEqual(50); // T-26
-    expect(result.newState.players['p1']!.gold).toBe(opened.reward.amount);
+    expect(result.newState.players['p1']!.treasury).toBe(opened.reward.amount);
   });
 
   it('R-98 : récompense unité — un guerrier gratuit engendré sur une case adjacente libre', () => {
@@ -571,7 +571,7 @@ describe('R-98 · Huttes bonus', () => {
 
   it('R-98 : récompense rien — aucun effet hors événement', () => {
     const result = hutSeedOf('nothing');
-    expect(result.newState.players['p1']!.gold).toBe(0);
+    expect(result.newState.players['p1']!.treasury).toBe(0);
     expect(barbarians(result.newState)).toHaveLength(0);
   });
 
@@ -845,7 +845,7 @@ describe('L4.1 · Scénario e2e seedé (village → attaque → hutte → destru
     expect(attack, 'le barbare engendré attaque l’unité adjacente').toBeDefined();
 
     // 3. u2 détruit v1 : or T-20 au vainqueur, disparition définitive, vétéran.
-    const goldBefore = state.players['p1']!.gold;
+    const goldBefore = state.players['p1']!.treasury;
     let guard = 0;
     while (state.villages.some((v) => v.id === villageId) && guard++ < 20) {
       const hpBefore = state.villages.find((v) => v.id === villageId)!.hp;
@@ -858,7 +858,7 @@ describe('L4.1 · Scénario e2e seedé (village → attaque → hutte → destru
       });
     }
     expect(state.villages.some((v) => v.id === villageId)).toBe(false);
-    expect(state.players['p1']!.gold).toBeGreaterThanOrEqual(goldBefore + BARBARIANS.villageDestructionGold);
+    expect(state.players['p1']!.treasury).toBeGreaterThanOrEqual(goldBefore + BARBARIANS.villageDestructionGold);
     expect(events.some((e) => e.type === 'VillageDestroyed' && e.villageId === villageId)).toBe(true);
     expect(events.some((e) => e.type === 'BootyGold' && e.amount === BARBARIANS.villageDestructionGold)).toBe(true);
     expect(state.units['u2']!.veteran).toBe(true);

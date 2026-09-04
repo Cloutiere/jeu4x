@@ -6,7 +6,8 @@
  * par les villes (Phase C) est créditée par `creditScience` sur la tech
  * courante ; sans choix, elle s'accumule en réserve (`scienceStored`) et se
  * verse au premier choix. La progression est conservée PAR technologie ;
- * le débordement est reporté en réserve (R-85).
+ * le débordement est converti 1:1 en OR à la complétion (R-134, rév. 7l —
+ * le canon remplace le report R-85).
  */
 import { TECHS, prereqsMet } from './techs.js';
 import type { FirstDiscoveredPayload, GameEvent } from './events.js';
@@ -63,7 +64,11 @@ export function creditScience(
     player.scienceProgress[current] = progress;
     return;
   }
-  // Complétion : déblocage immédiat (R-87), débordement reporté (R-85).
+  // Complétion : déblocage immédiat (R-87).
+  // 7l · R-134 (révision de R-85 « débordement reporté ») : le canon CivRev
+  // convertit l'excédent de fioles 1:1 en OR à la découverte — il ne le
+  // conserve pas (écart appliqué, signalé 🔶). La réserve `scienceStored`
+  // reste la science accumulée SANS tech choisie (inchangée).
   const overflow = progress - tech.cost;
   delete player.scienceProgress[current];
   if (!player.techsUnlocked.includes(tech.id)) player.techsUnlocked.push(tech.id);
@@ -73,7 +78,7 @@ export function creditScience(
   // résolution, R-122).
   player.techsUnlockedThisTurn = [...(player.techsUnlockedThisTurn ?? []), tech.id];
   player.researching = null;
-  player.scienceStored += overflow;
+  player.treasury += overflow; // R-134 : surplus de recherche converti 1:1 en or
   cb.onResearched?.(playerId, tech.id);
   // 7e · Premier découvrir : récompense appliquée ici, événement émis par
   // l'appelant. L'assignation des nouveaux citoyens reste à l'appelant

@@ -78,7 +78,9 @@ describe('R-91 · intégrité référentielle de resources.json', () => {
       const hasYield = y.food > 0 || y.production > 0 || y.commerce > 0;
       // Interprétation documentée : Encens (+2 culture) et Soie (+3 culture)
       // n'ont aucun rendement N/P/C officiel — leur bonus est le champ culture.
-      expect(hasYield || (r.culture ?? 0) > 0, `${r.id} apporte un bonus`).toBe(true);
+      // 7l · R-134 : Gemmes/Or versent de l'or DIRECT à la trésorerie
+      // (canon — correction du canal commerce D3 de 7c).
+      expect(hasYield || (r.culture ?? 0) > 0 || (r.directGold ?? 0) > 0, `${r.id} apporte un bonus`).toBe(true);
     }
   });
 
@@ -117,9 +119,11 @@ describe('R-91 · intégrité référentielle de resources.json', () => {
     }
   });
 
-  it('D3 : Gemmes +2 et Or +3 mappés commerce (divergence CivRev « or direct » documentée)', () => {
-    expect(resourceTable['gemmes']!.yields).toEqual({ food: 0, production: 0, commerce: 2 });
-    expect(resourceTable['or']!.yields).toEqual({ food: 0, production: 0, commerce: 3 });
+  it('7l · R-134 : Gemmes +2 et Or +3 versent de l\'or DIRECT à la trésorerie (canon — corrige le canal commerce D3 de 7c)', () => {
+    expect(resourceTable['gemmes']!.yields).toEqual({ food: 0, production: 0, commerce: 0 });
+    expect(resourceTable['gemmes']!.directGold).toBe(2);
+    expect(resourceTable['or']!.yields).toEqual({ food: 0, production: 0, commerce: 0 });
+    expect(resourceTable['or']!.directGold).toBe(3);
   });
 
   it('les 7 ressources « vivantes » v1 portent leur tech de techs.json (D4/D6)', () => {
@@ -172,7 +176,7 @@ describe('R-92 · accès et identité (couche de requête, D1 révisée)', () =>
 
   it('une ressource sans tech (D4) est accessible pour tous', () => {
     expect(resourceAccessible(gemmes, [])).toBe(true);
-    expect(resourceBonus(gemmes, [])).toEqual({ food: 0, production: 0, commerce: 2 });
+    expect(resourceBonus(gemmes, [])).toEqual({ food: 0, production: 0, commerce: 0 }); // 7l : or direct, plus de commerce
   });
 
   it('identité D1 : masquée (« inconnue ») tant que la tech manque, réelle après', () => {
@@ -199,11 +203,13 @@ describe('R-93 · bonus de rendement dans tileYield', () => {
     expect(tileYield(map, [], '1,0', ['travail_du_fer'])).toEqual({ food: 0, production: 3, commerce: 0 });
   });
 
-  it('7e (D4 achevé) : le Charbon exige Machine à vapeur ; les Gemmes (sans tech) comptent toujours', () => {
+  it('7e (D4 achevé) : le Charbon exige Machine à vapeur ; 7l : les Gemmes versent de l\'or DIRECT (plus de commerce)', () => {
     // 7e : le Charbon est désormais révélé par machine_a_vapeur (arbre complet).
     expect(tileYield(map, [], '2,0', [])).toEqual({ food: 0, production: 1, commerce: 0 });
     expect(tileYield(map, [], '2,0', ['machine_a_vapeur'])).toEqual({ food: 0, production: 4, commerce: 0 });
-    expect(tileYield(map, [], '0,1', [])).toEqual({ food: 0, production: 1, commerce: 2 });
+    // 7l · R-134 : les Gemmes ne portent plus de commerce — leur or direct est
+    // crédité à la trésorerie par le moteur (testé en phase7l).
+    expect(tileYield(map, [], '0,1', [])).toEqual({ food: 0, production: 1, commerce: 0 });
   });
 
   it('le bonus se cumule avec les bonus de bâtiments (Atelier sur colline + Fer)', () => {

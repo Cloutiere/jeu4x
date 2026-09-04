@@ -93,7 +93,7 @@ describe('Campagne multi-tours (critère 2)', () => {
     expect(state.units['u5']).toBeUndefined();
     // T-12 : butin 10. 7i · R-66 (rév.) : le commerce du centre suit la
     // tranche démographique (0 pour pop ≤ 6) — c2 ne génère plus d'or de centre.
-    expect(state.players['p2']!.gold).toBe(10);
+    expect(state.players['p2']!.treasury).toBe(10);
 
     // Tour 4 : le guerrier p1 se met en marche (chemin multi-tours).
     step({ p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }] }] }, 14);
@@ -218,15 +218,14 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     expect(state.cities[cityId]!.workedTiles.length).toBe(2);
     expect(state.cities[cityId]!.foodStored).toBe(2);
 
-    // Tours 2-3 : surplus 2/tour → réserve 6 = seuil vers pop 3 (growth.json)
-    // → croissance au tour 3.
-    step({});
-    step({});
+    // Tours 2-10 : surplus 2/tour → réserve 20 = seuil vers pop 3
+    // (7l · C4 : seuil linéaire 10 × n — 10 × 2) → croissance au tour 10.
+    for (let t = 0; t < 9; t++) step({});
     expect(state.cities[cityId]!.pop).toBe(3);
     expect(allEvents.some((e) => e.type === 'PopulationGrew')).toBe(true);
     expect(state.cities[cityId]!.workedTiles.length).toBe(3); // +1 citoyen auto-assigné (R-60)
 
-    // Tour 4 : ville pleine (pop 3, 3 citoyens) → on désassigne d'abord
+    // Tour 11 : ville pleine (pop 3, 3 citoyens) → on désassigne d'abord
     // (règle d'Erik : pas d'échange automatique) + Grenier en file.
     // Le citoyen intérieur (7i · R-60bis) produit : 1 (centre) + 1 (intérieur)
     // → floor(2 × 1,5) = 3 marteaux/tour (bonus pop R-63).
@@ -248,7 +247,7 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     state.cities[cityId]!.production!.progress = 39;
     step({}); // 39 + production du tour → complété (coût exact 7e : 40)
     // 7e : la ville fondée est capitale → le Palais y est posé par le moteur.
-    expect(state.cities[cityId]!.buildings).toEqual(['palais', 'grenier']);
+    expect(state.cities[cityId]!.buildings).toEqual(['grenier', 'palais']); // 7l : bâtiments triés (invariant déterministe R-81)
     expect(allEvents.some((e) => e.type === 'BuildingCompleted' && e.building === 'grenier')).toBe(true);
 
     // R-66 : le Grenier donne +1 N sur la plaine travaillée — le gain de
@@ -278,7 +277,7 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     // Tribunal en file (40 🔶), achevé au tour suivant.
     state.cities[cityId]!.production = { item: { kind: 'building', id: 'tribunal' }, progress: 79 };
     step({}); // 79 + production du tour → complété (coût exact 7e : 80)
-    expect(state.cities[cityId]!.buildings).toEqual(['palais', 'grenier', 'tribunal']);
+    expect(state.cities[cityId]!.buildings).toEqual(['grenier', 'palais', 'tribunal']); // 7l : tri déterministe
 
     // Rayon 2 (T-08b + Tribunal) : la montagne (3,5) — distance 2 — devient
     // travaillable (R-60/R-66). Ville pleine : il faut d'abord DÉSASSIGNER un

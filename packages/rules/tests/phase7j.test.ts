@@ -48,7 +48,7 @@ function addUnit(state: GameState, id: string, type: string, q: number, r: numbe
 describe('7j · D1 — fusion Artiste / Penseur (R-114 révisée)', () => {
   it('le canal culture engendre directement la classe fusionnée artiste_penseur', () => {
     const state = gpState();
-    state.cities['c1']!.cultureStored = 20;
+    state.cities['c1']!.cultureStored = 150; // 7l · C5 : seuil T-27 table canon (1er GP = 150)
     const result = resolveTurn(state, {}, 42);
     const spawned = result.events.find((e) => e.type === 'GreatPersonSpawned');
     if (spawned?.type !== 'GreatPersonSpawned') throw new Error('GP attendu');
@@ -79,7 +79,7 @@ describe('7k · C1 — Grand Humanitaire produit PAR LE CANAL CULTURE (veto d’
 
   it('le canal CULTURE engendre l’Humanitaire via le ciblage technologique (R-127 : Thomas Becket / Féodalité)', () => {
     const state = gpState();
-    state.cities['c1']!.cultureStored = 20; // seuil T-27
+    state.cities['c1']!.cultureStored = 150; // seuil T-27 (7l · C5 : table canon)
     state.players['p1']!.researching = 'feudalite'; // figure humanitaire (figures.json)
     const result = resolveTurn(state, {}, 42);
     const spawned = result.events.find((e) => e.type === 'GreatPersonSpawned');
@@ -371,7 +371,8 @@ describe('7j · Migration v12 → v13 (fusion `penseur`, renommages D2, champs S
     };
     const out = migrateState(v12 as unknown as Record<string, unknown>) as unknown as GameState;
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(14); // 7k : migration additive pendingSalvage (R-130)
+    expect(CURRENT_SCHEMA_VERSION).toBe(15); // 7k : migration additive pendingSalvage (R-130)
+ // 7l : trésorerie + paliers
     expect(out.units['u1']!.type).toBe('artiste_penseur'); // fusion D1
     expect(out.units['u2']!.type).toBe('artiste_penseur');
     expect(out.units['u3']!.type).toBe('savant'); // D2

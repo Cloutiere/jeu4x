@@ -142,7 +142,7 @@ describe('D4 · R-60bis — citoyens intérieurs (tranches démographiques)', ()
     // 7 citoyens intérieurs : commerce = 1 (centre, tranche 7-12) + 7 × 1
     const city = cityAt(newState, 0, 0)!;
     expect(city.workedTiles).toHaveLength(0);
-    expect(newState.players['p1']!.gold).toBe(8);
+    expect(newState.players['p1']!.treasury).toBe(8);
   });
 
   it('Tribunal : les citoyens intérieurs redeviennent travailleurs de terrain (priorité extérieure)', () => {
@@ -218,7 +218,7 @@ describe('R-66 (rév.) — centre-ville : min 1 Production, commerce par tranche
     const { newState } = resolveTurn(state, {}, 1);
     // production = 1 (centre, minimum R-66) + 2 × 1 (2 intérieurs Ouvriers)
     // → la ville produit des marteaux malgré le désert ; commerce = 0 + 0
-    expect(newState.players['p1']!.gold).toBe(0);
+    expect(newState.players['p1']!.treasury).toBe(0);
     // la file progresse : preuve de production du centre
     const s2 = makeState({
       width: 8,

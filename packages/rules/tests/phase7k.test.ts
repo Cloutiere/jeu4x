@@ -106,7 +106,7 @@ describe('7k · M2/R-129 — exclusivité mondiale (doc : « qu’une seule fois
     expect(issue).toContain('exclusivité mondiale');
   });
 
-  it('complétion simultanée au même tour : la première ville (R-81, cityId croissant) valide, l’autre est un no-op', () => {
+  it('7l · C8 : complétion simultanée — égalité de surplus → cityId croissant ; le perdant récupère l’ENTIÈRETÉ (progress + production du tour)', () => {
     const state = makeState({
       cities: [
         { owner: 'p2', q: 2, r: 2, capital: true, pop: 1, production: { item: { kind: 'wonder', id: 'stonehenge' }, progress: 50 } },
@@ -116,12 +116,31 @@ describe('7k · M2/R-129 — exclusivité mondiale (doc : « qu’une seule fois
     const result = resolveTurn(state, {}, 42);
     const completions = result.events.filter((e) => e.type === 'WonderCompleted');
     expect(completions).toHaveLength(1);
-    expect(completions[0]).toMatchObject({ cityId: 'c1', owner: 'p2' }); // c1 < c2 (R-81)
+    expect(completions[0]).toMatchObject({ cityId: 'c1', owner: 'p2' }); // surplus égaux → c1 < c2 (R-81)
     expect(result.newState.players['p2']!.cultureMilestones).toBe(1);
     expect(result.newState.players['p1']!.cultureMilestones).toBe(0);
     expect(result.newState.cities['c2']!.wonders).toEqual([]);
-    // Le perdant (p1) récupère ses marteaux (R-130).
-    expect(result.newState.cities['c2']!.pendingSalvage).toBe(50);
+    // C8/C7 : le perdant récupère l'ENTIÈRETÉ de ses marteaux — progress 50
+    // + production du tour (2, pop 1 : centre 1 + case ville adjacente 1) —
+    // en réserve PERMANENTE.
+    expect(result.newState.cities['c2']!.pendingSalvage).toBe(52);
+    expect(result.events.some((e) => e.type === 'HammerSalvage' && e.outcome === 'available')).toBe(true);
+  });
+
+  it('7l · C8 : le chantier avec le PLUS de surplus gagne, même avec le cityId le plus élevé', () => {
+    const state = makeState({
+      cities: [
+        { owner: 'p2', q: 2, r: 2, capital: true, pop: 1, production: { item: { kind: 'wonder', id: 'stonehenge' }, progress: 50 } },
+        { owner: 'p1', q: 5, r: 5, capital: true, pop: 1, production: { item: { kind: 'wonder', id: 'stonehenge' }, progress: 70 } },
+      ],
+    });
+    const result = resolveTurn(state, {}, 42);
+    const completions = result.events.filter((e) => e.type === 'WonderCompleted');
+    expect(completions).toHaveLength(1);
+    // c2 (p1) a 20 marteaux de surplus, c1 en a 0 : c2 gagne malgré cityId >.
+    expect(completions[0]).toMatchObject({ cityId: 'c2', owner: 'p1' });
+    expect(result.newState.cities['c1']!.wonders).toEqual([]);
+    expect(result.newState.cities['c1']!.pendingSalvage).toBeGreaterThanOrEqual(50); // l'entièreté pour le perdant
   });
 });
 
@@ -146,24 +165,48 @@ describe('7k · M3/R-130 — récupération des marteaux (doc : « réaffectés 
     expect(result.newState.cities['c2']!.production).toBeNull();
   });
 
-  it('réaffectation pendant la fenêtre : le nouveau projet démarre aux marteaux conservés', () => {
-    const first = resolveTurn(salvageState(), {}, 42).newState;
-    // p1 réaffecte vers un Temple (coût 40 🔶) pendant son tour suivant.
-    const second = resolveTurn(first, { p1: [{ type: 'SetProduction', cityId: 'c2', item: { kind: 'building', id: 'temple' } }] }, 43);
-    const prod = second.newState.cities['c2']!.production!;
-    expect(prod.item).toEqual({ kind: 'building', id: 'temple' });
-    expect(prod.progress).toBeGreaterThanOrEqual(30); // marteaux récupérés reportés (pop 1 : +1 marteau/tour au plus)
-    expect(second.newState.cities['c2']!.pendingSalvage).toBe(0); // consommés
-    expect(second.events.some((e) => e.type === 'HammerSalvage' && e.outcome === 'dissipated')).toBe(false);
-  });
-
-  it('sans réaffectation, les marteaux sont DISSIPÉS à la résolution suivante (fenêtre T-32 🔶 1 tour)', () => {
+  it('7l · C7 : la réserve est PERMANENTE — sans réaffectation, AUCUNE dissipation (T-32 abrogé)', () => {
     const first = resolveTurn(salvageState(), {}, 42).newState;
     expect(first.cities['c2']!.pendingSalvage).toBe(30);
     const second = resolveTurn(first, {}, 43); // p1 ne fait rien
-    const dissipated = second.events.find((e) => e.type === 'HammerSalvage');
-    expect(dissipated).toMatchObject({ type: 'HammerSalvage', cityId: 'c2', owner: 'p1', amount: 30, outcome: 'dissipated' });
+    expect(second.events.some((e) => e.type === 'HammerSalvage')).toBe(false); // plus d'événement de dissipation
+    expect(second.newState.cities['c2']!.pendingSalvage).toBe(30); // la réserve subsiste
+    const third = resolveTurn(second.newState, {}, 44); // encore rien : elle subsiste indéfiniment
+    expect(third.newState.cities['c2']!.pendingSalvage).toBe(30);
+  });
+
+  it('7l · C7 : réserve < coût → la réserve est versée dans la progression (accumulation normale ensuite)', () => {
+    const first = resolveTurn(salvageState(), {}, 42).newState;
+    // p1 pose un Temple (coût 40) : la réserve (30) se verse dans la
+    // progression, la production normale continue (pop 1 : +1 marteau/tour).
+    const second = resolveTurn(first, { p1: [{ type: 'SetProduction', cityId: 'c2', item: { kind: 'building', id: 'temple' } }] }, 43);
+    const prod = second.newState.cities['c2']!.production!;
+    expect(prod.item).toEqual({ kind: 'building', id: 'temple' });
+    expect(prod.progress).toBeGreaterThanOrEqual(30);
+    expect(second.newState.cities['c2']!.pendingSalvage).toBe(0); // versée dans la progression
+  });
+
+  it('7l · C7 : réserve ≥ coût → le bâtiment est COMPLÉTÉ immédiatement et le surplus RESTE en réserve', () => {
+    const first = resolveTurn(salvageState(), {}, 42).newState;
+    first.cities['c2']!.pendingSalvage = 200; // esprit de l'ex. du handoff (200, bâtiment 80 → 120 restent)
+    first.cities['c2']!.workedTiles = []; // aucune production parasite : le surplus reste exact
+    const second = resolveTurn(first, { p1: [{ type: 'SetProduction', cityId: 'c2', item: { kind: 'building', id: 'temple' } }] }, 43);
+    expect(second.newState.cities['c2']!.buildings).toContain('temple'); // produit CE tour
+    expect(second.newState.cities['c2']!.production).toBeNull();
+    expect(second.newState.cities['c2']!.pendingSalvage).toBe(160); // surplus conservé (200 − 40, Temple)
+    expect(second.events.some((e) => e.type === 'BuildingCompleted')).toBe(true);
+  });
+
+  it('7l · C7 : projet répétable (unité) — produite autant de fois que la réserve le permet', () => {
+    const first = resolveTurn(salvageState(), {}, 42).newState;
+    first.cities['c2']!.pendingSalvage = 25; // 2 guerriers (10) + reliquat 5
+    const second = resolveTurn(first, { p1: [{ type: 'SetProduction', cityId: 'c2', item: { kind: 'unit', id: 'guerrier' } }] }, 43);
+    const produced = second.events.filter((e) => e.type === 'UnitProduced' && e.cityId === 'c2');
+    expect(produced.length).toBe(2); // ⌊25 / 10⌋ = 2 unités ce tour
+    // Le reliquat (5 < coût) rejoint la PROGRESSION de l'unité suivante
+    // (accumulation normale — R-130 rév. C7), la réserve est épuisée.
     expect(second.newState.cities['c2']!.pendingSalvage).toBe(0);
+    expect(second.newState.cities['c2']!.production!.progress).toBeGreaterThanOrEqual(5);
   });
 });
 
@@ -199,7 +242,7 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
     expect(a).toContain('poterie');
   });
 
-  it('Cie des Indes : +1 Commerce sur chaque case océanique exploitée (bonus par terrain travaillé — modèle R-66)', () => {
+  it("Cie des Indes : +1 Commerce sur chaque case d'eau exploitée — océan (modèle R-66 ; C9 : côte incluse, testée en 7l)", () => {
     // Une ville côtière travaillant une case d'océan (rendement 0/0/2 → 0/0/3).
     const state = makeState({
       terrainOverrides: { '3,2': 'ocean' },
@@ -208,10 +251,10 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
     const out = resolveTurn(state, {}, 42).newState;
     // Centre pop 1 = 0 commerce (tranche Ouvrier) ; océan 2 C (+1 Cie des Indes) = 3 or/tour ;
     // sans la merveille : 0 + 2 = 2 or.
-    expect(out.players['p1']!.gold).toBe(3);
+    expect(out.players['p1']!.treasury).toBe(3);
     const sans = structuredClone(state);
     sans.cities['c1']!.wonders = [];
-    expect(resolveTurn(sans, {}, 42).newState.players['p1']!.gold).toBe(2);
+    expect(resolveTurn(sans, {}, 42).newState.players['p1']!.treasury).toBe(2);
   });
 
   it('Atelier de Léonard : met à niveau gratuitement les unités obsolètes (R-111 — guerrier → legion), EMPIRE du propriétaire', () => {
@@ -230,18 +273,18 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
     expect(result.newState.units['uP2']!.type).toBe('guerrier'); // p2 inchangé
   });
 
-  it('Foire de Troyes : ×2 la part OR de la conversion R-90 de la cité ; cumul Internet : MAX (R-88 🔶)', () => {
+  it('7l · C10 · Foire de Troyes : ×2 la part OR de la cité ; cumul Internet MULTIPLICATIF ×4', () => {
     // Cité à 1 commerce (case de désert travaillée — le centre pop 1 ne donne
     // aucun commerce, tranche Ouvrier) en conversion or : 1 or → 2 or.
     const state = makeState({
       terrainOverrides: { '2,1': 'desert' },
       cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 1, workedTiles: ['2,1'], wonders: ['foire_de_troyes'] }],
     });
-    expect(resolveTurn(state, {}, 42).newState.players['p1']!.gold).toBe(2);
-    // Cumul Troyes + Internet : MAX ×2 (pas ×4).
+    expect(resolveTurn(state, {}, 42).newState.players['p1']!.treasury).toBe(2);
+    // Cumul Troyes + Internet : MULTIPLICATIF ×4 (7l · C10 — remplace MAX).
     const both = structuredClone(state);
     both.cities['c1']!.wonders = ['foire_de_troyes', 'internet'];
-    expect(resolveTurn(both, {}, 42).newState.players['p1']!.gold).toBe(2);
+    expect(resolveTurn(both, {}, 42).newState.players['p1']!.treasury).toBe(4);
     expect(cityGoldMultOf(['foire_de_troyes'], [])).toBe(2);
   });
 
@@ -255,7 +298,7 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
     });
     state.cities['c1']!.wonders = ['internet'];
     const out = resolveTurn(state, {}, 42).newState;
-    expect(out.players['p1']!.gold).toBe(4); // 2 villes × 1 or ×2 (empire)
+    expect(out.players['p1']!.treasury).toBe(4); // 2 villes × 1 or ×2 (empire)
   });
 
   it('Complexe militaro-industriel : −20 % le coût de production des unités MILITAIRES (Colon exclu — production seule, 7l)', () => {

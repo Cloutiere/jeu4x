@@ -84,7 +84,7 @@ export function applyFirstToDiscover(
 
   // Or immédiat.
   if (reward.gold && reward.gold > 0) {
-    st.players[playerId]!.gold += reward.gold;
+    st.players[playerId]!.treasury += reward.gold; // 7l · R-134 : trésorerie
     payload.gold = reward.gold;
   }
 

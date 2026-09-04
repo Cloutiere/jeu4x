@@ -333,7 +333,9 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
   for (const spawn of map.spawns) {
     players[spawn.id] = {
       id: spawn.id,
-      gold: 0,
+      // 7l · R-134 : la trésorerie remplace l'ancien champ or (R-134).
+      treasury: 0,
+      economyMilestonesClaimed: 0,
       science: 0,
       scienceRatio: SCIENCE_RATIO_DEFAULT,
       researching: null,

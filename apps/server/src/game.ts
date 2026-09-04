@@ -28,6 +28,8 @@ import {
   applySetGovernment,
   greatPersonThresholdFor,
   allKnownTechs,
+  nextEconomyMilestone,
+  wonderTreasuryLocked,
   WONDERS,
   isWonderObsolete,
 } from '@game/rules';
@@ -76,7 +78,7 @@ export interface GameMeta {
   /** Échéance du timer courant, epoch ms — null si pas de timer. */
   deadline: number | null;
   /** Motif de fin (admin/debug) : domination | forfeit | abandoned | culture (7f). */
-  finishedReason?: 'domination' | 'forfeit' | 'abandoned' | 'culture' | 'science';
+  finishedReason?: 'domination' | 'forfeit' | 'abandoned' | 'culture' | 'science' | 'economique';
   /** Phase 6b : rapport de génération de la carte procédurale (seed, ratio
    *  terre, checksum de fertilité) — consigné pour le dump admin. */
   progen?: ProgenReport;
@@ -106,6 +108,11 @@ function sameSubject(a: Order, b: Order): boolean {
       );
     }
     return false;
+  }
+  if (a.type === 'RushBuy' && b.type === 'RushBuy') {
+    // 7l · R-135 : un seul rush par ville et par tour — l'ordre de même ville
+    // est REMPLACÉ (un seul achat peut exister par ville et par tour).
+    return a.cityId === b.cityId;
   }
   if (a.type === 'FormArmy' && b.type === 'FormArmy') {
     return [...a.members].sort().join(',') === [...b.members].sort().join(',');
@@ -174,6 +181,12 @@ export function orderShapeError(order: unknown): string | null {
       return typeof o.unitId === 'string' && typeof o.cityId === 'string' && (o.action === 'consume' || o.action === 'settle')
         ? null
         : 'action/unité/ville invalides';
+    case 'RushBuy':
+      // 7l · R-135 : achat instantané de la production courante d'une ville —
+      // la validité métier (production en cours, item éligible — interdits
+      // ONU/Banque mondiale —, trésorerie suffisante, 1 rush/ville/tour) est
+      // re-vérifiée par le moteur à la résolution.
+      return typeof o.cityId === 'string' ? null : 'ville invalide';
     case 'SpyMission':
       // 7g · R-119 : mission d'espionnage (vol de GP installé) — la validité
       // métier (Espion, ville ennemie VISIBLE adjacente, GP installé) est
@@ -517,6 +530,40 @@ export class GameDO {
             .map((c) => ({ cityId: c.id, owner: c.owner, marteaux: c.pendingSalvage })),
         }
       : null;
+    // 7l · R-134..R-137 : économie de l'or — trésorerie, paliers (prochain +
+    // franchis), rush-buy en brouillon, réserves de marteaux, Banque mondiale.
+    const economie = game
+      ? {
+          players: Object.fromEntries(
+            Object.keys(game.players)
+              .sort()
+              .map((id) => {
+                const p = game.players[id]!;
+                const prochain = nextEconomyMilestone(p.economyMilestonesClaimed);
+                const villes = Object.values(game.cities).filter((c) => c.owner === id);
+                const focusOr = villes.filter((c) => c.conversion === 'gold').length;
+                return [
+                  id,
+                  {
+                    tresorerie: p.treasury,
+                    paliersFranchis: p.economyMilestonesClaimed,
+                    prochainPalier: prochain ? { seuil: prochain.threshold, reward: prochain.reward, label: prochain.label } : null,
+                    banqueMondialeDisponible: !wonderTreasuryLocked('banque_mondiale', p.treasury),
+                    villesFocusOr: focusOr,
+                  },
+                ];
+              }),
+          ),
+          reservesMarteaux: Object.values(game.cities)
+            .filter((c) => c.pendingSalvage > 0)
+            .map((c) => ({ cityId: c.id, owner: c.owner, marteaux: c.pendingSalvage })),
+          rushBuysEnBrouillon: Object.entries(this.orders).flatMap(([pid, orders]) =>
+            orders
+              .filter((o) => o.type === 'RushBuy')
+              .map((o) => ({ player: pid, cityId: (o as { cityId: string }).cityId })),
+          ),
+        }
+      : null;
     return jsonResponse({
       meta: this.meta,
       state: this.game,
@@ -529,6 +576,7 @@ export class GameDO {
       naval,
       gouvernements,
       merveilles,
+      economie,
     });
   }
 
@@ -843,6 +891,11 @@ export class GameDO {
         return ownsUnit(order.unitId) && cities[order.cityId]?.owner === engineId
           ? null
           : 'unité ou ville inconnue, ou non possédée';
+      case 'RushBuy':
+        // 7l · R-135 : la ville (dont on achète la production) doit appartenir
+        // au joueur ; l'éligibilité de l'item et la trésorerie sont re-vérifiées
+        // par le moteur à la résolution.
+        return cities[order.cityId]?.owner === engineId ? null : `ville ${order.cityId} inconnue ou non possédée`;
       case 'SpyMission':
         // 7g · R-119 : seule l'unité doit appartenir au joueur (la ville cible
         // est ENNEMIE par construction — re-validé par le moteur).
@@ -927,7 +980,9 @@ export class GameDO {
       // culturelle → 'culture' ; les autres raisons restent 'domination').
       const victory = [...result.events].reverse().find((e) => e.type === 'Victory');
       const reason =
-        victory && victory.type === 'Victory' && (victory.reason === 'culture' || victory.reason === 'science')
+        victory &&
+        victory.type === 'Victory' &&
+        (victory.reason === 'culture' || victory.reason === 'science' || victory.reason === 'economique')
           ? victory.reason
           : 'domination';
       await this.finishGame(reason, this.game.winner as EnginePlayerId, result.events);
@@ -954,7 +1009,7 @@ export class GameDO {
   }
 
   private async finishGame(
-    reason: 'domination' | 'forfeit' | 'abandoned' | 'culture' | 'science',
+    reason: 'domination' | 'forfeit' | 'abandoned' | 'culture' | 'science' | 'economique',
     winner: EnginePlayerId | null,
     events: GameEvent[],
     forState?: GameState,

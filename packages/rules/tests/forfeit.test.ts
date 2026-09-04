@@ -71,7 +71,7 @@ describe('L0 · T-06 · forfait (compteur missedTurns tenu par le serveur)', () 
 
 describe('L0 · Migrations (chaîne de migrations, DESIGN.md §3.8)', () => {
   it(`CURRENT_SCHEMA_VERSION vaut ${CURRENT_SCHEMA_VERSION} et les migrations v2/v3/v4/v5/v6/v7 existent`, () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(14); // 7k : merveilles + salvage (R-130)
+    expect(CURRENT_SCHEMA_VERSION).toBe(15); // 7l : trésorerie R-134 + paliers R-136
     expect(typeof MIGRATIONS[2]).toBe('function');
     expect(typeof MIGRATIONS[3]).toBe('function');
     expect(typeof MIGRATIONS[4]).toBe('function');
@@ -97,7 +97,7 @@ describe('L0 · Migrations (chaîne de migrations, DESIGN.md §3.8)', () => {
     expect(v1Raw.players['p1']!.missedTurns).toBe(0);
     // un champ déjà présent est conservé
     expect(v1Raw.players['p2']!.missedTurns).toBe(2);
-    expect(v1Raw.players['p1']!.gold).toBe(3);
+    expect(v1Raw.players['p1']!.treasury).toBe(3);
     // v2 → v3 (R-33) : fortification absente des anciens états → false
     for (const u of Object.values(v1Raw.units)) expect(u.fortified).toBe(false);
   });

@@ -481,9 +481,9 @@ describe('Phase 7g · Migration v10 → v11', () => {
     });
     const raw = { ...structuredClone(v10), schemaVersion: 10 } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(14);
+    expect(out.schemaVersion).toBe(15);
     expect(out.units['u1']).toMatchObject({ aboard: null, cargo: null });
-    expect(CURRENT_SCHEMA_VERSION).toBe(14); // 7k : merveilles + salvage (R-130)
+    expect(CURRENT_SCHEMA_VERSION).toBe(15); // 7l : trésorerie + paliersage (R-130)
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
     expect(twice).toEqual(out);
   });

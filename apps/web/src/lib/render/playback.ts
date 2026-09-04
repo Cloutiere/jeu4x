@@ -46,6 +46,8 @@ interface CurrentItem {
 
 /** Durée (ms, vitesse 1) par type d'événement. */
 const DURATIONS: Record<GameEvent['type'], number> = {
+  RushBuy: 1200,
+  EconomyMilestone: 1600,
   Move: 240,
   Retreat: 240,
   Attack: 200,
@@ -349,7 +351,7 @@ export class Playback {
     const kind = TOAST_KINDS[ev.type];
     if (kind) {
       // 7k · R-130 : des marteaux récupérés DISSIPÉS sont une perte, pas un gain.
-      this.pushToast(eventLabel(ev), ev.type === 'HammerSalvage' && ev.outcome === 'dissipated' ? 'bad' : kind);
+      this.pushToast(eventLabel(ev), kind); // 7l · C7 : plus de dissipation
     }
   }
 

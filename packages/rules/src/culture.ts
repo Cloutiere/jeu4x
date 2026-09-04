@@ -42,15 +42,24 @@ export const GREAT_PERSON_TYPES = GP_CLASSES;
 export type GreatPersonType = GreatPersonClass;
 
 /**
- * R-114 · Seuil de culture (T-27) pour engendrer un GP : base 🔶 20,
- * MULTIPLIÉ par 🔶 2 à chaque GP obtenu par l'empire (doc d'Erik : « le seuil
- * augmente à chaque nouveau personnage »). Le compteur est EMPIRE (pas par
- * ville) : dès qu'une ville engendre, toutes voient leur seuil doubler.
+ * R-114 · T-27 RÉV. 7l · C5 · Seuil de culture du canal culture pour
+ * engendrer un GP — TABLE CANON d'Erik (`culture.json`
+ * `greatPersonCultureThresholds`, indexée par le nombre de GP DÉJÀ obtenus
+ * par l'empire) : 1er GP à 150, écart croissant d'environ +33,33 par GP
+ * (ancres : 150, 267, 417, 600, 817, 1067, 1350, 1667, 2017, 2400, 15e =
+ * 4817, 20e = 8067). Remplace le « 20 ×2 » de 7f. Au-delà de la table
+ * (64 entrées), la formule (écart initial 117, +33,33 par pas) extrapole.
  */
 export function greatPersonThresholdFor(greatPersonsObtained: number): number {
-  const base = CULTURE.greatPersonThresholdBase;
-  const growth = CULTURE.greatPersonThresholdGrowth;
-  return base * Math.pow(growth, Math.max(0, greatPersonsObtained));
+  const table = CULTURE.greatPersonCultureThresholds;
+  const last = table.length - 1;
+  if (greatPersonsObtained <= last) return table[Math.max(0, greatPersonsObtained)]!;
+  const gap = CULTURE.greatPersonCultureGap;
+  let threshold = table[last]!;
+  for (let i = last + 1; i <= greatPersonsObtained; i++) {
+    threshold += Math.floor(gap.base + gap.growth * (i - 1));
+  }
+  return threshold;
 }
 
 /**
@@ -201,6 +210,9 @@ export interface WonderProductionContext {
   empireWondersInProduction: readonly string[];
   /** Jalons culturels du joueur (R-116 : 20 requis pour l'ONU). */
   cultureMilestones: number;
+  /** 7l · R-137 · Trésorerie du joueur (condition DYNAMIQUE de la Banque
+   *  mondiale — `treasuryRequired`, jamais débitée). */
+  treasury?: number;
 }
 
 /**
@@ -223,6 +235,12 @@ export function wonderProductionIssue(wonderId: string, ctx: WonderProductionCon
   if (ctx.empireWondersInProduction.includes(wonderId)) return 'déjà en chantier dans l’empire';
   if (w.cultureVictory && ctx.cultureMilestones < CULTURE.milestonesTarget) {
     return `Requiert : ${CULTURE.milestonesTarget} jalons culturels (${ctx.cultureMilestones}/${CULTURE.milestonesTarget})`;
+  }
+  // 7l · R-137 : condition DYNAMIQUE de trésorerie (Banque mondiale) — les
+  // 20 000 or sont une CONDITION (jamais débitée) : verrouillée dessous,
+  // progression gelée pendant le chantier (miroir ONU R-116).
+  if (w.treasuryRequired !== undefined && (ctx.treasury ?? 0) < w.treasuryRequired) {
+    return `Requiert : ${w.treasuryRequired.toLocaleString('fr-FR')} or de trésorerie (${(ctx.treasury ?? 0).toLocaleString('fr-FR')})`;
   }
   return null;
 }
@@ -255,23 +273,27 @@ export function settledGreatPersonsOfCities(
 /**
  * 7j · R-126 · Facteur de COÛT des bâtiments d'une ville dû aux GP
  * Bâtisseur installés : ×0,5 par Bâtisseur (doc : « réduit de 50 % le coût
- * en marteaux de tous les futurs bâtiments ») — cumulatif multiplicatif 🔶.
- * Pur.
+ * en marteaux de tous les futurs bâtiments »). 7l · C6 (décision d'Erik du
+ * 05/09, renforce C3) : les multiplicateurs ne se cumulent JAMAIS au-delà
+ * d'UNE instance par classe — le plafond garantit l'absence d'effet cumulé
+ * même par les chemins indirects (réinstallation d'un GP volé). Pur.
  */
 export function settledGpCostFactor(city: { settledGreatPersons?: string[] }, cls: string): number {
   const n = city.settledGreatPersons?.filter((t) => t === cls).length ?? 0;
-  return Math.pow(0.5, n);
+  return Math.pow(0.5, Math.min(n, 1)); // C6 : une instance max par classe
 }
 
 /**
  * 7j · R-126 · Multiplicateur de rendement d'une ville dû aux GP INSTALLÉS
  * (Settle) : +50 % par GP installé de la classe donnée (doc d'Erik : « +50 %
- * de production de X dans la cité hôte ») — cumulatif additif 🔶 (deux Savants
- * installés = +100 %), interprétation documentée. Pur.
+ * de production de X dans la cité hôte ») — modèle additif 🔶 conservé comme
+ * code de base, mais 7l · C6 : jamais au-delà d'UNE instance par classe
+ * (C3 refuse de toute façon le Settle en double — le plafond est un garde-fou).
+ * Pur.
  */
 export function settledGpMultiplier(city: { settledGreatPersons?: string[] }, cls: string): number {
   const n = city.settledGreatPersons?.filter((t) => t === cls).length ?? 0;
-  return 1 + 0.5 * n;
+  return 1 + 0.5 * Math.min(n, 1); // C6 : une instance max par classe
 }
 
 /** Type d'une unité GP (artiste/penseur) — garde-fou typé. */
@@ -317,14 +339,14 @@ export function yieldGpThresholdFor(
   greatPersonsByType: Record<string, number>,
 ): number {
   void type;
-  const base = CULTURE.greatPersonYieldThresholdBase ?? CULTURE.greatPersonThresholdBase;
-  const growth = CULTURE.greatPersonYieldThresholdGrowth ?? CULTURE.greatPersonThresholdGrowth;
+  const base = CULTURE.greatPersonYieldThresholdBase ?? 20;
+  const growth = CULTURE.greatPersonYieldThresholdGrowth ?? 2;
   return base * Math.pow(growth, Math.max(0, greatPersonsByType[type] ?? 0));
 }
 
 /** R-123 · T-31 · Seuil de victoires de combat pour le GP Leader. */
 export function leaderGpVictoriesNeeded(): number {
-  return CULTURE.leaderGpVictories ?? CULTURE.greatPersonThresholdBase;
+  return CULTURE.leaderGpVictories ?? 20;
 }
 
 /**

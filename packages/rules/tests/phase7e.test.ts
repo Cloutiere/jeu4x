@@ -56,7 +56,7 @@ describe('R-109 · Premier découvrir (7e)', () => {
     const result = applySetResearch(state, 'p1', 'banque');
     expect(result.ok).toBe(true);
     const st = (result as { state: GameState }).state;
-    expect(st.players['p1']!.gold).toBe(100);
+    expect(st.players['p1']!.treasury).toBe(100);
     const events = (result as { events: Array<{ type: string; gold?: number }> }).events;
     expect(events.find((e) => e.type === 'FirstDiscovered')?.gold).toBe(100);
 
@@ -80,7 +80,7 @@ describe('R-109 · Premier découvrir (7e)', () => {
     const { newState } = resolveTurn(state, {}, 1);
     // 2 villes × 5 or de récompense. 7i · R-66 (rév.) : plus d'or de centre
     // à pop ≤ 6 (le commerce du centre suit la tranche).
-    expect(newState.players['p1']!.gold).toBe(10);
+    expect(newState.players['p1']!.treasury).toBe(10);
   });
 });
 
@@ -162,19 +162,19 @@ describe('R-111 · Marché/Banque : multiplicateurs d’or et REMPLACEMENT (7e)'
 });
 
 describe('7e · Effets de bâtiments actifs', () => {
-  it('Aqueduc : seuil de croissance réduit d’un tiers (surplus 4 fait croître avec Aqueduc, pas sans — 7i D1/D2)', () => {
+  it('Aqueduc : seuil de croissance réduit d’un tiers (surplus 4 fait croître avec Aqueduc, pas sans — table 7l · C4)', () => {
     const withAqueduct = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, buildings: ['aqueduc'], workedTiles: ['1,0', '0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, buildings: ['aqueduc'], foodStored: 9, workedTiles: ['1,0', '0,1'] }],
     });
     const without = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: ['1,0', '0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 9, workedTiles: ['1,0', '0,1'] }],
     });
     const grown = resolveTurn(withAqueduct, {}, 1).newState;
     const notGrown = resolveTurn(without, {}, 1).newState;
-    // Surplus = récolte 6 (centre 2 + 2 prairies) − 2 citoyens = 4.
-    // Seuil sans Aqueduc (table growth.json) : 6 → 4 < 6, pas de croissance.
+    // Surplus = récolte 6 (centre 2 + 2 prairies) − 2 citoyens = 4 ; réserve 9 + 4 = 13.
+    // Seuil vers pop 3 sans Aqueduc (7l · C4 : 10 × n) : 20 → 13 < 20, pas de croissance.
     expect(notGrown.cities['c1']!.pop).toBe(2);
-    // Seuil avec Aqueduc 🔶 : round(6 × 0,67) = 4 → 4 ≥ 4, croissance.
+    // Seuil avec Aqueduc 🔶 : round(20 × 0,67) = 13 → 13 ≥ 13, croissance.
     expect(grown.cities['c1']!.pop).toBe(3);
   });
 

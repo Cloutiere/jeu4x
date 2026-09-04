@@ -273,7 +273,7 @@
   const myGold = $derived.by(() => {
     const v = $view;
     const id = myEngineId(v);
-    return id && v.state ? (v.state.players[id]?.gold ?? 0) : 0;
+    return id && v.state ? (v.state.players[id]?.treasury ?? 0) : 0;
   });
 
   // 7f · R-115/R-116 : jalons culturels du joueur (GP installés + merveilles
@@ -459,9 +459,11 @@
                         ? 'culturelle (Nations Unies achevées — R-116)'
                         : victoryEvent.reason === 'science'
                           ? 'scientifique (Vaisseau spatial lancé — R-124)'
-                          : victoryEvent.reason === 'razedCapital'
-                            ? 'capitale rasée'
-                            : 'domination (capitale capturée)'
+                          : victoryEvent.reason === 'economique'
+                            ? 'économique (Banque mondiale — 20 000 or, R-137)'
+                            : victoryEvent.reason === 'razedCapital'
+                              ? 'capitale rasée'
+                              : 'domination (capitale capturée)'
                   }`
                 : `Vainqueur : ${$view.state?.winner ?? '?'}`}
             </p>

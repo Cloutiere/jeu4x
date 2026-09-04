@@ -5,7 +5,7 @@
    * Le client ne calcule aucune règle : les boutons reflètent ce que l'état
    * filtré autorise ; la validation finale reste serveur.
    */
-  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf, allKnownTechs } from '@game/rules';
+  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf, allKnownTechs, explorerGoldInjectionFor } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
@@ -94,8 +94,12 @@
         return `Installation (Settle) dans ${o.cityId}`;
       case 'GreatPersonAction':
         return o.action === 'settle' ? `Installation (Settle) dans ${o.cityId}` : `Utilisation (Consume) — ${o.cityId}`;
+      case 'RushBuy':
+        return `Achat instantané dans ${o.cityId}`;
       case 'SpyMission':
         return `Mission d'espionnage : ${o.cityId} (vol de GP)`;
+      default:
+        return 'Ordre';
     }
   }
 
@@ -126,6 +130,14 @@
     if (!unit) return;
     client.submitOrder({ type: 'GreatPersonAction', action: 'settle', unitId: unit.id, cityId });
   }
+
+  /** 7l · Bloc 5 · R-126 : l'Explorateur/Industriel est ACTIVÉ — injection
+   *  d'or fixe par ère (50/100/200/400 — economy.json, source unique moteur). */
+  const explorerInjection = $derived.by(() => {
+    if (!unit || unit.type !== 'explorateur' || !view.state) return null;
+    const techs = view.state.players[unit.owner]?.techsUnlocked ?? [];
+    return explorerGoldInjectionFor(techs);
+  });
 
   /** 7j · R-126 : Consume — effet massif immédiat, le GP disparaît. */
   function consumeIn(cityId: string): void {
@@ -340,7 +352,18 @@
             >
               {t.already ? `${greatPersonLabel(unit.type)} déjà installé dans ${t.id}` : `Installer dans ${t.id} (Settle — ${settleEffectLabel(unit.type)})`}
             </button>
-            {#if consumeEffectLabel(unit.type)}
+            {#if unit.type === 'explorateur'}
+              <!-- 7l · Bloc 5 : injection d'or ACTIVE — montant selon l'ère. -->
+              <button
+                type="button"
+                class="danger"
+                disabled={!editable}
+                title="R-126 : effet massif immédiat, le GP disparaît — {explorerInjection} or versés à la trésorerie (R-134)"
+                onclick={() => consumeIn(t.id)}
+              >
+                Utiliser maintenant (Consume — +{explorerInjection} or à la trésorerie)
+              </button>
+            {:else if consumeEffectLabel(unit.type)}
               <button
                 type="button"
                 class="danger"
@@ -351,8 +374,8 @@
                 Utiliser maintenant (Consume — {consumeEffectLabel(unit.type)})
               </button>
             {:else}
-              <button type="button" disabled title="Effet reporté : flip culturel (territoire, en suspens) / injection d'or (trésorerie, phase 7l)">
-                Consume — reporté (7l / territoire)
+              <button type="button" disabled title="Effet reporté : flip culturel (territoire, en suspens)">
+                Consume — reporté (territoire)
               </button>
             {/if}
           {/each}

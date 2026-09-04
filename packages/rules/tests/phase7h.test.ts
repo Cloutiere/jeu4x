@@ -99,8 +99,8 @@ describe('R-121 · Modificateurs économiques (avant/après, même seed)', () =>
       {},
       42,
     ).newState;
-    expect(democratie.players['p1']!.gold).toBe(Math.round(despotisme.players['p1']!.gold * 1.5));
-    expect(democratie.players['p1']!.gold).toBeGreaterThan(despotisme.players['p1']!.gold);
+    expect(democratie.players['p1']!.treasury).toBe(Math.round(despotisme.players['p1']!.treasury * 1.5));
+    expect(democratie.players['p1']!.treasury).toBeGreaterThan(despotisme.players['p1']!.treasury);
   });
 
   it('Fondamentalisme : la science des Bibliothèques et Universités = 0 (R-88 neutralisé)', () => {
@@ -236,13 +236,13 @@ describe('R-122 · Transitions et Anarchie', () => {
     };
     const anarchie = resolveTurn(setup(true), {}, 42).newState;
     const temoin = resolveTurn(setup(false), {}, 42).newState;
-    expect(anarchie.players['p1']!.gold).toBe(0);
+    expect(anarchie.players['p1']!.treasury).toBe(0);
     expect(anarchie.cities['c1']!.production!.progress).toBe(0);
     expect(anarchie.cities['c1']!.cultureStored).toBe(19); // figé (gains nuls), pas remis à zéro
     expect(anarchie.cities['c1']!.gpAccumProd).toBe(19); // gelés (gains nuls)
     expect(anarchie.cities['c1']!.gpAccumGold).toBe(19);
     // Témoin (despotisme, pas d’anarchie) : tout progresse, aucun GP spawn.
-    expect(temoin.players['p1']!.gold).toBeGreaterThan(0);
+    expect(temoin.players['p1']!.treasury).toBeGreaterThan(0);
     expect(temoin.cities['c1']!.production!.progress).toBeGreaterThan(0);
     expect(temoin.cities['c1']!.cultureStored).toBeGreaterThan(0);
   });
@@ -251,7 +251,7 @@ describe('R-122 · Transitions et Anarchie', () => {
     const s = productionState('republique');
     s.players['p1']!.anarchyUntil = s.turn; // anarchie TERMINÉE
     const out = resolveTurn(s, {}, 42).newState;
-    expect(out.players['p1']!.gold).toBeGreaterThan(0);
+    expect(out.players['p1']!.treasury).toBeGreaterThan(0);
   });
 });
 
@@ -260,8 +260,8 @@ describe('R-123 · GP restants (Scientifique, Mogul, Ingénieur, Leader)', () =>
     expect(yieldGpThresholdFor('savant', {})).toBe(20);
     expect(yieldGpThresholdFor('savant', { savant: 1 })).toBe(40);
     expect(yieldGpThresholdFor('explorateur', { explorateur: 2 })).toBe(80);
-    // L’escalade culturelle (T-27) est indépendante des GP à rendement.
-    expect(greatPersonThresholdFor(0)).toBe(20);
+    // L'escalade culturelle (T-27, table canon 7l · C5) est indépendante des GP à rendement.
+    expect(greatPersonThresholdFor(0)).toBe(150) // 7l · C5 : table canon (T-30/T-31 inchangés);
     expect(leaderGpVictoriesNeeded()).toBe(20); // T-31
   });
 
@@ -404,14 +404,14 @@ describe('Migration v11 → v12 (Phase 7h)', () => {
       cities: { c1: { id: 'c1', q: 0, r: 0, wonders: ['stonehenge'] } },
     };
     const out = migrateState(v11 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(14);
+    expect(out.schemaVersion).toBe(15);
     expect(out.players['p1']!.government).toBe('despotisme');
     expect(out.players['p1']!.anarchyUntil).toBeNull();
     expect(out.players['p1']!.greatPersonsByType).toEqual({});
     expect(out.players['p1']!.combatVictories).toBe(0);
     expect(out.players['p1']!.techsUnlockedThisTurn).toEqual([]);
     expect(out.players['p1']!.techsUnlocked).toEqual(['code_des_lois']); // contenu conservé
-    expect(out.players['p2']!.gold).toBe(3);
+    expect(out.players['p2']!.treasury).toBe(3);
     expect(out.cities['c1']!.gpAccumGold).toBe(0);
     expect(out.cities['c1']!.gpAccumScience).toBe(0);
     expect(out.cities['c1']!.gpAccumProd).toBe(0);

@@ -123,7 +123,7 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     }
   });
 
-  it('7e : 21 merveilles en données, coût + tech + obsolescence documentés — 18 ACTIVÉES (7f + 7h + 7k R-132)', () => {
+  it('7e : 21 merveilles en données, coût + tech + obsolescence documentés — 19 ACTIVÉES (7l : + Banque mondiale, R-137)', () => {
     expect(Object.keys(wonderTable)).toHaveLength(21);
     const active = Object.values(wonderTable)
       .filter((w) => w.implemented)
@@ -134,10 +134,12 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     // 7k (R-132) : Grande Bibliothèque, Grande Muraille, Théâtre de
     // Shakespeare, Université d'Oxford, Cie des Indes, Atelier de Léonard,
     // Foire de Troyes, Complexe militaro-industriel, Programme Apollo, Internet.
-    // Restent en données seules : Banque mondiale (7l), Hollywood (territoire
-    // en suspens), Projet Manhattan (7m).
+    // 7l (R-137) : Banque mondiale (victoire économique — condition 20 000 or,
+    // jamais débitée ; interdite au rush-buy R-135).
+    // Restent en données seules : Hollywood (territoire en suspens),
+    // Projet Manhattan (7m).
     expect(active).toEqual([
-      'atelier_de_leonard', 'chateau_himeji', 'colosse_de_rhodes', 'compagnie_des_indes',
+      'atelier_de_leonard', 'banque_mondiale', 'chateau_himeji', 'colosse_de_rhodes', 'compagnie_des_indes',
       'complexe_militaro_industriel', 'foire_de_troyes', 'grande_bibliotheque', 'grande_muraille',
       'grande_pyramide', 'internet', 'jardins_suspendus', 'magna_carta',
       'nations_unies', 'oracle_de_delphes', 'programme_apollo', 'stonehenge',
@@ -149,8 +151,8 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     // Merveilles sans tech : conditions spéciales ou disponible d'office.
     expect(wonderTable['nations_unies']!.tech).toBeNull();
     expect(wonderTable['banque_mondiale']!.tech).toBeNull();
-    // T-28 🔶 : coût des Nations Unies (calibrage 7f, tranche pilotage).
-    expect(wonderTable['nations_unies']!.cost).toBe(300);
+    // T-28 (rév. 7l · C11) : coût des Nations Unies = 500 (décision d'Erik du 04/09).
+    expect(wonderTable['nations_unies']!.cost).toBe(500);
     expect(wonderTable['nations_unies']!.cultureVictory).toBe(true);
     // Obsolescence : la tech qui rend la merveille obsolète existe.
     for (const w of Object.values(wonderTable)) {

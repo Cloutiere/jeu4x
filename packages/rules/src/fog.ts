@@ -185,6 +185,11 @@ export function getFilteredState(state: GameState, playerId: PlayerId): GameStat
       };
     } else {
       clone.players[otherId]!.vision = { explored: [], visible: [] };
+      // 7l · R-134 : la trésorerie de l'ADVERSAIRE n'est PAS publique (canon —
+      // hook 7m : l'espionnage révélera une exception filtrée) ; les paliers
+      // économiques franchis sont masqués dans la même movement.
+      clone.players[otherId]!.treasury = 0;
+      clone.players[otherId]!.economyMilestonesClaimed = 0;
     }
   }
 

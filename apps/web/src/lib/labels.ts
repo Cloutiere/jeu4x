@@ -32,8 +32,11 @@ export function consumeEffectLabel(unitTypeId: string): string | null {
       return '+1 pop à toutes vos cités';
     case 'leader':
       return 'Toutes vos unités militaires deviennent vétérans';
+    case 'explorateur':
+      // 7l · Bloc 5 : injection d'or (50/100/200/400 selon l'ère — economy.json).
+      return 'Injection d\'or dans la trésorerie (montant selon l\'ère)';
     default:
-      return null; // Artiste/Penseur (flip), Explorateur (or, 7l) : reportés
+      return null; // Artiste/Penseur (flip culturel — territoire en suspens)
   }
 }
 
@@ -114,7 +117,7 @@ export function eventLabel(event: GameEvent): string {
     case 'CityFounded':
       return `Ville ${event.cityId} fondée en (${event.at.q},${event.at.r}) par ${event.owner}${event.capital ? ' — capitale !' : ''}`;
     case 'CityCaptured':
-      return `Ville ${event.cityId} prise par ${event.toOwner}`;
+      return `Ville ${event.cityId} prise par ${event.toOwner}${event.plunder ? ` — sac de ville : ${event.plunder.toLocaleString('fr-FR')} or pillés` : ''}`;
     case 'UnitProduced':
       return `${event.unitType} produit par ${event.cityId}`;
     case 'TechResearched':
@@ -151,9 +154,14 @@ export function eventLabel(event: GameEvent): string {
       return `Merveille achevée : ${event.wonder} dans ${event.cityId} (+1 jalon)`;
     // 7k · R-130/R-132 : récupération de marteaux, surclassement Léonard.
     case 'HammerSalvage':
-      return event.outcome === 'available'
-        ? `Un rival a achevé ${event.wonder} ! ${event.amount} marteaux récupérés dans ${event.cityId} — réaffectez-les ce tour (production).`
-        : `${event.amount} marteaux récupérés dissipés (${event.cityId}) — aucun projet réaffecté dans le délai.`;
+      // 7l · C7 : la réserve est PERMANENTE (plus de dissipation — T-32 abrogé).
+      return `Un rival a achevé ${event.wonder ?? 'une merveille'} ! ${event.amount} marteaux en réserve dans ${event.cityId} — choisissez un projet, ils financeront la production.`;
+    case 'EconomyMilestone':
+      // 7l · R-136 : palier économique franchi.
+      return `Palier économique — ${event.threshold.toLocaleString('fr-FR')} or : ${event.label} !`;
+    case 'RushBuy':
+      // 7l · R-135 : achat instantané.
+      return `${event.owner} achète ${event.item.id} dans ${event.cityId} pour ${event.cost.toLocaleString('fr-FR')} or (rush-buy)`;
     case 'UnitsUpgraded':
       return `Atelier de Léonard : ${event.upgrades.length} unité(s) mise(s) à niveau (${event.upgrades.map((u) => `${u.from} → ${u.to}`).join(', ')})`;
     // 7g · R-117/R-119 : naval & espionnage.
@@ -177,6 +185,8 @@ export function eventLabel(event: GameEvent): string {
         forfeit: 'forfait',
         razedCapital: 'capitale rasée',
         culture: 'culturelle (Nations Unies)',
+        science: 'scientifique (Vaisseau spatial)',
+        economique: 'économique (Banque mondiale — 20 000 or)',
       };
       return `VICTOIRE de ${event.winner} (${motifs[event.reason] ?? event.reason})`;
     }

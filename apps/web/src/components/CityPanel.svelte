@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf } from '@game/rules';
   import { greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
@@ -44,6 +44,33 @@
 
   function itemName(item: ProductionItem): string {
     return item.kind === 'unit' ? unitType(item.id).name : (BUILDINGS[item.id]?.name ?? item.id);
+  }
+
+  /** 7l · R-135 : achat instantané — coût (rushBuyCostOf, source unique) et
+   *  éligibilité d'affichage (interdits ONU/Banque mondiale, trésorerie,
+   *  case de ville libre pour les unités — le moteur revalide tout). */
+  const rush = $derived.by(() => {
+    if (!city || !mine || !city.production || !view.state) return null;
+    const cost = rushBuyCostOf(view.state, city);
+    if (cost === null) {
+      return isRushForbidden(city.production.item)
+        ? { cost: null, allowed: false, reason: 'achat interdit (merveille de victoire — R-135)' }
+        : null;
+    }
+    const player = view.state.players[city.owner];
+    const treasury = player?.treasury ?? 0;
+    if (treasury < cost) return { cost, allowed: false, reason: `trésorerie insuffisante (${treasury} or)` };
+    if (city.production.item.kind === 'unit') {
+      const occupied = Object.values(view.state.units).some(
+        (u) => u.aboard === null && u.q === city.q && u.r === city.r,
+      );
+      if (occupied) return { cost, allowed: false, reason: 'case de ville occupée (pose impossible)' };
+    }
+    return { cost, allowed: true, reason: null };
+  });
+  function rushNow(): void {
+    if (!city || !rush?.allowed) return;
+    client.submitOrder({ type: 'RushBuy', cityId: city.id });
   }
   function itemCost(item: ProductionItem): number {
     return item.kind === 'unit' ? unitType(item.id).cost : (BUILDINGS[item.id]?.cost ?? Infinity);
@@ -82,12 +109,27 @@
    *  7k · R-132 : Foire de Troyes (cité) et Internet (empire) multiplient la part OR — MAX (R-88 🔶). */
   function gainsFor(commerce: number): { gold: number; science: number } {
     const base = conversionGains(commerce, city!.conversion, city!.buildings);
+    // 7l · C10 : cumul Troyes/Internet MULTIPLICATIF (×4) — miroir moteur.
     const mult = city && view.state
-      ? Math.max(cityGoldMultOf(city.wonders, allTechs), empireGoldMultOf(Object.values(view.state.cities), city.owner, allTechs))
+      ? cityGoldMultOf(city.wonders, allTechs) *
+        empireGoldMultOf(Object.values(view.state.cities), city.owner, allTechs)
       : 1;
     return { gold: Math.round(base.gold * mult), science: base.science };
   }
   const gains = $derived(yields && city ? gainsFor(yields.commerce) : null);
+  /** 7l · R-134 : or DIRECT versé à la trésorerie par les ressources
+   *  Gemmes/Or travaillées (canon — accessible selon la tech). */
+  const directGold = $derived.by(() => {
+    if (!city || !view.state) return 0;
+    const techs = view.state.players[city.owner]?.techsUnlocked ?? [];
+    let total = 0;
+    for (const key of city.workedTiles) {
+      const res = view.state.map[key]?.resource;
+      const data = res && res !== RESOURCE_UNKNOWN ? RESOURCES[res] : undefined;
+      if (data?.directGold && (!data.revealedByTech || techs.includes(data.revealedByTech))) total += data.directGold;
+    }
+    return total;
+  });
 
   /** Production par tour de la ville (miroir Phase C : raw × Usine × (1 + 0,25×(pop−1)), R-63 🔶 + 7e + citoyens intérieurs 7i). */
   const prodPerTurn = $derived.by(() => {
@@ -140,7 +182,7 @@
     return cultureGains(city, empireBonus.culture, allTechs);
   });
   const gpThreshold = $derived.by(() => {
-    if (!view.state || !engine) return CULTURE.greatPersonThresholdBase;
+    if (!view.state || !engine) return 150; // 7l · C5 : 1er seuil de la table canon
     return greatPersonThresholdFor(view.state.players[engine]?.greatPersonsObtained ?? 0);
   });
   const cultureRatio = $derived(city ? Math.max(0, Math.min(1, city.cultureStored / gpThreshold)) : 0);
@@ -302,6 +344,7 @@
         .filter((c) => c.id !== city.id && c.production?.item.kind === 'wonder')
         .map((c) => (c.production!.item as { kind: 'wonder'; id: string }).id),
       cultureMilestones: player?.cultureMilestones ?? 0,
+      treasury: player?.treasury ?? 0, // 7l · R-137 : condition DYNAMIQUE de la Banque mondiale
     };
     const options: ProdOption[] = [];
     for (const w of Object.values(WONDERS)) {
@@ -442,6 +485,9 @@
           <span class="split" title="Conversion du commerce (R-90/R-88 — {city.conversion === 'gold' ? 'or' : 'science'})">
             → <img src="/art/icone_or.png" alt="or" onerror={hideImg} /> {shownGains.gold}
             / <img src="/art/icone_science.png" alt="science" onerror={hideImg} /> {shownGains.science}
+            {#if directGold > 0}
+              + {directGold} or direct (Gemmes/Or — R-134)
+            {/if}
           </span>
         {/if}
       </div>
@@ -554,11 +600,11 @@
           </div>
         {/if}
         {#if mine && city.pendingSalvage > 0}
-          <!-- 7k · R-130 · M3 : marteaux récupérés d'une merveille complétée par
-               un rival — à réaffecter (production) AVANT la fin du tour, sinon
-               dissipation. -->
-          <p class="salvage" title="R-130 : un rival a achevé une merveille que cette ville construisait — les marteaux investis survivent si vous les réaffectez (un SetProduction) pendant ce tour ; sinon ils sont dissipés à la résolution.">
-            ⚒ {city.pendingSalvage} marteaux récupérables — réaffectez la production ce tour, sinon ils seront dissipés !
+          <!-- 7l · C7 · R-130 (rév.) : réserve de marteaux PERMANENTE — elle
+               finance le projet choisi (bâtiment/merveille au coût couvert,
+               unités en série) et ne se dissipe JAMAIS. -->
+          <p class="salvage" title="R-130 rév. C7 : un rival a achevé une merveille que cette ville construisait — les marteaux investis forment une réserve PERMANENTE qui finance votre prochain projet (jusqu'à épuisement ; surplus conservé).">
+            ⚒ {city.pendingSalvage} marteaux en réserve — choisissez un projet : ils financeront la production (réserve permanente, jamais dissipée).
           </p>
         {/if}
 
@@ -577,6 +623,23 @@
               {#if prodEta !== null}— {prodEta} tour{prodEta > 1 ? 's' : ''}{/if}
             </span>
           </div>
+          {#if rush && mine}
+            <!-- 7l · R-135 : achat instantané — coût = marteaux restants ×
+                 facteur d'ère × réductions (source unique moteur/UI). Grisé si
+                 trésorerie insuffisante, item interdit (ONU/Banque mondiale) ou
+                 pose impossible (case de ville occupée — unité). -->
+            <button
+              type="button"
+              class="rush"
+              class:locked={!rush.allowed}
+              disabled={!editable || !rush.allowed}
+              title={rush.reason ?? `Acheter ${itemName(prodItem)} immédiatement pour ${rush.cost} or (marteaux restants × facteur d'ère — R-135)`}
+              onclick={() => rushNow()}
+            >
+              ⚡ Acheter maintenant pour {rush.cost ?? '—'} or
+              {#if !rush.allowed}<span class="fx"> — {rush.reason}</span>{/if}
+            </button>
+          {/if}
         {:else}
           <p class="hint">Aucune production en file.</p>
         {/if}
@@ -668,6 +731,9 @@
   .wonder { padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid #b8863c; background: #3c3222; font-size: 0.8rem; color: #ffd54f; }
   .wonder.obsolete { opacity: 0.55; border-style: dashed; color: #a89880; }
   .salvage { margin: 0.2rem 0; color: #ffe082; font-size: 0.84rem; font-weight: 600; }
+  .rush { margin-top: 0.35rem; padding: 0.4rem 0.7rem; border-radius: 6px; border: 1px solid #b8863c; background: #332b1e; color: #ffd54f; font-weight: 600; cursor: pointer; }
+  .rush:disabled, .rush.locked { opacity: 0.55; cursor: default; }
+  .rush .fx { font-weight: 400; color: #b08d5a; font-size: 0.78rem; }
   .opt.wonder-btn { border-color: #8d6e3c; background: #332b1e; }
   .eta { font-size: 0.8rem; color: #a5d6a7; white-space: nowrap; }
   .prodcur { display: flex; align-items: center; gap: 0.55rem; }

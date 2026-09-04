@@ -47,6 +47,12 @@ export type Order =
    *  `InstallPerson` reste accepté comme alias historique de
    *  `GreatPersonAction{action:'settle'}` (compat des clients 7f/7h). */
   | { type: 'GreatPersonAction'; unitId: UnitId; action: 'consume' | 'settle'; cityId: CityId }
+  /** 7l · R-135 : achat instantané (rush-buy) de la production courante d'une
+   *  ville — coût en or = marteaux restants × facteur d'ère (R-135), débité
+   *  de la trésorerie (R-134). Validations moteur : ville possédée, item
+   *  éligible (interdits : Banque mondiale/ONU), trésorerie suffisante,
+   *  un seul rush par ville et par tour (remplacement côté serveur). */
+  | { type: 'RushBuy'; cityId: CityId }
   /** 7g · R-119 : mission d'espionnage — infiltration d'une ville ennemie
    *  VISIBLE adjacente. Tranche 7g : vol de GP installé uniquement (le
    *  champ `mission` prépare 7h : contre-espionnage, vol de tech). */
@@ -182,8 +188,11 @@ export interface Hut {
 
 export interface Player {
   id: PlayerId;
-  /** Trésor en or. */
-  gold: number;
+  /** 7l · R-134 · Trésorerie globale d'empire (or) — créditée en Phase C par
+   *  les villes focus Or (R-90) et les sources exogènes (R-134) ; dépensée
+   *  par le rush-buy (R-135). ZÉRO entretien (R-134 : aucun coût récurrent).
+   *  Migration 15 : remplace `gold` (jamais dépensé — report de valeur). */
+  treasury: number;
   /** Science cumulée (arbre technologique : Phase 7). */
   science: number;
   /** Curseur global science/or (R-61, 🔶 défaut 0.5). */
@@ -214,6 +223,9 @@ export interface Player {
   /** 7h · R-122 : technologies complétées pendant la DERNIÈRE résolution —
    *  fenêtre d'adoption sans Anarchie (invitation du conseiller). */
   techsUnlockedThisTurn: string[];
+  /** 7l · R-136 · Paliers économiques DÉJÀ accordés (compteur d'index dans
+   *  economy.json milestones — un palier n'est jamais accordé deux fois). */
+  economyMilestonesClaimed: number;
   vision: Vision;
   /** Timers manqués consécutifs (forfait T-06 — géré côté serveur, Phase 1). */
   missedTurns: number;
@@ -273,7 +285,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 14;
+export const CURRENT_SCHEMA_VERSION = 15;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -651,6 +663,33 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       };
     }
     return { ...state, cities: migratedCities };
+  },
+  /**
+   * v14 → v15 : Phase 7l — Or & trésorerie (RULES.md §8.10, R-134/R-136).
+   * Champs joueurs (SANS PERTE — décision documentée) :
+   *  - `treasury` : REMPLACE `gold` (R-134) — l'ancien champ or n'était JAMAIS
+   *    dépensé (simple accumulateur des gains et butins) : sa valeur devient
+   *    la trésorerie initiale (report intégral, zéro perte) ;
+   *  - `economyMilestonesClaimed: 0` (R-136 — les parties en cours n'ont
+   *    franchi aucun palier : la trésorerie repart du report, les paliers sous
+   *    cette valeur (rare — `gold` était faible) se déclencheront au premier
+   *    tour résolu). Idempotent.
+   */
+  15: (state) => {
+    const players = (state.players ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(players).sort()) {
+      const p = players[id]!;
+      const legacyGold = typeof p.gold === 'number' ? p.gold : 0;
+      const { gold: _drop, ...rest } = p;
+      void _drop;
+      migrated[id] = {
+        ...rest,
+        treasury: typeof p.treasury === 'number' ? p.treasury : legacyGold,
+        economyMilestonesClaimed: typeof p.economyMilestonesClaimed === 'number' ? p.economyMilestonesClaimed : 0,
+      };
+    }
+    return { ...state, players: migrated };
   },
 };
 

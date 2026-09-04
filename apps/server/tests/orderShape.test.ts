@@ -42,6 +42,12 @@ describe('orderShapeError · SetProduction (7f, merveilles)', () => {
     expect(orderShapeError({ type: 'GreatPersonAction', unitId: 'u10', action: 'settle' })).not.toBeNull();
   });
 
+  it('7l · R-135 : accepte RushBuy (ville) et refuse la forme invalide — leçon 7f : forme validée EN PREMIER', () => {
+    expect(orderShapeError({ type: 'RushBuy', cityId: 'c1' })).toBeNull();
+    expect(orderShapeError({ type: 'RushBuy' })).not.toBeNull();
+    expect(orderShapeError({ type: 'RushBuy', cityId: 42 })).not.toBeNull();
+  });
+
   it('7g · R-119 : accepte SpyMission (vol de GP) et refuse mission/champs invalides', () => {
     expect(
       orderShapeError({ type: 'SpyMission', unitId: 'u3', cityId: 'c2', mission: 'stealGreatPerson' }),

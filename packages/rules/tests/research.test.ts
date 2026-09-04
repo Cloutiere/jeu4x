@@ -26,8 +26,9 @@ describe('migration v4 → v5 (R-85 : champs de recherche additifs)', () => {
     expect(out.players['p1']!.scienceProgress).toEqual({});
     expect(out.players['p1']!.techsUnlocked).toEqual([]);
     expect(out.players['p1']!.scienceStored).toBe(0);
-    // champs v4 préservés
-    expect(out.players['p1']!.gold).toBe(5);
+    // champs v4 préservés (7l : `gold` devient `treasury` en v15 — la
+    // migration unitaire v4→v5 conserve l'ancien champ tel quel)
+    expect((out.players['p1'] as unknown as { gold: number }).gold).toBe(5);
     expect(out.players['p1']!.science).toBe(7);
   });
 
@@ -40,8 +41,10 @@ describe('migration v4 → v5 (R-85 : champs de recherche additifs)', () => {
   it('migrateState applique toute la chaîne de migrations jusqu’à la version courante', () => {
     const out = migrateState<GameState>(structuredClone(v4));
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(14); // 7k : merveilles + salvage (R-130)
+    expect(CURRENT_SCHEMA_VERSION).toBe(15); // 7l : trésorerie + paliers (R-134/R-136)
     expect(out.players['p2']!.techsUnlocked).toEqual([]);
+    // 7l · R-134 : au bout de la chaîne, l'or v4 devient la trésorerie (report).
+    expect(out.players['p1']!.treasury).toBe(5);
   });
 });
 
@@ -88,7 +91,7 @@ describe('R-85 · SetResearch (action immédiate) et accumulation', () => {
     expect(out.players['p1']!.scienceProgress['alphabet']).toBe(12);
   });
 
-  it('complétion immédiate (réserve ≥ coût) : déblocage + événement TechResearched + débordement en réserve', () => {
+  it('complétion immédiate (réserve ≥ coût) : déblocage + événement TechResearched + débordement en OR (R-134 rév. 7l)', () => {
     const state = makeState();
     const st = structuredClone(state);
     creditScience(st, 'p1', 25); // réserve 25
@@ -99,7 +102,8 @@ describe('R-85 · SetResearch (action immédiate) et accumulation', () => {
     const events = ok.events;
     expect(out.players['p1']!.techsUnlocked).toEqual(['alphabet']);
     expect(out.players['p1']!.researching).toBeNull();
-    expect(out.players['p1']!.scienceStored).toBe(5); // débordement reporté (R-85)
+    expect(out.players['p1']!.treasury).toBe(5); // 7l · R-134 : débordement converti 1:1 en or
+    expect(out.players['p1']!.scienceStored).toBe(0); // plus de report (canon)
     expect(events).toHaveLength(1);
     expect(events[0]!.type).toBe('TechResearched');
     expect(events[0]!.tech).toBe('alphabet');

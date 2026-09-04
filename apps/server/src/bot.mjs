@@ -37,6 +37,21 @@ const unitsPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packag
 const UNITS = JSON.parse(readFileSync(unitsPath, 'utf8'));
 const buildingsPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/buildings.json');
 const BUILDINGS = JSON.parse(readFileSync(buildingsPath, 'utf8'));
+// 7l · R-135 : facteurs d'ère du rush-buy (même JSON que le moteur).
+const economyPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/economy.json');
+const ECONOMY = JSON.parse(readFileSync(economyPath, 'utf8'));
+const WONDERS_PATH = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/wonders.json');
+const WONDERS = JSON.parse(readFileSync(WONDERS_PATH, 'utf8'));
+/** 7l · R-135 : ère de l'empire = la plus avancée des techs débloquées
+ *  (miroir minimal de growth.ts — même table era de techs.json). */
+const ERA_ORDER = ['ancienne', 'medievale', 'industrielle', 'moderne'];
+function techEraOf(techsUnlocked) {
+  let best = 'ancienne';
+  for (const era of ERA_ORDER) {
+    if (techsUnlocked.some((t) => TECHS[t]?.era === era)) best = era;
+  }
+  return best;
+}
 // Phase 7f (L2) : les merveilles à effets simples + l'ONU entrent dans les
 // choix du bot (R-116) ; les constantes culturelles viennent de culture.json.
 const wondersPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/wonders.json');
@@ -482,6 +497,31 @@ async function main() {
         productions += 1;
       }
     }
+    // 7l · R-135 : rush-buy déterministe simple 🔶 — achète la production
+    // courante si la trésorerie couvre le coût + une réserve de sécurité
+    // (30 % du coût). Items interdits (ONU/Banque mondiale) exclus ; le
+    // moteur revalide tout (trésorerie, éligibilité, 1 rush/ville/tour).
+    let rushes = 0;
+    const SAFETY = 1.3;
+    for (const city of myCities) {
+      if (!city.production) continue;
+      const item = city.production.item;
+      const id = item.id;
+      const base =
+        item.kind === 'unit' ? (UNITS[id]?.cost ?? null)
+        : item.kind === 'wonder' ? (WONDERS[id]?.cost ?? null)
+        : (BUILDINGS[id]?.cost ?? null);
+      if (base === null) continue;
+      if (item.kind === 'wonder' && ECONOMY.rushForbiddenWonders.includes(id)) continue;
+      const eraFactor = ECONOMY.eraRushFactors[techEraOf(me?.techsUnlocked ?? [])] ?? 2;
+      const remaining = Math.max(0, base - city.production.progress);
+      const cost = Math.max(1, Math.round(remaining * eraFactor));
+      const treasury = me?.treasury ?? 0;
+      if (treasury >= cost * SAFETY && treasury - cost > 0) {
+        send({ type: 'SubmitOrder', order: { type: 'RushBuy', cityId: city.id } });
+        rushes += 1;
+      }
+    }
     // 7j · R-126 : le bot SETTLE DÈS QUE POSSIBLE ses GP dans une ville amie
     // (choix déterministe simple 🔶 — Settle toujours, jamais Consume) via la
     // nouvelle forme d'ordre GreatPersonAction.
@@ -498,7 +538,7 @@ async function main() {
         installs += 1;
       }
     }
-    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s), ${fortifies} fortif., ${reassigns} réassign., ${productions} prod., ${installs} install. GP, ${sails} navigation(s), ${embarks} embarquement(s), ${disembarks} débarquement(s), ${missions} mission(s) d'espion.${adopted ? ` Régime adopté : ${adopted}.` : ''}`);
+    log(`Tour ${state.turn} : ${mine.length} unité(s) — ${moves} déplacement(s), ${holds} tenue(s), ${fortifies} fortif., ${reassigns} réassign., ${productions} prod., ${rushes} rush(s), ${installs} install. GP, ${sails} navigation(s), ${embarks} embarquement(s), ${disembarks} débarquement(s), ${missions} mission(s) d'espion.${adopted ? ` Régime adopté : ${adopted}.` : ''}`);
     send({ type: 'EndTurn' });
     lastEndedTurn = state.turn;
   }

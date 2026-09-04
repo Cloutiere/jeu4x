@@ -18,6 +18,8 @@ export * from './governments.js';
 export * from './naval.js';
 export * from './economy.js';
 export * from './growth.js';
+/** 7l — Or & trésorerie (R-134..R-137, economy.json). */
+export * from './economyOr.js';
 export * from './barbares.js';
 export * from './map.js';
 export * from './fog.js';
