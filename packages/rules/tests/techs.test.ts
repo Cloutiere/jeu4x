@@ -194,11 +194,12 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
         // 7f : isProducible exclut aussi les GP (artiste/penseur — R-114).
         // 7m · R-138 : isProducible exclut aussi les armes stratégiques (ICBM).
         const producible = isProducible(
-          { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson, strategic: u.strategic },
+          { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson, strategic: u.strategic, uniqueTo: u.uniqueTo },
           none,
           [],
         );
         if (['guerrier', 'colon', 'galere'].includes(u.id)) expect(producible, u.id).toBe(true); // 7g : Galère sans tech
+        else if (u.uniqueTo) expect(producible, u.id).toBe(false); // 7n · R-148 : uniques réservés à leur civ
         else expect(producible, u.id).toBe(false);
       }
       for (const b of Object.values(buildingTable)) {

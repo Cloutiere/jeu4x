@@ -15,6 +15,7 @@ import { isProducible } from '../src/techs.js';
 import { unitType } from '../src/data.js';
 import { stolenGoldAmount, spyDuelWinChance, nukeCulturePenalty } from '../src/espionnage.js';
 import { ESPIONNAGE_DATA } from '../src/data.js';
+import { tileYield } from '../src/economy.js';
 
 /** p1 : ICBM en (2,0) — cible (0,0) à distance 2, donc VISIBLE (vision 2) ;
  *  p2 : ville cible en (0,0) avec garnison. */
@@ -118,62 +119,111 @@ describe('7m · R-138 — Projet Manhattan & instanciation de l\'ICBM', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Launch + C13/C14 (Bloc 0)
+// Launch + C15/C16/C17 (Bloc 0 7n — décisions d'Erik du 06/09)
 // ---------------------------------------------------------------------------
 
-describe('7m · Bloc 0 · C13 — résolution ICBM unifiée (ville ciblée)', () => {
-  it('C13.1 : la ville ciblée SURVIT, pop réduite à 2, aucun changement de propriétaire, pas de cratère', () => {
-    const state = nukeState();
-    const { newState, events } = resolveTurn(state, launch({ q: 0, r: 0 }), 1);
-    const city = newState.cities['cible']!;
-    expect(city.owner).toBe('p2'); // C14 : pas de capture
-    expect(city.pop).toBe(2); // C13.1 : réduite à 2 (jamais 1)
-    expect(newState.winner).toBeNull();
-    // Pas de changement de terrain (pas de cratère — C13).
-    expect(newState.map['0,0']!.terrain).toBe(state.map['0,0']!.terrain);
-    expect(events.some((e) => e.type === 'NukeLaunched' && e.outcome === 'detonated')).toBe(true);
-    expect(events.some((e) => e.type === 'CityNuked')).toBe(true);
-    expect(events.some((e) => e.type === 'CityCaptured')).toBe(false);
-  });
-
-  it('C13.1 🔶 : une ville à pop ≤ 2 ne grossit pas d\'une frappe (min(pop, 2))', () => {
-    const state = nukeState({ cities: [{ id: 'cible', owner: 'p2', q: 0, r: 0, pop: 1 }] });
-    const out = resolveTurn(state, launch({ q: 0, r: 0 }), 1).newState;
-    expect(out.cities['cible']!.pop).toBe(1);
-  });
-
-  it('C13.2 🔶 : ⌊n/2⌋ bâtiments détruits (Palais exclu), sélection seedée REJOUABLE (R-80)', () => {
-    const base = nukeState({
+describe('7n · Bloc 0 · C15 — distinction canon rétablie : ville ordinaire RASÉE', () => {
+  it('C15 : une ville ORDINAIRE visée est RASÉE — effacée, cratère stérile, merveilles détruites', () => {
+    const state = nukeState({
       cities: [
         {
-          id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5,
-          buildings: ['palais', 'temple', 'bibliotheque', 'marche', 'atelier'],
+          id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5, capital: false,
+          buildings: ['temple', 'marche'],
           wonders: ['stonehenge'],
           settledGreatPersons: ['savant'],
         },
       ],
     });
-    const run = (seed: number) => resolveTurn(structuredClone(base), launch({ q: 0, r: 0 }), seed);
-    const a = run(7).newState.cities['cible']!;
-    const b = run(7).newState.cities['cible']!;
-    // Rejouabilité bit à bit (même graine → même sélection).
-    expect(a.buildings).toEqual(b.buildings);
-    // ⌊4/2⌋ = 2 détruits parmi les non-Palais ; le Palais survit.
-    const candidates = ['temple', 'bibliotheque', 'marche', 'atelier'];
-    const destroyed = candidates.filter((x) => !a.buildings.includes(x));
-    expect(destroyed).toHaveLength(2);
-    expect(a.buildings).toContain('palais');
-    // C13.3 : merveilles préservées. C13.5 : GP installés préservés.
-    expect(a.wonders).toEqual(['stonehenge']);
-    expect(a.settledGreatPersons).toEqual(['savant']);
-    // La sélection dépend bien de la graine (plusieurs tirages distincts).
-    const selections = new Set<string>();
-    for (let seed = 0; seed < 12; seed++) {
-      const c = run(seed).newState.cities['cible']!;
-      selections.add(candidates.filter((x) => !c.buildings.includes(x)).sort().join(','));
-      expect(candidates.filter((x) => !c.buildings.includes(x))).toHaveLength(2);
-    }
-    expect(selections.size).toBeGreaterThan(1);
+    state.map['0,0'] = { terrain: 'ville', resource: null };
+    const { newState, events } = resolveTurn(state, launch({ q: 0, r: 0 }), 1);
+    // La ville est EFFACÉE de la carte (bâtiments et merveilles avec elle).
+    expect(newState.cities['cible']).toBeUndefined();
+    expect(events.some((e) => e.type === 'CityRazed' && e.cityId === 'cible' && e.byPlayer === 'p1')).toBe(true);
+    expect(events.some((e) => e.type === 'CityNuked')).toBe(false); // rien ne survit
+    expect(newState.winner).toBeNull();
+    // Cratère : la case devient stérile (terrain 'cratere', ressource effacée) — défaut 🔶 permanent.
+    const tile = newState.map['0,0']!;
+    expect(tile.terrain).toBe('cratere');
+    expect(tile.resource).toBeNull();
+    // Merveille détruite = jalon perdu (miroir rasement barbare — R-115).
+    expect(newState.players['p2']!.cultureMilestones).toBe(-1);
+    expect(events.some((e) => e.type === 'CultureMilestone' && e.reason === 'wonderLost')).toBe(true);
+  });
+
+  it('C15 : le cratère est NON FONDABLE et STÉRILE (aucun rendement, permanent 🔶)', () => {
+    const state = nukeState({ turn: 10 });
+    const after = resolveTurn(state, launch({ q: 0, r: 0 }), 1).newState;
+    // Un colon qui tente de fonder SUR le cratère est refusé.
+    const colonState = structuredClone(after);
+    colonState.map['4,0'] = { terrain: 'cratere', resource: null };
+    colonState.units['settler'] = {
+      id: 'settler', type: 'colon', owner: 'p1', q: 4, r: 0, hp: 3, mp: 2,
+      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
+    };
+    const out = resolveTurn(colonState, { p1: [{ type: 'FoundCity', unitId: 'settler' }] }, 2).newState;
+    expect(Object.values(out.cities).some((c) => c.q === 4 && c.r === 0)).toBe(false);
+    expect(out.units['settler']).toBeDefined(); // le colon survit (fondation refusée)
+    // Stérile : aucun rendement (tileYield → 0/0/0).
+    const y = tileYield(out.map, [], '4,0');
+    expect(y).toEqual({ food: 0, production: 0, commerce: 0 });
+  });
+
+  it('C15 : la CAPITALE conserve la règle C13 — survit, pop 2, merveilles préservées', () => {
+    const state = nukeState({
+      cities: [
+        {
+          id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5, capital: true,
+          buildings: ['temple', 'marche'],
+          wonders: ['stonehenge'],
+          settledGreatPersons: ['savant'],
+        },
+      ],
+    });
+    const { newState, events } = resolveTurn(state, launch({ q: 0, r: 0 }), 1);
+    const city = newState.cities['cible']!;
+    expect(city.owner).toBe('p2'); // C14 : pas de capture
+    expect(city.pop).toBe(2); // C13.1 : réduite à 2 (jamais 1)
+    expect(city.wonders).toEqual(['stonehenge']); // C13.3 : merveilles préservées
+    expect(city.settledGreatPersons).toEqual(['savant']); // C13.5 : GP installés préservés
+    expect(newState.winner).toBeNull();
+    expect(events.some((e) => e.type === 'NukeLaunched' && e.outcome === 'detonated')).toBe(true);
+    expect(events.some((e) => e.type === 'CityNuked')).toBe(true);
+    expect(events.some((e) => e.type === 'CityRazed')).toBe(false);
+    expect(newState.map['0,0']!.terrain).toBe(state.map['0,0']!.terrain); // pas de cratère sur la capitale
+  });
+
+  it('C15 🔶 : capitale à pop ≤ 2 ne grossit pas d\'une frappe (min(pop, 2))', () => {
+    const state = nukeState({ cities: [{ id: 'cible', owner: 'p2', q: 0, r: 0, pop: 1, capital: true }] });
+    const out = resolveTurn(state, launch({ q: 0, r: 0 }), 1).newState;
+    expect(out.cities['cible']!.pop).toBe(1);
+  });
+
+  it('C16 : moitié des bâtiments ARRONDI VERS LE HAUT ⌈n/2⌉ — 4 non-Palais → 2, 5 → 3 (Palais exclu, seedée R-80)', () => {
+    const base = (buildings: string[]) =>
+      nukeState({
+        cities: [
+          {
+            id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5, capital: true,
+            buildings, wonders: ['stonehenge'],
+          },
+        ],
+      });
+    const launchAt = launch({ q: 0, r: 0 });
+    // ⌈4/2⌉ = 2 détruits parmi les non-Palais ; le Palais survit.
+    const four = resolveTurn(base(['palais', 'temple', 'bibliotheque', 'marche', 'atelier']), structuredClone(launchAt), 7).newState.cities['cible']!;
+    const candidates4 = ['temple', 'bibliotheque', 'marche', 'atelier'];
+    expect(candidates4.filter((x) => !four.buildings.includes(x))).toHaveLength(2);
+    expect(four.buildings).toContain('palais');
+    // ⌈5/2⌉ = 3 détruits (C16 : 5 bâtiments → 3 détruits).
+    const five = resolveTurn(base(['palais', 'temple', 'bibliotheque', 'marche', 'atelier', 'caserne']), structuredClone(launchAt), 7).newState.cities['cible']!;
+    const candidates5 = ['temple', 'bibliotheque', 'marche', 'atelier', 'caserne'];
+    expect(candidates5.filter((x) => !five.buildings.includes(x))).toHaveLength(3);
+    expect(five.buildings).toContain('palais');
+    // Rejouabilité bit à bit (même graine → même sélection — R-80).
+    const run = (seed: number) => resolveTurn(structuredClone(base(['palais', 'temple', 'bibliotheque', 'marche', 'atelier', 'caserne'])), structuredClone(launchAt), seed).newState.cities['cible']!;
+    expect(run(7).buildings).toEqual(run(7).buildings);
+    // C13.3 : merveilles préservées.
+    expect(five.wonders).toEqual(['stonehenge']);
   });
 
   it('C13.4 : TOUTES les unités du rayon 1 (7 cases, les deux camps) sont détruites — aucun survivant', () => {
@@ -315,8 +365,9 @@ describe('7m · R-141 — Défense SDI', () => {
       ],
     });
     const { newState, events } = resolveTurn(state, launch({ q: 0, r: 0 }), 1);
-    expect(events.some((e) => e.type === 'CityNuked' && e.cityId === 'cible')).toBe(true);
-    expect(newState.cities['cible']!.pop).toBe(2);
+    // C15 : la ville ordinaire visée est RASÉE (la SDI distante ne la protège pas).
+    expect(events.some((e) => e.type === 'CityRazed' && e.cityId === 'cible')).toBe(true);
+    expect(newState.cities['cible']).toBeUndefined();
   });
 
   it('exploit canon conservé 🔶 : un tir ADJACENT à la ville protégée n\'est pas intercepté (C13.4 rayon)', () => {
@@ -332,6 +383,76 @@ describe('7m · R-141 — Défense SDI', () => {
     // La ville elle-même est intacte (pop, bâtiments) — elle n'est pas ciblée.
     expect(newState.cities['cible']!.pop).toBe(5);
     expect(newState.cities['cible']!.buildings).toEqual(['sdi', 'temple']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C17 (Bloc 0 7n) — la Grande Muraille bloque le missile nucléaire
+// ---------------------------------------------------------------------------
+
+describe('7n · Bloc 0 · C17 — la Grande Muraille bloque l\'ICBM (révision R-140)', () => {
+  /** p2 : ville cible en (0,0) + une seconde ville hébergeant la Muraille. */
+  function wallState(opts: { obsolete?: boolean } = {}): GameState {
+    const state = nukeState({
+      width: 12,
+      cities: [
+        { id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5, capital: true },
+        { id: 'mur', owner: 'p2', q: 9, r: 3, pop: 2, wonders: ['grande_muraille'] },
+      ],
+    });
+    if (opts.obsolete) {
+      // R-128 : obsolescence GLOBALE — n'importe quelle civ connaît Ingénierie.
+      state.players['p1']!.techsUnlocked = ['ingenierie'];
+    }
+    return state;
+  }
+
+  it('C17 : toute frappe visant une ville du propriétaire est ANNULÉE — missile consommé, aucun dégât', () => {
+    const { newState, events } = resolveTurn(wallState(), launch({ q: 0, r: 0 }), 1);
+    const launched = events.find((e) => e.type === 'NukeLaunched');
+    expect(launched && launched.type === 'NukeLaunched' ? launched.outcome : null).toBe('blocked');
+    expect(newState.units['nuke']).toBeUndefined(); // missile consommé (miroir SDI R-141)
+    expect(newState.units['gar']).toBeDefined(); // garnison intacte — AUCUN dégât
+    expect(newState.cities['cible']!.pop).toBe(5);
+    expect(newState.cities['cible']!.buildings).toEqual([]);
+    expect(events.some((e) => e.type === 'CityNuked')).toBe(false);
+    // Aucune destruction d'UNITÉ (le missile lui-même mis à part — cause mission).
+    expect(events.filter((e) => e.type === 'UnitDestroyed' && e.cause !== 'mission')).toHaveLength(0);
+    expect(newState.players['p1']!.nukesLaunched).toBe(0); // pas une détonation
+    expect(newState.players['p1']!.cultureMilestones).toBe(0); // pas de pénalité 🔶 (pas de détonation)
+  });
+
+  it('C17 : portée EMPIRE — la Muraille (dans une autre ville) protège toutes les villes du propriétaire', () => {
+    const state = wallState();
+    const { newState } = resolveTurn(state, launch({ q: 0, r: 0 }), 1);
+    expect(newState.cities['cible']!.pop).toBe(5); // protégée malgré la distance
+  });
+
+  it('C17 : la Muraille OBSOLÈTE (R-128, union des techs — Ingénierie connue) ne bloque plus', () => {
+    const { newState, events } = resolveTurn(wallState({ obsolete: true }), launch({ q: 0, r: 0 }), 1);
+    const launched = events.find((e) => e.type === 'NukeLaunched');
+    expect(launched && launched.type === 'NukeLaunched' ? launched.outcome : null).toBe('detonated');
+    // Capitale visée : elle survit (C15) mais subit la résolution C13.
+    expect(newState.cities['cible']!.pop).toBe(2);
+  });
+
+  it('C17 🔶 : la Muraille NE bloque PAS un tir sur une CASE ADJACENTE (l\'exploit R-141 reste possible)', () => {
+    const state = wallState();
+    const { newState, events } = resolveTurn(state, launch({ q: 1, r: 0 }), 1);
+    const launched = events.find((e) => e.type === 'NukeLaunched');
+    expect(launched && launched.type === 'NukeLaunched' ? launched.outcome : null).toBe('detonated');
+    expect(newState.units['gar']).toBeUndefined(); // C13.4 : le rayon annihile
+    expect(newState.cities['cible']!.pop).toBe(5); // la ville (non ciblée) est intacte
+  });
+
+  it('C17 : la Muraille d\'un TIERS ne protège pas (seul le propriétaire est couvert)', () => {
+    const state = nukeState({
+      cities: [{ id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5, capital: true }],
+    });
+    // p2 n'a pas la Muraille (aucune autre ville) — détonation normale.
+    const { newState, events } = resolveTurn(state, launch({ q: 0, r: 0 }), 1);
+    expect(events.some((e) => e.type === 'NukeLaunched' && e.outcome === 'detonated')).toBe(true);
+    expect(newState.cities['cible']!.pop).toBe(2);
   });
 });
 

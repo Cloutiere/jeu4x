@@ -32,3 +32,25 @@ export function spyDuelWinChance(attackerIsRing: boolean, defenderIsRing: boolea
 export function nukeCulturePenalty(): number {
   return ESPIONNAGE_DATA.nukeCulturePenalty;
 }
+
+// ---------------------------------------------------------------------------
+// 7n · Bloc 0 · C18 — destruction de bâtiment par espion : coût et risque
+// croissants avec la VALEUR DE PRODUCTION du bâtiment (« plus facile de
+// détruire une Bibliothèque qu'une Université »). Le tireur choisit le
+// bâtiment AVANT l'action (`buildingId` de l'ordre — déjà porté en 7m).
+// ---------------------------------------------------------------------------
+
+/** C18 🔶 · Coût en or de la tentative : `round(marteaux × goldFactor)`
+ *  (economy.json... espionnage.json — calibrage). Débité au lancement,
+ *  NON remboursé (échec compris). */
+export function destroyBuildingGoldOf(buildingCost: number): number {
+  return Math.max(0, Math.round(buildingCost * ESPIONNAGE_DATA.destroyBuildingGoldFactor));
+}
+
+/** C18 🔶 · Probabilité de réussite : clamp(base − marteaux/divisor ; min ; max)
+ *  (RNG seedé R-80 consulté par l'appelant — Phase C). */
+export function destroyBuildingSuccessChance(buildingCost: number): number {
+  const d = ESPIONNAGE_DATA;
+  const raw = d.destroyBuildingSuccessBase - buildingCost / d.destroyBuildingSuccessDivisor;
+  return Math.max(d.destroyBuildingSuccessMin, Math.min(d.destroyBuildingSuccessMax, raw));
+}

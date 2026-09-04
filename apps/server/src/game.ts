@@ -14,6 +14,7 @@
  * moteur ("p1"/"p2", spawns de la carte) via `meta.players`, par ordre de join.
  */
 import {
+  CIVILIZATIONS,
   checkForfeit,
   createInitialState,
   filterEventsForPlayer,
@@ -32,6 +33,7 @@ import {
   wonderTreasuryLocked,
   WONDERS,
   isWonderObsolete,
+  isEgyptWonderChoiceValid,
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, LoadedMap, Order, PlayerId, ProgenReport, UnitId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
@@ -63,6 +65,10 @@ export interface GamePlayer {
   name: string;
   /** Id joueur dans le GameState moteur (spawn de la carte). */
   engineId: EnginePlayerId;
+  /** 7n · R-145 : civilisation choisie au lobby ('neutre' = aucune). */
+  civId?: string;
+  /** 7n · R-150 🔶 : Merveille Antique de l'Égypte (valide et non dupliquée). */
+  wonderId?: string;
 }
 
 export interface GameMeta {
@@ -322,7 +328,7 @@ export class GameDO {
   private async handleInit(request: Request): Promise<Response> {
     const body = await this.readJson<{
       code: string;
-      host: { id: PlayerId; name: string };
+      host: { id: PlayerId; name: string; civId?: string; wonderId?: string };
       settings: GameCreationSettings;
       isPublic: boolean;
       seed: number;
@@ -339,7 +345,13 @@ export class GameDO {
       status: 'waiting',
       isPublic: body.isPublic,
       hostId: body.host.id,
-      players: [{ id: body.host.id, name: body.host.name, engineId: 'p1' }],
+      players: [{
+        id: body.host.id,
+        name: body.host.name,
+        engineId: 'p1',
+        ...(body.host.civId && CIVILIZATIONS.civs[body.host.civId] ? { civId: body.host.civId } : {}),
+        ...(body.host.wonderId ? { wonderId: body.host.wonderId } : {}),
+      }],
       settings: body.settings,
       seed: body.seed >>> 0,
       createdAt: Date.now(),
@@ -351,21 +363,42 @@ export class GameDO {
 
   /** Join du joueur B — le LobbyDO a déjà validé (existe, place libre, non terminée). */
   private async handleJoin(request: Request): Promise<Response> {
-    const body = await this.readJson<{ player: { id: PlayerId; name: string } }>(request);
+    const body = await this.readJson<{ player: { id: PlayerId; name: string; civId?: string; wonderId?: string } }>(request);
     if (!body?.player) return jsonResponse({ error: 'badRequest' }, 400);
     if (!this.meta) return jsonResponse({ error: 'notFound' }, 404);
     if (this.meta.status !== 'waiting') return jsonResponse({ error: 'gameFull' }, 409);
     if (this.meta.players.some((p) => p.id === body.player.id)) return jsonResponse({ ok: true });
     if (this.meta.players.length >= 2) return jsonResponse({ error: 'gameFull' }, 409);
 
-    this.meta.players.push({ id: body.player.id, name: body.player.name, engineId: 'p2' });
+    // 7n · R-145 : validation de la civ du joueur B (connue des données ;
+    // défaut = neutre) — la Merveille Antique (Égypte 🔶) doit être valide et
+    // ne pas dupliquer celle de l'hôte (exclusivité mondiale R-129).
+    const civId = body.player.civId && CIVILIZATIONS.civs[body.player.civId] ? body.player.civId : undefined;
+    let wonderId = body.player.wonderId;
+    if (!isEgyptWonderChoiceValid(civId, wonderId)) wonderId = undefined;
+    const hostWonder = this.meta.players.find((p) => p.engineId === 'p1')?.wonderId;
+    if (wonderId && wonderId === hostWonder) return jsonResponse({ error: 'badRequest' }, 400);
+
+    this.meta.players.push({
+      id: body.player.id,
+      name: body.player.name,
+      engineId: 'p2',
+      ...(civId ? { civId } : {}),
+      ...(wonderId ? { wonderId } : {}),
+    });
     this.meta.status = 'active';
 
     // État moteur initial : carte préfabriquée OU procédurale (Phase 6b —
     // générée depuis la graine de partie déjà présente dans meta) + graine.
     const { map, report } = loadMapForGame(this.meta.settings, this.meta.seed);
     if (report) this.meta.progen = report;
-    this.game = createInitialState(map, this.meta.seed);
+    // 7n · R-150 : les AVANTAGES DE DÉPART sont appliqués à la création
+    // (civSetup par engineId — déterministe, même seed → même état).
+    const civSetup: Record<string, { civId: string; wonderId?: string }> = {};
+    for (const p of this.meta.players) {
+      if (p.civId) civSetup[p.engineId] = { civId: p.civId, ...(p.wonderId ? { wonderId: p.wonderId } : {}) };
+    }
+    this.game = createInitialState(map, this.meta.seed, civSetup);
     this.orders = { p1: [], p2: [] };
     this.locked = { p1: false, p2: false };
     this.resolving = null;

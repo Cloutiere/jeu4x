@@ -4,42 +4,66 @@
     "name": "Prairie",
     "defenseBonus": 0,
     "passable": true,
-    "yields": { "food": 2, "production": 0, "commerce": 0 }
+    "yields": {
+      "food": 2,
+      "production": 0,
+      "commerce": 0
+    }
   },
   "plaine": {
     "id": "plaine",
     "name": "Plaine",
     "defenseBonus": 0,
     "passable": true,
-    "yields": { "food": 1, "production": 0, "commerce": 0 }
+    "yields": {
+      "food": 1,
+      "production": 0,
+      "commerce": 0
+    }
   },
   "foret": {
     "id": "foret",
     "name": "Forêt",
     "defenseBonus": 0.5,
     "passable": true,
-    "yields": { "food": 0, "production": 2, "commerce": 0 }
+    "yields": {
+      "food": 0,
+      "production": 2,
+      "commerce": 0
+    }
   },
   "colline": {
     "id": "colline",
     "name": "Colline",
     "defenseBonus": 0.5,
     "passable": true,
-    "yields": { "food": 0, "production": 1, "commerce": 0 }
+    "yields": {
+      "food": 0,
+      "production": 1,
+      "commerce": 0
+    }
   },
   "montagne": {
     "id": "montagne",
     "name": "Montagne",
     "defenseBonus": 0,
     "passable": false,
-    "yields": { "food": 0, "production": 1, "commerce": 0 }
+    "yields": {
+      "food": 0,
+      "production": 1,
+      "commerce": 0
+    }
   },
   "desert": {
     "id": "desert",
     "name": "Désert",
     "defenseBonus": 0,
     "passable": true,
-    "yields": { "food": 0, "production": 0, "commerce": 1 }
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 1
+    }
   },
   "eau": {
     "id": "eau",
@@ -47,7 +71,11 @@
     "defenseBonus": 0,
     "passable": false,
     "navalAccess": "coast",
-    "yields": { "food": 0, "production": 0, "commerce": 2 }
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 2
+    }
   },
   "ocean": {
     "id": "ocean",
@@ -55,13 +83,32 @@
     "defenseBonus": 0,
     "passable": false,
     "navalAccess": "ocean",
-    "yields": { "food": 0, "production": 0, "commerce": 2 }
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 2
+    }
   },
   "ville": {
     "id": "ville",
     "name": "Case de ville",
     "defenseBonus": 0.5,
     "passable": true,
-    "yields": { "food": 2, "production": 1, "commerce": 1 }
+    "yields": {
+      "food": 2,
+      "production": 1,
+      "commerce": 1
+    }
+  },
+  "cratere": {
+    "id": "cratere",
+    "name": "Cratère",
+    "defenseBonus": 0,
+    "passable": true,
+    "yields": {
+      "food": 0,
+      "production": 0,
+      "commerce": 0
+    }
   }
 }

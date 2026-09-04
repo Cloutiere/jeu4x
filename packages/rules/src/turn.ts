@@ -51,7 +51,7 @@ import {
 import type { DestructionCause, GameEvent, HutReward } from './events.js';
 import { creditScience } from './research.js';
 import { conversionGains, CONVERSION_DEFAULT, goldMultOf, scienceMultOf } from './conversion.js';
-import { WONDERS, TECHS, canSetProduction, buildingCostDiscount, isUnitObsolete } from './techs.js';
+import { WONDERS, TECHS, canSetProduction, buildingCostDiscount, isUnitObsolete, unitReplacementFor } from './techs.js';
 import type { WonderData } from './types.js';
 import {
   cultureGains,
@@ -79,8 +79,8 @@ import { effectsFor, isInAnarchy, landCombatBonus, populationCostOf } from './go
 // 7i · R-63 rév. (D1/D2), R-60bis (D4), R-64 rév. (D3) — croissance CivRev.
 import {
   GROWTH,
+  foundingPopForEra,
   growthThresholdFor,
-  foundingPopFor,
   interiorCitizenFor,
   interiorCountOf,
   populationCap,
@@ -94,10 +94,41 @@ import {
   treasuryInterestOf,
   nextEconomyMilestone,
   milestoneTechFor,
-  explorerGoldInjectionFor,
+  explorerGoldInjectionForEra,
 } from './economyOr.js';
 // 7m · R-138..R-144 — nucléaire & espionnage (données espionnage.json, helpers purs partagés).
-import { stolenGoldAmount, spyDuelWinChance, nukeCulturePenalty } from './espionnage.js';
+import {
+  stolenGoldAmount,
+  spyDuelWinChance,
+  nukeCulturePenalty,
+  destroyBuildingGoldOf,
+  destroyBuildingSuccessChance,
+} from './espionnage.js';
+import {
+  activeTraitsOf,
+  civBuildingProductionMultOf,
+  civBuildingScienceOf,
+  civCommerceCaptureMultOf,
+  civEmpireGoldMultOf,
+  civGpThresholdMultOf,
+  civGrowthReductionOf,
+  civHealAfterVictory,
+  civHutGoldMultOf,
+  civNavalAttackBonusOf,
+  civOverrunRatioOf,
+  civUnitStatBonusOf,
+  civToutesRessources,
+  civVeteranUnitsOf,
+  civVillagesBecomeCities,
+  civDataOf,
+  civIdOf,
+  eraIndexOf,
+  eraOfPlayer,
+  eraOfTechCount,
+  foundingPopBonusOf,
+  traitEntriesOf,
+  uniqueReplacing,
+} from './civilizations.js';
 import { resourceAccessible } from './resources.js';
 import {
   barbarianOrders,
@@ -252,28 +283,89 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
   const hut = board.st.huts[idx]!;
   board.st.huts.splice(idx, 1);
   const player = board.st.players[opener.owner]!;
+  // 7n · R-149 (trait Mongol `villagesVilles`) : le village barbare assimilé
+  // DEVIENT une ville pop 1 — la hutte ouverte par un Mongol fonde une ville
+  // AU LIEU de la récompense tirée (tranche du handoff 🔶). Si la fondation
+  // est illégale (ville sur la case, distance T-09, terrain non praticable),
+  // la récompense normale s'applique à la place.
+  if (civVillagesBecomeCities(player)) {
+    const legal =
+      !cityAt(board, hex) &&
+      TERRAINS[board.st.map[tileKeyOf(hex)]?.terrain ?? 'eau']!.passable &&
+      !Object.values(board.st.cities).some((c) => hexDistance(c, hex) < MIN_CITY_DISTANCE);
+    if (legal) {
+      const ownerHasCity = Object.values(board.st.cities).some((c) => c.owner === opener.owner);
+      const cityId = nextId(board.st.cities, 'c');
+      board.st.cities[cityId] = {
+        id: cityId,
+        q: hex.q,
+        r: hex.r,
+        owner: opener.owner,
+        pop: 1,
+        capital: !ownerHasCity,
+        foodStored: 0,
+        production: null,
+        workedTiles: [],
+        buildings: !ownerHasCity ? ['palais'] : [],
+        conversion: CONVERSION_DEFAULT,
+        cultureStored: 0,
+        wonders: [],
+        gpAccumGold: 0,
+        gpAccumScience: 0,
+        gpAccumProd: 0,
+        gpAccumFood: 0,
+        pendingSalvage: 0,
+        settledGreatPersons: [],
+        wasCaptured: false,
+      };
+      board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
+      board.pendingFill.add(cityId);
+      emit(board, {
+        type: 'HutOpened',
+        hutId: hut.id,
+        byPlayer: opener.owner,
+        byUnitId: opener.id,
+        at: { q: hut.q, r: hut.r },
+        reward: { kind: 'nothing' }, // la ville EST la récompense (assimilation)
+      });
+      emit(board, {
+        type: 'CityFounded',
+        cityId,
+        owner: opener.owner,
+        at: hex,
+        capital: !ownerHasCity,
+        byUnitId: opener.id,
+      });
+      return;
+    }
+  }
   const reward: HutReward = drawHutReward(board.rng);
 
   switch (reward.kind) {
     case 'gold':
-      player.treasury += reward.amount;
+      // 7n · R-149 (trait Espagnol `tresorsDouble`) : l'or des trésors est
+      // doublé (les artefacts sont une phase suivante — mapping 🔶).
+      player.treasury += reward.amount * civHutGoldMultOf(player);
       break;
     case 'unit': {
       // Unité gratuite pour l'ouvreur : case adjacente libre (hors
       // village/ville) — perdue si aucune case (interprétation documentée, R-98).
+      // 7n · R-148/R-149 : remplacement par l'unique de la civ (un Zoulou
+      // reçoit un Impi) + vétérans de trait + bonus de mouvement.
       const tile = freeSpawnTiles(board.st, hut, 1)[0];
       if (tile) {
-        const stats = unitType(HUT_REWARDS.freeUnit);
+        const effectiveType = effectiveUnitTypeFor(board.st, opener.owner, HUT_REWARDS.freeUnit);
+        const stats = unitType(effectiveType);
         const unitId = nextId(board.st.units, 'u');
         board.st.units[unitId] = {
           id: unitId,
-          type: HUT_REWARDS.freeUnit,
+          type: effectiveType,
           owner: opener.owner,
           q: tile.q,
           r: tile.r,
           hp: stats.hpMax,
-          mp: stats.movement,
-          veteran: false,
+          mp: maxMovementOf(board.st, opener.owner, effectiveType),
+          veteran: civVeteranUnitsOf(player).has(HUT_REWARDS.freeUnit) || civVeteranUnitsOf(player).has(effectiveType),
           isArmy: false,
           order: null,
           detainedBy: null,
@@ -350,6 +442,36 @@ function isPeaceful(unit: Unit): boolean {
 
 function isRanged(unit: Unit): boolean {
   return unitType(unit.type).isRanged;
+}
+
+/**
+ * 7n · R-148 : type EFFECTIF d'une unité produite pour un joueur — l'unité
+ * unique de sa civ qui remplace le type standard (null → type inchangé).
+ */
+function effectiveUnitTypeFor(state: GameState, owner: PlayerId, typeId: string): string {
+  const player = state.players[owner];
+  return uniqueReplacing(civIdOf(player), typeId, player?.techsUnlocked ?? []) ?? typeId;
+}
+
+/**
+ * 7n · R-149 : PM MAX d'une unité — mouvement du type + bonus civilisationnel
+ * (Mongols cavalerie, Zoulous guerriers/Impi, Égypte/France fusiliers). La
+ * régénération Phase D (R-72) et toutes les créations d'unités y passent.
+ */
+function maxMovementOf(state: GameState, owner: PlayerId, typeId: string): number {
+  return unitType(typeId).movement + civUnitStatBonusOf(state.players[owner], 'unitMovement', typeId);
+}
+
+/**
+ * 7n · R-149 : l'unité produite de ce type sort-elle VÉTÉRANE (Caserne R-89,
+ * Leader installé R-126, ou trait civilisationnel « Guerriers vétérans » —
+ * Allemagne) ?
+ */
+function producedVeteranOf(state: GameState, owner: PlayerId, city: City, typeId: string, canAttack: boolean): boolean {
+  if (!canAttack) return false; // R-89 : hors pacifiques
+  if (hasBuilding(city, 'caserne') || settledGpMultiplier(city, 'leader') > 1) return true;
+  const player = state.players[owner];
+  return civVeteranUnitsOf(player).has(typeId);
 }
 
 function emit(board: Board, event: DistributiveOmit<GameEvent, 'seq'>): void {
@@ -497,6 +619,11 @@ function cityBuildingDefenseBonus(board: Board, hex: Hex, defenderOwner: PlayerI
 function recordCombatVictory(board: Board, winner: Unit): void {
   const player = board.st.players[winner.owner];
   if (player) player.combatVictories += 1;
+  // 7n · R-149 (trait Aztèque `soinVictoire`) : l'unité se soigne
+  // AUTOMATIQUEMENT après une victoire — PV rendus au maximum 🔶.
+  if (civHealAfterVictory(player)) {
+    winner.hp = unitType(winner.type).hpMax;
+  }
 }
 
 function applyFortifyOrders(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
@@ -558,15 +685,17 @@ function orderTouchesUnit(order: Order, unitId: UnitId): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Un échange (T-03 round(s)). R-59-b : un défenseur non-à-distance ne riposte
- * jamais contre une unité à distance ; interprétation (documentée, 🔶) : le
- * round lui retire alors directement 1 PV (p = 1 côté attaquant), ce qui
- * garantit la terminaison de R-55 (« chaque itération retire ≥ 1 PV »).
+ * Forces effectives (S_att/S_def) d'un échange — facteur unique partagé par
+ * l'échange (R-51) et l'ÉCRASEMENT (7n · R-149 : Overrun, canon CivRev).
  */
-function performExchange(board: Board, attacker: Unit, defender: Unit, combatTile: Hex): void {
+function combatStrengthsOf(
+  board: Board,
+  attacker: Unit,
+  defender: Unit,
+  combatTile: Hex,
+): { sAtt: number; sDef: number; sAttBase: number } {
   const aStats = unitType(attacker.type);
   const dStats = unitType(defender.type);
-  const noRiposte = isRanged(attacker) && !isRanged(defender);
   // 7g · R-118 : soutien naval — un combat terrestre adjacent à la côte avec
   // une unité navale AMIE en mer reçoit son `navalSupport` en force d'attaque
   // (MAX d'un seul navire — décision d'Erik : s'ajoute à S_att).
@@ -586,8 +715,19 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
   const defPlayer = board.st.players[defender.owner];
   const attAnarchy = attPlayer ? isInAnarchy(attPlayer, board.st.turn) : true;
   const defAnarchy = defPlayer ? isInAnarchy(defPlayer, board.st.turn) : true;
+  // 7n · R-149 : bonus de stats civilisationnels — unitAttack par TYPE
+  // (Arabie cavaliers/chevaliers, France canons, Japon samouraïs) et
+  // navalAttack pour les unités navales (Angleterre/Espagne). S'ajoutent à
+  // la force de base (indépendants de l'Anarchie — traits, pas régimes).
+  const sAttBase =
+    effectiveStrength(
+      aStats.attack +
+        civUnitStatBonusOf(attPlayer, 'unitAttack', attacker.type) +
+        (aStats.aquatic ? civNavalAttackBonusOf(attPlayer) : 0),
+      attacker.veteran,
+    );
   const sAtt =
-    effectiveStrength(aStats.attack, attacker.veteran) +
+    sAttBase +
     support +
     (attPlayer && !attAnarchy
       ? wonderAttackBonusEmpireOf(Object.values(board.st.cities), attacker.owner, allTechs) +
@@ -596,14 +736,29 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
   // T-17 : le bonus de fortification s'ajoute au bonus de terrain (RULES.md §7.4).
   // 7e : le bonus de défense de ville des bâtiments (Palais, Remparts) s'ajoute
   // pour le défenseur en garnison de SA ville. 7h · R-121 : Fondamentalisme
-  // (+1 Défense aux unités terrestres).
+  // (+1 Défense aux unités terrestres). 7n · R-149 : unitDefense par TYPE
+  // (Angleterre archers à long arc).
   const sDef = effectiveStrength(
-    dStats.defense,
+    dStats.defense + civUnitStatBonusOf(defPlayer, 'unitDefense', defender.type),
     defender.veteran,
     terrainDefenseBonus(board, combatTile) +
       (defender.fortified ? FORTIFY_DEFENSE_BONUS : 0) +
       cityBuildingDefenseBonus(board, combatTile, defender.owner),
   ) + (defPlayer && !defAnarchy ? landCombatBonus(effectsFor(defPlayer), dStats, 'defense') : 0);
+  return { sAtt, sDef, sAttBase };
+}
+
+/**
+ * Un échange (T-03 round(s)). R-59-b : un défenseur non-à-distance ne riposte
+ * jamais contre une unité à distance ; interprétation (documentée, 🔶) : le
+ * round lui retire alors directement 1 PV (p = 1 côté attaquant), ce qui
+ * garantit la terminaison de R-55 (« chaque itération retire ≥ 1 PV »).
+ */
+function performExchange(board: Board, attacker: Unit, defender: Unit, combatTile: Hex): void {
+  const aStats = unitType(attacker.type);
+  const dStats = unitType(defender.type);
+  const noRiposte = isRanged(attacker) && !isRanged(defender);
+  const { sAtt, sDef } = combatStrengthsOf(board, attacker, defender, combatTile);
   for (let i = 0; i < EXCHANGES_PER_ATTACK && attacker.hp > 0 && defender.hp > 0; i++) {
     if (noRiposte) {
       defender.hp -= 1;
@@ -697,6 +852,33 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
       }
     }
     emit(board, { type: 'DiplomaticIncident', between: [attacker.owner, defender.owner], at: combatTile });
+  }
+  // 7n · R-149 · ÉCRASEMENT (Overrun — canon CivRev, mécanique ajoutée au
+  // combat §7) : si la force d'attaque atteint `ratio` × la force défensive
+  // (base canon 6 ; trait Zoulou 4), le défenseur est DÉTRUIT INSTANTANÉMENT
+  // — aucun round R-51. Mêlée uniquement (jamais pour un attaquant à distance,
+  // R-59-a — pas d'avancée, pas de contact de ce type).
+  if (!isRanged(attacker)) {
+    const { sAttBase, sDef } = combatStrengthsOf(board, attacker, defender, combatTile);
+    // 🔶 sDef > 0 exigé : le ratio est indéfini contre une défense nulle
+    // (aucune unité réelle n'a 0 défense — les unités pacifiques sont capturées).
+    if (sAttBase > 0 && sDef > 0 && sAttBase >= sDef * civOverrunRatioOf(board.st.players[attacker.owner])) {
+      defender.hp = 0;
+      emit(board, { type: 'Attack', attackerId: attacker.id, defenderId: defender.id, at: combatTile });
+      emit(board, {
+        type: 'CombatExchange',
+        attackerId: attacker.id,
+        defenderId: defender.id,
+        at: combatTile,
+        attackerHpAfter: attacker.hp,
+        defenderHpAfter: 0,
+      });
+      kill(board, defender, 'combat', attacker.id);
+      attacker.veteran = true; // R-32
+      recordCombatVictory(board, attacker); // 7h · R-123 (T-31) + soin Aztèque
+      advanceIfMelee(board, attacker, combatTile);
+      return;
+    }
   }
   performExchange(board, attacker, defender, combatTile);
   if (defender.hp <= 0) {
@@ -1395,12 +1577,16 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
       // R-87 (étendue 7e) : item verrouillé refusé — tech non débloquée, non
       // implémenté, unité OBSOLÈTE, GP (R-114), bâtiment fixe (Palais),
       // prérequis de bâtiment manquant (Banque sans Marché) ou déjà possédé.
+      // 7n · R-148 : une unité standard remplacée par l'unique disponible de
+      // la civ est refusée (le menu propose l'unique — pattern R-111).
       const research = board.st.players[playerId]!;
-      if (!canSetProduction(order.item, research.techsUnlocked, city.buildings)) continue;
+      if (!canSetProduction(order.item, research.techsUnlocked, city.buildings, civIdOf(research))) continue;
       // 7g · R-117 : une unité navale exige une ville côtière (accès à la mer).
+      // 7n · R-148 : la validation porte sur le type EFFECTIF (l'unique).
+      const effectiveItem = unitReplacementFor(order.item, civIdOf(research), research.techsUnlocked) ?? order.item.id;
       if (
         order.item.kind === 'unit' &&
-        unitType(order.item.id).aquatic &&
+        unitType(effectiveItem).aquatic &&
         !citySiteIsCoastal(board.st.map, { q: city.q, r: city.r })
       ) {
         continue;
@@ -1501,7 +1687,9 @@ function completeProductionNow(board: Board, city: City): void {
   const item = prod.item;
   city.production = null;
   if (item.kind === 'unit') {
-    const stats = unitType(item.id);
+    // 7n · R-148 : l'unité produite est remplacée par l'unique de la civ.
+    const effectiveType = effectiveUnitTypeFor(board.st, city.owner, item.id);
+    const stats = unitType(effectiveType);
     const player = board.st.players[city.owner]!;
     const popCost = populationCostOf(stats.populationCost ?? 0, player);
     if (popCost > 0) {
@@ -1519,14 +1707,15 @@ function completeProductionNow(board: Board, city: City): void {
     const unitId = nextId(board.st.units, 'u');
     board.st.units[unitId] = {
       id: unitId,
-      type: item.id,
+      type: effectiveType,
       owner: city.owner,
       q: city.q,
       r: city.r,
       hp: stats.hpMax,
-      mp: stats.movement,
-      // R-89 + 7j · R-126 : Caserne OU Leader installé → vétéran.
-      veteran: (hasBuilding(city, 'caserne') || settledGpMultiplier(city, 'leader') > 1) && stats.canAttack,
+      mp: maxMovementOf(board.st, city.owner, effectiveType),
+      // R-89 + 7j · R-126 + 7n · R-149 (Guerriers vétérans Allemagne) : Caserne,
+      // Leader installé ou trait → vétéran.
+      veteran: producedVeteranOf(board.st, city.owner, city, effectiveType, stats.canAttack),
       isArmy: false,
       order: null,
       detainedBy: null,
@@ -1534,7 +1723,7 @@ function completeProductionNow(board: Board, city: City): void {
       aboard: null,
       cargo: null,
     };
-    emit(board, { type: 'UnitProduced', unitId, cityId: city.id, owner: city.owner, unitType: item.id, at: { q: city.q, r: city.r } });
+    emit(board, { type: 'UnitProduced', unitId, cityId: city.id, owner: city.owner, unitType: effectiveType, at: { q: city.q, r: city.r } });
   } else if (item.kind === 'wonder') {
     // La complétion canonique lit `city.production.progress` pour la
     // récupération éventuelle : à un rush, le projet est payé — la file est
@@ -1583,7 +1772,9 @@ function grantBuildingToCity(board: Board, city: City, buildingId: string): void
  * Retourne false si la pose est impossible (la réserve subsiste / en attente).
  */
 function produceUnitFromReserve(board: Board, city: City, unitTypeId: string, allowAdjacent: boolean): boolean {
-  const stats = unitType(unitTypeId);
+  // 7n · R-148 : la réserve produit l'UNIQUE de la civ si le type est remplacé.
+  const effectiveType = effectiveUnitTypeFor(board.st, city.owner, unitTypeId);
+  const stats = unitType(effectiveType);
   const player = board.st.players[city.owner]!;
   const popCost = populationCostOf(stats.populationCost ?? 0, player);
   if (city.pop < Math.max(1, popCost)) return false;
@@ -1609,13 +1800,13 @@ function produceUnitFromReserve(board: Board, city: City, unitTypeId: string, al
   const unitId = nextId(board.st.units, 'u');
   board.st.units[unitId] = {
     id: unitId,
-    type: unitTypeId,
+    type: effectiveType,
     owner: city.owner,
     q: spot.q,
     r: spot.r,
     hp: stats.hpMax,
-    mp: stats.movement,
-    veteran: (hasBuilding(city, 'caserne') || settledGpMultiplier(city, 'leader') > 1) && stats.canAttack,
+    mp: maxMovementOf(board.st, city.owner, effectiveType),
+    veteran: producedVeteranOf(board.st, city.owner, city, effectiveType, stats.canAttack),
     isArmy: false,
     order: null,
     detainedBy: null,
@@ -1623,7 +1814,7 @@ function produceUnitFromReserve(board: Board, city: City, unitTypeId: string, al
     aboard: null,
     cargo: null,
   };
-  emit(board, { type: 'UnitProduced', unitId, cityId: city.id, owner: city.owner, unitType: unitTypeId, at: spot });
+  emit(board, { type: 'UnitProduced', unitId, cityId: city.id, owner: city.owner, unitType: effectiveType, at: spot });
   return true;
 }
 
@@ -1880,8 +2071,9 @@ function applyGreatPersonConsume(board: Board, unit: Unit, city: City): string |
       // 7l · Bloc 5 · R-126 (activé — doc d'Erik « Économie d'or ») :
       // injection d'or FIXE par ère (données economy.json : 50/100/200/400),
       // versée directement à la trésorerie (R-134). L'Artiste/Penseur (flip
-      // culturel) reste inactif (territoire en suspens).
-      const amount = explorerGoldInjectionFor(player.techsUnlocked);
+      // culturel) reste inactif (territoire en suspens). 7n · R-147 : l'ère
+      // est celle de l'EMPIRE (compage, champ `era`).
+      const amount = explorerGoldInjectionForEra(eraOfPlayer(player));
       player.treasury += amount;
       return `+${amount} or (injection — trésorerie)`;
     }
@@ -1991,17 +2183,23 @@ function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]
  * (R-139) : unité stratégique du joueur, cible existante et VISIBLE (fog,
  * évalué à la résolution), gouvernement ≠ Démocratie (R-140). Un refus est
  * individuel (missile NON consommé). Lancement valide : le missile est
- * consommé (cause `mission`), puis — interception SDI (R-141) si la cible est
- * la case d'une ville hôte d'un SDI, sinon DÉTONATION :
+ * consommé (cause `mission`), puis — C17 (7n · Bloc 0) : la Grande Muraille
+ * du propriétaire de la ville ciblée BLOQUE le tir (portée empire, missile
+ * consommé, aucun dégât) — interception SDI (R-141) si la cible est la case
+ * d'une ville hôte d'un SDI, sinon DÉTONATION :
  *  - C13.4 : TOUTES les unités du rayon 1 (7 cases, les deux camps) détruites
  *    (cause `nuke`) — GP « en attente » compris (C13.6) ;
- *  - C13 (ville ciblée uniquement) : la ville SURVIT — pop = min(pop, 2) 🔶,
- *    moitié des bâtiments détruite au hasard (RNG seedé, ⌊n/2⌋ 🔶, Palais
- *    exclu), merveilles et GP installés préservés (C13.3/C13.5) ;
+ *  - C15 (7n · Bloc 0 — distinction canon RÉTABLIE) : la CAPITALE SURVIT —
+ *    pop = min(pop, 2) 🔶, moitié des bâtiments détruite au hasard (RNG
+ *    seedé, C16 : arrondi vers le HAUT ⌈n/2⌉, Palais exclu), merveilles et
+ *    GP installés préservés (C13.3/C13.5) ; une ville ORDINAIRE est RASÉE —
+ *    effacée de la carte (bâtiments et merveilles détruits, jalon perdu par
+ *    merveille — R-115), garnison anéantie (C13.4) et CRATÈRE : la case
+ *    devient un terrain `cratere` STÉRILE (rendements nuls) et NON FONDABLE
+ *    (défaut 🔶 : cratère permanent — le canon est muet sur la réutilisation).
  *  - pénalité culturelle 🔶 (R-140) : −1 jalon (T-33) sauf Despotisme ;
- *  - la ville n'est PAS capturée (C14) — aucune unité ne change de camp.
- * Aucun changement de terrain (ni cratère ni conversion d'océan — 🔶 écart
- * canon §1.3 signalé). La Grande Muraille ne bloque pas le tir (R-140 🔶).
+ *  - la ville (capitale) n'est PAS capturée (C14) — aucune unité ne change de
+ *    camp. Aucun autre changement de terrain (pas de conversion d'océan 🔶).
  */
 function applyLaunches(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
   const orders: Array<Extract<Order, { type: 'Launch' }>> = [];
@@ -2052,6 +2250,25 @@ function applyLaunches(board: Board, ordersByPlayer: Record<PlayerId, Order[]>):
       continue;
     }
     const cityThere = cityAt(board, target);
+    // C17 (7n · Bloc 0) : la Grande Muraille du propriétaire de la ville ciblée
+    // BLOQUE le missile — portée EMPIRE (miroir de son effet d'attaque R-132),
+    // missile consommé, AUCUN dégât (miroir SDI R-141). L'obsolescence est
+    // GLOBALE (R-128 — union des techs). 🔶 les tirs sur des CASES ADJACENTES
+    // ne sont pas bloqués (l'exploit R-141 reste possible).
+    if (cityThere && wonderBlocksEnemyAttacks(Object.values(board.st.cities), cityThere.owner, allKnownTechs(board.st))) {
+      kill(board, unit, 'mission', null);
+      emit(board, {
+        type: 'NukeLaunched',
+        unitId: unit.id,
+        owner: unit.owner,
+        at: { q: unit.q, r: unit.r },
+        target,
+        outcome: 'blocked',
+        cityId: cityThere.id,
+        reason: 'grandeMuraille',
+      });
+      continue;
+    }
     // R-141 : SDI de la ville CIBLÉE — interception garantie (100 %), aucun
     // dégât, missile consommé. Couverture locale : la case seule.
     if (cityThere && cityThere.buildings.includes('sdi')) {
@@ -2106,36 +2323,64 @@ function applyLaunches(board: Board, ordersByPlayer: Record<PlayerId, Order[]>):
       if (!board.st.units[v.id]) continue; // cargaison déjà coulée avec son transport
       kill(board, v, 'nuke', null);
     }
-    // C13 : résolution de la ville CIBLÉE — elle survit (aucun changement de
-    // propriétaire, C14). Une cible ADJACENTE à une ville ne déclenche PAS
-    // cette résolution (exploit canon conservé — R-141).
+    // C15 (7n · Bloc 0) : résolution de la ville CIBLÉE — la distinction canon
+    // est RÉTABLIE. La CAPITALE survit (résolution C13, aucun changement de
+    // propriétaire — C14) ; une ville ORDINAIRE est RASÉE. Une cible ADJACENTE
+    // à une ville ne déclenche PAS cette résolution (exploit canon conservé
+    // — R-141).
     if (cityThere && board.st.cities[cityThere.id]) {
       const city = board.st.cities[cityThere.id]!;
-      const newPop = Math.min(city.pop, 2); // C13.1 🔶 : réduite à 2, jamais 1
-      city.pop = newPop;
-      city.workedTiles = city.workedTiles.slice(0, newPop);
-      // C13.2 🔶 : la moitié des bâtiments (⌊n/2⌋), Palais exclu, sélection
-      // seedée (Fisher-Yates partiel — R-80 consulté en Phase C, amendement
-      // documenté). Les merveilles (city.wonders) ne sont pas des bâtiments :
-      // préservées (C13.3) ; les GP installés (settledGreatPersons) aussi (C13.5).
-      const candidates = city.buildings.filter((b) => b !== 'palais').sort();
-      const pool = [...candidates];
-      const destroyed: string[] = [];
-      for (let i = 0; i < Math.floor(pool.length / 2); i++) {
-        const j = i + Math.floor(board.rng.next() * (pool.length - i));
-        [pool[i], pool[j]] = [pool[j]!, pool[i]!];
-        destroyed.push(pool[i]!);
+      if (city.capital) {
+        const newPop = Math.min(city.pop, 2); // C13.1 🔶 : réduite à 2, jamais 1
+        city.pop = newPop;
+        city.workedTiles = city.workedTiles.slice(0, newPop);
+        // C13.2 · C16 (7n · Bloc 0) : la moitié des bâtiments ARRONDIE VERS LE
+        // HAUT (⌈n/2⌉ — 5 bâtiments → 3 détruits), Palais exclu, sélection
+        // seedée (Fisher-Yates partiel — R-80 consulté en Phase C, amendement
+        // documenté). Les merveilles (city.wonders) ne sont pas des bâtiments :
+        // préservées (C13.3) ; les GP installés (settledGreatPersons) aussi
+        // (C13.5).
+        const candidates = city.buildings.filter((b) => b !== 'palais').sort();
+        const pool = [...candidates];
+        const destroyed: string[] = [];
+        for (let i = 0; i < Math.ceil(pool.length / 2); i++) {
+          const j = i + Math.floor(board.rng.next() * (pool.length - i));
+          [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+          destroyed.push(pool[i]!);
+        }
+        destroyed.sort();
+        city.buildings = city.buildings.filter((b) => !destroyed.includes(b));
+        emit(board, {
+          type: 'CityNuked',
+          cityId: city.id,
+          owner: city.owner,
+          at: target,
+          popAfter: newPop,
+          buildingsDestroyed: destroyed,
+        });
+      } else {
+        // C15 : ville ORDINAIRE — RASÉE (canon). Effacée de la carte, bâtiments
+        // ET merveilles détruits (jalon perdu par merveille — R-115, miroir du
+        // rasement barbare R-97), la garnison est déjà anéantie (C13.4) ; la
+        // case devient un CRATÈRE stérile et non fondable (terrain `cratere`,
+        // ressource effacée — défaut 🔶 : permanent).
+        const razed = board.st.cities[cityThere.id]!;
+        for (const w of [...razed.wonders].sort()) {
+          const loser = board.st.players[razed.owner];
+          if (!loser) break;
+          loser.cultureMilestones -= 1;
+          emit(board, {
+            type: 'CultureMilestone',
+            player: razed.owner,
+            delta: -1,
+            total: loser.cultureMilestones,
+            reason: 'wonderLost',
+          });
+        }
+        delete board.st.cities[cityThere.id];
+        board.st.map[tileKeyOf(target)] = { terrain: 'cratere', resource: null };
+        emit(board, { type: 'CityRazed', cityId: razed.id, owner: razed.owner, byPlayer: unit.owner, at: target });
       }
-      destroyed.sort();
-      city.buildings = city.buildings.filter((b) => !destroyed.includes(b));
-      emit(board, {
-        type: 'CityNuked',
-        cityId: city.id,
-        owner: city.owner,
-        at: target,
-        popAfter: newPop,
-        buildingsDestroyed: destroyed,
-      });
     }
   }
 }
@@ -2212,6 +2457,7 @@ function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>
     }
 
     let executed = true;
+    let failedRoll = false; // C18 : tirage de réussite perdu (action exécutée, or + espion perdus)
     switch (order.action) {
       case 'leave': {
         // R-143.6 : reposition sur une case adjacente libre (tri R-81 via
@@ -2298,11 +2544,31 @@ function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>
         break;
       }
       case 'destroyBuilding': {
-        // R-143.4 🔶 : le tireur choisit un bâtiment non-Palais (les merveilles
-        // ne sont pas des bâtiments et sont épargnées).
+        // R-143.4 · C18 (7n · Bloc 0) : le tireur choisit le bâtiment AVANT
+        // l'action (`buildingId` de l'ordre — les merveilles ne sont pas des
+        // bâtiments et sont épargnées ; Palais exclu). Coût et risque
+        // CROISSENT avec la valeur de production (marteaux) du bâtiment :
+        // coût en or = round(marteaux × 0,5) 🔶 débité AU LANCEMENT (non
+        // remboursé — échec compris) ; réussite = clamp(0,9 − marteaux/500 ;
+        // 0,4 ; 0,9) 🔶 (RNG seedé R-80 consulté en Phase C — duel compris).
+        // Trésorerie insuffisante = action sans effet (aucun débit, espion
+        // survit 🔶) ; ÉCHEC du tirage = espion perdu + or perdu (défaut 🔶).
         const target = order.buildingId;
         if (!target || target === 'palais' || !city.buildings.includes(target)) {
           executed = false;
+          break;
+        }
+        const marteaux = BUILDINGS[target]?.cost ?? 0;
+        const goldCost = destroyBuildingGoldOf(marteaux);
+        const thief = board.st.players[unit.owner]!;
+        if (thief.treasury < goldCost) {
+          executed = false;
+          break;
+        }
+        thief.treasury -= goldCost; // débité au lancement, non remboursé 🔶
+        const success = board.rng.next() < destroyBuildingSuccessChance(marteaux);
+        if (!success) {
+          failedRoll = true; // échec : espion + or perdus, bâtiment intact
           break;
         }
         city.buildings = city.buildings.filter((b) => b !== target);
@@ -2338,10 +2604,11 @@ function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>
       cityId: city.id,
       target: city.owner,
       action: order.action,
-      outcome: executed ? 'success' : 'failed',
+      outcome: executed && !failedRoll ? 'success' : 'failed',
     });
     // R-143 : toute action hostile EXÉCUTÉE consomme l'espion (seul `leave`
-    // le préserve) ; un échec sans effet aussi.
+    // le préserve) ; un échec sans effet aussi. C18 : un tirage perdu est une
+    // action EXÉCUTÉE (or débité) — l'espion est perdu lui aussi.
     if (executed && isHostile) kill(board, unit, 'mission', null);
   }
 }
@@ -2406,6 +2673,7 @@ function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>
     city.workedTiles = [];
     city.buildings = []; // R-66 : les bâtiments sont perdus à la capture (le captreur ne les récupère pas)
     city.conversion = CONVERSION_DEFAULT; // R-90 : le choix de conversion est réinitialisé
+    city.wasCaptured = true; // 7n · R-149 (trait Mongol commerceCaptures — définitif)
     // 7l · R-134 · Sac de ville : le captreur pille une PART de la trésorerie
     // du perdant (economy.json `cityCapturePlunderPct` 🔶 0.5 — sources
     // muettes, calibrable ; arrondi au plus proche). Champ `plunder` de
@@ -2608,14 +2876,20 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     // garde-fou : un terrestre ne se tient de toute façon jamais sur l'eau).
     const tile = board.st.map[tileKeyOf(hex)];
     if (!tile || !TERRAINS[tile.terrain]!.passable) continue;
+    // C15 (7n · Bloc 0) : un CRATÈRE (frappe nucléaire — terrain stérile) est
+    // NON FONDABLE (défaut 🔶 : permanent). Le colon survit, l'ordre est ignoré.
+    if (tile.terrain === 'cratere') continue;
     // T-09 : distance minimale à toute ville existante.
     if (Object.values(board.st.cities).some((c) => hexDistance(c, hex) < MIN_CITY_DISTANCE)) continue;
     const ownerHasCity = Object.values(board.st.cities).some((c) => c.owner === unit.owner);
-    // 7i · D3 · R-64 (rév.) : population initiale selon l'ÈRE de l'empire
-    // (la plus avancée des technologies débloquées — Antique 2, Médiévale 3,
-    // Industrielle 4, Moderne 5 — données growth.json). Les citoyens sont
-    // auto-assignés en Phase C (board.pendingFill — R-60).
-    const founderPop = foundingPopFor(board.st.players[unit.owner]?.techsUnlocked ?? []);
+    // 7i · D3 · R-64 (rév.) : population initiale selon l'Ère de l'empire
+    // (7n · R-147 : ère par COMPAGE — champ `era`, transition au tour suivant)
+    // — Antique 2, Médiévale 3, Industrielle 4, Moderne 5 (growth.json).
+    // 7n · R-149 : + le bonus civilisationnel (Chine Antique +1, Rome
+    // Moderne +1 → pop 6). Les citoyens sont auto-assignés en Phase C
+    // (board.pendingFill — R-60).
+    const owner = board.st.players[unit.owner]!;
+    const founderPop = foundingPopForEra(owner.era) + foundingPopBonusOf(owner);
     // 7i · D5 · R-64 (rév.) : fonder SUR une ressource la détruit
     // définitivement (elle est effacée avec le terrain, déjà le cas —
     // l'événement le documente désormais dans le journal).
@@ -2641,6 +2915,7 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       gpAccumFood: 0, // 7j (7k · C1 : DORMANT — le canal Humanitaire est la culture)
       pendingSalvage: 0, // 7k · R-130 (M3)
       settledGreatPersons: [], // 7j · R-126
+      wasCaptured: false, // 7n · R-149
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
     delete board.st.units[unit.id];
@@ -2934,15 +3209,19 @@ function cityEconomyInputs(board: Board, city: City, allTechs: readonly string[]
   for (const key of city.workedTiles) {
     // 7k · R-132 / 7l · C9 : les merveilles portent des bonus par terrain
     // travaillé (Cie des Indes : +1 Commerce par case d'EAU — côte incluse).
-    const y = tileYield(board.st.map, city.buildings, key, player.techsUnlocked, city.wonders, allTechs)!;
+    // 7n · R-149 : le contexte civ active les bonus de TERRAIN (Amérique/Russie
+    // plaine, Égypte désert, Allemagne forêt, Mongolie montagne, maritime) et
+    // l'accès aux ressources SANS tech (Inde).
+    const y = tileYield(board.st.map, city.buildings, key, player.techsUnlocked, city.wonders, allTechs, player)!;
     food += y.food;
     rawProduction += y.production;
     commerce += y.commerce;
     // 7l · R-134 : or direct des ressources (Gemmes +2, Or +3 dès Monnaie —
     // canon ; correction du canal commerce D3 de 7c, la trésorerie existe).
+    // 7n · R-149 : l'Inde (`toutesRessources`) ignore la tech d'accès.
     const res = board.st.map[key]?.resource;
     const resData = res ? RESOURCES[res] : undefined;
-    if (resData?.directGold && resourceAccessible(resData, player.techsUnlocked)) {
+    if (resData?.directGold && (civToutesRessources(player) || resourceAccessible(resData, player.techsUnlocked))) {
       directGold += resData.directGold;
     }
   }
@@ -2954,15 +3233,60 @@ function cityEconomyInputs(board: Board, city: City, allTechs: readonly string[]
   let wonderCommerceMult = 1;
   for (const w of city.wonders) wonderCommerceMult = Math.max(wonderCommerceMult, WONDERS[w]?.commerceMult ?? 1);
   commerce *= wonderCommerceMult;
+  // 7n · R-149 (trait Mongol `commerceCaptures`) : +50 % de commerce pour les
+  // VILLES CAPTURÉES (wasCapturee — définitif, mirror « villes assimilées »).
+  if (city.wasCaptured) commerce *= civCommerceCaptureMultOf(player);
   // 7e · Multiplicateurs de production (Usine ×2, data-driven).
+  // 7n · R-149 (trait Amérique `buildingProductionMult`) : surcharge data —
+  // les Usines triplent la production (×3).
   let factoryMult = 1;
-  for (const b of city.buildings) factoryMult = Math.max(factoryMult, BUILDINGS[b]?.productionMult ?? 1);
+  for (const b of city.buildings) {
+    factoryMult = Math.max(factoryMult, civBuildingProductionMultOf(player, b) ?? BUILDINGS[b]?.productionMult ?? 1);
+  }
   const prodMult = factoryMult * (1 + POP_PRODUCTION_BONUS * (city.pop - 1)); // R-63 🔶
   // 7h · R-121 · Communisme : +50 % de Production (round half up, après Usine/pop).
   const production = anarchy
     ? 0 // R-122 : production gelée
     : Math.round(Math.floor(rawProduction * prodMult) * (govEffects.productionMult ?? 1));
   return { anarchy, govEffects, empireBonus, food, production, commerce, directGold: anarchy ? 0 : directGold };
+}
+
+/**
+ * 7n · R-147 · Transition d'ÈRE par COMPAGE de technologies (T-36 🔶 :
+ * Médiévale à 5 techs, Industrielle à 14, Moderne à 24 — eras.json,
+ * indifférent à la branche). Appelée en FIN de Phase C : les techs complétées
+ * pendant cette résolution changent l'ère POUR LE TOUR SUIVANT (la pop de
+ * fondation, les facteurs de rush et les bonus de civ de la résolution
+ * courante ont déjà lu l'ère persistée). Les techs GRATUITES du nouveau palier
+ * (Arabie Mathématiques, Chine Alphabétisation, Égypte Irrigation, Grèce
+ * Démocratie→départ, Inde Religion, Mongols Communisme, France Poterie→départ)
+ * sont accordées immédiatement (octroi direct grantTech — ni `firstBy` ni
+ * Premier découvrir) et le comptage est RÉÉVALUÉ (cascade déterministe :
+ * des techs gratuites peuvent franchir le palier suivant). Événement
+ * `EraChanged` (public — l'ère est une information publique, canon).
+ */
+function processEraChanges(board: Board): void {
+  for (const playerId of Object.keys(board.st.players).sort()) {
+    const player = board.st.players[playerId]!;
+    const civ = civDataOf(civIdOf(player));
+    let changed = false;
+    for (let guard = 0; guard < 8; guard++) {
+      const target = eraOfTechCount(player.techsUnlocked.length);
+      if (eraIndexOf(target) <= eraIndexOf(player.era)) break;
+      player.era = target;
+      changed = true;
+      emit(board, { type: 'EraChanged', player: playerId, era: target, turn: board.st.turn });
+      // Techs gratuites du palier ATTEINT (tri par id — R-81).
+      if (civ) {
+        const freeTechs = new Set<string>();
+        for (const t of civ.eras[target] ?? []) {
+          if (t.key === 'techGratuite' && t.tech && !t.inactif) freeTechs.add(t.tech);
+        }
+        for (const tech of [...freeTechs].sort()) grantTech(board, playerId, tech);
+      }
+    }
+    void changed;
+  }
 }
 
 /** R-60/R-61/R-63/R-66 : rendements, répartition or/science, croissance, production. */
@@ -3022,10 +3346,18 @@ function processEconomy(board: Board): void {
     // 7j · R-126 · Settle : les GP INSTALLÉS multiplient le rendement de leur
     // cité hôte (+50 % par GP installé de la classe, additif 🔶) — Savant
     // (science) et Grand Explorateur / Industriel (or). Arrondi au plus proche.
+    // 7n · R-149 (trait `empireGoldMult` — Aztèques/Espagne/Zoulous
+    // Industrielle) : +50 % de production globale d'or — multiplicatif avec
+    // les merveilles (miroir C10).
     const gains = {
-      gold: Math.round(rawGains.gold * goldWonderMult * settledGpMultiplier(city, 'explorateur')),
+      gold: Math.round(
+        rawGains.gold * goldWonderMult * civEmpireGoldMultOf(player) * settledGpMultiplier(city, 'explorateur'),
+      ),
       science: Math.round(rawGains.science * settledGpMultiplier(city, 'savant')),
     };
+    // 7n · R-149 (trait Aztèque `templeScience`) : les Temples produisent +3
+    // Science par tour dans leur ville (fixe, hors Anarchie — R-122).
+    if (!anarchy) gains.science += civBuildingScienceOf(player, city.buildings);
     // 7l · R-134 : la trésorerie d'empire crédite la part OR des villes focus
     // Or (R-90) + bonus empire + or direct des ressources (Gemmes/Or).
     player.treasury += gains.gold + empireBonus.gold + directGold;
@@ -3055,6 +3387,10 @@ function processEconomy(board: Board): void {
     for (const b of city.buildings) {
       growthReduction = Math.max(growthReduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
     }
+    // 7n · R-149 (trait Zoulou `croissanceAcceleree`) : réduction de seuil
+    // « type Aqueduc » — S'AJOUTE à celle du bâtiment (plafonnée par le
+    // plancher de seuil de growthThresholdFor).
+    growthReduction += civGrowthReductionOf(player);
     // 7j · R-126 · Settle · Humanitaire : +50 % du taux de croissance (le
     // SURPLUS alimentaire est multiplié, additif 🔶, arrondi au plus proche) ;
     // un déficit n'est PAS amplifié.
@@ -3105,18 +3441,22 @@ function processEconomy(board: Board): void {
     // Anarchie (R-122). 7k · C2 : le jalon n'est compté que pour le canal
     // culture (`countsAsMilestone`).
     if (!anarchy) {
-      const gpThreshold = greatPersonThresholdFor(player.greatPersonsObtained);
+      // 7n · R-149 (trait `gpFrequents` — Grèce Médiévale, Rome Industrielle) :
+      // seuils d'obtention des GP ×0,75 🔶 (canal culture T-27 ET accumulateurs
+      // T-30 — la jauge soustraite utilise la MÊME valeur effective).
+      const gpMult = civGpThresholdMultOf(player);
+      const gpThreshold = Math.round(greatPersonThresholdFor(player.greatPersonsObtained) * gpMult);
       if (city.cultureStored >= gpThreshold) {
         city.cultureStored -= gpThreshold;
         spawnGreatPerson(board, city, greatPersonClassFor(player.researching, player.greatPersonsObtained), true);
-      } else if (city.gpAccumScience >= yieldGpThresholdFor('savant', player.greatPersonsByType)) {
-        city.gpAccumScience -= yieldGpThresholdFor('savant', player.greatPersonsByType);
+      } else if (city.gpAccumScience >= Math.round(yieldGpThresholdFor('savant', player.greatPersonsByType) * gpMult)) {
+        city.gpAccumScience -= Math.round(yieldGpThresholdFor('savant', player.greatPersonsByType) * gpMult);
         spawnGreatPerson(board, city, 'savant', false);
-      } else if (city.gpAccumGold >= yieldGpThresholdFor('explorateur', player.greatPersonsByType)) {
-        city.gpAccumGold -= yieldGpThresholdFor('explorateur', player.greatPersonsByType);
+      } else if (city.gpAccumGold >= Math.round(yieldGpThresholdFor('explorateur', player.greatPersonsByType) * gpMult)) {
+        city.gpAccumGold -= Math.round(yieldGpThresholdFor('explorateur', player.greatPersonsByType) * gpMult);
         spawnGreatPerson(board, city, 'explorateur', false);
-      } else if (city.gpAccumProd >= yieldGpThresholdFor('batisseur', player.greatPersonsByType)) {
-        city.gpAccumProd -= yieldGpThresholdFor('batisseur', player.greatPersonsByType);
+      } else if (city.gpAccumProd >= Math.round(yieldGpThresholdFor('batisseur', player.greatPersonsByType) * gpMult)) {
+        city.gpAccumProd -= Math.round(yieldGpThresholdFor('batisseur', player.greatPersonsByType) * gpMult);
         spawnGreatPerson(board, city, 'batisseur', false);
       }
     }
@@ -3412,7 +3752,7 @@ function processHealsAndMp(board: Board): void {
       const cap = unit.isArmy ? ARMY_SIZE * stats.hpMax : stats.hpMax;
       unit.hp = Math.min(cap, unit.hp + heal);
     }
-    unit.mp = stats.movement; // R-72 : PM régénérés au maximum
+    unit.mp = maxMovementOf(board.st, unit.owner, unit.type); // R-72 + 7n · R-149 (bonus mouvement civ)
   }
 }
 
@@ -3576,6 +3916,9 @@ export function resolveTurn(
   // 7l · C7 · R-130 (rév.) : PLUS de dissipation — la réserve de marteaux est
   // permanente (T-32 abrogé) ; elle finance les projets en Phase C.
   processEconomy(board);
+  // 7n · R-147 : transitions d'ÈRE par comptage de techs (au tour suivant,
+  // techs gratuites du palier, événement EraChanged).
+  processEraChanges(board);
   // 7l · R-134/R-136 : intérêts de trésorerie (hook 7n) puis paliers
   // économiques (une seule fois chacun, dans l'ordre des seuils).
   processTreasury(board);

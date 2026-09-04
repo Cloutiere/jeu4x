@@ -18,7 +18,8 @@ import type { Hex } from './hex.js';
 import { TERRAINS, BUILDINGS, RESOURCES, isWaterTerrain } from './data.js';
 import { WONDERS } from './techs.js';
 import { isWonderObsolete } from './culture.js';
-import type { TerrainId, TileResource, Yields } from './types.js';
+import { civTerrainBonusesOf, civToutesRessources } from './civilizations.js';
+import type { TechEra, TerrainId, TileResource, Yields } from './types.js';
 import { resourceBonus } from './resources.js';
 import { CITY_WORK_RADIUS } from './constants.js';
 import type { TileKey } from './state.js';
@@ -62,6 +63,11 @@ export function workRadiusOf(buildings: string[]): number {
  * 7k · R-132 · Cie des Indes orientales : +X Commerce par case d'EAU
  * travaillée (7l · C9 : côte `eau` ET océan `ocean` — le canon dit
  * « maritime » ; `wonders` = merveilles de la ville, non obsolètes — R-128).
+ * 7n · R-149 : `civ` (id + ère du propriétaire) active les bonus de TERRAIN
+ * civilisationnels (Amérique/Russie plaine, Égypte désert, Allemagne forêt,
+ * Mongolie montagne, Grèce/Japon maritime) et l'accès aux ressources SANS
+ * technologie (Inde — `toutesRessources`). Les bonus civ s'appliquent à la
+ * RÉCOLTE, pas au classement d'auto-assignation (sauf si `civ` est passé ici).
  * Retourne null si la case n'est pas travaillable (absente, ou terrain sans
  * rendements).
  */
@@ -72,12 +78,20 @@ export function tileYield(
   techsUnlocked: readonly string[] = [],
   wonders: readonly string[] = [],
   allTechs?: readonly string[],
+  civ?: { civId?: string; era: TechEra },
 ): Yields | null {
   const tile = map[key];
   if (!tile) return null;
   const base = TERRAINS[tile.terrain]?.yields;
   if (!base) return null;
   let y: Yields = { ...base };
+  // 7n · R-149 : bonus de terrain civilisationnel pour CE terrain.
+  if (civ) {
+    const bonus = civTerrainBonusesOf(civ)[tile.terrain];
+    if (bonus) {
+      y = addYields(y, { food: bonus.food ?? 0, production: bonus.production ?? 0, commerce: bonus.commerce ?? 0 });
+    }
+  }
   for (const id of buildings) {
     const bonus = BUILDINGS[id]?.tileBonus;
     if (bonus && bonus.terrain === tile.terrain) {
@@ -97,7 +111,7 @@ export function tileYield(
     if (isWonderObsolete(wonderId, obsoleteTechs)) continue;
     if (isWaterTerrain(tile.terrain)) y = addYields(y, { food: 0, production: 0, commerce: w.oceanCommerceBonus });
   }
-  const resBonus = resourceBonus(tile.resource ? (RESOURCES[tile.resource] ?? null) : null, techsUnlocked);
+  const resBonus = resourceBonus(tile.resource ? (RESOURCES[tile.resource] ?? null) : null, techsUnlocked, civ ? civToutesRessources(civ) : false);
   if (resBonus) y = addYields(y, resBonus);
   return y;
 }

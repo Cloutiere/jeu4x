@@ -1,0 +1,8 @@
+{
+  "thresholds": {
+    "medievale": 5,
+    "industrielle": 14,
+    "moderne": 24
+  },
+  "note": "7n · T-36 🔶 (défaut canon à veto) : l'ère d'un joueur est déterminée par le NOMBRE de technologies découvertes (indifférent à la branche) — Médiévale à 5, Industrielle à 14, Moderne à 24 (doc d'Erik « Guide Civilisations », GameFAQs). La transition est appliquée AU TOUR SUIVANT (champ joueur `era`, mis à jour en fin de résolution, événement EraChanged). Remplace la définition 7i « tech la plus avancée » (techEraOf) — utilisée partout : pop de fondation R-64/D3, facteurs de rush R-135, injection Explorateur, bonus de civ, overrun."
+}

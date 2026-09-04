@@ -23,7 +23,8 @@
     "prereqs": [],
     "unlocks": {
       "units": [
-        "archer"
+        "archer",
+        "archer_long"
       ],
       "buildings": [
         "caserne"
@@ -41,7 +42,9 @@
     "prereqs": [],
     "unlocks": {
       "units": [
-        "cavalier"
+        "cavalier",
+        "cossaque",
+        "keshik"
       ],
       "buildings": [],
       "wonders": []
@@ -249,7 +252,8 @@
     ],
     "unlocks": {
       "units": [
-        "catapulte"
+        "catapulte",
+        "trebuchet"
       ],
       "buildings": [],
       "wonders": []
@@ -321,7 +325,9 @@
     ],
     "unlocks": {
       "units": [
-        "piquier"
+        "hoplite",
+        "piquier",
+        "piquier_ashigaru"
       ],
       "buildings": [],
       "wonders": [
@@ -402,7 +408,10 @@
     ],
     "unlocks": {
       "units": [
-        "chevalier"
+        "cataphracte",
+        "chevalier",
+        "chevalier_samourai",
+        "conquistador"
       ],
       "buildings": [],
       "wonders": []
@@ -803,7 +812,10 @@
     ],
     "unlocks": {
       "units": [
-        "char_d_assaut"
+        "char_d_assaut",
+        "char_panzer",
+        "char_sherman",
+        "char_t34"
       ],
       "buildings": [],
       "wonders": []
@@ -873,7 +885,11 @@
     ],
     "unlocks": {
       "units": [
-        "chasseur"
+        "chasseur",
+        "me109",
+        "mustang",
+        "spitfire",
+        "zero"
       ],
       "buildings": [],
       "wonders": []
@@ -898,7 +914,9 @@
     ],
     "unlocks": {
       "units": [
-        "artillerie"
+        "artillerie",
+        "canon_88",
+        "obusier"
       ],
       "buildings": [],
       "wonders": []
@@ -922,7 +940,11 @@
     ],
     "unlocks": {
       "units": [
-        "bombardier"
+        "bombardier",
+        "flying_fortress",
+        "heinkel",
+        "lancaster",
+        "val"
       ],
       "buildings": [],
       "wonders": []

@@ -41,7 +41,7 @@ describe('migration v4 → v5 (R-85 : champs de recherche additifs)', () => {
   it('migrateState applique toute la chaîne de migrations jusqu’à la version courante', () => {
     const out = migrateState<GameState>(structuredClone(v4));
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(16); // 7m : nukesLaunched (R-139)
+    expect(CURRENT_SCHEMA_VERSION).toBe(17); // 7m : nukesLaunched (R-139)
     expect(out.players['p2']!.techsUnlocked).toEqual([]);
     // 7l · R-134 : au bout de la chaîne, l'or v4 devient la trésorerie (report).
     expect(out.players['p1']!.treasury).toBe(5);

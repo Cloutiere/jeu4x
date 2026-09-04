@@ -27,6 +27,21 @@ import { SCIENCE_RATIO_DEFAULT, VISION_RADIUS_CITY } from './constants.js';
 import { CONVERSION_DEFAULT } from './conversion.js';
 import { autoAssignWorkedTiles } from './economy.js';
 import { hexesWithinRadius } from './hex.js';
+import {
+  eraOfTechCount,
+  civStartTechs,
+  civStartGovernment,
+  civStartBuildings,
+  civStartGold,
+  civStartsFreeGp,
+  civStartRevealRadius,
+  civVeteranUnitsOf,
+  civUnitStatBonusOf,
+  uniqueReplacing,
+  isEgyptWonderChoiceValid,
+  civDataOf,
+} from './civilizations.js';
+import { greatPersonClassFor } from './culture.js';
 
 export interface MapPlayerSpawn {
   id: PlayerId;
@@ -315,8 +330,23 @@ export function loadBuiltinMapSync(id: BuiltinMapId): LoadedMap {
 /**
  * État initial : capitales fondées (pop 1), unités de départ placées,
  * vision initiale calculée, guerre permanente entre les deux joueurs (R-58).
+ * 7n · R-150 : `civSetup` porte la civilisation de chaque joueur (choix au
+ * lobby) — les AVANTAGES DE DÉPART sont appliqués de façon déterministe
+ * (techs, gouvernement, bâtiments/merveille gratuits, or, GP, révélation,
+ * unités de départ remplacées par les uniques disponibles — R-148).
  */
-export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
+export interface CivSetup {
+  civId: string;
+  /** 7n 🔶 : choix de la Merveille Antique de l'Égypte (params
+   *  `egypteWonderChoices` — validé par isEgyptWonderChoiceValid). */
+  wonderId?: string;
+}
+
+export function createInitialState(
+  map: LoadedMap,
+  rngSeed: number,
+  civSetup: Record<string, CivSetup> = {},
+): GameState {
   const terrainById = map.terrain;
   const mapRecord: Record<string, Tile> = {};
   for (const [key, t] of Object.entries(terrainById)) {
@@ -331,8 +361,12 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
 
   const players: GameState['players'] = {};
   for (const spawn of map.spawns) {
+    const setup = civSetup[spawn.id];
+    const civId = setup?.civId ?? 'neutre'; // 7n · R-145
     players[spawn.id] = {
       id: spawn.id,
+      civId,
+      era: 'ancienne', // 7n · R-147 (recalculé après les techs de départ)
       // 7l · R-134 : la trésorerie remplace l'ancien champ or (R-134).
       treasury: 0,
       economyMilestonesClaimed: 0,
@@ -386,6 +420,7 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       gpAccumFood: 0, // 7j (7k · C1 : DORMANT — canal Humanitaire = culture)
       pendingSalvage: 0, // 7k · R-130 (M3)
       settledGreatPersons: [], // 7j · R-126
+      wasCaptured: false, // 7n · R-149 (trait Mongol commerceCaptures)
     };
     // La case de capitale devient une case de ville (RULES.md §2).
     mapRecord[tileKeyOf(spawn.capital)] = { terrain: 'ville', resource: null };
@@ -401,18 +436,27 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
   const units: GameState['units'] = {};
   let n = 0;
   for (const spawn of map.spawns) {
+    // 7n · R-148 : les unités de départ d'une civ sont remplacées par leurs
+    // uniques disponibles (le Guerrier d'un Zoulou naît Impi — techs de
+    // départ déjà connues, l'unique sans tech est toujours disponible).
+    const civId = civSetup[spawn.id]?.civId ?? 'neutre';
+    const startTechs = civStartTechs(civId);
+    const veterans = civVeteranUnitsOf({ civId, era: 'ancienne' });
     for (const spec of spawn.units) {
       n += 1;
-      const stats = unitType(spec.type);
+      const effectiveType = uniqueReplacing(civId, spec.type, startTechs) ?? spec.type;
+      const stats = unitType(effectiveType);
       units[`u${n}`] = {
         id: `u${n}`,
-        type: spec.type,
+        type: effectiveType,
         owner: spawn.id,
         q: spec.q,
         r: spec.r,
         hp: stats.hpMax,
-        mp: stats.movement,
-        veteran: false,
+        // 7n · R-149 : PM max incluant le bonus de mouvement civilisationnel
+        // (Zoulous guerriers/Impi — le bonus d'ère est actif dès le départ).
+        mp: stats.movement + civUnitStatBonusOf({ civId, era: 'ancienne' }, 'unitMovement', effectiveType),
+        veteran: veterans.has(spec.type) || veterans.has(effectiveType), // 7n · R-149 (Allemagne Guerriers vétérans)
         isArmy: false,
         order: null,
         detainedBy: null,
@@ -461,6 +505,87 @@ export function createInitialState(map: LoadedMap, rngSeed: number): GameState {
       explored: [...visible].sort(),
       visible: [...visible].sort(),
     };
+  }
+
+  // ---- 7n · R-150 : AVANTAGES DE DÉPART des civilisations (déterministes) --
+  for (const spawn of map.spawns) {
+    const setup = civSetup[spawn.id];
+    const civId = setup?.civId ?? 'neutre';
+    const civ = civDataOf(civId);
+    if (!civ) continue;
+    const player = state.players[spawn.id]!;
+    // 1. Technologies gratuites (départ + ère Antique — Grèce Démocratie,
+    //    Arabie Religion, Chine Écriture, Rome Code des lois…). Aucun
+    //    événement ni `firstBy` (octroi direct, miroir Apollo R-132).
+    for (const tech of civStartTechs(civId)) {
+      if (!player.techsUnlocked.includes(tech)) player.techsUnlocked.push(tech);
+    }
+    player.techsUnlocked.sort();
+    // 2. Gouvernement de départ (Rome République, Arabie Fondamentalisme) —
+    //    sans Anarchie (setup, pas une transition).
+    const gov = civStartGovernment(civId);
+    if (gov) player.government = gov;
+    // 3. Bâtiments gratuits dans la capitale (France Cathédrale, Grèce
+    //    Tribunal) — posés directement, prérequis R-111 non exigés au setup.
+    const capital = Object.values(state.cities).find((c) => c.owner === spawn.id && c.capital);
+    if (capital) {
+      for (const b of civStartBuildings(civId)) {
+        if (!capital.buildings.includes(b)) capital.buildings.push(b);
+      }
+      capital.buildings.sort();
+      // 4. Merveille Antique de l'Égypte (choix du joueur au setup 🔶 —
+      //    validé par isEgyptWonderChoiceValid ; invalide = ignoré).
+      if (setup?.wonderId && isEgyptWonderChoiceValid(civId, setup.wonderId)) {
+        capital.wonders.push(setup.wonderId);
+      }
+    }
+    // 5. Or de départ (Aztèques — 🔶 +25, params).
+    player.treasury += civStartGold(civId);
+    // 6. Personnage illustre gratuit (Amérique) — posé sur la capitale (sinon
+    //    adjacente libre), classe déterministe R-127 (rotation index 0) 🔶.
+    if (civStartsFreeGp(civId) && capital) {
+      const gpType = greatPersonClassFor(player.researching, player.greatPersonsObtained);
+      const stats = unitType(gpType);
+      const anchor = { q: capital.q, r: capital.r };
+      const occupied = Object.values(state.units).some((u) => u.q === anchor.q && u.r === anchor.r);
+      const spot = !occupied ? anchor : hexesWithinRadius(anchor, 1).find((h) => {
+        const t = mapRecord[tileKeyOf(h)];
+        if (!t || !TERRAINS[t.terrain]!.passable) return false;
+        return !Object.values(state.units).some((u) => u.q === h.q && u.r === h.r);
+      });
+      if (spot) {
+        const gpId = `u${(Object.keys(state.units).length + 1)}`;
+        state.units[gpId] = {
+          id: gpId,
+          type: gpType,
+          owner: spawn.id,
+          q: spot.q,
+          r: spot.r,
+          hp: stats.hpMax,
+          mp: stats.movement,
+          veteran: false,
+          isArmy: false,
+          order: null,
+          detainedBy: null,
+          fortified: false,
+          aboard: null,
+          cargo: null,
+        };
+      }
+    }
+    // 7. Révélation de carte (Russie) — rayon params autour du départ
+    //    (capitale, sinon site du Colon) ajouté à `explored` (pas `visible`).
+    const revealRadius = civStartRevealRadius({ civId, era: 'ancienne' });
+    if (revealRadius > 0) {
+      const anchor = capital ?? spawn.capital;
+      const explored = new Set(player.vision.explored);
+      for (const h of hexesWithinRadius(anchor, revealRadius)) {
+        if (mapRecord[tileKeyOf(h)]) explored.add(tileKeyOf(h));
+      }
+      player.vision.explored = [...explored].sort();
+    }
+    // 8. Ère de départ (compage T-36) — les techs gratuites comptent (canon).
+    player.era = eraOfTechCount(player.techsUnlocked.length);
   }
 
   // R-96/R-98 : villages barbares et huttes portés de la carte vers l'état

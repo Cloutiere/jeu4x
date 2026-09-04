@@ -17,8 +17,8 @@ import {
   isRushForbidden,
   treasuryInterestOf,
   nextEconomyMilestone,
-  eraRushFactorFor,
-  explorerGoldInjectionFor,
+  eraRushFactorForEra,
+  explorerGoldInjectionForEra,
 } from '../src/economyOr.js';
 import { greatPersonThresholdFor, settledGpMultiplier, settledGpCostFactor, wonderProductionIssue } from '../src/culture.js';
 import { tileYield } from '../src/economy.js';
@@ -189,7 +189,7 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
       diplomacy: { war: [] },
     };
     const out = migrateState(v14 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(16); // la chaîne continue (7m)
+    expect(out.schemaVersion).toBe(17); // la chaîne continue (7m)
     expect(out.players['p1']!.treasury).toBe(123); // report de l'ancien or (zéro perte)
     expect(out.players['p1']!.economyMilestonesClaimed).toBe(0);
     expect('gold' in out.players['p1']!).toBe(false);
@@ -212,10 +212,10 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
 
 describe('7l · R-135 · formule du rush-buy (marteaux restants × facteur d\'ère)', () => {
   it('facteurs data-driven 🔶 : Antique ×2, Médiévale ×3, Industrielle ×5 (proposé), Moderne ×8', () => {
-    expect(eraRushFactorFor([])).toBe(2);
-    expect(eraRushFactorFor(['banque'])).toBe(3); // 'banque' = tech médiévale de l'arbre
-    expect(eraRushFactorFor(['machine_a_vapeur'])).toBe(5);
-    expect(eraRushFactorFor(['vol_spatial'])).toBe(8);
+    expect(eraRushFactorForEra('ancienne')).toBe(2); // R-147 : ère par compage (champ era)
+    expect(eraRushFactorForEra('medievale')).toBe(3);
+    expect(eraRushFactorForEra('industrielle')).toBe(5);
+    expect(eraRushFactorForEra('moderne')).toBe(8);
   });
 
   it('Guerrier à 0 marteau en Antique = ×2 du coût (20 or) — exemple chiffré du doc', () => {
@@ -232,7 +232,8 @@ describe('7l · R-135 · formule du rush-buy (marteaux restants × facteur d\'è
 
   it('exemples du doc : Marché médiéval 180, Banque médiévale 360, Banque moderne 960, Bibliothèque moderne 320', () => {
     const medieval = capitalState();
-    medieval.players['p1']!.techsUnlocked = ['banque']; // tech médiévale (ère de l'empire)
+    medieval.players['p1']!.techsUnlocked = ['banque']; // tech médiévale
+    medieval.players['p1']!.era = 'medievale'; // 7n · R-147 : ère persistée (compage)
     medieval.cities['c1']!.production = { item: { kind: 'building', id: 'marche' }, progress: 0 };
     expect(rushBuyCostOf(medieval, medieval.cities['c1']!)).toBe(180); // 60 × 3
     medieval.cities['c1']!.production = { item: { kind: 'building', id: 'banque' }, progress: 0 };
@@ -240,6 +241,7 @@ describe('7l · R-135 · formule du rush-buy (marteaux restants × facteur d\'è
     expect(rushBuyCostOf(medieval, medieval.cities['c1']!)).toBe(360); // 120 × 3
     const modern = capitalState();
     modern.players['p1']!.techsUnlocked = ['vol_spatial'];
+    modern.players['p1']!.era = 'moderne'; // 7n · R-147
     modern.cities['c1']!.production = { item: { kind: 'building', id: 'banque' }, progress: 0 };
     expect(rushBuyCostOf(modern, modern.cities['c1']!)).toBe(960); // 120 × 8
     modern.cities['c1']!.production = { item: { kind: 'building', id: 'bibliotheque' }, progress: 0 };
@@ -306,6 +308,7 @@ describe('7l · R-135 · exécution du RushBuy (moteur)', () => {
     // ère MÉDIÉVALE (tech 'banque') : Banque 120 → rush 360 ; trésorerie 400.
     state.players['p1']!.treasury = 400;
     state.players['p1']!.techsUnlocked = ['monnaie', 'banque'];
+    state.players['p1']!.era = 'medievale'; // 7n · R-147 : ère persistée
     state.cities['c1']!.buildings = ['marche'];
     state.cities['c1']!.production = { item: { kind: 'building', id: 'banque' }, progress: 0 };
     const result = resolveTurn(state, { p1: [{ type: 'RushBuy', cityId: 'c1' }] }, 1);
@@ -494,9 +497,10 @@ describe('7l · R-137 · Banque mondiale (condition dynamique, jamais débitée)
 // ---------------------------------------------------------------------------
 
 describe('7l · Bloc 5 · injection d\'or de l\'Explorateur (R-126, données economy.json)', () => {
-  function explorerState(techs: string[]): GameState {
+  function explorerState(techs: string[], era: 'ancienne' | 'medievale' | 'industrielle' | 'moderne' = 'ancienne'): GameState {
     const state = capitalState();
     state.players['p1']!.techsUnlocked = techs;
+    state.players['p1']!.era = era; // 7n · R-147 : ère persistée
     state.units['gp1'] = {
       id: 'gp1',
       type: 'explorateur',
@@ -517,11 +521,11 @@ describe('7l · Bloc 5 · injection d\'or de l\'Explorateur (R-126, données eco
   }
 
   it('ère Antique : +50 or (50/100/200/400 par ère — doc d\'Erik)', () => {
-    expect(explorerGoldInjectionFor([])).toBe(50);
-    expect(explorerGoldInjectionFor(['banque'])).toBe(100);
-    expect(explorerGoldInjectionFor(['machine_a_vapeur'])).toBe(200);
-    expect(explorerGoldInjectionFor(['vol_spatial'])).toBe(400);
-    const result = resolveTurn(explorerState([]), { p1: [{ type: 'GreatPersonAction', unitId: 'gp1', action: 'consume', cityId: 'c1' }] }, 1);
+    expect(explorerGoldInjectionForEra('ancienne')).toBe(50);
+    expect(explorerGoldInjectionForEra('medievale')).toBe(100);
+    expect(explorerGoldInjectionForEra('industrielle')).toBe(200);
+    expect(explorerGoldInjectionForEra('moderne')).toBe(400);
+    const result = resolveTurn(explorerState([], 'ancienne'), { p1: [{ type: 'GreatPersonAction', unitId: 'gp1', action: 'consume', cityId: 'c1' }] }, 1);
     expect(result.newState.players['p1']!.treasury).toBe(50);
     expect(result.newState.units['gp1']).toBeUndefined(); // le GP disparaît
     const consumed = result.events.find((e) => e.type === 'GreatPersonConsumed');
@@ -529,7 +533,7 @@ describe('7l · Bloc 5 · injection d\'or de l\'Explorateur (R-126, données eco
   });
 
   it('ère Moderne : +400 or', () => {
-    const result = resolveTurn(explorerState(['vol_spatial']), { p1: [{ type: 'GreatPersonAction', unitId: 'gp1', action: 'consume', cityId: 'c1' }] }, 1);
+    const result = resolveTurn(explorerState(['vol_spatial'], 'moderne'), { p1: [{ type: 'GreatPersonAction', unitId: 'gp1', action: 'consume', cityId: 'c1' }] }, 1);
     expect(result.newState.players['p1']!.treasury).toBe(400);
   });
 });

@@ -56,7 +56,15 @@ function techEraOfCache(techId: string): TechEra | undefined {
   return TECH_ERAS[techId];
 }
 
-/** D3 · Population initiale d'une ville fondée (ère de l'empire). */
+/** D3 · Population initiale d'une ville fondée (ère de l'empire).
+ *  7n · R-147 : l'ère est le COMPTAGE de techs (champ joueur `era` persisté —
+ *  transition au tour suivant) ; `foundingPopForEra` est la voie moteur.
+ *  `foundingPopFor` (techs) reste exporté pour compat UI/tests. */
+export function foundingPopForEra(era: TechEra): number {
+  return GROWTH.founderPopByEra[era] ?? 2;
+}
+
+/** D3 · Population initiale (dérivée des techs — compat, hors moteur). */
 export function foundingPopFor(techsUnlocked: readonly string[]): number {
   return GROWTH.founderPopByEra[techEraOf(techsUnlocked)] ?? 2;
 }

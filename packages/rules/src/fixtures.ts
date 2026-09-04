@@ -20,6 +20,7 @@ import { BARBARIANS, TERRAINS, unitType } from './data.js';
 import type { TerrainId } from './types.js';
 import { SCIENCE_RATIO_DEFAULT } from './constants.js';
 import { CONVERSION_DEFAULT } from './conversion.js';
+import { NEUTRAL_CIV } from './civilizations.js';
 
 export interface UnitSpec {
   id?: UnitId;
@@ -119,6 +120,8 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
   for (const id of players) {
     playerRecords[id] = {
       id,
+      civId: NEUTRAL_CIV, // 7n · R-145 (fixtures : aucun trait)
+      era: 'ancienne', // 7n · R-147 (0 tech — Antique)
       // 7l · R-134 : la trésorerie remplace l'ancien champ or (R-134).
       treasury: 0,
       economyMilestonesClaimed: 0,
@@ -188,6 +191,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       gpAccumFood: 0, // 7j (7k · C1 : DORMANT — canal Humanitaire = culture)
       pendingSalvage: 0, // 7k · R-130 (M3)
       settledGreatPersons: spec.settledGreatPersons ?? [], // 7j · R-126
+      wasCaptured: false, // 7n · R-149 (trait Mongol commerceCaptures)
     };
   });
 

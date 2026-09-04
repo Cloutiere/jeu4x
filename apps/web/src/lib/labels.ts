@@ -5,6 +5,59 @@
  * (GP, jalons, merveilles, ONU — R-113..R-116).
  */
 import type { GameEvent, HutReward } from '@game/shared';
+import { CIVILIZATIONS, UNIT_TYPES, uniqueUnitsOf } from '@game/rules';
+
+// ---------------------------------------------------------------------------
+// 7n · R-145 — Libellés des civilisations (doc « Guide Civilisations » fait foi)
+// ---------------------------------------------------------------------------
+
+/** Nom fr d'une civilisation (id brut si inconnue — neutre). */
+export function civName(civId: string | null | undefined): string {
+  if (!civId || civId === CIVILIZATIONS.params.civNeutre) return 'Sans civilisation';
+  return CIVILIZATIONS.civs[civId]?.name ?? civId;
+}
+
+/** Dirigeant de la civilisation. */
+export function civLeader(civId: string | null | undefined): string {
+  return CIVILIZATIONS.civs[civId ?? '']?.leader ?? '—';
+}
+
+/** Libellés de l'avantage de DÉPART (traits du setup). */
+export function civStartLabels(civId: string): string[] {
+  const civ = CIVILIZATIONS.civs[civId];
+  if (!civ) return [];
+  return civ.start.map((t) => t.label);
+}
+
+/** Résumé compact des bonus d'ère CUMULATIFS (4 ères — doc). */
+export function civEraSummary(civId: string): string {
+  const civ = CIVILIZATIONS.civs[civId];
+  if (!civ) return '';
+  const parts: string[] = [];
+  const order: Array<keyof typeof civ.eras> = ['ancienne', 'medievale', 'industrielle', 'moderne'];
+  for (const era of order) {
+    const labels = civ.eras[era].map((t) => t.label.replace(/\s*\(inactif[^)]*\)/g, ''));
+    if (labels.length > 0) parts.push(labels.join(', '));
+  }
+  return parts.join(' · ');
+}
+
+/** Résumé des unités uniques (nom + stat différenciante si documentée). */
+export function civUniqueSummary(civId: string): string {
+  const civ = CIVILIZATIONS.civs[civId];
+  if (!civ || civ.uniqueUnits.length === 0) return 'Aucune unité unique';
+  const names = uniqueUnitsOf(civId)
+    .map((id) => {
+      const u = UNIT_TYPES[id]!;
+      const base = UNIT_TYPES[u.replaces ?? '']!;
+      const diff = base && u.attack === base.attack && u.defense === base.defense && u.movement === base.movement ? '' : ' ✦';
+      return `${u.name}${diff}`;
+    });
+  return `Uniques : ${names.join(', ')}`;
+}
+
+/** 7n 🔶 · Libellé du choix de merveille Antique (Égypte). */
+export const EGYPT_WONDER_LABEL = 'Merveille Antique de départ (choix 🔶)';
 
 /** 7j · R-126 · Nom fr des 6 classes canoniques de GP. */
 const GP_CLASS_LABELS: Record<string, string> = {

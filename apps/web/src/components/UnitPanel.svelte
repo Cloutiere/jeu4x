@@ -5,7 +5,7 @@
    * Le client ne calcule aucune règle : les boutons reflètent ce que l'état
    * filtré autorise ; la validation finale reste serveur.
    */
-  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, SPY_STEAL_GOLD_PCT, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf, allKnownTechs, explorerGoldInjectionFor } from '@game/rules';
+  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, SPY_STEAL_GOLD_PCT, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf, allKnownTechs, explorerGoldInjectionForEra, eraOfPlayer, civIdOf } from '@game/rules';
   import type { Order, SpyActionKind } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
@@ -143,8 +143,8 @@
    *  d'or fixe par ère (50/100/200/400 — economy.json, source unique moteur). */
   const explorerInjection = $derived.by(() => {
     if (!unit || unit.type !== 'explorateur' || !view.state) return null;
-    const techs = view.state.players[unit.owner]?.techsUnlocked ?? [];
-    return explorerGoldInjectionFor(techs);
+    // 7n · R-147 : ère persistée du joueur (compage de techs).
+    return explorerGoldInjectionForEra(eraOfPlayer(view.state.players[unit.owner]));
   });
 
   /** 7j · R-126 : Consume — effet massif immédiat, le GP disparaît. */

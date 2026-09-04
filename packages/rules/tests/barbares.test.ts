@@ -415,11 +415,13 @@ describe('R-96 · Villages barbares', () => {
         villages: [{ q: 5, r: 5 }],
         units: [
           { id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 5, r: 5 }, // sur le village
-          { id: 'u1', type: 'geant', owner: 'p1', q: 5, r: 4 },
+          // 7n · R-149 : guerrier (et non le Géant de test) — un attaquant à
+          // 20:1 ÉCRASERAIT le défenseur (Overrun ≥ 6:1) avant l'échange.
+          { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4 },
         ],
       });
     const { result } = findSeed(build, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }] }, (r) =>
-      r.events.some((e) => e.type === 'CombatExchange' && e.defenderId === 'b1'),
+      r.events.some((e) => e.type === 'CombatExchange' && e.defenderId === 'b1' && e.defenderHpAfter > 0),
     );
     expect(result.newState.villages[0]!.hp).toBe(BARBARIANS.villageHP); // intact
     expect(result.newState.units['b1']).toBeDefined();

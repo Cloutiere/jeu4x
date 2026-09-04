@@ -6,6 +6,7 @@
  */
 import type { Hex } from './hex.js';
 import type { CityId, PlayerId, TileKey, UnitId } from './state.js';
+import type { TechEra } from './types.js';
 
 /** Cause de destruction d'une unité. 7g : `sunk` (cargaison d'un navire
  *  coulé — R-117), `mission` (Espion consommé par une mission réussie — R-119 ;
@@ -201,11 +202,18 @@ export type GameEvent =
   /** 7g · R-119 : un GP installé a été volé (jalon retiré à la victime, jalon
    *  crédité au voleur — escalade T-27 inchangée, décision d'Erik). */
   | { seq: number; type: 'GreatPersonStolen'; spyId: UnitId; thief: PlayerId; victim: PlayerId; cityId: CityId; at: Hex }
+  // --- 7n · R-145..R-150 : civilisations & traits ---
+  /** 7n · R-147 : l'ère d'un joueur change (COMPAGE de techs — seuils 5/14/24,
+   *  transition appliquée AU TOUR SUIVANT). Public (l'ère est une information
+   *  publique, comme la civ adverse — canon). */
+  | { seq: number; type: 'EraChanged'; player: PlayerId; era: TechEra; turn: number }
   // --- 7m · R-138..R-144 : nucléaire & espionnage jeu de base ---
   /** 7m · R-139 : lancement d'ICBM résolu — `detonated` (frappe C13),
-   *  `intercepted` (SDI de la ville ciblée, R-141) ou `refused` (Démocratie
-   *  R-140 / cible invisible — missile non consommé). `cityId` porte la ville
-   *  ciblée (détonation) ou interceptrice ; `reason` documente un refus. */
+   *  `intercepted` (SDI de la ville ciblée, R-141), `blocked` (7n · C17 :
+   *  Grande Muraille du propriétaire — missile consommé, aucun dégât) ou
+   *  `refused` (Démocratie R-140 / cible invisible — missile non consommé).
+   *  `cityId` porte la ville ciblée (détonation), interceptrice ou protégée ;
+   *  `reason` documente un refus. */
   | {
       seq: number;
       type: 'NukeLaunched';
@@ -213,9 +221,9 @@ export type GameEvent =
       owner: PlayerId;
       at: Hex;
       target: Hex;
-      outcome: 'detonated' | 'intercepted' | 'refused';
+      outcome: 'detonated' | 'intercepted' | 'blocked' | 'refused';
       cityId?: CityId;
-      reason?: 'democratie' | 'cibleInvisible';
+      reason?: 'democratie' | 'cibleInvisible' | 'grandeMuraille';
     }
   /** 7m · C13/R-139 : une ville ciblée a subi la résolution C13 — survit, pop
    *  résultante (`popAfter` = min(pop, 2) 🔶), bâtiments détruits (moitié
@@ -402,6 +410,9 @@ export function eventRefs(event: GameEvent): EventRefs {
       refs.cityIds.push(event.cityId);
       refs.players.push(event.owner, event.byPlayer);
       hex(event.at);
+      break;
+    case 'EraChanged':
+      refs.players.push(event.player);
       break;
     case 'HutOpened':
       refs.players.push(event.byPlayer);

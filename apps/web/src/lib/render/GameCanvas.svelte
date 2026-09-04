@@ -1149,6 +1149,20 @@
     canvas.addEventListener('contextmenu', onContextMenu);
     window.addEventListener('keydown', onKey);
 
+    // 7n · Hook de TEST (dev uniquement) : pilotage déterministe de la
+    // sélection et accès caméra pour les vérifications GUI automatisées.
+    if (import.meta.env.DEV) {
+      (window as unknown as Record<string, unknown>).__game = {
+        clickHex: (q: number, r: number) => onAction(clickAction(scene.view!, scene.ui, { q, r })),
+        centerOn: (q: number, r: number) => centerOnHex({ q, r }),
+        camera: () => ({ x: camera.x, y: camera.y, scale: camera.scale }),
+        screenOf: (q: number, r: number) => {
+          const w = hexToPixel({ q, r }, HEX_SIZE);
+          return { x: w.x * camera.scale + camera.x, y: w.y * camera.scale + camera.y };
+        },
+      };
+    }
+
     resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry || !app) return;

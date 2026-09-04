@@ -56,7 +56,14 @@ export function recomputeVision(state: GameState): void {
 }
 
 /** Types d'événements publics (diffusés tels quels). */
-const PUBLIC_EVENTS: ReadonlySet<GameEvent['type']> = new Set(['TurnResolved', 'Victory', 'DiplomaticIncident']);
+// 7n · R-147 : EraChanged est PUBLIC — l'ère est une information publique
+// (comme la civ adverse, canon).
+const PUBLIC_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
+  'TurnResolved',
+  'Victory',
+  'DiplomaticIncident',
+  'EraChanged',
+]);
 
 /** L'événement implique-t-il directement le joueur (une de ses unités/villes) ? */
 function eventTouchesPlayer(event: GameEvent, playerId: PlayerId, state: GameState): boolean {

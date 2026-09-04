@@ -11,6 +11,7 @@
  */
 import governmentsJson from './data/governments.json' with { type: 'json' };
 import { TECHS, WONDERS } from './techs.js';
+import { civAnarchyImmunity } from './civilizations.js';
 import type { GameState, Player, PlayerId } from './state.js';
 import type { GovernmentData, GovernmentEffects, GovernmentsData } from './types.js';
 
@@ -120,9 +121,12 @@ export function applySetGovernment(
   );
   if (issue) return { ok: false, reason: issue };
   const free = anarchyFreeAdoption(player, governmentId);
+  // 7n · R-149 : IMMUNITÉ ANARCHIE (Chine Moderne, Inde Antique, Japon
+  // Industrielle) — toute transition se fait sans Anarchie.
+  const immune = civAnarchyImmunity(player);
   player.government = governmentId;
-  player.anarchyUntil = free ? null : st.turn + ANARCHY_TURNS;
-  return { ok: true, state: st, anarchy: !free };
+  player.anarchyUntil = free || immune ? null : st.turn + ANARCHY_TURNS;
+  return { ok: true, state: st, anarchy: !(free || immune) };
 }
 
 /**

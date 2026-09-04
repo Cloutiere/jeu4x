@@ -188,6 +188,21 @@ function buildTileGraphics(): Record<TerrainId, Graphics> {
     gr.circle(TILE_CX, TILE_CY, 62).stroke({ width: 4, color: 0x6b5236, alpha: 0.6 });
     out.ville = gr;
   }
+  // Cratère (7n · C15) — sol brûlé, cercle dévoré et fissures rayonnantes.
+  {
+    const gr = g();
+    tileBase(gr, 0x4a4038);
+    gr.circle(TILE_CX, TILE_CY, 66).fill({ color: 0x2e2823 });
+    gr.circle(TILE_CX, TILE_CY, 66).stroke({ width: 5, color: 0x1d1916, alpha: 0.9 });
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 3) * i + 0.35;
+      gr
+        .moveTo(TILE_CX + Math.cos(a) * 30, TILE_CY + Math.sin(a) * 30)
+        .lineTo(TILE_CX + Math.cos(a) * 78, TILE_CY + Math.sin(a) * 78)
+        .stroke({ width: 4, color: 0x201b17, alpha: 0.85 });
+    }
+    out.cratere = gr;
+  }
   return out;
 }
 
@@ -532,11 +547,37 @@ const TILE_ASSETS: Record<TerrainId, string> = {
   eau: 'tile_eau',
   ocean: 'tile_ocean',
   ville: 'tile_ville_sol',
+  cratere: 'tile_cratere',
 };
 
 // 7j · R-126 : les 6 classes canoniques (art unite_<id>.png optionnelle).
 // 7m : espion (art existant, jamais chargé) et icbm (nouveau sprite) ajoutés.
 const UNIT_IDS = ['guerrier', 'colon', 'artiste', 'penseur', 'artiste_penseur', 'batisseur', 'savant', 'explorateur', 'humanitaire', 'leader', 'espion', 'icbm'];
+
+// 7n · R-148 · ALIAS des unités uniques 🔶 (art dédiée reportée — le volume
+// 7n ne permet pas 24 nouvelles planches generate.py) : chaque unique rend le
+// sprite de l'unité QU'IL REMPLACE, teinté par l'accent de son propriétaire
+// (le rendu distingue déjà les camps). Un PNG `unite_<id>.png` ajouté plus
+// tard dans public/art/ prend automatiquement la main (entityOrFallback).
+const UNIQUE_UNIT_ALIASES: Record<string, string> = {
+  guerrier_jaguar: 'guerrier',
+  guerrier_impi: 'guerrier',
+  hoplite: 'piquier',
+  piquier_ashigaru: 'piquier',
+  triheme: 'galere',
+  archer_long: 'archer',
+  keshik: 'cavalier',
+  cossaque: 'cavalier',
+  cataphracte: 'chevalier',
+  conquistador: 'chevalier',
+  chevalier_samourai: 'chevalier',
+  trebuchet: 'catapulte',
+  obusier: 'artillerie',
+  canon_88: 'artillerie',
+  char_sherman: 'char_d_assaut',
+  char_panzer: 'char_d_assaut',
+  char_t34: 'char_d_assaut',
+};
 
 async function texOrFallback(name: string, fallback: Texture): Promise<Texture> {
   try {
@@ -588,9 +629,17 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     Promise.all(resourceIds.map((id) => optionalIcon(`res_${id}`).then((t) => [id, t] as const))),
   ]);
 
+  // 7n · R-148 : ALIAS des unités uniques (art dédiée reportée 🔶) — chaque
+  // unique partage le sprite de l'unité qu'il remplace, teinté par l'accent
+  // du propriétaire. Synchrone (aucun chargement réseau supplémentaire) ; un
+  // PNG dédié `unite_<id>.png` pourra prendre la main plus tard.
+  const uniqueAliases = Object.entries(UNIQUE_UNIT_ALIASES)
+    .filter(([, base]) => fallback.units[base])
+    .map(([unique, base]) => [unique, fallback.units[base]!] as const);
+
   return {
     tiles: Object.fromEntries(tiles) as Record<TerrainId, Texture>,
-    units: Object.fromEntries([...units, ...barbareUnits]),
+    units: Object.fromEntries([...units, ...barbareUnits, ...uniqueAliases]),
     cities: { settlement, capital },
     villageBarbare,
     hutte,

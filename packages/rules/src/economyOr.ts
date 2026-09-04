@@ -18,7 +18,7 @@ import { WONDERS, buildingCostDiscount } from './techs.js';
 import { militaryCostMultOf } from './culture.js';
 import { allKnownTechs } from './state.js';
 import type { City, CityId, GameState, Player, PlayerId, ProductionItem } from './state.js';
-import { techEraOf } from './growth.js';
+import { eraOfPlayer, civUnitCostMultOf, civBuildingCostMultOf, civWonderCostMultOf, playerHasTrait as playerHasTraitCiv } from './civilizations.js';
 import type { TechEra } from './types.js';
 
 /** Données économiques (economy.json — R-134..R-137, calibrage 🔶). */
@@ -39,15 +39,10 @@ export const ECONOMY: EconomyData = economyJson as unknown as EconomyData;
 // R-134 · Intérêts de trésorerie (hook 7n)
 // ---------------------------------------------------------------------------
 
-/**
- * Hook 7n (civilisations & traits) : le joueur possède-t-il le trait donné ?
- * AUCUN système de civilisations avant 7n — toujours false (l'intérêt 2 % et
- * la réduction de rush ×0,5 restent désactivés). Le branchement 7n remplacera
- * ce stub par la lecture de `civilizations.json` (clé `traits` du joueur).
- */
-export function playerHasTrait(_player: Player | undefined, _key: string): boolean {
-  return false;
-}
+/** 7n · R-146 : le hook `playerHasTrait` vit désormais dans civilizations.ts
+ *  (traits ACTIFS selon `civId` + ère) — réexporté par index.ts ; les intérêts
+ *  2 % et le rush ×0,5 s'activent pour les civs qui portent ces traits. */
+export { playerHasTrait } from './civilizations.js';
 
 /**
  * R-134 · Intérêts passifs de trésorerie (2 % 🔶 — economy.json) : crédités
@@ -55,7 +50,7 @@ export function playerHasTrait(_player: Player | undefined, _key: string): boole
  * désactivé sans trait (test).
  */
 export function treasuryInterestOf(player: Player): number {
-  if (!playerHasTrait(player, ECONOMY.interestTraitKey)) return 0;
+  if (!playerHasTraitCiv(player, ECONOMY.interestTraitKey)) return 0;
   return Math.round(player.treasury * ECONOMY.interestRatePct);
 }
 
@@ -63,10 +58,10 @@ export function treasuryInterestOf(player: Player): number {
 // R-135 · Rush-buy
 // ---------------------------------------------------------------------------
 
-/** R-135 · Facteur d'ère du rush-buy (ère de l'EMPIRE — même définition que
- *  la pop de fondation D3/R-64 ; données economy.json 🔶 : 2/3/5/8). */
-export function eraRushFactorFor(techsUnlocked: readonly string[]): number {
-  return ECONOMY.eraRushFactors[techEraOf(techsUnlocked)] ?? 2;
+/** R-135 · Facteur d'ère du rush-buy (ère de l'EMPIRE — R-147 : ère par
+ *  COMPAGE de techs, champ joueur `era` ; données economy.json 🔶 : 2/3/5/8). */
+export function eraRushFactorForEra(era: TechEra): number {
+  return ECONOMY.eraRushFactors[era] ?? 2;
 }
 
 /** R-135 · Le rush-buy est-il INTERDIT pour cet item ? (Banque mondiale et
@@ -89,19 +84,31 @@ const RUSH_HALF_PRICE_TRAIT_KEY = 'rushHalfPrice';
  * l'UI. null si l'item est inconnu des données.
  */
 export function productionItemCostOf(state: GameState, playerId: PlayerId, item: ProductionItem): number | null {
+  const player = state.players[playerId];
   let cost: number | null;
   if (item.kind === 'unit') {
     const stats = UNIT_TYPES[item.id];
     if (!stats) return null;
     cost = stats.cost;
+    // 7n · R-149 : remise de coût civilisationnelle (Inde Colons, Russie
+    // Fusiliers/Espions — coutUniteMoitie, ×0,5 multiplicatif).
+    const civMult = civUnitCostMultOf(player, item.id);
+    if (civMult !== 1) cost = Math.max(1, Math.round(cost * civMult));
     if (stats.canAttack) {
       const mult = militaryCostMultOf(Object.values(state.cities), playerId, allKnownTechs(state));
       if (mult !== 1) cost = Math.max(1, Math.round(cost * mult));
     }
   } else if (item.kind === 'wonder') {
     cost = WONDERS[item.id]?.cost ?? null;
+    // 7n · R-149 : Merveilles à moitié prix (Rome Médiévale).
+    const wonderMult = civWonderCostMultOf(player);
+    if (cost !== null && wonderMult !== 1) cost = Math.max(1, Math.round(cost * wonderMult));
   } else {
     cost = BUILDINGS[item.id]?.cost ?? null;
+    // 7n · R-149 : remise de coût civilisationnelle (Bibliothèques, Casernes,
+    // Tribunaux — coutBuildingMoitie).
+    const civMult = civBuildingCostMultOf(player, item.id);
+    if (cost !== null && civMult !== 1) cost = Math.max(1, Math.round(cost * civMult));
   }
   if (cost === null) return null;
   if (item.kind === 'building') {
@@ -121,6 +128,18 @@ export function productionItemCostOf(state: GameState, playerId: PlayerId, item:
  * item inconnu. L'éligibilité de POSE (case de ville, coût pop du Colon) et
  * la trésorerie suffisante sont re-validées par le moteur (turn.ts).
  */
+/**
+ * R-135 · Coût du rush-buy de la production COURANTE d'une ville :
+ * `round(max(0, coût_effectif − progression) × facteur(ère) × hook_trait)`
+ * (round half up ; 0 marteau investi = coût total × facteur — canon). La
+ * réserve de marteaux (C7) n'entre PAS dans le calcul : elle n'est engagée
+ * dans le projet qu'en Phase C (marteaux restants = investis dans la file).
+ * 7n · R-149 : le trait Amérique « rushHalfPrice » (scope 'unit' — canon :
+ * « achat accéléré d'UNITÉS à demi-prix ») ne s'applique qu'aux UNITÉS.
+ * Retourne null si : aucune production, item interdit (ONU/Banque mondiale),
+ * item inconnu. L'éligibilité de POSE (case de ville, coût pop du Colon) et
+ * la trésorerie suffisante sont re-validées par le moteur (turn.ts).
+ */
 export function rushBuyCostOf(state: GameState, city: City): number | null {
   if (!city.production) return null;
   const item = city.production.item;
@@ -128,8 +147,9 @@ export function rushBuyCostOf(state: GameState, city: City): number | null {
   const cost = productionItemCostOf(state, city.owner, item);
   if (cost === null) return null;
   const remaining = Math.max(0, cost - city.production.progress);
-  const factor = eraRushFactorFor(state.players[city.owner]?.techsUnlocked ?? []);
-  const traitMult = playerHasTrait(state.players[city.owner], RUSH_HALF_PRICE_TRAIT_KEY) ? 0.5 : 1;
+  const owner = state.players[city.owner];
+  const factor = eraRushFactorForEra(eraOfPlayer(owner));
+  const traitMult = item.kind === 'unit' && playerHasTraitCiv(owner, RUSH_HALF_PRICE_TRAIT_KEY) ? 0.5 : 1;
   return Math.max(1, Math.round(remaining * factor * traitMult));
 }
 
@@ -172,7 +192,8 @@ export function wonderTreasuryLocked(wonderId: string, treasury: number): boolea
 }
 
 /** Bloc 5 · R-126 · Injection d'or du Grand Explorateur / Industriel (consume),
- *  fixe par ère (données economy.json : 50/100/200/400 — doc d'Erik). */
-export function explorerGoldInjectionFor(techsUnlocked: readonly string[]): number {
-  return ECONOMY.explorerGoldInjection[techEraOf(techsUnlocked)] ?? 50;
+ *  fixe par ère (données economy.json : 50/100/200/400 — doc d'Erik). R-147 :
+ *  l'ère est celle de l'EMPIRE (compage, champ `era`). */
+export function explorerGoldInjectionForEra(era: TechEra): number {
+  return ECONOMY.explorerGoldInjection[era] ?? 50;
 }

@@ -44,6 +44,13 @@ export interface UnitTypeData {
    *  achetable (isProducible/canSetProduction refusent) ; instanciée par un
    *  effet de merveille (Projet Manhattan — `grantsUnit`). */
   strategic?: boolean;
+  /** 7n · R-148 · Unité UNIQUE : civilisation à laquelle elle est réservée
+   *  (id de civilizations.json). Absent = unité standard. */
+  uniqueTo?: string;
+  /** 7n · R-148 · Unité standard REMPLACÉE (pattern R-111) — proposée à la
+   *  production dès que la tech est débloquée, elle retire l'unité standard
+   *  du menu de production de cette civilisation (R-111 transposé). */
+  replaces?: string;
 }
 
 export type TerrainId =
@@ -55,7 +62,8 @@ export type TerrainId =
   | 'desert'
   | 'eau'
   | 'ocean'
-  | 'ville';
+  | 'ville'
+  | 'cratere';
 
 /** Hook naval (Phase 6c, mécanique active en Phase 7) : classe d'eau du
  *  terrain. L'unité navale portera le même champ (Galère = "coast", Galion =
@@ -319,6 +327,18 @@ export interface EspionnageData {
   stealGoldPct: number;
   /** T-34 · R-144 · Matrice de duel d'espions (probabilités de l'attaquant). */
   duelWinChance: SpyDuelMatrix;
+  // --- 7n · Bloc 0 · C18 — destruction de bâtiment par espion (choix, coût,
+  // --- et risque croissant avec la valeur de production du bâtiment) ---
+  /** C18 🔶 · Coût en or = round(marteaux du bâtiment × `destroyBuildingGoldFactor`),
+   *  débité au lancement, non remboursé (échec compris). */
+  destroyBuildingGoldFactor: number;
+  /** C18 🔶 · Réussite = clamp(`destroyBuildingSuccessBase` − marteaux /
+   *  `destroyBuildingSuccessDivisor` ; `destroyBuildingSuccessMin` ;
+   *  `destroyBuildingSuccessMax`) — RNG seedé R-80. */
+  destroyBuildingSuccessBase: number;
+  destroyBuildingSuccessDivisor: number;
+  destroyBuildingSuccessMin: number;
+  destroyBuildingSuccessMax: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -520,4 +540,68 @@ export interface Combatant {
   defense: number;
   hp: number;
   veteran: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// 7n · R-145..R-150 — Civilisations & traits (civilizations.json / eras.json)
+// ---------------------------------------------------------------------------
+
+/** 7n · R-146 · Un trait de civilisation : clé fermée du catalogue moteur +
+ *  paramètres spécialisant l'effet + libellé FR (UI). Les traits marqués
+ *  `inactif` sont PORTÉS par les données (affichés grisés) mais ignorés par
+ *  le moteur (routes, caravanes, élite/Loyauté — mécaniques inexistantes). */
+export interface CivTrait {
+  key: string;
+  label: string;
+  inactif?: boolean;
+  // Paramètres spécialisés selon la clé (tous optionnels — le catalogue est
+  // typé côté moteur par des lectures défensives) :
+  terrain?: string; // terrainBonus
+  food?: number; // terrainBonus
+  production?: number; // terrainBonus
+  commerce?: number; // terrainBonus
+  building?: string; // templeScience, buildingProductionMult, batimentDepart
+  science?: number; // templeScience
+  mult?: number; // buildingProductionMult, empireGoldMult, commerceCaptures, tresorsDouble
+  tech?: string; // techGratuite
+  government?: string; // gouvernementGratuit
+  units?: string[]; // unitAttack, unitDefense, unitMovement, uniteVeteran
+  amount?: number; // unitAttack, unitDefense, unitMovement, popFondation
+  buildings?: string[]; // coutBuildingMoitie
+  ratio?: number; // overrun
+  reduction?: number; // croissanceAcceleree
+  scope?: string; // rushHalfPrice ('unit')
+}
+
+/** 7n · R-145 · Une civilisation (civilizations.json) : avantage de départ +
+ *  4 bonus d'ère CUMULATIFS (le doc fait foi) + unités uniques. Le bonus
+ *  d'ère « ancienne » est actif DÈS LE DÉBUT (le joueur commence dans l'ère
+ *  Antique — interprétation : « entrer dans l'ère » se produit au setup). */
+export interface CivilizationData {
+  id: string;
+  name: string;
+  leader: string;
+  start: CivTrait[];
+  eras: Record<TechEra, CivTrait[]>;
+  /** Unités uniques (ids de units.json, `uniqueTo` réciproque — testé). */
+  uniqueUnits: string[];
+}
+
+/** R-99/R-145 · Configuration globale des civilisations (calibrage 🔶). */
+export interface CivilizationsData {
+  params: {
+    civNeutre: string;
+    overrunBaseRatio: number;
+    startRevealRadius: number;
+    orDepartDefault: number;
+    gpThresholdMult: number;
+    egypteWonderChoices: string[];
+  };
+  civs: Record<string, CivilizationData>;
+}
+
+/** R-145/T-36 · Seuils d'ère par COMPAGE de technologies (eras.json 🔶 —
+ *  défaut canon 5/14/24, indifférent à la branche). */
+export interface ErasData {
+  thresholds: Record<Exclude<TechEra, 'ancienne'>, number>;
 }

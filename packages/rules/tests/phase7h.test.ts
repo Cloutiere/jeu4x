@@ -363,7 +363,7 @@ describe('R-124 · Victoire scientifique (Vaisseau spatial)', () => {
       wonders: [],
       gpAccumGold: 0,
       gpAccumScience: 0,
-      gpAccumProd: 0, gpAccumFood: 0, pendingSalvage: 0, settledGreatPersons: [],
+      gpAccumProd: 0, gpAccumFood: 0, pendingSalvage: 0, settledGreatPersons: [], wasCaptured: false,
     };
     const result = resolveTurn(s, {}, 42);
     expect(result.events.some((e) => e.type === 'Launch' && e.player === 'p1')).toBe(true);
@@ -404,7 +404,7 @@ describe('Migration v11 → v12 (Phase 7h)', () => {
       cities: { c1: { id: 'c1', q: 0, r: 0, wonders: ['stonehenge'] } },
     };
     const out = migrateState(v11 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(16);
+    expect(out.schemaVersion).toBe(17);
     expect(out.players['p1']!.government).toBe('despotisme');
     expect(out.players['p1']!.anarchyUntil).toBeNull();
     expect(out.players['p1']!.greatPersonsByType).toEqual({});

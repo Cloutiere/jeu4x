@@ -262,7 +262,7 @@ describe('R-60 · ordre SetWorkedTile (Phase 6)', () => {
 
 describe('Migration v3 → v4 (Phase 6)', () => {
   it('schemaVersion courant = 15 (7l — trésorerie R-134, paliers R-136)', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(16); // 7m : nukesLaunched (R-139) — l'or reste en 7l
+    expect(CURRENT_SCHEMA_VERSION).toBe(17); // 7m : nukesLaunched (R-139) — l'or reste en 7l
   });
 
   it('un état v3 migre : workedTiles auto-assignées, buildings [], item string → {kind:"unit"}', () => {
@@ -276,7 +276,7 @@ describe('Migration v3 → v4 (Phase 6)', () => {
     });
     const raw = { ...structuredClone(v3), schemaVersion: 3, cities: { c1: { ...structuredClone(v3.cities['c1']!), workedTiles: undefined, workedTile: null, buildings: undefined, production: { item: 'guerrier', progress: 4 } } } } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(16);
+    expect(out.schemaVersion).toBe(17);
     const c = out.cities['c1']!;
     // 7e : la migration v9 pose le Palais dans la capitale.
     expect(c.buildings).toEqual(['palais']);

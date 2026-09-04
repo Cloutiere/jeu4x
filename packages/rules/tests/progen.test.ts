@@ -572,8 +572,10 @@ describe("Phase 6c · Comptage des terrains par type (demande d'Erik)", () => {
       const { map } = generateProceduralMap(seed);
       // 'ville' n'est jamais généré : c'est une entité posée par
       // createInitialState sur les capitales (jamais un terrain de carte).
+      // 'cratere' non plus (7n · C15) : formé à l'exécution par une frappe
+      // nucléaire sur une ville ordinaire.
       const missing = countTerrainTypes(map)
-        .filter((r) => r.count === 0 && r.id !== 'ville')
+        .filter((r) => r.count === 0 && r.id !== 'ville' && r.id !== 'cratere')
         .map((r) => r.id);
       expect(missing, `seed ${seed} : terrains absents`).toEqual([]);
     }

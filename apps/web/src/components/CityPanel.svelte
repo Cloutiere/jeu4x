@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, uniqueReplacing, eraOfPlayer, civIdOf, activeTraitsOf } from '@game/rules';
   import { greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
@@ -297,11 +297,21 @@
     };
   }
 
+  // 7n · R-145 : civ du propriétaire de la ville (menus + tooltips traits).
+  const cityCivId = $derived(city && view.state ? civIdOf(view.state.players[city.owner]) : 'neutre');
+  const cityEra = $derived(city && view.state ? eraOfPlayer(view.state.players[city.owner]) : 'ancienne');
+  // 7n · R-145 : traits ACTIFS de la ville (tooltips — inactifs grisés).
+  const cityTraits = $derived(cityCivId === 'neutre' ? [] : activeTraitsOf({ civId: cityCivId, era: cityEra }));
+
   const unitOptions = $derived.by(() => {
     const options: ProdOption[] = [];
     for (const u of Object.values(UNIT_TYPES)) {
       if (u.implemented === false) continue; // Caravane, aériens, ICBM : pas proposés (7h+)
       if (u.greatPerson) continue; // 7f · R-114 : les GP ne sortent JAMAIS des files
+      // 7n · R-148 : les unités uniques ne sont proposées qu'à LEUR civ ; une
+      // unité standard remplacée par un unique disponible est retirée du menu.
+      if (u.uniqueTo && u.uniqueTo !== cityCivId) continue;
+      if (!u.uniqueTo && uniqueReplacing(cityCivId, u.id, techsUnlocked)) continue;
       // 7e · R-110 : les unités obsolètes sont retirées du menu (CivRev).
       if (isUnitObsolete(u.id, techsUnlocked)) continue;
       const effect = u.id === 'colon'

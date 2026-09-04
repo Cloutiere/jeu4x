@@ -17,11 +17,17 @@ describe('Données v1 (RULES.md §2-3)', () => {
   it('contient le roster terrestre complet 7e + GP de culture 7f + GP restants 7h (R-123) + données seules (naval, aérien, spéciaux)', () => {
     // 7j · D1/D2 : fusion Artiste/Penseur → artiste_penseur ; renommages
     // scientifique→savant, mogul→explorateur, ingenieur→batisseur ; + humanitaire.
+    // 7n · R-148 : + les 24 unités UNIQUES (uniqueTo/replaces — uniques aériens
+    // en données seules, `implemented: false`).
     expect(Object.keys(unitTable).sort()).toEqual([
-      'archer', 'artillerie', 'artiste_penseur', 'batisseur', 'bombardier', 'canon', 'caravane', 'catapulte',
-      'cavalier', 'char_d_assaut', 'chasseur', 'chevalier', 'colon', 'croiseur', 'cuirasse', 'espion',
-      'explorateur', 'fusilier', 'galere', 'galion', 'guerrier', 'humanitaire', 'icbm', 'infanterie_moderne',
-      'leader', 'legion', 'milice', 'piquier', 'savant', 'sous_marin',
+      'archer', 'archer_long', 'artillerie', 'artiste_penseur', 'batisseur', 'bombardier', 'canon', 'canon_88',
+      'caravane', 'cataphracte', 'catapulte', 'cavalier', 'char_d_assaut', 'char_panzer', 'char_sherman',
+      'char_t34', 'chasseur', 'chevalier', 'chevalier_samourai', 'colon', 'conquistador', 'cossaque',
+      'croiseur', 'cuirasse', 'espion', 'explorateur', 'flying_fortress', 'fusilier', 'galere', 'galion',
+      'guerrier', 'guerrier_impi', 'guerrier_jaguar', 'heinkel', 'hoplite', 'humanitaire', 'icbm',
+      'infanterie_moderne', 'keshik', 'lancaster', 'leader', 'legion', 'me109', 'milice', 'mustang',
+      'obusier', 'piquier', 'piquier_ashigaru', 'savant', 'sous_marin', 'spitfire', 'trebuchet', 'triheme',
+      'val', 'zero',
     ]);
     // 7h/7j · R-123 complétée : les GP à rendement sont des personnages pacifiques.
     for (const id of ['savant', 'explorateur', 'batisseur', 'humanitaire', 'leader']) {
@@ -41,9 +47,9 @@ describe('Données v1 (RULES.md §2-3)', () => {
     expect(unitTable['guerrier']!.canAttack).toBe(true);
   });
 
-  it('7e : les unités à distance existent (R-59) — Catapulte, Canon, Artillerie, seules', () => {
+  it('7e : les unités à distance existent (R-59) — Catapulte, Canon, Artillerie + uniques 7n (Obusier, Canon 88mm)', () => {
     const ranged = Object.values(unitTable).filter((u) => u.isRanged).map((u) => u.id).sort();
-    expect(ranged).toEqual(['artillerie', 'canon', 'catapulte']);
+    expect(ranged).toEqual(['artillerie', 'canon', 'canon_88', 'catapulte', 'obusier', 'trebuchet']);
     // R-87 : le Colon porte le coût en population officiel (2 — Erik 02/09).
     expect(unitTable['colon']!.populationCost).toBe(2);
     // 7e : soutien naval en données (mécanique 7g) — Galion 15, Croiseur 35, Cuirassé 65.

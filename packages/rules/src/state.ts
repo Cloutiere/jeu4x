@@ -6,8 +6,9 @@
  * (`MIGRATIONS`, `migrateState`) est exportée dès ce premier commit et
  * s'exécutera au chargement côté serveur (lazy-load du GameDO).
  */
-import type { TerrainId, TileResource } from './types.js';
+import type { TechEra, TerrainId, TileResource } from './types.js';
 import { BARBARIAN_ID, TERRAINS } from './data.js';
+import { eraOfTechCount, NEUTRAL_CIV } from './civilizations.js';
 
 export type PlayerId = string;
 export type UnitId = string;
@@ -170,6 +171,10 @@ export interface City {
    *  d'installation (ids de classe GP) — source unique des multiplicateurs
    *  Settle et du vol d'installé (R-119 révisée). */
   settledGreatPersons: string[];
+  /** 7n · R-149 (trait Mongol `commerceCaptures`) : la ville a été CAPTURÉE
+   *  au moins une fois (jamais réinitialisé) — +X % commerce pour le
+   *  propriétaire doté du trait. Migration 17 (additif, false). */
+  wasCaptured: boolean;
 }
 
 export interface Vision {
@@ -208,6 +213,15 @@ export interface Hut {
 
 export interface Player {
   id: PlayerId;
+  /** 7n · R-145 · Civilisation du joueur (civilizations.json — 'neutre' pour
+   *  les parties existantes et les fixtures : AUCUN trait). PUBLIC (canon :
+   *  la civ adverse est visible — diffusée telle quelle par l'état filtré). */
+  civId: string;
+  /** 7n · R-147 · Ère de l'EMPIRE par COMPAGE de techs (T-36 : 5/14/24 🔶) —
+   *  persistée : la transition est appliquée AU TOUR SUIVANT (fin de
+   *  résolution, événement EraChanged), utilisée partout (pop de fondation,
+   *  facteurs de rush, injection Explorateur, bonus de civ, overrun). */
+  era: TechEra;
   /** 7l · R-134 · Trésorerie globale d'empire (or) — créditée en Phase C par
    *  les villes focus Or (R-90) et les sources exogènes (R-134) ; dépensée
    *  par le rush-buy (R-135). ZÉRO entretien (R-134 : aucun coût récurrent).
@@ -308,7 +322,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 16;
+export const CURRENT_SCHEMA_VERSION = 17;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -734,6 +748,43 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       };
     }
     return { ...state, players: migrated };
+  },
+  /**
+   * v16 → v17 : Phase 7n — Civilisations & traits (RULES.md §8.12, R-145..R-150).
+   * Champs ADDITIFS, défauts neutres (idempotent) :
+   *  - par joueur : `civId: 'neutre'` (R-145 — les parties existantes ne
+   *    choisissaient pas de civilisation : AUCUN trait) et `era` (R-147 —
+   *    recalculée au COMPAGE des techs déjà débloquées, T-36 : 5/14/24 ; la
+   *    transition « au tour suivant » s'appliquera naturellement au premier
+   *    tour résolu après migration) ;
+   *  - par ville : `wasCaptured: false` (R-149 — trait Mongol `commerceCaptures` ;
+   *    les villes migrées n'ont jamais changé de propriétaire enregistré).
+   * Les unités uniques et le cratère (C15) ne portent AUCUN champ nouveau :
+   * le remplacement est DÉRIVÉ des données (R-148) et le cratère est un
+   * TERRAIN de la carte (terrain.json 'cratere' — C15).
+   */
+  17: (state) => {
+    const players = (state.players ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedPlayers: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(players).sort()) {
+      const p = players[id]!;
+      const techs = Array.isArray(p.techsUnlocked) ? (p.techsUnlocked as unknown[]).length : 0;
+      migratedPlayers[id] = {
+        ...p,
+        civId: typeof p.civId === 'string' ? p.civId : NEUTRAL_CIV,
+        era: typeof p.era === 'string' ? p.era : eraOfTechCount(techs),
+      };
+    }
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedCities: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      migratedCities[id] = {
+        ...c,
+        wasCaptured: c.wasCaptured === true,
+      };
+    }
+    return { ...state, players: migratedPlayers, cities: migratedCities };
   },
 };
 

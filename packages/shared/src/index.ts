@@ -36,6 +36,12 @@ export interface GameCreationSettings {
    *  (miroir) ; la génération procédurale est déjà paramétrée pour accueillir
    *  2-5 joueurs via la future stratégie `regionalMulti`. */
   playerCount?: number;
+  /** 7n · R-145 · Civilisation de l'HÔTE (choix à la création — défaut 🔶 :
+   *  absent = 'neutre', aucun trait). Le choix du 2e joueur se fait au join. */
+  civId?: string;
+  /** 7n · R-150 🔶 : Merveille Antique de l'Égypte (choix au setup, liste
+   *  fermée `egypteWonderChoices` de civilizations.json — sinon ignoré). */
+  wonderId?: string;
 }
 
 export interface PlayerInfo {
@@ -46,6 +52,10 @@ export interface PlayerInfo {
 /** Joueur vu du protocole : id de session + id dans le GameState moteur (spawn de carte, "p1"/"p2"). */
 export interface GamePlayerInfo extends PlayerInfo {
   engineId: string;
+  /** 7n · R-145 : civilisation choisie ('neutre' = aucune — parties migrées). */
+  civId?: string;
+  /** 7n · R-150 🔶 : Merveille Antique (Égypte uniquement — validée serveur). */
+  wonderId?: string;
 }
 
 export type GameStatus = 'waiting' | 'active' | 'finished';
@@ -54,7 +64,8 @@ export interface GameSummary {
   code: string;
   status: GameStatus;
   isPublic: boolean;
-  players: PlayerInfo[];
+  /** 7n : la civ choisie (optionnelle — affichage lobby) accompagne chaque joueur. */
+  players: Array<PlayerInfo & { civId?: string; wonderId?: string }>;
   settings: GameCreationSettings;
   turn: number;
   /** Création, epoch ms (méta lobby — jamais dans le GameState moteur). */
@@ -92,7 +103,9 @@ export type ClientToServerMessage = ProtoMessage &
     | { type: 'SetGovernment'; government: string }
     /** --- Messages de lobby (socket LobbyDO) --- */
     | { type: 'CreateGame'; settings: GameCreationSettings }
-    | { type: 'JoinGame'; code: string }
+    /** 7n · R-145 : `civId` (+ `wonderId` pour la Merveille Antique de
+     *  l'Égypte 🔶) — choix de civilisation du joueur B au join. */
+    | { type: 'JoinGame'; code: string; civId?: string; wonderId?: string }
     | { type: 'ListGames' }
     | { type: 'AbandonGame'; code: string }
   );

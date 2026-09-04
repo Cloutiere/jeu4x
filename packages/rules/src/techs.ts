@@ -11,6 +11,7 @@
 import techsJson from './data/techs.json' with { type: 'json' };
 import wondersJson from './data/wonders.json' with { type: 'json' };
 import { UNIT_TYPES, BUILDINGS } from './data.js';
+import { uniqueReplacing } from './civilizations.js';
 import type {
   BuildingData,
   CostDiscount,
@@ -53,10 +54,13 @@ export interface ProductionData {
   replaces?: string | undefined;
   /** 7e : jamais proposé dans la file de production (Palais). */
   fixed?: boolean | undefined;
+  /** 7n · R-148 : unité UNIQUE réservée à cette civ (production refusée aux
+   *  autres — isProducible). */
+  uniqueTo?: string | undefined;
 }
 
 function unitAsItem(u: UnitTypeData): ProductionData {
-  return { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson, cargoCapacity: u.cargoCapacity, spy: u.spy, strategic: u.strategic };
+  return { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson, cargoCapacity: u.cargoCapacity, spy: u.spy, strategic: u.strategic, uniqueTo: u.uniqueTo };
 }
 
 function buildingAsItem(b: BuildingData): ProductionData {
@@ -110,9 +114,19 @@ export function obsoleteUnitsFor(techsUnlocked: readonly string[]): Set<string> 
   return out;
 }
 
-/** 7e : l'unité est-elle obsolète pour ce joueur (retirée du menu de production) ? */
+/**
+ * 7e : l'unité est-elle obsolète pour ce joueur (retirée du menu de production) ?
+ * 7n · R-148 : une unité UNIQUE partage le sort de l'unité standard qu'elle
+ * remplace (`replaces` — l'Impi devient obsolète avec le Guerrier, etc.).
+ */
 export function isUnitObsolete(unitId: string, techsUnlocked: readonly string[]): boolean {
-  return obsoleteUnitsFor(techsUnlocked).has(unitId);
+  const obsolete = obsoleteUnitsFor(techsUnlocked);
+  let current: string | undefined = unitId;
+  for (let guard = 0; guard < 8 && current; guard++) {
+    if (obsolete.has(current)) return true;
+    current = UNIT_TYPES[current]?.replaces;
+  }
+  return false;
 }
 
 /**
@@ -120,6 +134,10 @@ export function isUnitObsolete(unitId: string, techsUnlocked: readonly string[])
  * mentation), non obsolète (unités) et, pour un bâtiment, sans prérequis de
  * bâtiment manquant ni caractère fixe (Palais). 7f : les GP (artiste/penseur)
  * ne sont JAMAIS productibles (R-114 — engendrés par la culture seulement).
+ * 7m · R-138 : une arme stratégique (ICBM) n'est jamais produite.
+ * 7n · R-148 : une unité standard remplacée par une unité unique DISPONIBLE
+ * de la civilisation (`civId` — tech débloquée) n'est plus productible : le
+ * remplacement pattern R-111 retire l'unité standard du menu.
  * Les contraintes d'EMPIRE des merveilles (unicité, jalons ONU) sont vérifiées
  * par `wonderProductionIssue` (culture.ts) — elles exigent l'état complet.
  * La ville n'est pas toujours connue (recherche d'UI) : passer `cityBuildings`
@@ -129,6 +147,7 @@ export function isProducible(
   item: ProductionData,
   techsUnlocked: readonly string[],
   cityBuildings?: readonly string[],
+  civId?: string,
 ): boolean {
   if (!isUnlocked(item, techsUnlocked)) return false;
   if (item.fixed) return false;
@@ -136,27 +155,45 @@ export function isProducible(
   // 7m · R-138 : une arme stratégique (ICBM) n'est jamais produite par les
   // files ni achetable — elle est instanciée par le Projet Manhattan.
   if (item.strategic) return false;
+  // 7n · R-148 : une unité UNIQUE n'est productible que par SA civilisation
+  // (sans `civId` — recherche d'UI générique — aucun unique n'est proposé).
+  if (item.uniqueTo && item.uniqueTo !== civId) return false;
   if (item.requiresBuilding && cityBuildings && !cityBuildings.includes(item.requiresBuilding)) return false;
   return true;
 }
 
-/** 7e : l'item est-il une UNITÉ obsolète pour ce joueur ? (validation serveur) */
-function unitObsoleteIn(item: ProductionData, id: string, techsUnlocked: readonly string[]): boolean {
-  void item;
-  return isUnitObsolete(id, techsUnlocked);
+/**
+ * 7n · R-148 : l'item UNITÉ est-il remplacé pour cette civ par une unité
+ * unique DISPONIBLE ? Retourne l'id de l'unique (le moteur et l'UI y
+ * substituent l'item), null sinon (civ neutre, aucun remplacement, tech de
+ * l'unique non débloquée). Pur — partagé par le moteur (SetProduction,
+ * complétions, unités gratuites) et l'UI (menus de production).
+ */
+export function unitReplacementFor(
+  item: { kind: 'unit' | 'building' | 'wonder'; id: string },
+  civId: string | undefined,
+  techsUnlocked: readonly string[],
+): string | null {
+  if (item.kind !== 'unit' || !civId || civId === 'neutre') return null;
+  return uniqueReplacing(civId, item.id, techsUnlocked);
 }
 
-/** 7e : validations serveur complètes (moteur — applySetProduction). */
+/** 7e : validations serveur complètes (moteur — applySetProduction). 7n :
+ *  `civId` conditionne le remplacement par les unités uniques (R-148). */
 export function canSetProduction(
   item: { kind: 'unit' | 'building' | 'wonder'; id: string },
   techsUnlocked: readonly string[],
   cityBuildings: readonly string[],
+  civId?: string,
 ): boolean {
   const data = productionDataOf(item);
   if (!data) return false;
-  if (item.kind === 'unit' && unitObsoleteIn(data, item.id, techsUnlocked)) return false;
+  if (item.kind === 'unit' && isUnitObsolete(item.id, techsUnlocked)) return false;
   if (item.kind === 'building' && cityBuildings.includes(item.id)) return false; // R-66 : non duplicable
-  return isProducible(data, techsUnlocked, cityBuildings);
+  // 7n · R-148 : une unité standard remplacée par un unique disponible est
+  // refusée (l'unique, lui, reste productible — il n'a pas de `replaces`).
+  if (item.kind === 'unit' && unitReplacementFor(item, civId, techsUnlocked)) return false;
+  return isProducible(data, techsUnlocked, cityBuildings, civId);
 }
 
 // ---------------------------------------------------------------------------

@@ -335,7 +335,10 @@ async function main() {
   const lobby = wsConnect('/ws/lobby', token);
   await lobby.open;
   await lobby.waitFor('GameList');
-  lobby.send({ type: 'JoinGame', code: CODE });
+  // 7n · R-145 : le bot joue une civ DÉTERMINISTE 🔶 (Zoulous — overrun 4:1,
+  // Impi) ; surchargable par BOT_CIV_ID pour les vérifications GUI.
+  const BOT_CIV = process.env.BOT_CIV_ID ?? 'zoulous';
+  lobby.send({ type: 'JoinGame', code: CODE, civId: BOT_CIV });
   const joined = await lobby.waitFor('GameJoined', 10000);
   log(`Partie ${joined.code} rejointe via le lobby.`);
   lobby.ws.close();

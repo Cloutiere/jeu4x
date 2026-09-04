@@ -14,7 +14,8 @@
   import { get } from 'svelte/store';
   import type { GameEvent } from '@game/shared';
   import type { Hex } from '@game/rules';
-  import { CULTURE, GOVERNMENTS, TECHS, conversionGains, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, nextEconomyMilestone, allKnownTechs, interiorCitizenFor } from '@game/rules';
+  import { CULTURE, GOVERNMENTS, TECHS, conversionGains, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, nextEconomyMilestone, allKnownTechs, interiorCitizenFor, activeTraitsOf } from '@game/rules';
+  import { civName, civLeader } from '../lib/labels.js';
   import { createGameClient } from '../lib/gameClient.js';
   import type { GameClient } from '../lib/gameClient.js';
   import { createUiState, selectNothing } from '../lib/render/ui.js';
@@ -353,6 +354,37 @@
     return !!p && typeof p.anarchyUntil === 'number' && $view.turn < p.anarchyUntil;
   });
 
+  // 7n · R-145 : badge civilisation + ÈRE (compage — R-147) du joueur, civ
+  // adverse PUBLIQUE (canon) et traits actifs (tooltips — traits inactifs
+  // mentionnés, R-146).
+  const ERA_LABELS: Record<string, string> = {
+    ancienne: 'Ère Ancienne',
+    medievale: 'Ère Médiévale',
+    industrielle: 'Ère Industrielle',
+    moderne: 'Ère Moderne',
+  };
+  const eraLabel = (era: string): string => ERA_LABELS[era] ?? era;
+  const myCivId = $derived.by(() => {
+    const id = myEngineId($view);
+    return (id && $view.state ? $view.state.players[id]?.civId : null) ?? 'neutre';
+  });
+  const myEra = $derived.by(() => {
+    const id = myEngineId($view);
+    return (id && $view.state ? $view.state.players[id]?.era : null) ?? 'ancienne';
+  });
+  const myCivTraits = $derived(myCivId === 'neutre' ? [] : activeTraitsOf({ civId: myCivId, era: myEra }));
+    const myCivTooltip = $derived.by(() => {
+    if (myCivId === 'neutre') return 'Partie sans civilisation (7n : choix au lobby)';
+    const lines = [`${civName(myCivId)} (${civLeader(myCivId)})`];
+    for (const t of myCivTraits) lines.push(`${t.inactif ? '○ (inactif) ' : '• '}${t.label}`);
+    return lines.join(String.fromCharCode(10));
+  });
+  const oppCivId = $derived.by(() => {
+    const id = myEngineId($view);
+    const other = id && $view.state ? Object.keys($view.state.players).find((p) => p !== id) : null;
+    return (other && $view.state ? $view.state.players[other]?.civId : null) ?? 'neutre';
+  });
+
   // 7l · R-134 : trésorerie + GPT net (somme des villes focus Or — miroir du
   // moteur : conversion R-90 × Troyes/Internet C10 × Settle Explorateur) et
   // progression vers le prochain palier économique (R-136).
@@ -472,6 +504,17 @@
     <strong>Partie {code}</strong>
     <span>Tour <strong>{$view.turn}</strong></span>
     <span class="chip" class:resolving={$view.phase === 'resolving'}>{$view.phase === 'resolving' ? 'Résolution…' : 'Ordres'}</span>
+    {#if $view.state}
+      <button
+        type="button"
+        class="civbadge"
+        title={myCivTooltip}
+        onclick={() => (showGovernment = !showGovernment)}
+      >
+        <span class="civname">{civName(myCivId)}</span>
+        <span class="eraname">{eraLabel(myEra)}{oppCivId !== 'neutre' ? ` · Adversaire : ${civName(oppCivId)}` : ''}</span>
+      </button>
+    {/if}
     <span class="res" title="Trésorerie d'empire (R-134) — zéro entretien ; + GPT net des villes focus Or (R-90)">
       <img src="/art/icone_or.png" alt="Or" onerror={hideImg} />
       {myEconomy.treasury.toLocaleString('fr-FR')}
@@ -693,6 +736,13 @@
   .ship li.done { color: #81c784; }
   .ship .ready { color: #81c784; font-weight: 600; margin: 0.3rem 0 0; }
   .ship .shiphint { color: #8b98a5; font-size: 0.8rem; margin: 0.3rem 0 0; }
+  .civbadge {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+    border: 1px solid #7fc79a; border-radius: 6px; background: #1d2b21;
+    color: var(--fg, #e8e8e8); padding: 0.15rem 0.5rem; cursor: pointer; font: inherit;
+  }
+  .civbadge .civname { font-weight: 700; font-size: 0.8rem; }
+  .civbadge .eraname { font-size: 0.68rem; color: #9db8a6; }
   .net { font-size: 0.8rem; color: #8b98a5; }
   .gpt { font-size: 0.78rem; color: #a5d6a7; font-weight: 400; }
   .gpt.negative { color: #ef9a9a; }

@@ -12,7 +12,8 @@ export interface LobbyClient {
   status: Writable<NetStatus>;
   error: Writable<string | null>;
   createGame(settings: GameCreationSettings): void;
-  join(code: string): void;
+  /** 7n · R-145 : civ (et merveille Égypte 🔶) au join. */
+  join(code: string, civId?: string, wonderId?: string): void;
   abandon(code: string): void;
   close(): void;
 }
@@ -52,8 +53,10 @@ export function createLobbyClient(): LobbyClient {
     createGame(settings) {
       handle.send({ type: 'CreateGame', settings });
     },
-    join(code) {
-      handle.send({ type: 'JoinGame', code });
+    join(code: string, civId?: string, wonderId?: string) {
+      // 7n · R-145 : choix de civilisation du joueur B au join (🔶 Égypte :
+      // wonderId pour la Merveille Antique).
+      handle.send({ type: 'JoinGame', code, ...(civId ? { civId } : {}), ...(wonderId ? { wonderId } : {}) });
     },
     abandon(code) {
       handle.send({ type: 'AbandonGame', code });

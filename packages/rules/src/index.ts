@@ -22,6 +22,8 @@ export * from './growth.js';
 export * from './economyOr.js';
 /** 7m — Nucléaire & espionnage jeu de base (R-138..R-144, espionnage.json). */
 export * from './espionnage.js';
+/** 7n — Civilisations & traits (R-145..R-150, civilizations.json / eras.json). */
+export * from './civilizations.js';
 export * from './barbares.js';
 export * from './map.js';
 export * from './fog.js';

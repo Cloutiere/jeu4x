@@ -19,12 +19,16 @@ import { RESOURCE_UNKNOWN } from './types.js';
 import type { TileResource } from './types.js';
 
 /** L'ACCÈS (R-93) : la ressource est-elle exploitable par ce joueur ?
- *  tech null (D4) ou révélée par une tech débloquée. */
+ *  tech null (D4) ou révélée par une tech débloquée.
+ *  7n · R-149 (trait Indien `toutesRessources`) : `bypassTech` court-circuite
+ *  la technologie — l'Inde accède immédiatement à toutes les ressources. */
 export function resourceAccessible(
   res: ResourceData | null,
   techsUnlocked: readonly string[],
+  bypassTech = false,
 ): boolean {
   if (!res) return false;
+  if (bypassTech) return true;
   return res.revealedByTech === null || techsUnlocked.includes(res.revealedByTech);
 }
 
@@ -55,12 +59,14 @@ export function filteredResource(
 
 /** Bonus effectif d'une ressource pour ce joueur (R-93) : les `yields` si
  *  accessible, zéro sinon. Nul pour une case sans ressource — et pour le
- *  marqueur « inconnue » (absent de la table, jamais de bonus). */
+ *  marqueur « inconnue » (absent de la table, jamais de bonus).
+ *  7n · R-149 : `bypassTech` (Inde — accès immédiat à toutes les ressources). */
 export function resourceBonus(
   res: ResourceData | null,
   techsUnlocked: readonly string[],
+  bypassTech = false,
 ): Yields | null {
-  if (!res || !resourceAccessible(res, techsUnlocked)) return null;
+  if (!res || !resourceAccessible(res, techsUnlocked, bypassTech)) return null;
   return res.yields;
 }
 

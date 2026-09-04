@@ -5,6 +5,8 @@
   import type { MapId } from '@game/shared';
   import { createLobbyClient } from '../lib/lobbyClient.js';
   import { logout, session } from '../lib/session.js';
+  import CivPicker from '../components/CivPicker.svelte';
+  import { civName } from '../lib/labels.js';
 
   const client = createLobbyClient();
   onDestroy(() => client.close());
@@ -19,13 +21,25 @@
   let timerMinutes = $state(60);
   let isPublic = $state(true);
   let joinCode = $state('');
+  // 7n · R-145 : choix de civilisation (hôte à la création, invité au join 🔶).
+  let hostCiv = $state<string | null>('amerique');
+  let hostWonder = $state<string | null>(null);
+  let joinCiv = $state<string | null>('rome');
+  let joinWonder = $state<string | null>(null);
+  let showCivPicker = $state(true);
 
   function createGame(): void {
     client.createGame({
       mapId,
       turnTimerMinutes: timerMinutes > 0 ? timerMinutes : null,
       isPublic,
+      ...(hostCiv ? { civId: hostCiv } : {}),
+      ...(hostCiv && hostWonder ? { wonderId: hostWonder } : {}),
     });
+  }
+
+  function joinWithCiv(code: string): void {
+    client.join(code, joinCiv ?? undefined, joinCiv && joinWonder ? joinWonder : undefined);
   }
 </script>
 
@@ -63,12 +77,18 @@
       Partie publique
     </label>
     <button type="button" onclick={createGame}>Créer</button>
+    <h3>Choisissez votre civilisation <em>(16 — 7n)</em></h3>
+    <CivPicker value={hostCiv} wonder={hostWonder} onchange={(civ, wonder) => { hostCiv = civ; hostWonder = wonder ?? null; }} />
   </section>
 
   <section>
     <h2>Rejoindre par code</h2>
     <input bind:value={joinCode} placeholder="ABC123" maxlength={6} />
-    <button type="button" onclick={() => client.join(joinCode.toUpperCase())}>Rejoindre</button>
+    <button type="button" onclick={() => joinWithCiv(joinCode.toUpperCase())}>Rejoindre</button>
+    <details>
+      <summary>Choisir la civilisation de l'invité ({civName(joinCiv)})</summary>
+      <CivPicker value={joinCiv} wonder={joinWonder} onchange={(civ, wonder) => { joinCiv = civ; joinWonder = wonder ?? null; }} compact />
+    </details>
   </section>
 
   <section>
@@ -79,7 +99,7 @@
       <ul>
         {#each $games.waiting as game (game.code)}
           <li>
-            <strong>{game.code}</strong> — hôte {game.players[0]?.name ?? '?'} — timer {game.settings.turnTimerMinutes ?? '∞'}
+            <strong>{game.code}</strong> — hôte {game.players[0]?.name ?? '?'}{game.players[0]?.civId ? ` (${civName(game.players[0].civId)})` : ''} — timer {game.settings.turnTimerMinutes ?? '∞'}
             <button type="button" onclick={() => client.join(game.code)}>Rejoindre</button>
           </li>
         {/each}
@@ -106,7 +126,9 @@
 </main>
 
 <style>
-  main { max-width: 40rem; margin: 2rem auto; font-family: system-ui, sans-serif; }
+  main { max-width: 56rem; margin: 2rem auto; font-family: system-ui, sans-serif; }
+  h3 { margin: 0.8rem 0 0.4rem; font-size: 0.95rem; }
+  h3 em { color: #9db8a6; font-style: normal; font-weight: 400; }
   header { display: flex; gap: 1rem; align-items: center; }
   section { border: 1px solid #ccc; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
   label { display: flex; gap: 0.5rem; margin-right: 1rem; align-items: center; }

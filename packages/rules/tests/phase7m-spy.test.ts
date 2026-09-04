@@ -10,6 +10,9 @@ import { resolveTurn } from '../src/turn.js';
 import type { GameState, Order, SpyActionKind } from '../src/state.js';
 import { getFilteredState, filterEventsForPlayer } from '../src/fog.js';
 import { hexDistance } from '../src/hex.js';
+import { destroyBuildingGoldOf, destroyBuildingSuccessChance, spyDuelWinChance } from '../src/espionnage.js';
+import { BUILDINGS } from '../src/data.js';
+import { createRng } from '../src/rng.js';
 
 /** p2 : ville ennemie 'ville' en (0,0) ; p1 : espion infiltrable. */
 function spyState(opts: Parameters<typeof makeState>[0] = {}): GameState {
@@ -193,25 +196,100 @@ describe('7m · R-143 — Actions d\'espionnage', () => {
     expect(withSabotage.units['espion1']).toBeUndefined();
   });
 
-  it('destroyBuilding : le bâtiment choisi 🔶 est retiré ; les merveilles sont épargnées ; Palais refusé', () => {
+  it('destroyBuilding (C18) : succès — bâtiment retiré, coût round(marteaux×0,5) débité, espion consommé', () => {
     const base = spyState({
       cities: [{ id: 'ville', owner: 'p2', q: 0, r: 0, pop: 3, buildings: ['temple', 'bibliotheque'], wonders: ['stonehenge'] }],
     });
+    base.players['p1']!.treasury = 100;
+    const t1 = resolveTurn(base, { p1: [{ type: 'Move', unitId: 'espion1', path: [{ q: 0, r: 0 }] }] }, 1).newState;
+    // Le temple coûte 40 marteaux → coût 20 or ; réussite 0,82 (R-80).
+    const p = destroyBuildingSuccessChance(BUILDINGS['temple']!.cost);
+    const roll = createRng(1).next(); // premier (et unique) appel RNG de la résolution
+    const { newState, events } = resolveTurn(t1, spyAction('destroyBuilding', { buildingId: 'temple' }), 1);
+    if (roll < p) {
+      expect(newState.cities['ville']!.buildings).toEqual(['bibliotheque']);
+      expect(newState.cities['ville']!.wonders).toEqual(['stonehenge']); // épargnée
+      expect(events.some((e) => e.type === 'SpyBuildingDestroyed' && e.building === 'temple')).toBe(true);
+    } else {
+      expect(newState.cities['ville']!.buildings).toEqual(['temple', 'bibliotheque']);
+    }
+    // Le coût est débité AU LANCEMENT, succès comme échec (non remboursé 🔶).
+    expect(newState.players['p1']!.treasury).toBe(100 - destroyBuildingGoldOf(BUILDINGS['temple']!.cost));
+    expect(newState.players['p2']!.treasury).toBe(0);
+    expect(newState.units['espion1']).toBeUndefined(); // hostile exécutée → consommé (échec compris)
+  });
+
+  it('C18 : le coût et le risque CROISSENT avec la valeur de production (formules données 🔶 espionnage.json)', () => {
+    // Coût en or = round(marteaux × 0,5) : Bibliothèque (40) 20, Université (160) 80.
+    expect(destroyBuildingGoldOf(40)).toBe(20);
+    expect(destroyBuildingGoldOf(160)).toBe(80);
+    expect(destroyBuildingGoldOf(0)).toBe(0);
+    // Réussite = clamp(0,9 − marteaux/500 ; 0,4 ; 0,9) — « plus facile de
+    // détruire une Bibliothèque qu'une Université ».
+    expect(destroyBuildingSuccessChance(40)).toBeCloseTo(0.82, 10); // Bibliothèque
+    expect(destroyBuildingSuccessChance(160)).toBeCloseTo(0.58, 10); // Université
+    expect(destroyBuildingSuccessChance(200)).toBeCloseTo(0.5, 10); // Usine
+    expect(destroyBuildingSuccessChance(1000)).toBe(0.4); // plafond bas 🔶
+    expect(destroyBuildingSuccessChance(0)).toBe(0.9); // plafond haut
+    expect(destroyBuildingSuccessChance(40)).toBeGreaterThan(destroyBuildingSuccessChance(160));
+  });
+
+  it('C18 : ÉCHEC du saboteur — espion perdu + or perdu, bâtiment intact (défaut 🔶)', () => {
+    // Recherche déterministe d'une graine en échec (p = 0,82 pour le temple).
+    const p = destroyBuildingSuccessChance(BUILDINGS['temple']!.cost);
+    let failSeed: number | null = null;
+    for (let seed = 0; seed < 60 && failSeed === null; seed++) {
+      if (createRng(seed).next() >= p) failSeed = seed;
+    }
+    expect(failSeed).not.toBeNull();
+    const base = spyState({
+      cities: [{ id: 'ville', owner: 'p2', q: 0, r: 0, pop: 3, buildings: ['temple'] }],
+    });
+    base.players['p1']!.treasury = 100;
+    const t1 = resolveTurn(base, { p1: [{ type: 'Move', unitId: 'espion1', path: [{ q: 0, r: 0 }] }] }, 1).newState;
+    const { newState, events } = resolveTurn(t1, spyAction('destroyBuilding', { buildingId: 'temple' }), failSeed!);
+    expect(newState.cities['ville']!.buildings).toEqual(['temple']); // intact
+    expect(newState.units['espion1']).toBeUndefined(); // espion perdu
+    expect(newState.players['p1']!.treasury).toBe(100 - destroyBuildingGoldOf(40)); // or perdu
+    expect(events.some((e) => e.type === 'SpyBuildingDestroyed')).toBe(false);
+    expect(events.some((e) => e.type === 'SpyAction' && e.outcome === 'failed')).toBe(true);
+  });
+
+  it('C18 : trésorerie INSUFFISANTE — l\'action ne part pas (échec sans effet, or intact, espion survit 🔶)', () => {
+    const base = spyState({
+      cities: [{ id: 'ville', owner: 'p2', q: 0, r: 0, pop: 3, buildings: ['temple'] }],
+    });
+    base.players['p1']!.treasury = 5; // < round(40 × 0,5) = 20
     const t1 = resolveTurn(base, { p1: [{ type: 'Move', unitId: 'espion1', path: [{ q: 0, r: 0 }] }] }, 1).newState;
     const { newState, events } = resolveTurn(t1, spyAction('destroyBuilding', { buildingId: 'temple' }), 1);
-    expect(newState.cities['ville']!.buildings).toEqual(['bibliotheque']);
-    expect(newState.cities['ville']!.wonders).toEqual(['stonehenge']); // épargnée
-    expect(newState.units['espion1']).toBeUndefined();
-    expect(events.some((e) => e.type === 'SpyBuildingDestroyed' && e.building === 'temple')).toBe(true);
+    expect(newState.cities['ville']!.buildings).toEqual(['temple']);
+    expect(newState.players['p1']!.treasury).toBe(5); // aucun débit
+    expect(newState.units['espion1']).toBeDefined(); // survit (échec sans effet)
+    expect(events.some((e) => e.type === 'SpyAction' && e.outcome === 'failed')).toBe(true);
+  });
 
-    // Palais : refusé 🔶 (exclu des cibles) — échec, espion survit.
-    const palState = spyState({
-      cities: [{ id: 'ville', owner: 'p2', q: 0, r: 0, pop: 3, buildings: ['palais', 'temple'] }],
+  it('C18 : le duel PRÉCÈDE le coût — un espion perdant le duel ne PAIE pas', () => {
+    const p = spyDuelWinChance(false, false); // 0,5 🔶
+    let lossSeed: number | null = null;
+    for (let seed = 0; seed < 60 && lossSeed === null; seed++) {
+      if (createRng(seed).next() >= p) lossSeed = seed;
+    }
+    expect(lossSeed).not.toBeNull();
+    const base = spyState({
+      cities: [{ id: 'ville', owner: 'p2', q: 0, r: 0, pop: 3, buildings: ['temple'] }],
+      units: [
+        { id: 'espion1', type: 'espion', owner: 'p1', q: 1, r: 0 },
+        { id: 'gar', type: 'guerrier', owner: 'p2', q: 0, r: 0 },
+        { id: 'contre', type: 'espion', owner: 'p2', q: 0, r: 0 }, // garnison → duel
+      ],
     });
-    const t2 = resolveTurn(palState, { p1: [{ type: 'Move', unitId: 'espion1', path: [{ q: 0, r: 0 }] }] }, 1).newState;
-    const out2 = resolveTurn(t2, spyAction('destroyBuilding', { buildingId: 'palais' }), 1).newState;
-    expect(out2.cities['ville']!.buildings).toEqual(['palais', 'temple']);
-    expect(out2.units['espion1']).toBeDefined();
+    base.players['p1']!.treasury = 100;
+    const t1 = resolveTurn(base, { p1: [{ type: 'Move', unitId: 'espion1', path: [{ q: 0, r: 0 }] }] }, 1).newState;
+    const { newState, events } = resolveTurn(t1, spyAction('destroyBuilding', { buildingId: 'temple' }), lossSeed!);
+    expect(events.some((e) => e.type === 'SpyDuel')).toBe(true);
+    expect(newState.units['espion1']).toBeUndefined(); // perdant détruit
+    expect(newState.players['p1']!.treasury).toBe(100); // PAS débité (action non exécutée)
+    expect(newState.cities['ville']!.buildings).toEqual(['temple']);
   });
 
   it('destroyFortifications : annule la fortification (R-33) du défenseur ; sans fortification : échec', () => {

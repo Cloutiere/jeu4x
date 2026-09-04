@@ -103,6 +103,7 @@ describe('D3 · R-64 (rév.) — fondation : pop par ÈRE de l’empire', () => 
       units: [{ id: 'u1', type: 'colon', owner: 'p1', q: 5, r: 5 }],
     });
     state.players['p1']!.techsUnlocked = ['theorie_atomique'];
+    state.players['p1']!.era = 'moderne'; // 7n · R-147 : ère persistée (compage, transition au tour suivant)
     const { newState } = resolveTurn(state, { p1: [{ type: 'FoundCity', unitId: 'u1' }] }, 1);
     const city = cityAt(newState, 5, 5)!;
     expect(city.pop).toBe(5);

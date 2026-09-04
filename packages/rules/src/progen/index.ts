@@ -98,6 +98,7 @@ const CHAR_BY_TERRAIN: Record<TerrainId, string> = {
   eau: '~',
   ocean: 'O',
   ville: '.', // jamais généré (posé par createInitialState sur la capitale)
+  cratere: '.', // jamais généré (7n · C15 : formé à l'exécution par une frappe nucléaire)
 };
 
 /** Assemble le MapData au format des cartes préfabriquées. */

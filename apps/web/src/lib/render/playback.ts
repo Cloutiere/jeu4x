@@ -13,6 +13,15 @@
  * un tour typique se rejoue en < 3 s à vitesse normale.
  */
 import { writable } from 'svelte/store';
+import type { TechEra } from '@game/rules';
+
+/** 7n · R-147 : bandeau de transition d'ère (libellés canon « Ère Médiévale ! »). */
+const ERA_BANNER: Record<TechEra, string> = {
+  ancienne: 'Ère Ancienne',
+  medievale: 'Ère Médiévale',
+  industrielle: 'Ère Industrielle',
+  moderne: 'Ère Moderne',
+};
 import type { Writable } from 'svelte/store';
 import type { Hex } from '@game/rules';
 import type { GameEvent } from '@game/shared';
@@ -48,6 +57,7 @@ interface CurrentItem {
 const DURATIONS: Record<GameEvent['type'], number> = {
   RushBuy: 1200,
   EconomyMilestone: 1600,
+  EraChanged: 2000, // 7n · R-147 : bandeau « Ère Médiévale ! »
   Move: 240,
   Retreat: 240,
   Attack: 200,
@@ -340,6 +350,13 @@ export class Playback {
       case 'GovernmentChanged':
         this.pushToast('Changement de gouvernement', 'info');
         break;
+      // 7n · R-147 : le joueur entre dans une nouvelle ÈRE (compage de techs,
+      // transition au tour suivant) — bandeau plein écran en toast.
+      case 'EraChanged': {
+        const eraName = ERA_BANNER[ev.era] ?? ev.era;
+        this.pushToast(`Ère ${eraName} !`, 'good');
+        break;
+      }
       case 'Launch':
         this.pushToast('Vaisseau spatial lancé !', 'good');
         break;
