@@ -53,7 +53,9 @@ window.CyberTiles = (function () {
     },
     desert: {
       nom: 'Bus à Bruit Statique', origine: 'Désert',
-      haut: '#75582B', bas: '#382912', elev: 0, detail: 'bruit',
+      haut: '#8B8166', bas: '#4C4738', elev: 0, detail: 'bruit',
+      // Ton pâle ⇒ substrat mat et quasi non émissif, sinon il paraît illuminé.
+      materiau: { emissive: 0.12, roughness: 0.95, metalness: 0.0 },
       glyphe: { type: 'ram', total: 3, actifs: 1, batiment: 'multiplexeur' },
     },
     mer: {
@@ -289,7 +291,7 @@ window.CyberTiles = (function () {
     if (n === 2) return [[-0.25, 0], [0.25, 0]];
     if (n === 3) return [[0, 0.24], [-0.27, -0.17], [0.27, -0.17]];
     // quincunx (montagne, n=5)
-    return [[0, 0], [-0.28, -0.28], [0.28, -0.28], [-0.28, 0.28], [0.28, 0.28]];
+    return [[0, 0], [-0.30, -0.30], [0.30, -0.30], [-0.30, 0.30], [0.30, 0.30]];
   }
 
   /** Emplacements des barrettes RAM : [x, z]. */

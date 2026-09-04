@@ -104,10 +104,10 @@ window.Tuiles3D = (function () {
       color: 0x0D2430, emissive: T.NEON, emissiveIntensity: 0.05, roughness: 0.85, metalness: 0.05,
     });
     matDieLit = new THREE.MeshStandardMaterial({
-      color: 0x0A2E33, emissive: 0x9FFFE8, emissiveIntensity: 0.95, roughness: 0.35, metalness: 0.2,
+      color: 0x0A2E33, emissive: 0x58C79A, emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.2,
     });
     matDieDim = new THREE.MeshStandardMaterial({
-      color: 0x0E2430, emissive: 0x9FFFE8, emissiveIntensity: 0.05, roughness: 0.7, metalness: 0.2,
+      color: 0x0E2430, emissive: 0x58C79A, emissiveIntensity: 0.05, roughness: 0.7, metalness: 0.2,
     });
     matRamLit = new THREE.MeshStandardMaterial({
       color: 0x0A2E33, emissive: 0x2CE8BE, emissiveIntensity: 0.8, roughness: 0.5, metalness: 0.1,
@@ -171,9 +171,14 @@ window.Tuiles3D = (function () {
         color: T.foncerInt(t.haut, 0.45),
         roughness: 0.85, metalness: 0.15,
       });
+      // Substrat : le désert (ton pâle) est mat et quasi non émissif, sinon il
+      // paraît illuminé ; les autres terrains gardent leur légère lueur.
+      const m = t.materiau || {};
       const topMat = new THREE.MeshStandardMaterial({
         map: topTexture(typ, variante), emissive: 0xffffff, emissiveMap: topTexture(typ, variante),
-        emissiveIntensity: 0.45, roughness: 0.6, metalness: 0.12,
+        emissiveIntensity: m.emissive != null ? m.emissive : 0.45,
+        roughness: m.roughness != null ? m.roughness : 0.6,
+        metalness: m.metalness != null ? m.metalness : 0.12,
       });
       const tuile = new THREE.Mesh(geo, [topMat, sideMat]);
       tuile.scale.y = hauteur;
@@ -205,14 +210,14 @@ window.Tuiles3D = (function () {
       const pts = T.empreintesCpu(g.total);
       pts.forEach(([cx, cz], i) => {
         const puce = new THREE.Group();
-        const jx = (rnd() - 0.5) * 0.05, jz = (rnd() - 0.5) * 0.05;
+        const jx = (rnd() - 0.5) * 0.04, jz = (rnd() - 0.5) * 0.04;
         puce.position.set(x + cx + jx, top + 0.0175, z + cz + jz);
         puce.rotation.y = (rnd() - 0.5) * 0.16;
-        const socle = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.035, 0.20), matSocle());
-        const die = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.03, 0.11), matDieDim);
-        die.position.y = 0.032;
+        const socle = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.035, 0.26), matSocle());
+        const die = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.03, 0.15), matDieDim);
+        die.position.y = 0.0325;
         puce.add(socle, die);
-        for (const [px, pz, w, d] of [[-0.112, 0, 0.024, 0.20], [0.112, 0, 0.024, 0.20], [0, -0.112, 0.20, 0.024], [0, 0.112, 0.20, 0.024]]) {
+        for (const [px, pz, w, d] of [[-0.146, 0, 0.024, 0.26], [0.146, 0, 0.024, 0.26], [0, -0.146, 0.26, 0.024], [0, 0.146, 0.26, 0.024]]) {
           const pin = new THREE.Mesh(new THREE.BoxGeometry(w, 0.012, d), matPins());
           pin.position.set(px, 0, pz);
           puce.add(pin);
@@ -362,11 +367,11 @@ window.Tuiles3D = (function () {
     // respiration des matières allumées (fait partie de l'« Animation »)
     if (state.animation) {
       matBusLit.emissiveIntensity = 1.0 + 0.22 * Math.sin(time * 2.6);
-      matDieLit.emissiveIntensity = 0.9 + 0.22 * Math.sin(time * 2.2 + 1.0);
+      matDieLit.emissiveIntensity = 0.5 + 0.10 * Math.sin(time * 2.2 + 1.0);
       matRamLit.emissiveIntensity = 0.75 + 0.18 * Math.sin(time * 2.9 + 2.0);
     } else {
       matBusLit.emissiveIntensity = 1.0;
-      matDieLit.emissiveIntensity = 0.9;
+      matDieLit.emissiveIntensity = 0.5;
       matRamLit.emissiveIntensity = 0.75;
     }
 

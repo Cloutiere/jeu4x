@@ -17,7 +17,7 @@ Trois pictogrammes, **une seule couleur néon** (`#3DFFCE`) — la ressource se 
 | Pictogramme | Ressource | Tuiles |
 |---|---|---|
 | **Bus de données** (pistes néon traversantes + pulses) | Ⓝ Nourriture | Prairie, plaine, eau (via le Port) |
-| **Microprocesseur** (socle + broches + puce émissive) | Ⓟ Cycles CPU | Forêt, colline, montagne |
+| **Microprocesseur** (grande puce à broches, cœur vert doux) | Ⓟ Cycles CPU | Forêt, colline, montagne |
 | **Barrette RAM** (socle + module vertical) | Ⓒ Commerce | Désert, eau |
 
 **Convention d'état :** la tuile montre toujours son potentiel maximal en glyphes *pâles* ; le rendement actif est *allumé* ; cocher le bâtiment associé allume le reste.
@@ -29,7 +29,7 @@ Trois pictogrammes, **une seule couleur néon** (`#3DFFCE`) — la ressource se 
 | Forêt (Matrice d'Algorithmes Bruts) | 2 CPU | 2 allumés | — | 0 | vert profond |
 | Colline (Nœud de Processeurs) | 3 CPU | 1 + 2 pâles | Moteur d'Accélération (Atelier) | +1 | bleu-acier |
 | Montagne (Noyau Quantique Solide) | 5 CPU | 1 + 4 pâles | Extracteur Quantique (Mine de fer) | +2 | violet-gris |
-| Désert (Bus à Bruit Statique) | 3 RAM | 1 + 2 pâles | Multiplexeur (Comptoir) | 0 | ambre bruité |
+| Désert (Bus à Bruit Statique) | 3 RAM | 1 + 2 pâles | Multiplexeur (Comptoir) | 0 | sable délavé |
 | Mer (Réseau Sub-Éthéré) | 2 RAM + 1 bus | RAM allumées, bus pâle | Passerelle Optique (Port) | −1 | cyan-bleu |
 | Océan (idem) | idem Mer | idem | idem | −1 | indigo profond |
 

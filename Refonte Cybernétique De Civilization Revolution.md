@@ -24,7 +24,7 @@ Dans le moteur d'origine, le monde est découpé en sept types de terrains de ba
 Chaque tuile du Réseau affiche son **potentiel de rendement** ; seul le rendement **actif** est allumé (surbrillance néon), le reste apparaît « en attente » (pâle, éteint). La construction du bâtiment associé allume l'intégralité du potentiel. Trois pictogrammes, **tous de la même couleur néon** (menthe `#3DFFCE`) — la ressource se lit par la *forme*, le terrain par la *teinte du substrat* et l'*élévation* :
 
 - **Bus de données** (pistes néon traversant la tuile) = **Nourriture** Ⓝ — plus il y a de nourriture, plus il y a de bus ; des pulses de données y circulent en permanence ;
-- **Microprocesseur** (puce 3D à broches posée sur la tuile) = **Cycles CPU / Production** Ⓟ ;
+- **Microprocesseur** (grande puce 3D à broches posée sur la tuile, cœur vert doux) = **Cycles CPU / Production** Ⓟ ;
 - **Barrette RAM** (socle + module vertical) = **Commerce** Ⓒ.
 
 Élévations : les cases d'eau sont **plus basses** que le niveau de base ; plaine, prairie, forêt et désert sont au **niveau de base** ; la colline est **légèrement surélevée** (+1 marche) ; la montagne l'est **beaucoup** (+2 marches).
@@ -36,7 +36,7 @@ Chaque tuile du Réseau affiche son **potentiel de rendement** ; seul le rendeme
 | **Forêt** (Matrice d'Algorithmes Bruts) | 2 microprocesseurs | 2 allumés | — (aucun bâtiment ; l'Optimisation de Compilateur est un trait de faction, calque ultérieur) | niveau de base | vert profond |
 | **Colline** (Nœud de Processeurs) | 3 microprocesseurs | 1 allumé + 2 pâles | Moteur d'Accélération (Atelier) → 3 allumés | +1 marche | bleu-acier |
 | **Montagne** (Noyau Quantique Solide) | 5 microprocesseurs | 1 allumé + 4 pâles | Extracteur Quantique (Mine de fer) → 5 allumés | +2 marches | violet-gris |
-| **Désert** (Bus à Bruit Statique) | 3 barrettes RAM | 1 allumée + 2 pâles | Multiplexeur (Comptoir) → 3 allumées | niveau de base | ambre bruité |
+| **Désert** (Bus à Bruit Statique) | 3 barrettes RAM | 1 allumée + 2 pâles | Multiplexeur (Comptoir) → 3 allumées | niveau de base | sable délavé (ambre pâle) |
 | **Mer** (Réseau Sub-Éthéré, Fibre) | 2 barrettes RAM + 1 bus | 2 RAM allumées + 1 bus pâle | Passerelle Optique (Port) → bus allumé | plus basse | cyan-bleu |
 | **Océan** (Réseau Sub-Éthéré profond) | idem Mer | idem Mer | idem Mer | plus basse | indigo profond |
 
