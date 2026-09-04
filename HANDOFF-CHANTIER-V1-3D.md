@@ -13,6 +13,10 @@ Implémente une **preuve de rendu minimal sur le vrai jeu** (une seule tranche d
 
 Critères mesurés à présenter dans le rapport d'arrêt : performance 40×40 (comptage d'objets, instancing/merged geometry, FPS cible ≥ 60 desktop), **picking hex → sélection** (le cœœur de l'interaction : clic/drag/zoom/pan actuels doivent survivre sans régression), **fog en 3D** (cases inexplorées invisibles/cachées, pings artefacts), lisibilité des glyphes à tous les niveaux de zoom, coût de maintenance de chaque option, risque sur les tests d'interaction existants (`interaction.test.ts` etc.). **Aucune écriture RULES.md avant l'approbation d'Erik** — le choix d'architecture est une décision de design (modèle 7b : maquette avant implémentation).
 
+## Décision d'architecture — VALIDÉE (Erik, 04/09)
+
+**Option B (hybride) approuvée** : terrain Three.js + surcouche sprites PixiJS projetés par la caméra partagée. Consigne d'Erik : **dès la fin de cette tranche, les autres structures 3D suivent** (villes posées, ressources, cratères, puis à terme les unités — calques V2, voir PILOT-HANDOFF §4 item 8). Le L0 reste consultable : REPORT-CHANTIER-V1-3D-L0.md.
+
 ## Après approbation — livrables dans l'ordre
 
 - **L1a — Synchronisation visuelle du labo (PREMIER geste)** : `apps/web/src/lib/render3d/spec3d.ts` + matériaux de `world3d.ts` sont alignés sur le **calibrage commité du prototype** (68f6f5a) — désert « sable délavé » `#8B8166/#4C4738` avec substrat **mat quasi non émissif** (`materiau` : emissive 0.12, roughness 0.95, metalness 0), puce CPU à **cœur vert doux** (`0x58C79A`, allumé 0.5 au lieu de `0x9FFFE8`/0.95), quincunx écarté à ±0.30. La **référence de jugement est la vitrine d'Erik** (http://127.0.0.1:8391/ — version à jour du prototype) : le labo doit être indiscernable terrain par terrain. La désynchronisation était connue (rapport L0 §8) ;
