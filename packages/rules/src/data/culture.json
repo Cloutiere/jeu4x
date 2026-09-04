@@ -4,5 +4,6 @@
   "milestonesTarget": 20,
   "greatPersonYieldThresholdBase": 20,
   "greatPersonYieldThresholdGrowth": 2,
-  "leaderGpVictories": 20
+  "leaderGpVictories": 20,
+  "hammerSalvageWindow": 1
 }

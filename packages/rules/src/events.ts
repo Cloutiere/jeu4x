@@ -133,6 +133,26 @@ export type GameEvent =
     }
   /** 7f · R-116 : merveille achevée dans une ville (jalon, effet, ONU → victoire). */
   | { seq: number; type: 'WonderCompleted'; cityId: CityId; owner: PlayerId; wonder: string; at: Hex }
+  /**
+   * 7k · R-130 · M3 · Récupération de marteaux : un rival a complété la
+   * merveille qui était en chantier dans `cityId` — les marteaux investis
+   * (`amount`) sont conservés en attente (`outcome: 'available'`) et doivent
+   * être réaffectés par un SetProduction pendant la fenêtre (T-32 🔶) ;
+   * `outcome: 'dissipated'` = fenêtre expirée, marteaux dissipés.
+   */
+  | {
+      seq: number;
+      type: 'HammerSalvage';
+      cityId: CityId;
+      owner: PlayerId;
+      /** Merveille concernée — null pour une dissipation (rappel différé). */
+      wonder: string | null;
+      amount: number;
+      outcome: 'available' | 'dissipated';
+    }
+  /** 7k · R-132 · Atelier de Léonard : les unités obsolètes de l'empire ont
+   *  été mises à niveau (R-111 — `upgradeTo` en chaîne, vétérans/PV conservés). */
+  | { seq: number; type: 'UnitsUpgraded'; player: PlayerId; upgrades: Array<{ unitId: UnitId; from: string; to: string }> }
   /** 7g · R-117 : embarquement d'une unité terrestre sur un transport ami
    *  (Galère/Galion, capacité 1) — l'unité quitte la carte (à bord). */
   | { seq: number; type: 'Embark'; unitId: UnitId; owner: PlayerId; transportId: UnitId; at: Hex }
@@ -296,6 +316,14 @@ export function eventRefs(event: GameEvent): EventRefs {
       refs.cityIds.push(event.cityId);
       refs.players.push(event.owner);
       hex(event.at);
+      break;
+    case 'HammerSalvage':
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner);
+      break;
+    case 'UnitsUpgraded':
+      refs.players.push(event.player);
+      for (const u of event.upgrades) refs.unitIds.push(u.unitId);
       break;
     case 'Embark':
     case 'Disembark':

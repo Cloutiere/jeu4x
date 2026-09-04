@@ -148,18 +148,19 @@ export function applyFirstToDiscover(
   }
 
   // 7j · D5.1 · R-109 étendu : récompense GP du Premier découvrir — le doc
-  // accorde un GP gratuit au Premier découvreur de l'Invention (Léonard de
+  // accorde un GP gratuit au Premier découvrir de l'Invention (Léonard de
   // Vinci — Bâtisseur) et de la Monarchie (Roi David — Leader). La classe est
   // celle de la figure rattachée à la tech (figures.json · R-126) ; posé sur
   // la case de la première ville (sinon adjacente libre — comme l'unité
-  // gratuite). Jalon à l'obtention (R-126) : crédité ici.
+  // gratuite). 7k · C2 (veto d'Erik du 04/09) : AUCUN jalon — seuls les GP du
+  // canal culture comptent (révision R-126) ; l'escalade T-27/T-30 est
+  // conservée (toute obtention fait monter les seuils).
   if (reward.greatPerson) {
     const gpClass = figureClassForTech(techId) ?? 'artiste_penseur'; // repli déterministe 🔶
     const gpStats = unitType(gpClass);
     const player = st.players[playerId]!;
     player.greatPersonsByType[gpClass] = (player.greatPersonsByType[gpClass] ?? 0) + 1;
     player.greatPersonsObtained += 1;
-    player.cultureMilestones += 1; // jalon À L'OBTENTION (R-126)
     const city = primaryCity(st, playerId);
     let spot: Hex | null = null;
     if (city) {

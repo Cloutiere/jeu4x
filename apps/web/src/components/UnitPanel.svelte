@@ -5,11 +5,11 @@
    * Le client ne calcule aucune règle : les boutons reflètent ce que l'état
    * filtré autorise ; la validation finale reste serveur.
    */
-  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf } from '@game/rules';
+  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf, allKnownTechs } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
-  import { consumeEffectLabel, settleEffectLabel } from '../lib/labels.js';
+  import { consumeEffectLabel, settleEffectLabel, greatPersonLabel } from '../lib/labels.js';
   import type { UiState } from '../lib/render/ui.js';
 
   interface Props {
@@ -111,12 +111,14 @@
   });
 
   /** 7f · R-115 : villes AMIES sur la case du GP ou adjacentes — installation
-   *  définitive (+1 jalon culturel, le GP est consommé). */
+   *  définitive (+1 jalon culturel, le GP est consommé).
+   *  7k · C3 (veto d'Erik du 04/09) : UN SEUL GP d'un même type par ville —
+   *  la ville cible expose `already` pour désactiver le bouton Settle. */
   const installTargets = $derived.by(() => {
     if (!unit || !mine || !editable || !view.state || !stats?.greatPerson) return [];
     return Object.values(view.state.cities)
       .filter((c) => c.owner === unit.owner && hexDistance(c, unit) <= 1)
-      .map((c) => ({ id: c.id }));
+      .map((c) => ({ id: c.id, already: c.settledGreatPersons.includes(unit.type) }));
   });
 
   /** 7j · R-126 : Settle — installation permanente dans la cité hôte. */
@@ -183,16 +185,18 @@
   const oracleActive = $derived.by(() => {
     const id = myEngineId(view);
     if (!id || !view.state) return false;
-    const techs = view.state.players[id]?.techsUnlocked ?? [];
+    // 7k · M1/R-128 : obsolescence GLOBALE — l'Oracle meurt si QUI QUE CE SOIT
+    // découvre la Religion (union des techs de toutes les civilisations).
+    const allTechs = allKnownTechs(view.state);
     return Object.values(view.state.cities).some(
-      (c) => c.owner === id && c.wonders.includes('oracle_de_delphes') && !isWonderObsolete('oracle_de_delphes', techs),
+      (c) => c.owner === id && c.wonders.includes('oracle_de_delphes') && !isWonderObsolete('oracle_de_delphes', allTechs),
     );
   });
 
   const attackPreviews = $derived.by(() => {
     if (!oracleActive || !unit || !stats || !view.state) return new Map<string, number>();
     const me = view.state.players[unit.owner]!;
-    const techs = me.techsUnlocked ?? [];
+    const allTechs = allKnownTechs(view.state); // M1/R-128 : union pour Himeji
     const cities = Object.values(view.state.cities);
     const effects = { ...(me.government ? { landAttackBonus: undefined } : {}) };
     void effects;
@@ -208,7 +212,7 @@
       if (city) for (const b of city.buildings) cityBonus += BUILDINGS[b]?.cityDefenseBonus ?? 0;
       const sAtt =
         effectiveStrength(stats.attack, unit.veteran) +
-        wonderAttackBonusEmpireOf(cities, unit.owner, techs) +
+        wonderAttackBonusEmpireOf(cities, unit.owner, allTechs) +
         landCombatBonus({ landAttackBonus: 1 }, { aquatic: stats.aquatic }, 'attack') *
           (me.government === 'fondamentalisme' ? 1 : 0);
       const sDef =
@@ -328,11 +332,13 @@
             <button
               type="button"
               class="primary"
-              disabled={!editable}
-              title="R-126 : installation permanente — {settleEffectLabel(unit.type)}"
+              disabled={!editable || t.already}
+              title={t.already
+                ? `C3 (7k) : un ${greatPersonLabel(unit.type)} est déjà installé dans ${t.id} — un seul GP d'un même type par ville ; choisissez une autre ville ou Consume.`
+                : `R-126 : installation permanente — ${settleEffectLabel(unit.type)}`}
               onclick={() => installIn(t.id)}
             >
-              Installer dans {t.id} (Settle — {settleEffectLabel(unit.type)})
+              {t.already ? `${greatPersonLabel(unit.type)} déjà installé dans ${t.id}` : `Installer dans ${t.id} (Settle — ${settleEffectLabel(unit.type)})`}
             </button>
             {#if consumeEffectLabel(unit.type)}
               <button

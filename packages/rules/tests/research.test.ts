@@ -40,7 +40,7 @@ describe('migration v4 → v5 (R-85 : champs de recherche additifs)', () => {
   it('migrateState applique toute la chaîne de migrations jusqu’à la version courante', () => {
     const out = migrateState<GameState>(structuredClone(v4));
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(13); // 7j
+    expect(CURRENT_SCHEMA_VERSION).toBe(14); // 7k : merveilles + salvage (R-130)
     expect(out.players['p2']!.techsUnlocked).toEqual([]);
   });
 });

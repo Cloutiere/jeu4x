@@ -103,10 +103,16 @@ export interface CultureCity {
  * R-113 · Rendement culturel d'une ville : Σ `culturePerTurn` des bâtiments
  * (Palais 🔶 1, capitale uniquement) + Σ `culturePerCitizen` × pop (Temple 1,
  * Cathédrale 2 — remplace le Temple), la part `culturePerCitizen` étant
- * multipliée par la merveille Stonehenge (×1,5 🔶 tant qu'il n'est pas
- * obsolète — R-110) + le bonus empire du Premier découvrir (perCity.culture,
+ * multipliée par la merveille Stonehenge (×1,5 🔶 tant qu'elle n'est pas
+ * obsolète — R-110/R-128) + le bonus empire du Premier découvrir (perCity.culture,
  * R-109 : Religion/Imprimerie). Scalaire sur la démographie : 20 pop ×
  * Cathédrale = 40 🔶. Arrondi au plus proche de la part multipliée (R-88).
+ * 7h · R-121 : Monarchie (Palais ×2), Communisme (Temples/Cathédrales = 0).
+ * 7k · R-133 (audit) : Magna Carta — Tribunal +1 culture PAR CITOYEN (le doc
+ * d'Erik tranche ; révision du modèle 7h « à plat ») ; Théâtre de Shakespeare
+ * (R-132) : ×2 la Culture TOTALE de la cité (après toutes les parts ci-dessus).
+ * ⚠ M1/R-128 : `techsUnlocked` doit être l'UNION des technologies connues de
+ * toutes les civilisations (`allKnownTechs`) — obsolescence globale.
  */
 export interface CultureGovOptions {
   /** 7h · R-121 · Monarchie : culture du Palais ×2. */
@@ -131,18 +137,18 @@ export function cultureGains(
   }
   // 7h · R-121 : Monarchie double la culture du PALAIS (part culturePerTurn).
   if (gov.palaceCultureMult) flat *= gov.palaceCultureMult;
-  // 7h · R-125 · Magna Carta : Tribunal = +1 culture/tour (ville hôte,
-  // tant que la merveille n'est pas obsolète).
+  // 7k · R-133 (audit — révision 7h) · Magna Carta : Tribunal = +1 culture par
+  // CITROYEN et par tour (ville hôte, tant que la merveille n'est pas obsolète).
   let tribunalCulture = 0;
   if (city.buildings.includes('tribunal')) {
     for (const wonderId of city.wonders) {
       const w = WONDERS[wonderId];
-      if (!w?.tribunalCulturePerTurn) continue;
+      if (!w?.tribunalCulturePerCitizen) continue;
       if (isWonderObsolete(wonderId, techsUnlocked)) continue;
-      tribunalCulture = Math.max(tribunalCulture, w.tribunalCulturePerTurn);
+      tribunalCulture = Math.max(tribunalCulture, w.tribunalCulturePerCitizen);
     }
   }
-  flat += tribunalCulture;
+  flat += tribunalCulture * city.pop;
   // 7h · R-121 : Communisme annule la part Temples/Cathédrales (le Palais
   // et les merveilles restent).
   if (gov.zeroTempleCulture) perCitizen = 0;
@@ -153,12 +159,25 @@ export function cultureGains(
     if (isWonderObsolete(wonderId, techsUnlocked)) continue;
     templeMult = Math.max(templeMult, w.templeCultureMult);
   }
-  return flat + Math.round(perCitizen * city.pop * templeMult) + empireCulture;
+  // 7k · R-132 · Théâtre de Shakespeare : ×X la Culture TOTALE de la cité
+  // (le meilleur multiplicateur présent gagne — convention R-88 🔶).
+  let cityMult = 1;
+  for (const wonderId of city.wonders) {
+    const w = WONDERS[wonderId];
+    if (!w?.cityCultureMult) continue;
+    if (isWonderObsolete(wonderId, techsUnlocked)) continue;
+    cityMult = Math.max(cityMult, w.cityCultureMult);
+  }
+  return Math.round((flat + Math.round(perCitizen * city.pop * templeMult) + empireCulture) * cityMult);
 }
 
-/** 7f · R-110 : la merveille est-elle obsolète pour ce joueur ? (effet retiré
- *  ET retrait du menu de production ; les exemplaires bâtis gardent leur
- *  jalon — R-116). */
+/** 7f · R-110/R-128 (M1) : la merveille est-elle obsolète ? ⚠ Le paramètre
+ *  `techsUnlocked` doit être l'UNION des technologies connues de TOUTES les
+ *  civilisations (`allKnownTechs(state)`) — une merveille perd son effet dès
+ *  qu'UNE civilisation de la carte découvre sa technologie d'obsolescence
+ *  (révision 7k du modèle « propriétaire seul » de 7f). Effet retiré ET retrait
+ *  du menu de production de tous ; les exemplaires bâtis gardent leur jalon
+ *  (R-131) et leur culture (R-113). */
 export function isWonderObsolete(wonderId: string, techsUnlocked: readonly string[]): boolean {
   const w = WONDERS[wonderId];
   return !!w?.obsoleteBy && techsUnlocked.includes(w.obsoleteBy);
@@ -166,8 +185,17 @@ export function isWonderObsolete(wonderId: string, techsUnlocked: readonly strin
 
 /** Contexte d'empire nécessaire à la validation d'une production de merveille. */
 export interface WonderProductionContext {
+  /** Technologies du JOUEUR — conditionnent le prérequis `tech` de la merveille. */
   techsUnlocked: readonly string[];
-  /** Merveilles DÉJÀ BÂTIES dans l'empire (toutes villes). */
+  /** 7k · M1/R-128 · Union des technologies de TOUTES les civilisations
+   *  (`allKnownTechs`) — évalue l'obsolescence GLOBALE. Absent : retombe sur
+   *  `techsUnlocked` (compat 7f — le propriétaire seul). */
+  allTechsUnlocked?: readonly string[];
+  /** 7k · R-129 (M2) : merveilles DÉJÀ BÂTIES TOUTES CIVILISATIONS CONFOUNDUES
+   *  (toutes villes, tout propriétaire) — exclusivité mondiale. */
+  worldWondersBuilt?: readonly string[];
+  /** Merveilles DÉJÀ BÂTIES dans l'empire (toutes villes) — sous-ensemble du
+   *  champ mondial (conservé pour compat 7f). */
   empireWondersBuilt: readonly string[];
   /** Merveilles EN CHANTIER dans l'empire (files de production des villes). */
   empireWondersInProduction: readonly string[];
@@ -177,16 +205,20 @@ export interface WonderProductionContext {
 
 /**
  * R-116 · Validation d'une production de merveille (moteur ET UI) — retourne
- * null si la production est autorisée, sinon la raison (libellé UI). Unique à
- * l'empire (bâtie OU en chantier ailleurs) ; les Nations Unies exigent en outre
- * les `milestonesTarget` jalons et restent verrouillées sous ce seuil.
+ * null si la production est autorisée, sinon la raison (libellé UI). 7k ·
+ * R-129 : EXCLUSIVITÉ MONDIALE — une merveille bâtie par N'IMPORTE QUELLE
+ * civilisation est inconstructible ; les Nations Unies exigent en outre les
+ * `milestonesTarget` jalons et restent verrouillées sous ce seuil. Le prérequis
+ * `tech` reste évalué sur les seules technologies du JOUEUR ; l'obsolescence
+ * (M1/R-128) sur l'union de toutes les civilisations.
  */
 export function wonderProductionIssue(wonderId: string, ctx: WonderProductionContext): string | null {
   const w = WONDERS[wonderId];
   if (!w) return 'merveille inconnue';
   if (w.implemented === false) return 'merveille non implémentée';
-  if (isWonderObsolete(wonderId, ctx.techsUnlocked)) return 'merveille obsolète';
+  if (isWonderObsolete(wonderId, ctx.allTechsUnlocked ?? ctx.techsUnlocked)) return 'merveille obsolète';
   if (w.tech && !ctx.techsUnlocked.includes(w.tech)) return `Requiert : ${TECHS[w.tech]?.name ?? w.tech}`;
+  if (ctx.worldWondersBuilt?.includes(wonderId)) return 'déjà construite quelque part (exclusivité mondiale)';
   if (ctx.empireWondersBuilt.includes(wonderId)) return 'déjà construite dans l’empire';
   if (ctx.empireWondersInProduction.includes(wonderId)) return 'déjà en chantier dans l’empire';
   if (w.cultureVictory && ctx.cultureMilestones < CULTURE.milestonesTarget) {
@@ -299,6 +331,7 @@ export function leaderGpVictoriesNeeded(): number {
  * 7h · R-125 · Himeji : somme des `attackBonusEmpire` des merveilles contrôlées
  * par l'empire (toutes villes), non obsolètes pour le joueur (R-110). Pur :
  * l'appelant (moteur) évalue l'Anarchie (aucun bonus pendant R-122).
+ * ⚠ 7k · M1/R-128 : `techsUnlocked` = union de toutes les civilisations.
  */
 export function wonderAttackBonusEmpireOf(
   cities: Array<{ owner: PlayerId; wonders: string[] }>,
@@ -314,4 +347,98 @@ export function wonderAttackBonusEmpireOf(
     }
   }
   return bonus;
+}
+
+// ---------------------------------------------------------------------------
+// 7k · R-132 — effets des merveilles restantes (helpers purs partagés
+// moteur/UI, même philosophie que conversionGains R-90)
+// ---------------------------------------------------------------------------
+
+/** Meilleur multiplicateur de champ parmi les merveilles non obsolètes d'une
+ *  liste (convention R-88 : le meilleur présent gagne — MAX pour un
+ *  multiplicateur de GAIN, MIN pour un multiplicateur de COÛT). Pur. */
+function wonderMultOf(
+  wonders: readonly string[],
+  techsUnlocked: readonly string[],
+  field: 'cityCultureMult' | 'cityGoldMult' | 'empireGoldMult' | 'militaryCostMult',
+  reduce: 'max' | 'min' = 'max',
+): number {
+  let m = reduce === 'max' ? 1 : Infinity;
+  for (const wonderId of [...wonders].sort()) {
+    const w = WONDERS[wonderId];
+    if (!w) continue;
+    const v = w[field];
+    if (!v) continue;
+    if (isWonderObsolete(wonderId, techsUnlocked)) continue;
+    m = reduce === 'max' ? Math.max(m, v) : Math.min(m, v);
+  }
+  return m;
+}
+
+/** 7k · R-132 · Théâtre de Shakespeare : multiplicateur de Culture TOTALE de
+ *  la cité (appliqué dans `cultureGains` — ce helper sert à l'UI). */
+export function cityCultureMultOf(wonders: readonly string[], techsUnlocked: readonly string[]): number {
+  return wonderMultOf(wonders, techsUnlocked, 'cityCultureMult');
+}
+
+/** 7k · R-132 · Foire de Troyes : multiplicateur de la part OR de la
+ *  conversion R-90 de la cité (🔶 — interprétation handoff). */
+export function cityGoldMultOf(wonders: readonly string[], techsUnlocked: readonly string[]): number {
+  return wonderMultOf(wonders, techsUnlocked, 'cityGoldMult');
+}
+
+/** 7k · R-132 · Internet : multiplicateur de la part OR de la conversion R-90
+ *  pour TOUTES les villes de l'empire (champ `empireGoldMult`). Cumul avec
+ *  Troyes (`cityGoldMult`) : MAX (R-88 🔶). */
+export function empireGoldMultOf(
+  cities: Array<{ owner: PlayerId; wonders: string[] }>,
+  playerId: PlayerId,
+  techsUnlocked: readonly string[],
+): number {
+  let m = 1;
+  for (const city of cities) {
+    if (city.owner !== playerId) continue;
+    m = Math.max(m, wonderMultOf(city.wonders, techsUnlocked, 'empireGoldMult'));
+  }
+  return m;
+}
+
+/** 7k · R-132 · Complexe militaro-industriel : meilleur multiplicateur de coût
+ *  de production des unités militaires de l'empire (0.8 = −20 % — production
+ *  seule pour l'instant, le « coût d'achat » concernera le rush-buy 7l).
+ *  MIN entre les villes (une seule merveille suffit à l'empire entier). */
+export function militaryCostMultOf(
+  cities: Array<{ owner: PlayerId; wonders: string[] }>,
+  playerId: PlayerId,
+  techsUnlocked: readonly string[],
+): number {
+  let m = Infinity;
+  for (const city of cities) {
+    if (city.owner !== playerId) continue;
+    m = Math.min(m, wonderMultOf(city.wonders, techsUnlocked, 'militaryCostMult', 'min'));
+  }
+  return m === Infinity ? 1 : m;
+}
+
+/** 7k · R-132 · Grande Muraille (décision d'Erik du 04/09, validée) : tant
+ *  qu'une merveille `blocksEnemyAttacks` du propriétaire est debout (non
+ *  obsolète — ⚠ M1/R-128 : union de toutes les civilisations), l'adversaire ne
+ *  peut pas attaquer ses unités ni ses villes (les attaques sont annulées
+ *  avant consommation de PM ; la continuation forcée R-55/R-56-3 n'est pas
+ *  bloquée — terminaison garantie 🔶). Portée EMPIRE (toutes villes). */
+export function wonderBlocksEnemyAttacks(
+  cities: Array<{ owner: PlayerId; wonders: string[] }>,
+  defenderOwner: PlayerId,
+  techsUnlocked: readonly string[],
+): boolean {
+  for (const city of cities) {
+    if (city.owner !== defenderOwner) continue;
+    for (const wonderId of city.wonders) {
+      const w = WONDERS[wonderId];
+      if (!w?.blocksEnemyAttacks) continue;
+      if (isWonderObsolete(wonderId, techsUnlocked)) continue;
+      return true;
+    }
+  }
+  return false;
 }

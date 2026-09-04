@@ -303,8 +303,10 @@ function buildUnitGraphics(): Record<string, { base: Graphics; accent: Graphics 
     out.penseur = { base, accent: acc };
   }
   // 7j · R-126 : les 6 classes canoniques — artiste/penseur fusionnés,
-  // renommages D2 + humanitaire. En attendant des silhouettes dédiées 🔶,
-  // chaque nouvelle classe RÉUTILISE une silhouette existante (art dédiée 7k).
+  // renommages D2 + humanitaire. 7k : des sprites DÉDIÉS existent désormais
+  // (unite_artiste_penseur/savant/batisseur/explorateur/humanitaire/leader.png,
+  // générés par assets-src/tools/generate.py) — ces alias ne servent que de
+  // FALLBACK si un PNG manque.
   out.artiste_penseur = out.artiste!;
   out.savant = out.penseur!;
   out.batisseur = out.guerrier!;

@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete } from '@game/rules';
   import { greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
@@ -56,14 +56,16 @@
   const player = $derived(city ? view.state?.players[city.owner] ?? null : null);
 
   /** Cumuls de la ville : centre gratuit (7i · R-66 rév. : commerce de
-   *  tranche) + Σ cases travaillées + citoyens intérieurs (7i · R-60bis). */
+   *  tranche) + Σ cases travaillées + citoyens intérieurs (7i · R-60bis).
+   *  7k · R-132 : les merveilles portent des bonus par terrain (Cie des
+   *  Indes — océan), obsolescence évaluée sur l'union (M1/R-128). */
   const yields = $derived.by(() => {
     if (!city || !view.state) return null;
     const tier = interiorCitizenFor(city.pop);
     const interior = interiorCountOf(city.pop, city.workedTiles.length);
     const t = { food: 2, production: Math.max(1, 1) + interior * tier.production, commerce: tier.commerce + interior * tier.commerce };
     for (const key of city.workedTiles) {
-      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
+      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? [], city.wonders, allTechs);
       if (!y) continue;
       t.food += y.food;
       t.production += y.production;
@@ -76,10 +78,16 @@
   const foodSurplus = $derived(yields && city ? yields.food - city.pop : 0);
 
 
-  /** R-90/R-88 : répartition or/science selon la conversion de la ville (source unique moteur). */
-  const gains = $derived(
-    yields && city ? conversionGains(yields.commerce, city.conversion, city.buildings) : null,
-  );
+  /** R-90/R-88 : répartition or/science selon la conversion de la ville (source unique moteur).
+   *  7k · R-132 : Foire de Troyes (cité) et Internet (empire) multiplient la part OR — MAX (R-88 🔶). */
+  function gainsFor(commerce: number): { gold: number; science: number } {
+    const base = conversionGains(commerce, city!.conversion, city!.buildings);
+    const mult = city && view.state
+      ? Math.max(cityGoldMultOf(city.wonders, allTechs), empireGoldMultOf(Object.values(view.state.cities), city.owner, allTechs))
+      : 1;
+    return { gold: Math.round(base.gold * mult), science: base.science };
+  }
+  const gains = $derived(yields && city ? gainsFor(yields.commerce) : null);
 
   /** Production par tour de la ville (miroir Phase C : raw × Usine × (1 + 0,25×(pop−1)), R-63 🔶 + 7e + citoyens intérieurs 7i). */
   const prodPerTurn = $derived.by(() => {
@@ -88,7 +96,7 @@
     const interior = interiorCountOf(city.pop, city.workedTiles.length);
     let raw = 1 + interior * tier.production; // case de ville (min 1 P — R-66 rév.) + intérieurs
     for (const key of city.workedTiles) {
-      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
+      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? [], city.wonders, allTechs);
       if (y) raw += y.production;
     }
     let factoryMult = 1;
@@ -123,11 +131,13 @@
   const workRadius = $derived(city ? workRadiusOf(city.buildings) : 1);
 
   /** 7f · R-113/R-114 : culture par tour de la ville + jauge vers le GP
-   *  (seuil T-27, ×2 à chaque GP obtenu par l'empire). */
+   *  (seuil T-27, ×2 à chaque GP obtenu par l'empire).
+   *  7k · M1/R-128 : l'obsolescence des merveilles (Stonehenge, Magna Carta,
+   *  Théâtre) est évaluée sur l'UNION des techs de toutes les civilisations. */
   const culturePerTurn = $derived.by(() => {
     if (!city || !view.state || !engine) return 0;
     const empireBonus = empirePerCityBonus(view.state, engine);
-    return cultureGains(city, empireBonus.culture, view.state.players[engine]?.techsUnlocked ?? []);
+    return cultureGains(city, empireBonus.culture, allTechs);
   });
   const gpThreshold = $derived.by(() => {
     if (!view.state || !engine) return CULTURE.greatPersonThresholdBase;
@@ -139,14 +149,13 @@
    * 7h · R-123 : jauges des GP à rendement (or / science / production) —
    * accumulateurs par ville, seuil T-30 (×2 par GP du même type obtenu).
    * Au plus un GP par ville et par tour (culture prioritaire — R-123).
+   * 7k · C1 (veto d'Erik du 04/09) : le Grand Humanitaire est produit PAR LE
+   * CANAL CULTURE — plus de jauge gpAccumFood (champ dormant en état).
    */
-  // 7j · D2 · R-123 complétée : 6 classes — Savant (science), Explorateur (or),
-  // Bâtisseur (production), Humanitaire (croissance, accumulateur gpAccumFood).
-  const YIELD_GAUGES: Array<{ key: 'gpAccumGold' | 'gpAccumScience' | 'gpAccumProd' | 'gpAccumFood'; type: 'explorateur' | 'savant' | 'batisseur' | 'humanitaire'; label: string; icon: string }> = [
+  const YIELD_GAUGES: Array<{ key: 'gpAccumGold' | 'gpAccumScience' | 'gpAccumProd'; type: 'explorateur' | 'savant' | 'batisseur'; label: string; icon: string }> = [
     { key: 'gpAccumScience', type: 'savant', label: 'Grand Savant', icon: '/art/icone_science.png' },
     { key: 'gpAccumGold', type: 'explorateur', label: 'Grand Explorateur', icon: '/art/icone_or.png' },
     { key: 'gpAccumProd', type: 'batisseur', label: 'Grand Bâtisseur', icon: '/art/icone_production.png' },
-    { key: 'gpAccumFood', type: 'humanitaire', label: 'Grand Humanitaire', icon: '/art/icone_nourriture.png' },
   ];
   const gpYieldGauges = $derived.by(() => {
     if (!city || !view.state || !engine) return [];
@@ -202,6 +211,9 @@
   const techsUnlocked = $derived(
     view.state && engine ? view.state.players[engine]?.techsUnlocked ?? [] : ([] as string[]),
   );
+  /** 7k · M1/R-128 : obsolescence GLOBALE — l'union des techs de toutes les
+   *  civilisations (l'état filtré expose les techsUnlocked de tous). */
+  const allTechs = $derived(view.state ? allKnownTechs(view.state) : ([] as string[]));
 
   /** 7g · R-117 : la ville est-elle côtière (adjacente à une case d'eau de
    *  l'état filtré) ? Condition de production des unités navales. */
@@ -272,9 +284,10 @@
   });
 
   /**
-   * 7f · R-116 : merveilles implémentées (Stonehenge, Colosse, Jardins + ONU).
-   * Le verrouillage complet (unicité d'empire, jalons de l'ONU, obsolescence)
-   * passe par wonderProductionIssue — même validation que le moteur.
+   * 7f · R-116 (rév. 7k) : merveilles implémentées. Le verrouillage complet
+   * (exclusivité MONDIALE R-129, jalons de l'ONU, obsolescence GLOBALE R-128
+   * via l'union des techs) passe par wonderProductionIssue — même validation
+   * que le moteur.
    */
   const wonderOptions = $derived.by(() => {
     if (!city || !view.state || !engine) return [];
@@ -282,6 +295,8 @@
     const ownCities = Object.values(view.state.cities).filter((c) => c.owner === engine);
     const ctx = {
       techsUnlocked,
+      allTechsUnlocked: allTechs,
+      worldWondersBuilt: [...new Set(Object.values(view.state.cities).flatMap((c) => c.wonders))].sort(),
       empireWondersBuilt: ownCities.flatMap((c) => c.wonders),
       empireWondersInProduction: ownCities
         .filter((c) => c.id !== city.id && c.production?.item.kind === 'wonder')
@@ -367,7 +382,7 @@
     t.production = 1 + interior * tier.production;
     t.commerce = tier.commerce + interior * tier.commerce;
     for (const key of tiles) {
-      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? []);
+      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? [], city.wonders, allTechs);
       if (!y) continue;
       t.food += y.food;
       t.production += y.production;
@@ -418,7 +433,7 @@
     <!-- 2. Rendements + jauges (projeté si réassignation en attente) -->
     {#if yields}
       {@const shown = hasPending ? projectedYields(pending.tiles) : yields}
-      {@const shownGains = conversionGains(shown.commerce, city.conversion, city.buildings)}
+      {@const shownGains = gainsFor(shown.commerce)}
       <div class="yields" class:projected={hasPending}>
         <span title="Nourriture par tour"><img src="/art/icone_nourriture.png" alt="N" onerror={hideImg} /> {shown.food}</span>
         <span title="Production par tour"><img src="/art/icone_production.png" alt="P" onerror={hideImg} /> {shown.production}</span>
@@ -524,16 +539,28 @@
         </div>
       </div>
     {/if}
-    {#if city.wonders.length > 0}
-      <div class="block">
-        <h3>Merveilles (+1 jalon chacune)</h3>
-        <div class="btns">
-          {#each city.wonders as w (w)}
-            <span class="wonder" title={WONDERS[w]?.effect ?? w}>{WONDERS[w]?.name ?? w}</span>
-          {/each}
-        </div>
-      </div>
-    {/if}
+        {#if city.wonders.length > 0}
+          <div class="block">
+            <h3>Merveilles (+1 jalon chacune)</h3>
+            <div class="btns">
+              {#each city.wonders as w (w)}
+                <!-- 7k · M1/R-128 : le badge « obsolète » suit l'obsolescence GLOBALE
+                     (tech connue par N'IMPORTE QUELLE civilisation) — jalon conservé. -->
+                <span class="wonder" class:obsolete={isWonderObsolete(w, allTechs)} title="{WONDERS[w]?.effect ?? w}{isWonderObsolete(w, allTechs) ? ' — OBSOLÈTE (effet retiré, jalon et culture conservés — R-128)' : ''}">
+                  {WONDERS[w]?.name ?? w}{isWonderObsolete(w, allTechs) ? ' · obsolète' : ''}
+                </span>
+              {/each}
+            </div>
+          </div>
+        {/if}
+        {#if mine && city.pendingSalvage > 0}
+          <!-- 7k · R-130 · M3 : marteaux récupérés d'une merveille complétée par
+               un rival — à réaffecter (production) AVANT la fin du tour, sinon
+               dissipation. -->
+          <p class="salvage" title="R-130 : un rival a achevé une merveille que cette ville construisait — les marteaux investis survivent si vous les réaffectez (un SetProduction) pendant ce tour ; sinon ils sont dissipés à la résolution.">
+            ⚒ {city.pendingSalvage} marteaux récupérables — réaffectez la production ce tour, sinon ils seront dissipés !
+          </p>
+        {/if}
 
     <!-- 5. Production (ville amie uniquement) -->
     {#if !mine}
@@ -639,6 +666,8 @@
   .culture-fill { background: #ba68c8; }
   .gp-fill { background: #b39ddb; }
   .wonder { padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid #b8863c; background: #3c3222; font-size: 0.8rem; color: #ffd54f; }
+  .wonder.obsolete { opacity: 0.55; border-style: dashed; color: #a89880; }
+  .salvage { margin: 0.2rem 0; color: #ffe082; font-size: 0.84rem; font-weight: 600; }
   .opt.wonder-btn { border-color: #8d6e3c; background: #332b1e; }
   .eta { font-size: 0.8rem; color: #a5d6a7; white-space: nowrap; }
   .prodcur { display: flex; align-items: center; gap: 0.55rem; }

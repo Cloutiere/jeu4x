@@ -27,6 +27,9 @@ import {
   applySetConversion,
   applySetGovernment,
   greatPersonThresholdFor,
+  allKnownTechs,
+  WONDERS,
+  isWonderObsolete,
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, LoadedMap, Order, PlayerId, ProgenReport, UnitId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
@@ -484,6 +487,36 @@ export class GameDO {
           ),
         }
       : null;
+    // 7k · R-128..R-132 : merveilles — obsolescence GLOBALE (union des techs),
+    // contrôle par joueur, chantiers en course, récupérations de marteaux.
+    const merveilles = game
+      ? {
+          techsConnuesMonde: allKnownTechs(game),
+          obsoletes: Object.values(WONDERS)
+            .filter((w) => w.obsoleteBy && isWonderObsolete(w.id, allKnownTechs(game)))
+            .map((w) => w.id),
+          joueurs: Object.fromEntries(
+            Object.keys(game.players)
+              .sort()
+              .map((id) => {
+                const villes = Object.values(game.cities).filter((c) => c.owner === id);
+                return [
+                  id,
+                  {
+                    merveillesControlees: villes.flatMap((c) => c.wonders).sort(),
+                    chantiers: villes
+                      .filter((c) => c.production?.item.kind === 'wonder')
+                      .map((c) => ({ cityId: c.id, wonder: (c.production!.item as { id: string }).id, progress: c.production!.progress })),
+                    jalons: game.players[id]!.cultureMilestones,
+                  },
+                ];
+              }),
+          ),
+          recuperationsEnAttente: Object.values(game.cities)
+            .filter((c) => c.pendingSalvage > 0)
+            .map((c) => ({ cityId: c.id, owner: c.owner, marteaux: c.pendingSalvage })),
+        }
+      : null;
     return jsonResponse({
       meta: this.meta,
       state: this.game,
@@ -495,6 +528,7 @@ export class GameDO {
       culture,
       naval,
       gouvernements,
+      merveilles,
     });
   }
 

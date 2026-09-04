@@ -291,7 +291,7 @@
     return { milestones, wonderCount, installed };
   });
   const milestonesDetail = $derived(
-    `Jalons culturels (7j : comptés à l’obtention) — ${myCulture.installed} GP installé(s) + ${myCulture.wonderCount} merveille(s) contrôlée(s) — ${MILESTONES_TARGET} requis pour les Nations Unies (R-126/R-116)`,
+    `Jalons culturels (7k · C2 : les GP issus du canal culture comptent à l’obtention, les merveilles contrôlées comptent chacune 1 — les GP d’accumulateurs, du combat et du Premier découvrir ne comptent pas) — ${myCulture.installed} GP installé(s) + ${myCulture.wonderCount} merveille(s) contrôlée(s) — ${MILESTONES_TARGET} requis pour les Nations Unies (R-126 rév./R-131/R-116)`,
   );
   const myResearch = $derived.by(() => {
     const v = $view;

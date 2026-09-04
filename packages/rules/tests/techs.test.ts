@@ -123,7 +123,7 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     }
   });
 
-  it('7e : 21 merveilles en données, coût + tech + obsolescence documentés — 8 ACTIVÉES (7f + 7h R-125)', () => {
+  it('7e : 21 merveilles en données, coût + tech + obsolescence documentés — 18 ACTIVÉES (7f + 7h + 7k R-132)', () => {
     expect(Object.keys(wonderTable)).toHaveLength(21);
     const active = Object.values(wonderTable)
       .filter((w) => w.implemented)
@@ -131,10 +131,17 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
       .sort();
     // 7f (R-116) : Stonehenge, Colosse de Rhodes, Jardins suspendus, ONU ;
     // 7h (R-125) : Himeji, Grande Pyramide, Magna Carta, Oracle.
-    // Nations Unies sont constructibles ; les autres attendent 7h.
+    // 7k (R-132) : Grande Bibliothèque, Grande Muraille, Théâtre de
+    // Shakespeare, Université d'Oxford, Cie des Indes, Atelier de Léonard,
+    // Foire de Troyes, Complexe militaro-industriel, Programme Apollo, Internet.
+    // Restent en données seules : Banque mondiale (7l), Hollywood (territoire
+    // en suspens), Projet Manhattan (7m).
     expect(active).toEqual([
-      'chateau_himeji', 'colosse_de_rhodes', 'grande_pyramide', 'jardins_suspendus',
-      'magna_carta', 'nations_unies', 'oracle_de_delphes', 'stonehenge',
+      'atelier_de_leonard', 'chateau_himeji', 'colosse_de_rhodes', 'compagnie_des_indes',
+      'complexe_militaro_industriel', 'foire_de_troyes', 'grande_bibliotheque', 'grande_muraille',
+      'grande_pyramide', 'internet', 'jardins_suspendus', 'magna_carta',
+      'nations_unies', 'oracle_de_delphes', 'programme_apollo', 'stonehenge',
+      'theatre_de_shakespeare', 'universite_d_oxford',
     ]);
     for (const w of Object.values(wonderTable)) {
       expect(w.cost).toBeGreaterThan(0);

@@ -1778,6 +1778,150 @@ def unite_leader(db, da, w, h):
     db.rrect((cx + 30, ground - 100, cx + 40, ground - 90), 2, fill=BOIS)
 
 
+# ------------------------------------------------- Phase 7k — sprites dédiés des 6 classes canoniques de GP (R-126)
+
+def unite_artiste_penseur(db, da, w, h):
+    """256x320, Grand Artiste / Penseur (fusion D1 — R-114 rev.) : palette,
+    pinceau ET livre, beret (accent) — la silhouette des deux anciennes classes."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 30, ground - 142), (cx + 30, ground - 142), (cx + 38, ground - 50),
+             (cx - 38, ground - 50)], fill="#C4A4D6", outline=INK, width=2)
+    db.poly([(cx - 30, ground - 142), (cx - 8, ground - 142), (cx - 16, ground - 50),
+             (cx - 38, ground - 50)], fill="#B18CE0")
+    db.ellipse((cx - 14, ground - 178, cx + 14, ground - 150), fill="#B99B7E", outline=INK, width=1.5)
+    # beret (accent)
+    beret = [(cx - 22, ground - 182), (cx + 22, ground - 182), (cx + 14, ground - 200),
+             (cx - 14, ground - 200)]
+    db.poly(beret, fill="#7A5A96", outline=INK, width=1.5)
+    da.poly(beret, fill="#FFFFFF")
+    # palette + taches de peinture (accent)
+    db.ellipse((cx + 26, ground - 108, cx + 84, ground - 72), fill="#A8794F", outline=INK, width=2)
+    for tx, ty in ((cx + 42, ground - 96), (cx + 62, ground - 88), (cx + 54, ground - 78)):
+        db.ellipse((tx, ty, tx + 10, ty + 10), fill="#E8D44A")
+        da.ellipse((tx, ty, tx + 10, ty + 10), fill="#FFFFFF")
+    # livre du Penseur sous le bras gauche (fusion D1)
+    db.rrect((cx - 78, ground - 128, cx - 44, ground - 84), 3, fill="#8A5A3A", outline=INK, width=2)
+    da.rrect((cx - 74, ground - 106, cx - 48, ground - 100), 1, fill="#FFFFFF")
+    # bras tenant la palette
+    db.line([(cx + 18, ground - 120), (cx + 44, ground - 96)], fill="#C4A4D6", width=10)
+
+
+def unite_savant(db, da, w, h):
+    """256x320, Grand Savant (R-126) : blouse, fiole d'Erlenmeyer (accent =
+    liquide), lunettes rondes (accent)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 30, ground - 142), (cx + 30, ground - 142), (cx + 38, ground - 50),
+             (cx - 38, ground - 50)], fill="#5E7A8E", outline=INK, width=2)
+    db.poly([(cx - 30, ground - 142), (cx - 8, ground - 142), (cx - 16, ground - 50),
+             (cx - 38, ground - 50)], fill="#4E6678")
+    db.ellipse((cx - 14, ground - 178, cx + 14, ground - 150), fill="#B99B7E", outline=INK, width=1.5)
+    # lunettes rondes (accent)
+    da.ellipse((cx - 12, ground - 170, cx - 2, ground - 160), outline="#FFFFFF", width=2)
+    da.ellipse((cx + 2, ground - 170, cx + 12, ground - 160), outline="#FFFFFF", width=2)
+    db.line([(cx - 2, ground - 165), (cx + 2, ground - 165)], fill="#FFFFFF", width=2)
+    # fiole d'Erlenmeyer (accent = liquide)
+    db.poly([(cx + 34, ground - 140), (cx + 58, ground - 96), (cx + 22, ground - 96)],
+            fill="#D7E3EC", outline=INK, width=2)
+    db.rrect((cx + 33, ground - 146, cx + 59, ground - 138), 2, fill="#D7E3EC", outline=INK, width=2)
+    da.poly([(cx + 54, ground - 106), (cx + 57, ground - 98), (cx + 25, ground - 98),
+             (cx + 28, ground - 106)], fill="#FFFFFF")
+    # parchemin tenu au flanc
+    db.rrect((cx - 74, ground - 118, cx - 42, ground - 92), 3, fill="#E8DDBB", outline=INK, width=2)
+    da.line([(cx - 70, ground - 112), (cx - 46, ground - 112)], fill="#FFFFFF", width=3)
+    # bras tenant la fiole
+    db.line([(cx + 18, ground - 124), (cx + 40, ground - 108)], fill="#5E7A8E", width=10)
+
+
+def unite_batisseur(db, da, w, h):
+    """256x320, Grand Batisseur (R-126) : tablier de cuir, marteau, plans roules
+    (accent = boucle du tablier, marteau, plans)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 30, ground - 142), (cx + 30, ground - 142), (cx + 38, ground - 50),
+             (cx - 38, ground - 50)], fill="#8A6A4A", outline=INK, width=2)
+    db.poly([(cx - 30, ground - 142), (cx - 8, ground - 142), (cx - 16, ground - 50),
+             (cx - 38, ground - 50)], fill="#765A3E")
+    db.ellipse((cx - 14, ground - 178, cx + 14, ground - 150), fill="#B99B7E", outline=INK, width=1.5)
+    # tablier de cuir (accent : boucle)
+    db.poly([(cx - 20, ground - 130), (cx + 20, ground - 130), (cx + 16, ground - 62),
+             (cx - 16, ground - 62)], fill="#A87C50", outline=INK, width=2)
+    da.rrect((cx - 7, ground - 110, cx + 7, ground - 98), 2, fill="#FFFFFF")
+    # casquette plate
+    db.rrect((cx - 18, ground - 192, cx + 18, ground - 178), 3, fill="#5A4632", outline=INK, width=2)
+    da.rrect((cx - 14, ground - 190, cx + 14, ground - 186), 1, fill="#FFFFFF")
+    # marteau leve
+    db.line([(cx + 34, ground - 92), (cx + 48, ground - 168)], fill=BOIS, width=6)
+    db.rrect((cx + 40, ground - 184, cx + 72, ground - 168), 3, fill="#9EA6B2", outline=INK, width=2)
+    da.rrect((cx + 40, ground - 184, cx + 72, ground - 168), 3, fill="#FFFFFF")
+    # plans roules sous le bras
+    db.rrect((cx - 76, ground - 122, cx - 44, ground - 92), 8, fill="#E8DDBB", outline=INK, width=2)
+    da.ellipse((cx - 64, ground - 115, cx - 56, ground - 99), outline="#FFFFFF", width=2)
+    # bras tenant le marteau
+    db.line([(cx + 18, ground - 124), (cx + 36, ground - 100)], fill="#8A6A4A", width=10)
+
+
+def unite_explorateur(db, da, w, h):
+    """256x320, Grand Explorateur / Industriel (R-126) : manteau, chapeau a
+    larges bords (accent = bande), lunette astronomique, besace (accent = carte)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 34, ground - 146), (cx + 34, ground - 146), (cx + 42, ground - 50),
+             (cx - 42, ground - 50)], fill="#6E5A3E", outline=INK, width=2)
+    db.poly([(cx - 34, ground - 146), (cx - 10, ground - 146), (cx - 18, ground - 50),
+             (cx - 42, ground - 50)], fill="#5C4B34")
+    db.ellipse((cx - 14, ground - 180, cx + 14, ground - 152), fill="#B99B7E", outline=INK, width=1.5)
+    # chapeau a larges bords (accent = bande)
+    db.ellipse((cx - 34, ground - 192, cx + 34, ground - 172), fill="#7A6444", outline=INK, width=2)
+    db.rrect((cx - 16, ground - 208, cx + 16, ground - 186), 6, fill="#7A6444", outline=INK, width=2)
+    da.ellipse((cx - 32, ground - 186, cx + 32, ground - 176), fill="#FFFFFF")
+    # lunette astronomique sur l'epaule
+    db.rrect((cx + 26, ground - 150, cx + 70, ground - 132), 4, fill="#D9B45C", outline=INK, width=2)
+    da.rrect((cx + 62, ground - 150, cx + 70, ground - 132), 4, fill="#FFFFFF")
+    # besace + carte qui depasse (accent)
+    db.rrect((cx - 70, ground - 104, cx - 36, ground - 72), 4, fill="#8A6A4A", outline=INK, width=2)
+    db.poly([(cx - 66, ground - 104), (cx - 40, ground - 118), (cx - 40, ground - 104)],
+            fill="#8A6A4A", outline=INK, width=1)
+    da.rrect((cx - 62, ground - 100, cx - 44, ground - 76), 1, fill="#FFFFFF")
+    # bras
+    db.line([(cx + 18, ground - 122), (cx + 36, ground - 140)], fill="#6E5A3E", width=10)
+
+
+def unite_humanitaire(db, da, w, h):
+    """256x320, Grand Humanitaire (R-126) : longue blouse claire, corbeille de
+    pain et de grain (accent = miches + epis) — croissance et don."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 50)
+    db.rrect((cx - 22, ground - 54, cx - 4, ground), 7, fill="#4E4438")
+    db.rrect((cx + 4, ground - 54, cx + 22, ground), 7, fill="#4E4438")
+    db.poly([(cx - 32, ground - 146), (cx + 32, ground - 146), (cx + 40, ground - 50),
+             (cx - 40, ground - 50)], fill="#D9D2C2", outline=INK, width=2)
+    db.poly([(cx - 32, ground - 146), (cx - 10, ground - 146), (cx - 18, ground - 50),
+             (cx - 40, ground - 50)], fill="#C6BDA9")
+    db.ellipse((cx - 14, ground - 180, cx + 14, ground - 152), fill="#B99B7E", outline=INK, width=1.5)
+    # voile discrete (accent)
+    da.poly([(cx - 16, ground - 182), (cx + 16, ground - 182), (cx + 10, ground - 196),
+             (cx - 10, ground - 196)], fill="#FFFFFF")
+    # corbeille de pain (accent : miches + epis)
+    db.poly([(cx + 24, ground - 100), (cx + 78, ground - 100), (cx + 70, ground - 72),
+             (cx + 32, ground - 72)], fill="#A8794F", outline=INK, width=2)
+    da.ellipse((cx + 34, ground - 108, cx + 52, ground - 96), fill="#FFFFFF")
+    da.ellipse((cx + 54, ground - 106, cx + 70, ground - 96), fill="#FFFFFF")
+    for wx in (cx + 38, cx + 50, cx + 62):
+        db.line([(wx, ground - 96), (wx + 2, ground - 112)], fill="#C9A84C", width=3)
+    # bras portant la corbeille
+    db.line([(cx + 16, ground - 122), (cx + 36, ground - 98)], fill="#D9D2C2", width=10)
+
+
 def icone_gouvernement(d):
     """Gouvernement (Phase 7h, R-121) : colonne / portique."""
     d.rrect((8, 48, 56, 56), 2, fill="#C2B6A2", outline=INK, width=2)
@@ -1885,6 +2029,13 @@ def main():
         "unite_mogul": (256, 320, unite_mogul),
         "unite_ingenieur": (256, 320, unite_ingenieur),
         "unite_leader": (256, 320, unite_leader),
+        # Phase 7k — sprites DÉDIÉS des 6 classes canoniques de GP (R-126) :
+        # fin des alias 7j (silhouettes réutilisées), un fichier par classe.
+        "unite_artiste_penseur": (256, 320, unite_artiste_penseur),
+        "unite_savant": (256, 320, unite_savant),
+        "unite_batisseur": (256, 320, unite_batisseur),
+        "unite_explorateur": (256, 320, unite_explorateur),
+        "unite_humanitaire": (256, 320, unite_humanitaire),
     }
     icons = {
         "icone_or": icone_or,
@@ -2027,12 +2178,17 @@ for n in ["piquier", "catapulte", "chevalier", "fusilier", "canon",
 for n in ["galere", "galion", "croiseur", "cuirasse", "sous_marin", "espion"]:
     EXPECTED[f"unite_{n}.png"] = (256, 320)
     EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
-# Phase 7f : GP de culture (Artiste, Penseur).
+# Phase 7f : GP de culture (Artiste, Penseur) — fichiers historiques conservés.
 for n in ["artiste", "penseur"]:
     EXPECTED[f"unite_{n}.png"] = (256, 320)
     EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
 # Phase 7h : GP restants (R-123) + icône gouvernement (R-121).
 for n in ["scientifique", "mogul", "ingenieur", "leader"]:
+    EXPECTED[f"unite_{n}.png"] = (256, 320)
+    EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
+# Phase 7k (R-126) : sprites dédiés des 6 classes canoniques de GP — la classe
+# `leader` partage son fichier 7h ; les autres remplacent les alias 7j.
+for n in ["artiste_penseur", "savant", "batisseur", "explorateur", "humanitaire"]:
     EXPECTED[f"unite_{n}.png"] = (256, 320)
     EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
 for n in ["or", "commerce", "science", "nourriture", "production", "pv", "pm", "fin_tour", "reseau", "culture", "gouvernement"]:

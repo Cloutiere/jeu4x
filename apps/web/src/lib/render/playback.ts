@@ -80,6 +80,9 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   GreatPersonConsumed: 380,
   CultureMilestone: 320,
   WonderCompleted: 400,
+  // Phase 7k (R-130/R-132) : récupération de marteaux, surclassement Léonard.
+  HammerSalvage: 400,
+  UnitsUpgraded: 360,
   // Phase 7g (R-117..R-119) : naval & espionnage.
   Embark: 280,
   Disembark: 280,
@@ -113,6 +116,10 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   GreatPersonConsumed: 'good',
   WonderCompleted: 'good',
   CultureMilestone: 'info',
+  // Phase 7k (R-130/R-132) : marteaux récupérés (good), dissipés (bad),
+  // unités surclassées par Léonard (good).
+  HammerSalvage: 'good',
+  UnitsUpgraded: 'good',
   // Phase 7g (R-117..R-119) : naval & espionnage — un vol est bon pour le
   // voleur… mais le toast est neutre (la victime le voit aussi).
   Embark: 'info',
@@ -340,7 +347,10 @@ export class Playback {
         break;
     }
     const kind = TOAST_KINDS[ev.type];
-    if (kind) this.pushToast(eventLabel(ev), kind);
+    if (kind) {
+      // 7k · R-130 : des marteaux récupérés DISSIPÉS sont une perte, pas un gain.
+      this.pushToast(eventLabel(ev), ev.type === 'HammerSalvage' && ev.outcome === 'dissipated' ? 'bad' : kind);
+    }
   }
 
   private finish(cur: CurrentItem): void {

@@ -224,11 +224,35 @@ export interface WonderData {
   attackBonusEmpire?: number;
   /** 7h · R-125 : accès à tous les régimes sans tech (Grande Pyramide). */
   allGovernments?: boolean;
-  /** 7h · R-125 : +X culture/tour à la ville hôte si elle possède le Tribunal
-   *  (Magna Carta : 1). */
-  tribunalCulturePerTurn?: number;
+  /** 7k · R-133 (audit — révision du modèle 7h 🔶) : +X culture/tour PAR
+   *  CITOYEN à la ville hôte si elle possède le Tribunal (Magna Carta : 1 —
+   *  le doc d'Erik tranche : « +1 de Culture par citoyen »). */
+  tribunalCulturePerCitizen?: number;
   /** 7h · R-125 : révèle l'issue du combat avant confirmation (Oracle — UI). */
   battleForeknowledge?: boolean;
+  // --- 7k · R-132 : effets des merveilles restantes (data-driven, valeurs du doc).
+  /** Grande Bibliothèque : accorde toute tech découverte par ≥ 2 rivaux. */
+  twoRivalsTechGrant?: boolean;
+  /** Théâtre de Shakespeare : ×X la Culture TOTALE de la cité hôte. */
+  cityCultureMult?: number;
+  /** Université d'Oxford : une tech aléatoire seedée R-80 à la complétion. */
+  randomTechOnComplete?: boolean;
+  /** Cie des Indes : +X Commerce par case `ocean` travaillée par la cité. */
+  oceanCommerceBonus?: number;
+  /** Atelier de Léonard : met à niveau les unités obsolètes (R-111) à la complétion. */
+  upgradeObsoleteUnits?: boolean;
+  /** Foire de Troyes : ×X la part OR de la conversion R-90 de la cité (🔶). */
+  cityGoldMult?: number;
+  /** Complexe militaro-industriel : coût de production des unités militaires ×X (0.8 = −20 %). */
+  militaryCostMult?: number;
+  /** Internet : ×X la part OR de la conversion R-90 de TOUTES les villes de l'empire (🔶). */
+  empireGoldMult?: number;
+  /** Programme Apollo : accorde instantanément toute la technologie de l'arbre. */
+  allTechsOnComplete?: boolean;
+  /** Grande Muraille (décision d'Erik du 04/09, validée) : l'adversaire ne peut
+   *  pas attaquer les unités ni les villes du propriétaire tant que la merveille
+   *  est debout (obsolescence globale R-128 — Ingénierie). */
+  blocksEnemyAttacks?: boolean;
   /** Libellé d'effet (UI — actif en 7f/7h). */
   effect?: string;
   implemented: boolean;
@@ -249,6 +273,9 @@ export interface CultureData {
   greatPersonYieldThresholdGrowth: number;
   /** 7h · T-31 · Victoires de combat de l'empire pour engendrer un Leader (R-123). */
   leaderGpVictories: number;
+  /** 7k · T-32 · R-130 · Fenêtre de réaffectation des marteaux récupérés
+   *  (tours avant dissipation — 🔶 calibrable). */
+  hammerSalvageWindow: number;
 }
 
 // ---------------------------------------------------------------------------

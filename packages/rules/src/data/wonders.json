@@ -16,7 +16,7 @@
     "tech": "travail_du_bronze",
     "obsoleteBy": "invention",
     "commerceMult": 2,
-    "effect": "Double (×2) la production de Commerce de la ville hôte",
+    "effect": "Double (×2) la production de Commerce de la ville hôte (or et science — conversion R-90)",
     "implemented": true
   },
   "jardins_suspendus": {
@@ -34,7 +34,7 @@
     "cost": 125,
     "tech": "alphabet",
     "obsoleteBy": "religion",
-    "effect": "Révèle l'issue exacte de chaque bataille avant d'engager le combat",
+    "effect": "Avertit si une attaque risque d'échouer (issue du combat révélée avant engagement)",
     "implemented": true,
     "battleForeknowledge": true
   },
@@ -44,8 +44,9 @@
     "cost": 150,
     "tech": "ecriture",
     "obsoleteBy": "universite",
-    "effect": "Accorde gratuitement toute technologie découverte par 2 autres nations",
-    "implemented": false
+    "effect": "Accorde toute technologie déjà découverte par au moins deux rivaux (jamais déclenchée en 1v1 — condition canonique ≥ 2 rivaux)",
+    "implemented": true,
+    "twoRivalsTechGrant": true
   },
   "grande_pyramide": {
     "id": "grande_pyramide",
@@ -63,8 +64,9 @@
     "cost": 150,
     "tech": "maconnerie",
     "obsoleteBy": "ingenierie",
-    "effect": "Force toutes les civilisations à signer la paix avec le propriétaire",
-    "implemented": false
+    "effect": "L'adversaire ne peut pas attaquer vos unités ni vos villes tant qu'elle est debout (décision d'Erik du 04/09, validée)",
+    "implemented": true,
+    "blocksEnemyAttacks": true
   },
   "chateau_himeji": {
     "id": "chateau_himeji",
@@ -81,9 +83,9 @@
     "name": "Magna Carta",
     "cost": 150,
     "tech": "democratie",
-    "effect": "Permet aux Tribunaux de produire de la culture urbaine",
+    "effect": "Les Tribunaux génèrent +1 Culture par citoyen (révision 7k — audit du doc)",
     "implemented": true,
-    "tribunalCulturePerTurn": 1
+    "tribunalCulturePerCitizen": 1
   },
   "theatre_de_shakespeare": {
     "id": "theatre_de_shakespeare",
@@ -91,16 +93,18 @@
     "cost": 150,
     "tech": "litteratie",
     "obsoleteBy": "medias_de_masse",
-    "effect": "Double (×2) la génération de Culture de la ville hôte",
-    "implemented": false
+    "effect": "Double (×2) la Culture totale de la ville hôte",
+    "implemented": true,
+    "cityCultureMult": 2
   },
   "universite_d_oxford": {
     "id": "universite_d_oxford",
     "name": "Université d'Oxford",
     "cost": 150,
     "tech": "universite",
-    "effect": "Accorde immédiatement une technologie avancée gratuite",
-    "implemented": false
+    "effect": "Accorde immédiatement une technologie avancée aléatoire (tirage seedé)",
+    "implemented": true,
+    "randomTechOnComplete": true
   },
   "compagnie_des_indes": {
     "id": "compagnie_des_indes",
@@ -108,16 +112,18 @@
     "cost": 200,
     "tech": "navigation",
     "obsoleteBy": "aviation",
-    "effect": "Offre +1 Commerce sur chaque case océanique exploitée",
-    "implemented": false
+    "effect": "+1 Commerce sur chaque case océanique exploitée par la ville hôte",
+    "implemented": true,
+    "oceanCommerceBonus": 1
   },
   "atelier_de_leonard": {
     "id": "atelier_de_leonard",
     "name": "Atelier de Léonard",
-    "cost": 200,
+    "cost": 150,
     "tech": "invention",
-    "effect": "Surclasse automatiquement toutes les unités vers leur version la plus récente",
-    "implemented": false
+    "effect": "Met à niveau gratuitement toutes les unités obsolètes de l'empire (une fois, à la complétion)",
+    "implemented": true,
+    "upgradeObsoleteUnits": true
   },
   "foire_de_troyes": {
     "id": "foire_de_troyes",
@@ -125,16 +131,18 @@
     "cost": 250,
     "tech": "monnaie",
     "obsoleteBy": "mondialisation",
-    "effect": "Double (×2) la production totale d'Or dans la ville",
-    "implemented": false
+    "effect": "Double (×2) la production d'Or de la ville hôte",
+    "implemented": true,
+    "cityGoldMult": 2
   },
   "complexe_militaro_industriel": {
     "id": "complexe_militaro_industriel",
     "name": "Complexe militaro-industriel",
-    "cost": 500,
+    "cost": 600,
     "tech": "corporation",
-    "effect": "Réduit drastiquement le coût d'achat et de production des unités",
-    "implemented": false
+    "effect": "Réduit de 20 % le coût de production des unités militaires (le « coût d'achat » concernera le rush-buy, 7l)",
+    "implemented": true,
+    "militaryCostMult": 0.8
   },
   "nations_unies": {
     "id": "nations_unies",
@@ -158,7 +166,7 @@
     "name": "Hollywood",
     "cost": 600,
     "tech": "medias_de_masse",
-    "effect": "Les Remparts ennemis n'empêchent plus l'assimilation culturelle des cités",
+    "effect": "Amplifie la conversion culturelle (Culture Flip) — inactif v1 (territoire en suspens)",
     "implemented": false
   },
   "programme_apollo": {
@@ -166,8 +174,9 @@
     "name": "Programme Apollo",
     "cost": 750,
     "tech": "vol_spatial",
-    "effect": "Accorde l'accès direct à l'ensemble des technologies restantes",
-    "implemented": false
+    "effect": "Accorde instantanément l'ensemble des technologies de l'arbre",
+    "implemented": true,
+    "allTechsOnComplete": true
   },
   "projet_manhattan": {
     "id": "projet_manhattan",
@@ -182,7 +191,8 @@
     "name": "Internet",
     "cost": 750,
     "tech": "reseautage",
-    "effect": "Double (×2) la génération globale d'Or dans tout l'empire",
-    "implemented": false
+    "effect": "Double (×2) la production d'Or dans tout l'empire",
+    "implemented": true,
+    "empireGoldMult": 2
   }
 }

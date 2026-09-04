@@ -149,6 +149,13 @@ export function eventLabel(event: GameEvent): string {
       return `${event.delta > 0 ? '+' : ''}${event.delta} jalon culturel pour ${event.player} (${milestoneReasonLabel(event.reason)}) — total ${event.total}/20`;
     case 'WonderCompleted':
       return `Merveille achevée : ${event.wonder} dans ${event.cityId} (+1 jalon)`;
+    // 7k · R-130/R-132 : récupération de marteaux, surclassement Léonard.
+    case 'HammerSalvage':
+      return event.outcome === 'available'
+        ? `Un rival a achevé ${event.wonder} ! ${event.amount} marteaux récupérés dans ${event.cityId} — réaffectez-les ce tour (production).`
+        : `${event.amount} marteaux récupérés dissipés (${event.cityId}) — aucun projet réaffecté dans le délai.`;
+    case 'UnitsUpgraded':
+      return `Atelier de Léonard : ${event.upgrades.length} unité(s) mise(s) à niveau (${event.upgrades.map((u) => `${u.from} → ${u.to}`).join(', ')})`;
     // 7g · R-117/R-119 : naval & espionnage.
     case 'Embark':
       return `${event.unitId} embarque à bord de ${event.transportId}`;

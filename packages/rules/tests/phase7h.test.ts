@@ -273,8 +273,9 @@ describe('R-123 · GP restants (Scientifique, Mogul, Ingénieur, Leader)', () =>
     expect(spawned).toBeDefined();
     if (spawned?.type !== 'GreatPersonSpawned') return;
     expect(spawned.unitType).toBe('savant');
-    // 7j : le jalon est compté À L'OBTENTION (R-126).
-    expect(result.newState.players['p1']!.cultureMilestones).toBeGreaterThanOrEqual(1);
+    // 7k · C2 (veto d'Erik du 04/09, révision R-126) : un GP d'ACCUMULATEUR
+    // (canal science) ne compte PAS de jalon culturel.
+    expect(result.newState.players['p1']!.cultureMilestones).toBe(0);
     expect(result.newState.players['p1']!.greatPersonsByType['savant']).toBe(1);
     expect(Object.values(result.newState.units).some((u) => u.type === 'savant')).toBe(true);
   });
@@ -297,12 +298,12 @@ describe('R-123 · GP restants (Scientifique, Mogul, Ingénieur, Leader)', () =>
     expect(out.cities['c1']!.gpAccumScience).toBe(5);
   });
 
-  it('7j · R-126 : le jalon est compté À L’OBTENTION ; le settle enregistre l’installation sans jalon', () => {
+  it('7k · C2 (rév. R-126) : un GP d’accumulateur n’accorde AUCUN jalon — ni à l’obtention ni au settle', () => {
     const s = productionState();
     s.cities['c1']!.gpAccumScience = 20;
     const first = resolveTurn(s, {}, 42).newState;
     const mileAtObtain = first.players['p1']!.cultureMilestones;
-    expect(mileAtObtain).toBeGreaterThanOrEqual(1); // jalon d’obtention (R-126)
+    expect(mileAtObtain).toBe(0); // 7k · C2 : pas de jalon hors canal culture
     const gp = Object.values(first.units).find((u) => u.type === 'savant')!;
     const second = resolveTurn(first, { p1: [{ type: 'InstallPerson', unitId: gp.id, cityId: 'c1' }] }, 42);
     expect(second.events.some((e) => e.type === 'InstallPerson')).toBe(true);
@@ -362,7 +363,7 @@ describe('R-124 · Victoire scientifique (Vaisseau spatial)', () => {
       wonders: [],
       gpAccumGold: 0,
       gpAccumScience: 0,
-      gpAccumProd: 0, gpAccumFood: 0, settledGreatPersons: [],
+      gpAccumProd: 0, gpAccumFood: 0, pendingSalvage: 0, settledGreatPersons: [],
     };
     const result = resolveTurn(s, {}, 42);
     expect(result.events.some((e) => e.type === 'Launch' && e.player === 'p1')).toBe(true);
@@ -403,7 +404,7 @@ describe('Migration v11 → v12 (Phase 7h)', () => {
       cities: { c1: { id: 'c1', q: 0, r: 0, wonders: ['stonehenge'] } },
     };
     const out = migrateState(v11 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(13);
+    expect(out.schemaVersion).toBe(14);
     expect(out.players['p1']!.government).toBe('despotisme');
     expect(out.players['p1']!.anarchyUntil).toBeNull();
     expect(out.players['p1']!.greatPersonsByType).toEqual({});

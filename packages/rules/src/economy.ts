@@ -16,6 +16,8 @@
 import { hexesWithinRadius, compareHex, tileKeyOf, parseTileKey } from './hex.js';
 import type { Hex } from './hex.js';
 import { TERRAINS, BUILDINGS, RESOURCES } from './data.js';
+import { WONDERS } from './techs.js';
+import { isWonderObsolete } from './culture.js';
 import type { TerrainId, TileResource, Yields } from './types.js';
 import { resourceBonus } from './resources.js';
 import { CITY_WORK_RADIUS } from './constants.js';
@@ -57,6 +59,8 @@ export function workRadiusOf(buildings: string[]): number {
  * CHAQUE bâtiment ciblant le terrain de la case (R-66) + bonus de la
  * ressource de la case si le propriétaire de la ville y a accès (R-93 — le
  * contexte technologique est passé par l'appelant, jamais déduit ici).
+ * 7k · R-132 · Cie des Indes orientales : +X Commerce par case `ocean`
+ * travaillée (`wonders` = merveilles de la ville, non obsolètes — R-128).
  * Retourne null si la case n'est pas travaillable (absente, ou terrain sans
  * rendements).
  */
@@ -65,6 +69,8 @@ export function tileYield(
   buildings: string[],
   key: TileKey,
   techsUnlocked: readonly string[] = [],
+  wonders: readonly string[] = [],
+  allTechs?: readonly string[],
 ): Yields | null {
   const tile = map[key];
   if (!tile) return null;
@@ -76,6 +82,17 @@ export function tileYield(
     if (bonus && bonus.terrain === tile.terrain) {
       y = addYields(y, { food: bonus.food, production: bonus.production, commerce: bonus.commerce });
     }
+  }
+  // 7k · R-132 : bonus maritime de la Cie des Indes (modèle R-66, data-driven).
+  // ⚠ M1/R-128 : l'obsolescence est évaluée sur l'union des techs (`allTechs`)
+  // — distincte des `techsUnlocked` du joueur, qui conditionnent les ressources
+  // (R-93) ; sans union fournie, retombe sur `techsUnlocked` (compat).
+  const obsoleteTechs = allTechs ?? techsUnlocked;
+  for (const wonderId of wonders) {
+    const w = WONDERS[wonderId];
+    if (!w?.oceanCommerceBonus) continue;
+    if (isWonderObsolete(wonderId, obsoleteTechs)) continue;
+    if (tile.terrain === 'ocean') y = addYields(y, { food: 0, production: 0, commerce: w.oceanCommerceBonus });
   }
   const resBonus = resourceBonus(tile.resource ? (RESOURCES[tile.resource] ?? null) : null, techsUnlocked);
   if (resBonus) y = addYields(y, resBonus);

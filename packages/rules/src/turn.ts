@@ -24,7 +24,7 @@ import {
   tileKeyOf,
 } from './hex.js';
 import type { Hex } from './hex.js';
-import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId } from './state.js';
+import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId, allKnownTechs } from './state.js';
 import type { BarbarianVillage, City, CityId, GameState, Order, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
 import { BARBARIAN_ID, BARBARIANS, CULTURE, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, isWaterTerrain } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable } from './economy.js';
@@ -51,7 +51,8 @@ import {
 import type { DestructionCause, GameEvent, HutReward } from './events.js';
 import { creditScience } from './research.js';
 import { conversionGains, CONVERSION_DEFAULT, goldMultOf, scienceMultOf } from './conversion.js';
-import { WONDERS, TECHS, canSetProduction, buildingCostDiscount } from './techs.js';
+import { WONDERS, TECHS, canSetProduction, buildingCostDiscount, isUnitObsolete } from './techs.js';
+import type { WonderData } from './types.js';
 import {
   cultureGains,
   greatPersonThresholdFor,
@@ -65,8 +66,12 @@ import {
   leaderGpVictoriesNeeded,
   wonderProductionIssue,
   wonderAttackBonusEmpireOf,
+  wonderBlocksEnemyAttacks,
   wondersOwnedBy,
   yieldGpThresholdFor,
+  cityGoldMultOf,
+  empireGoldMultOf,
+  militaryCostMultOf,
   YIELD_GP_TYPES,
 } from './culture.js';
 import type { YieldGreatPersonType } from './culture.js';
@@ -559,6 +564,9 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
   // tant que la merveille n'est pas obsolète (Communisme, R-110).
   // 7h · R-121 : Fondamentalisme (+1 Attaque aux unités TERRESTRES).
   // R-95 : les barbares ne sont pas dans `players` — aucun bonus de régime.
+  // 7k · M1/R-128 : l'obsolescence des merveilles est GLOBALE — l'union des
+  // technologies de toutes les civilisations fait foi.
+  const allTechs = allKnownTechs(board.st);
   const attPlayer = board.st.players[attacker.owner];
   const defPlayer = board.st.players[defender.owner];
   const attAnarchy = attPlayer ? isInAnarchy(attPlayer, board.st.turn) : true;
@@ -567,7 +575,7 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
     effectiveStrength(aStats.attack, attacker.veteran) +
     support +
     (attPlayer && !attAnarchy
-      ? wonderAttackBonusEmpireOf(Object.values(board.st.cities), attacker.owner, attPlayer.techsUnlocked) +
+      ? wonderAttackBonusEmpireOf(Object.values(board.st.cities), attacker.owner, allTechs) +
         landCombatBonus(effectsFor(attPlayer), aStats, 'attack')
       : 0);
   // T-17 : le bonus de fortification s'ajoute au bonus de terrain (RULES.md §7.4).
@@ -1028,6 +1036,14 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
     }
     const here = occupants(board, next);
     if (here.length === 0) {
+      // 7k · R-132 · Grande Muraille (décision d'Erik du 04/09, validée) :
+      // entrer sur une ville ennemie NON défendue serait une capture — c'est
+      // une « attaque de la ville » : bloquée tant que la merveille est debout
+      // (l'unité s'arrête, le chemin reste gelé — repris au tour suivant).
+      const cityHere = cityAt(board, next);
+      if (cityHere && cityHere.owner !== unit.owner && wonderBlocksEnemyAttacks(Object.values(board.st.cities), cityHere.owner, allKnownTechs(board.st))) {
+        break;
+      }
       // R-96 (Phase 7d) : case de village barbare ENNEMI — entrer = l'attaquer
       // (une unité pacifique y est capturée, I-4). L'attaque est planifiée
       // après l'entrée (le village est stationnaire, R-52). Un barbare entre
@@ -1070,6 +1086,12 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
       // R-43 : le pacifique qui aboutit sur un ennemi est capturé (v1 : butin).
       capturePeaceful(board, unit, here[0]!.owner, null);
       path = [];
+      break;
+    }
+    // 7k · R-132 · Grande Muraille : attaquer une unité d'un empire protégé
+    // est impossible — l'unité s'arrête devant le défenseur, chemin gelé
+    // (l'attaque n'entre jamais, aucun PM consommé, pas de combat planifié).
+    if (wonderBlocksEnemyAttacks(Object.values(board.st.cities), here[0]!.owner, allKnownTechs(board.st))) {
       break;
     }
     const mover = here.find((u) => board.moved.has(u.id));
@@ -1198,6 +1220,9 @@ function allOrdersFlattened(ordersByPlayer: Record<PlayerId, Order[]>): Order[] 
  * 7e : les réductions de coût du Premier découvrir (Communisme −33 % Usines,
  * Réseautage −50 % Universités) s'appliquent quand le contexte joueur est
  * fourni — plafonnées à 90 %, coût minimal 1 (déterminisme, R-81).
+ * 7k · R-132 · Complexe militaro-industriel : −20 % le coût de production des
+ * unités MILITAIRES de l'empire (production seule — le « coût d'achat »
+ * concernera le rush-buy, 7l ; obsolète M1/R-128 évaluée sur l'union).
  */
 function productionItemCost(item: ProductionItem, st?: GameState, playerId?: PlayerId): number | null {
   let cost: number | null;
@@ -1206,6 +1231,10 @@ function productionItemCost(item: ProductionItem, st?: GameState, playerId?: Pla
       cost = unitType(item.id).cost;
     } catch {
       return null;
+    }
+    if (st && playerId && unitType(item.id).canAttack) {
+      const mult = militaryCostMultOf(Object.values(st.cities), playerId, allKnownTechs(st));
+      if (mult !== 1) cost = Math.max(1, Math.round(cost * mult));
     }
   } else if (item.kind === 'wonder') {
     // 7f · R-116 : coût des merveilles (T-28 pour l'ONU — nations_unies.cost).
@@ -1272,7 +1301,7 @@ function fillWorkedTiles(board: Board, city: City, taken: Set<TileKey>): void {
     .filter((h) => hexDistance(h, cityHex) >= 1)
     .map((h) => ({ key: tileKeyOf(h), hex: h }))
     .filter(({ key }) => tileWorkable(board.st.map, key) && !cityKeys.has(key) && !taken.has(key))
-    .map(({ key, hex }) => ({ key, hex, y: tileYield(board.st.map, city.buildings, key, techs)! }))
+    .map(({ key, hex }) => ({ key, hex, y: tileYield(board.st.map, city.buildings, key, techs, city.wonders)! }))
     .sort(
       (a, b) =>
         b.y.food - a.y.food ||
@@ -1289,16 +1318,22 @@ function fillWorkedTiles(board: Board, city: City, taken: Set<TileKey>): void {
 }
 
 /**
- * 7f · R-116 : validation d'EMPIRE d'une production de merveille (unicité,
- * jalons des Nations Unies) — complète `canSetProduction` (tech/implémentation)
- * avec l'état complet. `excludeCityId` : la ville qui (re)fait la demande n'est
- * pas comptée comme « déjà en chantier » (re-soumission du même choix).
+ * 7f · R-116 (rév. 7k · R-129) : validation d'EMPIRE/MONDE d'une production de
+ * merveille — complète `canSetProduction` (tech/implémentation du joueur) avec
+ * l'état complet : EXCLUSIVITÉ MONDIALE (bâtie par n'importe quelle civ ⇒
+ * refus, M2), unicité de chantier d'empire, jalons des Nations Unies.
+ * 7k · M1/R-128 : l'obsolescence est évaluée sur l'UNION des techs de toutes
+ * les civilisations ; le prérequis `tech`, sur les seules techs du joueur.
+ * `excludeCityId` : la ville qui (re)fait la demande n'est pas comptée comme
+ * « déjà en chantier » (re-soumission du même choix).
  */
 function wonderSetProductionIssue(st: GameState, wonderId: string, playerId: PlayerId, excludeCityId: CityId): string | null {
   const empireWondersBuilt: string[] = [];
   const empireWondersInProduction: string[] = [];
+  const worldWondersBuilt = new Set<string>();
   for (const id of Object.keys(st.cities).sort()) {
     const c = st.cities[id]!;
+    for (const w of c.wonders) worldWondersBuilt.add(w); // toutes civilisations (R-129)
     if (c.owner !== playerId) continue;
     empireWondersBuilt.push(...[...c.wonders].sort());
     if (id !== excludeCityId && c.production?.item.kind === 'wonder') empireWondersInProduction.push(c.production.item.id);
@@ -1306,6 +1341,8 @@ function wonderSetProductionIssue(st: GameState, wonderId: string, playerId: Pla
   const player = st.players[playerId]!;
   return wonderProductionIssue(wonderId, {
     techsUnlocked: player.techsUnlocked,
+    allTechsUnlocked: allKnownTechs(st),
+    worldWondersBuilt: [...worldWondersBuilt].sort(),
     empireWondersBuilt,
     empireWondersInProduction,
     cultureMilestones: player.cultureMilestones,
@@ -1343,7 +1380,14 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
   setOrders.sort((a, b) => compareCityIds(a.cityId, b.cityId));
   for (const order of setOrders) {
     const city = board.st.cities[order.cityId]!;
-    const progress = city.production?.progress ?? 0;
+    // 7k · R-130 · M3 : réaffectation des marteaux récupérés — le nouveau
+    // projet démarre à `pendingSalvage` (conservation intégrale 🔶, miroir de
+    // « progression conservée » R-62) ; la récupération est consommée. Sans
+    // réaffectation, la dissipation frappe en tête de la résolution suivante
+    // (fenêtre T-32 🔶).
+    const salvaged = city.pendingSalvage;
+    const progress = city.production?.progress ?? (salvaged > 0 ? salvaged : 0);
+    city.pendingSalvage = 0;
     city.production = { item: order.item, progress };
   }
 }
@@ -1456,6 +1500,11 @@ function applyGreatPersonActions(board: Board, ordersByPlayer: Record<PlayerId, 
     const city = board.st.cities[a.cityId];
     if (!unit || !city) continue; // déjà consommé par une action antérieure du lot
     if (a.action === 'settle') {
+      // 7k · C3 (veto d'Erik du 04/09) : UN SEUL GP d'un même type par ville —
+      // le Settle d'une classe déjà installée dans la cité est refusé (ordre
+      // ignoré, le GP reste en attente de choix ; l'UI désactive le bouton
+      // avec un tooltip explicite).
+      if (city.settledGreatPersons.includes(unit.type)) continue;
       // Settle (R-126) : installation permanente — multiplicateur de rendement
       // de la cité hôte (processEconomy lit `city.settledGreatPersons`).
       delete board.st.units[unit.id];
@@ -1531,24 +1580,11 @@ function applyGreatPersonConsume(board: Board, unit: Unit, city: City): string |
       } else if (prod.item.kind === 'wonder') {
         const wonderId = prod.item.id;
         const wonderData = WONDERS[wonderId];
-        const empireHas = Object.values(board.st.cities).some(
-          (c) => c.owner === unit.owner && c.wonders.includes(wonderId),
-        );
-        if (!wonderData || empireHas) return null; // déjà bâtie (R-116) : en attente
-        city.wonders.push(wonderId);
-        player.cultureMilestones += 1;
-        emit(board, { type: 'WonderCompleted', cityId: city.id, owner: unit.owner, wonder: wonderId, at });
-        emit(board, {
-          type: 'CultureMilestone',
-          player: unit.owner,
-          delta: 1,
-          total: player.cultureMilestones,
-          reason: 'wonderBuilt',
-        });
-        if (wonderData.cultureVictory) {
-          board.st.winner = unit.owner;
-          emit(board, { type: 'Victory', winner: unit.owner, reason: 'culture' });
-        }
+        // 7k · R-129 : exclusivité MONDIALE — déjà bâtie n'importe où, le
+        // Bâtisseur n'a rien à achever : en attente (GP préservé).
+        const builtAnywhere = Object.values(board.st.cities).some((c) => c.wonders.includes(wonderId));
+        if (!wonderData || builtAnywhere) return null;
+        completeWonder(board, city, wonderId);
       } else {
         const buildingId = prod.item.id;
         if (hasBuilding(city, buildingId)) return null; // déjà dotée : en attente
@@ -1744,6 +1780,7 @@ function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     city.owner = invader.owner;
     city.pop = Math.max(1, city.pop - 1);
     city.production = null;
+    city.pendingSalvage = 0; // R-130 : les marteaux en récupération ne passent pas au captreur
     city.workedTiles = [];
     city.buildings = []; // R-66 : les bâtiments sont perdus à la capture (le captreur ne les récupère pas)
     city.conversion = CONVERSION_DEFAULT; // R-90 : le choix de conversion est réinitialisé
@@ -1809,30 +1846,33 @@ function processVillages(board: Board): void {
 /**
  * 7f/7h · R-114/R-123 (rév. 7j · R-126) : engendre un Personnage illustre de
  * la classe donnée sur la case de la ville (sinon première case adjacente
- * libre — perdu si aucune, interprétation R-114). 7j · D3/D4 : le JALON
- * CULTUREL est compté À L'OBTENTION (doc d'Erik : « chaque GP obtenu compte
- * comme un Jalon Culturel »), quel que soit l'usage ultérieur (Consume ou
- * Settle) — l'installation (Settle, R-126) n'accorde PLUS de jalon.
- * Escalades : compteur PAR TYPE (T-30) et `greatPersonsObtained` (T-27) pour
- * TOUTE classe — le doc : « le seuil augmente à chaque nouveau personnage »
- * 🔶 (décision : toutes les classes font grimper le seuil culturel).
+ * libre — perdu si aucune, interprétation R-114). Escalades : compteur PAR
+ * TYPE (T-30) et `greatPersonsObtained` (T-27) pour TOUTE classe — « le seuil
+ * augmente à chaque nouveau personnage » 🔶 (inchangé 7k).
+ * 7k · C2 (veto d'Erik du 04/09, révision R-126) : `countsAsMilestone` — seuls
+ * les GP issus du CANAL CULTURE comptent immédiatement comme Jalon culturel
+ * (reason 'obtain') ; un GP d'accumulateur (T-30), du canal combat (T-31) ou
+ * du Premier découvrir n'en compte PAS. Les merveilles continuent de compter
+ * (R-131).
  */
-function spawnGreatPerson(board: Board, city: City, gpType: string): void {
+function spawnGreatPerson(board: Board, city: City, gpType: string, countsAsMilestone: boolean): void {
   const player = board.st.players[city.owner]!;
   const gpStats = unitType(gpType);
   const cityHex = { q: city.q, r: city.r };
   const spot = occupiedByUnit(board, cityHex) ? (freeSpawnTiles(board.st, cityHex, 1)[0] ?? null) : cityHex;
   if (gpStats.greatPerson) {
     player.greatPersonsByType[gpType] = (player.greatPersonsByType[gpType] ?? 0) + 1;
-    player.greatPersonsObtained += 1; // R-114 : seuil T-27 — 7j : toutes classes
-    player.cultureMilestones += 1; // 7j · D3/D4 : jalon à l'OBTENTION (R-126)
-    emit(board, {
-      type: 'CultureMilestone',
-      player: city.owner,
-      delta: 1,
-      total: player.cultureMilestones,
-      reason: 'obtain',
-    });
+    player.greatPersonsObtained += 1; // R-114 : seuil T-27 — toutes classes
+    if (countsAsMilestone) {
+      player.cultureMilestones += 1; // 7k · C2 : canal CULTURE seulement
+      emit(board, {
+        type: 'CultureMilestone',
+        player: city.owner,
+        delta: 1,
+        total: player.cultureMilestones,
+        reason: 'obtain',
+      });
+    }
   }
   if (!spot) return; // aucune case libre : le GP est perdu (interprétation documentée)
   const gpId = nextId(board.st.units, 'u');
@@ -1906,7 +1946,7 @@ function checkLeaderGreatPerson(board: Board): void {
       .filter((c) => c.owner === playerId)
       .sort((a, b) => compareCityIds(a.id, b.id))
       .find((c) => c.capital);
-    if (city) spawnGreatPerson(board, city, 'leader');
+    if (city) spawnGreatPerson(board, city, 'leader', false); // C2 : pas de jalon
   }
 }
 
@@ -1963,7 +2003,8 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       gpAccumGold: 0, // 7h · R-123
       gpAccumScience: 0,
       gpAccumProd: 0,
-      gpAccumFood: 0, // 7j · R-123 complétée (canal Humanitaire)
+      gpAccumFood: 0, // 7j (7k · C1 : DORMANT — le canal Humanitaire est la culture)
+      pendingSalvage: 0, // 7k · R-130 (M3)
       settledGreatPersons: [], // 7j · R-126
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
@@ -1972,6 +2013,223 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     emit(board, { type: 'CityFounded', cityId, owner: unit.owner, at: hex, capital: !ownerHasCity, byUnitId: unit.id });
     if (destroyedResource) {
       emit(board, { type: 'ResourceDestroyed', resource: destroyedResource, at: hex, cityId, owner: unit.owner });
+    }
+  }
+}
+
+/**
+ * 7k · R-129/R-130/R-131 — complétion d'une merveille, logique UNIQUE partagée
+ * par la file de production (R-62) et le Consume Bâtisseur (R-126).
+ *  - Exclusivité MONDIALE (R-129) : bâtie n'importe où (toutes civs) ⇒ no-op
+ *    documenté ; les marteaux investis de la ville perdante basculent en
+ *    récupération R-130 (HammerSalvage 'available' — réaffectation pendant la
+ *    fenêtre T-32 🔶 via SetProduction, sinon dissipation).
+ *  - Merveille = 1 jalon (R-131, reason 'wonderBuilt').
+ *  - Effets de complétion R-132 (Oxford, Apollo, Léonard) + Jardins (R-116) +
+ *    ONU (victoire culturelle R-116).
+ */
+function completeWonder(board: Board, city: City, wonderId: string): void {
+  const player = board.st.players[city.owner]!;
+  const wonderData = WONDERS[wonderId];
+  const invested = city.production?.progress ?? 0;
+  city.production = null; // file vidée (R-62) — no-op comme complétion
+  const builtAnywhere = Object.values(board.st.cities).some((c) => c.wonders.includes(wonderId));
+  if (!wonderData || builtAnywhere) {
+    if (wonderData && invested > 0) {
+      // R-130 · M3 : devancé — les marteaux sont conservés en attente.
+      city.pendingSalvage = invested;
+      emit(board, {
+        type: 'HammerSalvage',
+        cityId: city.id,
+        owner: city.owner,
+        wonder: wonderId,
+        amount: invested,
+        outcome: 'available',
+      });
+    }
+    return;
+  }
+  city.wonders.push(wonderId);
+  player.cultureMilestones += 1; // R-131 : merveille = 1 jalon (survit à l'obsolescence)
+  emit(board, {
+    type: 'WonderCompleted',
+    cityId: city.id,
+    owner: city.owner,
+    wonder: wonderId,
+    at: { q: city.q, r: city.r },
+  });
+  emit(board, {
+    type: 'CultureMilestone',
+    player: city.owner,
+    delta: 1,
+    total: player.cultureMilestones,
+    reason: 'wonderBuilt',
+  });
+  // R-130 · M3 : à la résolution où la merveille est complétée, TOUT chantier
+  // concurrent de cette merveille (toutes civilisations — l'unicité de chantier
+  // d'empire ne couvre pas les rivaux) bascule automatiquement en récupération :
+  // marteaux conservés, réaffectation pendant la fenêtre (T-32 🔶 — un tour),
+  // sinon dissipés à la résolution suivante. Tie-break même tour : R-81 (ordre
+  // cityId croissant — la première complétion de la résolution gagne).
+  for (const otherId of Object.keys(board.st.cities).sort()) {
+    const other = board.st.cities[otherId]!;
+    if (other.production?.item.kind !== 'wonder' || other.production.item.id !== wonderId) continue;
+    const lost = other.production.progress;
+    other.production = null;
+    if (lost > 0) {
+      other.pendingSalvage = lost;
+      emit(board, {
+        type: 'HammerSalvage',
+        cityId: other.id,
+        owner: other.owner,
+        wonder: wonderId,
+        amount: lost,
+        outcome: 'available',
+      });
+    }
+  }
+  // R-116 : Jardins suspendus — +50 % de population immédiat (arrondi au plus
+  // proche) — citoyens auto-assignés en Phase C.
+  if (wonderData.populationGainPct) {
+    const gain = Math.round(city.pop * wonderData.populationGainPct);
+    if (gain > 0) {
+      city.pop += gain;
+      board.pendingFill.add(city.id);
+      emit(board, {
+        type: 'PopulationGrew',
+        cityId: city.id,
+        owner: city.owner,
+        pop: city.pop,
+        at: { q: city.q, r: city.r },
+      });
+    }
+  }
+  applyWonderCompletionEffects(board, city, wonderData);
+  // R-116 : les Nations Unies achevées = VICTOIRE CULTURELLE.
+  if (wonderData.cultureVictory) {
+    board.st.winner = city.owner;
+    emit(board, { type: 'Victory', winner: city.owner, reason: 'culture' });
+  }
+}
+
+/** 7k · R-132 · Octroi direct d'une technologie (Oxford, Apollo, Grande
+ *  Bibliothèque) : ni `firstBy` ni récompense Premier découvrir ; la fenêtre
+ *  d'adoption de régime (R-122) s'ouvre normalement ; événement TechResearched
+ *  (libellé « complétée » — documenté 🔶). */
+function grantTech(board: Board, playerId: PlayerId, techId: string): void {
+  const player = board.st.players[playerId]!;
+  if (player.techsUnlocked.includes(techId)) return;
+  player.techsUnlocked.push(techId);
+  player.techsUnlocked.sort();
+  player.techsUnlockedThisTurn = [...(player.techsUnlockedThisTurn ?? []), techId];
+  emit(board, { type: 'TechResearched', player: playerId, tech: techId });
+}
+
+/**
+ * 7k · R-132 · Atelier de Léonard (une fois, à la complétion) : toutes les
+ * unités obsolètes de l'empire sont mises à niveau GRATUITEMENT — chaîne
+ * `upgradeTo` (R-111) suivie tant que le type courant est obsolète pour le
+ * PROPRIÉTAIRE (R-110 unités : périmètre joueur, contrairement aux merveilles
+ * M1/R-128). Armées comprises (le type suit, vétéran et PV conservés — tous
+ * les types terrestres partagent le même hpMax 🔶). Événement UnitsUpgraded.
+ */
+function upgradeObsoleteUnitsOf(board: Board, playerId: PlayerId): void {
+  const owner = board.st.players[playerId]!;
+  const upgrades: Array<{ unitId: UnitId; from: string; to: string }> = [];
+  for (const id of Object.keys(board.st.units).sort(compareUnitIds)) {
+    const u = board.st.units[id]!;
+    if (u.owner !== playerId) continue;
+    let type = u.type;
+    let changed = false;
+    while (isUnitObsolete(type, owner.techsUnlocked)) {
+      const next = unitType(type).upgradeTo;
+      if (!next) break; // chaîne terminée sans type moderne (aucune donnée v1)
+      type = next;
+      changed = true;
+    }
+    if (changed) {
+      upgrades.push({ unitId: id, from: u.type, to: type });
+      u.type = type;
+    }
+  }
+  if (upgrades.length > 0) emit(board, { type: 'UnitsUpgraded', player: playerId, upgrades });
+}
+
+/** 7k · R-132 · Effets de complétion des merveilles (une fois, à la pose). */
+function applyWonderCompletionEffects(board: Board, city: City, wonderData: WonderData): void {
+  const player = board.st.players[city.owner]!;
+  // Université d'Oxford : une technologie avancée ALÉATOIRE — tirage seedé
+  // R-80 parmi les techs non débloquées (table triée par id 🔶). Amendement
+  // R-80 documenté : le RNG est consulté en Phase C.
+  if (wonderData.randomTechOnComplete) {
+    const pool = Object.keys(TECHS)
+      .filter((t) => !player.techsUnlocked.includes(t))
+      .sort();
+    if (pool.length > 0) {
+      const pick = pool[Math.floor(board.rng.next() * pool.length)]!;
+      grantTech(board, city.owner, pick);
+    }
+    return; // pool vide : tout est déjà connu — effet sans objet
+  }
+  // Programme Apollo : l'ENSEMBLE des technologies de l'arbre, instantanément
+  // (le doc fait foi 🔶 — conséquence canonique : obsolescence globale R-128).
+  if (wonderData.allTechsOnComplete) {
+    for (const t of Object.keys(TECHS).sort()) grantTech(board, city.owner, t);
+    return;
+  }
+  // Atelier de Léonard : mise à niveau gratuite des unités obsolètes.
+  if (wonderData.upgradeObsoleteUnits) upgradeObsoleteUnitsOf(board, city.owner);
+}
+
+/**
+ * 7k · R-132 · Grande Bibliothèque d'Alexandrie : à CHAQUE résolution, accorde
+ * toute technologie déjà découverte par au moins DEUX rivaux (comptés parmi
+ * les autres civilisations — condition canonique ; en 1v1 un seul rival ⇒
+ * JAMAIS déclenchée, documenté). Octroi direct (grantTech — ni `firstBy` ni
+ * récompense Premier découvrir). Effet continu tant que la merveille est
+ * debout (obsolescence Université — M1/R-128 : union des techs).
+ */
+function processWonderEffects(board: Board): void {
+  const allTechs = allKnownTechs(board.st);
+  for (const playerId of Object.keys(board.st.players).sort()) {
+    const player = board.st.players[playerId]!;
+    const ownsLibrary = Object.values(board.st.cities).some(
+      (c) => c.owner === playerId && c.wonders.includes('grande_bibliotheque') && !isWonderObsolete('grande_bibliotheque', allTechs),
+    );
+    if (!ownsLibrary) continue;
+    for (const techId of Object.keys(TECHS).sort()) {
+      if (player.techsUnlocked.includes(techId)) continue;
+      let rivals = 0;
+      for (const otherId of Object.keys(board.st.players).sort()) {
+        if (otherId === playerId) continue;
+        if (board.st.players[otherId]!.techsUnlocked.includes(techId)) rivals += 1;
+      }
+      if (rivals >= 2) grantTech(board, playerId, techId);
+    }
+  }
+}
+
+/**
+ * 7k · R-130 · M3 · Dissipation des marteaux récupérés non réaffectés : la
+ * fenêtre (T-32 🔶 1 tour) expire à la résolution suivante — les marteaux
+ * basculés en récupération par un rival sont dissipés si aucun SetProduction
+ * n'a consommé `pendingSalvage` pendant la phase d'ordres (appelé APRÈS
+ * applySetProduction, donc une réaffectation soumise survit ; avant
+ * processEconomy, donc une récupération créée CE tour n'est pas touchée).
+ */
+function dissipateUnsalvagedHammers(board: Board): void {
+  for (const cityId of Object.keys(board.st.cities).sort()) {
+    const city = board.st.cities[cityId]!;
+    if (city.pendingSalvage > 0) {
+      emit(board, {
+        type: 'HammerSalvage',
+        cityId,
+        owner: city.owner,
+        wonder: null,
+        amount: city.pendingSalvage,
+        outcome: 'dissipated',
+      });
+      city.pendingSalvage = 0;
     }
   }
 }
@@ -1993,6 +2251,12 @@ function processEconomy(board: Board): void {
       fillWorkedTiles(board, city, taken);
     }
   }
+
+  // 7k · M1/R-128 : union des technologies de TOUTES les civilisations —
+  // l'obsolescence des merveilles (effets, production) est GLOBALE. Figurée en
+  // tête de Phase C : les octrois de tech de CETTE résolution (Apollo, Oxford,
+  // Grande Bibliothèque) s'appliquent à la résolution suivante 🔶.
+  const allTechs = allKnownTechs(board.st);
 
   for (const cityId of Object.keys(board.st.cities).sort()) {
     const city = board.st.cities[cityId]!;
@@ -2022,7 +2286,9 @@ function processEconomy(board: Board): void {
     let rawProduction = Math.max(GROWTH.cityCenter.minProduction, cityTile.production) + empireBonus.production;
     let commerce = (GROWTH.cityCenter.commerceByTier ? tier.commerce : cityTile.commerce) + empireBonus.commerce;
     for (const key of city.workedTiles) {
-      const y = tileYield(board.st.map, city.buildings, key, player.techsUnlocked)!;
+      // 7k · R-132 : les merveilles portent des bonus par terrain travaillé
+      // (Cie des Indes : +1 Commerce par case océanique — modèle R-66).
+      const y = tileYield(board.st.map, city.buildings, key, player.techsUnlocked, city.wonders, allTechs)!;
       food += y.food;
       rawProduction += y.production;
       commerce += y.commerce;
@@ -2057,11 +2323,21 @@ function processEconomy(board: Board): void {
     const rawGains = anarchy
       ? { gold: 0, science: 0 } // R-122 : fioles et or à zéro
       : conversionGains(commerce, city.conversion, city.buildings, govEffects);
+    // 7k · R-132 · Foire de Troyes (cité hôte) et Internet (tout l'empire)
+    // multiplient la part OR de la conversion R-90 — interprétation 🔶 du
+    // handoff ; cumul : MAX (convention des multiplicateurs, R-88), avant le
+    // multiplicateur Settle Explorateur (round half up final).
+    const goldWonderMult = anarchy
+      ? 1
+      : Math.max(
+          cityGoldMultOf(city.wonders, allTechs),
+          empireGoldMultOf(Object.values(board.st.cities), city.owner, allTechs),
+        );
     // 7j · R-126 · Settle : les GP INSTALLÉS multiplient le rendement de leur
     // cité hôte (+50 % par GP installé de la classe, additif 🔶) — Savant
     // (science) et Grand Explorateur / Industriel (or). Arrondi au plus proche.
     const gains = {
-      gold: Math.round(rawGains.gold * settledGpMultiplier(city, 'explorateur')),
+      gold: Math.round(rawGains.gold * goldWonderMult * settledGpMultiplier(city, 'explorateur')),
       science: Math.round(rawGains.science * settledGpMultiplier(city, 'savant')),
     };
     player.gold += gains.gold + empireBonus.gold;
@@ -2126,37 +2402,33 @@ function processEconomy(board: Board): void {
     city.cultureStored += anarchy
       ? 0
       : Math.round(
-          cultureGains(city, empireBonus.culture, player.techsUnlocked, govEffects) *
+          cultureGains(city, empireBonus.culture, allTechs, govEffects) * // M1/R-128 : union des techs
             settledGpMultiplier(city, 'artiste_penseur'),
         );
-    // 7j · R-123 complétée · canal Humanitaire : l'excédent alimentaire
-    // (surplus > 0 uniquement — un déficit ne détruit pas l'accumulation 🔶)
-    // alimente l'accumulateur de croissance.
-    if (foodSurplus > 0) city.gpAccumFood += foodSurplus;
+    // 7k · C1 (veto d'Erik du 04/09) : le Grand Humanitaire est produit comme
+    // les autres GP — PAR LE CANAL CULTURE (R-114/R-127, ciblage technologique
+    // et rotation des 6 classes). L'accumulateur `gpAccumFood` n'est plus
+    // crédité ni lu (champ conservé DORMANT — compat saves).
     // 7f/7h · R-114/R-123 : seuils de GP — au plus UN GP par ville et par tour
     // (toutes classes confondues), ordre déterministe : culture → science → or
-    // → production → croissance (R-123 complétée). Le surplus est conservé (miroir R-63). Posé sur la case de
+    // → production. Le surplus est conservé (miroir R-63). Posé sur la case de
     // la ville, sinon case adjacente libre (perdu si aucune). GP gelés en
-    // Anarchie (R-122).
+    // Anarchie (R-122). 7k · C2 : le jalon n'est compté que pour le canal
+    // culture (`countsAsMilestone`).
     if (!anarchy) {
       const gpThreshold = greatPersonThresholdFor(player.greatPersonsObtained);
       if (city.cultureStored >= gpThreshold) {
         city.cultureStored -= gpThreshold;
-        spawnGreatPerson(board, city, greatPersonClassFor(player.researching, player.greatPersonsObtained));
+        spawnGreatPerson(board, city, greatPersonClassFor(player.researching, player.greatPersonsObtained), true);
       } else if (city.gpAccumScience >= yieldGpThresholdFor('savant', player.greatPersonsByType)) {
         city.gpAccumScience -= yieldGpThresholdFor('savant', player.greatPersonsByType);
-        spawnGreatPerson(board, city, 'savant');
+        spawnGreatPerson(board, city, 'savant', false);
       } else if (city.gpAccumGold >= yieldGpThresholdFor('explorateur', player.greatPersonsByType)) {
         city.gpAccumGold -= yieldGpThresholdFor('explorateur', player.greatPersonsByType);
-        spawnGreatPerson(board, city, 'explorateur');
+        spawnGreatPerson(board, city, 'explorateur', false);
       } else if (city.gpAccumProd >= yieldGpThresholdFor('batisseur', player.greatPersonsByType)) {
         city.gpAccumProd -= yieldGpThresholdFor('batisseur', player.greatPersonsByType);
-        spawnGreatPerson(board, city, 'batisseur');
-      } else if (city.gpAccumFood >= yieldGpThresholdFor('humanitaire', player.greatPersonsByType)) {
-        // 7j · R-123 complétée · canal CROISSANCE du Grand Humanitaire :
-        // excédent alimentaire cumulé (même modèle T-30 🔶, data-driven).
-        city.gpAccumFood -= yieldGpThresholdFor('humanitaire', player.greatPersonsByType);
-        spawnGreatPerson(board, city, 'humanitaire');
+        spawnGreatPerson(board, city, 'batisseur', false);
       }
     }
 
@@ -2237,55 +2509,12 @@ function processEconomy(board: Board): void {
               city.production.progress = cost; // en attente 🔶 (case occupée ou pop insuffisante)
             }
           } else if (city.production.item.kind === 'wonder') {
-            // 7f · R-115/R-116 : merveille achevée — unique à l'empire, +1
-            // jalon, effets simples (Jardins : +50 % pop ; ONU : victoire).
-            const wonderId = city.production.item.id;
-            const wonderData = WONDERS[wonderId];
-            const empireHas = Object.values(board.st.cities).some(
-              (c) => c.owner === city.owner && c.wonders.includes(wonderId),
-            );
-            city.production = null; // file vidée (R-62)
-            if (wonderData && !empireHas) {
-              city.wonders.push(wonderId);
-              player.cultureMilestones += 1;
-              emit(board, {
-                type: 'WonderCompleted',
-                cityId,
-                owner: city.owner,
-                wonder: wonderId,
-                at: { q: city.q, r: city.r },
-              });
-              emit(board, {
-                type: 'CultureMilestone',
-                player: city.owner,
-                delta: 1,
-                total: player.cultureMilestones,
-                reason: 'wonderBuilt',
-              });
-              // Jardins suspendus : +50 % de population immédiat (arrondi au
-              // plus proche, R-116) — citoyens auto-assignés en Phase C.
-              if (wonderData.populationGainPct) {
-                const gain = Math.round(city.pop * wonderData.populationGainPct);
-                if (gain > 0) {
-                  city.pop += gain;
-                  board.pendingFill.add(cityId);
-                  emit(board, {
-                    type: 'PopulationGrew',
-                    cityId,
-                    owner: city.owner,
-                    pop: city.pop,
-                    at: { q: city.q, r: city.r },
-                  });
-                }
-              }
-              // R-116 : les Nations Unies achevées = VICTOIRE CULTURELLE.
-              if (wonderData.cultureVictory) {
-                board.st.winner = city.owner;
-                emit(board, { type: 'Victory', winner: city.owner, reason: 'culture' });
-              }
-            }
-            // Double complétion concurrente (déjà bâtie ailleurs dans
-            // l'empire) : no-op documenté (R-116) — ni merveille ni jalon.
+            // 7f · R-115/R-116 (rév. 7k · R-129/R-130/R-131/R-132) : logique
+            // UNIQUE completeWonder — exclusivité MONDIALE (no-op documenté +
+            // récupération des marteaux R-130 si devancé par un rival),
+            // merveille = 1 jalon (R-131), effets de complétion R-132 (Oxford,
+            // Apollo, Léonard), Jardins (+50 % pop, R-116), ONU (victoire).
+            completeWonder(board, city, city.production.item.id);
           } else {
             // Bâtiment (R-66) : permanent, non duplicable, aucun besoin de case.
             // 7e · Remplacement : la Banque RETIRE le Marché de la ville (idem
@@ -2436,6 +2665,10 @@ export function resolveTurn(
     if (!enemy) continue; // pas d'ennemi présent → fizzle
     if (!areAtWar(st, unit.owner, enemy.owner)) continue; // R-58-a 🔶 (Phase 7)
     if (isPeaceful(unit)) continue; // R-43 : un pacifique n'attaque jamais
+    // 7k · R-132 · Grande Muraille : l'adversaire d'un empire protégé ne peut
+    // pas attaquer ses unités ni ses villes — l'ordre est un fizzle SANS
+    // consommation de PM (la cible existe, l'attaque est interdite).
+    if (wonderBlocksEnemyAttacks(Object.values(st.cities), enemy.owner, allKnownTechs(st))) continue;
     // R-59 : une unité à distance attaque depuis sa case, portée T-13 🔶
     // (1 = adjacente en v1) — la mêlée exige le contact.
     const range = isRanged(unit) ? RANGED_RANGE : 1;
@@ -2492,7 +2725,13 @@ export function resolveTurn(
   processFoundCity(board, allOrders);
   processVillages(board);
   applySetWorkedTile(board, allOrders);
+  // 7k · R-130 : la fenêtre de réaffectation des marteaux récupérés expire
+  // ICI (après applySetProduction — une réaffectation soumise a été servie ;
+  // avant processEconomy — une récupération créée ce tour n'est pas touchée).
+  dissipateUnsalvagedHammers(board);
   processEconomy(board);
+  // 7k · R-132 : effets continus de merveilles (Grande Bibliothèque — ≥ 2 rivaux).
+  processWonderEffects(board);
   // 7h · R-123 : GP Leader au seuil T-31 de victoires de combat (spawn capitale).
   checkLeaderGreatPerson(board);
   // 7h · R-124 : victoire scientifique — les 4 composants du vaisseau contrôlés.

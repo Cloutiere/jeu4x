@@ -131,9 +131,15 @@ export interface City {
   gpAccumGold: number;
   gpAccumScience: number;
   gpAccumProd: number;
-  /** 7j · R-123 complétée · accumulateur de CROISSANCE (surplus alimentaire
-   *  crédité en Phase C) vers le seuil T-30 — canal du Grand Humanitaire. */
+  /** 7j · R-123 complétée · accumulateur de CROISSANCE (surplus alimentaire) —
+   *  7k · C1 (veto d'Erik du 04/09) : le canal Humanitaire est le CANAL CULTURE
+   *  (R-114/R-127) — ce champ est DORMANT (compat saves, jamais crédité ni lu). */
   gpAccumFood: number;
+  /** 7k · R-130 · M3 · Récupération de marteaux : marteaux investis dans une
+   *  merveille complétée par un rival, en attente de réaffectation (un
+   *  SetProduction de la fenêtre démarre le nouveau projet à cette valeur ;
+   *  dissipés à la résolution suivante — fenêtre T-32 🔶). */
+  pendingSalvage: number;
   /** 7j · R-126 · GP INSTALLÉS dans la ville (Settle), dans l'ordre
    *  d'installation (ids de classe GP) — source unique des multiplicateurs
    *  Settle et du vol d'installé (R-119 révisée). */
@@ -267,7 +273,22 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 13;
+export const CURRENT_SCHEMA_VERSION = 14;
+
+/**
+ * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
+ * (propriétaire ou concurrente) — l'évaluateur d'obsolescence des merveilles
+ * (`isWonderObsolete`, R-128) reçoit cette union : une merveille perd son effet
+ * dès qu'UNE civilisation de la carte découvre sa technologie d'obsolescence.
+ * Pur et déterministe (R-81/R-82) : union triée des `techsUnlocked` des joueurs.
+ */
+export function allKnownTechs(state: Pick<GameState, 'players'>): string[] {
+  const union = new Set<string>();
+  for (const id of Object.keys(state.players).sort()) {
+    for (const t of state.players[id]!.techsUnlocked) union.add(t);
+  }
+  return [...union].sort();
+}
 
 type AnyState = Record<string, unknown>;
 
@@ -610,6 +631,26 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       };
     }
     return { ...state, units: migratedUnits, players: migratedPlayers, cities: migratedCities };
+  },
+  /**
+   * v13 → v14 : Phase 7k — Merveilles (RULES.md §8.9, R-130). Champ ADDITIF
+   * par ville : `pendingSalvage: 0` (récupération de marteaux M3 — les états
+   * migrés n'ont aucune récupération en attente : idempotent). NOTE C1 (veto
+   * d'Erik du 04/09) : `gpAccumFood` est CONSERVÉ DORMANT (le canal Humanitaire
+   * est désormais le canal culture) — aucune transformation : le champ reste à
+   * sa valeur, jamais lu ni crédité par le moteur.
+   */
+  14: (state) => {
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedCities: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      migratedCities[id] = {
+        ...c,
+        pendingSalvage: typeof c.pendingSalvage === 'number' ? c.pendingSalvage : 0,
+      };
+    }
+    return { ...state, cities: migratedCities };
   },
 };
 

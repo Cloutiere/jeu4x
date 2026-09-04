@@ -68,25 +68,33 @@ describe('7j · D1 — fusion Artiste / Penseur (R-114 révisée)', () => {
   });
 });
 
-describe('7j · D2 — Grand Humanitaire (R-123 complétée)', () => {
-  it('canal CROISSANCE : l’excédent alimentaire cumulé engendre un Humanitaire (seuil T-30 🔶, data-driven)', () => {
+describe('7k · C1 — Grand Humanitaire produit PAR LE CANAL CULTURE (veto d’Erik du 04/09, révision R-123/R-126)', () => {
+  it('l’accumulateur gpAccumFood est DORMANT : plus aucun GP n’en sort (compat saves)', () => {
     const state = gpState();
-    state.cities['c1']!.gpAccumFood = 20; // seuil T-30 (culture.json)
+    state.cities['c1']!.gpAccumFood = 20; // ancien seuil T-30 — plus jamais lu
+    const result = resolveTurn(state, {}, 42);
+    expect(result.events.some((e) => e.type === 'GreatPersonSpawned')).toBe(false);
+    expect(result.newState.cities['c1']!.gpAccumFood).toBe(20); // inchangé (dormant)
+  });
+
+  it('le canal CULTURE engendre l’Humanitaire via le ciblage technologique (R-127 : Thomas Becket / Féodalité)', () => {
+    const state = gpState();
+    state.cities['c1']!.cultureStored = 20; // seuil T-27
+    state.players['p1']!.researching = 'feudalite'; // figure humanitaire (figures.json)
     const result = resolveTurn(state, {}, 42);
     const spawned = result.events.find((e) => e.type === 'GreatPersonSpawned');
     if (spawned?.type !== 'GreatPersonSpawned') throw new Error('GP attendu');
     expect(spawned.unitType).toBe('humanitaire');
-    expect(result.newState.cities['c1']!.gpAccumFood).toBeLessThan(20); // seuil soustrait (surplus du tour conservé)
-    // Jalon À L'OBTENTION (R-126).
-    expect(result.newState.players['p1']!.cultureMilestones).toBeGreaterThanOrEqual(1);
+    // 7k · C2 : le canal culture compte le jalon À L'OBTENTION.
+    expect(result.newState.players['p1']!.cultureMilestones).toBe(1);
   });
 
-  it('un déficit alimentaire ne détruit pas l’accumulateur (🔶 interprétation documentée)', () => {
+  it('un déficit alimentaire ne touche plus aucun accumulateur (champ dormant, interprétation 7k)', () => {
     const state = gpState();
     state.cities['c1']!.gpAccumFood = 5;
     state.cities['c1']!.pop = 30; // déficit massif (cap 31, R-63)
     const out = resolveTurn(state, {}, 42).newState;
-    expect(out.cities['c1']!.gpAccumFood).toBe(5); // inchangé
+    expect(out.cities['c1']!.gpAccumFood).toBe(5); // inchangé — dormant
   });
 });
 
@@ -318,7 +326,9 @@ describe('7j · D5.1 — Premier découvrir accorde un GP (R-109 étendu)', () =
     applyFirstToDiscover(state, 'p1', 'invention', () => {});
     const gp = Object.values(state.units).find((u) => u.type === 'batisseur');
     expect(gp).toBeDefined();
-    expect(state.players['p1']!.cultureMilestones).toBe(1); // jalon à l'obtention
+    // 7k · C2 : le GP du Premier découvrir NE compte PAS de jalon (révision
+    // R-126 — seuls les GP du canal culture en comptent).
+    expect(state.players['p1']!.cultureMilestones).toBe(0);
     expect(state.players['p1']!.greatPersonsObtained).toBe(1);
     expect(state.players['p1']!.greatPersonsByType['batisseur']).toBe(1);
   });
@@ -361,7 +371,7 @@ describe('7j · Migration v12 → v13 (fusion `penseur`, renommages D2, champs S
     };
     const out = migrateState(v12 as unknown as Record<string, unknown>) as unknown as GameState;
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(13);
+    expect(CURRENT_SCHEMA_VERSION).toBe(14); // 7k : migration additive pendingSalvage (R-130)
     expect(out.units['u1']!.type).toBe('artiste_penseur'); // fusion D1
     expect(out.units['u2']!.type).toBe('artiste_penseur');
     expect(out.units['u3']!.type).toBe('savant'); // D2
