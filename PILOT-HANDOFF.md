@@ -17,7 +17,7 @@
 | `BACKLOG.md` | Idées d'Erik affinées, validations (4 vetoes culture/naval validés 30/08), idées 3-4 (relecture cinématique, flèches — livrées) |
 | `HANDOFF-PHASE*.md` | Missions par phase (structure standard, voir §4) |
 | `REPORT-PHASE*.md` | Rapports des agents (à vérifier, jamais avaliser sans contrôle) |
-| Docs de recherche d'Erik | `CivRevTechTree_Official.pdf`, `Civilization Révolution Technologies et Déblocages.md`, `Culture dans Civilization Revolution.md`, `Gouvernements Civilization Revolution.md`, `Moteur Ville Civilization Revolution.md`, `RECHERCHE-RESSOURCES.md`/`PROPOSITION-RESSOURCES.md` — **ses recherches sont des specs** : les lire intégralement, en extraire les valeurs exactes, elles font foi en cas d'écart |
+| Docs de recherche d'Erik | `CivRevTechTree_Official.pdf`, `Civilization Révolution Technologies et Déblocages.md`, `Culture dans Civilization Revolution.md`, `Gouvernements Civilization Revolution.md`, `Moteur Ville Civilization Revolution.md`, `Civilization Revolution _ Merveilles et Personnages.md` (GP Consume/Settle + catalogue merveilles + artefacts), `RECHERCHE-RESSOURCES.md`/`PROPOSITION-RESSOURCES.md` — **ses recherches sont des specs** : les lire intégralement, en extraire les valeurs exactes, elles font foi en cas d'écart |
 
 **Piège de lecture** : le doc « Technologies et Déblocages » colle les numéros de citation aux chiffres (« 105 » = 10 [5], « 45 15 15 » = 4/1/1) — croiser avec CivFanatics.
 
@@ -55,14 +55,18 @@ Erik exprime souvent ses idées en vrac ou en documents de recherche. Ton travai
 
 **Infra en place** : prod [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) ; OAuth Google/Discord réels (secrets posés) ; CI/CD GitHub Actions (repo [Cloutiere/jeu4x](https://github.com/Cloutiere/jeu4x), secret `CLOUDFLARE_API_TOKEN`) ; wrangler loggé sur le compte d'Erik.
 
-**Victoires implémentées** : domination, culture, scientifique. **Restantes** : économique (Banque mondiale, 20 000 or — 7j+), ICBM/SDI (7j).
+**Victoires implémentées** : domination, culture, scientifique. **Restantes** : économique (Banque mondiale, 20 000 or — 7l), ICBM (7m).
 
-**File d'attente** :
-1. **7j — Civilisations & traits** (Chine +1 pop fondation, Rome, Mongols — clés préparées en 7i), **capacités des GP** (Grand Humanitaire etc.), **rush-buy** avec or, **contre-espionnage**, **ICBM/SDI**, **Grande Muraille** — handoff à préparer ;
-2. **Phase 8** — polish, équilibrage, esthétique ;
-3. **Chantier visuel 3D** — Erik l'a demandé puis reporté : deux voies documentées (2.5D isométrique via generate.py = quick win ; vraie 3D Three.js = phase dédiée, avec spike préalable) ;
-4. **En suspens d'Erik à cadrer** : territoire/frontières (prérequis de la conversion culturelle), D2 culture-ressources, sauts technologiques, Banque mondiale ;
-5. **Calibrage en attente d'Erik** : courbe de `growth.json` (5×1,25^(n−2) 🔶), rythme GP (T-27 = 20, ×2), commerce du centre-ville par tranche (0 sous pop 7), comportement en déficit alimentaire (pas de famine 🔶), alternance GP Artiste/Penseur (go ?).
+**File d'attente** (replanifiée le 03/09 — Erik a fourni « Civilization Revolution _ Merveilles et Personnages.md », nouvelle orientation) :
+1. **7j — Personnages Illustres : classes canoniques, Consume/Settle** — ✅ **handoff prêt : HANDOFF-PHASE7J.md** (fusion Artiste/Penseur, renommages, Grand Humanitaire, choix Consume/Settle, Premier découvrir GP, ciblage technologique 🔶) — **à lancer** ;
+2. **7k — Merveilles restantes & règles canoniques** (doc §Merveilles) : obsolescence **GLOBALE** (écart détecté : notre `isWonderObsolete` est par-owner), exclusivité mondiale, récupération des marteaux (réorientation même tour), merveille = Jalon culturel (vérifier), effets restants data-driven (Alexandrie, Shakespeare, Oxford, Cie des Indes, Léonard, Foire de Troyes, Complexe militaro-industriel, Hollywood, Apollo, Internet), Grande Muraille (trêve forcée — sémantique 1v1 à cadrer), **audit des 8 merveilles actives contre le doc** (modèle 7i) ;
+3. **7l — Or & trésorerie** : trésorerie joueur (n'existe pas — le commerce est converti à 100 % en or OU science, R-90), rush-buy, Banque mondiale (victoire économique 20 000 or), canaux GP par or (500 / 10 000), consume Explorateur (injection d'or, reporté de 7j) ;
+4. **7m — Fin de partie militaire & espionnage** : ICBM/SDI (données déjà présentes : `units.json` icbm, `buildings.json` sdi, Projet Manhattan), contre-espionnage ;
+5. **7n — Civilisations & traits** (reporté, clés préparées 7i) : nécessite un **doc de recherche d'Erik sur les civilisations** (16 civs — bonus de départ + bonus par passage d'ère) ;
+6. **Phase 8** — polish, équilibrage, esthétique ;
+7. **Chantier visuel 3D** — deux voies documentées (2.5D isométrique via generate.py = quick win ; vraie 3D Three.js = phase dédiée, avec spike préalable) ;
+8. **En suspens d'Erik à cadrer** : territoire/frontières (prérequis du flip culturel Artiste consume et d'Hollywood), sauts technologiques ;
+9. **Calibrage en attente d'Erik** : courbe de `growth.json` (5×1,25^(n−2) 🔶), rythme GP (T-27 = 20, ×2), commerce du centre-ville par tranche (0 sous pop 7), comportement en déficit alimentaire (pas de famine 🔶). *(Alternance GP Artiste/Penseur : résolue par le doc — fusion en une classe, D1 du handoff 7j.)*
 
 ## 5. Environnement & pièges connus
 
@@ -83,6 +87,7 @@ Erik exprime souvent ses idées en vrac ou en documents de recherche. Ton travai
 
 ## 7. Ta première action probable
 
-1. **7i est acceptée** (vérifiée : 556 tests, prod saine, commit `ed4add4`). La **7j n'a pas encore de handoff** : cadrer avec Erik les civilisations & traits, les capacités des GP (Grand Humanitaire…), le rush-buy, le contre-espionnage, ICBM/SDI, la Grande Muraille — puis l'écrire (le plan DESIGN.md contient déjà la ligne).
+1. **7j est cadrée et le handoff est prêt** (HANDOFF-PHASE7J.md, 03/09 — Personnages Illustres Consume/Settle, d'après le doc d'Erik « Merveilles et Personnages ») : le lancer chez un agent d'implémentation.
 2. Recueillir ses votes de calibrage (§4, liste « calibrage en attente ») et les consigner dans RULES.md/`growth.json`.
-3. Après 7j : proposer la **Phase 8** (polish/équilibre/esthétique) et le chantier visuel (isométrique vs spike 3D) selon ses envies.
+3. **Demander à Erik son doc de recherche « Civilisations »** (16 civs, bonus de départ + par ère) — prérequis de la 7n. Second doc utile ensuite : territoire/frontières & conversion culturelle (prérequis du flip culturel).
+4. À l'acceptation de 7j : préparer le handoff **7k — Merveilles** (détail dans §4), puis 7l/7m selon la file.
