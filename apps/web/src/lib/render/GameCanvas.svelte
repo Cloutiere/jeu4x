@@ -1369,6 +1369,8 @@
 
   async function setup(): Promise<void> {
     disposed = false;
+    // Chaque montage recentre la vue (le drapeau survit au teardown — bascule 2D ↔ 3D).
+    centered = false;
     if (!host) return;
     // Chantier V1 (L3) : en 3D, le canvas Three.js est posé SOUS le canvas
     // PixiJS (posé ensuite) — il reçoit les entrées via Pixi au-dessus.
