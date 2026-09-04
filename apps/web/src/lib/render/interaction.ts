@@ -25,7 +25,10 @@ export type ClickAction =
   | { kind: 'attack'; order: Order }
   /** R-60 (Phase 6) : réassignation d'un citoyen — ville sélectionnée, case
    *  cliquée (`null` = désassignation, cf. toggle de la case courante). */
-  | { kind: 'setWorkedTile'; cityId: CityId; tile: string | null };
+  | { kind: 'setWorkedTile'; cityId: CityId; tile: string | null }
+  /** 7m · R-139 : ciblage d'ICBM armée — la case cliquée devient la cible
+   *  pressentie (la confirmation reste à l'écran, avant l'ordre `Launch`). */
+  | { kind: 'nukeTarget'; hex: Hex };
 
 /** Clic droit (Phase 5 L1) : chemin complet vers la case visée, ou annulation. */
 export type RightClickAction = { kind: 'moveDraft'; path: Hex[]; unitId: UnitId } | { kind: 'cancelDraft' };
@@ -101,6 +104,10 @@ export function ordersEditable(view: GameView): boolean {
 export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction {
   const state = view.state;
   if (!state) return { kind: 'none' };
+
+  // 7m · R-139 : ICBM ARMÉE — n'importe quel clic carte choisit une cible
+  // (le lancement n'est soumis qu'après la modale de confirmation, côté page).
+  if (ui.nukeArmed) return { kind: 'nukeTarget', hex };
 
   const selected = ui.selectedUnitId ? state.units[ui.selectedUnitId] : null;
 

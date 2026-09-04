@@ -45,6 +45,22 @@ export function unexecutedOrders(
         }
         break;
       }
+      case 'Launch': {
+        // 7m · R-139 : un refus émet NukeLaunched (outcome 'refused') — un
+        // lancement sans AUCUN événement est un ordre écarté (ICBM absente…).
+        const unit2 = newState.units[order.unitId];
+        if (!unit2 || has('NukeLaunched', 'unitId', order.unitId)) break;
+        out.push({ unitId: order.unitId, label: 'Lancement impossible (ICBM absente ou déjà consommée)' });
+        break;
+      }
+      case 'SpyAction': {
+        // 7m · R-143 : un échec métier émet SpyAction (outcome 'failed') —
+        // sans AUCUN événement, l'ordre a été écarté (espion absent…).
+        const unit3 = newState.units[order.unitId];
+        if (!unit3 || has('SpyAction', 'unitId', order.unitId)) break;
+        out.push({ unitId: order.unitId, label: "Action d'espionnage impossible (espion absent ou hors de la ville)" });
+        break;
+      }
       default:
         break; // Hold / Fortify / FormArmy / SetProduction : pas de toast
     }

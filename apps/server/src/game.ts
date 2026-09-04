@@ -194,6 +194,22 @@ export function orderShapeError(order: unknown): string | null {
       return typeof o.unitId === 'string' && typeof o.cityId === 'string' && o.mission === 'stealGreatPerson'
         ? null
         : 'mission invalide';
+    case 'Launch':
+      // 7m · R-139 : lancement d'ICBM — la forme est validée EN PREMIER
+      // (leçon 7f) ; la validité métier (unité stratégique du joueur, cible
+      // visible, interdiction Démocratie) est re-vérifiée par le moteur.
+      return typeof o.unitId === 'string' && isHex(o.target) ? null : 'lancement invalide';
+    case 'SpyAction': {
+      // 7m · R-143 : action d'espionnage d'un espion infiltré — la validité
+      // métier (Espion, infiltration, cibles existantes, duel R-144) est
+      // re-vérifiée par le moteur ; `buildingId` ne porte que pour
+      // `destroyBuilding` (bâtiment non-Palais choisi 🔶).
+      if (typeof o.unitId !== 'string' || typeof o.cityId !== 'string') return 'action/unité/ville invalides';
+      const ACTIONS = ['stealGold', 'kidnapGreatPerson', 'sabotageProduction', 'destroyBuilding', 'destroyFortifications', 'leave'];
+      if (!ACTIONS.includes(o.action as string)) return 'action d’espionnage invalide';
+      if (o.action === 'destroyBuilding' && typeof o.buildingId !== 'string') return 'bâtiment cible requis';
+      return null;
+    }
     default:
       return 'type d\'ordre inconnu';
   }
@@ -564,6 +580,63 @@ export class GameDO {
           ),
         }
       : null;
+    // 7m · R-138..R-141 : nucléaire — ICBM en jeu, Manhattan (construit ?),
+    // SDI par ville, frappes en brouillon, détonations par joueur.
+    const nucleaire = game
+      ? {
+          icbm: Object.values(game.units)
+            .filter((u) => u.type === 'icbm')
+            .map((u) => ({ id: u.id, owner: u.owner, at: { q: u.q, r: u.r }, pm: u.mp }))[0] ?? null,
+          manhattanConstruit: Object.values(game.cities).some((c) => c.wonders.includes('projet_manhattan')),
+          chantierManhattan: Object.values(game.cities)
+            .filter((c) => c.production?.item.kind === 'wonder' && c.production.item.id === 'projet_manhattan')
+            .map((c) => ({ cityId: c.id, owner: c.owner, progress: c.production!.progress })),
+          sdiParVille: Object.values(game.cities)
+            .filter((c) => c.buildings.includes('sdi'))
+            .map((c) => ({ cityId: c.id, owner: c.owner })),
+          launchesEnBrouillon: Object.entries(this.orders).flatMap(([pid, orders]) =>
+            orders
+              .filter((o) => o.type === 'Launch')
+              .map((o) => ({ player: pid, unitId: (o as { unitId: string }).unitId, target: (o as { target: { q: number; r: number } }).target })),
+          ),
+          detonations: Object.fromEntries(
+            Object.keys(game.players).sort().map((id) => [id, game.players[id]!.nukesLaunched]),
+          ),
+        }
+      : null;
+    // 7m · R-142..R-144 : espionnage — espions (garnison/infiltration dérivés
+    // de la position), réseaux, duels prévisibles (garnisons en place),
+    // actions en brouillon. NB : l'état DIFFUSÉ aux clients reste filtré par
+    // le brouillard (un espion ennemi hors vision n'y apparaît jamais) — le
+    // dump admin est le seul à tout montrer (protégé par ADMIN_TOKEN).
+    const espionnage = game
+      ? {
+          espions: Object.values(game.units)
+            .filter((u) => u.type === 'espion')
+            .sort((a, b) => a.id.localeCompare(b.id))
+            .map((u) => {
+              const ville = Object.values(game.cities).find((c) => c.q === u.q && c.r === u.r);
+              return {
+                id: u.id,
+                owner: u.owner,
+                at: { q: u.q, r: u.r },
+                reseau: u.isArmy,
+                statut: ville ? (ville.owner === u.owner ? 'garnison' : 'infiltration') : 'terrain',
+                villeId: ville?.id ?? null,
+              };
+            }),
+          spyActionsEnBrouillon: Object.entries(this.orders).flatMap(([pid, orders]) =>
+            orders
+              .filter((o) => o.type === 'SpyAction')
+              .map((o) => ({
+                player: pid,
+                unitId: (o as { unitId: string }).unitId,
+                cityId: (o as { cityId: string }).cityId,
+                action: (o as { action: string }).action,
+              })),
+          ),
+        }
+      : null;
     return jsonResponse({
       meta: this.meta,
       state: this.game,
@@ -577,6 +650,8 @@ export class GameDO {
       gouvernements,
       merveilles,
       economie,
+      nucleaire,
+      espionnage,
     });
   }
 
@@ -899,6 +974,14 @@ export class GameDO {
       case 'SpyMission':
         // 7g · R-119 : seule l'unité doit appartenir au joueur (la ville cible
         // est ENNEMIE par construction — re-validé par le moteur).
+        return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
+      case 'Launch':
+        // 7m · R-139 : seule l'unité (ICBM) doit appartenir au joueur (la cible
+        // est une case ennemie ou neutre — visibilité re-vérifiée par le moteur).
+        return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
+      case 'SpyAction':
+        // 7m · R-143 : seule l'unité (Espion) doit appartenir au joueur (la
+        // ville cible est ENNEMIE par construction — re-validé par le moteur).
         return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
       default:
         return 'ordre inconnu';

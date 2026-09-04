@@ -1,0 +1,10 @@
+{
+  "nukeCulturePenalty": 1,
+  "stealGoldPct": 0.5,
+  "duelWinChance": {
+    "isolatedVsIsolated": 0.5,
+    "ringVsIsolated": 0.9,
+    "ringVsRing": 0.5,
+    "isolatedVsRing": 0.1
+  }
+}

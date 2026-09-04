@@ -45,6 +45,8 @@ export interface ProductionData {
   cargoCapacity?: number | undefined;
   /** 7g · R-119 : unité Espion (missions d'infiltration). */
   spy?: boolean | undefined;
+  /** 7m · R-138 : arme stratégique (ICBM) — jamais produite ni achetable. */
+  strategic?: boolean | undefined;
   /** 7e : bâtiment préalable exigé dans la ville (Banque ← Marché…). */
   requiresBuilding?: string | undefined;
   /** 7e : bâtiment retiré de la ville à la construction (remplacement). */
@@ -54,7 +56,7 @@ export interface ProductionData {
 }
 
 function unitAsItem(u: UnitTypeData): ProductionData {
-  return { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson, cargoCapacity: u.cargoCapacity, spy: u.spy };
+  return { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson, cargoCapacity: u.cargoCapacity, spy: u.spy, strategic: u.strategic };
 }
 
 function buildingAsItem(b: BuildingData): ProductionData {
@@ -131,6 +133,9 @@ export function isProducible(
   if (!isUnlocked(item, techsUnlocked)) return false;
   if (item.fixed) return false;
   if (item.greatPerson) return false;
+  // 7m · R-138 : une arme stratégique (ICBM) n'est jamais produite par les
+  // files ni achetable — elle est instanciée par le Projet Manhattan.
+  if (item.strategic) return false;
   if (item.requiresBuilding && cityBuildings && !cityBuildings.includes(item.requiresBuilding)) return false;
   return true;
 }

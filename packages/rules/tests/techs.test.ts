@@ -123,7 +123,7 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     }
   });
 
-  it('7e : 21 merveilles en données, coût + tech + obsolescence documentés — 19 ACTIVÉES (7l : + Banque mondiale, R-137)', () => {
+  it('7e : 21 merveilles en données, coût + tech + obsolescence documentés — 20 ACTIVÉES (7m : + Projet Manhattan, R-138)', () => {
     expect(Object.keys(wonderTable)).toHaveLength(21);
     const active = Object.values(wonderTable)
       .filter((w) => w.implemented)
@@ -136,13 +136,13 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     // Foire de Troyes, Complexe militaro-industriel, Programme Apollo, Internet.
     // 7l (R-137) : Banque mondiale (victoire économique — condition 20 000 or,
     // jamais débitée ; interdite au rush-buy R-135).
-    // Restent en données seules : Hollywood (territoire en suspens),
-    // Projet Manhattan (7m).
+    // 7m (R-138) : Projet Manhattan (instancie l'ICBM — grantsUnit).
+    // Restent en données seules : Hollywood (territoire en suspens).
     expect(active).toEqual([
       'atelier_de_leonard', 'banque_mondiale', 'chateau_himeji', 'colosse_de_rhodes', 'compagnie_des_indes',
       'complexe_militaro_industriel', 'foire_de_troyes', 'grande_bibliotheque', 'grande_muraille',
       'grande_pyramide', 'internet', 'jardins_suspendus', 'magna_carta',
-      'nations_unies', 'oracle_de_delphes', 'programme_apollo', 'stonehenge',
+      'nations_unies', 'oracle_de_delphes', 'programme_apollo', 'projet_manhattan', 'stonehenge',
       'theatre_de_shakespeare', 'universite_d_oxford',
     ]);
     for (const w of Object.values(wonderTable)) {
@@ -192,8 +192,9 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
       const none: string[] = [];
       for (const u of Object.values(unitTable)) {
         // 7f : isProducible exclut aussi les GP (artiste/penseur — R-114).
+        // 7m · R-138 : isProducible exclut aussi les armes stratégiques (ICBM).
         const producible = isProducible(
-          { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson },
+          { tech: u.tech ?? null, implemented: u.implemented, greatPerson: u.greatPerson, strategic: u.strategic },
           none,
           [],
         );

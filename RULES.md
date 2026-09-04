@@ -51,15 +51,17 @@ Chaque type d'unité : `attaque (A)`, `défense (D)`, `mouvement (M)`, `PV max`,
 | Cavalier *(7a)* | 2 | 1 | 2 | 3 | 20 | 2 | peutAttaquer | Équitation |
 | Légion *(7a)* | 2 | 1 | 1 | 3 | 10 | 2 | peutAttaquer | Travail du fer |
 
-*(7e : le roster complet — Piquier, Catapulte 4/1/1 à distance, Chevalier, Fusilier, Canon à distance, Infanterie moderne, Char d'assaut, Artillerie à distance — est en données `units.json` jouable, plus les données seules naval/aérien/spéciales ; source : Appendice A + document « Technologies et Déblocages ». Espion, Caravane, Galère, Galion, Croiseur, Cuirassé, Sous-marin, Chasseur, Bombardier, Milice, ICBM : `implemented:false` — mécaniques 7f/7g.)*
+*(7e : le roster complet — Piquier, Catapulte 4/1/1 à distance, Chevalier, Fusilier, Canon à distance, Infanterie moderne, Char d'assaut, Artillerie à distance — est en données `units.json` jouable, plus les données seules naval/aérien/spéciales ; source : Appendice A + document « Technologies et Déblocages ». Galère/Galion/Croiseur/Cuirassé/Sous-marin : jouables 7g ; **Espion : jouable 7g, mécaniques complètes 7m — §8.11** ; **ICBM : jouable 7m — §8.11** (`strategic:true`, jamais dans les files) ; Caravane, Chasseur, Bombardier, Milice : `implemented:false`.)*
 
 ### 3.1bis R-112 · Coût en population du Colon (7e — décision d'Erik du 02/09)
 
 Comportement officiel CivRev adopté : le Colon coûte **20 production + 2 population de la ville** à sa PRODUCTION (la fondation reste la consommation de l'unité elle-même, R-64). Interprétation tranchée : la ville doit avoir `pop ≥ 2` ; à la complétion `pop = max(1, pop − 2)` et les citoyens excédentaires sont retirés (fin de liste, sans re-remplissage). Pop insuffisante à complétion : la file reste **en attente** (progression conservée, comme la case de ville occupée). Événement `PopulationConsumed`.
 
-### 3.2 R-30 · Non-empilement
+### 3.2 R-30 · Non-empilement (amendé 7m)
 
-Une case contient **au plus une entité amie** (unité ou armée). Exception : la case d'une ville héberge la ville **plus un défenseur** (unité ou armée).
+Une case contient **au plus une entité amie** (unité ou armée). Exceptions :
+- la case d'une ville héberge la ville **plus un défenseur** (unité ou armée) ;
+- **7m** : la case d'une ville héberge en outre **UN espion par propriétaire** — l'espion du propriétaire (garnison, contre-espionnage R-144) et, le cas échéant, l'espion ennemi **infiltré** (R-143). Hors ville : au plus une entité, espions compris.
 *Conséquence assumée : pas d'escorte possible pour les Colons en v1 ; le passage transitoire de plusieurs unités sur une case pendant la résolution est interne au moteur et jamais visible dans l'état final.*
 
 ### 3.3 R-31 · Armées
@@ -123,6 +125,7 @@ Déclenchée quand **les deux joueurs ont verrouillé** ou à l'**échéance du 
 **R-43 · Unités pacifiques (Colon ; plus tard Espion, Caravane).** Non-combattantes : elles n'attaquent jamais et n'entrent pas dans un combat. Si leur déplacement aboutit sur une case qui sera occupée par un ennemi (déjà prise ou contestée par un mover adverse), elles sont **capturées** — jamais de combat, jamais de comparaison de PV :
 - nations **en guerre** (cas v1) : l'unité est **détruite** et le vainqueur touche un **butin en or** (`T-12`) — décision du 29/08 : pas de conversion d'un colon adverse, trop fort ;
 - nations **en paix** : l'unité est **détenue** ; au tour suivant, le capteur choisit : **restitution** dans la ville la plus proche du propriétaire, ou **butin + déclaration de guerre automatique** (§7.7-c).
+**7m — exceptions Espion (R-142/R-143)** : un espion qui aboutit sur une case d'ENNEMI hors ville est capturé comme ci-dessus (**sans butin** 🔶) ; un espion qui entre sur une case de **ville** s'y **infiltre** au lieu d'être capturé (R-143) ; une unité militaire qui entre sur la case d'un espion hors ville l'élimine **sans combat et sans butin** 🔶 (R-142).
 
 **R-44 · Fusion.** Les cases de rendez-vous `FormArmy` sont traitées en fin de Phase A ; la co-location transitoire n'est légale que pour les 3 membres désignés.
 
@@ -387,7 +390,7 @@ Les bâtiments portent des effets **data-driven** (`buildings.json`) appliqués 
 | Cathédrale | 160 | Religion | +2 Culture/citoyen — R-111 (requiert Temple, le remplace) | ✅ (7f, R-113) |
 | Université | 160 | Université | Science ×4 (`scienceMult: 4`) — R-111 (requiert Bibliothèque, la remplace) | ✅ |
 | Usine | 200 | Industrialisation | Production de la ville ×2 (`productionMult`) | ✅ |
-| Défense SDI | 200 | Supraconducteur | Protège des ICBM (mécanique 7g+) | données |
+| Défense SDI | 200 | Supraconducteur | Protège des ICBM (mécanique 7g+) | ✅ (7m, R-141) |
 | Composants du Vaisseau (×4) | 80/120/200/400 | Vol spatial | Victoire scientifique | 7h |
 
 - **Multiplicateurs** : le meilleur multiplicateur présent gagne (`scienceMultOf`/`goldMultOf`, `conversion.ts` — source unique moteur/UI). L'Université remplace la Bibliothèque : le bonus résiduel R-88 disparaît avec elle. L'Usine multiplie la production brute avant le bonus de population (R-63).
@@ -428,7 +431,7 @@ Base : Appendice A (table des unités CivFanatics) et décisions de pilotage 7g 
 
 **R-118 · Soutien naval.** Un combat **terrestre** (attaquant non-aquatic) adjacent à la côte reçoit en force d'attaque le **meilleur** `navalSupport` des unités navales AMIES occupant une case d'EAU adjacente à la case de combat (données 7e : Galion 15, Croiseur 35, Cuirassé 65) : `S_att = A × (1 + T-01 si vétéran) + navalSupport`. **Un seul navire compte** (MAX, pas de cumul — interprétation 🔶 documentée : 3 cuirassés adjacents ne valent pas un triple bombardement). Ne s'applique PAS aux combats NAVALS (le navire est lui-même l'attaquant) ni aux attaques de villages (R-96).
 
-**R-119 · Espionnage.** L'**Espion** (25, Écriture — pacifique 0/1/2, `spy: true`) s'infiltre via l'ordre **`SpyMission { unitId, cityId, mission: 'stealGreatPerson' }`** (Phase C) :
+**R-119 · Espionnage (tranche 7g — complété et révisé en 7m, §8.11 : défense canon 0/0/2, menu d'actions en ville, duels, garnison).** L'**Espion** (25, Écriture — pacifique 0/0/2 *(rév. 7m — le texte 7g portait 0/1/2, écart canon signalé)*, `spy: true`) s'infiltre via l'ordre **`SpyMission { unitId, cityId, mission: 'stealGreatPerson' }`** (Phase C) :
 - validation moteur : l'unité est un Espion au joueur ; la cible est une ville **ENNEMIE VISIBLE** (R-70, évaluée à la résolution) à **distance ≤ 1** — l'espion n'entre JAMAIS dans la ville (il serait capturé, R-43) ;
 - **vol de GP installé** (décision d'Erik : jalon retiré, escalade inchangée) : si la victime a au moins un jalon « GP installé » (`cultureMilestones − merveilles contrôlées > 0`, R-115) : la victime **perd 1 jalon** (raison `gpStolen`), le voleur en **gagne 1** (le GP est réputé installé d'office dans l'empire voleur — aucun `greatPersonsObtained` ne varie : **l'escalade T-27 est inchangée**) ; l'Espion est **consommé** (`UnitDestroyed`, cause `mission`) ;
 - **échec** (rien à voler — uniquement des merveilles — ou conditions non remplies) : événement `SpyMission { outcome: 'failed' }`, l'Espion **survit** (interprétation 🔶 documentée) ;
@@ -597,6 +600,64 @@ Table **data-driven** (`economy.json` `milestones`). Les bâtiments gratuits sui
 - **Magna Carta** (Tribunaux **+1 culture par citoyen**) : **ÉCORRIGÉ 7k** — le modèle 7h (+1/tour à plat 🔶) est révisé en `tribunalCulturePerCitizen: 1` × population (le doc tranche).
 - **Nations Unies** (victoire à 20 jalons) : conforme mécaniquement (verrou < 20 jalons, complétion = victoire) ; **écart de coût TRANCHÉ (7l · C11)** : 500 marteaux (catalogue du doc — décision d'Erik du 04/09, appliquée en 7l).
 
+## 8.11 Nucléaire & espionnage jeu de base — Phase 7m (ajouté le 05/09/2026)
+
+Base documentaire : la spécification d'Erik [`Nuclear and spy Game Mechanics Research.md`](Nuclear%20and%20spy%20Game%20Mechanics%20Research.md) — **elle fait foi, SAUF les décisions d'Erik du 05/09 (Bloc 0 ci-dessous), qui ont préséance**. Données : **`espionnage.json`** (pénalité culturelle, part d'or volée, matrice de duel — calibrage sans code 🔶, même philosophie R-99/R-113) ; `units.json` (`icbm` audité 0/0/40 `strategic`, `espion` audité 0/0/2), `buildings.json` (`sdi` — audité conforme), `wonders.json` (`projet_manhattan` — audité, activé). Décisions de tranche (pilotage 7m) : la résolution ICBM est **unifiée data-driven** (une seule règle capitale/ville — réversible à l'acceptation, voir C13) ; le RNG est consulté **en Phase C** pour les duels d'espions et la sélection des bâtiments détruits (amendement R-80 documenté, miroir Oxford R-132) ; la Grande Muraille ne bloque pas l'ICBM 🔶 ; un espion capturé en rase campagne ne rapporte pas de butin 🔶 ; la vision de l'ICBM est 2 🔶 (canon muet).
+
+### Bloc 0 — Décisions d'Erik du 05/09 (préséance sur le rapport)
+
+**C13 · Résolution ICBM UNIFIÉE (révision du canon).** Toute ville ciblée (capitale ou non) **survit** — pas de destruction totale, pas de cratère :
+1. population réduite à **2** (jamais 1) — interprétation 🔶 : `pop = min(pop, 2)` (une ville à pop ≤ 2 ne grossit pas d'une frappe) ;
+2. **la moitié des bâtiments détruite au hasard** (RNG seedé R-80 ; moitié arrondie 🔶 : **⌊n/2⌋** ; **Palais exclu**) ;
+3. **les merveilles sont PRÉSERVÉES** (elles ne sont pas des bâtiments — `city.wonders`) ;
+4. **toutes les unités — case de ville ET les 6 tuiles adjacentes — sont détruites**, amies comme ennemies, **aucun survivant** (le canon 80-90 % de zone est remplacé par 100 % dans le rayon 1 = 7 cases) — GP « en attente », espions (infiltrés compris) et armées inclus ;
+5. les GP installés (`settledGreatPersons`) sont **préservés** (miroir canon : les GP survivent à l'explosion) ;
+6. les GP « en attente de choix » présents dans le rayon sont détruits 🔶 (le canon ne tranche pas — proposition retenue : détruits, comme toute unité — couvert par C13.4).
+La résolution est appliquée de façon **unifiée** (une seule règle pour capitale et ville ordinaire). Si Erik rétablit à l'acceptation la distinction canon (ville ordinaire rasée, capitale survivante), la structure de code est data-driven et le porte déjà (drapeau signalé au rapport).
+
+**C14 · La frappe ne valide PAS la domination (canon conservé).** Neutraliser une capitale n'en prend pas possession ; la victoire exige une occupation physique ultérieure (R-65 inchangée — aucun code spécifique : la frappe ne déplace aucune unité).
+
+**R-138 · Projet Manhattan & ICBM.** Merveille **750 marteaux**, technologie Théorie atomique (données auditées : conformes). À la complétion : **l'ICBM est instanciée dans la ville constructrice** (case de ville si libre, sinon adjacente — événement `UnitProduced`, canal réutilisé documenté). **Un seul missile par partie** : garantie structurelle par l'exclusivité mondiale R-129 (une seconde complétion de Manhattan est impossible). La merveille est **rush-buyable** (R-135) ; **l'unité ICBM n'est NI produite par les files NI achetable** : données `strategic: true` — refusée par `isProducible`/`canSetProduction` (et donc absente des menus) ; un `SetProduction`/`RushBuy` la visant est ignoré. Données auditées/corrigées : **0/0/40** (déplacement 4 → 40 — portée globale pratique du canon), PV 1, vision 2 🔶.
+
+**R-139 · Ordre `Launch` et résolution de frappe.** Nouvel ordre **`Launch { unitId, target }`** — sa forme est validée par `orderShapeError` **EN PREMIER** (leçon 7f). Validations moteur à la résolution (**Phase C, en tête**) : l'unité est une ICBM du joueur ; la cible est une case existante **visible** (fog R-70, évaluée à la résolution) ; le gouvernement n'est pas la Démocratie (R-140). Une validation qui échoue est un **refus** (événement `NukeLaunched` outcome `refused` + raison, **missile NON consommé**) — un ordre illégal est ignoré individuellement sans bloquer la partie (§5). Lancement valide : le missile est **consommé** (une seule frappe — même interceptée ; cause `mission`), **aucun coût de PM** (le tir part de la case de stationnement — portée globale, canon) :
+- **cible = case d'une ville hôte d'une SDI** → **interception garantie** (R-141) : aucun effet, outcome `intercepted` ;
+- sinon **détonation** (outcome `detonated`) :
+  - cible portant une ville : résolution **C13** complète (événement `CityNuked` : pop résultante, bâtiments détruits) ;
+  - cible sans ville : seule la destruction d'unités du rayon 1 s'applique — **aucun changement de terrain** (C13 ne porte ni cratère ni conversion d'océan 🔶 — écart canon §1.3 signalé) ;
+- la destruction d'unités **C13.4 s'applique aux DEUX cas de cible** (ville ou case quelconque) : toutes les unités du rayon 1 (7 cases) sont détruites, événements `UnitDestroyed` cause `nuke`.
+
+**R-140 · Interdictions et pénalités.**
+- **Démocratie (R-121)** : le tir est **refusé** si le gouvernement actif est la Démocratie (outcome `refused`, missile conservé ; libellé UI explicite).
+- **Pénalité culturelle 🔶** : une **détonation** coûte **−1 Jalon culturel** au tireur (si son compteur est > 0 — événement `CultureMilestone` raison `nuke`), **annulée sous Despotisme** (`nuclearWithoutPenalty` — hook 7i activé). Montant non documenté — défaut proposé : −1 jalon (`espionnage.json` `nukeCulturePenalty`, calibrable, veto Erik). Une frappe **interceptée** n'est pas une détonation : pas de pénalité 🔶.
+- **Grande Muraille 🔶** : le tir nucléaire n'est PAS une attaque au sens R-132 — la Muraille ne bloque pas l'ICBM (arme stratégique ; veto Erik possible). Miroir : elle ne bloque pas non plus l'**infiltration** d'un espion (R-143 — l'espion n'attaque pas) 🔶.
+
+**R-141 · Défense SDI.** Bâtiment **200 marteaux**, Supraconducteur (données auditées : conformes) ; le **Premier découvrir** de Supraconducteur pose un SDI gratuit (R-109 — déjà en données, vérifié en test). **Interception 100 % GARANTIE** de tout tir ciblant DIRECTEMENT la case de la ville hôte (`buildings` inclut `sdi`) : le missile est consommé, **aucun dégât** (outcome `intercepted`, `cityId` porté par `NukeLaunched`). **Couverture locale uniquement** : chaque ville protège SA case seule — une SDI à A ne protège ni la ville B, ni les cases adjacentes de A ; les premières SDI ne protègent pas l'empire. **L'exploit canon est conservé** : un tir sur une case ADJACENTE à la ville protégée n'est pas intercepté et frappe le rayon C13.4 (SDI ≠ bouclier de zone) — les unités de la case de ville sont détruites, la ville elle-même (pop, bâtiments, merveilles) est intacte (elle n'est pas la cible).
+
+**R-142 · Espion — unité et cycle de vie.** Unité **0/0/2** (données corrigées : défense 1 → 0 — canon 0/0/2), **25 marteaux**, technologie Écriture ; **visible** sur la carte, **non-combattante** ; **Premier découvrir Écriture → Espion gratuit** (R-109 — récompense active dès que l'unité est implémentée, testée).
+- **Élimination hors ville** : une unité militaire ennemie qui **entre** sur la case d'un espion (isolé ou réseau) **hors d'une ville** l'élimine **sans combat** (événement `UnitDestroyed` cause `capture`, **sans butin** 🔶) et occupe la case — le reste de son chemin est abandonné (miroir R-42 cas 2).
+- **Dans une ville, l'espion est à l'abri** : aucune élimination par la garnison militaire ; il ne défend pas la ville pour autant (voir R-65 ci-dessous) et n'en empêche pas la capture.
+- **Miroir** : un espion qui aboutit son mouvement sur une case d'ennemi hors ville est capturé (R-43, sans butin 🔶).
+- **Réseau d'espions** : 3 espions du même type fusionnent via `FormArmy` (miroir R-31 — co-location transitoire R-44). Un réseau agit comme une entité unique (matrice de duel R-144).
+- **Capture de ville (R-65 complétée)** : un espion — garnison comme infiltré — **ne défend pas** et **ne capture pas** : la ville n'est prise que par une unité non-espion (le captreur est la première entité non-espion entrée, tri R-81) ; à la capture, la garnison espion de la victime SURVIT et devient espion **infiltré** dans la ville du captreur (déterministe, documenté) ; au rasement barbare, l'infiltré disparaît avec la ville 🔶.
+
+**R-143 · Actions d'espionnage (ordre `SpyAction`).** Un espion AMI présent sur la case d'une ville ENNEMIE (infiltré) ouvre le menu d'actions — ordre **`SpyAction { unitId, cityId, action, buildingId? }`** (forme validée par `orderShapeError` **EN PREMIER**), résolu **en Phase C** (après les missions 7g, avant les captures de ville) :
+1. **Voler de l'or** (`stealGold`) : **50 % 🔶** de la trésorerie adverse (arrondi au plus proche — `espionnage.json` `stealGoldPct`, data-driven) ; débit/crédit immédiats (R-134) ; la victime est notifiée avec le montant — l'événement `GoldStolen` ne révèle QUE le montant subi (la trésorerie adverse reste non publique par ailleurs, fog R-134) ;
+2. **Enlever un Personnage Illustre** (`kidnapGreatPerson`) : un GP **« en attente de choix »** (unité GP non installée) du propriétaire, sur la case de la ville ou adjacente (fenêtre R-115, choix déterministe : sur place d'abord puis (q, r), `unitId` croissant) est **transféré** au voleur — repositionné sur sa capitale (sinon première ville ; case libre sinon adjacente ; sinon reste sur place) ; complète le vol de GP **installé** R-119 (les deux restent possibles — 🔶 écart canon signalé : le canon ne kidnappe que les non-installés) ; **aucun jalon ni compteur d'escalade ne varie** (miroir C2) ;
+3. **Saboter la production** (`sabotageProduction`) : les marteaux investis du projet en cours sont remis à **zéro** 🔶 (la réserve permanente C7 `pendingSalvage` n'est PAS touchée) ;
+4. **Détruire un bâtiment** (`destroyBuilding`) : le tireur **choisit** 🔶 un bâtiment **non-Palais** de la ville (`buildingId` de l'ordre — l'UI liste les cibles ; les merveilles ne sont pas des bâtiments et sont épargnées) ;
+5. **Détruire les fortifications** (`destroyFortifications`) : annule la fortification (R-33) de l'unité du propriétaire présente sur la case de ville (le défenseur — R-30 n'en admet qu'un ; « la meilleure unité défensive » du canon s'y réduit) ;
+6. **Partir discrètement** (`leave`) : l'espion se repositionne sur une **case adjacente libre** (tri R-81 : praticable, sans entité, sans ville), **non consommé** — aucune case libre : sans effet, espion conservé.
+- **Consommation** : toute action hostile **exécutée** consomme l'espion (seule « Partir discrètement » le préserve) ; une action **sans cible valable** (aucun GP à enlever, aucune production en cours, bâtiment absent ou Palais, aucune fortification) est un **échec sans effet** (événement `SpyAction` outcome `failed`) et l'espion **survit** (miroir R-119-7g, interprétation 🔶 documentée) ;
+- **Infiltration** : l'espion ENTRE dans la ville ennemie par un `Move` ordinaire — ce n'est NI une attaque (aucun combat planifié), NI une capture (exceptions R-43/R-57/R-65) ; il en ressort par un `Move` ordinaire ou l'action `leave` ; la Grande Muraille ne l'arrête pas (R-140 🔶) ;
+- **Notifications** : la victime est notifiée de chaque action réussie (journal + toast — `GoldStolen`, `SpyBuildingDestroyed`, `GreatPersonKidnapped`, `SpyAction` — événements filtrés par fog comme les autres, R-73).
+
+**R-144 · Duel d'espions & contre-espionnage.** **Contre-espionnage jeu de base = l'espion en garnison uniquement** (aucun bâtiment — canon explicite ; les bâtiments de contre-espionnage appartiennent à la vision avancée, BACKLOG idée 5). Si la ville ciblée héberge un **espion en garnison** (espion du propriétaire, isolé ou réseau), un **duel automatique** précède chaque action hostile (RNG seedé R-80 — **consulté en Phase C**, amendement documenté) :
+- **matrice data-driven 🔶** (`espionnage.json` `duelWinChance`, probabilités de victoire de l'ATTAQUANT) : isolé vs isolé **50 %**, réseau vs isolé **90 %**, réseau vs réseau **50 %**, isolé vs réseau **10 %** (cellule non documentée — complétion symétrique 🔶 signalée) ;
+- **sans garnison : 0 % de risque** — succès automatique (aucun RNG consulté) ;
+- **le perdant est détruit sans exécuter sa mission** (événement `SpyDuel`) : l'attaquant perdant est détruit et l'action n'est PAS exécutée, le défenseur survit ; l'attaquant gagnant exécute son action (puis est consommé — R-143) et le défenseur est détruit ;
+- le duel ne précède que les actions **hostiles** (le `leave` est exempt 🔶 — canon : « Partir discrètement » réussit toujours).
+Espionnage avancé (infiltration disparaissant de la carte, expérience et points d'espionnage, bâtiments de contre-espionnage, menu de renseignement, fenêtre d'annulation au tour de la victime…) : **BACKLOG idée 5 — chantier dédié, hors périmètre 7m**.
+
 ## 9. Phase D — Vision, soins, fin de tour
 
 - **R-70 · Vision** : rayon `T-07` (unité) / `T-08` (ville), **distance uniquement** — aucun blocage par terrain. Recalcul par joueur à chaque résolution ; 3 états (inexploré / exploré-masqué / visible). `getFilteredState(state, player)` ne diffuse jamais d'entité hors du champ visible.
@@ -606,7 +667,7 @@ Table **data-driven** (`economy.json` `milestones`). Les bâtiments gratuits sui
 
 ## 10. Déterminisme
 
-- **R-80.** RNG **mulberry32** ; la graine vit dans le GameState (`rngSeed`) et avance **uniquement en Phase B** — et, depuis la Phase 7d, aux **ouvertures de huttes** (récompense R-98, Phase A) ; depuis la **Phase 7k**, au **tirage d'Oxford** (R-132, Phase C — amendement documenté). Toute résolution interrompue peut être rejouée à l'identique depuis `{state, orders, seed}` (crash-recovery idempotent).
+- **R-80.** RNG **mulberry32** ; la graine vit dans le GameState (`rngSeed`) et avance **uniquement en Phase B** — et, depuis la Phase 7d, aux **ouvertures de huttes** (récompense R-98, Phase A) ; depuis la **Phase 7k**, au **tirage d'Oxford** (R-132, Phase C — amendement documenté) ; depuis la **Phase 7m**, aux **duels d'espions** et à la **sélection des bâtiments détruits par une frappe** (R-143/R-144, Phase C — amendement documenté). Toute résolution interrompue peut être rejouée à l'identique depuis `{state, orders, seed}` (crash-recovery idempotent).
 - **R-81.** Tous les tris sont déterministes et indépendants des joueurs : `unitId` croissant, `(q, r)` croissant, puis critères métier (PV décroissant, cases parcourues croissant).
 - **R-82.** Interdits dans `/packages/rules` : `Math.random()`, `Date.now()`, itération dépendante de l'ordre d'insertion des Maps (toujours trier avant de parcourir).
 
@@ -645,8 +706,11 @@ Table **data-driven** (`economy.json` `milestones`). Les bâtiments gratuits sui
 | T-30 | `greatPersonYieldThresholdBase` | 20 🔶 (R-123, Phase 7h — `culture.json` `greatPersonYieldThresholdBase` ; ×2 par GP de ce type : `greatPersonYieldThresholdGrowth`) |
 | T-31 | `leaderGpVictories` | 20 🔶 (R-123, Phase 7h — `culture.json` `leaderGpVictories`) |
 | T-32 | `hammerSalvageWindow` | **ABROGÉ (rév. 7l · C7 — décision d'Erik du 05/09)** — la réserve de marteaux (`pendingSalvage`, R-130) est **PERMANENTE** (subsiste jusqu'à épuisement, plus de dissipation) |
+| T-33 | `nukeCulturePenalty` | 1 🔶 (R-140, Phase 7m — `espionnage.json` ; jalons perdus par détonation, annulée sous Despotisme) |
+| T-34 | `duelWinChance` | 0.5 / 0.9 / 0.5 / 0.1 🔶 (R-144, Phase 7m — `espionnage.json` ; matrice isolé/réseau, probabilités de l'attaquant) |
+| T-35 | `stealGoldPct` | 0.5 🔶 (R-143, Phase 7m — `espionnage.json` ; part de la trésorerie volée) |
 
-*(T-18..T-26 : la source des valeurs est `barbares.json`/`huttes.json` — R-99 ; `constants.ts` les ré-exporte. Le texte de R-96 du handoff citait `T-24` pour le cap par village et la liste des constantes `T-22` : normalisé **T-22**, erratum signalé au rapport.)*
+*(T-18..T-26 : la source des valeurs est `barbares.json`/`huttes.json` — R-99 ; `constants.ts` les ré-exporte. Le texte de R-96 du handoff citait `T-24` pour le cap par village et la liste des constantes `T-22` : normalisé **T-22**, erratum signalé au rapport. T-33..T-35 : source `espionnage.json` (R-138..R-144, Phase 7m).)*
 
 ## 11bis. Génération procédurale des cartes — Phase 6b (ajouté le 02/09/2026, transcription de [`HANDOFF-PHASE6B.md`](HANDOFF-PHASE6B.md), base documentaire : [`Génération Procédurale Cartes Civilization.pdf`](Génération%20Procédurale%20Cartes%20Civilization.pdf))
 

@@ -16,6 +16,16 @@ const GP_CLASS_LABELS: Record<string, string> = {
   leader: 'Grand Leader',
 };
 
+/** 7m · R-143 · Libellés fr des actions d'espionnage (menu de ville). */
+export const SPY_ACTION_LABELS: Record<string, string> = {
+  stealGold: 'Voler de l\'or',
+  kidnapGreatPerson: 'Enlever un Personnage illustre',
+  sabotageProduction: 'Saboter la production',
+  destroyBuilding: 'Détruire un bâtiment',
+  destroyFortifications: 'Détruire les fortifications',
+  leave: 'Partir discrètement',
+};
+
 /** 7j · R-126 · Nom fr d'une classe de GP. */
 export function greatPersonLabel(unitTypeId: string): string {
   return GP_CLASS_LABELS[unitTypeId] ?? unitTypeId;
@@ -60,8 +70,9 @@ export function settleEffectLabel(unitTypeId: string): string {
   }
 }
 
-/** 7f · Raison d'une variation de jalons culturels (7g : + gpStolen, R-119). */
-function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'gpStolen' | 'obtain'): string {
+/** 7f · Raison d'une variation de jalons culturels (7g : + gpStolen, R-119 ;
+ *  7m : + nuke — pénalité culturelle d'une détonation, R-140). */
+function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'gpStolen' | 'obtain' | 'nuke'): string {
   switch (reason) {
     case 'obtain':
       return 'personnage obtenu (7j)'; // R-126 : jalon à l'obtention
@@ -75,6 +86,8 @@ function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCapture
       return 'merveille perdue';
     case 'gpStolen':
       return 'personnage volé par un espion';
+    case 'nuke':
+      return 'frappe nucléaire (pénalité — R-140)';
   }
 }
 
@@ -175,6 +188,29 @@ export function eventLabel(event: GameEvent): string {
         : `Mission d'espionnage échouée (${event.unitId} → ${event.cityId})`;
     case 'GreatPersonStolen':
       return `GP VOLÉ ! ${event.victim} perd un Personnage installé au profit de ${event.thief} (${event.cityId}) — réinstallé dans l'empire voleur (7j)`;
+    // 7m · R-138..R-144 : nucléaire & espionnage jeu de base.
+    case 'NukeLaunched':
+      if (event.outcome === 'refused') {
+        return `Lancement REFUSÉ (${event.reason === 'democratie' ? 'interdit sous Démocratie — R-121/R-140' : 'cible non visible'}) — l'ICBM est conservée`;
+      }
+      if (event.outcome === 'intercepted') {
+        return `ICBM INTERCEPTÉE par la Défense SDI de ${event.cityId} ! (R-141 — interception garantie, missile détruit)`;
+      }
+      return `☢️ ${event.owner} a lancé une ICBM sur (${event.target.q},${event.target.r}) !`;
+    case 'CityNuked':
+      return `☢️ ${event.cityId} frappée : population ${event.popAfter}, ${event.buildingsDestroyed.length} bâtiment(s) détruit(s) — la ville survit (C13), merveilles et GP préservés`;
+    case 'SpyAction':
+      return event.outcome === 'success'
+        ? `L'espion ${event.unitId} a exécuté « ${SPY_ACTION_LABELS[event.action] ?? event.action} » dans ${event.cityId}`
+        : `Action « ${SPY_ACTION_LABELS[event.action] ?? event.action} » sans effet (${event.unitId} → ${event.cityId})`;
+    case 'SpyDuel':
+      return `Duel d'espions dans ${event.cityId} — ${event.winner} l'emporte ! (R-144 : le perdant est détruit)`;
+    case 'GoldStolen':
+      return `OR VOLÉ ! ${event.victim} perd ${event.amount.toLocaleString('fr-FR')} or au profit de ${event.thief} (${event.cityId})`;
+    case 'GreatPersonKidnapped':
+      return `GP ENLEVÉ ! ${greatPersonLabel(event.gpType)} transféré de ${event.victim} à ${event.thief} (${event.cityId})`;
+    case 'SpyBuildingDestroyed':
+      return `SABOTAGE ! ${event.building} détruit dans ${event.cityId} par un espion de ${event.thief}`;
     case 'FirstDiscovered':
       return event.greatPerson
         ? `${event.label} (${event.player}) : ${greatPersonLabel(event.greatPerson)} rejoint votre empire !`

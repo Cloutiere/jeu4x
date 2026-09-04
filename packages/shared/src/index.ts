@@ -7,9 +7,9 @@
  * Source unique des types métier : les ordres, événements et le GameState
  * sont RÉ-EXPORTÉS de @game/rules — aucune duplication.
  */
-import type { CityId, GameEvent, GameState, HutReward, Order, PlayerId, Unit, UnitId } from '@game/rules';
+import type { CityId, GameEvent, GameState, HutReward, Order, PlayerId, SpyActionKind, Unit, UnitId } from '@game/rules';
 
-export type { CityId, GameEvent, GameState, HutReward, Order, PlayerId, Unit, UnitId };
+export type { CityId, GameEvent, GameState, HutReward, Order, PlayerId, SpyActionKind, Unit, UnitId };
 
 /** Version du protocole — incrémenter à toute rupture de compatibilité. */
 export const PROTO_VERSION = 1;

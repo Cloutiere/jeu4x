@@ -10,12 +10,14 @@ import resourcesJson from './data/resources.json' with { type: 'json' };
 import barbaresJson from './data/barbares.json' with { type: 'json' };
 import huttesJson from './data/huttes.json' with { type: 'json' };
 import cultureJson from './data/culture.json' with { type: 'json' };
+import espionnageJson from './data/espionnage.json' with { type: 'json' };
 import figuresJson from './data/figures.json' with { type: 'json' };
 import type {
   BarbariansData,
   BuildingData,
   CultureData,
   HuttesData,
+  EspionnageData,
   FiguresData,
   ResourceData,
   TerrainData,
@@ -35,6 +37,8 @@ export const HUT_REWARDS: HuttesData = huttesJson as unknown as HuttesData;
 export const CULTURE: CultureData = cultureJson as unknown as CultureData;
 /** 7j · R-126 · Figures historiques par classe de GP + tech associée (ciblage R-127). */
 export const FIGURES = figuresJson as unknown as FiguresData;
+/** 7m · R-138..R-144 · Configuration espionnage (espionnage.json — T-33..T-35). */
+export const ESPIONNAGE_DATA: EspionnageData = espionnageJson as unknown as EspionnageData;
 /** R-95 · Id du pseudo-joueur barbare. */
 export const BARBARIAN_ID: string = BARBARIANS.barbarianId;
 
@@ -42,6 +46,13 @@ export function unitType(id: string): UnitTypeData {
   const t = UNIT_TYPES[id];
   if (!t) throw new Error(`Type d'unité inconnu : ${id}`);
   return t;
+}
+
+/** 7m · R-142/R-143 : l'entité est-elle un ESPION (isolé ou réseau — une
+ *  armée d'espions porte le même type, R-142) ? Structurel : accepte toute
+ *  forme { type } (unité d'état, fixture). */
+export function isSpyUnit(u: { type: string }): boolean {
+  return unitType(u.type).spy === true;
 }
 
 export function terrain(id: TerrainId): TerrainData {

@@ -255,7 +255,7 @@ describe('Phase 7g · R-118 — soutien naval', () => {
     const one = navalSupportFor(map, guerrier, 'p1', H(0, 0), at([
       { q: 1, r: 0, type: 'galion', owner: 'p1', aboard: null },
     ]));
-    expect(one).toBe(15);
+    expect(one).toBe(15); // valeur de soutien du Galion (données 7e) — 7g
     // Un navire EMBARQUÉ (garde d'un autre transport — cas théorique) : exclu.
     const aboard = navalSupportFor(map, guerrier, 'p1', H(0, 0), at([
       { q: 1, r: 0, type: 'croiseur', owner: 'p1', aboard: 'u9' },
@@ -481,9 +481,9 @@ describe('Phase 7g · Migration v10 → v11', () => {
     });
     const raw = { ...structuredClone(v10), schemaVersion: 10 } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(15);
+    expect(out.schemaVersion).toBe(16);
     expect(out.units['u1']).toMatchObject({ aboard: null, cargo: null });
-    expect(CURRENT_SCHEMA_VERSION).toBe(15); // 7l : trésorerie + paliersage (R-130)
+    expect(CURRENT_SCHEMA_VERSION).toBe(16); // 7m : nukesLaunched (R-139)
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
     expect(twice).toEqual(out);
   });

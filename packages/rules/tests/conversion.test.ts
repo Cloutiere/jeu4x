@@ -234,7 +234,7 @@ describe('migration v5 → v6 (R-90)', () => {
       },
     };
     const out = migrateState(v5 as unknown as Record<string, unknown>) as unknown as Record<string, never>;
-    expect(out.schemaVersion).toBe(15);
+    expect(out.schemaVersion).toBe(16); // 7m : migration 15→16 additive (nukesLaunched)
     const cities = out.cities as unknown as Record<string, { conversion: string }>;
     expect(cities.c1!.conversion).toBe('gold');
     expect(cities.c2!.conversion).toBe('science');

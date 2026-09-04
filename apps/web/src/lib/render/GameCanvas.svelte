@@ -291,6 +291,13 @@
       // 7g · R-117 : indicateur de charge du transport.
       const cargoDot = c.getChildByLabel('cargo');
       if (cargoDot) cargoDot.visible = unit.cargo != null;
+      // 7m · R-142/R-144 : badge espion en ville (garnison ou infiltration).
+      const spyBadge = c.getChildByLabel('spybadge');
+      if (spyBadge) {
+        spyBadge.visible =
+          unitType(unit.type).spy === true &&
+          Object.values(state.cities).some((c) => c.q === unit.q && c.r === unit.r);
+      }
     }
     for (const [id, c] of unitSprites) {
       if (!seenUnits.has(id)) {
@@ -434,6 +441,14 @@
     cargoDot.circle(30, -150, 7).fill({ color: 0xffcc80 }).stroke({ width: 2, color: 0x1b1b22 });
     cargoDot.visible = false;
     c.addChild(cargoDot);
+    // 7m · R-142/R-144 : badge ESPION EN VILLE (œil ambré à gauche) — garnison
+    // (contre-espionnage) ou infiltration, selon le propriétaire de la ville.
+    const spyBadge = new Graphics();
+    spyBadge.label = 'spybadge';
+    spyBadge.ellipse(-30, -150, 10, 6).fill({ color: 0xffb74d }).stroke({ width: 2, color: 0x1b1b22 });
+    spyBadge.circle(-30, -150, 3).fill({ color: 0x1b1b22 });
+    spyBadge.visible = false;
+    c.addChild(spyBadge);
     c.label = unitId;
     return c;
   }
@@ -846,6 +861,11 @@
       } else if (fx.kind === 'destroy') {
         gr.circle(0, 0, 14 + 46 * progress).stroke({ width: 6, color: 0x61555b, alpha: 1 - progress });
         gr.poly(hexLocalPoints(HEX_SIZE - 12)).fill({ color: 0x000000, alpha: 0.35 * (1 - progress) });
+      } else if (fx.kind === 'nuke') {
+        // 7m · R-139 🔶 : détonation nucléaire — double onde de choc + flash.
+        gr.circle(0, 0, 20 + 90 * progress).stroke({ width: 7, color: 0xff8f00, alpha: 1 - progress });
+        gr.circle(0, 0, 12 + 60 * progress).stroke({ width: 5, color: 0xff5252, alpha: (1 - progress) * 0.9 });
+        gr.circle(0, 0, 8 + 30 * progress).fill({ color: 0xfff59d, alpha: 0.85 * (1 - progress) });
       } else if (fx.kind === 'good') {
         gr.circle(0, 0, 12 + 26 * progress).stroke({ width: 5, color: 0x9be27a, alpha: 1 - progress });
       } else {

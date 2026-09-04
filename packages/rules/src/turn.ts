@@ -26,7 +26,7 @@ import {
 import type { Hex } from './hex.js';
 import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId, allKnownTechs } from './state.js';
 import type { BarbarianVillage, City, CityId, GameState, Order, Player, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
-import { BARBARIAN_ID, BARBARIANS, CULTURE, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, RESOURCES, isWaterTerrain } from './data.js';
+import { BARBARIAN_ID, BARBARIANS, CULTURE, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, RESOURCES, isWaterTerrain, isSpyUnit } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable } from './economy.js';
 import { combatRound, effectiveStrength } from './combat.js';
 import { computeVisibleTiles, recomputeVision } from './fog.js';
@@ -96,6 +96,8 @@ import {
   milestoneTechFor,
   explorerGoldInjectionFor,
 } from './economyOr.js';
+// 7m · R-138..R-144 — nucléaire & espionnage (données espionnage.json, helpers purs partagés).
+import { stolenGoldAmount, spyDuelWinChance, nukeCulturePenalty } from './espionnage.js';
 import { resourceAccessible } from './resources.js';
 import {
   barbarianOrders,
@@ -452,7 +454,8 @@ function capturePeaceful(board: Board, victim: Unit, byPlayer: PlayerId, byUnitI
   if (war) {
     kill(board, victim, 'capture', byUnitId);
     // R-95 : les barbares n'ont pas de trésor — destruction sans butin.
-    if (board.st.players[byPlayer]) {
+    // 7m · R-43/R-142 🔶 : un ESPION capturé ne rapporte rien non plus.
+    if (board.st.players[byPlayer] && !unitType(victim.type).spy) {
       board.st.players[byPlayer]!.treasury += SETTLER_BOOTY_GOLD;
       emit(board, { type: 'BootyGold', player: byPlayer, amount: SETTLER_BOOTY_GOLD, sourceUnitId: victim.id });
     }
@@ -1052,8 +1055,16 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
       // entrer sur une ville ennemie NON défendue serait une capture — c'est
       // une « attaque de la ville » : bloquée tant que la merveille est debout
       // (l'unité s'arrête, le chemin reste gelé — repris au tour suivant).
+      // 7m · R-140 🔶 : la Muraille n'arrête ni l'ICBM (arme stratégique, hors
+      // mouvement) ni l'INFLILTRATION d'un espion (l'espion n'attaque pas —
+      // R-143 ; il ne capture pas la ville).
       const cityHere = cityAt(board, next);
-      if (cityHere && cityHere.owner !== unit.owner && wonderBlocksEnemyAttacks(Object.values(board.st.cities), cityHere.owner, allKnownTechs(board.st))) {
+      if (
+        cityHere &&
+        cityHere.owner !== unit.owner &&
+        !isSpyUnit(unit) &&
+        wonderBlocksEnemyAttacks(Object.values(board.st.cities), cityHere.owner, allKnownTechs(board.st))
+      ) {
         break;
       }
       // R-96 (Phase 7d) : case de village barbare ENNEMI — entrer = l'attaquer
@@ -1081,6 +1092,26 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
       openHutAt(board, next, unit); // R-98 : ouverture à l'entrée (Phase A)
       continue;
     }
+    // 7m · R-143 · INFILTRATION : un espion ENTRE dans une ville (amie :
+    // garnison — contre-espionnage R-144 ; ennemie : infiltration) SANS combat
+    // NI capture (exceptions R-43/R-57/R-65). R-30 (amendée 7m) : UN espion
+    // par propriétaire et par ville — un second espion du même propriétaire
+    // est bloqué. Le pas se termine dans la ville (le reste du chemin est
+    // abandonné — miroir R-42 cas 2).
+    const cityHere = cityAt(board, next);
+    if (cityHere && isSpyUnit(unit)) {
+      // R-30 (amendée 7m) : un seul espion par propriétaire et par ville —
+      // sauf co-location transitoire entre membres désignés d'un même
+      // FormArmy (R-44, miroir de la branche amie : un Réseau d'espions peut
+      // se former dans une ville).
+      const group = board.formGroups.get(unit.id);
+      const coLocationLegale = !!group && here.every((u) => group.members.includes(u.id));
+      if (here.some((u) => u.owner === unit.owner && isSpyUnit(u)) && !coLocationLegale) break;
+      path = [];
+      unit.mp -= 1;
+      moveUnit(board, unit, next);
+      break;
+    }
     if (here.some((u) => u.owner === unit.owner)) {
       // R-30 : arrêt sur la case précédente, sauf co-location transitoire
       // entre membres désignés d'un même FormArmy (R-44).
@@ -1094,6 +1125,31 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
       continue;
     }
     // Occupants ennemis.
+    // 7m · R-142 : un espion HORS VILLE est éliminé SANS COMBAT par une unité
+    // militaire ennemie qui entre sur sa case (aucun butin 🔶) — le reste du
+    // chemin est abandonné (miroir R-42 cas 2). Une MIXITÉ transitoire
+    // (espion + militaire, co-location interne) suit le chemin normal.
+    if (!cityHere && !isPeaceful(unit) && here.every((u) => u.owner !== unit.owner && isSpyUnit(u))) {
+      for (const spy of here) {
+        if (board.st.units[spy.id]) kill(board, spy, 'capture', unit.id);
+      }
+      path = [];
+      unit.mp -= 1;
+      moveUnit(board, unit, next);
+      break;
+    }
+    // 7m · R-142 : DANS une ville, l'espion est à l'abri et ne défend pas —
+    // une unité militaire qui entre sur une ville dont tous les occupants
+    // ennemis sont des espions n'y planifie AUCUN combat (la capture se
+    // résout en Phase C, R-65 ; la garnison espionne survit et devient
+    // infiltrée dans la ville capturée).
+    if (cityHere && here.every((u) => u.owner !== unit.owner && isSpyUnit(u))) {
+      if (wonderBlocksEnemyAttacks(Object.values(board.st.cities), here[0]!.owner, allKnownTechs(board.st))) break;
+      path = [];
+      unit.mp -= 1;
+      moveUnit(board, unit, next);
+      break;
+    }
     if (isPeaceful(unit)) {
       // R-43 : le pacifique qui aboutit sur un ennemi est capturé (v1 : butin).
       capturePeaceful(board, unit, here[0]!.owner, null);
@@ -1928,14 +1984,382 @@ function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]
   }
 }
 
+/**
+ * 7m · R-139 : Launch — lancement d'ICBM, résolu en TÊTE de Phase C (une
+ * frappe précède l'économie, les actions d'espionnage et les captures : les
+ * unités du rayon disparaissent avant toute autre résolution). Validations
+ * (R-139) : unité stratégique du joueur, cible existante et VISIBLE (fog,
+ * évalué à la résolution), gouvernement ≠ Démocratie (R-140). Un refus est
+ * individuel (missile NON consommé). Lancement valide : le missile est
+ * consommé (cause `mission`), puis — interception SDI (R-141) si la cible est
+ * la case d'une ville hôte d'un SDI, sinon DÉTONATION :
+ *  - C13.4 : TOUTES les unités du rayon 1 (7 cases, les deux camps) détruites
+ *    (cause `nuke`) — GP « en attente » compris (C13.6) ;
+ *  - C13 (ville ciblée uniquement) : la ville SURVIT — pop = min(pop, 2) 🔶,
+ *    moitié des bâtiments détruite au hasard (RNG seedé, ⌊n/2⌋ 🔶, Palais
+ *    exclu), merveilles et GP installés préservés (C13.3/C13.5) ;
+ *  - pénalité culturelle 🔶 (R-140) : −1 jalon (T-33) sauf Despotisme ;
+ *  - la ville n'est PAS capturée (C14) — aucune unité ne change de camp.
+ * Aucun changement de terrain (ni cratère ni conversion d'océan — 🔶 écart
+ * canon §1.3 signalé). La Grande Muraille ne bloque pas le tir (R-140 🔶).
+ */
+function applyLaunches(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
+  const orders: Array<Extract<Order, { type: 'Launch' }>> = [];
+  for (const playerId of Object.keys(ordersByPlayer).sort()) {
+    for (const order of ordersByPlayer[playerId] ?? []) {
+      if (order.type !== 'Launch') continue;
+      const unit = board.st.units[order.unitId];
+      if (!unit || unit.owner !== playerId) continue;
+      if (!unitType(unit.type).strategic) continue; // R-138 : ICBM uniquement
+      orders.push(order);
+    }
+  }
+  orders.sort((a, b) => compareUnitIds(a.unitId, b.unitId));
+  const visibilityCache = new Map<PlayerId, Set<TileKey>>();
+  const refuse = (unit: Unit, target: Hex, reason: 'democratie' | 'cibleInvisible') => {
+    emit(board, {
+      type: 'NukeLaunched',
+      unitId: unit.id,
+      owner: unit.owner,
+      at: { q: unit.q, r: unit.r },
+      target,
+      outcome: 'refused',
+      reason,
+    });
+  };
+  for (const order of orders) {
+    const unit = board.st.units[order.unitId];
+    if (!unit) continue; // garde-fou (une seule ICBM par partie — R-138)
+    const target = { q: order.target.q, r: order.target.r };
+    if (!board.st.map[tileKeyOf(target)]) {
+      refuse(unit, target, 'cibleInvisible');
+      continue;
+    }
+    // R-139 : la cible doit être visible du LANCEUR (fog, évalué à la résolution).
+    let visible = visibilityCache.get(unit.owner);
+    if (!visible) {
+      visible = computeVisibleTiles(board.st, unit.owner);
+      visibilityCache.set(unit.owner, visible);
+    }
+    if (!visible.has(tileKeyOf(target))) {
+      refuse(unit, target, 'cibleInvisible');
+      continue;
+    }
+    // R-140 : interdiction politique sous Démocratie (missile conservé).
+    const player = board.st.players[unit.owner]!;
+    if (player.government === 'democratie') {
+      refuse(unit, target, 'democratie');
+      continue;
+    }
+    const cityThere = cityAt(board, target);
+    // R-141 : SDI de la ville CIBLÉE — interception garantie (100 %), aucun
+    // dégât, missile consommé. Couverture locale : la case seule.
+    if (cityThere && cityThere.buildings.includes('sdi')) {
+      kill(board, unit, 'mission', null);
+      emit(board, {
+        type: 'NukeLaunched',
+        unitId: unit.id,
+        owner: unit.owner,
+        at: { q: unit.q, r: unit.r },
+        target,
+        outcome: 'intercepted',
+        cityId: cityThere.id,
+      });
+      continue;
+    }
+    // Détonation : le missile est consommé (une seule frappe — R-138).
+    kill(board, unit, 'mission', null);
+    player.nukesLaunched += 1;
+    emit(board, {
+      type: 'NukeLaunched',
+      unitId: unit.id,
+      owner: unit.owner,
+      at: { q: unit.q, r: unit.r },
+      target,
+      outcome: 'detonated',
+      ...(cityThere ? { cityId: cityThere.id } : {}),
+    });
+    // R-140 · T-33 🔶 : pénalité culturelle d'une détonation — annulée sous
+    // Despotisme (hook 7i activé, `nuclearWithoutPenalty`).
+    if (!effectsFor(player).nuclearWithoutPenalty) {
+      const penalty = nukeCulturePenalty();
+      if (penalty > 0 && player.cultureMilestones > 0) {
+        const delta = -Math.min(penalty, player.cultureMilestones);
+        player.cultureMilestones += delta;
+        emit(board, {
+          type: 'CultureMilestone',
+          player: unit.owner,
+          delta,
+          total: player.cultureMilestones,
+          reason: 'nuke',
+        });
+      }
+    }
+    // C13.4 : TOUTES les unités du rayon 1 — case cible et 6 adjacentes, les
+    // deux camps, aucun survivant (espions infiltrés, réseaux, armées, GP
+    // « en attente » — C13.6 — compris). C13.4 s'applique à toute cible.
+    const victims: Unit[] = [];
+    for (const h of hexesWithinRadius(target, 1)) {
+      victims.push(...occupants(board, h));
+    }
+    for (const v of victims) {
+      if (!board.st.units[v.id]) continue; // cargaison déjà coulée avec son transport
+      kill(board, v, 'nuke', null);
+    }
+    // C13 : résolution de la ville CIBLÉE — elle survit (aucun changement de
+    // propriétaire, C14). Une cible ADJACENTE à une ville ne déclenche PAS
+    // cette résolution (exploit canon conservé — R-141).
+    if (cityThere && board.st.cities[cityThere.id]) {
+      const city = board.st.cities[cityThere.id]!;
+      const newPop = Math.min(city.pop, 2); // C13.1 🔶 : réduite à 2, jamais 1
+      city.pop = newPop;
+      city.workedTiles = city.workedTiles.slice(0, newPop);
+      // C13.2 🔶 : la moitié des bâtiments (⌊n/2⌋), Palais exclu, sélection
+      // seedée (Fisher-Yates partiel — R-80 consulté en Phase C, amendement
+      // documenté). Les merveilles (city.wonders) ne sont pas des bâtiments :
+      // préservées (C13.3) ; les GP installés (settledGreatPersons) aussi (C13.5).
+      const candidates = city.buildings.filter((b) => b !== 'palais').sort();
+      const pool = [...candidates];
+      const destroyed: string[] = [];
+      for (let i = 0; i < Math.floor(pool.length / 2); i++) {
+        const j = i + Math.floor(board.rng.next() * (pool.length - i));
+        [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+        destroyed.push(pool[i]!);
+      }
+      destroyed.sort();
+      city.buildings = city.buildings.filter((b) => !destroyed.includes(b));
+      emit(board, {
+        type: 'CityNuked',
+        cityId: city.id,
+        owner: city.owner,
+        at: target,
+        popAfter: newPop,
+        buildingsDestroyed: destroyed,
+      });
+    }
+  }
+}
+
+/**
+ * 7m · R-143 : SpyAction — actions d'espionnage d'un espion INFILTRÉ (présent
+ * sur la case d'une ville ENNEMIE), résolues après les missions 7g et avant
+ * les captures de ville. Chaque action HOSTILE est précédée d'un duel
+ * d'espions si le propriétaire a un espion en garnison (R-144) — RNG seedé
+ * (R-80 consulté en Phase C, amendement documenté), le perdant est détruit
+ * sans exécuter sa mission. Sans garnison : succès automatique (0 % de
+ * risque, aucun RNG). Toute action hostile EXÉCUTÉE consomme l'espion ; une
+ * action sans cible valable est un échec sans effet et l'espion SURVIT
+ * (miroir R-119-7g 🔶) ; `leave` n'est ni hostile ni consommatrice.
+ */
+function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
+  const orders: Array<Extract<Order, { type: 'SpyAction' }>> = [];
+  for (const playerId of Object.keys(ordersByPlayer).sort()) {
+    for (const order of ordersByPlayer[playerId] ?? []) {
+      if (order.type !== 'SpyAction') continue;
+      const unit = board.st.units[order.unitId];
+      if (!unit || unit.owner !== playerId) continue;
+      if (!unitType(unit.type).spy) continue; // R-143 : Espion uniquement
+      orders.push(order);
+    }
+  }
+  orders.sort((a, b) => compareUnitIds(a.unitId, b.unitId));
+  for (const order of orders) {
+    const unit = board.st.units[order.unitId];
+    const city = board.st.cities[order.cityId];
+    if (!unit) continue; // déjà consommé (ordre antérieur du lot)
+    if (!city) continue; // ville disparue (frappe, rasement) — rien à notifier
+    if (city.owner === unit.owner || unit.q !== city.q || unit.r !== city.r) {
+      // Garnison dans sa propre ville ou espion hors de la ville ciblée :
+      // pas d'action (échec notifié, espion survit).
+      emit(board, {
+        type: 'SpyAction',
+        unitId: unit.id,
+        owner: unit.owner,
+        cityId: city.id,
+        target: city.owner,
+        action: order.action,
+        outcome: 'failed',
+      });
+      continue;
+    }
+    const victim = board.st.players[city.owner];
+    if (!victim) continue; // (aucune ville barbare — garde-fou)
+    const isHostile = order.action !== 'leave';
+
+    // R-144 · Duel d'espions : espion (ou réseau) EN GARNISON du propriétaire.
+    if (isHostile) {
+      const defenderSpy = occupants(board, { q: city.q, r: city.r }).find(
+        (u) => u.owner === city.owner && isSpyUnit(u),
+      );
+      if (defenderSpy) {
+        const chance = spyDuelWinChance(unit.isArmy, defenderSpy.isArmy);
+        const attackerWins = board.rng.next() < chance;
+        emit(board, {
+          type: 'SpyDuel',
+          cityId: city.id,
+          attackerId: unit.id,
+          defenderId: defenderSpy.id,
+          thief: unit.owner,
+          defender: city.owner,
+          winner: attackerWins ? unit.owner : city.owner,
+        });
+        if (!attackerWins) {
+          kill(board, unit, 'combat', null); // détruit sans exécuter sa mission
+          continue;
+        }
+        kill(board, defenderSpy, 'combat', null); // le perdant est détruit
+      }
+    }
+
+    let executed = true;
+    switch (order.action) {
+      case 'leave': {
+        // R-143.6 : reposition sur une case adjacente libre (tri R-81 via
+        // freeSpawnTiles) — non consommé ; aucune case libre : sans effet.
+        const target = freeSpawnTiles(board.st, { q: city.q, r: city.r }, 1)[0];
+        if (target) {
+          unit.q = target.q;
+          unit.r = target.r;
+        } else {
+          executed = false;
+        }
+        break;
+      }
+      case 'stealGold': {
+        // R-143.1 · T-35 🔶 : 50 % de la trésorerie adverse (arrondi au plus
+        // proche, plafonné) — débit/crédit immédiats, la victime est notifiée
+        // avec le montant (l'événement ne révèle QUE le montant — fog R-134).
+        const amount = stolenGoldAmount(victim.treasury);
+        if (amount > 0) {
+          victim.treasury -= amount;
+          board.st.players[unit.owner]!.treasury += amount;
+        }
+        emit(board, {
+          type: 'GoldStolen',
+          spyId: unit.id,
+          thief: unit.owner,
+          victim: city.owner,
+          cityId: city.id,
+          amount,
+        });
+        break;
+      }
+      case 'kidnapGreatPerson': {
+        // R-143.2 : GP « en attente de choix » du propriétaire (unité GP non
+        // installée) sur la case de la ville ou adjacente (fenêtre R-115) —
+        // choix déterministe : sur place d'abord, puis (q, r), unitId croissant.
+        const hex = { q: city.q, r: city.r };
+        const gp = Object.values(board.st.units)
+          .filter((u) => u.owner === city.owner && !u.aboard && isGreatPersonType(u.type))
+          .filter((u) => hexDistance(u, hex) <= 1)
+          .sort(
+            (a, b) =>
+              (a.q === hex.q && a.r === hex.r ? 0 : 1) - (b.q === hex.q && b.r === hex.r ? 0 : 1) ||
+              a.q - b.q ||
+              a.r - b.r ||
+              compareUnitIds(a.id, b.id),
+          )[0];
+        if (!gp) {
+          executed = false;
+          break;
+        }
+        gp.owner = unit.owner; // transfert (aucun jalon ni escalade ne varie — C2)
+        const thiefCities = Object.values(board.st.cities)
+          .filter((c) => c.owner === unit.owner)
+          .sort((a, b) => Number(b.capital) - Number(a.capital) || compareCityIds(a.id, b.id));
+        const home = thiefCities[0];
+        if (home) {
+          const homeHex = { q: home.q, r: home.r };
+          const spot = occupiedByUnit(board, homeHex) ? (freeSpawnTiles(board.st, homeHex, 1)[0] ?? null) : homeHex;
+          if (spot) {
+            gp.q = spot.q;
+            gp.r = spot.r;
+          }
+        }
+        emit(board, {
+          type: 'GreatPersonKidnapped',
+          spyId: unit.id,
+          thief: unit.owner,
+          victim: city.owner,
+          cityId: city.id,
+          unitId: gp.id,
+          gpType: gp.type,
+        });
+        break;
+      }
+      case 'sabotageProduction': {
+        // R-143.3 🔶 : marteaux investis du projet en cours remis à zéro — la
+        // réserve permanente C7 (`pendingSalvage`) n'est PAS touchée.
+        if (!city.production) {
+          executed = false;
+          break;
+        }
+        city.production = { ...city.production, progress: 0 };
+        break;
+      }
+      case 'destroyBuilding': {
+        // R-143.4 🔶 : le tireur choisit un bâtiment non-Palais (les merveilles
+        // ne sont pas des bâtiments et sont épargnées).
+        const target = order.buildingId;
+        if (!target || target === 'palais' || !city.buildings.includes(target)) {
+          executed = false;
+          break;
+        }
+        city.buildings = city.buildings.filter((b) => b !== target);
+        emit(board, {
+          type: 'SpyBuildingDestroyed',
+          spyId: unit.id,
+          thief: unit.owner,
+          victim: city.owner,
+          cityId: city.id,
+          building: target,
+          at: { q: city.q, r: city.r },
+        });
+        break;
+      }
+      case 'destroyFortifications': {
+        // R-143.5 : annule la fortification (R-33) du défenseur du
+        // propriétaire présent sur la case de ville (R-30 : il n'y en a qu'un).
+        const defender = occupants(board, { q: city.q, r: city.r }).find(
+          (u) => u.owner === city.owner && !isSpyUnit(u),
+        );
+        if (!defender || !defender.fortified) {
+          executed = false;
+          break;
+        }
+        defender.fortified = false;
+        break;
+      }
+    }
+    emit(board, {
+      type: 'SpyAction',
+      unitId: unit.id,
+      owner: unit.owner,
+      cityId: city.id,
+      target: city.owner,
+      action: order.action,
+      outcome: executed ? 'success' : 'failed',
+    });
+    // R-143 : toute action hostile EXÉCUTÉE consomme l'espion (seul `leave`
+    // le préserve) ; un échec sans effet aussi.
+    if (executed && isHostile) kill(board, unit, 'mission', null);
+  }
+}
+
 /** R-65 : ville sans défenseur investie → capture (capitale = victoire). R-97 : capture BARBARE → rasement. */function processCityCaptures(board: Board): void {
   for (const cityId of Object.keys(board.st.cities).sort()) {
     const city = board.st.cities[cityId]!;
     const hex = { q: city.q, r: city.r };
     const here = occupants(board, hex);
     if (here.length === 0) continue;
-    if (here.some((u) => u.owner === city.owner)) continue; // défendue (R-57)
-    const invader = here[0]!;
+    // 7m · R-142 : un espion (garnison comme infiltré) ne défend PAS la ville
+    // — seules les entités non-espion du propriétaire la défendent (R-57).
+    if (here.some((u) => u.owner === city.owner && !isSpyUnit(u))) continue; // défendue (R-57)
+    // 7m · R-142 : un espion ne capture pas non plus — le captreur est la
+    // première entité non-espion ENNEMIE (tri R-81) ; une ville dont les
+    // seuls occupants sont des espions n'est pas capturée.
+    const invader = here.find((u) => u.owner !== city.owner && !isSpyUnit(u));
+    if (!invader) continue;
     const fromOwner = city.owner;
     if (isBarbarian(invader.owner)) {
       // R-97 (Phase 7d) : les barbares ne fondent pas de ville — la ville est
@@ -1954,6 +2378,14 @@ function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]
         });
       }
       delete board.st.cities[cityId];
+      // 7m · R-142 🔶 : au rasement barbare, l'espion INFILTRÉ disparaît avec
+      // la ville ; la garnison espion du propriétaire rasé survit (simple
+      // unité de terrain désormais).
+      for (const spy of occupants(board, hex)) {
+        if (isSpyUnit(spy) && spy.owner !== fromOwner && board.st.units[spy.id]) {
+          kill(board, spy, 'capture', null);
+        }
+      }
       emit(board, { type: 'CityRazed', cityId, owner: fromOwner, byPlayer: invader.owner, at: hex });
       if (city.capital) {
         // R-97 : la capitale rasée = défaite de son propriétaire — victoire de
@@ -2369,6 +2801,44 @@ function upgradeObsoleteUnitsOf(board: Board, playerId: PlayerId): void {
 /** 7k · R-132 · Effets de complétion des merveilles (une fois, à la pose). */
 function applyWonderCompletionEffects(board: Board, city: City, wonderData: WonderData): void {
   const player = board.st.players[city.owner]!;
+  // 7m · R-138 : instanciation d'une unité STRATÉGIQUE dans la ville
+  // constructrice (Projet Manhattan → ICBM — le seul missile de la partie,
+  // l'exclusivité mondiale R-129 interdisant une seconde complétion). Case de
+  // ville si libre, sinon adjacente — perdue si aucune (miroir R-114 🔶).
+  if (wonderData.grantsUnit) {
+    const stats = unitType(wonderData.grantsUnit);
+    const cityHex = { q: city.q, r: city.r };
+    const spot = !occupiedByUnit(board, cityHex) ? cityHex : (freeSpawnTiles(board.st, cityHex, 1)[0] ?? null);
+    if (spot) {
+      const unitId = nextId(board.st.units, 'u');
+      board.st.units[unitId] = {
+        id: unitId,
+        type: wonderData.grantsUnit,
+        owner: city.owner,
+        q: spot.q,
+        r: spot.r,
+        hp: stats.hpMax,
+        mp: stats.movement,
+        veteran: false,
+        isArmy: false,
+        order: null,
+        detainedBy: null,
+        fortified: false,
+        aboard: null,
+        cargo: null,
+      };
+      // Canal `UnitProduced` réutilisé (documenté) : l'unité n'est pas passée
+      // par une file de production (R-138 — jamais dans les files).
+      emit(board, {
+        type: 'UnitProduced',
+        unitId,
+        cityId: city.id,
+        owner: city.owner,
+        unitType: wonderData.grantsUnit,
+        at: spot,
+      });
+    }
+  }
   // Université d'Oxford : une technologie avancée ALÉATOIRE — tirage seedé
   // R-80 parmi les techs non débloquées (table triée par id 🔶). Amendement
   // R-80 documenté : le RNG est consulté en Phase C.
@@ -3093,10 +3563,12 @@ export function resolveTurn(
   allocateRetreats(board);
 
   // ---- Phase C : économie (R-60 à R-66) + barbares (R-96 : villages).
+  applyLaunches(board, allOrders); // 7m · R-139 : frappes nucléaires (en tête de Phase C)
   applySetProduction(board, allOrders);
   applyRushBuys(board, allOrders); // 7l · R-135 : achat instantané (avant l'économie)
   applyGreatPersonActions(board, allOrders); // 7j · R-126 (alias InstallPerson R-115)
   applySpyMissions(board, allOrders); // 7g · R-119
+  applySpyActions(board, allOrders); // 7m · R-143 : actions d'espionnage en ville ennemie
   processCityCaptures(board);
   processFoundCity(board, allOrders);
   processVillages(board);

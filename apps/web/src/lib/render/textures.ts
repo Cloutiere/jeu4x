@@ -535,7 +535,8 @@ const TILE_ASSETS: Record<TerrainId, string> = {
 };
 
 // 7j · R-126 : les 6 classes canoniques (art unite_<id>.png optionnelle).
-const UNIT_IDS = ['guerrier', 'colon', 'artiste', 'penseur', 'artiste_penseur', 'batisseur', 'savant', 'explorateur', 'humanitaire', 'leader'];
+// 7m : espion (art existant, jamais chargé) et icbm (nouveau sprite) ajoutés.
+const UNIT_IDS = ['guerrier', 'colon', 'artiste', 'penseur', 'artiste_penseur', 'batisseur', 'savant', 'explorateur', 'humanitaire', 'leader', 'espion', 'icbm'];
 
 async function texOrFallback(name: string, fallback: Texture): Promise<Texture> {
   try {

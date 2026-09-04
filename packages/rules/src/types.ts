@@ -40,6 +40,10 @@ export interface UnitTypeData {
   cargoCapacity?: number;
   /** 7g · R-119 : l'unité est un Espion (missions d'infiltration R-119). */
   spy?: boolean;
+  /** 7m · R-138 : arme STRATÉGIQUE (ICBM) — jamais produite par les files ni
+   *  achetable (isProducible/canSetProduction refusent) ; instanciée par un
+   *  effet de merveille (Projet Manhattan — `grantsUnit`). */
+  strategic?: boolean;
 }
 
 export type TerrainId =
@@ -259,6 +263,10 @@ export interface WonderData {
    *  pas attaquer les unités ni les villes du propriétaire tant que la merveille
    *  est debout (obsolescence globale R-128 — Ingénierie). */
   blocksEnemyAttacks?: boolean;
+  /** 7m · R-138 : unité STRATÉGIQUE instanciée dans la ville constructrice à la
+   *  complétion (Projet Manhattan → 'icbm' — un seul missile par partie, la
+   *  merveille étant mondiale unique R-129). */
+  grantsUnit?: string;
   /** Libellé d'effet (UI — actif en 7f/7h). */
   effect?: string;
   implemented: boolean;
@@ -282,8 +290,35 @@ export interface CultureData {
   greatPersonYieldThresholdGrowth: number;
   /** 7h · T-31 · Victoires de combat de l'empire pour engendrer un Leader (R-123). */
   leaderGpVictories: number;
-  // 7l · C7 : `hammerSalvageWindow` (T-32) est ABROGÉ — la réserve de marteaux
-  // est permanente (R-130 rév.), plus aucune dissipation.
+// 7l · C7 : `hammerSalvageWindow` (T-32) est ABROGÉ — la réserve de marteaux
+// est permanente (R-130 rév.), plus aucune dissipation.
+}
+
+// ---------------------------------------------------------------------------
+// 7m · R-138..R-144 — Nucléaire & espionnage jeu de base (espionnage.json)
+// ---------------------------------------------------------------------------
+
+/** 7m · R-144 · Matrice de duel d'espions — probabilités de victoire de
+ *  l'ATTAQUANT selon les formations (isolé | réseau). 🔶 calibrage.
+ *  La cellule `isolatedVsRing` n'est pas documentée par le canon :
+ *  complétion symétrique (10 % = 1 − réseau vs isolé) signalée au rapport. */
+export interface SpyDuelMatrix {
+  isolatedVsIsolated: number;
+  ringVsIsolated: number;
+  ringVsRing: number;
+  isolatedVsRing: number;
+}
+
+/** R-99/R-138 · Configuration espionnage (espionnage.json) — calibrage par édition. */
+export interface EspionnageData {
+  /** T-33 · R-140 · Jalons culturels perdus par DÉTONATION (annulée sous
+   *  Despotisme — `nuclearWithoutPenalty`). */
+  nukeCulturePenalty: number;
+  /** T-35 · R-143 · Part de la trésorerie volée par `stealGold` (arrondi au
+   *  plus proche, plafonnée à la trésorerie). */
+  stealGoldPct: number;
+  /** T-34 · R-144 · Matrice de duel d'espions (probabilités de l'attaquant). */
+  duelWinChance: SpyDuelMatrix;
 }
 
 // ---------------------------------------------------------------------------

@@ -156,6 +156,19 @@
       if (e.type === 'EconomyMilestone' && e.reward === 'worldBank' && e.player !== pid) {
         pushErrorToast('L\'adversaire a débloqué la Banque mondiale… (victoire économique)', 'bad');
       }
+      // 7m · R-139/C13 : frappe nucléaire — annonce différenciée tireur/victime.
+      if (e.type === 'NukeLaunched' && e.outcome === 'detonated') {
+        pushErrorToast(
+          e.owner === pid ? 'Votre frappe nucléaire a détoné — l\'adversaire est prévenu (pénalité de jalon 🔶).' : '☢️ Une ICBM adverse a détoné sur nos positions !',
+          e.owner === pid ? 'info' : 'bad',
+        );
+      }
+      if (e.type === 'NukeLaunched' && e.outcome === 'intercepted' && e.owner !== pid) {
+        pushErrorToast('Missile intercepté par notre Défense SDI ! (R-141)', 'good');
+      }
+      if (e.type === 'CityNuked' && e.owner === pid) {
+        pushErrorToast(`☢️ ${e.cityId} a été frappée : population ${e.popAfter}, ${e.buildingsDestroyed.length} bâtiment(s) détruit(s).`, 'bad');
+      }
     }
     playback.enqueue(fresh);
   });
@@ -165,6 +178,35 @@
   // ---------------------------------------------------------------------
 
   let canvasApi: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void } | null = $state(null);
+
+  // 7m · R-139 : ciblage d'ICBM — `nukeArmed` vit dans l'UiState (le clic
+  // carte produit alors un `nukeTarget`) ; la cible pressentie attend la
+  // confirmation explicite (modale) avant l'ordre `Launch` (irréversible).
+  const nukeArmed = $derived($ui.nukeArmed ?? null);
+  let nukePending = $state<Hex | null>(null);
+  function armNuke(unitId: string): void {
+    ui.set({ selectedUnitId: unitId, selectedCityId: null, draft: null, nukeArmed: unitId });
+    nukePending = null;
+  }
+  function cancelNuke(): void {
+    ui.update((u) => ({ ...u, nukeArmed: null }));
+    nukePending = null;
+  }
+  function confirmNuke(): void {
+    const unitId = get(ui).nukeArmed;
+    if (unitId && nukePending) {
+      client.submitOrder({ type: 'Launch', unitId, target: { q: nukePending.q, r: nukePending.r } });
+    }
+    cancelNuke();
+  }
+  /** Avertissement SDI : la cible pressentie est-elle une ville visible à SDI ? */
+  const nukeSdiWarning = $derived.by(() => {
+    if (!nukePending || !$view.state) return null;
+    const city = Object.values($view.state.cities).find((c) => c.q === nukePending!.q && c.r === nukePending!.r);
+    return city && city.buildings.includes('sdi')
+      ? `⚠ ${city.id} est protégée par une Défense SDI — interception GARANTIE si la ville est visée (R-141). Cibler une case ADJACENTE contourne le bouclier… et frappe son rayon.`
+      : null;
+  });
 
   function handleAction(action: ClickAction): void {
     const v = get(view);
@@ -204,6 +246,10 @@
       case 'setWorkedTile':
         client.submitOrder({ type: 'SetWorkedTile', cityId: action.cityId, tile: action.tile });
         break;
+      case 'nukeTarget':
+        // 7m · R-139 : cible pressentie — la confirmation reste à l'écran.
+        nukePending = action.hex;
+        break;
       case 'none':
         break;
     }
@@ -220,6 +266,8 @@
 
   /** Clic droit (Phase 5 L1) : chemin complet soumis, ou annulation du brouillon. */
   function handleRightClick(hex: Hex): void {
+    // 7m · R-139 : ciblage ICBM armé — le clic droit ne trace pas de chemin.
+    if (get(ui).nukeArmed) return;
     const v = get(view);
     const action = rightClickAction(v, get(ui), hex);
     if (action.kind === 'cancelDraft') {
@@ -522,6 +570,26 @@
             </div>
           </div>
         {/if}
+        {#if nukePending && nukeArmed}
+          <!-- 7m · R-139 : confirmation EXPLICITE du lancement (action irréversible). -->
+          <div class="victory idle-dialog nuke-dialog">
+            <h2>☢️ Lancer l'ICBM ?</h2>
+            <p>
+              Cible : <strong>({nukePending.q},{nukePending.r})</strong> —
+              <strong>cette action est IRRÉVERSIBLE</strong> : un seul missile par partie (R-138),
+              le rayon détruit TOUTES les unités autour de la cible (C13.4).
+            </p>
+            {#if nukeSdiWarning}<p class="nuke-warn">{nukeSdiWarning}</p>{/if}
+            <p class="nuke-hint">
+              R-140 : lancement INTERDIT sous Démocratie (refus, missile conservé) ;
+              chaque détonation coûte 1 jalon culturel 🔶 — sauf sous Despotisme.
+            </p>
+            <div class="btns">
+              <button type="button" class="primary-btn" onclick={confirmNuke}>Confirmer le lancement</button>
+              <button type="button" onclick={cancelNuke}>Annuler</button>
+            </div>
+          </div>
+        {/if}
         {#if busy}
           <div class="banner">
             {#if $view.phase === 'resolving'}Résolution du tour…{:else}Relecture du tour — clic sur la carte pour accélérer{/if}
@@ -557,7 +625,7 @@
 
       <aside class="side">
         {#if myName}<p class="me">Vous jouez : <strong>{myName}</strong></p>{/if}
-        <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} />
+        <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onArmNuke={armNuke} onCancelNuke={cancelNuke} />
         <CityPanel view={$view} ui={$ui} {client} />
         {#if $view.state && myEngineId($view)}
           <section class="ship" aria-label="Vaisseau spatial">
@@ -649,6 +717,9 @@
   .idle-dialog ul { text-align: left; max-height: 40vh; overflow: auto; }
   .idle-dialog .btns { display: flex; gap: 0.6rem; }
   .idle-dialog button { padding: 0.4rem 1rem; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; cursor: pointer; }
+  .nuke-dialog h2 { color: #ffb74d; }
+  .nuke-warn { color: #ef9a9a; font-weight: 600; max-width: 34rem; }
+  .nuke-hint { color: #8b98a5; font-size: 0.82rem; max-width: 34rem; }
   .primary-btn { background: #2e5e3f; border: 1px solid #3c7a52; padding: 0.5rem 1.2rem; border-radius: 6px; color: inherit; text-decoration: none; }
   .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; text-align: center; }
   .waiting { font-size: 1.2rem; }

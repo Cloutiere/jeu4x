@@ -19,6 +19,10 @@ export interface UiState {
   selectedUnitId: UnitId | null;
   selectedCityId: CityId | null;
   draft: DraftPath | null;
+  /** 7m · R-139 : id de l'ICBM ARMÉE (mode ciblage) — tout clic carte
+   *  devient une sélection de cible, confirmée par une modale avant
+   *  l'ordre `Launch` (action irréversible). */
+  nukeArmed?: UnitId | null;
 }
 
 export type UiStore = Writable<UiState>;

@@ -185,8 +185,9 @@
     "name": "Projet Manhattan",
     "cost": 750,
     "tech": "theorie_atomique",
-    "effect": "Octroie le seul et unique missile ICBM de la partie",
-    "implemented": false
+    "effect": "Instancie le seul et unique missile ICBM de la partie dans la ville constructrice (R-138)",
+    "implemented": true,
+    "grantsUnit": "icbm"
   },
   "internet": {
     "id": "internet",

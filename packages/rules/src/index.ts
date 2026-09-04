@@ -20,6 +20,8 @@ export * from './economy.js';
 export * from './growth.js';
 /** 7l — Or & trésorerie (R-134..R-137, economy.json). */
 export * from './economyOr.js';
+/** 7m — Nucléaire & espionnage jeu de base (R-138..R-144, espionnage.json). */
+export * from './espionnage.js';
 export * from './barbares.js';
 export * from './map.js';
 export * from './fog.js';

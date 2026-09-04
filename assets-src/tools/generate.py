@@ -1957,6 +1957,26 @@ def unite_espion(db, da, w, h):
     db.rrect((cx - 6, ground - 100, cx + 6, ground - 74), 3, fill="#8A7A5A", outline=INK, width=1)
 
 
+def unite_icbm(db, da, w, h):
+    """256x320, ICBM (7m R-138) : missile debout sur son pas de tir, ogive
+    pointue, bandes d'avertissement (accent = plage lumineuse du nez)."""
+    cx, ground = 128, 300
+    shadow(db, cx, ground + 4, 40)
+    db.ellipse((cx - 46, ground - 26, cx + 46, ground - 2), fill="#4A4E55", outline=INK, width=2)
+    db.ellipse((cx - 28, ground - 20, cx + 28, ground - 6), fill="#33363B", outline=INK, width=1)
+    db.poly([(cx - 20, ground - 30), (cx + 20, ground - 30), (cx + 20, ground - 180),
+             (cx, ground - 218), (cx - 20, ground - 180)], fill="#B9BEC6", outline=INK, width=2)
+    db.poly([(cx - 20, ground - 30), (cx - 6, ground - 30), (cx - 6, ground - 180),
+             (cx, ground - 218), (cx - 20, ground - 180)], fill="#9EA6B2")
+    db.rrect((cx - 20, ground - 96, cx + 20, ground - 78), 2, fill="#C9A227", outline=INK, width=1)
+    db.rrect((cx - 20, ground - 62, cx + 20, ground - 50), 2, fill="#C9A227", outline=INK, width=1)
+    db.poly([(cx - 20, ground - 96), (cx - 52, ground - 40), (cx - 20, ground - 40)],
+            fill="#6E7681", outline=INK, width=2)
+    db.poly([(cx + 20, ground - 96), (cx + 52, ground - 40), (cx + 20, ground - 40)],
+            fill="#6E7681", outline=INK, width=2)
+    da.ellipse((cx - 10, ground - 196, cx + 10, ground - 176), fill="#FFFFFF")
+
+
 def main():
     EXPORTS.mkdir(exist_ok=True)
 
@@ -2024,6 +2044,9 @@ def main():
         "unite_cuirasse": (256, 320, unite_cuirasse),
         "unite_sous_marin": (256, 320, unite_sous_marin),
         "unite_espion": (256, 320, unite_espion),
+        # Phase 7m — nucléaire (R-138) : ICBM (arme stratégique instanciée
+        # par le Projet Manhattan).
+        "unite_icbm": (256, 320, unite_icbm),
         # Phase 7h — GP restants (R-123) : Scientifique, Mogul, Ingénieur, Leader.
         "unite_scientifique": (256, 320, unite_scientifique),
         "unite_mogul": (256, 320, unite_mogul),
@@ -2178,6 +2201,9 @@ for n in ["piquier", "catapulte", "chevalier", "fusilier", "canon",
 for n in ["galere", "galion", "croiseur", "cuirasse", "sous_marin", "espion"]:
     EXPECTED[f"unite_{n}.png"] = (256, 320)
     EXPECTED[f"unite_{n}_accent.png"] = (256, 320)
+# Phase 7m (R-138) : ICBM — arme stratégique.
+EXPECTED["unite_icbm.png"] = (256, 320)
+EXPECTED["unite_icbm_accent.png"] = (256, 320)
 # Phase 7f : GP de culture (Artiste, Penseur) — fichiers historiques conservés.
 for n in ["artiste", "penseur"]:
     EXPECTED[f"unite_{n}.png"] = (256, 320)

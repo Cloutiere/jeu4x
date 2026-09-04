@@ -146,7 +146,7 @@
     "firstToDiscover": {
       "label": "Un Espion gratuit",
       "unit": "espion",
-      "implemented": false
+      "implemented": true
     }
   },
   "code_des_lois": {

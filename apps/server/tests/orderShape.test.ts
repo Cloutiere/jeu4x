@@ -56,4 +56,25 @@ describe('orderShapeError · SetProduction (7f, merveilles)', () => {
     expect(orderShapeError({ type: 'SpyMission', unitId: 'u3', mission: 'stealGreatPerson' })).not.toBeNull();
     expect(orderShapeError({ type: 'SpyMission', cityId: 'c2', mission: 'stealGreatPerson' })).not.toBeNull();
   });
+
+  it('7m · R-139 : accepte Launch (ICBM + cible hex) et refuse la forme invalide — forme validée EN PREMIER', () => {
+    expect(orderShapeError({ type: 'Launch', unitId: 'u9', target: { q: 3, r: -2 } })).toBeNull();
+    expect(orderShapeError({ type: 'Launch', unitId: 'u9' })).not.toBeNull();
+    expect(orderShapeError({ type: 'Launch', target: { q: 3, r: -2 } })).not.toBeNull();
+    expect(orderShapeError({ type: 'Launch', unitId: 'u9', target: { q: 1.5, r: 0 } })).not.toBeNull();
+    expect(orderShapeError({ type: 'Launch', unitId: 'u9', target: '0,0' })).not.toBeNull();
+  });
+
+  it('7m · R-143 : accepte SpyAction (6 actions) et refuse action inconnue / buildingId manquant', () => {
+    for (const action of ['stealGold', 'kidnapGreatPerson', 'sabotageProduction', 'destroyFortifications', 'leave']) {
+      expect(orderShapeError({ type: 'SpyAction', unitId: 'u3', cityId: 'c2', action })).toBeNull();
+    }
+    expect(
+      orderShapeError({ type: 'SpyAction', unitId: 'u3', cityId: 'c2', action: 'destroyBuilding', buildingId: 'temple' }),
+    ).toBeNull();
+    // destroyBuilding EXIGE buildingId (choix du tireur 🔶) ; action inconnue refusée.
+    expect(orderShapeError({ type: 'SpyAction', unitId: 'u3', cityId: 'c2', action: 'destroyBuilding' })).not.toBeNull();
+    expect(orderShapeError({ type: 'SpyAction', unitId: 'u3', cityId: 'c2', action: 'assassinate' })).not.toBeNull();
+    expect(orderShapeError({ type: 'SpyAction', unitId: 'u3', action: 'stealGold' })).not.toBeNull();
+  });
 });

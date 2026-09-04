@@ -56,6 +56,8 @@ export interface CitySpec {
   conversion?: 'gold' | 'science';
   /** 7f · Merveilles hébergées (R-115) — survivent à la capture. */
   wonders?: string[];
+  /** 7j · R-126 · GP installés (Settle) — volés/détruits selon les règles. */
+  settledGreatPersons?: string[];
 }
 
 export interface MakeStateOptions {
@@ -120,6 +122,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       // 7l · R-134 : la trésorerie remplace l'ancien champ or (R-134).
       treasury: 0,
       economyMilestonesClaimed: 0,
+      nukesLaunched: 0, // 7m · R-139 (migration 16)
       science: 0,
       scienceRatio: SCIENCE_RATIO_DEFAULT,
       researching: null,
@@ -184,7 +187,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       gpAccumProd: 0,
       gpAccumFood: 0, // 7j (7k · C1 : DORMANT — canal Humanitaire = culture)
       pendingSalvage: 0, // 7k · R-130 (M3)
-      settledGreatPersons: [], // 7j · R-126
+      settledGreatPersons: spec.settledGreatPersons ?? [], // 7j · R-126
     };
   });
 

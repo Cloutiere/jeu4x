@@ -5,11 +5,11 @@
    * Le client ne calcule aucune règle : les boutons reflètent ce que l'état
    * filtré autorise ; la validation finale reste serveur.
    */
-  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf, allKnownTechs, explorerGoldInjectionFor } from '@game/rules';
-  import type { Order } from '@game/shared';
+  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, SPY_STEAL_GOLD_PCT, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf, allKnownTechs, explorerGoldInjectionFor } from '@game/rules';
+  import type { Order, SpyActionKind } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
-  import { consumeEffectLabel, settleEffectLabel, greatPersonLabel } from '../lib/labels.js';
+  import { consumeEffectLabel, settleEffectLabel, greatPersonLabel, SPY_ACTION_LABELS } from '../lib/labels.js';
   import type { UiState } from '../lib/render/ui.js';
 
   interface Props {
@@ -19,9 +19,13 @@
     onCancelDraft(): void;
     onConfirmDraft?(): void;
     onCenterUnit(unitId: string): void;
+    /** 7m · R-139 : arme le mode ciblage d'ICBM (toute case cliquée devient
+     *  une cible pressentie, confirmée par modale côté page avant l'ordre). */
+    onArmNuke?(unitId: string): void;
+    onCancelNuke?(): void;
   }
 
-  let { view, ui, client, onCancelDraft, onConfirmDraft, onCenterUnit }: Props = $props();
+  let { view, ui, client, onCancelDraft, onConfirmDraft, onCenterUnit, onArmNuke, onCancelNuke }: Props = $props();
 
   const unit = $derived(view.state && ui.selectedUnitId ? view.state.units[ui.selectedUnitId] : null);
   const mine = $derived(!!unit && unit.owner === myEngineId(view));
@@ -98,6 +102,10 @@
         return `Achat instantané dans ${o.cityId}`;
       case 'SpyMission':
         return `Mission d'espionnage : ${o.cityId} (vol de GP)`;
+      case 'Launch':
+        return `☢️ Lancement d'ICBM sur (${o.target.q},${o.target.r}) — irréversible`;
+      case 'SpyAction':
+        return `Espionnage : ${SPY_ACTION_LABELS[o.action] ?? o.action} → ${o.cityId}`;
       default:
         return 'Ordre';
     }
@@ -186,6 +194,34 @@
     client.submitOrder({ type: 'SpyMission', unitId: unit.id, cityId, mission: 'stealGreatPerson' });
   }
 
+  // 7m · R-142/R-144 : l'espion sélectionné est-il EN VILLE ? Garnison (ville
+  // amie — contre-espionnage) ou infiltration (ville ennemie — menu R-143).
+  const spyCity = $derived.by(() => {
+    if (!unit || !view.state || !stats?.spy) return null;
+    return Object.values(view.state.cities).find((c) => c.q === unit.q && c.r === unit.r) ?? null;
+  });
+  const garrisonCity = $derived(spyCity && unit && spyCity.owner === unit.owner ? spyCity : null);
+  const infiltratedCity = $derived(spyCity && unit && spyCity.owner !== unit.owner ? spyCity : null);
+
+  // 7m · R-143.4 🔶 : cibles de « Détruire un bâtiment » — non-Palais (les
+  // merveilles ne sont pas des bâtiments). Le choix du tireur est obligatoire.
+  let buildingChoice = $state('');
+  const sabotageTargets = $derived(infiltratedCity ? infiltratedCity.buildings.filter((b) => b !== 'palais') : []);
+  // 7m · R-143.5 : une fortification est-elle annulable (défenseur fortifié) ?
+  const fortificationTarget = $derived.by(() => {
+    if (!infiltratedCity || !view.state) return false;
+    return Object.values(view.state.units).some(
+      (u) => u.owner === infiltratedCity.owner && !unitType(u.type).spy && u.q === infiltratedCity.q && u.r === infiltratedCity.r && u.fortified,
+    );
+  });
+
+  /** 7m · R-143 : soumet une action d'espionnage (cible : la ville infiltrée). */
+  function spyAction(action: SpyActionKind): void {
+    if (!unit || !infiltratedCity) return;
+    const building = action === 'destroyBuilding' ? (buildingChoice || sabotageTargets[0]) : undefined;
+    client.submitOrder({ type: 'SpyAction', unitId: unit.id, cityId: infiltratedCity.id, action, ...(building ? { buildingId: building } : {}) });
+  }
+
   /**
    * 7h · R-125 · Oracle : pré-confirmation de combat avec l'issue exacte
    * (🔶 simple) — probabilité de toucher par round p = S_att²/(S_att²+S_def²)
@@ -256,6 +292,8 @@
       {/if}
       {#if unit.aboard}<span class="naval" title="R-117 : l'unité est à bord — donnez un Move vers une case terrestre libre pour débarquer">🚢 À bord de {unit.aboard}</span>{/if}
       {#if unit.fortified}<span class="fortified" title="Bonus défensif de fortification (R-33)">🛡 Fortifié</span>{/if}
+      {#if stats?.spy && garrisonCity}<span class="fortified" title="R-144 : contre-espionnage — un espion en garnison déclenche un duel contre tout espion ennemi">🕵 Garnison ({garrisonCity.id}) — contre-espionnage</span>{/if}
+      {#if stats?.spy && infiltratedCity}<span class="enemy" title="R-143 : infiltration — le menu d'actions est ouvert ci-dessous">🕵 Infiltré dans {infiltratedCity.id}</span>{/if}
       {#if !mine}<span class="enemy">Ennemi — {unit.owner}</span>{/if}
       {#if mine}
         <span>PV <strong>{unit.hp}</strong> / {stats?.hpMax ?? '?'}</span>
@@ -396,6 +434,65 @@
           {/each}
         </div>
       {/if}
+      {#if stats?.strategic}
+        <!-- 7m · R-138/R-139 : l'ICBM ne se produit pas — elle se LANCE.
+             La confirmation explicite est une modale côté page (irréversible). -->
+        {#if ui.nukeArmed === unit.id}
+          <p class="nuke-armed">☢️ CIBLAGE ACTIF — cliquez une case visible de la carte pour désigner la cible.</p>
+          <div class="btns">
+            <button type="button" onclick={() => onCancelNuke?.()}>Annuler le ciblage</button>
+          </div>
+        {:else}
+          <div class="btns">
+            <button
+              type="button"
+              class="danger"
+              disabled={!editable}
+              title="R-139 : portée globale, missile consommé — INTERDIT sous Démocratie (R-140) ; frappe = −1 jalon culturel sauf Despotisme (🔶 R-140)"
+              onclick={() => onArmNuke?.(unit.id)}
+            >
+              ☢️ Lancer l'ICBM…
+            </button>
+          </div>
+        {/if}
+      {/if}
+      {#if infiltratedCity && mine}
+        <!-- 7m · R-143 : menu d'actions d'espionnage (extension du panneau) —
+             toute action hostile exécutée consomme l'espion ; une action sans
+             cible valable échoue sans frais (espion survit) ; « Partir
+             discrètement » est toujours sans risque. -->
+        <h3 class="spy-title">Actions d'espionnage — {infiltratedCity.id}</h3>
+        <div class="btns">
+          <button type="button" class="danger" disabled={!editable} title="R-143.1 : {Math.round(SPY_STEAL_GOLD_PCT * 100)} % de la trésorerie adverse (arrondi au plus proche) — la victime est notifiée du montant" onclick={() => spyAction('stealGold')}>
+            Voler de l'or ({Math.round(SPY_STEAL_GOLD_PCT * 100)} % de la trésorerie)
+          </button>
+          <button type="button" class="danger" disabled={!editable} title="R-143.2 : un GP « en attente de choix » présent est transféré à votre capitale (aucun jalon ne varie)" onclick={() => spyAction('kidnapGreatPerson')}>
+            Enlever un Personnage illustre
+          </button>
+          <button type="button" class="danger" disabled={!editable || !infiltratedCity.production} title={infiltratedCity.production ? 'R-143.3 : les marteaux investis du projet en cours sont remis à zéro (la réserve C7 est épargnée)' : 'Aucune production en cours — échec sans frais'} onclick={() => spyAction('sabotageProduction')}>
+            Saboter la production
+          </button>
+          {#if sabotageTargets.length > 0}
+            <label class="pick">
+              Bâtiment :
+              <select bind:value={buildingChoice}>
+                <option value="" disabled>Choisir…</option>
+                {#each sabotageTargets as b (b)}<option value={b}>{BUILDINGS[b]?.name ?? b}</option>{/each}
+              </select>
+            </label>
+            <button type="button" class="danger" disabled={!editable || !buildingChoice} title="R-143.4 🔶 : détruit le bâtiment choisi (non-Palais ; les merveilles sont épargnées)" onclick={() => spyAction('destroyBuilding')}>
+              Détruire un bâtiment
+            </button>
+          {/if}
+          <button type="button" class="danger" disabled={!editable || !fortificationTarget} title={fortificationTarget ? 'R-143.5 : annule la fortification (R-33) du défenseur' : 'Aucun défenseur fortifié — échec sans frais'} onclick={() => spyAction('destroyFortifications')}>
+            Détruire les fortifications
+          </button>
+          <button type="button" class="primary" disabled={!editable} title="R-143.6 : reposition sur une case adjacente libre — l'espion N'EST PAS consommé" onclick={() => spyAction('leave')}>
+            Partir discrètement
+          </button>
+        </div>
+        <p class="hint">R-144 : si un espion ennemi est en garnison, un duel précède toute action hostile (50 % isolé vs isolé 🔶) — sans garnison, succès automatique.</p>
+      {/if}
       {#if cargoUnit}
         <p class="hint">🚢 Charge : {cargoUnit.type} ({cargoUnit.id}) — débarquez-le ci-dessous ou via un Move terrestre.</p>
         {#if disembarkTiles.length > 0}
@@ -442,4 +539,8 @@
   .odds { color: #ffe082; font-size: 0.8rem; }
   .oracle-note { color: #ce93d8; font-size: 0.8rem; margin: 0.2rem 0; }
   .found-warning { color: #ffcc80; font-size: 0.78rem; margin: 0.2rem 0; }
+  .nuke-armed { color: #ffb74d; font-weight: 600; font-size: 0.85rem; margin: 0.25rem 0; }
+  .spy-title { margin: 0.4rem 0 0.1rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #ce93d8; }
+  .pick { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; }
+  .pick select { background: #27313a; color: inherit; border: 1px solid #46525c; border-radius: 6px; padding: 0.3rem; }
 </style>

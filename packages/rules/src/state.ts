@@ -56,7 +56,27 @@ export type Order =
   /** 7g · R-119 : mission d'espionnage — infiltration d'une ville ennemie
    *  VISIBLE adjacente. Tranche 7g : vol de GP installé uniquement (le
    *  champ `mission` prépare 7h : contre-espionnage, vol de tech). */
-  | { type: 'SpyMission'; unitId: UnitId; cityId: CityId; mission: 'stealGreatPerson' };
+  | { type: 'SpyMission'; unitId: UnitId; cityId: CityId; mission: 'stealGreatPerson' }
+  /** 7m · R-139 : lancement de l'ICBM (arme stratégique R-138) sur une case
+   *  cible VISIBLE. Résolu en tête de Phase C : SDI → interception (R-141),
+   *  sinon détonation (résolution C13 — Bloc 0). Le missile est consommé ;
+   *  refus (Démocratie R-140, cible invisible) : missile conservé. */
+  | { type: 'Launch'; unitId: UnitId; target: { q: number; r: number } }
+  /** 7m · R-143 : action d'espionnage d'un espion INFILTRÉ dans une ville
+   *  ennemie. `buildingId` ne porte que pour `destroyBuilding` (bâtiment
+   *  non-Palais choisi 🔶). Action hostile exécutée = espion consommé ;
+   *  duel d'espions préalable si garnison adverse (R-144) ; `leave` préserve
+   *  l'espion. */
+  | { type: 'SpyAction'; unitId: UnitId; cityId: CityId; action: SpyActionKind; buildingId?: string };
+
+/** 7m · R-143 : catalogue fermé des actions d'espionnage en ville ennemie. */
+export type SpyActionKind =
+  | 'stealGold'
+  | 'kidnapGreatPerson'
+  | 'sabotageProduction'
+  | 'destroyBuilding'
+  | 'destroyFortifications'
+  | 'leave';
 
 /** Item de production (R-62/R-66) : une unité, un bâtiment — ou une merveille
  *  (7f : merveilles à effets simples + Nations Unies, R-116). */
@@ -226,6 +246,9 @@ export interface Player {
   /** 7l · R-136 · Paliers économiques DÉJÀ accordés (compteur d'index dans
    *  economy.json milestones — un palier n'est jamais accordé deux fois). */
   economyMilestonesClaimed: number;
+  /** 7m · R-139 · ICBM détonées par l'empire (statistique/audit — incrémenté
+   *  à chaque détonation, pas aux refus ni aux interceptions). Migration 16. */
+  nukesLaunched: number;
   vision: Vision;
   /** Timers manqués consécutifs (forfait T-06 — géré côté serveur, Phase 1). */
   missedTurns: number;
@@ -285,7 +308,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 15;
+export const CURRENT_SCHEMA_VERSION = 16;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -687,6 +710,27 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
         ...rest,
         treasury: typeof p.treasury === 'number' ? p.treasury : legacyGold,
         economyMilestonesClaimed: typeof p.economyMilestonesClaimed === 'number' ? p.economyMilestonesClaimed : 0,
+      };
+    }
+    return { ...state, players: migrated };
+  },
+  /**
+   * v15 → v16 : Phase 7m — nucléaire & espionnage (RULES.md §8.11, R-138..R-144).
+   * Champ ADDITIF par joueur : `nukesLaunched: 0` (statistique/audit R-139 — les
+   * états migrés n'ont jamais lancé d'ICBM : idempotent). Les autres mécaniques
+   * 7m ne portent AUCUN champ persisté nouveau : l'ICBM est une unité (absente
+   * des états migrés), l'espion existe depuis v11 (7g) et l'infiltration/
+   * garnison sont DÉRIVÉS de la position (espion sur la case d'une ville), les
+   * ordres `Launch`/`SpyAction` vivent côté serveur hors de l'état.
+   */
+  16: (state) => {
+    const players = (state.players ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(players).sort()) {
+      const p = players[id]!;
+      migrated[id] = {
+        ...p,
+        nukesLaunched: typeof p.nukesLaunched === 'number' ? p.nukesLaunched : 0,
       };
     }
     return { ...state, players: migrated };

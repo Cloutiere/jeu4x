@@ -96,7 +96,7 @@ function pickProduction(city, player, myCities, cultureMilestones, cityIsCoastal
   const unLocked = cultureMilestones >= CULTURE.milestonesTarget;
   if (unLocked) options.unshift({ kind: 'wonder', id: 'nations_unies' });
   for (const u of Object.values(UNITS)) {
-    if (u.implemented === false || u.greatPerson) continue; // R-114 : GP jamais produits
+    if (u.implemented === false || u.greatPerson || u.strategic) continue; // R-114 : GP jamais produits ; 7m R-138 : ICBM jamais en file
     if (u.tech && !unlocked.includes(u.tech)) continue;
     if (obsolete.has(u.id)) continue;
     if ((u.populationCost ?? 0) > 0 && city.pop < u.populationCost) continue;

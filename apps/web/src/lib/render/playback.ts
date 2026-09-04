@@ -27,7 +27,7 @@ export interface MoveAnim {
 
 export interface Fx {
   at: Hex;
-  kind: 'combat' | 'good' | 'bad' | 'destroy';
+  kind: 'combat' | 'good' | 'bad' | 'destroy' | 'nuke';
   t: number;
   dur: number;
 }
@@ -90,6 +90,14 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   Disembark: 280,
   SpyMission: 420,
   GreatPersonStolen: 480,
+  // Phase 7m (R-138..R-144) : nucléaire & espionnage jeu de base.
+  NukeLaunched: 900,
+  CityNuked: 700,
+  SpyAction: 420,
+  SpyDuel: 520,
+  GoldStolen: 480,
+  GreatPersonKidnapped: 480,
+  SpyBuildingDestroyed: 480,
   TurnResolved: 140,
 };
 
@@ -128,6 +136,16 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   Disembark: 'info',
   SpyMission: 'info',
   GreatPersonStolen: 'bad',
+  // Phase 7m : une frappe nucléaire est vue des deux camps (événements
+  // touchant leurs joueurs) ; le vol/sabotage est une mauvaise nouvelle
+  // partagée (miroir GreatPersonStolen).
+  NukeLaunched: 'bad',
+  CityNuked: 'bad',
+  SpyAction: 'info',
+  SpyDuel: 'info',
+  GoldStolen: 'bad',
+  GreatPersonKidnapped: 'bad',
+  SpyBuildingDestroyed: 'bad',
 };
 
 const TOAST_LIFETIME = 4000;
@@ -344,6 +362,17 @@ export class Playback {
         break;
       case 'GreatPersonConsumed':
         // L'effet consume est empire/ville : sans hex dédiée fiable, toast seul.
+        break;
+      // Phase 7m (R-139..R-143) : détonation nucléaire (explosion sur la
+      // cible), interception, sabotage.
+      case 'NukeLaunched':
+        this.pushFx(ev.outcome === 'detonated' ? ev.target : ev.at, ev.outcome === 'refused' ? 'bad' : 'nuke', dur);
+        break;
+      case 'CityNuked':
+        this.pushFx(ev.at, 'nuke', dur);
+        break;
+      case 'SpyBuildingDestroyed':
+        this.pushFx(ev.at, 'destroy', dur);
         break;
       default:
         break;

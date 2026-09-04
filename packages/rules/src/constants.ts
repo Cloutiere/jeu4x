@@ -1,6 +1,6 @@
 /** Constantes réglables du jeu — source unique, référencées T-xx dans RULES.md §11. */
 
-import { BARBARIANS, HUT_REWARDS } from './data.js';
+import { BARBARIANS, HUT_REWARDS, ESPIONNAGE_DATA } from './data.js';
 
 /** T-01 · Bonus de force d'une unité vétéran. */
 export const VETERAN_BONUS = 0.5;
@@ -67,3 +67,15 @@ export const HUT_SCIENCE_BOOST = HUT_REWARDS.scienceBoost;
 export const HUT_GOLD_MIN = HUT_REWARDS.rewards.find((r) => r.kind === 'gold')?.amountMin ?? 0;
 /** T-26 · Or de hutte : borne haute du tir uniforme (R-98). 🔶 */
 export const HUT_GOLD_MAX = HUT_REWARDS.rewards.find((r) => r.kind === 'gold')?.amountMax ?? 0;
+
+/** 7m · R-138..R-144 — nucléaire & espionnage : valeurs portées par
+ *  espionnage.json (R-99 : calibrage sans code) et ré-exportées ici pour que
+ *  constants.ts reste la source unique des T-xx côté code.
+ *  T-33 · Pénalité culturelle d'une détonation (R-140 — annulée sous
+ *  Despotisme). 🔶 */
+export const NUKE_CULTURE_PENALTY = ESPIONNAGE_DATA.nukeCulturePenalty;
+/** T-34 · Matrice de duel d'espions — probabilités de victoire de
+ *  l'attaquant (R-144). 🔶 */
+export const SPY_DUEL_MATRIX = ESPIONNAGE_DATA.duelWinChance;
+/** T-35 · Part de la trésorerie volée par `stealGold` (R-143). 🔶 */
+export const SPY_STEAL_GOLD_PCT = ESPIONNAGE_DATA.stealGoldPct;
