@@ -14,7 +14,7 @@
   import { get } from 'svelte/store';
   import type { GameEvent } from '@game/shared';
   import type { Hex } from '@game/rules';
-  import { CULTURE, GOVERNMENTS, TECHS } from '@game/rules';
+  import { CULTURE, GOVERNMENTS, TECHS, conversionGains, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, nextEconomyMilestone, allKnownTechs, interiorCitizenFor } from '@game/rules';
   import { createGameClient } from '../lib/gameClient.js';
   import type { GameClient } from '../lib/gameClient.js';
   import { createUiState, selectNothing } from '../lib/render/ui.js';
@@ -89,6 +89,20 @@
     (e.currentTarget as HTMLElement | null)?.style.setProperty('display', 'none');
   }
 
+  /** 7l · Commerce de base des terrains (miroir §2 — GPT d'affichage ;
+   *  le commerce du centre-ville suit la tranche démographique — R-60bis). */
+  const TERRAIN_COMMERCE: Record<string, number> = {
+    prairie: 0,
+    plaine: 0,
+    foret: 0,
+    colline: 0,
+    montagne: 0,
+    desert: 1,
+    eau: 2,
+    ocean: 2,
+    ville: 1,
+  };
+
   // Rejouer tout événement fraîchement ajouté au journal (dédoublonné par seq
   // côté réducteur — cf. gameClient.ts). 7f : annonces ONU disponible /
   // suspendue au passage du seuil de jalons (R-116).
@@ -134,6 +148,13 @@
           e.player === pid ? 'Vaisseau spatial lancé !' : 'Le vaisseau spatial adverse a été lancé…',
           e.player === pid ? 'good' : 'bad',
         );
+      }
+      if (e.type === 'EconomyMilestone' && e.player === pid) {
+        // 7l · R-136 : palier économique franchi — annonce (récompense appliquée).
+        pushErrorToast(`Palier économique ${e.threshold.toLocaleString('fr-FR')} or : ${e.label} !`, 'good');
+      }
+      if (e.type === 'EconomyMilestone' && e.reward === 'worldBank' && e.player !== pid) {
+        pushErrorToast('L\'adversaire a débloqué la Banque mondiale… (victoire économique)', 'bad');
       }
     }
     playback.enqueue(fresh);
@@ -215,11 +236,24 @@
 
   let showIdleDialog = $state(false);
   let idleUnits = $state<Array<{ id: string; label: string; pos: string }>>([]);
+  // 7l · C7 · R-130 (rév.) : villes avec une RÉSERVE de marteaux sans projet —
+  // le joueur DOIT choisir un projet (dialogue forcé, miroir « unités sans ordre »).
+  let salvageCities = $state<Array<{ id: string; amount: number }>>([]);
 
   function requestEndTurn(): void {
     const v = get(view);
     const ids = unitsWithoutOrders(v);
-    if (ids.length === 0 || !v.state) {
+    const salvage =
+      v.state && myEngineId(v)
+        ? Object.values(v.state.cities)
+            .filter((c) => c.owner === myEngineId(v) && c.pendingSalvage > 0 && !c.production)
+            .map((c) => ({ id: c.id, amount: c.pendingSalvage }))
+        : [];
+    if (ids.length === 0 && salvage.length === 0) {
+      client.endTurn();
+      return;
+    }
+    if (!v.state) {
       client.endTurn();
       return;
     }
@@ -227,6 +261,7 @@
       const u = v.state!.units[id]!;
       return { id, label: u.type, pos: `(${u.q},${u.r})` };
     });
+    salvageCities = salvage;
     showIdleDialog = true;
   }
 
@@ -270,10 +305,38 @@
     return !!p && typeof p.anarchyUntil === 'number' && $view.turn < p.anarchyUntil;
   });
 
-  const myGold = $derived.by(() => {
+  // 7l · R-134 : trésorerie + GPT net (somme des villes focus Or — miroir du
+  // moteur : conversion R-90 × Troyes/Internet C10 × Settle Explorateur) et
+  // progression vers le prochain palier économique (R-136).
+  const myTreasury = $derived.by(() => {
     const v = $view;
     const id = myEngineId(v);
     return id && v.state ? (v.state.players[id]?.treasury ?? 0) : 0;
+  });
+  const myEconomy = $derived.by(() => {
+    const v = $view;
+    const id = myEngineId(v);
+    const player = id && v.state ? v.state.players[id] : null;
+    if (!player || !v.state) return { treasury: 0, gpt: 0, next: null as ReturnType<typeof nextEconomyMilestone> };
+    const allTechs = allKnownTechs(v.state);
+    const empireMult = empireGoldMultOf(Object.values(v.state.cities), id!, allTechs);
+    let gpt = 0;
+    for (const c of Object.values(v.state.cities)) {
+      if (c.owner !== id) continue;
+      // Miroir exact du moteur (cityEconomyInputs) : le commerce du CENTRE suit
+      // la tranche démographique (R-60bis — 0 sous pop 7), pas le terrain ville.
+      const tier = interiorCitizenFor(c.pop);
+      const interior = Math.max(0, c.pop - c.workedTiles.length);
+      let commerce = tier.commerce * (1 + interior);
+      for (const key of c.workedTiles) {
+        const y = v.state.map[key];
+        if (!y) continue;
+        commerce += TERRAIN_COMMERCE[y.terrain] ?? 0;
+      }
+      const raw = conversionGains(commerce, c.conversion, c.buildings);
+      gpt += Math.round(raw.gold * cityGoldMultOf(c.wonders, allTechs) * empireMult * settledGpMultiplier(c, 'explorateur'));
+    }
+    return { treasury: player.treasury, gpt, next: nextEconomyMilestone(player.economyMilestonesClaimed ?? 0) };
   });
 
   // 7f · R-115/R-116 : jalons culturels du joueur (GP installés + merveilles
@@ -361,10 +424,19 @@
     <strong>Partie {code}</strong>
     <span>Tour <strong>{$view.turn}</strong></span>
     <span class="chip" class:resolving={$view.phase === 'resolving'}>{$view.phase === 'resolving' ? 'Résolution…' : 'Ordres'}</span>
-    <span class="res" title="Or du joueur">
+    <span class="res" title="Trésorerie d'empire (R-134) — zéro entretien ; + GPT net des villes focus Or (R-90)">
       <img src="/art/icone_or.png" alt="Or" onerror={hideImg} />
-      {myGold}
+      {myEconomy.treasury.toLocaleString('fr-FR')}
+      <span class="gpt" class:negative={myEconomy.gpt < 0}>(+{myEconomy.gpt}/tour)</span>
     </span>
+    {#if myEconomy.next}
+      <span
+        class="res milestone"
+        title="Prochain palier économique (R-136) — {myEconomy.next.label}"
+      >
+        Palier {myEconomy.next.threshold.toLocaleString('fr-FR')} or : {Math.min(100, Math.round((myEconomy.treasury / myEconomy.next.threshold) * 100))}%
+      </span>
+    {/if}
     <span class="res" title={milestonesDetail}>
       <img src="/art/icone_culture.png" alt="Jalons culturels" onerror={hideImg} />
       {myCulture.milestones}/{MILESTONES_TARGET}
@@ -426,13 +498,24 @@
         />
         {#if showIdleDialog}
           <div class="victory idle-dialog">
-            <h2>Unités sans ordre</h2>
-            <p>Ces unités n'ont aucun ordre pour ce tour :</p>
-            <ul>
-              {#each idleUnits as u (u.id)}
-                <li><strong>{u.id}</strong> — {u.label} {u.pos}</li>
-              {/each}
-            </ul>
+            {#if idleUnits.length > 0}
+              <h2>Unités sans ordre</h2>
+              <p>Ces unités n'ont aucun ordre pour ce tour :</p>
+              <ul>
+                {#each idleUnits as u (u.id)}
+                  <li><strong>{u.id}</strong> — {u.label} {u.pos}</li>
+                {/each}
+              </ul>
+            {/if}
+            {#if salvageCities.length > 0}
+              <h2>Récupération de marteaux (7l · C7)</h2>
+              <p>Ces villes détiennent des marteaux récupérés — choisissez un projet, la réserve financeront la production (réserve permanente, jamais dissipée) :</p>
+              <ul>
+                {#each salvageCities as c (c.id)}
+                  <li><strong>{c.id}</strong> — {c.amount} marteaux en réserve</li>
+                {/each}
+              </ul>
+            {/if}
             <div class="btns">
               <button type="button" class="primary-btn" onclick={confirmEndTurn}>Finir le tour quand même</button>
               <button type="button" onclick={() => (showIdleDialog = false)}>Revenir aux ordres</button>
@@ -543,6 +626,9 @@
   .ship .ready { color: #81c784; font-weight: 600; margin: 0.3rem 0 0; }
   .ship .shiphint { color: #8b98a5; font-size: 0.8rem; margin: 0.3rem 0 0; }
   .net { font-size: 0.8rem; color: #8b98a5; }
+  .gpt { font-size: 0.78rem; color: #a5d6a7; font-weight: 400; }
+  .gpt.negative { color: #ef9a9a; }
+  .milestone { font-size: 0.8rem; color: #ffd54f; font-weight: 400; }
   .res { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 600; }
   .res img { width: 18px; height: 18px; vertical-align: middle; }
   .net-open { color: #81c784; }

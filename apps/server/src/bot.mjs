@@ -40,8 +40,6 @@ const BUILDINGS = JSON.parse(readFileSync(buildingsPath, 'utf8'));
 // 7l · R-135 : facteurs d'ère du rush-buy (même JSON que le moteur).
 const economyPath = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/economy.json');
 const ECONOMY = JSON.parse(readFileSync(economyPath, 'utf8'));
-const WONDERS_PATH = join(dirname(fileURLToPath(import.meta.url)), '../../../packages/rules/src/data/wonders.json');
-const WONDERS = JSON.parse(readFileSync(WONDERS_PATH, 'utf8'));
 /** 7l · R-135 : ère de l'empire = la plus avancée des techs débloquées
  *  (miroir minimal de growth.ts — même table era de techs.json). */
 const ERA_ORDER = ['ancienne', 'medievale', 'industrielle', 'moderne'];
