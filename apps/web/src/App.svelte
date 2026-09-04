@@ -4,6 +4,7 @@
   //         · #/debug/<code> (mode reveal — dev uniquement, L0 Phase 3)
   //         · #/progen (labo de génération procédurale — Phase 6b, sans session :
   //           outil client-side pur, aucune partie ni donnée de jeu).
+  //         · #/lab3d (labo spike L0 « vraie 3D » — chantier V1, client-side pur).
   import { onMount } from 'svelte';
   import { session, loadSession } from './lib/session.js';
   import Login from './pages/Login.svelte';
@@ -12,6 +13,7 @@
   import Join from './pages/Join.svelte';
   import Debug from './pages/Debug.svelte';
   import Progen from './pages/Progen.svelte';
+  import Lab3d from './pages/Lab3d.svelte';
 
   type Route =
     | { page: 'login' }
@@ -19,12 +21,14 @@
     | { page: 'game'; code: string }
     | { page: 'join'; code: string }
     | { page: 'debug'; code: string }
-    | { page: 'progen' };
+    | { page: 'progen' }
+    | { page: 'lab3d' };
 
   function parseHash(): Route {
     const hash = window.location.hash.replace(/^#/, '') || '/';
     if (hash === '/lobby') return { page: 'lobby' };
     if (hash === '/progen') return { page: 'progen' };
+    if (hash === '/lab3d') return { page: 'lab3d' };
     const game = /^\/game\/([A-Z0-9]{6})$/.exec(hash);
     if (game) return { page: 'game', code: game[1]! };
     const join = /^\/join\/([A-Z0-9]{6})$/.exec(hash);
@@ -50,7 +54,11 @@
   });
 </script>
 
-{#if $session === undefined}
+{#if route.page === 'lab3d'}
+  <!-- Labo spike L0 (chantier V1) : indépendant de la session — client-side pur,
+       aucune partie ni donnée de jeu (comme #/progen, sans appel /api). -->
+  <Lab3d />
+{:else if $session === undefined}
   <p class="loading">Chargement…</p>
 {:else if route.page === 'progen'}
   <!-- Labo de génération (Phase 6b) : sans session, aucune connexion requise. -->
