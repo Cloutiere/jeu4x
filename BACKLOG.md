@@ -86,3 +86,16 @@ Le journal d'événements (séquences, from/to) porte déjà toutes les données
 ## Idée 4 — Flèches de chemin persistantes (Erik, 30/08 — confirmée → Phase 5.5)
 
 Aujourd'hui la ligne de déplacement disparaît à la validation. Elle doit **demeurer** sous forme de **flèche** (sens de déplacement visible) tant que l'ordre est actif — effacée à la résolution ou à l'annulation de l'ordre.
+
+## Idée 5 — Espionnage avancé (Erik, 05/09 — chantier dédié à cadrer après la 7m)
+
+La 7m livre l'espionnage **identique au jeu de base** (point de départ). L'adaptation d'Erik en fera un **système central du gameplay** — chantier à part, à découper (plusieurs phases probables), à cadrer avec lui :
+
+- **L'espion s'installe dans les villes et disparaît** de la carte (modèle infiltration, pas unité visible) ; il **cumule de l'expérience** selon les résultats obtenus et **débloque des capacités** à l'expérience cumulée ;
+- **Contre-espionnage par installation** : les espions peuvent être installés dans les villes **du joueur** pour augmenter le contre-espionnage ; **bâtiments de contre-espionnage** à ajouter, cumulant des points de contre-espionnage ;
+- **Menu d'espionnage** (accessible dès le premier contact avec une nation étrangère) : rapport des nations ennemies et des villes où les espions sont installés, vue plus ou moins détaillée selon les actions menées ;
+- **Points d'espionnage** cumulés par les espions, débloquant des actions ; les joueurs sont **notifiés quand un espion est dans leur ville** ;
+- **Fenêtre d'annulation** : l'attaque d'espionnage est lancée au tour de l'attaquant ; au début du tour de la victime, celle-ci est informée et peut **dépenser des points de contre-espionnage pour l'annuler** ;
+- **Actions de renseignement** (faible coût) : anticiper les mouvements de troupes ennemis — **au début du tour, le joueur renseigné peut retarder la résolution automatique et rediriger ses troupes** (répond au manque de visibilité de l'asynchrone) ; réduire une portion du brouillard autour des villes/troupes ennemies ; voir les technologies découvertes, les productions des villes, les recherches en cours ;
+- **Actions coûteuses** : sabotage, vol de technologies, vol d'or, vol d'unités ennemies (GP compris), et ultimement **l'assassinat** ;
+- **Intention de design** : l'espionnage au centre du gameplay dès le début de partie (Écriture = l'une des premières technologies, donne accès aux espions) — « l'espionnage ne pourra plus être ignoré du gameplay », pression obligeant à investir dans ces unités et bâtiments.
