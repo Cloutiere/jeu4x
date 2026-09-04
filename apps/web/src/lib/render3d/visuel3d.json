@@ -1,0 +1,90 @@
+{
+  "$comment": "Spec visuelle 3D data-driven (chantier V1, L1b) — portage du design.js du prototype tuile-secteur-memoire-flux, calibrage 68f6f5a. Couleurs, élévations, glyphes et matériaux par terrain, calibrables SANS code. Consommé par apps/web/src/lib/render3d/spec3d.ts. - elev : clé symbolique dans « elevations » (eau plus basse, base 0, colline +1 marche, montagne +2). - haut/bas : dégradé du substrat ; cote : parois (= foncer(haut, 0.45) du prototype). - glyphe : potentiel affiché (famille bus=Nourriture, cpu=Production, ram=Commerce ; total = potentiel, actifs = allumé de base). null = aucun glyphe (case de ville, cratère). - materiau : matière du substrat (omis = materiauDefaut) ; le désert (ton pâle) est mat et quasi non émissif sinon il paraît illuminé.",
+  "neon": "#3DFFCE",
+  "bas": -0.85,
+  "longBus": 1.6,
+  "elevations": {
+    "eau": -0.4,
+    "base": 0,
+    "colline": 0.3,
+    "montagne": 0.62
+  },
+  "materiauDefaut": { "emissive": 0.45, "roughness": 0.6, "metalness": 0.12 },
+  "terrains": {
+    "prairie": {
+      "nom": "Secteur Mémoire Flux",
+      "elev": "base",
+      "haut": "#1E6B58", "bas": "#0D382E", "cote": "#0E3028",
+      "detail": "grille",
+      "glyphe": { "famille": "bus", "total": 2, "actifs": 2 }
+    },
+    "plaine": {
+      "nom": "Cluster de Données",
+      "elev": "base",
+      "haut": "#5E6B2F", "bas": "#2A3319", "cote": "#2A3015",
+      "detail": "grille",
+      "glyphe": { "famille": "bus", "total": 3, "actifs": 1 }
+    },
+    "foret": {
+      "nom": "Matrice d'Algorithmes Bruts",
+      "elev": "base",
+      "haut": "#134B33", "bas": "#08251A", "cote": "#092217",
+      "detail": "stries",
+      "glyphe": { "famille": "cpu", "total": 2, "actifs": 2 }
+    },
+    "colline": {
+      "nom": "Nœud de Processeurs",
+      "elev": "colline",
+      "haut": "#2B5570", "bas": "#12293B", "cote": "#132632",
+      "detail": "hachure",
+      "glyphe": { "famille": "cpu", "total": 3, "actifs": 1 }
+    },
+    "montagne": {
+      "nom": "Noyau Quantique Solide",
+      "elev": "montagne",
+      "haut": "#4A3E6E", "bas": "#221B38", "cote": "#211C32",
+      "detail": "facettes",
+      "glyphe": { "famille": "cpu", "total": 5, "actifs": 1 }
+    },
+    "desert": {
+      "nom": "Bus à Bruit Statique",
+      "elev": "base",
+      "haut": "#8B8166", "bas": "#4C4738", "cote": "#3F3A2E",
+      "detail": "bruit",
+      "materiau": { "emissive": 0.12, "roughness": 0.95, "metalness": 0.0 },
+      "glyphe": { "famille": "ram", "total": 3, "actifs": 1 }
+    },
+    "eau": {
+      "nom": "Réseau Sub-Éthéré (Fibre)",
+      "elev": "eau",
+      "haut": "#14526B", "bas": "#082938", "cote": "#092530",
+      "detail": "ondes",
+      "glyphe": { "famille": "ram", "total": 2, "actifs": 2 },
+      "glypheSecond": { "famille": "bus", "total": 1, "actifs": 0 },
+      "glypheSecondZ": -0.3
+    },
+    "ocean": {
+      "nom": "Réseau Sub-Éthéré profond",
+      "elev": "eau",
+      "haut": "#0E3450", "bas": "#061A2A", "cote": "#061724",
+      "detail": "ondes",
+      "glyphe": { "famille": "ram", "total": 2, "actifs": 2 },
+      "glypheSecond": { "famille": "bus", "total": 1, "actifs": 0 },
+      "glypheSecondZ": -0.3
+    },
+    "ville": {
+      "nom": "Case de ville",
+      "elev": "base",
+      "haut": "#14333D", "bas": "#0A1C24", "cote": "#09171B",
+      "detail": "plein",
+      "glyphe": null
+    },
+    "cratere": {
+      "nom": "Cratère",
+      "elev": "base",
+      "haut": "#33333A", "bas": "#191920", "cote": "#17171A",
+      "detail": "facettes",
+      "glyphe": null
+    }
+  }
+}

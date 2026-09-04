@@ -1,8 +1,13 @@
 /**
- * spec3d — portage de la spec visuelle du prototype `prototypes/tuile-secteur-memoire-flux/design.js`
- * (langage visuel « Réseau » validé par Erik le 04/09) sur les identifiants RÉELS du moteur
- * (`packages/rules/src/data/terrain.json` : prairie, plaine, foret, colline, montagne, desert,
- * eau, ocean + ville, cratere).
+ * spec3d — chargeur de la SPEC VISUELLE data-driven `visuel3d.json` (L1b) sur
+ * les identifiants RÉELS du moteur (`packages/rules/src/data/terrain.json` :
+ * prairie, plaine, foret, colline, montagne, desert, eau, ocean + ville, cratere).
+ *
+ * Le contenu (couleurs, élévations, glyphes, matériaux par terrain) vit dans le
+ * JSON — calibrable SANS code, miroir du `design.js` du prototype
+ * `prototypes/tuile-secteur-memoire-flux/` (calibrage 68f6f5a). Ce module ne
+ * fait que typer, valider et convertir (le peintre de substrat et les
+ * placements de glyphes paramétriques restent du code, en fin de fichier).
  *
  * Principes (Refonte Cybernétique § Langage visuel des tuiles) :
  *  - chaque tuile affiche son POTENTIEL de rendement ; seul l'ACTIF est allumé (néon), le reste pâle ;
@@ -10,22 +15,8 @@
  *    microprocesseur = Cycles CPU Ⓟ, barrette RAM = Commerce Ⓒ ;
  *  - le terrain se lit par la teinte du substrat et l'ÉLÉVATION (eau plus basse, colline +1,
  *    montagne +2 ; plaine/prairie/forêt/désert au niveau de base).
- *
- * SPIKE L0 : cette spec est partagée par les DEUX architectures candidates (A = Three.js seul,
- * B = terrain Three.js + entités PixiJS) — preuve qu'elle est indépendante du renderer.
- * L1a : synchronisée sur le calibrage commité du prototype (68f6f5a — désert « sable
- * délavé » mat, puce CPU cœur vert doux, quincunx ±0.30, parois foncer(haut, 0.45)).
- * Le portage L1b en fera une source data-driven complète (assets-src / visuel.json 🔶).
  */
-
-/** Couleur unique des glyphes (bus/CPU/RAM) — la forme distingue la ressource. */
-export const NEON = 0x3dffce;
-export const NEON_CSS = '#3DFFCE';
-
-/** Dessous commun de tous les prismes (unités monde, hex de rayon 1). */
-export const BAS = -0.85;
-/** Longueur d'une voie de bus (unités monde). */
-export const LONG_BUS = 1.6;
+import visuel from './visuel3d.json';
 
 export type Famille = 'bus' | 'cpu' | 'ram';
 export type Detail = 'grille' | 'stries' | 'hachure' | 'facettes' | 'bruit' | 'ondes' | 'nucleaire' | 'plein';
@@ -62,94 +53,82 @@ export interface SpecTerrain {
 }
 
 /** Matière par défaut du substrat (prototype tuiles3d.js — « légère lueur »). */
-export const MATERIAU_DEFAUT = { emissive: 0.45, roughness: 0.6, metalness: 0.12 } as const;
+export const MATERIAU_DEFAUT: Readonly<{ emissive: number; roughness: number; metalness: number }> = visuel.materiauDefaut;
 
-/** Niveau de marche : élévation sémantique (prototype : eau −0.40, base 0, colline +0.30, montagne +0.62). */
-const E_EAU = -0.4;
-const E_BASE = 0;
-const E_COLLINE = 0.3;
-const E_MONTAGNE = 0.62;
+/** Couleur unique des glyphes (bus/CPU/RAM) — la forme distingue la ressource. */
+export const NEON = parseInt(visuel.neon.slice(1), 16);
+export const NEON_CSS = visuel.neon;
 
-export const TERRAINS3D: Record<string, SpecTerrain> = {
-  prairie: {
-    nom: 'Secteur Mémoire Flux',
-    elev: E_BASE,
-    haut: 0x1e6b58, bas: 0x0d382e, cote: 0x0e3028,
-    detail: 'grille',
-    glyphe: { famille: 'bus', total: 2, actifs: 2 },
-  },
-  plaine: {
-    nom: 'Cluster de Données',
-    elev: E_BASE,
-    haut: 0x5e6b2f, bas: 0x2a3319, cote: 0x2a3015,
-    detail: 'grille',
-    // Décision d'Erik du 04/09 : plaine = 3 bus (Grenier +2) — RULES.md à réaligner.
-    glyphe: { famille: 'bus', total: 3, actifs: 1 },
-  },
-  foret: {
-    nom: "Matrice d'Algorithmes Bruts",
-    elev: E_BASE,
-    haut: 0x134b33, bas: 0x08251a, cote: 0x092217,
-    detail: 'stries',
-    glyphe: { famille: 'cpu', total: 2, actifs: 2 },
-  },
-  colline: {
-    nom: 'Nœud de Processeurs',
-    elev: E_COLLINE,
-    haut: 0x2b5570, bas: 0x12293b, cote: 0x132632,
-    detail: 'hachure',
-    glyphe: { famille: 'cpu', total: 3, actifs: 1 },
-  },
-  montagne: {
-    nom: 'Noyau Quantique Solide',
-    elev: E_MONTAGNE,
-    haut: 0x4a3e6e, bas: 0x221b38, cote: 0x211c32,
-    detail: 'facettes',
-    glyphe: { famille: 'cpu', total: 5, actifs: 1 },
-  },
-  desert: {
-    nom: 'Bus à Bruit Statique',
-    elev: E_BASE,
-    // « Sable délavé » mat (calibrage 68f6f5a) — voir materiau.
-    haut: 0x8b8166, bas: 0x4c4738, cote: 0x3f3a2e,
-    detail: 'bruit',
-    materiau: { emissive: 0.12, roughness: 0.95, metalness: 0 },
-    glyphe: { famille: 'ram', total: 3, actifs: 1 },
-  },
-  // Id moteur « eau » = Mer (Réseau Sub-Éthéré Fibre).
-  eau: {
-    nom: 'Réseau Sub-Éthéré (Fibre)',
-    elev: E_EAU,
-    haut: 0x14526b, bas: 0x082938, cote: 0x092530,
-    detail: 'ondes',
-    glyphe: { famille: 'ram', total: 2, actifs: 2 },
-    glypheSecond: { famille: 'bus', total: 1, actifs: 0 },
-    glypheSecondZ: -0.3,
-  },
-  ocean: {
-    nom: 'Réseau Sub-Éthéré profond',
-    elev: E_EAU,
-    haut: 0x0e3450, bas: 0x061a2a, cote: 0x061724,
-    detail: 'ondes',
-    glyphe: { famille: 'ram', total: 2, actifs: 2 },
-    glypheSecond: { famille: 'bus', total: 1, actifs: 0 },
-    glypheSecondZ: -0.3,
-  },
-  ville: {
-    nom: 'Case de ville',
-    elev: E_BASE,
-    haut: 0x14333d, bas: 0x0a1c24, cote: 0x09171b,
-    detail: 'plein',
-    glyphe: null, // la ville (structure) occupe la case
-  },
-  cratere: {
-    nom: 'Cratère',
-    elev: E_BASE,
-    haut: 0x33333a, bas: 0x191920, cote: 0x17171a,
-    detail: 'facettes',
-    glyphe: null, // déclinaison stérile 7m — calque L2
-  },
-};
+/** Dessous commun de tous les prismes (unités monde, hex de rayon 1). */
+export const BAS = visuel.bas;
+/** Longueur d'une voie de bus (unités monde). */
+export const LONG_BUS = visuel.longBus;
+
+// ---------------------------------------------------------------------------
+// Validation / conversion du JSON (erreurs explicites si la spec est corrompue)
+// ---------------------------------------------------------------------------
+
+const COULEUR_RE = /^#[0-9a-fA-F]{6}$/;
+const DETAILS: ReadonlySet<string> = new Set(['grille', 'stries', 'hachure', 'facettes', 'bruit', 'ondes', 'nucleaire', 'plein']);
+const FAMILLES: ReadonlySet<string> = new Set(['bus', 'cpu', 'ram']);
+
+function couleur(v: unknown, ctx: string): number {
+  if (typeof v !== 'string' || !COULEUR_RE.test(v)) throw new Error(`visuel3d.json : couleur invalide pour ${ctx} (${JSON.stringify(v)})`);
+  return parseInt(v.slice(1), 16);
+}
+
+function nombre(v: unknown, ctx: string): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) throw new Error(`visuel3d.json : nombre invalide pour ${ctx}`);
+  return v;
+}
+
+function glyphe(v: unknown, ctx: string): SpecGlyphe | null {
+  if (v === null) return null;
+  if (typeof v !== 'object' || v === null) throw new Error(`visuel3d.json : glyphe invalide pour ${ctx}`);
+  const g = v as Record<string, unknown>;
+  if (typeof g.famille !== 'string' || !FAMILLES.has(g.famille)) throw new Error(`visuel3d.json : famille de glyphe invalide pour ${ctx}`);
+  const total = nombre(g.total, `${ctx}.total`);
+  const actifs = nombre(g.actifs, `${ctx}.actifs`);
+  if (actifs < 0 || actifs > total) throw new Error(`visuel3d.json : actifs hors [0, total] pour ${ctx}`);
+  return { famille: g.famille as Famille, total, actifs };
+}
+
+const elevations = visuel.elevations as Record<string, unknown>;
+
+function elevation(cle: unknown, ctx: string): number {
+  if (typeof cle !== 'string' || !(cle in elevations)) throw new Error(`visuel3d.json : clé d'élévation inconnue pour ${ctx} (${JSON.stringify(cle)})`);
+  return nombre(elevations[cle], `elevations.${cle}`);
+}
+
+export const TERRAINS3D: Record<string, SpecTerrain> = Object.fromEntries(
+  Object.entries(visuel.terrains as Record<string, unknown>).map(([id, v]) => {
+    if (typeof v !== 'object' || v === null) throw new Error(`visuel3d.json : terrain invalide « ${id} »`);
+    const t = v as Record<string, unknown>;
+    if (typeof t.detail !== 'string' || !DETAILS.has(t.detail)) throw new Error(`visuel3d.json : detail invalide pour « ${id} »`);
+    const spec: SpecTerrain = {
+      nom: typeof t.nom === 'string' ? t.nom : id,
+      elev: elevation(t.elev, id),
+      haut: couleur(t.haut, `${id}.haut`),
+      bas: couleur(t.bas, `${id}.bas`),
+      cote: couleur(t.cote, `${id}.cote`),
+      detail: t.detail as Detail,
+      glyphe: glyphe(t.glyphe, id),
+    };
+    if ('glypheSecond' in t) {
+      spec.glypheSecond = glyphe(t.glypheSecond, `${id}.glypheSecond`);
+      if ('glypheSecondZ' in t) spec.glypheSecondZ = nombre(t.glypheSecondZ, `${id}.glypheSecondZ`);
+    }
+    if (t.materiau !== undefined && t.materiau !== null) {
+      const m = t.materiau as Record<string, unknown>;
+      spec.materiau = {
+        emissive: nombre(m.emissive, `${id}.materiau.emissive`),
+        roughness: nombre(m.roughness, `${id}.materiau.roughness`),
+        metalness: nombre(m.metalness, `${id}.materiau.metalness`),
+      };
+    }
+    return [id, spec];
+  }),
+);
 
 // ---------------------------------------------------------------------------
 // Placements de glyphes (coordonnées locales, hex de rayon 1) — portés du
@@ -185,6 +164,9 @@ export function slotsRam(n: number, zOffset = 0): Array<[number, number]> {
 // Le rendu déterministe (RNG seedé du prototype, variantes fixes) est conservé.
 // ---------------------------------------------------------------------------
 
+/** Seed du prototype (design.js) — jitter CPU déterministe de world3d. */
+export const SEED = 20260904;
+
 /** RNG seedé du prototype (design.js) — aussi utilisé par world3d (jitter CPU). */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -195,9 +177,6 @@ export function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-/** Seed du prototype (design.js) — jitter CPU déterministe de world3d. */
-export const SEED = 20260904;
 
 function hexPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number): void {
   ctx.beginPath();
