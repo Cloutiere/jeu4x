@@ -9,80 +9,148 @@
     "colline": 0.3,
     "montagne": 0.62
   },
-  "materiauDefaut": { "emissive": 0.45, "roughness": 0.6, "metalness": 0.12 },
+  "materiauDefaut": {
+    "emissive": 0.45,
+    "roughness": 0.6,
+    "metalness": 0.12
+  },
   "terrains": {
     "prairie": {
       "nom": "Secteur Mémoire Flux",
       "elev": "base",
-      "haut": "#1E6B58", "bas": "#0D382E", "cote": "#0E3028",
+      "haut": "#1E6B58",
+      "bas": "#0D382E",
+      "cote": "#0E3028",
       "detail": "grille",
-      "glyphe": { "famille": "bus", "total": 2, "actifs": 2 }
+      "glyphe": {
+        "famille": "bus",
+        "total": 2,
+        "actifs": 2
+      }
     },
     "plaine": {
       "nom": "Cluster de Données",
       "elev": "base",
-      "haut": "#5E6B2F", "bas": "#2A3319", "cote": "#2A3015",
+      "haut": "#5E6B2F",
+      "bas": "#2A3319",
+      "cote": "#2A3015",
       "detail": "grille",
-      "glyphe": { "famille": "bus", "total": 3, "actifs": 1 }
+      "glyphe": {
+        "famille": "bus",
+        "total": 3,
+        "actifs": 1
+      }
     },
     "foret": {
       "nom": "Matrice d'Algorithmes Bruts",
       "elev": "base",
-      "haut": "#134B33", "bas": "#08251A", "cote": "#092217",
+      "haut": "#134B33",
+      "bas": "#08251A",
+      "cote": "#092217",
       "detail": "stries",
-      "glyphe": { "famille": "cpu", "total": 2, "actifs": 2 }
+      "glyphe": {
+        "famille": "cpu",
+        "total": 2,
+        "actifs": 2
+      }
     },
     "colline": {
       "nom": "Nœud de Processeurs",
       "elev": "colline",
-      "haut": "#2B5570", "bas": "#12293B", "cote": "#132632",
+      "haut": "#2B5570",
+      "bas": "#12293B",
+      "cote": "#132632",
       "detail": "hachure",
-      "glyphe": { "famille": "cpu", "total": 3, "actifs": 1 }
+      "glyphe": {
+        "famille": "cpu",
+        "total": 3,
+        "actifs": 1
+      }
     },
     "montagne": {
       "nom": "Noyau Quantique Solide",
       "elev": "montagne",
-      "haut": "#4A3E6E", "bas": "#221B38", "cote": "#211C32",
+      "haut": "#4A3E6E",
+      "bas": "#221B38",
+      "cote": "#211C32",
       "detail": "facettes",
-      "glyphe": { "famille": "cpu", "total": 5, "actifs": 1 }
+      "glyphe": {
+        "famille": "cpu",
+        "total": 5,
+        "actifs": 1
+      }
     },
     "desert": {
       "nom": "Bus à Bruit Statique",
       "elev": "base",
-      "haut": "#8B8166", "bas": "#4C4738", "cote": "#3F3A2E",
+      "haut": "#8B8166",
+      "bas": "#4C4738",
+      "cote": "#3F3A2E",
       "detail": "bruit",
-      "materiau": { "emissive": 0.12, "roughness": 0.95, "metalness": 0.0 },
-      "glyphe": { "famille": "ram", "total": 3, "actifs": 1 }
+      "materiau": {
+        "emissive": 0.12,
+        "roughness": 0.95,
+        "metalness": 0.0
+      },
+      "glyphe": {
+        "famille": "ram",
+        "total": 3,
+        "actifs": 1
+      }
     },
     "eau": {
       "nom": "Réseau Sub-Éthéré (Fibre)",
       "elev": "eau",
-      "haut": "#14526B", "bas": "#082938", "cote": "#092530",
+      "haut": "#14526B",
+      "bas": "#082938",
+      "cote": "#092530",
       "detail": "ondes",
-      "glyphe": { "famille": "ram", "total": 2, "actifs": 2 },
-      "glypheSecond": { "famille": "bus", "total": 1, "actifs": 0 },
+      "glyphe": {
+        "famille": "ram",
+        "total": 2,
+        "actifs": 2
+      },
+      "glypheSecond": {
+        "famille": "bus",
+        "total": 1,
+        "actifs": 0
+      },
       "glypheSecondZ": -0.3
     },
     "ocean": {
       "nom": "Réseau Sub-Éthéré profond",
       "elev": "eau",
-      "haut": "#0E3450", "bas": "#061A2A", "cote": "#061724",
+      "haut": "#0E3450",
+      "bas": "#061A2A",
+      "cote": "#061724",
       "detail": "ondes",
-      "glyphe": { "famille": "ram", "total": 2, "actifs": 2 },
-      "glypheSecond": { "famille": "bus", "total": 1, "actifs": 0 },
+      "glyphe": {
+        "famille": "ram",
+        "total": 2,
+        "actifs": 2
+      },
+      "glypheSecond": {
+        "famille": "bus",
+        "total": 1,
+        "actifs": 0
+      },
       "glypheSecondZ": -0.3
     },
     "ville": {
       "nom": "Case de ville",
       "elev": "base",
-      "haut": "#14333D", "bas": "#0A1C24", "cote": "#09171B",
+      "haut": "#14333D",
+      "bas": "#0A1C24",
+      "cote": "#09171B",
       "detail": "plein",
       "glyphe": null
     },
     "cratere": {
       "nom": "Cratère",
       "elev": "base",
-      "haut": "#33333A", "bas": "#191920", "cote": "#17171A",
+      "haut": "#33333A",
+      "bas": "#191920",
+      "cote": "#17171A",
       "detail": "facettes",
       "glyphe": null
     }
@@ -90,16 +158,31 @@
   "structures": {
     "$comment": "Structures 3D du chantier V2 (décisions d'Erik du 04/09). Unités monde = hexagones de rayon 1. Slot standard : emplacement de carte identique sur toute tuile productive (terrain avec glyphes) — visible même sans ressource (défaut 🔶). Cartes-ressources : les 22 de resources.json, taille significative ; état neutre (réduit + gris, picto « ? ») tant que la tech manque (R-92), taille pleine + visuel propre à la découverte. Mainframe : structure de ville, 3 paliers de population (🔶 calibrage), capitale distincte (couronne + antenne longue + accent élargi), modules génériques par catégorie de bâtiment (science/or/production/culture/défense — art dédié V3+), module doré des merveilles. Cratère : déclinaison stérile (rebord + fond assombri). Hutte/village barbare : structures 3D discrètes (les unités restent des sprites billboards).",
     "slot": {
-      "offset": [0.44, -0.44],
-      "rayon": 0.24,
+      "offset": [
+        0,
+        0.58
+      ],
+      "largeur": 0.1,
+      "longueur": 0.85,
       "hauteur": 0.03,
       "couleur": "#132833",
       "liseret": "#2CE8BE"
     },
     "formes": {
-      "plaque": { "largeur": 0.54, "hauteur": 0.62, "epaisseur": 0.05, "inclinaison": 0.42 },
-      "pilier": { "rayon": 0.13, "hauteur": 0.5 },
-      "borne": { "rayon": 0.17, "hauteur": 0.44 }
+      "plaque": {
+        "largeur": 0.54,
+        "hauteur": 0.62,
+        "epaisseur": 0.05,
+        "inclinaison": 0
+      },
+      "pilier": {
+        "rayon": 0.13,
+        "hauteur": 0.5
+      },
+      "borne": {
+        "rayon": 0.17,
+        "hauteur": 0.44
+      }
     },
     "carteNeutre": {
       "facteur": 0.58,
@@ -107,76 +190,328 @@
       "picto": "?"
     },
     "cartes": {
-      "aluminium":  { "forme": "borne",  "couleur": "#9FB6C4", "picto": "lingot" },
-      "betail":     { "forme": "plaque", "couleur": "#7FD4A8", "picto": "patte" },
-      "ble":        { "forme": "plaque", "couleur": "#D9C96A", "picto": "epi" },
-      "baleine":    { "forme": "plaque", "couleur": "#58B7D9", "picto": "onde" },
-      "boeufs":     { "forme": "plaque", "couleur": "#C9A26A", "picto": "corne" },
-      "caoutchouc": { "forme": "pilier", "couleur": "#6B6F78", "picto": "anneau" },
-      "charbon":    { "forme": "pilier", "couleur": "#3A414C", "picto": "cristal" },
-      "chene":      { "forme": "borne",  "couleur": "#3F8F5F", "picto": "arbre" },
-      "encens":     { "forme": "borne",  "couleur": "#D9B2FF", "picto": "volute" },
-      "epices":     { "forme": "plaque", "couleur": "#E08A4A", "picto": "feuille" },
-      "fer":        { "forme": "pilier", "couleur": "#8A9199", "picto": "lingot" },
-      "gemmes":     { "forme": "borne",  "couleur": "#B26AE0", "picto": "gemme" },
-      "gibier":     { "forme": "borne",  "couleur": "#A86A4A", "picto": "patte" },
-      "or":         { "forme": "plaque", "couleur": "#F0C419", "picto": "lingot" },
-      "marbre":     { "forme": "pilier", "couleur": "#D9D9D4", "picto": "colonne" },
-      "petrole":    { "forme": "pilier", "couleur": "#2A2F3A", "picto": "fut" },
-      "poisson":    { "forme": "borne",  "couleur": "#58D9C4", "picto": "onde" },
-      "soie":       { "forme": "plaque", "couleur": "#E0D0EA", "picto": "volute" },
-      "soufre":     { "forme": "plaque", "couleur": "#E0D94A", "picto": "goutte" },
-      "teinture":   { "forme": "borne",  "couleur": "#B05AD9", "picto": "goutte" },
-      "uranium":    { "forme": "borne",  "couleur": "#7FE04A", "picto": "cristal" },
-      "vin":        { "forme": "plaque", "couleur": "#8A3AC4", "picto": "goutte" }
+      "aluminium": {
+        "forme": "plaque",
+        "couleur": "#9FB6C4",
+        "picto": "lingot",
+        "bonus": {
+          "famille": "cpu",
+          "valeur": 4
+        }
+      },
+      "betail": {
+        "forme": "plaque",
+        "couleur": "#7FD4A8",
+        "picto": "patte",
+        "bonus": {
+          "famille": "bus",
+          "valeur": 3
+        }
+      },
+      "ble": {
+        "forme": "plaque",
+        "couleur": "#D9C96A",
+        "picto": "epi",
+        "bonus": {
+          "famille": "bus",
+          "valeur": 2
+        }
+      },
+      "baleine": {
+        "forme": "plaque",
+        "couleur": "#58B7D9",
+        "picto": "onde",
+        "bonus": {
+          "famille": "bus",
+          "valeur": 4
+        }
+      },
+      "boeufs": {
+        "forme": "plaque",
+        "couleur": "#C9A26A",
+        "picto": "corne",
+        "bonus": {
+          "famille": "cpu",
+          "valeur": 2
+        }
+      },
+      "caoutchouc": {
+        "forme": "plaque",
+        "couleur": "#6B6F78",
+        "picto": "anneau",
+        "bonus": {
+          "famille": "cpu",
+          "valeur": 4
+        }
+      },
+      "charbon": {
+        "forme": "plaque",
+        "couleur": "#3A414C",
+        "picto": "cristal",
+        "bonus": {
+          "famille": "cpu",
+          "valeur": 3
+        }
+      },
+      "chene": {
+        "forme": "plaque",
+        "couleur": "#3F8F5F",
+        "picto": "arbre",
+        "bonus": {
+          "famille": "cpu",
+          "valeur": 3
+        }
+      },
+      "encens": {
+        "forme": "plaque",
+        "couleur": "#D9B2FF",
+        "picto": "volute",
+        "bonus": {
+          "famille": "culture",
+          "valeur": 2
+        }
+      },
+      "epices": {
+        "forme": "plaque",
+        "couleur": "#E08A4A",
+        "picto": "feuille",
+        "bonus": {
+          "famille": "ram",
+          "valeur": 2
+        }
+      },
+      "fer": {
+        "forme": "plaque",
+        "couleur": "#8A9199",
+        "picto": "lingot",
+        "bonus": {
+          "famille": "cpu",
+          "valeur": 2
+        }
+      },
+      "gemmes": {
+        "forme": "plaque",
+        "couleur": "#B26AE0",
+        "picto": "gemme",
+        "bonus": {
+          "famille": "or",
+          "valeur": 2
+        }
+      },
+      "gibier": {
+        "forme": "plaque",
+        "couleur": "#A86A4A",
+        "picto": "patte",
+        "bonus": {
+          "famille": "bus",
+          "valeur": 3
+        }
+      },
+      "or": {
+        "forme": "plaque",
+        "couleur": "#F0C419",
+        "picto": "lingot",
+        "bonus": {
+          "famille": "or",
+          "valeur": 3
+        }
+      },
+      "marbre": {
+        "forme": "plaque",
+        "couleur": "#D9D9D4",
+        "picto": "colonne",
+        "bonus": {
+          "famille": "cpu",
+          "valeur": 2
+        }
+      },
+      "petrole": {
+        "forme": "plaque",
+        "couleur": "#2A2F3A",
+        "picto": "fut",
+        "bonus": {
+          "famille": "cpu",
+          "valeur": 4
+        }
+      },
+      "poisson": {
+        "forme": "plaque",
+        "couleur": "#58D9C4",
+        "picto": "onde",
+        "bonus": {
+          "famille": "bus",
+          "valeur": 2
+        }
+      },
+      "soie": {
+        "forme": "plaque",
+        "couleur": "#E0D0EA",
+        "picto": "volute",
+        "bonus": {
+          "famille": "culture",
+          "valeur": 3
+        }
+      },
+      "soufre": {
+        "forme": "plaque",
+        "couleur": "#E0D94A",
+        "picto": "goutte",
+        "bonus": {
+          "famille": "cpu",
+          "valeur": 3
+        }
+      },
+      "teinture": {
+        "forme": "plaque",
+        "couleur": "#B05AD9",
+        "picto": "goutte",
+        "bonus": {
+          "famille": "ram",
+          "valeur": 3
+        }
+      },
+      "uranium": {
+        "forme": "plaque",
+        "couleur": "#7FE04A",
+        "picto": "cristal",
+        "bonus": {
+          "famille": "cpu",
+          "valeur": 4
+        }
+      },
+      "vin": {
+        "forme": "plaque",
+        "couleur": "#8A3AC4",
+        "picto": "goutte",
+        "bonus": {
+          "famille": "ram",
+          "valeur": 2
+        }
+      }
     },
     "mainframe": {
-      "socle": { "rayon": 0.62, "hauteur": 0.05, "couleur": "#0F2028" },
+      "socle": {
+        "rayon": 0.62,
+        "hauteur": 0.05,
+        "couleur": "#0F2028"
+      },
       "paliers": [
-        { "popMax": 6,  "rayon": 0.40, "hauteur": 0.50 },
-        { "popMax": 18, "rayon": 0.44, "hauteur": 0.80 },
-        { "popMax": 31, "rayon": 0.48, "hauteur": 1.10 }
+        {
+          "popMax": 6,
+          "rayon": 0.4,
+          "hauteur": 0.5
+        },
+        {
+          "popMax": 18,
+          "rayon": 0.44,
+          "hauteur": 0.8
+        },
+        {
+          "popMax": 31,
+          "rayon": 0.48,
+          "hauteur": 1.1
+        }
       ],
-      "corps": { "couleur": "#24384A", "bande": { "hauteur": 0.08 } },
-      "antenne": { "rayon": 0.022, "hauteur": 0.34, "pointe": "#3DFFCE" },
+      "corps": {
+        "couleur": "#24384A",
+        "bande": {
+          "hauteur": 0.08
+        }
+      },
+      "antenne": {
+        "rayon": 0.022,
+        "hauteur": 0.34,
+        "pointe": "#3DFFCE"
+      },
       "capitale": {
-        "couronne": { "rayon": 0.53, "hauteur": 0.045 },
-        "antenne": { "hauteur": 0.52 },
+        "couronne": {
+          "rayon": 0.53,
+          "hauteur": 0.045
+        },
+        "antenne": {
+          "hauteur": 0.52
+        },
         "accentLargeur": 1.35
       },
       "modules": {
         "taille": 0.17,
         "rayonPorteur": 0.5,
         "categories": {
-          "science":    "#58C79A",
-          "or":         "#F0C419",
+          "science": "#58C79A",
+          "or": "#F0C419",
           "production": "#E08A4A",
-          "culture":    "#D9B2FF",
-          "defense":    "#E05A5A"
+          "culture": "#D9B2FF",
+          "defense": "#E05A5A"
         }
       },
       "categorieBatiment": {
-        "bibliotheque": "science", "universite": "science",
-        "comptoir_commercial": "or", "marche": "or", "banque": "or", "port": "or",
-        "grenier": "production", "atelier": "production", "usine": "production",
-        "aqueduc": "production", "tribunal": "production", "mine_de_fer": "production",
-        "vaisseau_carburant": "production", "vaisseau_support_vie": "production",
-        "vaisseau_propulsion": "production", "vaisseau_habitation": "production",
-        "temple": "culture", "cathedrale": "culture", "palais": "culture",
-        "caserne": "defense", "remparts": "defense", "sdi": "defense"
+        "bibliotheque": "science",
+        "universite": "science",
+        "comptoir_commercial": "or",
+        "marche": "or",
+        "banque": "or",
+        "port": "or",
+        "grenier": "production",
+        "atelier": "production",
+        "usine": "production",
+        "aqueduc": "production",
+        "tribunal": "production",
+        "mine_de_fer": "production",
+        "vaisseau_carburant": "production",
+        "vaisseau_support_vie": "production",
+        "vaisseau_propulsion": "production",
+        "vaisseau_habitation": "production",
+        "temple": "culture",
+        "cathedrale": "culture",
+        "palais": "culture",
+        "caserne": "defense",
+        "remparts": "defense",
+        "sdi": "defense"
       },
-      "merveille": { "taille": 0.2, "couleur": "#FFD479", "emissif": 0.55 }
+      "merveille": {
+        "taille": 0.2,
+        "couleur": "#FFD479",
+        "emissif": 0.55
+      }
     },
     "cratere": {
       "rayon": 0.55,
-      "rebord": { "epaisseur": 0.075, "surhausse": 0.05, "couleur": "#3E3E46" },
-      "fond": { "couleur": "#141418" }
+      "rebord": {
+        "epaisseur": 0.075,
+        "surhausse": 0.05,
+        "couleur": "#3E3E46"
+      },
+      "fond": {
+        "couleur": "#141418"
+      }
     },
-    "hutte": { "rayon": 0.17, "hauteur": 0.14, "couleur": "#5C5648", "accent": "#D9A93F" },
+    "hutte": {
+      "rayon": 0.17,
+      "hauteur": 0.14,
+      "couleur": "#5C5648",
+      "accent": "#D9A93F"
+    },
     "village": {
-      "rayon": 0.24, "hauteur": 0.18, "couleur": "#4E4A40",
-      "mur": { "rayon": 0.33, "epaisseur": 0.04, "hauteur": 0.09 },
+      "rayon": 0.24,
+      "hauteur": 0.18,
+      "couleur": "#4E4A40",
+      "mur": {
+        "rayon": 0.33,
+        "epaisseur": 0.04,
+        "hauteur": 0.09
+      },
       "accent": "#8A7A66"
+    },
+    "carteBonus": {
+      "espacement": 0.085,
+      "basDeCarte": 0.24,
+      "couleurs": {
+        "bus": "#58C79A",
+        "cpu": "#58C79A",
+        "ram": "#58C79A",
+        "or": "#F0C419",
+        "culture": "#FF3CE8"
+      }
     }
   }
 }

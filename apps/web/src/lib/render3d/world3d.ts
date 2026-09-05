@@ -19,7 +19,7 @@ import * as THREE from 'three';
 import { hexToPixel, pixelToHex } from '@game/rules';
 import type { Hex } from '@game/rules';
 import {
-  BAS, LONG_BUS, NEON, TERRAINS3D, MATERIAU_DEFAUT, SEED,
+  BAS, LONG_BUS, TERRAINS3D, MATERIAU_DEFAUT, SEED,
   empreintesCpu, mulberry32, slotsRam, substratCanvas, voiesBus,
 } from './spec3d.js';
 import type { Camera3D } from './camera3d.js';
@@ -122,7 +122,8 @@ function hexWallGeometry(): THREE.BufferGeometry {
 const GEO = {
   top: hexTopGeometry(),
   wall: hexWallGeometry(),
-  busLane: new THREE.BoxGeometry(LONG_BUS, 0.035, 0.1),
+  // Largeur des voies réduite à 75 % (0.1 → 0.075) — calibrage atelier Erik 05/09.
+  busLane: new THREE.BoxGeometry(LONG_BUS, 0.035, 0.075),
   // Dimensions CPU calibrées (68f6f5a) : socle 0.26, die 0.15, broches ±0.146.
   cpuSocle: new THREE.BoxGeometry(0.26, 0.035, 0.26),
   cpuDie: new THREE.BoxGeometry(0.15, 0.03, 0.15),
@@ -247,15 +248,18 @@ export class TerrainWorld {
     // Parois : teinte par terrain via instanceColor (cote = foncer(haut, 0.45)
     // du prototype) × teinte de fog, matériau blanc neutre.
     this.walls = new Pool(GEO.wall, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.15 }), capacity, s);
-    this.busLit = new Pool(GEO.busLane, matGlyphe(NEON, true, 1.05, MAT_BUS), capacity * 4, s);
-    this.busDim = new Pool(GEO.busLane, matGlyphe(NEON, false, 0.05, MAT_BUS), capacity * 4, s);
+    // Voies bus : même teinte/luminosité que le cœur CPU (0x58C79A à 0.5) —
+    // calibrage atelier Erik 05/09 (barres prairie moins lumineuses).
+    this.busLit = new Pool(GEO.busLane, matGlyphe(0x58c79a, true, 0.5, MAT_BUS), capacity * 4, s);
+    this.busDim = new Pool(GEO.busLane, matGlyphe(0x58c79a, false, 0.05, MAT_BUS), capacity * 4, s);
     this.cpuSocle = new Pool(GEO.cpuSocle, new THREE.MeshStandardMaterial({ color: 0x0b2231, roughness: 0.9, metalness: 0.2 }), capacity * 6, s);
     this.dieLit = new Pool(GEO.cpuDie, matGlyphe(0x58c79a, true, 0.5, MAT_DIE), capacity * 6, s);
     this.dieDim = new Pool(GEO.cpuDie, matGlyphe(0x58c79a, false, 0.05, MAT_DIE), capacity * 6, s);
     this.pins = new Pool(GEO.cpuPin, new THREE.MeshStandardMaterial({ color: 0x7e8c96, roughness: 0.3, metalness: 0.85 }), capacity * 24, s);
     this.ramSocle = new Pool(GEO.ramSocle, this.cpuSocle.mesh.material as THREE.Material, capacity * 4, s);
-    this.stickLit = new Pool(GEO.ramStick, matGlyphe(0x2ce8be, true, 0.8, MAT_RAM), capacity * 4, s);
-    this.stickDim = new Pool(GEO.ramStick, matGlyphe(0x2ce8be, false, 0.05, MAT_RAM), capacity * 4, s);
+    // Barres RAM : même teinte/luminosité que le cœur CPU — calibrage atelier Erik 05/09.
+    this.stickLit = new Pool(GEO.ramStick, matGlyphe(0x58c79a, true, 0.5, MAT_RAM), capacity * 4, s);
+    this.stickDim = new Pool(GEO.ramStick, matGlyphe(0x58c79a, false, 0.05, MAT_RAM), capacity * 4, s);
 
     const pulseGeo = new THREE.BufferGeometry();
     this.pulsePositions = new Float32Array(capacity * 12 * 3);

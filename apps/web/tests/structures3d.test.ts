@@ -62,8 +62,11 @@ describe('L0 — spec structures data-driven (visuel3d.json)', () => {
   it('garde le slot standard DANS la tuile (rayon inscrit ≈ 0.866) et identique partout', () => {
     const s = STRUCTURES3D.slot;
     expect(Math.hypot(s.offset[0], s.offset[1])).toBeLessThan(0.7);
-    expect(s.rayon).toBeGreaterThan(0);
+    expect(s.largeur).toBeGreaterThan(0);
+    expect(s.longueur).toBeGreaterThan(0);
     expect(s.hauteur).toBeGreaterThan(0);
+    // format « carte » : le slot est plus long (z) que large (x)
+    expect(s.longueur).toBeGreaterThan(s.largeur);
   });
 
   it('rend la carte neutre plus petite que la pleine (R-92 — « taille de base réduite »)', () => {
@@ -195,8 +198,10 @@ describe('L2 — Cartes-ressources : slot standard + états R-92', () => {
     }));
     expect(plan.get('carte:fer')).toHaveLength(1);
     expect(plan.get('carte:poisson')).toHaveLength(1);
-    // pilier : échelle absolue = rayon de la forme (facteur neutre absent)
-    expect(plan.get('carte:fer')![0]!.sx).toBe(STRUCTURES3D.formes.pilier.rayon);
+    // TOUTES les cartes sont des plaques verticales (décision Erik 05/09 —
+    // plus de piliers/bornes) : échelle absolue = largeur de la plaque.
+    expect(plan.get('carte:fer')![0]!.sx).toBe(STRUCTURES3D.formes.plaque.largeur);
+    expect(plan.get('carte:poisson')![0]!.sx).toBe(STRUCTURES3D.formes.plaque.largeur);
   });
 
   it('estCarteNeutre : null et marqueur « inconnue » → neutre ; id de la spec → pleine', () => {

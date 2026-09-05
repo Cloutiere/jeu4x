@@ -85,6 +85,7 @@ export interface Instance3D {
 }
 
 /** Clés de pools : 'slot', 'slotLiseret', 'carte:<id>', 'carteInconnue',
+ *  'cg:<famille>' (mini-glyphes de bonus : bus/cpu/ram/or/culture),
  *  'mfSocle', 'mfCorps', 'mfBande', 'mfAntenne', 'mfPointe', 'mfCouronne',
  *  'mfModule', 'mfMerveille', 'cratereRebord', 'cratereFond', 'hutte',
  *  'hutteAccent', 'village', 'villageMur'. */
@@ -135,8 +136,9 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
     const elev = specTerrain.elev;
     const fog = t.fog;
 
-    // socle discret + liseré néon (encoche)
-    push('slot', { x: x + spec.offset[0], y: elev + spec.hauteur / 2, z: z + spec.offset[1], sx: spec.rayon, sy: spec.hauteur, sz: spec.rayon, ry: 0, couleur: dim(spec.couleur, fog) });
+    // socle rectangulaire vertical (format « carte ») + liseré néon (cadre) —
+    // grand axe PARALLÈLE aux voies de bus (axe X), posé hors des voies
+    push('slot', { x: x + spec.offset[0], y: elev + spec.hauteur / 2, z: z + spec.offset[1], sx: spec.longueur, sy: spec.hauteur, sz: spec.largeur, ry: 0, couleur: dim(spec.couleur, fog) });
     push('slotLiseret', { x: x + spec.offset[0], y: elev + spec.hauteur + 0.002, z: z + spec.offset[1], sx: 1, sy: 1, sz: 1, ry: 0, couleur: dim(spec.liseret, fog) });
 
     if (!t.ressource) continue;
@@ -167,6 +169,52 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
         sx: f.rayon * k, sy: f.hauteur * k, sz: f.rayon * k,
         ry: 0, couleur: 0xffffff,
       });
+    }
+
+    // Mini-glyphes de bonus (atelier Erik 05/09) : bus = Nourriture,
+    // cpu = Production, ram = Commerce, ram dorée = Or direct, losange
+    // néon cyberpunk = Culture. Rangée à plat sur la face avant de la carte,
+    // 1 instance par point de bonus.
+    if (specCarte) {
+      const cb = S.carteBonus;
+      const { famille, valeur: n } = specCarte.bonus;
+      const profFace = formeNom === 'plaque'
+        ? (S.formes.plaque as { epaisseur: number }).epaisseur * k / 2
+        : (S.formes[formeNom] as { rayon: number }).rayon * k;
+      const hCarte = formeNom === 'plaque'
+        ? (S.formes.plaque as { hauteur: number }).hauteur * k
+        : (S.formes[formeNom] as { hauteur: number }).hauteur * k;
+      const yCarte = base + hCarte / 2;
+      const yRangee = yCarte + hCarte * (0.5 - cb.basDeCarte);
+      // Face INTÉRIEURE : la carte est insérée côté bord, ses glyphes regardent
+      // vers le centre de la tuile (décision Erik 05/09). RAM et Or : puces
+      // CARRÉS plus épaisses, portées par un petit socle noir (décision Erik
+      // 05/09) — les distingue des bus et des CPU au premier coup d'œil.
+      const ramOuOr = famille === 'ram' || famille === 'or';
+      for (let i = 0; i < n; i++) {
+        const gx = x + spec.offset[0] + (i - (n - 1) / 2) * cb.espacement;
+        if (ramOuOr) {
+          push('cgSocle', {
+            x: gx, y: yRangee,
+            z: z + spec.offset[1] - profFace - 0.007,
+            sx: 1, sy: 1, sz: 1, ry: 0,
+            couleur: dim(0x0a0d10, fog),
+          });
+          push(`cg:${famille}`, {
+            x: gx, y: yRangee,
+            z: z + spec.offset[1] - profFace - 0.014 - 0.015,
+            sx: 1, sy: 1, sz: 1, ry: 0,
+            couleur: dim(cb.couleurs[famille], fog),
+          });
+        } else {
+          push(`cg:${famille}`, {
+            x: gx, y: yRangee,
+            z: z + spec.offset[1] - profFace - 0.008,
+            sx: 1, sy: 1, sz: 1, ry: 0,
+            couleur: dim(cb.couleurs[famille], fog),
+          });
+        }
+      }
     }
   }
 
@@ -453,6 +501,23 @@ function hexPrismeUnitaire(): THREE.BufferGeometry {
   return geo;
 }
 
+/** Cadre rectangulaire horizontal (liseré du slot « carte ») — dimensions
+ *  ABSOLUES en XZ (l'instance ne scale pas : le cadre garde son épaisseur). */
+function cadreRectangle(largeur: number, longueur: number, epaisseur: number): THREE.BufferGeometry {
+  const hw = largeur / 2 + epaisseur;
+  const hl = longueur / 2 + epaisseur;
+  const shape = new THREE.Shape()
+    .moveTo(-hw, -hl).lineTo(hw, -hl).lineTo(hw, hl).lineTo(-hw, hl).closePath();
+  const iw = largeur / 2;
+  const il = longueur / 2;
+  const trou = new THREE.Path()
+    .moveTo(-iw, -il).lineTo(-iw, il).lineTo(iw, il).lineTo(iw, -il).closePath();
+  shape.holes.push(trou);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.014, bevelEnabled: false });
+  geo.rotateX(-Math.PI / 2);
+  return geo;
+}
+
 export class StructuresWorld {
   readonly group = new THREE.Group();
   readonly stats: StructuresWorldStats = { instances: 0, pools: 0, derniersRebuildMs: 0 };
@@ -470,8 +535,17 @@ export class StructuresWorld {
     const ct = opts.capacityTuiles;
     const cv = opts.capacityVilles;
     this.fabriques = new Map([
-      ['slot', { capacity: ct, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.85 }) }) }],
-      ['slotLiseret', { capacity: ct, creer: () => ({ geo: new THREE.TorusGeometry(S.slot.rayon * 0.85, 0.012, 6, 18).rotateX(Math.PI / 2), mat: matStructure({ roughness: 0.35, emissive: S.slot.liseret, emissiveIntensity: 0.5 }) }) }],
+      ['slot', { capacity: ct, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.85 }) }) }],
+      ['slotLiseret', { capacity: ct, creer: () => ({ geo: cadreRectangle(S.slot.longueur, S.slot.largeur, 0.014), mat: matStructure({ roughness: 0.35, emissive: S.slot.liseret, emissiveIntensity: 0.5 }) }) }],
+      // mini-glyphes de bonus sur les cartes (minces en Z — plaqués à plat
+      // contre la face verticale de la carte) ; couleur d'émissif par famille,
+      // l'instance ne porte que l'atténuation de fog.
+      ['cg:bus', { capacity: ct * 4, creer: () => ({ geo: new THREE.BoxGeometry(0.14, 0.032, 0.012), mat: matStructure({ roughness: 0.4, emissive: S.carteBonus.couleurs.bus, emissiveIntensity: 0.6 }) }) }],
+      ['cg:cpu', { capacity: ct * 4, creer: () => ({ geo: new THREE.BoxGeometry(0.06, 0.06, 0.012), mat: matStructure({ roughness: 0.4, emissive: S.carteBonus.couleurs.cpu, emissiveIntensity: 0.6 }) }) }],
+      ['cg:ram', { capacity: ct * 4, creer: () => ({ geo: new THREE.BoxGeometry(0.05, 0.05, 0.03), mat: matStructure({ roughness: 0.4, emissive: S.carteBonus.couleurs.ram, emissiveIntensity: 0.6 }) }) }],
+      ['cg:or', { capacity: ct * 4, creer: () => ({ geo: new THREE.BoxGeometry(0.05, 0.05, 0.03), mat: matStructure({ roughness: 0.3, metalness: 0.6, emissive: S.carteBonus.couleurs.or, emissiveIntensity: 0.7 }) }) }],
+      ['cgSocle', { capacity: ct * 4, creer: () => ({ geo: new THREE.BoxGeometry(0.08, 0.08, 0.014), mat: matStructure({ roughness: 0.85 }) }) }],
+      ['cg:culture', { capacity: ct * 4, creer: () => ({ geo: new THREE.OctahedronGeometry(0.032).scale(1, 1.4, 0.4), mat: matStructure({ roughness: 0.35, emissive: S.carteBonus.couleurs.culture, emissiveIntensity: 0.9 }) }) }],
       ['carteInconnue', { capacity: 512, creer: () => this.creerCarte(null) }],
       // cartes RÉVÉLÉES : un pool par ressource (texture de face dédiée) —
       // sans fabrique, le garde-fou de update() sauterait silencieusement

@@ -154,11 +154,19 @@ export type FormeNom = 'plaque' | 'pilier' | 'borne';
 export interface SpecSlot {
   /** Décalage [x, z] de l'emplacement dans la tuile (identique PARTOUT). */
   offset: [number, number];
-  rayon: number;
+  /** Slot rectangulaire vertical (format « carte » — atelier Erik 05/09) :
+   *  largeur (x) et longueur (z) de l'ouverture. */
+  largeur: number;
+  longueur: number;
   hauteur: number;
   couleur: number;
   liseret: number;
 }
+
+/** Familles de bonus rendus par les mini-glyphes sur la face des cartes :
+ *  bus = Nourriture, cpu = Production, ram = Commerce, or = ram dorée (Or
+ *  direct au trésor), culture = losange néon cyberpunk (nouveau concept). */
+export type FamilleBonus = 'bus' | 'cpu' | 'ram' | 'or' | 'culture';
 
 /** Carte-ressource (état RÉVÉLÉ) — taille/visuel propres (Erik : « taille significative »). */
 export interface SpecCarte {
@@ -167,6 +175,17 @@ export interface SpecCarte {
   picto: Picto;
   /** Multiplicateur de taille de la forme (défaut 1) — calibrage 🔶. */
   taille: number;
+  /** Bonus de rendement rendu par mini-glyphes (atelier Erik 05/09). */
+  bonus: { famille: FamilleBonus; valeur: number };
+}
+
+/** Mini-glyphes de bonus posés à plat sur la face des cartes. */
+export interface SpecCarteBonus {
+  /** Espacement (unités monde) entre mini-glyphes de la rangée. */
+  espacement: number;
+  /** Position verticale de la rangée (fraction de la hauteur de carte depuis la base). */
+  basDeCarte: number;
+  couleurs: Record<FamilleBonus, number>;
 }
 
 export interface SpecCarteNeutre {
@@ -223,6 +242,7 @@ export interface SpecStructures {
   formes: Record<FormeNom, SpecForme>;
   carteNeutre: SpecCarteNeutre;
   cartes: Record<string, SpecCarte>;
+  carteBonus: SpecCarteBonus;
   mainframe: SpecMainframe;
   cratere: SpecCratere;
   hutte: SpecHutte;
@@ -252,7 +272,8 @@ if (Math.hypot(offsetSlot[0], offsetSlot[1]) > 0.9) {
 }
 const SLOT3D: SpecSlot = {
   offset: offsetSlot,
-  rayon: nombre(slotBrut.rayon, 'structures.slot.rayon'),
+  largeur: nombre(slotBrut.largeur, 'structures.slot.largeur'),
+  longueur: nombre(slotBrut.longueur, 'structures.slot.longueur'),
   hauteur: nombre(slotBrut.hauteur, 'structures.slot.hauteur'),
   couleur: couleur(slotBrut.couleur, 'structures.slot.couleur'),
   liseret: couleur(slotBrut.liseret, 'structures.slot.liseret'),
@@ -277,6 +298,8 @@ const CARTE_NEUTRE: SpecCarteNeutre = {
   couleur: couleur(neutreBrut.couleur, 'structures.carteNeutre.couleur'),
 };
 
+const FAMILLES_BONUS: ReadonlySet<string> = new Set(['bus', 'cpu', 'ram', 'or', 'culture']);
+
 const CARTES3D: Record<string, SpecCarte> = Object.fromEntries(
   Object.entries(objet(structuresBrut.cartes, 'structures.cartes')).map(([id, v]) => {
     const c = objet(v, `structures.cartes.${id}`);
@@ -288,14 +311,32 @@ const CARTES3D: Record<string, SpecCarte> = Object.fromEntries(
     if (typeof picto !== 'string' || !PICTOS.has(picto)) {
       throw new Error(`visuel3d.json : pictogramme inconnu pour la carte « ${id} » (${JSON.stringify(picto)})`);
     }
+    const bonusBrut = objet(c.bonus, `structures.cartes.${id}.bonus`);
+    const famille = bonusBrut.famille;
+    if (typeof famille !== 'string' || !FAMILLES_BONUS.has(famille)) {
+      throw new Error(`visuel3d.json : famille de bonus inconnue pour la carte « ${id} » (${JSON.stringify(famille)})`);
+    }
     return [id, {
       forme: forme as FormeNom,
       couleur: couleur(c.couleur, `structures.cartes.${id}.couleur`),
       picto,
       taille: c.taille === undefined ? 1 : nombre(c.taille, `structures.cartes.${id}.taille`),
+      bonus: { famille: famille as FamilleBonus, valeur: nombre(bonusBrut.valeur, `structures.cartes.${id}.bonus.valeur`) },
     }];
   }),
 );
+
+const carteBonusBrut = objet(structuresBrut.carteBonus, 'structures.carteBonus');
+const carteBonusCouleursBrut = objet(carteBonusBrut.couleurs, 'structures.carteBonus.couleurs');
+const CARTE_BONUS: SpecCarteBonus = {
+  espacement: nombre(carteBonusBrut.espacement, 'structures.carteBonus.espacement'),
+  basDeCarte: nombre(carteBonusBrut.basDeCarte, 'structures.carteBonus.basDeCarte'),
+  couleurs: Object.fromEntries(
+    ['bus', 'cpu', 'ram', 'or', 'culture'].map((f) => [
+      f, couleur(carteBonusCouleursBrut[f], `structures.carteBonus.couleurs.${f}`),
+    ]),
+  ) as Record<FamilleBonus, number>,
+};
 
 const mainframeBrut = objet(structuresBrut.mainframe, 'structures.mainframe');
 const socleBrut = objet(mainframeBrut.socle, 'structures.mainframe.socle');
@@ -410,6 +451,7 @@ export const STRUCTURES3D: SpecStructures = {
   formes: FORMES3D,
   carteNeutre: CARTE_NEUTRE,
   cartes: CARTES3D,
+  carteBonus: CARTE_BONUS,
   mainframe: MAINFRAME3D,
   cratere: CRATERE3D,
   hutte: HUTTE3D,
