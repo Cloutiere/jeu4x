@@ -327,9 +327,12 @@
       const p = hexToPixel(unit, HEX_SIZE);
       const anim = playback.moveOf(unit.id);
       if (anim) {
+        // poser3d et non position.set : le tampon monde (__wx/__wy) doit
+        // toujours exister, sinon la reprojection 3D ignore l'enfant
+        // (continue) et le sprite reste à ses px bruts = hors champ.
         const a = hexToPixel(anim.from, HEX_SIZE);
         const b = hexToPixel(anim.to, HEX_SIZE);
-        c.position.set(a.x + (b.x - a.x) * anim.t, a.y + (b.y - a.y) * anim.t);
+        poser3d(c, a.x + (b.x - a.x) * anim.t, a.y + (b.y - a.y) * anim.t);
       } else {
         poser3d(c, p.x, p.y);
       }

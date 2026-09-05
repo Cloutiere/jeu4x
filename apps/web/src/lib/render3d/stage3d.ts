@@ -51,7 +51,12 @@ export class Stage3D {
   resize(w: number, h: number): void {
     this.viewW = Math.max(1, w);
     this.viewH = Math.max(1, h);
-    this.renderer.setSize(this.viewW, this.viewH, false);
+    // updateStyle=true (défaut) OBLIGATOIRE : sans taille CSS, le canvas Three
+    // s'affiche à la taille de son buffer (dpr ×) dès que devicePixelRatio > 1
+    // (PC en mise à l'échelle 125/150 %) — le terrain paraît agrandi et les
+    // entités PixiJS (autoDensity, px CSS) se retrouvent hors de leurs cases
+    // (bug d'Erik du 04/09 : unités de départ « en haut à gauche »).
+    this.renderer.setSize(this.viewW, this.viewH);
     this.cam.setViewport(this.viewW, this.viewH);
     this.composer?.setSize(this.viewW, this.viewH);
   }
