@@ -86,5 +86,97 @@
       "detail": "facettes",
       "glyphe": null
     }
+  },
+  "structures": {
+    "$comment": "Structures 3D du chantier V2 (décisions d'Erik du 04/09). Unités monde = hexagones de rayon 1. Slot standard : emplacement de carte identique sur toute tuile productive (terrain avec glyphes) — visible même sans ressource (défaut 🔶). Cartes-ressources : les 22 de resources.json, taille significative ; état neutre (réduit + gris, picto « ? ») tant que la tech manque (R-92), taille pleine + visuel propre à la découverte. Mainframe : structure de ville, 3 paliers de population (🔶 calibrage), capitale distincte (couronne + antenne longue + accent élargi), modules génériques par catégorie de bâtiment (science/or/production/culture/défense — art dédié V3+), module doré des merveilles. Cratère : déclinaison stérile (rebord + fond assombri). Hutte/village barbare : structures 3D discrètes (les unités restent des sprites billboards).",
+    "slot": {
+      "offset": [0.44, -0.44],
+      "rayon": 0.24,
+      "hauteur": 0.03,
+      "couleur": "#132833",
+      "liseret": "#2CE8BE"
+    },
+    "formes": {
+      "plaque": { "largeur": 0.54, "hauteur": 0.62, "epaisseur": 0.05, "inclinaison": 0.42 },
+      "pilier": { "rayon": 0.13, "hauteur": 0.5 },
+      "borne": { "rayon": 0.17, "hauteur": 0.44 }
+    },
+    "carteNeutre": {
+      "facteur": 0.58,
+      "couleur": "#4A5058",
+      "picto": "?"
+    },
+    "cartes": {
+      "aluminium":  { "forme": "borne",  "couleur": "#9FB6C4", "picto": "lingot" },
+      "betail":     { "forme": "plaque", "couleur": "#7FD4A8", "picto": "patte" },
+      "ble":        { "forme": "plaque", "couleur": "#D9C96A", "picto": "epi" },
+      "baleine":    { "forme": "plaque", "couleur": "#58B7D9", "picto": "onde" },
+      "boeufs":     { "forme": "plaque", "couleur": "#C9A26A", "picto": "corne" },
+      "caoutchouc": { "forme": "pilier", "couleur": "#6B6F78", "picto": "anneau" },
+      "charbon":    { "forme": "pilier", "couleur": "#3A414C", "picto": "cristal" },
+      "chene":      { "forme": "borne",  "couleur": "#3F8F5F", "picto": "arbre" },
+      "encens":     { "forme": "borne",  "couleur": "#D9B2FF", "picto": "volute" },
+      "epices":     { "forme": "plaque", "couleur": "#E08A4A", "picto": "feuille" },
+      "fer":        { "forme": "pilier", "couleur": "#8A9199", "picto": "lingot" },
+      "gemmes":     { "forme": "borne",  "couleur": "#B26AE0", "picto": "gemme" },
+      "gibier":     { "forme": "borne",  "couleur": "#A86A4A", "picto": "patte" },
+      "or":         { "forme": "plaque", "couleur": "#F0C419", "picto": "lingot" },
+      "marbre":     { "forme": "pilier", "couleur": "#D9D9D4", "picto": "colonne" },
+      "petrole":    { "forme": "pilier", "couleur": "#2A2F3A", "picto": "fut" },
+      "poisson":    { "forme": "borne",  "couleur": "#58D9C4", "picto": "onde" },
+      "soie":       { "forme": "plaque", "couleur": "#E0D0EA", "picto": "volute" },
+      "soufre":     { "forme": "plaque", "couleur": "#E0D94A", "picto": "goutte" },
+      "teinture":   { "forme": "borne",  "couleur": "#B05AD9", "picto": "goutte" },
+      "uranium":    { "forme": "borne",  "couleur": "#7FE04A", "picto": "cristal" },
+      "vin":        { "forme": "plaque", "couleur": "#8A3AC4", "picto": "goutte" }
+    },
+    "mainframe": {
+      "socle": { "rayon": 0.62, "hauteur": 0.05, "couleur": "#0F2028" },
+      "paliers": [
+        { "popMax": 6,  "rayon": 0.40, "hauteur": 0.50 },
+        { "popMax": 18, "rayon": 0.44, "hauteur": 0.80 },
+        { "popMax": 31, "rayon": 0.48, "hauteur": 1.10 }
+      ],
+      "corps": { "couleur": "#24384A", "bande": { "hauteur": 0.08 } },
+      "antenne": { "rayon": 0.022, "hauteur": 0.34, "pointe": "#3DFFCE" },
+      "capitale": {
+        "couronne": { "rayon": 0.53, "hauteur": 0.045 },
+        "antenne": { "hauteur": 0.52 },
+        "accentLargeur": 1.35
+      },
+      "modules": {
+        "taille": 0.17,
+        "rayonPorteur": 0.5,
+        "categories": {
+          "science":    "#58C79A",
+          "or":         "#F0C419",
+          "production": "#E08A4A",
+          "culture":    "#D9B2FF",
+          "defense":    "#E05A5A"
+        }
+      },
+      "categorieBatiment": {
+        "bibliotheque": "science", "universite": "science",
+        "comptoir_commercial": "or", "marche": "or", "banque": "or", "port": "or",
+        "grenier": "production", "atelier": "production", "usine": "production",
+        "aqueduc": "production", "tribunal": "production", "mine_de_fer": "production",
+        "vaisseau_carburant": "production", "vaisseau_support_vie": "production",
+        "vaisseau_propulsion": "production", "vaisseau_habitation": "production",
+        "temple": "culture", "cathedrale": "culture", "palais": "culture",
+        "caserne": "defense", "remparts": "defense", "sdi": "defense"
+      },
+      "merveille": { "taille": 0.2, "couleur": "#FFD479", "emissif": 0.55 }
+    },
+    "cratere": {
+      "rayon": 0.55,
+      "rebord": { "epaisseur": 0.075, "surhausse": 0.05, "couleur": "#3E3E46" },
+      "fond": { "couleur": "#141418" }
+    },
+    "hutte": { "rayon": 0.17, "hauteur": 0.14, "couleur": "#5C5648", "accent": "#D9A93F" },
+    "village": {
+      "rayon": 0.24, "hauteur": 0.18, "couleur": "#4E4A40",
+      "mur": { "rayon": 0.33, "epaisseur": 0.04, "hauteur": 0.09 },
+      "accent": "#8A7A66"
+    }
   }
 }

@@ -48,6 +48,10 @@
   import { RenderOptionA, elevationDe } from '../lib/render3d/optionA.js';
   import type { Scene3DData } from '../lib/render3d/optionA.js';
   import { RenderOptionB } from '../lib/render3d/optionB.js';
+  // Chantier V2 : structures 3D dans le banc (Mainframe, cartes-ressources,
+  // cratère, huttes/villages) — pire cas d'instanciation mesuré sur 40×40.
+  import { StructuresWorld, planifierStructures } from '../lib/render3d/structures3d.js';
+  import type { EntreeStructures } from '../lib/render3d/structures3d.js';
 
   // --- Réglages du banc -----------------------------------------------------
   let seed = $state(20260904);
@@ -64,6 +68,7 @@
   let triangles = $state(0);
   let mesures = $state({
     tuiles: 0, instances: 0, pools: 0, rebuildMs: 0,
+    instancesStructures: 0, poolsStructures: 0,
     buildTotalMs: 0, projectionsB: 0, syncBMs: 0,
   });
   let bench = $state<null | {
@@ -79,6 +84,7 @@
   let canvasEl: HTMLCanvasElement;
   let stage: Stage3D | null = null;
   let world: TerrainWorld | null = null;
+  let structures: StructuresWorld | null = null;
   let renderA: RenderOptionA | null = null;
   let renderB: RenderOptionB | null = null;
   let destroyed = false;
@@ -87,6 +93,9 @@
   let filtered: GameState | null = null;
   /** Terrain complet de la VRAIE carte (pour le bench 40×40 — pire cas). */
   let terrainComplet: Record<string, string> = {};
+  /** V2 : carte complète de la VRAIE génération (ressources, huttes, villages)
+   *  pour le bench structures — pire cas d'instanciation. */
+  let carteComplete: { terrain: Record<string, string>; resources: Array<{ q: number; r: number; id: string }>; villages: Array<{ q: number; r: number }>; huts: Array<{ q: number; r: number }> } | null = null;
   /** Mêmes tuiles au format des fonctions d'économie (tileYield — bench). */
   let terrainCompletMap: Record<string, { terrain: string }> = {};
   let capital: Hex | null = null;
@@ -124,6 +133,12 @@
   function construireEtatReel(): void {
     const result = generateProceduralMap(seed);
     terrainComplet = { ...result.map.terrain };
+    carteComplete = {
+      terrain: terrainComplet,
+      resources: result.map.resources.map((r) => ({ q: r.q, r: r.r, id: r.id })),
+      villages: result.map.villages.map((v) => ({ q: v.q, r: v.r })),
+      huts: result.map.huts.map((h) => ({ q: h.q, r: h.r })),
+    };
     terrainCompletMap = Object.fromEntries(Object.entries(terrainComplet).map(([k, t]) => [k, { terrain: t }]));
     const initial = createInitialState(result.map, seed);
     // Un tour RÉEL : le Colon p1 fonde sa capitale (R-64), p2 reste passif.
@@ -144,6 +159,72 @@
     const col = q + Math.floor(r / 2);
     const colCap = capital.q + Math.floor(capital.r / 2);
     return Math.abs(col - colCap) < DEMI_FENETRE && Math.abs(r - capital.r) < DEMI_FENETRE;
+  }
+
+  /** V2 : villes SYNTHÉTIQUES du bench 40×40 (pire cas : 30 Mainframes sur la
+   *  carte entière — paliers variés, capitales, modules, merveilles). En mode
+   *  fenêtre, les vraies villes de l'état filtré sont utilisées à la place. */
+  function villesBench(): EntreeStructures['villes'] {
+    if (!carteComplete) return [];
+    const villes: EntreeStructures['villes'] = [];
+    for (let i = 0; i < 1600 && villes.length < 30; i += 1) {
+      const q = (i * 37) % 40, r = Math.floor((i * 37) % 1600 / 40);
+      const t = carteComplete.terrain[`${q},${r}`];
+      if (!t || t === 'eau' || t === 'ocean' || t === 'montagne') continue;
+      villes.push({
+        id: `bench-${villes.length}`, q, r,
+        pop: ((i * 7) % 31) + 1,
+        capital: villes.length % 8 === 0,
+        owner: villes.length % 2 === 0 ? 'p1' : 'p2',
+        buildings: i % 3 === 0 ? ['bibliotheque', 'marche', 'caserne', 'temple'] : i % 3 === 1 ? ['grenier', 'atelier'] : ['universite'],
+        wonders: i % 5 === 0 ? ['stonehenge'] : [],
+        fog: 'visible',
+      });
+    }
+    return villes;
+  }
+
+  /** V2 : assemble les entrées du planificateur de structures (état réel en
+   *  fenêtre, pire cas synthétique sur la carte entière — miroir du bench L0). */
+  function assemblerStructures(): EntreeStructures {
+    const couleurDe = (owner: string): number => (owner === 'p2' ? 0x3b6fd6 : 0xd64545);
+    if (!carteEntiere && filtered) {
+      const visible = new Set(filtered.players['p1']?.vision.visible ?? []);
+      const explored = new Set(filtered.players['p1']?.vision.explored ?? []);
+      const fogDe = (key: string): 'visible' | 'explored' => (visible.has(key) ? 'visible' : 'explored');
+      const tuiles: EntreeStructures['tuiles'] = [];
+      for (const [key, tile] of Object.entries(filtered.map)) {
+        const [q, r] = key.split(',').map(Number);
+        if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+        if (!dansFenetre(q, r) || !explored.has(key)) continue;
+        tuiles.push({ q, r, terrain: tile.terrain, fog: fogDe(key), ressource: tile.resource ?? null });
+      }
+      return {
+        tuiles,
+        villes: Object.values(filtered.cities)
+          .filter((c) => dansFenetre(c.q, c.r))
+          .map((c) => ({ id: c.id, q: c.q, r: c.r, pop: c.pop, capital: c.capital, owner: c.owner, buildings: c.buildings, wonders: c.wonders ?? [], fog: fogDe(tileKeyOf(c)) })),
+        huttes: filtered.huts.filter((h) => dansFenetre(h.q, h.r)).map((h) => ({ id: h.id, q: h.q, r: h.r, fog: fogDe(tileKeyOf(h)), terrain: filtered?.map[tileKeyOf(h)]?.terrain })),
+        villages: filtered.villages.filter((v) => dansFenetre(v.q, v.r)).map((v) => ({ id: v.id, q: v.q, r: v.r, fog: fogDe(tileKeyOf(v)), terrain: filtered?.map[tileKeyOf(v)]?.terrain })),
+        couleurDe,
+      };
+    }
+    // Bench carte entière : 1600 slots + toutes les cartes de la vraie génération.
+    const ressourcePar = new Map<string, string>();
+    for (const r of carteComplete?.resources ?? []) ressourcePar.set(`${r.q},${r.r}`, r.id);
+    const tuiles: EntreeStructures['tuiles'] = [];
+    for (const [key, terrain] of Object.entries(terrainComplet)) {
+      const [q, r] = key.split(',').map(Number);
+      if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+      tuiles.push({ q, r, terrain, fog: 'visible', ressource: ressourcePar.get(key) ?? null });
+    }
+    return {
+      tuiles,
+      villes: villesBench(),
+      huttes: (carteComplete?.huts ?? []).map((h) => ({ id: `bh${h.q},${h.r}`, q: h.q, r: h.r, fog: 'visible' as const, terrain: carteComplete?.terrain[`${h.q},${h.r}`] })),
+      villages: (carteComplete?.villages ?? []).map((v) => ({ id: `bv${v.q},${v.r}`, q: v.q, r: v.r, fog: 'visible' as const, terrain: carteComplete?.terrain[`${v.q},${v.r}`] })),
+      couleurDe,
+    };
   }
 
   /** Assemble les données de scène depuis l'état FILTRÉ (aucune invention). */
@@ -227,6 +308,7 @@
   // --- Montage / démontage des moteurs --------------------------------------
   function demonterRendu(): void {
     world?.dispose(); world = null;
+    structures?.dispose(); structures = null;
     renderA?.dispose(); renderA = null;
     const b = renderB;
     renderB = null;
@@ -240,6 +322,8 @@
     const t0 = performance.now();
     stage.setBloom(bloom);
     world = new TerrainWorld(stage.scene, { capacity: 1700, bloom });
+    structures = new StructuresWorld({ capacityTuiles: 1700, capacityVilles: 64 });
+    stage.scene.add(structures.group);
     stage.cam.bounds = mapBoundsWorld(filtered.mapWidth, filtered.mapHeight);
     if (option === 'A') {
       renderA = new RenderOptionA(stage.scene);
@@ -283,6 +367,8 @@
     if (world && dataVersion !== lastSyncedVersion) {
       const data = assemblerDonnees();
       world.update(data.tiles);
+      const entreeStructures = assemblerStructures();
+      structures?.update(planifierStructures(entreeStructures));
       renderA?.sync(data);
       if (renderB) renderB.sync(stage, data, stage.viewW, stage.viewH);
       lastSyncedVersion = dataVersion;
@@ -292,6 +378,8 @@
         instances: world.stats.drawCallsNaifsEquivalents,
         pools: world.stats.pools,
         rebuildMs: Math.round(world.stats.derniersRebuildMs * 10) / 10,
+        instancesStructures: structures?.stats.instances ?? 0,
+        poolsStructures: structures?.stats.pools ?? 0,
         projectionsB: renderB?.projectionsDerniereFrame ?? 0,
       };
     }
@@ -644,6 +732,8 @@
         <dt>Tuiles dessinées</dt><dd>{mesures.tuiles}</dd>
         <dt>Instances (équiv. naïf)</dt><dd>{mesures.instances.toLocaleString('fr-FR')}</dd>
         <dt>Pools instanciés</dt><dd>{mesures.pools}</dd>
+        <dt>Instances structures (V2)</dt><dd>{mesures.instancesStructures.toLocaleString('fr-FR')}</dd>
+        <dt>Pools structures (V2)</dt><dd>{mesures.poolsStructures}</dd>
         <dt>Rebuild tuiles</dt><dd>{mesures.rebuildMs} ms</dd>
         <dt>Montage rendu</dt><dd>{mesures.buildTotalMs} ms</dd>
         {#if option === 'B'}

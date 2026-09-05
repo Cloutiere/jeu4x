@@ -28,7 +28,7 @@ import type { Camera3D } from './camera3d.js';
 const HEX_SIZE = 64;
 
 /** Teinte fog « exploré-masqué » appliquée par instance (miroir du tint 2D 0x70707e). */
-const FOG_DIM = new THREE.Color(0x4e4e5c);
+export const FOG_DIM = new THREE.Color(0x4e4e5c);
 
 export type FogState = 'visible' | 'explored';
 
@@ -135,15 +135,14 @@ const GEO = {
 // Pools instanciés
 // ---------------------------------------------------------------------------
 
-class Pool {
+export class Pool {
   mesh: THREE.InstancedMesh;
   used = 0;
-  constructor(geo: THREE.BufferGeometry, mat: THREE.Material, capacity: number, scene: THREE.Scene) {
+  constructor(geo: THREE.BufferGeometry, mat: THREE.Material | THREE.Material[], capacity: number, parent: THREE.Object3D) {
     this.mesh = new THREE.InstancedMesh(geo, mat, capacity);
-    this.mesh.count = 0;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false;
-    scene.add(this.mesh);
+    parent.add(this.mesh);
   }
   push(m: THREE.Matrix4, color?: THREE.Color): void {
     if (this.used >= this.mesh.instanceMatrix.count) return; // capacité dépassée (garde-fou)

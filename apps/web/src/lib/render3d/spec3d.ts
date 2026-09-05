@@ -131,6 +131,292 @@ export const TERRAINS3D: Record<string, SpecTerrain> = Object.fromEntries(
 );
 
 // ---------------------------------------------------------------------------
+// Structures 3D (chantier V2 — décisions d'Erik du 04/09) : slots de cartes,
+// cartes-ressources, Mainframe (villes), cratère, hutte/village barbare.
+// Même contrat que les terrains : le contenu vit dans le JSON, ce module ne
+// fait que typer/valider/convertir (le peintre de pictogrammes reste du code,
+// dans structures3d.ts).
+// ---------------------------------------------------------------------------
+
+/** Pictogrammes géométriques disponibles pour les faces de cartes. */
+export const PICTOS: ReadonlySet<string> = new Set([
+  'onde', 'epi', 'patte', 'corne', 'arbre', 'lingot', 'gemme', 'fut',
+  'goutte', 'volute', 'anneau', 'feuille', 'colonne', 'cristal', '?',
+]);
+export type Picto = string;
+
+/** Formes de cartes : plaque inclinée, pilier (cylindre), borne (prisme hex). */
+export interface SpecFormePlaque { largeur: number; hauteur: number; epaisseur: number; inclinaison: number }
+export interface SpecFormePilier { rayon: number; hauteur: number }
+export type SpecForme = SpecFormePlaque | SpecFormePilier;
+export type FormeNom = 'plaque' | 'pilier' | 'borne';
+
+export interface SpecSlot {
+  /** Décalage [x, z] de l'emplacement dans la tuile (identique PARTOUT). */
+  offset: [number, number];
+  rayon: number;
+  hauteur: number;
+  couleur: number;
+  liseret: number;
+}
+
+/** Carte-ressource (état RÉVÉLÉ) — taille/visuel propres (Erik : « taille significative »). */
+export interface SpecCarte {
+  forme: FormeNom;
+  couleur: number;
+  picto: Picto;
+  /** Multiplicateur de taille de la forme (défaut 1) — calibrage 🔶. */
+  taille: number;
+}
+
+export interface SpecCarteNeutre {
+  /** Facteur d'échelle sur la forme pleine (Erik : « taille de base réduite »). */
+  facteur: number;
+  couleur: number;
+}
+
+export interface SpecPalier {
+  /** Population maximale de la tranche (miroir R-60bis — 3 paliers 🔶). */
+  popMax: number;
+  rayon: number;
+  hauteur: number;
+}
+
+export interface SpecMainframe {
+  socle: { rayon: number; hauteur: number; couleur: number };
+  paliers: SpecPalier[];
+  corps: { couleur: number; bande: { hauteur: number } };
+  antenne: { rayon: number; hauteur: number; pointe: number };
+  capitale: {
+    couronne: { rayon: number; hauteur: number };
+    antenne: { hauteur: number };
+    /** Largeur de l'accent joueur (bande) × celle d'une ville ordinaire. */
+    accentLargeur: number;
+  };
+  modules: {
+    taille: number;
+    rayonPorteur: number;
+    categories: Record<string, number>;
+  };
+  /** BatimentId → catégorie de module (art dédiée V3+ : module générique 🔶). */
+  categorieBatiment: Record<string, string>;
+  merveille: { taille: number; couleur: number; emissif: number };
+}
+
+export interface SpecCratere {
+  rayon: number;
+  rebord: { epaisseur: number; surhausse: number; couleur: number };
+  fond: { couleur: number };
+}
+
+export interface SpecHutte { rayon: number; hauteur: number; couleur: number; accent: number }
+export interface SpecVillage {
+  rayon: number;
+  hauteur: number;
+  couleur: number;
+  mur: { rayon: number; epaisseur: number; hauteur: number };
+  accent: number;
+}
+
+export interface SpecStructures {
+  slot: SpecSlot;
+  formes: Record<FormeNom, SpecForme>;
+  carteNeutre: SpecCarteNeutre;
+  cartes: Record<string, SpecCarte>;
+  mainframe: SpecMainframe;
+  cratere: SpecCratere;
+  hutte: SpecHutte;
+  village: SpecVillage;
+}
+
+const CATEGORIES: ReadonlySet<string> = new Set(['science', 'or', 'production', 'culture', 'defense']);
+
+function vec2(v: unknown, ctx: string): [number, number] {
+  if (!Array.isArray(v) || v.length !== 2 || v.some((n) => typeof n !== 'number' || !Number.isFinite(n))) {
+    throw new Error(`visuel3d.json : vecteur [x, z] invalide pour ${ctx}`);
+  }
+  return [v[0] as number, v[1] as number];
+}
+
+function objet(v: unknown, ctx: string): Record<string, unknown> {
+  if (typeof v !== 'object' || v === null) throw new Error(`visuel3d.json : objet invalide pour ${ctx}`);
+  return v as Record<string, unknown>;
+}
+
+const structuresBrut = objet(visuel.structures, 'structures');
+
+const slotBrut = objet(structuresBrut.slot, 'structures.slot');
+const offsetSlot = vec2(slotBrut.offset, 'structures.slot.offset');
+if (Math.hypot(offsetSlot[0], offsetSlot[1]) > 0.9) {
+  throw new Error('visuel3d.json : structures.slot.offset sort de la tuile (rayon inscrit ≈ 0.866)');
+}
+const SLOT3D: SpecSlot = {
+  offset: offsetSlot,
+  rayon: nombre(slotBrut.rayon, 'structures.slot.rayon'),
+  hauteur: nombre(slotBrut.hauteur, 'structures.slot.hauteur'),
+  couleur: couleur(slotBrut.couleur, 'structures.slot.couleur'),
+  liseret: couleur(slotBrut.liseret, 'structures.slot.liseret'),
+};
+
+const formesBrut = objet(structuresBrut.formes, 'structures.formes');
+function formeDe<N extends FormeNom>(nom: N, cles: readonly string[]): SpecForme {
+  const f = objet(formesBrut[nom], `structures.formes.${nom}`);
+  const out: Record<string, number> = {};
+  for (const k of cles) out[k] = nombre(f[k], `structures.formes.${nom}.${k}`);
+  return out as unknown as SpecForme;
+}
+const FORMES3D: Record<FormeNom, SpecForme> = {
+  plaque: formeDe('plaque', ['largeur', 'hauteur', 'epaisseur', 'inclinaison']),
+  pilier: formeDe('pilier', ['rayon', 'hauteur']),
+  borne: formeDe('borne', ['rayon', 'hauteur']),
+};
+
+const neutreBrut = objet(structuresBrut.carteNeutre, 'structures.carteNeutre');
+const CARTE_NEUTRE: SpecCarteNeutre = {
+  facteur: nombre(neutreBrut.facteur, 'structures.carteNeutre.facteur'),
+  couleur: couleur(neutreBrut.couleur, 'structures.carteNeutre.couleur'),
+};
+
+const CARTES3D: Record<string, SpecCarte> = Object.fromEntries(
+  Object.entries(objet(structuresBrut.cartes, 'structures.cartes')).map(([id, v]) => {
+    const c = objet(v, `structures.cartes.${id}`);
+    const forme = c.forme;
+    if (typeof forme !== 'string' || !(forme in FORMES3D)) {
+      throw new Error(`visuel3d.json : forme inconnue pour la carte « ${id} » (${JSON.stringify(forme)})`);
+    }
+    const picto = c.picto;
+    if (typeof picto !== 'string' || !PICTOS.has(picto)) {
+      throw new Error(`visuel3d.json : pictogramme inconnu pour la carte « ${id} » (${JSON.stringify(picto)})`);
+    }
+    return [id, {
+      forme: forme as FormeNom,
+      couleur: couleur(c.couleur, `structures.cartes.${id}.couleur`),
+      picto,
+      taille: c.taille === undefined ? 1 : nombre(c.taille, `structures.cartes.${id}.taille`),
+    }];
+  }),
+);
+
+const mainframeBrut = objet(structuresBrut.mainframe, 'structures.mainframe');
+const socleBrut = objet(mainframeBrut.socle, 'structures.mainframe.socle');
+const corpsBrut = objet(mainframeBrut.corps, 'structures.mainframe.corps');
+const bandeBrut = objet(corpsBrut.bande, 'structures.mainframe.corps.bande');
+const antenneBrut = objet(mainframeBrut.antenne, 'structures.mainframe.antenne');
+const capitaleBrut = objet(mainframeBrut.capitale, 'structures.mainframe.capitale');
+const couronneBrut = objet(capitaleBrut.couronne, 'structures.mainframe.capitale.couronne');
+const antenneCapBrut = objet(capitaleBrut.antenne, 'structures.mainframe.capitale.antenne');
+const modulesBrut = objet(mainframeBrut.modules, 'structures.mainframe.modules');
+const categoriesBrut = objet(modulesBrut.categories, 'structures.mainframe.modules.categories');
+const categorieBatimentBrut = objet(mainframeBrut.categorieBatiment, 'structures.mainframe.categorieBatiment');
+for (const [bat, cat] of Object.entries(categorieBatimentBrut)) {
+  if (typeof cat !== 'string' || !CATEGORIES.has(cat)) {
+    throw new Error(`visuel3d.json : catégorie de module invalide pour « ${bat} » (${JSON.stringify(cat)})`);
+  }
+}
+const merveilleBrut = objet(mainframeBrut.merveille, 'structures.mainframe.merveille');
+const MAINFRAME3D: SpecMainframe = {
+  socle: {
+    rayon: nombre(socleBrut.rayon, 'structures.mainframe.socle.rayon'),
+    hauteur: nombre(socleBrut.hauteur, 'structures.mainframe.socle.hauteur'),
+    couleur: couleur(socleBrut.couleur, 'structures.mainframe.socle.couleur'),
+  },
+  paliers: (mainframeBrut.paliers as unknown[]).map((p, i) => {
+    const pal = objet(p, `structures.mainframe.paliers[${i}]`);
+    return {
+      popMax: nombre(pal.popMax, `structures.mainframe.paliers[${i}].popMax`),
+      rayon: nombre(pal.rayon, `structures.mainframe.paliers[${i}].rayon`),
+      hauteur: nombre(pal.hauteur, `structures.mainframe.paliers[${i}].hauteur`),
+    };
+  }),
+  corps: {
+    couleur: couleur(corpsBrut.couleur, 'structures.mainframe.corps.couleur'),
+    bande: { hauteur: nombre(bandeBrut.hauteur, 'structures.mainframe.corps.bande.hauteur') },
+  },
+  antenne: {
+    rayon: nombre(antenneBrut.rayon, 'structures.mainframe.antenne.rayon'),
+    hauteur: nombre(antenneBrut.hauteur, 'structures.mainframe.antenne.hauteur'),
+    pointe: couleur(antenneBrut.pointe, 'structures.mainframe.antenne.pointe'),
+  },
+  capitale: {
+    couronne: {
+      rayon: nombre(couronneBrut.rayon, 'structures.mainframe.capitale.couronne.rayon'),
+      hauteur: nombre(couronneBrut.hauteur, 'structures.mainframe.capitale.couronne.hauteur'),
+    },
+    antenne: { hauteur: nombre(antenneCapBrut.hauteur, 'structures.mainframe.capitale.antenne.hauteur') },
+    accentLargeur: nombre(capitaleBrut.accentLargeur, 'structures.mainframe.capitale.accentLargeur'),
+  },
+  modules: {
+    taille: nombre(modulesBrut.taille, 'structures.mainframe.modules.taille'),
+    rayonPorteur: nombre(modulesBrut.rayonPorteur, 'structures.mainframe.modules.rayonPorteur'),
+    categories: Object.fromEntries(
+      Object.entries(categoriesBrut).map(([cat, v]) => {
+        if (!CATEGORIES.has(cat)) throw new Error(`visuel3d.json : catégorie de module inconnue « ${cat} »`);
+        return [cat, couleur(v, `structures.mainframe.modules.categories.${cat}`)];
+      }),
+    ),
+  },
+  categorieBatiment: Object.fromEntries(
+    Object.entries(categorieBatimentBrut).map(([b, c]) => [b, c as string]),
+  ),
+  merveille: {
+    taille: nombre(merveilleBrut.taille, 'structures.mainframe.merveille.taille'),
+    couleur: couleur(merveilleBrut.couleur, 'structures.mainframe.merveille.couleur'),
+    emissif: nombre(merveilleBrut.emissif, 'structures.mainframe.merveille.emissif'),
+  },
+};
+
+/** Catégorie de module d'un bâtiment (défaut : production — calibrage 🔶). */
+export function categorieDeBatiment(batimentId: string): string {
+  return MAINFRAME3D.categorieBatiment[batimentId] ?? 'production';
+}
+
+const cratereBrut = objet(structuresBrut.cratere, 'structures.cratere');
+const rebordBrut = objet(cratereBrut.rebord, 'structures.cratere.rebord');
+const fondBrut = objet(cratereBrut.fond, 'structures.cratere.fond');
+const CRATERE3D: SpecCratere = {
+  rayon: nombre(cratereBrut.rayon, 'structures.cratere.rayon'),
+  rebord: {
+    epaisseur: nombre(rebordBrut.epaisseur, 'structures.cratere.rebord.epaisseur'),
+    surhausse: nombre(rebordBrut.surhausse, 'structures.cratere.rebord.surhausse'),
+    couleur: couleur(rebordBrut.couleur, 'structures.cratere.rebord.couleur'),
+  },
+  fond: { couleur: couleur(fondBrut.couleur, 'structures.cratere.fond.couleur') },
+};
+
+const hutteBrut = objet(structuresBrut.hutte, 'structures.hutte');
+const HUTTE3D: SpecHutte = {
+  rayon: nombre(hutteBrut.rayon, 'structures.hutte.rayon'),
+  hauteur: nombre(hutteBrut.hauteur, 'structures.hutte.hauteur'),
+  couleur: couleur(hutteBrut.couleur, 'structures.hutte.couleur'),
+  accent: couleur(hutteBrut.accent, 'structures.hutte.accent'),
+};
+
+const villageBrut = objet(structuresBrut.village, 'structures.village');
+const murBrut = objet(villageBrut.mur, 'structures.village.mur');
+const VILLAGE3D: SpecVillage = {
+  rayon: nombre(villageBrut.rayon, 'structures.village.rayon'),
+  hauteur: nombre(villageBrut.hauteur, 'structures.village.hauteur'),
+  couleur: couleur(villageBrut.couleur, 'structures.village.couleur'),
+  mur: {
+    rayon: nombre(murBrut.rayon, 'structures.village.mur.rayon'),
+    epaisseur: nombre(murBrut.epaisseur, 'structures.village.mur.epaisseur'),
+    hauteur: nombre(murBrut.hauteur, 'structures.village.mur.hauteur'),
+  },
+  accent: couleur(villageBrut.accent, 'structures.village.accent'),
+};
+
+export const STRUCTURES3D: SpecStructures = {
+  slot: SLOT3D,
+  formes: FORMES3D,
+  carteNeutre: CARTE_NEUTRE,
+  cartes: CARTES3D,
+  mainframe: MAINFRAME3D,
+  cratere: CRATERE3D,
+  hutte: HUTTE3D,
+  village: VILLAGE3D,
+};
+
+// ---------------------------------------------------------------------------
 // Placements de glyphes (coordonnées locales, hex de rayon 1) — portés du
 // prototype (design.js : voiesBus / empreintesCpu / slotsRam).
 // ---------------------------------------------------------------------------

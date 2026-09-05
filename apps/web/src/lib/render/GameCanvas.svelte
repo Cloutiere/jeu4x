@@ -34,6 +34,10 @@
   import { elevationDe } from '../render3d/optionA.js';
   import { contexteRendement, allumeDe } from '../render3d/rendement.js';
   import type { ContexteRendement } from '../render3d/rendement.js';
+  // Chantier V2 — structures 3D : Mainframe des villes, cartes-ressources en
+  // slots, cratère, huttes/villages barbares (les unités restent des sprites).
+  import { StructuresWorld, planifierStructures } from '../render3d/structures3d.js';
+  import type { PlanStructures } from '../render3d/structures3d.js';
 
   interface Props {
     client: GameClient;
@@ -91,6 +95,9 @@
   });
   $effect(() => {
     entitiesLayer.visible = !hideEntities;
+    // V2 : en mode « lecture des rendements », les structures 3D suivent les
+    // entités (le Mainframe est une ville — masqué avec elles).
+    if (structures3d) structures3d.group.visible = !hideEntities;
   });
 
   let host: HTMLDivElement;
@@ -156,6 +163,7 @@
   // entités/surcouche PixiJS restent projetées par la caméra 3D partagée). ---
   let stage3d: Stage3D | null = null;
   let terrain3d: TerrainWorld | null = null;
+  let structures3d: StructuresWorld | null = null;
   let canvas3d: HTMLCanvasElement | null = null;
   let rendement: ContexteRendement | null = null;
   /** 3D actif = flag du parent ET moteur 3D monté (setup réussi). */
@@ -314,6 +322,10 @@
   function rebuildEntities(): void {
     if (!app || !textures || !scene.state) return;
     const state = scene.state;
+    // V2 : en 3D, le Mainframe remplace le marqueur 2D des villes et les
+    // structures 3D remplacent huttes/villages (sprites base/accent cachés ;
+    // les infos UI — pop, barre de production, PV — restent projetées).
+    const structures3dActives = mode3dActif();
     const seenUnits = new Set<string>();
     for (const unit of Object.values(state.units)) {
       // 7g · R-117 : une unité EMBARQUÉE n'est pas rendue (elle est dans le
@@ -383,6 +395,10 @@
       }
       const p = hexToPixel(city, HEX_SIZE);
       poser3d(c, p.x, p.y);
+      const base2d = c.getChildByLabel('base');
+      const accent2d = c.getChildByLabel('accent');
+      if (base2d) base2d.visible = !structures3dActives;
+      if (accent2d) accent2d.visible = !structures3dActives;
       // Progression de production (R-62) : barre or + pop.
       const prodFill = c.getChildByLabel('prodFill') as Sprite;
       const popText = c.getChildByLabel('pop') as Text;
@@ -419,6 +435,10 @@
       }
       const p = hexToPixel(village, HEX_SIZE);
       poser3d(c, p.x, p.y);
+      const baseV = c.getChildByLabel('base');
+      const accentV = c.getChildByLabel('accent');
+      if (baseV) baseV.visible = !structures3dActives;
+      if (accentV) accentV.visible = !structures3dActives;
       const tint = scene.visible.has(key) ? 0xffffff : 0x70707e;
       const accent = c.getChildByLabel('accent') as Sprite;
       if (accent) accent.tint = tint;
@@ -450,6 +470,10 @@
       }
       const p = hexToPixel(hut, HEX_SIZE);
       poser3d(c, p.x, p.y);
+      const baseH = c.getChildByLabel('base');
+      const accentH = c.getChildByLabel('accent');
+      if (baseH) baseH.visible = !structures3dActives;
+      if (accentH) accentH.visible = !structures3dActives;
       const tint = scene.visible.has(key) ? 0xffffff : 0x70707e;
       const accent = c.getChildByLabel('accent') as Sprite;
       if (accent) accent.tint = tint;
@@ -548,10 +572,12 @@
     const c = new Container();
     const tex = capital ? textures!.cities.capital : textures!.cities.settlement;
     const base = new Sprite(tex.base);
+    base.label = 'base';
     base.anchor.set(0.5, 1);
     base.scale.set(0.5);
     base.y = 58;
     const accent = new Sprite(tex.accent);
+    accent.label = 'accent';
     accent.anchor.set(0.5, 1);
     accent.scale.set(0.5);
     accent.y = 58;
@@ -1053,6 +1079,9 @@
         mettreAJourTerrain3d();
         tilesDirty = false;
       }
+      // V2 : structures 3D (cartes-ressources, Mainframe, huttes/villages,
+      // cratère) — rebuild quand les tuiles OU les entités changent.
+      if (tilesDirty || entitiesDirty) mettreAJourStructures3d();
     } else if (tilesDirty || cameraChanged) {
       rebuildTiles();
       tilesDirty = false;
@@ -1115,6 +1144,41 @@
       });
     }
     terrain3d.update(tiles);
+  }
+
+  /** Construit les données de la couche STRUCTURES 3D (V2) depuis l'état
+   *  FILTRÉ : tuiles productives + ressource (R-92 : marqueur « inconnue »
+   *  tant que la tech manque), villes (Mainframe), huttes/villages barbares,
+   *  cratères. Aucune invention — miroir exact de ce que voit le joueur. */
+  function mettreAJourStructures3d(): void {
+    if (!structures3d || !scene.state) return;
+    const state = scene.state;
+    const tuiles: Parameters<typeof planifierStructures>[0]['tuiles'] = [];
+    for (const [key, tile] of Object.entries(state.map)) {
+      const [q, r] = key.split(',').map(Number);
+      if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+      tuiles.push({
+        q, r,
+        terrain: tile.terrain,
+        fog: scene.visible.has(key) ? 'visible' : 'explored',
+        ressource: tile.resource ?? null,
+      });
+    }
+    const villes: Parameters<typeof planifierStructures>[0]['villes'] = [];
+    for (const city of Object.values(state.cities)) {
+      // Miroir du rendu 2D : villes visibles seulement (le fog filtre l'état).
+      if (!scene.visible.has(tileKeyOf(city))) continue;
+      villes.push({
+        id: city.id, q: city.q, r: city.r,
+        pop: city.pop, capital: city.capital, owner: city.owner,
+        buildings: city.buildings, wonders: city.wonders ?? [],
+        fog: scene.visible.has(tileKeyOf(city)) ? 'visible' : 'explored',
+      });
+    }
+    const huttes = state.huts.map((h) => ({ id: h.id, q: h.q, r: h.r, fog: scene.visible.has(tileKeyOf(h)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(h)]?.terrain }));
+    const villages = state.villages.map((v) => ({ id: v.id, q: v.q, r: v.r, fog: scene.visible.has(tileKeyOf(v)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(v)]?.terrain }));
+    const plan: PlanStructures = planifierStructures({ tuiles, villes, huttes, villages, couleurDe: playerColor });
+    structures3d.update(plan);
   }
 
   /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping linéaire. */
@@ -1430,6 +1494,9 @@
       stage3d.setBloom(false); // 🔶 calibrage bloom (rapport L0 §9) : éteint dans le jeu
       stage3d.resize(vw, vh);
       terrain3d = new TerrainWorld(stage3d.scene, { capacity: 1700, bloom: false });
+      // V2 : Mainframe, cartes-ressources, cratère, huttes/villages (instanciés).
+      structures3d = new StructuresWorld({ capacityTuiles: 1700, capacityVilles: 64 });
+      stage3d.scene.add(structures3d.group);
       if (scene.state) {
         stage3d.cam.bounds = mapBoundsWorld(scene.state.mapWidth, scene.state.mapHeight);
         rendement = contexteRendement(scene.state, scene.myId);
@@ -1477,6 +1544,8 @@
           const w = hexToPixel({ q, r }, HEX_SIZE);
           return { x: w.x * camera.scale + camera.x, y: w.y * camera.scale + camera.y };
         },
+        // V2 : statistiques de la couche structures 3D (vérifications GUI/e2e).
+        structures: () => (structures3d ? { ...structures3d.stats } : null),
       };
     }
 
@@ -1587,6 +1656,10 @@
     resizeObserver?.disconnect();
     if (rafId) cancelAnimationFrame(rafId);
     if (fallbackInterval !== null) clearInterval(fallbackInterval);
+    if (structures3d) {
+      structures3d.dispose();
+      structures3d = null;
+    }
     if (terrain3d) {
       terrain3d.dispose();
       terrain3d = null;
