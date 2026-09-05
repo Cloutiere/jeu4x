@@ -125,12 +125,14 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
     fog === 'visible' ? couleur : new THREE.Color(couleur).multiply(FOG_DIM).getHex();
 
   // --- Slots + cartes-ressources -------------------------------------------
-  // Le slot est un élément standard de chaque tuile productive (terrain avec
-  // glyphes — ville et cratère en sont exclus), géométriquement identique
-  // partout, visible même sans ressource (défaut 🔶).
+  // Le slot n'existe QUE sur une tuile productive PORTANT une ressource
+  // (décision Erik 05/09 — remplace le défaut V2 « slot visible même vide ») :
+  // aucune encoche/socle sur une tuile sans ressource. Ville et cratère
+  // (non productives) en sont exclus.
   for (const t of e.tuiles) {
     const specTerrain = TERRAINS3D[t.terrain];
     if (!specTerrain?.glyphe) continue; // ville / cratère : non productives, pas de slot
+    if (!t.ressource) continue; // pas de slot sur une tuile sans ressource
     const spec = S.slot;
     const { x, z } = hexWorldPos({ q: t.q, r: t.r });
     const elev = specTerrain.elev;
@@ -141,7 +143,6 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
     push('slot', { x: x + spec.offset[0], y: elev + spec.hauteur / 2, z: z + spec.offset[1], sx: spec.longueur, sy: spec.hauteur, sz: spec.largeur, ry: 0, couleur: dim(spec.couleur, fog) });
     push('slotLiseret', { x: x + spec.offset[0], y: elev + spec.hauteur + 0.002, z: z + spec.offset[1], sx: 1, sy: 1, sz: 1, ry: 0, couleur: dim(spec.liseret, fog) });
 
-    if (!t.ressource) continue;
     const neutre = estCarteNeutre(t.ressource);
     const specCarte = neutre ? null : S.cartes[t.ressource]!;
     const k = (specCarte?.taille ?? 1) * (neutre ? S.carteNeutre.facteur : 1);
@@ -186,30 +187,33 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
         : (S.formes[formeNom] as { hauteur: number }).hauteur * k;
       const yCarte = base + hCarte / 2;
       const yRangee = yCarte + hCarte * (0.5 - cb.basDeCarte);
-      // Face INTÉRIEURE : la carte est insérée côté bord, ses glyphes regardent
-      // vers le centre de la tuile (décision Erik 05/09). RAM et Or : puces
-      // CARRÉS plus épaisses, portées par un petit socle noir (décision Erik
-      // 05/09) — les distingue des bus et des CPU au premier coup d'œil.
+      // Retournement 180° (correctif V2-bis — décision Erik 05/09) : la carte
+      // est posée FACE À LA CAMÉRA (au sud, +z). La rangée de glyphes regarde
+      // donc vers la caméra — l'ancienne « face intérieure » (vers le centre
+      // de la tuile) montrait la carte de dos depuis le point de vue par
+      // défaut. RAM et Or : puces CARRÉS plus épaisses, portées par un petit
+      // socle noir (décision Erik 05/09) — les distingue des bus et des CPU
+      // au premier coup d'œil.
       const ramOuOr = famille === 'ram' || famille === 'or';
       for (let i = 0; i < n; i++) {
         const gx = x + spec.offset[0] + (i - (n - 1) / 2) * cb.espacement;
         if (ramOuOr) {
           push('cgSocle', {
             x: gx, y: yRangee,
-            z: z + spec.offset[1] - profFace - 0.007,
+            z: z + spec.offset[1] + profFace + 0.007,
             sx: 1, sy: 1, sz: 1, ry: 0,
             couleur: dim(0x0a0d10, fog),
           });
           push(`cg:${famille}`, {
             x: gx, y: yRangee,
-            z: z + spec.offset[1] - profFace - 0.014 - 0.015,
+            z: z + spec.offset[1] + profFace + 0.014 + 0.015,
             sx: 1, sy: 1, sz: 1, ry: 0,
             couleur: dim(cb.couleurs[famille], fog),
           });
         } else {
           push(`cg:${famille}`, {
             x: gx, y: yRangee,
-            z: z + spec.offset[1] - profFace - 0.008,
+            z: z + spec.offset[1] + profFace + 0.008,
             sx: 1, sy: 1, sz: 1, ry: 0,
             couleur: dim(cb.couleurs[famille], fog),
           });

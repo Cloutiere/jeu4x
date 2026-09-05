@@ -147,33 +147,28 @@ describe('L1 — Mainframe (Nœud Serveur) : suit l’état de la ville', () => 
 });
 
 describe('L2 — Cartes-ressources : slot standard + états R-92', () => {
-  it('pose un slot géométriquement IDENTIQUE sur toute tuile productive, vide sans ressource 🔶', () => {
+  it('ne pose un slot QUE sur une tuile productive portant une ressource (décision Erik 05/09)', () => {
     const plan = planifierStructures(entree({
       tuiles: [
         tuile(0, 0, 'prairie'), tuile(1, 0, 'montagne'), tuile(2, 0, 'eau'),
         tuile(3, 0, 'plaine', 'ble'),
       ],
     }));
+    // 3 tuiles sans ressource : NI slot NI liseré (correctif V2-bis — remplace
+    // le défaut V2 « slot visible même vide »)
     const slots = plan.get('slot')!;
-    expect(slots).toHaveLength(4);
-    const [sx, sy, sz] = [slots[0]!.sx, slots[0]!.sy, slots[0]!.sz];
-    for (const s of slots) {
-      expect(s.sx).toBe(sx); // même taille partout (slot standard)
-      expect(s.sy).toBe(sy);
-      expect(s.sz).toBe(sz);
-      expect(s.y).toBeGreaterThan(-1); // posé sur le plateau (eau incluse)
-    }
-    // 3 tuiles sans ressource : aucun pool de carte
+    expect(slots).toHaveLength(1); // la plaine au blé seule
+    expect(plan.get('slotLiseret')!).toHaveLength(1);
     expect(plan.get('carteInconnue')).toBeUndefined();
     expect([...plan.keys()].filter((k) => k.startsWith('carte:'))).toEqual(['carte:ble']);
   });
 
   it('ne pose PAS de slot sur une case de ville ni sur un cratère (non productives)', () => {
     const plan = planifierStructures(entree({
-      tuiles: [tuile(0, 0, 'ville'), tuile(1, 0, 'cratere'), tuile(2, 0, 'prairie')],
+      tuiles: [tuile(0, 0, 'ville', 'fer'), tuile(1, 0, 'cratere', 'fer'), tuile(2, 0, 'prairie')],
     }));
-    const slots = plan.get('slot')!;
-    expect(slots).toHaveLength(1); // la prairie seule
+    // même AVEC ressource, ville et cratère restent non productives : zéro slot
+    expect(plan.get('slot')).toBeUndefined();
   });
 
   it('état NEUTRE avant la tech : carte réduite et sans identité (marqueur R-92)', () => {
@@ -220,14 +215,35 @@ describe('L2 — Cartes-ressources : slot standard + états R-92', () => {
   });
 
   it('atténue le slot et le liseré en zone explorée-masquée (fog)', () => {
-    const visible = planifierStructures(entree({ tuiles: [tuile(0, 0, 'prairie')] }));
+    const visible = planifierStructures(entree({ tuiles: [tuile(0, 0, 'prairie', 'ble')] }));
     expect(visible.get('slot')![0]!.couleur).toBe(STRUCTURES3D.slot.couleur);
     expect(visible.get('slotLiseret')![0]!.couleur).toBe(STRUCTURES3D.slot.liseret);
     const masquee = planifierStructures(entree({
-      tuiles: [tuile(0, 0, 'prairie', null, 'explored')],
+      tuiles: [tuile(0, 0, 'prairie', 'ble', 'explored')],
     }));
     expect(masquee.get('slot')![0]!.couleur).not.toBe(STRUCTURES3D.slot.couleur);
     expect(masquee.get('slotLiseret')![0]!.couleur).not.toBe(STRUCTURES3D.slot.liseret);
+  });
+
+  it('carte posée FACE CAMÉRA (correctif V2-bis) : glyphes de bonus côté sud (+z)', () => {
+    // Caméra par défaut au sud (+z, tilt 58°) : la rangée de glyphes doit
+    // dépasser la face de la carte CÔTÉ CAMÉRA — l'ancienne « face intérieure »
+    // (vers le centre de la tuile) montrait la carte de dos.
+    const plan = planifierStructures(entree({
+      tuiles: [
+        tuile(0, 0, 'plaine', 'fer'), // plaque, bonus cpu
+        tuile(1, 0, 'plaine', 'or'), // plaque, bonus or (puces + socles)
+      ],
+    }));
+    for (const [res, famille] of [['fer', 'cpu'], ['or', 'or']] as const) {
+      const carte = plan.get(`carte:${res}`)![0]!;
+      expect(STRUCTURES3D.cartes[res].bonus.famille).toBe(famille);
+      for (const pool of [`cg:${famille}`, ...(famille === 'or' ? ['cgSocle'] : [])]) {
+        for (const g of plan.get(pool)!) {
+          expect(g.z).toBeGreaterThan(carte.z); // côté caméra, jamais côté tuile
+        }
+      }
+    }
   });
 });
 
@@ -282,7 +298,11 @@ describe('Propriétés transverses (déterminisme, perf)', () => {
     const plan = planifierStructures(entree({ tuiles, villes }));
     const ms = performance.now() - t0;
     expect(ms).toBeLessThan(100);
-    expect(plan.get('slot')!.length).toBeGreaterThan(1300);
+    // Correctif V2-bis : le slot n'existe plus que sur les tuiles À RESSOURCE.
+    // Sur ce plateau : 320 tuiles au fer (i%5), moins les 46 villes (i%35,
+    // non productives) = exactement 274 slots — le compte a baissé avec le
+    // correctif (il dépassait 1300 quand le slot était visible même vide).
+    expect(plan.get('slot')!.length).toBe(274);
   });
 
   it('positionne les cartes sur les coordonnées monde du moteur (hex rayon 1)', () => {
