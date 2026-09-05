@@ -11,7 +11,7 @@ import { RESOURCES, RESOURCE_UNKNOWN, BUILDINGS, tileKeyOf } from '@game/rules';
 import type { Hex } from '@game/rules';
 import { STRUCTURES3D, categorieDeBatiment } from '../src/lib/render3d/spec3d.js';
 import {
-  planifierStructures, palierDe, estCarteNeutre, peindrePicto,
+  planifierStructures, palierDe, estCarteNeutre, peindrePicto, StructuresWorld,
 } from '../src/lib/render3d/structures3d.js';
 import type { EntreeStructures, TuileStructures, VilleStructures } from '../src/lib/render3d/structures3d.js';
 
@@ -288,6 +288,28 @@ describe('Propriétés transverses (déterminisme, perf)', () => {
     expect(carte.x).toBe(slot.x);
     expect(carte.z).toBe(slot.z);
     void hexAutour; // (invariant documenté : passer par hexWorldPos — world3d)
+  });
+
+  it('RÉGRESSION (bug d’Erik 05/09) : tout pool d’un plan réel est pris en charge par le monde', () => {
+    // Plan le plus riche possible : cartes neutres + révélées, Mainframe
+    // capitale avec modules + merveille, cratère, hutte, village.
+    const plan = planifierStructures(entree({
+      tuiles: [
+        tuile(0, 0, 'prairie', 'inconnue'), tuile(1, 0, 'colline', 'fer'),
+        tuile(2, 0, 'montagne', 'uranium'), tuile(3, 0, 'eau', 'baleine'),
+        tuile(4, 0, 'cratere'), tuile(5, 0, 'ville'),
+      ],
+      villes: [ville('v', 5, 1, { pop: 9, capital: true, buildings: ['marche', 'caserne', 'temple'], wonders: ['stonehenge'] })],
+      huttes: [{ id: 'h1', q: 0, r: 1, fog: 'visible', terrain: 'prairie' }],
+      villages: [{ id: 'vb1', q: 1, r: 1, fog: 'visible', terrain: 'plaine' }],
+    }));
+    const monde = new StructuresWorld({ capacityTuiles: 64, capacityVilles: 8 });
+    for (const pool of plan.keys()) {
+      expect(monde.connaitPool(pool), `pool ${pool}`).toBe(true);
+    }
+    expect(monde.connaitPool('carte:fer')).toBe(true);
+    expect(monde.connaitPool('carteInconnue')).toBe(true);
+    expect(monde.connaitPool('inexistant')).toBe(false);
   });
 });
 

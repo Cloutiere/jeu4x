@@ -473,6 +473,10 @@ export class StructuresWorld {
       ['slot', { capacity: ct, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.85 }) }) }],
       ['slotLiseret', { capacity: ct, creer: () => ({ geo: new THREE.TorusGeometry(S.slot.rayon * 0.85, 0.012, 6, 18).rotateX(Math.PI / 2), mat: matStructure({ roughness: 0.35, emissive: S.slot.liseret, emissiveIntensity: 0.5 }) }) }],
       ['carteInconnue', { capacity: 512, creer: () => this.creerCarte(null) }],
+      // cartes RÉVÉLÉES : un pool par ressource (texture de face dédiée) —
+      // sans fabrique, le garde-fou de update() sauterait silencieusement
+      // toute carte dont l'identité est connue (bug d'Erik du 05/09).
+      ...Object.keys(S.cartes).map((id): [string, FabriquePool] => [`carte:${id}`, { capacity: 512, creer: () => this.creerCarte(id) }]),
       ['mfSocle', { capacity: cv * 2, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.8 }) }) }],
       ['mfCorps', { capacity: cv * 2, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.5, metalness: 0.35 }) }) }],
       ['mfBande', { capacity: cv * 2, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.35, metalness: 0.2 }) }) }],
@@ -526,6 +530,12 @@ export class StructuresWorld {
     const mats = Array.isArray(mat) ? mat : [mat];
     this.cartesMateriaux.push(mats);
     return { geo, mat };
+  }
+
+  /** Le pool est-il pris en charge par ce monde ? (garde-fou testable — le
+   *  constructeur n'alloue rien : les fabriques sont paresseuses, sans DOM.) */
+  connaitPool(pool: string): boolean {
+    return this.fabriques.has(pool);
   }
 
   /** Reconstruit les instances depuis le plan (coût mesuré dans les stats). */

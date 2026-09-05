@@ -34,6 +34,10 @@
 6. **Couleur joueur injectée** (`couleurDe`) : `structures3d.ts` ne dépend pas de pixi.js/textures — l'accent propriétaire (bande, couronne) et le fog (dim par instance) sont des couleurs par instance.
 7. **Espagne/Inde et traits de faction** : rien de dupliqué — la lueur des glyphes passe déjà par `tileYield` (helpers moteur partagés, V1) et les cartes n'affichent que l'identité/le bonus verrouillé, pas de calcul local.
 
+## 3bis. Correctif post-livraison (signalement d'Erik du 05/09)
+
+- **Bug « les ressources n'apparaissent pas en 3D »** : les pools `carte:<id>` des cartes **révélées** n'étaient pas enregistrés dans les fabriques de `StructuresWorld` (seul `carteInconnue` l'était) — le garde-fou de `update()` sautait silencieusement toute carte dont l'identité est connue (2D montrait l'icône réelle, 3D seulement le slot). **Fix** : un pool par ressource enregistré paresseusement + **test de régression** « tout pool d'un plan réel est pris en charge par le monde » (`connaitPool`). Vérifié en partie réelle : marbre/aluminium/inconnues rendues (+2 instances, 12 pools), capture `dev-logs/captures-v2-3d/L2-cartes-revelees-apres-fix.png`.
+
 ## 4. 🔶 à calibrer par Erik (en ligne — le JSON est calibrable sans code)
 
 1. **Taille des cartes** (`formes` + `carteNeutre.facteur` 0,58) : lisibles aux zooms intermédiaires (forme+couleur), le pictogramme se lit au zoom proche — agrandir si souhaité ;
