@@ -5,6 +5,8 @@
   //         · #/progen (labo de génération procédurale — Phase 6b, sans session :
   //           outil client-side pur, aucune partie ni donnée de jeu).
   //         · #/lab3d (labo spike L0 « vraie 3D » — chantier V1, client-side pur).
+  //         · #/atelier (labo d'assets — chantier ATELIER, client-side pur :
+  //           catalogue par catégories, isolement, avant/après, notes de session).
   import { onMount } from 'svelte';
   import { session, loadSession } from './lib/session.js';
   import Login from './pages/Login.svelte';
@@ -14,6 +16,7 @@
   import Debug from './pages/Debug.svelte';
   import Progen from './pages/Progen.svelte';
   import Lab3d from './pages/Lab3d.svelte';
+  import Atelier from './pages/Atelier.svelte';
 
   type Route =
     | { page: 'login' }
@@ -22,13 +25,15 @@
     | { page: 'join'; code: string }
     | { page: 'debug'; code: string }
     | { page: 'progen' }
-    | { page: 'lab3d' };
+    | { page: 'lab3d' }
+    | { page: 'atelier' };
 
   function parseHash(): Route {
     const hash = window.location.hash.replace(/^#/, '') || '/';
     if (hash === '/lobby') return { page: 'lobby' };
     if (hash === '/progen') return { page: 'progen' };
     if (hash === '/lab3d') return { page: 'lab3d' };
+    if (hash === '/atelier') return { page: 'atelier' };
     const game = /^\/game\/([A-Z0-9]{6})$/.exec(hash);
     if (game) return { page: 'game', code: game[1]! };
     const join = /^\/join\/([A-Z0-9]{6})$/.exec(hash);
@@ -54,7 +59,11 @@
   });
 </script>
 
-{#if route.page === 'lab3d'}
+{#if route.page === 'atelier'}
+  <!-- Atelier d'assets (chantier ATELIER) : indépendant de la session —
+       client-side pur, aucune partie ni donnée de jeu (comme #/lab3d). -->
+  <Atelier />
+{:else if route.page === 'lab3d'}
   <!-- Labo spike L0 (chantier V1) : indépendant de la session — client-side pur,
        aucune partie ni donnée de jeu (comme #/progen, sans appel /api). -->
   <Lab3d />

@@ -16,7 +16,19 @@ Erik y trouve, par **catégories** :
 - **Sprites 2D** (unités, artefacts, jetons — PNG de `assets-src` produits par `generate.py`, y compris leurs variantes d'accent joueur) ;
 - **Overlays** (flèches, anneaux, worked tiles, pings) si représentés.
 
-Chaque fiche affiche l'**identifiant exact de l'asset** (copiable) et sa **source de vérité** (entrée JSON / fonction du générateur). La vue d'isolement : asset en grand, caméra orbitale, interrupteurs bloom/animation/fond sombre-clair, comparaison avant/après si l'agent la fournit.
+Chaque fiche affiche l'**identifiant exact de l'asset** (bouton « Copier l'id ») et sa **source de vérité** (entrée JSON / fonction du générateur). La vue d'isolement : asset en grand, **caméra orbitale** (glisser = tourner, molette = zoomer), interrupteurs **Bloom / Animation / Fond clair / Grille hex** (affiche les tuiles voisines), compteur FPS. Le **Mainframe** a des variantes : champ `pop` (palier) + bascule **Capitale**.
+
+**Ce que la page garde en local (localStorage, machine d'Erik) :**
+- **Note de session** — clé `atelier:note:<id>` : sauvegardée à chaque frappe, rechargée à la sélection ; c'est là qu'Erik (ou l'agent) note ce qu'il veut faire d'un asset, la note survit aux rechargements ;
+- **Référence « avant »** — clé `atelier:ref:<id>` (JPEG du rendu 3D) : posée automatiquement au **premier isolement** d'un asset ; bouton **« Refaire la référence (après) »** pour l'écraser avec le rendu courant ; bouton **« Comparer A/B »** affiche l'AVANT (volet gauche) à côté du rendu courant. Pour **effacer** une référence : vider le localStorage (`atelier:ref:*`) ou reposer la référence.
+
+## Divergences page livrée / rituel (chantier ATELIER, 05/09)
+
+- **Sprites 2D** : pas de snapshot rendu — le bouton « Utiliser la base comme référence A/B » enregistre le PNG de base comme référence ; les **variantes d'accent** (Joueur 1 / Joueur 2 / Barbare) sont teintées à la volée depuis le calque `_accent` blanc ;
+- **Overlays** (flèches, anneaux, pings, brouillard…) : effets **programmatiques** (aucun fichier) — la fiche donne la source dans le code, pas de rendu isolé ;
+- **PNG absents** signalés « PNG absent » (art jamais générée : unités uniques sans `UNIQUE_UNIT_ALIASES`, pièces de vaisseau, `tile_cratere`) — dès que `generate.py` produit le PNG, l'atelier l'affiche sans changement de code ;
+- **GAP connu 🔶** : `textures.ts` référence `tile_cratere` (TILE_ASSETS) mais le PNG n'existe pas (fallback silencieux, sans effet depuis le rendu 3D par défaut) — art 2D du cratère à créer en session d'atelier si besoin ;
+- Le test de complétude du catalogue (`apps/web/tests/atelier-catalogue.test.ts`) échouera volontairement si un asset moteur perd sa carte/tuile/sprite ou si un PNG référencé manque : c'est le filet de sécurité du rituel.
 
 ## Workflow de retouche (répété autant de fois que nécessaire)
 
