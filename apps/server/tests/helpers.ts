@@ -125,9 +125,10 @@ export interface AdminDump {
     status: string;
     finishedReason?: string;
     deadline: number | null;
-    players: Array<{ id: string; engineId: string }>;
+    /** BOT-SOLO : le dump expose le meta complet (civ, flag bot…). */
+    players: Array<{ id: string; engineId: string; name?: string; civId?: string; bot?: boolean }>;
     seed?: number;
-    settings?: { mapId?: string };
+    settings?: { mapId?: string; solo?: boolean; botCivId?: string };
     /** Phase 6b : présent uniquement pour procedural-40. */
     progen?: ProgenReportShape;
   } | null;
@@ -141,7 +142,7 @@ export interface AdminDump {
     mapId?: string | null;
     villages?: Array<{ id: string; q: number; r: number; hp: number; spawnCountdown: number; spawnedUnits: string[] }>;
     huts?: Array<{ id: string; q: number; r: number }>;
-    players: Record<string, { missedTurns: number }>;
+    players: Record<string, { missedTurns: number; researching?: string | null; treasury?: number }>;
     units: Record<string, { id: string; q: number; r: number; owner: string; hp: number }>;
     cities: Record<string, unknown>;
   } | null;

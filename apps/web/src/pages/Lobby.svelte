@@ -1,8 +1,10 @@
 <script lang="ts">
   // Page lobby (L6) : créer une partie, rejoindre par code ou via la liste,
-  // mes parties, abandon.
+  // mes parties, abandon. Chantier BOT-SOLO : case « Partie solo (contre le
+  // bot) » — création avec p2 = bot, démarrage immédiat, badge « solo ».
   import { onDestroy } from 'svelte';
   import type { MapId } from '@game/shared';
+  import { CIVILIZATIONS } from '@game/rules';
   import { createLobbyClient } from '../lib/lobbyClient.js';
   import { logout, session } from '../lib/session.js';
   import CivPicker from '../components/CivPicker.svelte';
@@ -27,6 +29,11 @@
   let joinCiv = $state<string | null>('rome');
   let joinWonder = $state<string | null>(null);
   let showCivPicker = $state(true);
+  // Chantier BOT-SOLO : partie solo (le bot rejoint en p2, civ au choix —
+  // « aléatoire » = tirage seedé par la partie).
+  let solo = $state(false);
+  let botCiv = $state<string>('random');
+  const CIV_IDS = Object.keys(CIVILIZATIONS.civs).sort();
 
   function createGame(): void {
     client.createGame({
@@ -35,6 +42,8 @@
       isPublic,
       ...(hostCiv ? { civId: hostCiv } : {}),
       ...(hostCiv && hostWonder ? { wonderId: hostWonder } : {}),
+      ...(solo ? { solo: true } : {}),
+      ...(solo && botCiv !== 'random' ? { botCivId: botCiv } : {}),
     });
   }
 
@@ -76,6 +85,21 @@
       <input type="checkbox" bind:checked={isPublic} />
       Partie publique
     </label>
+    <label class="check">
+      <input type="checkbox" bind:checked={solo} />
+      Partie solo (contre le bot)
+    </label>
+    {#if solo}
+      <label>
+        Civilisation du bot
+        <select bind:value={botCiv}>
+          <option value="random">Aléatoire</option>
+          {#each CIV_IDS as id (id)}
+            <option value={id}>{civName(id)}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
     <button type="button" onclick={createGame}>Créer</button>
     <h3>Choisissez votre civilisation <em>(16 — 7n)</em></h3>
     <CivPicker value={hostCiv} wonder={hostWonder} onchange={(civ, wonder) => { hostCiv = civ; hostWonder = wonder ?? null; }} />
@@ -116,6 +140,10 @@
         {#each $games.mine as game (game.code)}
           <li>
             <strong>{game.code}</strong> — {game.status} — tour {game.turn}
+            {#if game.settings.solo}<span class="badge">solo</span>{/if}
+            {#if game.players.some((p) => p.bot)}
+              — contre {game.players.find((p) => p.bot)?.name ?? 'Bot'}{#if game.players.find((p) => p.bot)?.civId} ({civName(game.players.find((p) => p.bot)!.civId!)}){/if}
+            {/if}
             <a href={`#/game/${game.code}`}>Ouvrir</a>
             <button type="button" onclick={() => client.abandon(game.code)}>Abandonner</button>
           </li>
@@ -134,4 +162,15 @@
   label { display: flex; gap: 0.5rem; margin-right: 1rem; align-items: center; }
   .error { color: #b00020; }
   .progen-link { font-size: 0.9rem; }
+  .badge {
+    display: inline-block;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    background: #2d5a3d;
+    color: #d9f2e3;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
 </style>

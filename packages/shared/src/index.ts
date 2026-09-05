@@ -42,6 +42,14 @@ export interface GameCreationSettings {
   /** 7n · R-150 🔶 : Merveille Antique de l'Égypte (choix au setup, liste
    *  fermée `egypteWonderChoices` de civilizations.json — sinon ignoré). */
   wonderId?: string;
+  /** Chantier BOT-SOLO : partie SOLO contre le bot interne du GameDO —
+   *  créée avec p2 = joueur bot (« Bot », `bot: true`), démarrage immédiat
+   *  (pas de code d'invitation). Champ META (lobby/Welcome — aucun champ
+   *  GameState : pas de migration moteur). */
+  solo?: boolean;
+  /** Chantier BOT-SOLO : civilisation du bot ('random'/absent = tirage
+   *  seedé par la partie, R-80). Réutilise le choix de civ 7n côté serveur. */
+  botCivId?: string;
 }
 
 export interface PlayerInfo {
@@ -56,6 +64,9 @@ export interface GamePlayerInfo extends PlayerInfo {
   civId?: string;
   /** 7n · R-150 🔶 : Merveille Antique (Égypte uniquement — validée serveur). */
   wonderId?: string;
+  /** Chantier BOT-SOLO : joueur bot interne (pas de socket — ses ordres sont
+   *  générés par le GameDO à la résolution). */
+  bot?: boolean;
 }
 
 export type GameStatus = 'waiting' | 'active' | 'finished';
@@ -64,8 +75,9 @@ export interface GameSummary {
   code: string;
   status: GameStatus;
   isPublic: boolean;
-  /** 7n : la civ choisie (optionnelle — affichage lobby) accompagne chaque joueur. */
-  players: Array<PlayerInfo & { civId?: string; wonderId?: string }>;
+  /** 7n : la civ choisie (optionnelle — affichage lobby) accompagne chaque joueur.
+   *  Chantier BOT-SOLO : `bot: true` marque le joueur bot (badge « solo »). */
+  players: Array<PlayerInfo & { civId?: string; wonderId?: string; bot?: boolean }>;
   settings: GameCreationSettings;
   turn: number;
   /** Création, epoch ms (méta lobby — jamais dans le GameState moteur). */

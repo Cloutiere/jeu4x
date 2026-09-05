@@ -17,6 +17,7 @@ import {
   CIVILIZATIONS,
   checkForfeit,
   createInitialState,
+  createRng,
   filterEventsForPlayer,
   generateProceduralMap,
   getFilteredState,
@@ -43,6 +44,7 @@ import { PROTO_VERSION } from '@game/shared';
 import type { ClientToServerMessage, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
+import { botPolicy, botTurnSeed } from './botPolicy.js';
 
 export type EnginePlayerId = 'p1' | 'p2';
 const ENGINE_IDS: EnginePlayerId[] = ['p1', 'p2'];
@@ -72,6 +74,10 @@ export interface GamePlayer {
   civId?: string;
   /** 7n · R-150 🔶 : Merveille Antique de l'Égypte (valide et non dupliquée). */
   wonderId?: string;
+  /** Chantier BOT-SOLO : joueur BOT interne — pas de socket, pas de session ;
+   *  ses ordres sont générés par le GameDO à la résolution (botPolicy, L1).
+   *  Champ META uniquement (aucun champ GameState — pas de migration). */
+  bot?: boolean;
 }
 
 export interface GameMeta {
@@ -96,9 +102,14 @@ export interface GameMeta {
 /** Motif de persistance idempotent (DESIGN.md §3.5) — présent SSI la partie est en résolution. */
 export interface PendingResolution {
   turn: number;
-  /** Ordres verrouillés (par id moteur). */
+  /** Ordres verrouillés (par id moteur) — BOT-SOLO : y compris les ordres
+   *  générés pour le bot (même entrée → même sortie au rejeu). */
   orders: Record<EnginePlayerId, Order[]>;
   rngSeed: number;
+  /** BOT-SOLO : événements des actions immédiates du bot (recherche R-85,
+   *  régime R-122) survenus AVANT la résolution — rejoints au journal pour
+   *  la diffusion (TurnResult) et le rejeu idempotent. */
+  botEvents?: GameEvent[];
 }
 
 interface WsAttachment {
@@ -294,6 +305,11 @@ export class GameDO {
     return player.engineId;
   }
 
+  /** Chantier BOT-SOLO : le joueur moteur donné est-il le bot ? */
+  private isBot(engineId: EnginePlayerId): boolean {
+    return this.meta?.players.some((p) => p.engineId === engineId && p.bot === true) ?? false;
+  }
+
   // -----------------------------------------------------------------------
   // Routes internes (Worker / LobbyDO) + upgrade WebSocket
   // -----------------------------------------------------------------------
@@ -364,9 +380,11 @@ export class GameDO {
     return jsonResponse({ ok: true });
   }
 
-  /** Join du joueur B — le LobbyDO a déjà validé (existe, place libre, non terminée). */
+  /** Join du joueur B — le LobbyDO a déjà validé (existe, place libre, non terminée).
+   *  Chantier BOT-SOLO : le join peut porter le JOUEUR BOT (création solo —
+   *  `bot: true`, id réservé 'bot', pas de session ni de socket). */
   private async handleJoin(request: Request): Promise<Response> {
-    const body = await this.readJson<{ player: { id: PlayerId; name: string; civId?: string; wonderId?: string } }>(request);
+    const body = await this.readJson<{ player: { id: PlayerId; name: string; civId?: string; wonderId?: string; bot?: boolean } }>(request);
     if (!body?.player) return jsonResponse({ error: 'badRequest' }, 400);
     if (!this.meta) return jsonResponse({ error: 'notFound' }, 404);
     if (this.meta.status !== 'waiting') return jsonResponse({ error: 'gameFull' }, 409);
@@ -384,10 +402,11 @@ export class GameDO {
 
     this.meta.players.push({
       id: body.player.id,
-      name: body.player.name,
+      name: body.player.bot === true ? 'Bot' : body.player.name,
       engineId: 'p2',
       ...(civId ? { civId } : {}),
       ...(wonderId ? { wonderId } : {}),
+      ...(body.player.bot === true ? { bot: true } : {}),
     });
     this.meta.status = 'active';
 
@@ -1109,7 +1128,10 @@ export class GameDO {
     });
   }
 
-  /** « Fin de tour » : verrouillage irrévocable (RULES.md §4) ; résolution si les deux ont verrouillé. */
+  /** « Fin de tour » : verrouillage irrévocable (RULES.md §4) ; résolution si les deux ont verrouillé.
+   *  Chantier BOT-SOLO : l'adversaire BOT est verrouillé en même temps (pas
+   *  de socket ni de EndTurn — la partie se résout dès que le joueur humain
+   *  termine son tour ; ses ordres sont générés dans startResolution). */
   private async handleEndTurn(ws: WebSocket, playerId: PlayerId): Promise<void> {
     if (!this.game || !this.meta || this.meta.status !== 'active' || this.game.phase !== 'orders') {
       return this.sendOrderRejection(ws, 'verrouillage impossible (résolution ou partie terminée)');
@@ -1118,6 +1140,11 @@ export class GameDO {
     if (this.locked[engineId]) return this.sendOrderRejection(ws, 'ordres déjà verrouillés');
     this.locked[engineId] = true;
     this.game.players[engineId]!.missedTurns = 0; // verrouillage dans les temps : compteur T-06 remis à zéro
+    const bot = this.meta.players.find((p) => p.bot === true && p.engineId !== engineId);
+    if (bot) {
+      this.locked[bot.engineId] = true;
+      this.game.players[bot.engineId]!.missedTurns = 0; // le bot « termine » toujours son tour
+    }
     await this.state.storage.put({ locked: this.locked, game: this.game });
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'verrouillé' });
     if (this.locked.p1 && this.locked.p2) await this.startResolution();
@@ -1128,13 +1155,57 @@ export class GameDO {
   // -----------------------------------------------------------------------
 
   private async startResolution(): Promise<void> {
-    if (!this.game) return;
+    if (!this.game || !this.meta) return;
+    // 0. Chantier BOT-SOLO (L1) : génération des ordres du bot À LA
+    //    RÉSOLUTION (botPolicy — état complet, RNG seedé dédié dérivé du
+    //    seed de partie et du tour, R-80 ; le RNG de résolution du moteur
+    //    n'est PAS consommé). Les ordres du bot passent par le MÊME
+    //    validateur orderShapeError que ceux d'un humain, puis par le
+    //    moteur à la résolution ; les actions immédiates du bot (recherche
+    //    R-85, régime R-122) sont appliquées via les mêmes helpers purs que
+    //    les messages des humains, événements au journal.
+    let game = this.game;
+    const botEvents: GameEvent[] = [];
+    for (const p of this.meta.players) {
+      if (!p.bot) continue;
+      const rng = createRng(botTurnSeed(this.meta.seed, game.turn));
+      const plan = botPolicy(game, p.engineId, rng);
+      for (const order of plan.orders) {
+        if (orderShapeError(order) !== null) continue; // jamais un ordre mal formé
+        this.orders[p.engineId] = [...(this.orders[p.engineId] ?? []).filter((o) => !sameSubject(o, order)), order];
+      }
+      for (const action of plan.actions) {
+        if (action.type === 'SetResearch') {
+          const result = applySetResearch(game, p.engineId, action.techId);
+          if (result.ok) {
+            game = result.state;
+            if (result.events.length > 0) botEvents.push(...result.events);
+          }
+        } else {
+          const result = applySetGovernment(game, p.engineId, action.government);
+          if (result.ok) {
+            game = result.state;
+            game.lastEventSeq += 1;
+            botEvents.push({
+              seq: game.lastEventSeq,
+              type: 'GovernmentChanged',
+              player: p.engineId,
+              government: action.government,
+              anarchy: result.anarchy,
+            });
+          }
+        }
+      }
+    }
+    this.game = game;
+    if (botEvents.length > 0) this.lastEvents = [...this.lastEvents, ...botEvents];
     // 1. Persister le motif AVANT de résoudre : un crash ici est repris par
-    //    ensureResolved()/l'alarme, qui rejoueront à l'identique.
+    //    ensureResolved()/l'alarme, qui rejoueront à l'identique (les ordres
+    //    du bot sont PERSISTÉS dans le motif — même entrée → même sortie).
     const orders: Record<EnginePlayerId, Order[]> = { p1: [...(this.orders.p1 ?? [])], p2: [...(this.orders.p2 ?? [])] };
-    this.resolving = { turn: this.game.turn, orders, rngSeed: this.game.rngSeed };
-    this.game.phase = 'resolving';
-    await this.state.storage.put({ game: this.game, resolving: this.resolving });
+    this.resolving = { turn: game.turn, orders, rngSeed: game.rngSeed, ...(botEvents.length > 0 ? { botEvents } : {}) };
+    game.phase = 'resolving';
+    await this.state.storage.put({ game: this.game, resolving: this.resolving, orders: this.orders, lastEvents: this.lastEvents });
     // 2-3. Résoudre puis persister le résultat.
     await this.finishResolution();
   }
@@ -1143,8 +1214,11 @@ export class GameDO {
     const input = this.resolving;
     if (!input || !this.game) return;
     const result = resolveTurn(this.game, input.orders, input.rngSeed);
+    // BOT-SOLO : les événements des actions immédiates du bot (recherche,
+    // régime) précèdent ceux de la résolution dans le journal diffusé.
+    const events = input.botEvents && input.botEvents.length > 0 ? [...input.botEvents, ...result.events] : result.events;
     this.game = result.newState;
-    this.lastEvents = result.events;
+    this.lastEvents = events;
     this.resolving = null;
     this.locked = { p1: false, p2: false };
     this.orders = { p1: [], p2: [] }; // brouillons consommés par la résolution
@@ -1163,11 +1237,11 @@ export class GameDO {
         (victory.reason === 'culture' || victory.reason === 'science' || victory.reason === 'economique')
           ? victory.reason
           : 'domination';
-      await this.finishGame(reason, this.game.winner as EnginePlayerId, result.events);
+      await this.finishGame(reason, this.game.winner as EnginePlayerId, events);
       return;
     }
     await this.scheduleTimer();
-    this.broadcastTurnResult(result.events);
+    this.broadcastTurnResult(events);
   }
 
   /** Diffuse les événements filtrés par joueur + l'état post-résolution (§3.4-2/4). */
@@ -1250,7 +1324,13 @@ export class GameDO {
         this.game.players[engineId]!.missedTurns = 0; // verrouillé dans les temps
       } else {
         this.locked[engineId] = true;
-        this.game.players[engineId]!.missedTurns += 1; // timer manqué (T-06)
+        // Chantier BOT-SOLO : le bot « répond » toujours au timer (ses ordres
+        // sont générés à la résolution) — jamais de forfait T-06 pour lui.
+        if (this.isBot(engineId)) {
+          this.game.players[engineId]!.missedTurns = 0;
+        } else {
+          this.game.players[engineId]!.missedTurns += 1; // timer manqué (T-06)
+        }
       }
     }
     // Forfait : au-delà de T-06 verrouillages manqués consécutifs (RULES.md §1).

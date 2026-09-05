@@ -1,11 +1,16 @@
 <script lang="ts">
-  /** Journal des événements filtrés (L5) — réutilise les libellés L4. */
+  /** Journal des événements filtrés (L5) — réutilise les libellés L4.
+   *  Chantier BOT-SOLO : les ids moteur sont résolus en noms (« Bot »). */
   import type { GameView } from '../lib/gameClient.js';
   import { eventLabel } from '../lib/labels.js';
 
   let { view, max = 200 }: { view: GameView; max?: number } = $props();
 
   const recent = $derived(view.events.slice(-max).reverse());
+  const nameOf = $derived.by(() => {
+    const byEngineId = new Map(view.players.map((p) => [p.engineId, p.name]));
+    return (id: string) => byEngineId.get(id) ?? id;
+  });
 </script>
 
 <section class="panel">
@@ -15,7 +20,7 @@
   {:else}
     <ol>
       {#each recent as event (event.seq)}
-        <li><code>#{event.seq}</code> {eventLabel(event)}</li>
+        <li><code>#{event.seq}</code> {eventLabel(event, nameOf)}</li>
       {/each}
     </ol>
   {/if}

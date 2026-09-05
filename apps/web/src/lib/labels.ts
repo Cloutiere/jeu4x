@@ -200,7 +200,16 @@ export function hutRewardLabel(reward: HutReward): string {
   }
 }
 
-export function eventLabel(event: GameEvent): string {
+/**
+ * Résolveur optionnel d'ids moteur → noms affichés (Chantier BOT-SOLO :
+ * le journal affiche « Bot » plutôt que « p2 » — les ids humains « p1 »/« p2 »
+ * restent affichés bruts hors partie solo, comportement inchangé).
+ */
+export type PlayerNamer = (engineId: string) => string;
+
+const IDENTITY: PlayerNamer = (id) => id;
+
+export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): string {
   switch (event.type) {
     case 'Move':
       return `${event.unitId} se déplace vers (${event.to.q},${event.to.r})`;
@@ -213,15 +222,15 @@ export function eventLabel(event: GameEvent): string {
     case 'Retreat':
       return `${event.unitId} se replie vers (${event.to.q},${event.to.r})`;
     case 'Captured':
-      return `${event.unitId} capturée par ${event.byPlayer} (${event.outcome})`;
+      return `${event.unitId} capturée par ${nameOf(event.byPlayer)} (${event.outcome})`;
     case 'BootyGold':
-      return `${event.player} touche ${event.amount} or de butin`;
+      return `${nameOf(event.player)} touche ${event.amount} or de butin`;
     case 'ArmyFormed':
       return `Armée ${event.unitId} formée (${event.memberIds.join(', ')})`;
     case 'CityFounded':
-      return `Ville ${event.cityId} fondée en (${event.at.q},${event.at.r}) par ${event.owner}${event.capital ? ' — capitale !' : ''}`;
+      return `Ville ${event.cityId} fondée en (${event.at.q},${event.at.r}) par ${nameOf(event.owner)}${event.capital ? ' — capitale !' : ''}`;
     case 'CityCaptured':
-      return `Ville ${event.cityId} prise par ${event.toOwner}${event.plunder ? ` — sac de ville : ${event.plunder.toLocaleString('fr-FR')} or pillés` : ''}`;
+      return `Ville ${event.cityId} prise par ${nameOf(event.toOwner)}${event.plunder ? ` — sac de ville : ${event.plunder.toLocaleString('fr-FR')} or pillés` : ''}`;
     case 'UnitProduced':
       return `${event.unitType} produit par ${event.cityId}`;
     case 'TechResearched':
@@ -235,27 +244,27 @@ export function eventLabel(event: GameEvent): string {
     case 'BuildingCompleted':
       return `${event.building} achevé dans ${event.cityId}`;
     case 'DiplomaticIncident':
-      return `Incident diplomatique entre ${event.between[0]} et ${event.between[1]}`;
+      return `Incident diplomatique entre ${nameOf(event.between[0])} et ${nameOf(event.between[1])}`;
     case 'Victory':
-      return `VICTOIRE de ${event.winner} (${event.reason})`;
+      return `VICTOIRE de ${nameOf(event.winner)} (${event.reason})`;
     case 'BarbarianSpawned':
       return `Un barbare (${event.unitId}) sort du village ${event.villageId} en (${event.at.q},${event.at.r})`;
     case 'VillageDestroyed':
-      return `Village barbare ${event.villageId} détruit par ${event.byPlayer} !`;
+      return `Village barbare ${event.villageId} détruit par ${nameOf(event.byPlayer)} !`;
     case 'CityRazed':
-      return `Ville ${event.cityId} RASÉE par les barbares (${event.owner} la perd)`;
+      return `Ville ${event.cityId} RASÉE par les barbares (${nameOf(event.owner)} la perd)`;
     case 'HutOpened':
-      return `Hutte ${event.hutId} ouverte par ${event.byPlayer} : ${hutRewardLabel(event.reward)}`;
+      return `Hutte ${event.hutId} ouverte par ${nameOf(event.byPlayer)} : ${hutRewardLabel(event.reward)}`;
     case 'ArtifactActivated':
-      return `Artefact « ${event.name} » activé par ${event.byPlayer} — ${artefactEffectLabel(event.effect, event)}`;
+      return `Artefact « ${event.name} » activé par ${nameOf(event.byPlayer)} — ${artefactEffectLabel(event.effect, event)}`;
     case 'GreatPersonSpawned':
-      return `${greatPersonLabel(event.unitType)} apparaît dans ${event.cityId} (${event.owner}) — jauge remise à zéro`;
+      return `${greatPersonLabel(event.unitType)} apparaît dans ${event.cityId} (${nameOf(event.owner)}) — jauge remise à zéro`;
     case 'InstallPerson':
       return `${greatPersonLabel(event.unitType)} s'installe dans ${event.cityId} — ${settleEffectLabel(event.unitType)}`;
     case 'GreatPersonConsumed':
-      return `${greatPersonLabel(event.unitType)} CONSOMMÉ : ${event.effect} (${event.player})`;
+      return `${greatPersonLabel(event.unitType)} CONSOMMÉ : ${event.effect} (${nameOf(event.player)})`;
     case 'CultureMilestone':
-      return `${event.delta > 0 ? '+' : ''}${event.delta} jalon culturel pour ${event.player} (${milestoneReasonLabel(event.reason)}) — total ${event.total}/20`;
+      return `${event.delta > 0 ? '+' : ''}${event.delta} jalon culturel pour ${nameOf(event.player)} (${milestoneReasonLabel(event.reason)}) — total ${event.total}/20`;
     case 'WonderCompleted':
       return `Merveille achevée : ${event.wonder} dans ${event.cityId} (+1 jalon)`;
     // 7k · R-130/R-132 : récupération de marteaux, surclassement Léonard.
@@ -267,7 +276,7 @@ export function eventLabel(event: GameEvent): string {
       return `Palier économique — ${event.threshold.toLocaleString('fr-FR')} or : ${event.label} !`;
     case 'RushBuy':
       // 7l · R-135 : achat instantané.
-      return `${event.owner} achète ${event.item.id} dans ${event.cityId} pour ${event.cost.toLocaleString('fr-FR')} or (rush-buy)`;
+      return `${nameOf(event.owner)} achète ${event.item.id} dans ${event.cityId} pour ${event.cost.toLocaleString('fr-FR')} or (rush-buy)`;
     case 'UnitsUpgraded':
       return `Atelier de Léonard : ${event.upgrades.length} unité(s) mise(s) à niveau (${event.upgrades.map((u) => `${u.from} → ${u.to}`).join(', ')})`;
     // 7g · R-117/R-119 : naval & espionnage.
@@ -280,7 +289,7 @@ export function eventLabel(event: GameEvent): string {
         ? `L'espion ${event.unitId} a réussi sa mission dans ${event.cityId} !`
         : `Mission d'espionnage échouée (${event.unitId} → ${event.cityId})`;
     case 'GreatPersonStolen':
-      return `GP VOLÉ ! ${event.victim} perd un Personnage installé au profit de ${event.thief} (${event.cityId}) — réinstallé dans l'empire voleur (7j)`;
+      return `GP VOLÉ ! ${nameOf(event.victim)} perd un Personnage installé au profit de ${nameOf(event.thief)} (${event.cityId}) — réinstallé dans l'empire voleur (7j)`;
     // 7m · R-138..R-144 : nucléaire & espionnage jeu de base.
     case 'NukeLaunched':
       if (event.outcome === 'refused') {
@@ -289,7 +298,7 @@ export function eventLabel(event: GameEvent): string {
       if (event.outcome === 'intercepted') {
         return `ICBM INTERCEPTÉE par la Défense SDI de ${event.cityId} ! (R-141 — interception garantie, missile détruit)`;
       }
-      return `☢️ ${event.owner} a lancé une ICBM sur (${event.target.q},${event.target.r}) !`;
+      return `☢️ ${nameOf(event.owner)} a lancé une ICBM sur (${event.target.q},${event.target.r}) !`;
     case 'CityNuked':
       return `☢️ ${event.cityId} frappée : population ${event.popAfter}, ${event.buildingsDestroyed.length} bâtiment(s) détruit(s) — la ville survit (C13), merveilles et GP préservés`;
     case 'SpyAction':
@@ -297,17 +306,17 @@ export function eventLabel(event: GameEvent): string {
         ? `L'espion ${event.unitId} a exécuté « ${SPY_ACTION_LABELS[event.action] ?? event.action} » dans ${event.cityId}`
         : `Action « ${SPY_ACTION_LABELS[event.action] ?? event.action} » sans effet (${event.unitId} → ${event.cityId})`;
     case 'SpyDuel':
-      return `Duel d'espions dans ${event.cityId} — ${event.winner} l'emporte ! (R-144 : le perdant est détruit)`;
+      return `Duel d'espions dans ${event.cityId} — ${nameOf(event.winner)} l'emporte ! (R-144 : le perdant est détruit)`;
     case 'GoldStolen':
-      return `OR VOLÉ ! ${event.victim} perd ${event.amount.toLocaleString('fr-FR')} or au profit de ${event.thief} (${event.cityId})`;
+      return `OR VOLÉ ! ${nameOf(event.victim)} perd ${event.amount.toLocaleString('fr-FR')} or au profit de ${nameOf(event.thief)} (${event.cityId})`;
     case 'GreatPersonKidnapped':
-      return `GP ENLEVÉ ! ${greatPersonLabel(event.gpType)} transféré de ${event.victim} à ${event.thief} (${event.cityId})`;
+      return `GP ENLEVÉ ! ${greatPersonLabel(event.gpType)} transféré de ${nameOf(event.victim)} à ${nameOf(event.thief)} (${event.cityId})`;
     case 'SpyBuildingDestroyed':
-      return `SABOTAGE ! ${event.building} détruit dans ${event.cityId} par un espion de ${event.thief}`;
+      return `SABOTAGE ! ${event.building} détruit dans ${event.cityId} par un espion de ${nameOf(event.thief)}`;
     case 'FirstDiscovered':
       return event.greatPerson
-        ? `${event.label} (${event.player}) : ${greatPersonLabel(event.greatPerson)} rejoint votre empire !`
-        : `Premier découvrir : ${event.label} (${event.player})`;
+        ? `${event.label} (${nameOf(event.player)}) : ${greatPersonLabel(event.greatPerson)} rejoint votre empire !`
+        : `Premier découvrir : ${event.label} (${nameOf(event.player)})`;
     case 'Victory': {
       const motifs: Record<string, string> = {
         domination: 'domination (capitale capturée)',
@@ -317,7 +326,7 @@ export function eventLabel(event: GameEvent): string {
         science: 'scientifique (Vaisseau spatial)',
         economique: 'économique (Banque mondiale — 20 000 or)',
       };
-      return `VICTOIRE de ${event.winner} (${motifs[event.reason] ?? event.reason})`;
+      return `VICTOIRE de ${nameOf(event.winner)} (${motifs[event.reason] ?? event.reason})`;
     }
     case 'TurnResolved':
       return `— Fin du tour ${event.turn - 1}, tour ${event.turn} —`;

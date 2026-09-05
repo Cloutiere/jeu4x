@@ -8,7 +8,7 @@
  * WebSocket hibernation : chaque socket est authentifié au connect (JWT en
  * query param ou cookie) et porte `{ playerId, name }` en attachment.
  */
-import { CIVILIZATIONS, isEgyptWonderChoiceValid } from '@game/rules';
+import { CIVILIZATIONS, createRng, isEgyptWonderChoiceValid } from '@game/rules';
 import type { PlayerId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
 import type {
@@ -22,12 +22,13 @@ import type {
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
 import { generateCode, generateSeed, isValidCode } from './codes.js';
+import { BOT_NAME, BOT_PLAYER_ID } from './botPolicy.js';
 
 interface LobbyGame {
   code: string;
   hostId: PlayerId;
   /** 7n · R-145 : chaque joueur choisit sa civilisation (create/join). */
-  players: Array<{ id: PlayerId; name: string; civId?: string; wonderId?: string }>;
+  players: Array<{ id: PlayerId; name: string; civId?: string; wonderId?: string; bot?: boolean }>;
   status: GameStatus;
   isPublic: boolean;
   settings: GameCreationSettings;
@@ -63,10 +64,12 @@ export class LobbyDO {
 
   private async putGame(game: LobbyGame): Promise<void> {
     await this.state.storage.put(this.gameKey(game.code), game);
-    // Index playerId → parties (pour « mes parties »).
+    // Index playerId → parties (pour « mes parties ») — le joueur BOT n'est
+    // jamais indexé (aucune session : personne ne liste « ses » parties).
     const index = (await this.state.storage.get<Record<string, string[]>>('index')) ?? {};
     let changed = false;
     for (const p of game.players) {
+      if (p.bot === true) continue;
       const list = index[p.id] ?? [];
       if (!list.includes(game.code)) {
         index[p.id] = [...list, game.code].sort();
@@ -90,6 +93,7 @@ export class LobbyDO {
         name: p.name,
         ...(p.civId ? { civId: p.civId } : {}),
         ...(p.wonderId ? { wonderId: p.wonderId } : {}),
+        ...(p.bot === true ? { bot: true } : {}),
       })),
       settings: game.settings,
       turn: game.turn,
@@ -241,6 +245,16 @@ export class LobbyDO {
     if (!isEgyptWonderChoiceValid(hostCiv, hostWonder)) {
       return this.sendError(ws, 'badMessage', 'merveille de départ invalide');
     }
+    // Chantier BOT-SOLO (L2) : la case à cocher « Partie solo » crée la
+    // partie avec p2 = joueur bot et la DÉMARRE immédiatement (pas de code
+    // d'invitation ni d'attente). La civ du bot : choix du lobby ou tirage
+    // SEEDÉ par la partie (défaut « aléatoire », R-80 — même seed → même
+    // bot, rejouable ; le tirage ne consomme pas le seed de résolution).
+    const solo = (settings as { solo?: boolean }).solo === true;
+    const rawBotCiv = (settings as { botCivId?: string }).botCivId;
+    if (rawBotCiv !== undefined && rawBotCiv !== 'random' && !CIVILIZATIONS.civs[rawBotCiv]) {
+      return this.sendError(ws, 'badMessage', 'civilisation du bot inconnue');
+    }
     // Génération du code avec vérification de collision (L4).
     let code = '';
     for (let attempt = 0; attempt < 20; attempt++) {
@@ -253,6 +267,15 @@ export class LobbyDO {
     if (!code) return this.sendError(ws, 'internal', 'génération de code impossible');
 
     const seed = generateSeed();
+    let botCivId: string | undefined;
+    if (solo) {
+      if (rawBotCiv && rawBotCiv !== 'random') {
+        botCivId = rawBotCiv;
+      } else {
+        const ids = Object.keys(CIVILIZATIONS.civs).sort(); // R-81 : tirage déterministe
+        botCivId = ids[createRng((seed ^ 0x000b07) >>> 0).nextInt(ids.length)]!;
+      }
+    }
     const init = await this.gameStub(code).fetch('https://game.internal/internal/init', {
       method: 'POST',
       body: JSON.stringify({
@@ -278,10 +301,30 @@ export class LobbyDO {
       }],
       status: 'waiting',
       isPublic: settings.isPublic === true,
-      settings: { mapId: settings.mapId, turnTimerMinutes: settings.turnTimerMinutes, isPublic: settings.isPublic === true },
+      settings: {
+        mapId: settings.mapId,
+        turnTimerMinutes: settings.turnTimerMinutes,
+        isPublic: settings.isPublic === true,
+        ...(solo ? { solo: true } : {}),
+        ...(solo && botCivId ? { botCivId } : {}),
+      },
       turn: 0,
       createdAt: Date.now(),
     };
+    if (solo) {
+      // Le bot rejoint via le chemin normal (GameDO : état initial créé au
+      // join — même code que l'invitation d'un humain). Pas de socket : le
+      // GameDO génère ses ordres à chaque résolution.
+      const join = await this.gameStub(code).fetch('https://game.internal/internal/join', {
+        method: 'POST',
+        body: JSON.stringify({ player: { id: BOT_PLAYER_ID, name: BOT_NAME, bot: true, civId: botCivId } }),
+      });
+      if (!join.ok) {
+        return this.sendError(ws, 'internal', `démarrage du bot impossible (${join.status})`);
+      }
+      game.players.push({ id: BOT_PLAYER_ID, name: BOT_NAME, bot: true, ...(botCivId ? { civId: botCivId } : {}) });
+      game.status = 'active';
+    }
     await this.putGame(game);
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'GameCreated', code });
     await this.broadcastList();
