@@ -170,7 +170,11 @@
     const t = c as Container & { __wx?: number; __wy?: number; __ws?: number };
     t.__wx = x;
     t.__wy = y;
-    t.__ws = c.scale.x;
+    // Échelle INTRINSÈQUE, estampillée UNE FOIS : la relire depuis c.scale
+    // après une projection la multiplierait par le facteur de zoom 3D à chaque
+    // restampillage (rebuild sur vue poussée, frames de playback) — les
+    // sprites grossissaient/diminuaient de façon composée (k, k², k³…).
+    if (t.__ws === undefined) t.__ws = c.scale.x;
   }
   /** Géométrie « absolue » (flèches, chemins) tracée en coordonnées monde —
    *  redessinée in-place à chaque frame en 3D depuis ces points. */
@@ -1169,7 +1173,8 @@
           // incrémentales (entités) passent par poser3d explicitement.
           if (c.__wx === undefined || c.__wy === undefined) {
             if (!reconstruiteEnBloc) continue;
-            c.__wx = c.x; c.__wy = c.y; c.__ws = c.scale.x;
+            c.__wx = c.x; c.__wy = c.y;
+            if (c.__ws === undefined) c.__ws = c.scale.x;
           }
           const wx = c.__wx, wy = c.__wy;
           if (wx === undefined || wy === undefined) continue;
@@ -1538,11 +1543,11 @@
         const c = app.renderer.extract.canvas(app.stage) as HTMLCanvasElement;
         return c.toDataURL("image/png");
       },
-      sprites(): Array<{ layer: string; label: string; x: number; y: number; children: number }> {
-    const dump: Array<{ layer: string; label: string; x: number; y: number; children: number }> = [];
+      sprites(): Array<{ layer: string; label: string; x: number; y: number; scale: number; children: number }> {
+    const dump: Array<{ layer: string; label: string; x: number; y: number; scale: number; children: number }> = [];
     const walk = (layer: Container, name: string): void => {
       for (const child of layer.children) {
-        dump.push({ layer: name, label: String(child.label ?? ""), x: Math.round(child.x), y: Math.round(child.y), children: child.children.length });
+        dump.push({ layer: name, label: String(child.label ?? ""), x: Math.round(child.x), y: Math.round(child.y), scale: child.scale.x, children: child.children.length });
       }
     };
     walk(tilesLayer, "tiles");

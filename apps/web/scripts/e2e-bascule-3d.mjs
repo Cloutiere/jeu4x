@@ -193,7 +193,53 @@ try {
   if (!troisD.ok) throw new Error('bascule 3D dpr ' + DPR + ' : ' + troisD.raison);
   console.log(`3D à chaud (dpr ${DPR}) : ${troisD.ents} entités, toutes SUR leur case ✓ (tailles CSS identiques ✓)`);
 
-  // 3) aller-retour 3D → 2D → 3D
+  // 3) stabilité d'échelle : zoom avant (facteur de projection k > 1), puis
+  // restampillage forcé (Resync → onNewView → rebuildEntities). L'échelle des
+  // sprites ne doit JAMAIS changer : __ws est une échelle INTRINSÈQUE — le
+  // bug « les unités grandissent après un déplacement » la relisait depuis le
+  // sprite déjà projeté et composait le zoom (k, k², k³…).
+  await evaluate(ws, sessionId, `(() => {
+    const canvas = document.querySelector('.canvas-host canvas:last-child');
+    const rect = canvas.getBoundingClientRect();
+    for (let i = 0; i < 3; i++) canvas.dispatchEvent(new WheelEvent('wheel', { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2, deltaY: -120, bubbles: true, cancelable: true }));
+  })()`);
+  await sleep(800);
+  const echelleAvant = await evaluate(ws, sessionId, `JSON.stringify(window.__gameCanvas.sprites().filter((s) => s.layer === 'entities' && s.children > 0).map((s) => s.scale))`);
+  await evaluate(ws, sessionId, `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Resync').click();`);
+  await sleep(2000);
+  const verifEchelle = await evaluate(ws, sessionId, `(async () => {
+    for (let i = 0; i < 20; i++) {
+      if (window.__gameCanvas.sprites().filter((s) => s.layer === 'entities' && s.children > 0).length >= 1) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    const avant = ${echelleAvant};
+    const apres = window.__gameCanvas.sprites().filter((s) => s.layer === 'entities' && s.children > 0).map((s) => s.scale);
+    return JSON.stringify({ stables: avant.length === apres.length && avant.every((sc, i) => Math.abs(sc - apres[i]) < 1e-6) });
+  })()`);
+  // ordre de déplacement réel (draft auto-soumis → vue poussée → rebuild) : même exigence
+  const verifDeplacement = await evaluate(ws, sessionId, `(async () => {
+    const g = window.__gameCanvas;
+    const ent = g.sprites().find((s) => s.layer === 'entities' && s.children > 0);
+    if (!ent) return JSON.stringify({ ok: false, raison: 'aucune entité' });
+    const scaleAvant = ent.scale;
+    window.__game.clickHex(window.__game.pickAt(ent.x, ent.y).split(',').map(Number)[0], window.__game.pickAt(ent.x, ent.y).split(',').map(Number)[1]);
+    await new Promise((r) => setTimeout(r, 400));
+    const canvas = document.querySelector('.canvas-host canvas:last-child');
+    const rect = canvas.getBoundingClientRect();
+    // voisin (q+1,r) : draft si passable — on tente, l'ordre peut être refusé
+    const hex = window.__game.pickAt(ent.x, ent.y).split(',').map(Number);
+    const cible = window.__game.screenOf(hex[0] + 1, hex[1]);
+    canvas.dispatchEvent(new MouseEvent('contextmenu', { clientX: rect.left + cible.x, clientY: rect.top + cible.y, bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 1500));
+    const apres = g.sprites().filter((s) => s.layer === 'entities' && s.children > 0);
+    const meme = apres.find((s) => s.label === ent.label);
+    return JSON.stringify({ ok: meme ? Math.abs(meme.scale - scaleAvant) < 1e-6 : true, raison: 'échelle modifiée après ordre' });
+  })()`);
+  if (!JSON.parse(verifEchelle).stables) throw new Error('échelle instable après restampillage (zoom composé) : ' + verifEchelle);
+  if (!JSON.parse(verifDeplacement).ok) throw new Error('échelle instable après ordre de déplacement');
+  console.log('échelle stable après zoom + restampillage + ordre ✓');
+
+  // 4) aller-retour 3D → 2D → 3D
   for (const attendu of [1, 2]) {
     await evaluate(ws, sessionId, `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '3D').click();`);
     await sleep(2500);

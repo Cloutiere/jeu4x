@@ -18,12 +18,13 @@ Le mécanisme :
 
 **Pourquoi la projection n'y est pour rien** : la promesse Option B est intacte — `projeterCalques3d` a toujours projeté correctement ; c'est le **support d'affichage** du terrain qui mentait. La piste n°1 du handoff (tampons `__wx/__wy` absents) n'était pas la cause réelle, mais un chemin restait effectivement non estampillé (voir §2).
 
-## 2. Correctifs (2)
+## 2. Correctifs (3)
 
 1. **`render3d/stage3d.ts`** — `renderer.setSize(this.viewW, this.viewH)` **avec** `updateStyle` (défaut `true`) : Three pose désormais `style.width/height` en px CSS, exactement comme Pixi `autoDensity`. Le buffer reste dpr× (netteté inchangée), l'affichage redevient aligné quel que soit le dpr ;
-2. **`render/GameCanvas.svelte`** — verrou « estampillage systématique » demandé par le handoff : la branche playback de `rebuildEntities` (unité animée) utilisait `position.set(...)` sans tampon monde — le dernier chemin pouvant produire un enfant ignoré par `projeterCalques3d` (`continue`). Elle passe par `poser3d(...)` : **tout enfant projetable porte désormais toujours un tampon monde**.
+2. **`render/GameCanvas.svelte`** — verrou « estampillage systématique » demandé par le handoff : la branche playback de `rebuildEntities` (unité animée) utilisait `position.set(...)` sans tampon monde — le dernier chemin pouvant produire un enfant ignoré par `projeterCalques3d` (`continue`). Elle passe par `poser3d(...)` : **tout enfant projetable porte désormais toujours un tampon monde** ;
+3. **`render/GameCanvas.svelte`** (bug n°2 signalé par Erik le 04/09 : après un déplacement confirmé, **les sprites grossissent** jusqu'à être hors d'échelle, et reprennent leur taille après un aller-retour 2D↔3D) — `poser3d` relisait `__ws` depuis `c.scale.x` du sprite **déjà projeté** : à chaque restampillage (rebuild sur chaque vue poussée — ordre soumis, resync — et frames de playback), le facteur de zoom 3D `k = pxPerUnit/HEX_SIZE` se **composait** (k, k², k³…). Croissance quand k > 1 (zoom avant), décroissance sinon. `__ws` est désormais une **échelle intrinsèque estampillée une seule fois** (`if (t.__ws === undefined)`), la projection ne la réécrit jamais.
 
-Périmètre tenu : aucun renommage, aucune nouvelle fonctionnalité, pas de V2, moteur/serveur intacts.
+Périmètre tenu : aucun renommage, aucune nouvelle fonctionnalité, pas de V2, moteur/serveur intacts (le hook dev `sprites()` gagne seulement `scale` pour les vérifications GUI).
 
 ## 3. Verrou par test
 
@@ -33,15 +34,16 @@ Périmètre tenu : aucun renommage, aucune nouvelle fonctionnalité, pas de V2, 
 2. partie rendue en **2D** avec entités visibles ;
 3. `devicePixelRatio` simulé à **1.5** **puis** bascule 3D à chaud (l'ordre compte — c'est la séquence d'Erik) ;
 4. assertions : les deux canvases ont la **même taille CSS** (le contrat qui tuait le rendu), chaque sprite d'entité est **sur sa case** (`pickAt(sprite) ↔ screenOf(hex)`, écart < 8 px, via les hooks dev existants) ;
-5. aller-retour **3D → 2D → 3D** sans dérive (même assertions à chaque étape).
+5. aller-retour **3D → 2D → 3D** sans dérive (même assertions à chaque étape) ;
+6. **stabilité d'échelle** (bug n°2 d'Erik) : zoom avant (k > 1), restampillage forcé (Resync → rebuildEntities) puis **ordre de déplacement réel** (flèche + confirmation) — l'échelle des sprites doit rester **identique au millième près**. ROUGE sur le code d'avant correctif (`échelle instable après restampillage`).
 
-**Contre-vérification** : le test est **ROUGE** sur le code d'avant correctif (`tailles CSS divergentes`) et **VERT** après — il verrouille bien la régression.
+**Contre-vérifications** : le test est **ROUGE** sur le code d'avant correctif pour les DEUX bugs (`tailles CSS divergentes` / `échelle instable`) et **VERT** après — il verrouille bien les deux régressions.
 
 ## 4. Vérifications
 
 - **Suite complète** : 803 tests vitest verts (695 rules + 70 web + 38 serveur) + 23 e2e = **826** ; typecheck **4/4** ;
 - **E2E existants** : artefacts **VERT** ; fortification T-17 **VERT** (tir discriminant obtenu au 3ᵉ relance — le script est conçu pour être relancé) ;
-- **GUI réelle (dpr 1.5 simulé)** : bascule 2D→3D avec unités de départ ✓, bascule pendant la relecture (playback) ✓, tour complet résolu **en 3D** avec playback puis positions finales sur les cases ✓, pan + zoom ×2 puis re-position exacte (`pickAt` renvoie la case de chaque sprite) ✓, bascules répétées rapides (stress ×6) sans crash ✓ ;
+- **GUI réelle (dpr 1.5 simulé)** : bascule 2D→3D avec unités de départ ✓, bascule pendant la relecture (playback) ✓, tour complet résolu **en 3D** avec playback puis positions finales sur les cases ✓, pan + zoom ×2 puis re-position exacte (`pickAt` renvoie la case de chaque sprite) ✓, bascules répétées rapides (stress ×6) sans crash ✓, **scénario exact du bug n°2** : sélection d'unité → flèche → confirmation du déplacement en 3D → échelle inchangée ✓ (capture `dev-logs/captures-v1-3d/FIX-2-ordre-deplacement-3d-echelle-normale.png`) ;
 - **Prod build** (`vite build` + preview) : séquence complète re-vérifiée sur le bundle de production ✓ ;
 - **Captures** : `dev-logs/captures-v1-3d/BUG-reproduit-avant-correctif-dpr15-unites-hors-champ.png` et `FIX-3d-dpr15-unites-sur-leurs-cases.png`.
 
