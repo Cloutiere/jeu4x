@@ -33,6 +33,7 @@ Depuis le lobby, la case à cocher **« Partie solo (contre le bot) »** crée u
 - Le RNG du bot est **dédié** : `botTurnSeed(gameSeed, turn)` — il ne consomme jamais le RNG de résolution du moteur (les flux sont séparés, testé).
 - Même seed de partie + mêmes ordres d'Erik → mêmes ordres du bot → même partie (la génération est pure, et les ordres générés sont **persistés dans le motif de résolution** : un crash + reprise rejoue à l'identique, §3.5).
 - 19 tests botPolicy dont déterminisme bit à bit (R-80) et validation `orderShapeError` de chaque forme.
+- **Bug attrapé par la CI (corrigé)** : le tirage de production du bot mirrorait `bot.mjs` (filtres à la main) et pouvait choisir un item que le moteur refuse — unité unique d'une AUTRE civilisation (R-148, ex. Guerrier Impi pour un bot non-zoulou) ou Banque mondiale sous 20 000 or (R-137). L'ordre était alors ignoré à la résolution (production vide ce tour) et un test solo devenait floquant (~40 % selon le seed de partie, d'où l'échec CI). **Correctif** : le filtre final de `pickProduction` passe par le validateur moteur `canSetProduction` (source unique R-87 : tech, obsolescence, uniques + remplacement, GP, stratégiques, bâtiments R-66/R-111) + `wonderTreasuryLocked` (R-137). 10/10 exécutions vertes après correctif.
 
 ## 5. Vérifications (L4)
 

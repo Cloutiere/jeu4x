@@ -32,10 +32,12 @@ import {
   TERRAINS,
   UNIT_TYPES,
   WONDERS,
+  canSetProduction,
   compareCityIds,
   compareUnitIds,
   hexDistance,
   rushBuyCostOf,
+  wonderTreasuryLocked,
 } from '@game/rules';
 import type { City, GameState, Order, PlayerId, ProductionItem, SeededRng, Unit } from '@game/rules';
 
@@ -98,11 +100,14 @@ function baseCostOf(item: ProductionItem): number | null {
 
 /**
  * R-87 · Un item de production aléatoire VALIDE pour la ville (miroir bot.mjs
- * `pickProduction`) : unités implémentées non obsolètes (HORS GP R-114 et
- * stratégiques R-138) + bâtiments non possédés (prérequis R-111 satisfaits)
- * + merveilles (unicité R-129, non obsolètes R-128, ONU exclue car
- * priorisée R-116). Colon : coût population officiel (R-112). Naval :
- * uniquement pour une ville côtière (R-117).
+ * `pickProduction`). Le filtre final passe par le VALIDATEUR MOTEUR
+ * `canSetProduction` (tech, obsolescence R-110, unités uniques R-148 avec
+ * remplacement, GP R-114, stratégiques R-138, bâtiments R-66/R-111) — un
+ * ordre que le moteur refuserait n'entre jamais dans le tirage (leçon CI :
+ * un Guerrier Impi pour une civ non-zoulou ou la Banque mondiale sous
+ * 20 000 or rendaient le SetProduction inopérant). S'y ajoutent les filtres
+ * bot.mjs : coût population (R-112), accès à la mer (R-117), unicité
+ * MONDIALE des merveilles (R-129) et verrou de trésorerie (R-137).
  */
 function pickProduction(
   city: City,
@@ -112,8 +117,6 @@ function pickProduction(
   rng: SeededRng,
 ): ProductionItem | null {
   const unlocked = player.techsUnlocked ?? [];
-  const obsolete = new Set<string>();
-  for (const techId of unlocked) for (const u of TECHS[techId]?.obsoleteUnits ?? []) obsolete.add(u);
   const obsoleteWonders = new Set<string>();
   for (const techId of unlocked) for (const w of TECHS[techId]?.obsoleteWonders ?? []) obsoleteWonders.add(w);
   const allCities = Object.values(state.cities);
@@ -131,18 +134,16 @@ function pickProduction(
   }
   for (const u of Object.values(UNIT_TYPES)) {
     if (u.implemented === false || u.greatPerson || u.strategic) continue;
-    if (u.tech && !unlocked.includes(u.tech)) continue;
-    if (obsolete.has(u.id)) continue;
-    if ((u.populationCost ?? 0) > 0 && city.pop < u.populationCost!) continue;
+    if ((u.populationCost ?? 0) > 0 && city.pop < u.populationCost!) continue; // R-112 (complétion)
     if (u.aquatic && !isCoastal(city, state)) continue; // R-117 : accès à la mer
+    if (!canSetProduction({ kind: 'unit', id: u.id }, unlocked, city.buildings, player.civId)) continue;
     options.push({ kind: 'unit', id: u.id });
   }
   for (const b of Object.values(BUILDINGS)) {
     if (b.fixed || b.implemented === false) continue;
     if (city.buildings.includes(b.id)) continue;
     if (b.replaces && city.buildings.includes(b.replaces)) continue;
-    if (b.tech && !unlocked.includes(b.tech)) continue;
-    if (b.requiresBuilding && !city.buildings.includes(b.requiresBuilding)) continue;
+    if (!canSetProduction({ kind: 'building', id: b.id }, unlocked, city.buildings, player.civId)) continue;
     options.push({ kind: 'building', id: b.id });
   }
   for (const w of Object.values(WONDERS)) {
@@ -150,6 +151,7 @@ function pickProduction(
     if (w.tech && !unlocked.includes(w.tech)) continue;
     if (obsoleteWonders.has(w.id)) continue;
     if (empireWonders.has(w.id) || worldWonders.has(w.id) || empireChantiers.has(w.id)) continue;
+    if (wonderTreasuryLocked(w.id, player.treasury)) continue; // R-137 (Banque mondiale)
     options.push({ kind: 'wonder', id: w.id });
   }
   if (options.length === 0) return null;
