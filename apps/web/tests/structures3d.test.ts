@@ -225,22 +225,29 @@ describe('L2 — Cartes-ressources : slot standard + états R-92', () => {
     expect(masquee.get('slotLiseret')![0]!.couleur).not.toBe(STRUCTURES3D.slot.liseret);
   });
 
-  it('carte posée FACE CAMÉRA (correctif V2-bis) : glyphes de bonus côté sud (+z)', () => {
-    // Caméra par défaut au sud (+z, tilt 58°) : la rangée de glyphes doit
-    // dépasser la face de la carte CÔTÉ CAMÉRA — l'ancienne « face intérieure »
-    // (vers le centre de la tuile) montrait la carte de dos.
+  it('TUILE pivotée 180° (correctif V2-bis) : slot au coin nord, glyphes côté centre', () => {
+    // Caméra par défaut au sud (+z, tilt 58°) : toute la tuile (slot + carte +
+    // glyphes, en miroir du calque glyphes de world3d) tourne autour du centre
+    // de l'hexagone — le slot va dans le coin le plus ÉLOIGNÉ de la caméra et
+    // la carte, restée dans son sens d'origine (glyphes côté centre), présente
+    // naturellement cette face à la caméra.
     const plan = planifierStructures(entree({
       tuiles: [
         tuile(0, 0, 'plaine', 'fer'), // plaque, bonus cpu
         tuile(1, 0, 'plaine', 'or'), // plaque, bonus or (puces + socles)
       ],
     }));
+    const slot = plan.get('slot')![0]!;
+    // offset miroir de la spec [0, +0.58] : le slot est au NORD de la tuile
+    expect(slot.z).toBeLessThan(0); // coin éloigné de la caméra
+    expect(slot.z).toBeCloseTo(-STRUCTURES3D.slot.offset[1], 5);
     for (const [res, famille] of [['fer', 'cpu'], ['or', 'or']] as const) {
       const carte = plan.get(`carte:${res}`)![0]!;
+      expect(carte.z).toBe(slot.z); // posée sur le slot (même offset pivoté)
       expect(STRUCTURES3D.cartes[res].bonus.famille).toBe(famille);
       for (const pool of [`cg:${famille}`, ...(famille === 'or' ? ['cgSocle'] : [])]) {
         for (const g of plan.get(pool)!) {
-          expect(g.z).toBeGreaterThan(carte.z); // côté caméra, jamais côté tuile
+          expect(g.z).toBeGreaterThan(carte.z); // face intérieure : côté centre
         }
       }
     }

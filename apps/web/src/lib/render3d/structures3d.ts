@@ -137,11 +137,18 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
     const { x, z } = hexWorldPos({ q: t.q, r: t.r });
     const elev = specTerrain.elev;
     const fog = t.fog;
+    // Rotation 180° de la tuile (correctif V2-bis — décision Erik 05/09) :
+    // TOUT le décor posé sur la tuile tourne autour du centre de l'hexagone
+    // ((dx, dz) → (−dx, −dz), miroir du calque glyphes de world3d) — le slot
+    // se retrouve dans le coin le plus ÉLOIGNÉ de la caméra (nord), la carte
+    // dégagée des voies de bus.
+    const ox = -spec.offset[0];
+    const oz = -spec.offset[1];
 
     // socle rectangulaire vertical (format « carte ») + liseré néon (cadre) —
     // grand axe PARALLÈLE aux voies de bus (axe X), posé hors des voies
-    push('slot', { x: x + spec.offset[0], y: elev + spec.hauteur / 2, z: z + spec.offset[1], sx: spec.longueur, sy: spec.hauteur, sz: spec.largeur, ry: 0, couleur: dim(spec.couleur, fog) });
-    push('slotLiseret', { x: x + spec.offset[0], y: elev + spec.hauteur + 0.002, z: z + spec.offset[1], sx: 1, sy: 1, sz: 1, ry: 0, couleur: dim(spec.liseret, fog) });
+    push('slot', { x: x + ox, y: elev + spec.hauteur / 2, z: z + oz, sx: spec.longueur, sy: spec.hauteur, sz: spec.largeur, ry: 0, couleur: dim(spec.couleur, fog) });
+    push('slotLiseret', { x: x + ox, y: elev + spec.hauteur + 0.002, z: z + oz, sx: 1, sy: 1, sz: 1, ry: 0, couleur: dim(spec.liseret, fog) });
 
     const neutre = estCarteNeutre(t.ressource);
     const specCarte = neutre ? null : S.cartes[t.ressource]!;
@@ -156,9 +163,9 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
       const f = S.formes.plaque as { largeur: number; hauteur: number; epaisseur: number; inclinaison: number };
       const incl = f.inclinaison;
       push(pool, {
-        x: x + spec.offset[0],
+        x: x + ox,
         y: base + ((f.hauteur * k) / 2) * Math.cos(incl),
-        z: z + spec.offset[1] + ((f.hauteur * k) / 2) * Math.sin(incl),
+        z: z + oz + ((f.hauteur * k) / 2) * Math.sin(incl),
         sx: f.largeur * k, sy: f.hauteur * k, sz: f.epaisseur * k,
         rx: incl, ry: 0, couleur: 0xffffff,
       });
@@ -166,7 +173,7 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
       // pilier (cylindre) / borne (prisme hex) : verticaux, posés sur le slot
       const f = S.formes[formeNom] as { rayon: number; hauteur: number };
       push(pool, {
-        x: x + spec.offset[0], y: base + (f.hauteur * k) / 2, z: z + spec.offset[1],
+        x: x + ox, y: base + (f.hauteur * k) / 2, z: z + oz,
         sx: f.rayon * k, sy: f.hauteur * k, sz: f.rayon * k,
         ry: 0, couleur: 0xffffff,
       });
@@ -174,8 +181,10 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
 
     // Mini-glyphes de bonus (atelier Erik 05/09) : bus = Nourriture,
     // cpu = Production, ram = Commerce, ram dorée = Or direct, losange
-    // néon cyberpunk = Culture. Rangée à plat sur la face avant de la carte,
-    // 1 instance par point de bonus.
+    // néon cyberpunk = Culture. Rangée à plat sur la face INTÉRIEURE de la
+    // carte (sens d'ORIGINE — le retournement de carte du premier correctif
+    // est annulé : c'est la TUILE qui pivote, pas la carte), 1 instance par
+    // point de bonus.
     if (specCarte) {
       const cb = S.carteBonus;
       const { famille, valeur: n } = specCarte.bonus;
@@ -187,33 +196,31 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
         : (S.formes[formeNom] as { hauteur: number }).hauteur * k;
       const yCarte = base + hCarte / 2;
       const yRangee = yCarte + hCarte * (0.5 - cb.basDeCarte);
-      // Retournement 180° (correctif V2-bis — décision Erik 05/09) : la carte
-      // est posée FACE À LA CAMÉRA (au sud, +z). La rangée de glyphes regarde
-      // donc vers la caméra — l'ancienne « face intérieure » (vers le centre
-      // de la tuile) montrait la carte de dos depuis le point de vue par
-      // défaut. RAM et Or : puces CARRÉS plus épaisses, portées par un petit
-      // socle noir (décision Erik 05/09) — les distingue des bus et des CPU
-      // au premier coup d'œil.
+      // Face INTÉRIEURE : les glyphes regardent vers le centre de la tuile —
+      // la carte étant désormais au bord NORD (coin éloigné de la caméra),
+      // cette face regarde naturellement la caméra. RAM et Or : puces CARRÉS
+      // plus épaisses, portées par un petit socle noir (décision Erik 05/09)
+      // — les distingue des bus et des CPU au premier coup d'œil.
       const ramOuOr = famille === 'ram' || famille === 'or';
       for (let i = 0; i < n; i++) {
-        const gx = x + spec.offset[0] + (i - (n - 1) / 2) * cb.espacement;
+        const gx = x + ox + (i - (n - 1) / 2) * cb.espacement;
         if (ramOuOr) {
           push('cgSocle', {
             x: gx, y: yRangee,
-            z: z + spec.offset[1] + profFace + 0.007,
+            z: z + oz + profFace + 0.007,
             sx: 1, sy: 1, sz: 1, ry: 0,
             couleur: dim(0x0a0d10, fog),
           });
           push(`cg:${famille}`, {
             x: gx, y: yRangee,
-            z: z + spec.offset[1] + profFace + 0.014 + 0.015,
+            z: z + oz + profFace + 0.014 + 0.015,
             sx: 1, sy: 1, sz: 1, ry: 0,
             couleur: dim(cb.couleurs[famille], fog),
           });
         } else {
           push(`cg:${famille}`, {
             x: gx, y: yRangee,
-            z: z + spec.offset[1] + profFace + 0.008,
+            z: z + oz + profFace + 0.008,
             sx: 1, sy: 1, sz: 1, ry: 0,
             couleur: dim(cb.couleurs[famille], fog),
           });

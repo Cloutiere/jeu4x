@@ -318,10 +318,11 @@ export class TerrainWorld {
       const poserBus = (lanes: number[], litCount: number, zOff: number) => {
         lanes.forEach((lz, i) => {
           const lit = !masquee && i < litCount;
-          pos.set(x, spec.elev + 0.022, z + lz + zOff); scale.set(1, 1, 1); q.identity();
+          // Rotation 180° de la tuile (décision Erik 05/09) : (dx, dz) → (−dx, −dz)
+          pos.set(x, spec.elev + 0.022, z - lz - zOff); scale.set(1, 1, 1); q.identity();
           m.compose(pos, q, scale);
           (lit ? this.busLit : this.busDim).push(m);
-          if (lit) this.pulseMeta.push({ x, z: z + lz + zOff, y: spec.elev + 0.05, t: ((t.q * 3 + t.r * 5 + i * 7) % 10) / 10, speed: 0.35 + (((t.q * 11 + t.r * 17 + i) % 10) / 10) * 0.4 });
+          if (lit) this.pulseMeta.push({ x, z: z - lz - zOff, y: spec.elev + 0.05, t: ((t.q * 3 + t.r * 5 + i * 7) % 10) / 10, speed: 0.35 + (((t.q * 11 + t.r * 17 + i) % 10) / 10) * 0.4 });
         });
       };
       const poserCpu = (pts: Array<[number, number]>, litCount: number) => {
@@ -332,13 +333,14 @@ export class TerrainWorld {
           const jx = (rnd() - 0.5) * 0.04, jz = (rnd() - 0.5) * 0.04;
           const ry = (rnd() - 0.5) * 0.16;
           for (const [px, pz, rot] of [[-0.146, 0, 0], [0.146, 0, 0], [0, -0.146, Math.PI / 2], [0, 0.146, Math.PI / 2]] as const) {
-            pos.set(x + cx + jx + px, spec.elev + 0.006, z + cz + jz + pz); scale.set(1, 1, 1);
-            q.setFromAxisAngle(axeY, rot + ry);
+            // Rotation 180° de la tuile : positions en miroir, lacet + π
+            pos.set(x - cx - jx - px, spec.elev + 0.006, z - cz - jz - pz); scale.set(1, 1, 1);
+            q.setFromAxisAngle(axeY, rot + ry + Math.PI);
             m.compose(pos, q, scale);
             this.pins.push(m);
           }
-          q.setFromAxisAngle(axeY, ry);
-          pos.set(x + cx + jx, spec.elev + 0.0175, z + cz + jz); scale.set(1, 1, 1);
+          q.setFromAxisAngle(axeY, ry + Math.PI);
+          pos.set(x - cx - jx, spec.elev + 0.0175, z - cz - jz); scale.set(1, 1, 1);
           m.compose(pos, q, scale);
           this.cpuSocle.push(m);
           pos.y = spec.elev + 0.0175 + 0.0325;
@@ -351,7 +353,8 @@ export class TerrainWorld {
           const lit = i < litCount;
           const h = 0.12 + ((t.q * 7 + t.r * 13 + i * 5) % 5) * 0.02;
           q.identity();
-          pos.set(x + sx, spec.elev + 0.0225, z + sz); scale.set(1, 1, 1);
+          // Rotation 180° de la tuile : position en miroir
+          pos.set(x - sx, spec.elev + 0.0225, z - sz); scale.set(1, 1, 1);
           m.compose(pos, q, scale);
           this.ramSocle.push(m);
           pos.y = spec.elev + 0.045 + h / 2; scale.set(1, h, 1);
