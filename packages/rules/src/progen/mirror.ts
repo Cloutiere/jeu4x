@@ -27,11 +27,11 @@
  * interface (partitionnement régional + fertilité multi-anneaux +
  * normalisation, PDF §AssignStartingPlots) SANS toucher à la géophysique.
  */
-import { colRowToHex, hexDistance, inRectangle, neighbors, compareHex } from '../hex.js';
+import { colRowToHex, hexDistance, hexesWithinRadius, inRectangle, neighbors, compareHex } from '../hex.js';
 import type { Hex } from '../hex.js';
 import type { MapResource, MapVillage, MapHut } from '../map.js';
 import type { ResourceId, TerrainId } from '../types.js';
-import { RESOURCES, TERRAINS } from '../data.js';
+import { RESOURCES, TERRAINS, isWaterTerrain } from '../data.js';
 import type { SeededRng } from '../rng.js';
 import type { PhysicalMap } from './geo.js';
 import { classifyWaters } from './geo.js';
@@ -59,6 +59,13 @@ export interface PlacementReport {
   /** Injection de ressources de normalisation effectuée. */
   normalized: boolean;
   candidates: number;
+  /** SPAWN-START : garantie de voisinage du départ (consignée au dump admin). */
+  spawn: {
+    purgeRadius: number;
+    purged: number;
+    compositionP1: Record<string, number>;
+    compositionP2: Record<string, number>;
+  };
 }
 
 export interface PlacementOutput {
@@ -101,6 +108,7 @@ interface SiteCandidate {
 
 interface WritableTerrainLookup extends TerrainLookup {
   setResource(hex: Hex, id: ResourceId): void;
+  deleteResource(hex: Hex): void;
 }
 
 /**
@@ -149,7 +157,108 @@ export function halfMapLookup(
       const { col, row } = resolve(hex);
       resourceMap.set(`${col},${row}`, id);
     },
+    deleteResource(hex: Hex): void {
+      const { col, row } = resolve(hex);
+      resourceMap.delete(`${col},${row}`);
+    },
   };
+}
+
+// ---------------------------------------------------------------------------
+// SPAWN-START (demande d'Erik, 05/09) — garantie de voisinage du Colon.
+//  1. Les 6 cases adjacentes au spawn sont FORCÉES (re-paint) : exactement
+//     🔶 spawnRingForet forêts, 🔶 spawnRingPrairie prairies, 🔶 spawnRingEau
+//     eaux ; la 6e case reste libre (tout terrain productif non-montagne).
+//  2. AUCUNE ressource dans le rayon 🔶 spawnPurgeRadius du spawn (anneaux
+//     1 ET 2 purgés) — les artefacts (7o) ne sont PAS concernés.
+// Le placement d'abord, la carte ensuite : une carte procédurale ne garantit
+// pas qu'un tel voisinage existe naturellement — on le peint.
+// ---------------------------------------------------------------------------
+
+/** Case libre éligible 🔶 : terrain productif (un rendement > 0), terrestre et
+ *  non-montagne (l'eau et l'océan ne sont pas des cases « libres » de départ). */
+export function productiveFreeTile(t: TerrainId): boolean {
+  if (isWaterTerrain(t) || t === 'montagne') return false;
+  const y = TERRAINS[t]!.yields ?? { food: 0, production: 0, commerce: 0 };
+  return y.food + y.production + y.commerce > 0;
+}
+
+/**
+ * Force le voisinage du site sur la grille (DEMI-carte — le miroir reproduit
+ * le re-paint à l'identique). Déterministe (R-81) : les voisines sont triées
+ * (q, r) ; les terrains déjà conformes sont PRÉSERVÉS en priorité, les cibles
+ * manquantes sont posées dans l'ordre sur les voisines restantes, la/les
+ * dernières voisines restent libres si productives non-montagne (sinon
+ * re-peintes en prairie). Ne touche QU'AUX 6 voisines du site.
+ */
+export function forceSpawnNeighborhood(grid: TerrainId[][], site: Hex, s: ProgenSettings): void {
+  const halfH = grid.length;
+  const halfW = grid[0]?.length ?? 0;
+  const at = (h: Hex): TerrainId | undefined => grid[h.r]?.[h.q + Math.floor(h.r / 2)];
+  const set = (h: Hex, t: TerrainId): void => {
+    grid[h.r]![h.q + Math.floor(h.r / 2)] = t;
+  };
+  const ring = neighbors(site).filter((n) => inRectangle(n, halfW, halfH)).sort(compareHex);
+  // Cibles dans l'ordre canonique : forêts, prairies, eaux.
+  const targets: TerrainId[] = [];
+  for (let i = 0; i < s.spawnRingForet; i++) targets.push('foret');
+  for (let i = 0; i < s.spawnRingPrairie; i++) targets.push('prairie');
+  for (let i = 0; i < s.spawnRingEau; i++) targets.push('eau');
+  // 1. Les voisines qui portent déjà un terrain cible le conservent.
+  const assigned = new Map<Hex, TerrainId>();
+  for (const target of targets) {
+    const match = ring.find((n) => !assigned.has(n) && at(n) === target);
+    if (match) assigned.set(match, target);
+  }
+  // 2. Cibles manquantes → voisines restantes (ordre trié, R-81).
+  const missing = [...targets];
+  for (const t of assigned.values()) {
+    const idx = missing.indexOf(t);
+    if (idx >= 0) missing.splice(idx, 1);
+  }
+  const rest = ring.filter((n) => !assigned.has(n));
+  for (const [i, hex] of rest.entries()) {
+    if (i < missing.length) {
+      set(hex, missing[i]!);
+    } else if (!productiveFreeTile(at(hex)!)) {
+      set(hex, 'prairie'); // case libre impropre (eau/montagne/cratère) → prairie
+    }
+  }
+}
+
+/**
+ * Purge pure des ressources situées à ≤ `radius` (hex) de l'un des centres.
+ * Retourne les listes kept/purged (l'entrée n'est pas mutée) — déterministe.
+ */
+export function purgeResourcesNear(
+  resources: MapResource[],
+  centers: Hex[],
+  radius: number,
+): { kept: MapResource[]; purged: MapResource[] } {
+  if (radius <= 0) return { kept: [...resources], purged: [] };
+  const kept: MapResource[] = [];
+  const purged: MapResource[] = [];
+  for (const r of resources) {
+    const h = { q: r.q, r: r.r };
+    if (centers.some((c) => hexDistance(h, c) <= radius)) purged.push(r);
+    else kept.push(r);
+  }
+  return { kept, purged };
+}
+
+/** Composition de l'anneau 1 d'un spawn : nombre de cases par terrain
+ *  (checksum d'équité étendu — les deux spawns doivent être identiques). */
+export function spawnNeighborhoodComposition(
+  terrainAt: (h: Hex) => TerrainId | undefined,
+  capital: Hex,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const n of neighbors(capital)) {
+    const t = terrainAt(n);
+    if (t === undefined) continue;
+    counts[t] = (counts[t] ?? 0) + 1;
+  }
+  return counts;
 }
 
 /**
@@ -172,8 +281,10 @@ export function normalizeStartSite(
   let normalized = false;
   if (score >= threshold) return { score, normalized };
   // Phase 6c (demande d'Erik) : l'anneau 1 du site reste TOUJOURS sans
-  // ressource — les injections de normalisation ne visent que l'anneau 2.
-  const injectable = ringCells(site, 2).filter((c) => {
+  // ressource. SPAWN-START (05/09) : l'anneau 2 est LUI AUSSI réservé (rayon
+  // 🔶 spawnPurgeRadius sans ressource) — les injections de normalisation ne
+  // visent plus que l'anneau 3.
+  const injectable = ringCells(site, 3).filter((c) => {
     const t = lookup.terrainAt(c);
     if (t !== 'prairie' && t !== 'plaine') return false; // contrainte R-91 (blé/bétail)
     if (lookup.resourceAt(c) !== null) return false;
@@ -377,22 +488,10 @@ export const MIRROR_1V1: StartPlacementStrategy = {
           return nt !== undefined && TERRAINS[nt]!.passable && lookup.resourceAt(n) === null;
         });
         if (!freeNeighbor) continue;
-        // Phase 6c (demande d'Erik) : anneau de départ ÉQUILIBRÉ — au moins
-        // 🔶 startMinRingPrairie prairies et 🔶 startMinRingForest forêts parmi
-        // les 6 voisines, et AUCUNE ressource dans l'anneau (le site de départ
-        // « ne coûte aucun PM » et ne doit rien devoir à la chance des poses).
-        let prairie = 0;
-        let forest = 0;
-        let ringResource = false;
-        for (const n of neighbors(hex)) {
-          const nt = lookup.terrainAt(n);
-          if (nt === 'prairie') prairie += 1;
-          else if (nt === 'foret') forest += 1;
-          if (lookup.resourceAt(n) !== null) ringResource = true;
-        }
-        if (prairie < settings.startMinRingPrairie) continue;
-        if (forest < settings.startMinRingForest) continue;
-        if (ringResource) continue;
+        // SPAWN-START (demande d'Erik 05/09) : la composition de l'anneau de
+        // départ n'est plus un critère de FILTRAGE (2F/2P/1E n'existe pas
+        // naturellement partout) — le site choisi voit son voisinage FORCÉ
+        // (re-paint) puis son rayon purgé des ressources, ci-dessous.
         candidates.push({ hex, score: fertilityScore(lookup, hex, settings) });
       }
     }
@@ -407,10 +506,22 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     const topAverage = top.reduce((acc, c) => acc + c.score, 0) / topCount;
     const threshold = topAverage * settings.normalizationFactor;
 
-    // 3. Meilleur site + normalisation (PDF §NormalizeStartLocation) : les
-    //    anneaux 1-2 du site restent dans la demi-carte (rows ≤ 17+2).
+    // 3. Meilleur site → SPAWN-START : le placement d'ABORD, la carte ENSUITE.
+    //    a) le voisinage du site est FORCÉ (re-paint 2F/2P/1E + 1 libre 🔶) —
+    //    le miroir (étape 4) reproduira le re-paint à l'identique pour p2 ;
+    //    b) les ressources du rayon 🔶 spawnPurgeRadius sont purgées (anneaux
+    //    1 et 2 — la demi-liste suffit : toute image miroir d'une case du
+    //    rayon du site est dans le rayon du site miroir) ;
+    //    c) normalisation (PDF §NormalizeStartLocation) — injections en
+    //    anneau 3 désormais (les anneaux 1-2 sont réservés par la garantie).
     const best = ranked[0]!;
-    const norm = normalizeStartSite(lookup, best.hex, best.score, threshold, settings, resources, { mirrorOf });
+    forceSpawnNeighborhood(geo.terrain, best.hex, settings);
+    const sitePurge = purgeResourcesNear(resources, [best.hex], settings.spawnPurgeRadius);
+    resources.length = 0;
+    resources.push(...sitePurge.kept);
+    for (const r of sitePurge.purged) lookup.deleteResource({ q: r.q, r: r.r });
+    const siteScore = fertilityScore(lookup, best.hex, settings);
+    const norm = normalizeStartSite(lookup, best.hex, siteScore, threshold, settings, resources, { mirrorOf });
     const site: SiteCandidate = { hex: best.hex, score: norm.score };
 
     // 4. Miroir : rotation 180° des terrains et des ressources.
@@ -444,17 +555,18 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     //    `minPerResourceType` 🔶 pose de CHAQUE type de ressource par joueur
     //    (demi-carte miroir : pérenne pour le multi-joueurs), espacement
     //    compris, capitales exclues.
-    // L'anneau 1 des DEUX capitales reste sans ressource (Phase 6c) : la
+    // L'anneau 1 des DEUX capitales reste sans ressource (Phase 6c) ET, depuis
+    // SPAWN-START, tout le rayon 🔶 spawnPurgeRadius (anneaux 1 + 2) : la
     // garantie de couverture ne peut plus y poser quoi que ce soit.
-    const capitalRings = new Set<string>(capitalKeys);
+    const spawnExclusion = new Set<string>(capitalKeys);
     for (const cap of [site.hex, mirror]) {
-      for (const n of neighbors(cap)) capitalRings.add(`${n.q},${n.r}`);
+      for (const h of hexesWithinRadius(cap, settings.spawnPurgeRadius)) spawnExclusion.add(`${h.q},${h.r}`);
     }
     guaranteeResourceCoverage({
       rng,
       terrain: geo.terrain,
       resources: finalResources,
-      exclude: capitalRings,
+      exclude: spawnExclusion,
       s: settings,
       mirrorOf,
       onlyIds: landOnly,
@@ -465,11 +577,17 @@ export const MIRROR_1V1: StartPlacementStrategy = {
       rng,
       terrain: classified,
       resources: finalResources,
-      exclude: capitalRings,
+      exclude: spawnExclusion,
       s: settings,
       mirrorOf,
       halfHeight: halfH,
     });
+    // SPAWN-START · ceinture et bretelles : AUCUNE ressource dans le rayon 🔶
+    // des deux spawns sur la liste finale (l'exclusion ci-dessus devrait déjà
+    // suffire — le filtre reste la garantie dure, fail-safe déterministe).
+    const finalPurge = purgeResourcesNear(finalResources, [site.hex, mirror], settings.spawnPurgeRadius);
+    finalResources.length = 0;
+    finalResources.push(...finalPurge.kept);
 
     // 5. Villages (≥ 6 des deux spawns — leçon 7d) et huttes (≥ 3 🔶), posés
     //    sur la demi-carte puis reflétés : chaque entité existe deux fois,
@@ -526,6 +644,21 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     const p2 = fertilityScore(fullLookup, mirror, settings);
     const rawDelta = Math.abs(p1 - p2);
 
+    // 6bis. SPAWN-START · checksum étendu : la composition des deux voisinages
+    //    (re-peints + eaux classifiées) doit être IDENTIQUE — par construction
+    //    du miroir c'est le cas ; l'assertion fail-loud protège tout futur
+    //    changement qui casserait la symétrie.
+    const terrainAtFull = (h: Hex): TerrainId | undefined => classified[h.r]?.[h.q + Math.floor(h.r / 2)];
+    const compositionP1 = spawnNeighborhoodComposition(terrainAtFull, site.hex);
+    const compositionP2 = spawnNeighborhoodComposition(terrainAtFull, mirror);
+    const canon = (c: Record<string, number>): string =>
+      Object.entries(c).sort(([a], [b]) => (a < b ? -1 : 1)).map(([t, n]) => `${t}:${n}`).join(',');
+    if (canon(compositionP1) !== canon(compositionP2)) {
+      throw new ProgenPlacementError(
+        `composition de voisinage déséquilibrée entre les deux spawns : {${canon(compositionP1)}} vs {${canon(compositionP2)}}`,
+      );
+    }
+
     const report: PlacementReport = {
       p1,
       p2,
@@ -534,6 +667,12 @@ export const MIRROR_1V1: StartPlacementStrategy = {
       threshold,
       normalized: norm.normalized,
       candidates: candidates.length,
+      spawn: {
+        purgeRadius: settings.spawnPurgeRadius,
+        purged: finalPurge.purged.length,
+        compositionP1,
+        compositionP2,
+      },
     };
 
     return {

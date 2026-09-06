@@ -257,16 +257,16 @@ describe('Phase 6b · Équilibrage — fertilité & équité (PDF §AssignStarti
     const s = resolveProgenSettings();
     const initial = fertilityScore(lookup, site, s);
     const injected: MapResource[] = [];
-    // Phase 6c : l'anneau 1 du site reste TOUJOURS sans ressource — la
-    // normalisation n'injecte qu'en anneau 2 (distance 2 exactement ici).
+    // SPAWN-START (Erik 05/09) : les anneaux 1-2 du site restent TOUJOURS
+    // sans ressource (rayon de purge) — la normalisation n'injecte qu'en
+    // anneau 3 (distance 3 exactement ici).
     const out = normalizeStartSite(lookup, site, initial, initial + 20, s, injected);
     expect(out.normalized).toBe(true);
     expect(out.score).toBeGreaterThanOrEqual(initial + 20);
     expect(injected.length).toBeGreaterThan(0);
     for (const r of injected) {
       expect(['ble', 'betail']).toContain(r.id);
-      expect(hexDistance(site, r)).toBeLessThanOrEqual(2);
-      expect(hexDistance(site, r)).toBeGreaterThanOrEqual(2);
+      expect(hexDistance(site, r)).toBe(3);
     }
     // Aucune case injectable (tout en eau autour) → échec explicite.
     const waterGrid: TerrainId[][] = Array.from({ length: halfH }, () => Array.from({ length: halfW }, () => 'eau'));
@@ -682,7 +682,7 @@ describe('Phase 6c · Calibrage par type de tuile (mosaïque, déserts, prairies
   });
 });
 
-describe("Phase 6c · Anneau de départ équilibré (demande d'Erik)", () => {
+describe('Phase 6c · Anneau de départ équilibré (demande d\'Erik)', () => {
   it('chaque capitale : anneau 6 avec ≥ 2 prairies, ≥ 2 forêts, AUCUNE ressource', () => {
     for (const seed of [42, 20260902, 606]) {
       const { map } = generateProceduralMap(seed);
@@ -701,6 +701,24 @@ describe("Phase 6c · Anneau de départ équilibré (demande d'Erik)", () => {
         expect(prairie, `seed ${seed} : ≥ 2 prairies autour de (${cap.q},${cap.r})`).toBeGreaterThanOrEqual(2);
         expect(forest, `seed ${seed} : ≥ 2 forêts autour de (${cap.q},${cap.r})`).toBeGreaterThanOrEqual(2);
       }
+    }
+  });
+
+  it('SPAWN-START (Erik 05/09) : composition 2 forêts + ≥ 2 prairies + 1 eau + 1 case libre productive', () => {
+    // La garantie complète est vérifiée statistiquement dans
+    // progen-spawn-start.test.ts (N seeds, les deux spawns, rayon 2) ;
+    // ici : le contrôle rapide sur une carte générée.
+    const { map } = generateProceduralMap(42);
+    for (const spawn of map.spawns) {
+      const counts: Record<string, number> = {};
+      for (const n of neighbors(spawn.capital)) {
+        const t = map.terrain[tileKeyOf(n)]!;
+        counts[t] = (counts[t] ?? 0) + 1;
+      }
+      expect(counts['foret']).toBeGreaterThanOrEqual(DEFAULT_PROGEN_SETTINGS.spawnRingForet);
+      expect(counts['prairie']).toBeGreaterThanOrEqual(DEFAULT_PROGEN_SETTINGS.spawnRingPrairie);
+      expect(counts['eau']).toBe(DEFAULT_PROGEN_SETTINGS.spawnRingEau);
+      expect(counts['montagne']).toBeUndefined();
     }
   });
 });

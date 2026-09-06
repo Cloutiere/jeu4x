@@ -64,6 +64,9 @@
      *  dessiné en teinte verte (riche) → rouge (pauvre). Optionnel : absent du
      *  jeu réel, fourni uniquement par le labo de calibrage. */
     fertilityHeatmap?: Record<string, number> | null;
+    /** SPAWN-START (labo #/progen) : zone de garantie des départs — anneaux 1
+     *  et 2 des spawns, clés "q,r" ; absent du jeu réel. */
+    spawnGuarantee?: { ring1: string[]; ring2: string[] } | null;
     /** Chantier V1 (L3) : terrain en vraie 3D (option B hybride) — flag de
      *  repli, DÉFAUT FAUX (rendu 2D conservé jusqu'à l'acceptation d'Erik). */
     mode3d?: boolean;
@@ -82,6 +85,7 @@
     showYields = false,
     hideEntities = false,
     fertilityHeatmap = null,
+    spawnGuarantee = null,
     mode3d = false,
   }: Props = $props();
 
@@ -94,6 +98,10 @@
   });
   $effect(() => {
     void fertilityHeatmap;
+    overlayDirty = true;
+  });
+  $effect(() => {
+    void spawnGuarantee;
     overlayDirty = true;
   });
   $effect(() => {
@@ -730,6 +738,25 @@
         gr.position.copyFrom(hexToPixel({ q, r }, HEX_SIZE));
         overlayLayer.addChild(gr);
       }
+    }
+
+    // SPAWN-START (labo #/progen) : zone de garantie du départ — anneau 1
+    // (voisinage forcé 2F/2P/1E + case libre) en trait plein, anneau 2 (rayon
+    // sans ressource) en trait fin. Clés "q,r" calculées par la page.
+    if (spawnGuarantee) {
+      const drawRing = (keys: string[], color: number, width: number, inset: number, alpha: number): void => {
+        for (const key of keys) {
+          if (!scene.explored.has(key)) continue;
+          const [q, r] = key.split(',').map(Number);
+          if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+          const gr = new Graphics();
+          gr.poly(hexLocalPoints(HEX_SIZE - inset)).stroke({ width, color, alpha });
+          gr.position.copyFrom(hexToPixel({ q, r }, HEX_SIZE));
+          overlayLayer.addChild(gr);
+        }
+      };
+      drawRing(spawnGuarantee.ring1, 0x00b4d8, 4, 6, 0.95);
+      drawRing(spawnGuarantee.ring2, 0x00b4d8, 2, 10, 0.5);
     }
 
     // Possession des cases de ville (frontière couleur joueur).

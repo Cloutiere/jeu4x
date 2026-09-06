@@ -1,6 +1,6 @@
 {
  "id": "pangee-40",
- "name": "Pangée 40×40 (eau en bordure, T-11)",
+ "name": "Pang\u00e9e 40\u00d740 (eau en bordure, T-11)",
  "width": 40,
  "height": 40,
  "legend": {
@@ -32,10 +32,10 @@
   "wwffgmgfggggffffgfhpffgpfmppffgfppffhfwO",
   "Owppppmmhffffgffhghppmfpffpggpgfffffgghw",
   "OwfgfgpfffffpffpfhhppfhhfmgmffhgpfmhffwO",
-  "Owgpfggfhfhfgpgfmgppgfffgpppppggggddgggw",
-  "wgpgpgddgffgfggfhhpfffmgfphgmpggggdfmhwO",
-  "wffpfggdgfggffgfgfgfpfffmpmhghfggggmgfwO",
-  "wwwggggggpgmhgghffppffgffmppphffgfmffgwO",
+  "Owgpfggfhfhfgpgfmgppgfffgpppppgggfwdgggw",
+  "wgpgpfwdgffgfggfhhpfffmgfphgmpdgggdfmhwO",
+  "wffpfggdgfggffgfgfgfpfffmpmhghfdggfmgfwO",
+  "wwwgggfggpgmhgghffppffgffmppphffgfmffgwO",
   "wmghgfghfpfgpmfgfpghpgpghgfghfhhmfhmppwO",
   "wwfhmfffgfpfpfhfgmfmpgffmfggfphpgffmpgwO",
   "Owfpggfppgmmhpgfppgpmmgfpfffhgfggpfffpfw",
@@ -198,13 +198,13 @@
   },
   {
    "id": "epices",
-   "q": 25,
-   "r": 18
+   "q": 21,
+   "r": 19
   },
   {
    "id": "soufre",
-   "q": 26,
-   "r": 18
+   "q": 21,
+   "r": 20
   },
   {
    "id": "gibier",

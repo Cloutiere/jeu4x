@@ -70,6 +70,15 @@ export interface ProgenReport {
     normalized: boolean;
     candidates: number;
   };
+  /** SPAWN-START (demande d'Erik 05/09) : garantie de voisinage du départ —
+   *  rayon sans ressource, ressources purgées, composition des voisinages
+   *  (checksum d'équité étendu : compositionP1 = compositionP2). */
+  spawn: {
+    purgeRadius: number;
+    purged: number;
+    compositionP1: Record<string, number>;
+    compositionP2: Record<string, number>;
+  };
   connected: boolean;
 }
 
@@ -278,6 +287,7 @@ export function generateProceduralMap(
           normalized: out.report.normalized,
           candidates: out.report.candidates,
         },
+        spawn: out.report.spawn,
         connected,
       };
       return { map: loaded, report };
@@ -320,6 +330,7 @@ export function fertilityHeatmap(map: LoadedMap, settings?: Partial<ProgenSettin
 export { resolveProgenSettings, DEFAULT_PROGEN_SETTINGS } from './settings.js';
 export type { ProgenSettings, StartPlacementId } from './settings.js';
 export { guaranteeResourceCoverage } from './mirror.js';
+export { forceSpawnNeighborhood, purgeResourcesNear, spawnNeighborhoodComposition, productiveFreeTile } from './mirror.js';
 export type { StartPlacementStrategy, PlacementOutput, PlacementReport } from './mirror.js';
 export { MIRROR_1V1, START_PLACEMENT_STRATEGIES, attemptSeed } from './mirror.js';
 export { fertilityScore, tileFertility, ringCells } from './fertility.js';

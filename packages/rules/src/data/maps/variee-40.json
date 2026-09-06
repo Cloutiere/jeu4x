@@ -32,10 +32,10 @@
   "wgggggdddddddddffpppppppggggfffggghggggw",
   "wggggggdddddddffffpppppggggfffffgggggggw",
   "wgggggggdddddfffffppppgggggfffffgggggggw",
-  "wggggggggfffffffffppgggggghfffffgggggggw",
-  "wgggggggggfffffffgggggggfffffffhgggggggw",
-  "wggggggghfffffffgggggggfffffffgggggggggw",
-  "wgggggggfffffhggggggppfffffffffggggggggw",
+  "wggggggggfffffffffppgggggghfffffggfggggw",
+  "wgggfwggggfffffffgggggggfffffffhgggggggw",
+  "wggggggghfffffffgggggggfffffffggggwfgggw",
+  "wggggfggfffffhggggggppfffffffffggggggggw",
   "wgggggggfffffgggggppppfffffdddddgggggggw",
   "wgggggggfffffggggpppppffffdddddddggggggw",
   "wgggghgggfffggggpppppppffdddddddddgggggw",
@@ -98,13 +98,13 @@
   },
   {
    "id": "encens",
-   "q": -6,
-   "r": 19
+   "q": -8,
+   "r": 20
   },
   {
    "id": "encens",
-   "q": 26,
-   "r": 20
+   "q": 28,
+   "r": 19
   },
   {
    "id": "epices",

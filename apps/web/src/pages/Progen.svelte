@@ -20,6 +20,8 @@
     createInitialState,
     fertilityHeatmap,
     generateProceduralMap,
+    hexDistance,
+    hexesWithinRadius,
   } from '@game/rules';
   import type { ProgenReport, ResourceTerrainCounts, TerrainCountRow } from '@game/rules';
   import type { GameState } from '@game/shared';
@@ -59,11 +61,14 @@
   let showHeatmap = $state(true);
   let showYields = $state(true);
   let hideEntities = $state(false);
+  let showSpawnGuarantee = $state(true);
   let error = $state<string | null>(null);
   let copied = $state(false);
 
   let report = $state<ProgenReport | null>(null);
   let heat = $state<Record<string, number> | null>(null);
+  /** SPAWN-START : anneaux de garantie des deux spawns (clés "q,r"). */
+  let spawnGuarantee = $state<{ ring1: string[]; ring2: string[] } | null>(null);
   let resCounts = $state<ResourceTerrainCounts | null>(null);
   let terrainCounts = $state<TerrainCountRow[] | null>(null);
 
@@ -158,9 +163,24 @@
         seenEventSeq: 0,
       });
       heat = showHeatmap ? fertilityHeatmap(result.map) : null;
+      // SPAWN-START : anneaux de garantie autour des deux spawns (rayon du
+      // rapport — anneau 1 = voisinage forcé, anneau 2 = sans ressource).
+      const radius = result.report.spawn.purgeRadius;
+      const ring1: string[] = [];
+      const ring2: string[] = [];
+      for (const sp of result.map.spawns) {
+        for (const h of hexesWithinRadius(sp.capital, radius)) {
+          const d = hexDistance(sp.capital, h);
+          const key = `${h.q},${h.r}`;
+          if (d === 1) ring1.push(key);
+          else if (d === 2) ring2.push(key);
+        }
+      }
+      spawnGuarantee = { ring1, ring2 };
     } catch (e) {
       report = null;
       heat = null;
+      spawnGuarantee = null;
       resCounts = null;
       terrainCounts = null;
       lastMapData = null;
@@ -232,6 +252,18 @@
   let lastMapData: unknown = null;
   function currentMapJson(): string | null {
     return lastMapData ? JSON.stringify(lastMapData, null, 2) : null;
+  }
+
+  /** Composition de voisinage lisible : « 2F 2P 1E » (initiales françaises). */
+  const COMPOSITION_LABELS: Record<string, string> = {
+    prairie: 'P', plaine: 'Pla', foret: 'F', colline: 'Col',
+    montagne: 'Mnt', desert: 'D', eau: 'E', ocean: 'O',
+  };
+  function compositionLabel(c: Record<string, number>): string {
+    return Object.entries(c)
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([t, n]) => `${n}${COMPOSITION_LABELS[t] ?? t}`)
+      .join(' ');
   }
 </script>
 
@@ -357,6 +389,29 @@
         <label class="check"><input type="checkbox" bind:checked={showHeatmap} /> Heatmap de fertilité</label>
         <label class="check"><input type="checkbox" bind:checked={showYields} /> Rendements N/P/C</label>
         <label class="check"><input type="checkbox" bind:checked={hideEntities} /> Masquer entités</label>
+        <label class="check"><input type="checkbox" bind:checked={showSpawnGuarantee} /> Zone de garantie des départs (SPAWN-START)</label>
+      </section>
+
+      <section>
+        <h2>Garantie de départ (SPAWN-START)</h2>
+        {#if report}
+          <p class="hint-small">
+            Voisinage forcé : exactement 2 forêts et 1 eau, au moins 2 prairies,
+            6e case libre productive (non-montagne). Aucune ressource dans le
+            rayon {report.spawn.purgeRadius} des deux spawns.
+          </p>
+          <table>
+            <tbody>
+              <tr><td>Voisinage P1</td><td>{compositionLabel(report.spawn.compositionP1)}</td></tr>
+              <tr><td>Voisinage P2</td><td>{compositionLabel(report.spawn.compositionP2)}</td></tr>
+              <tr><td>Composition identique</td><td class:zero={JSON.stringify(report.spawn.compositionP1) === JSON.stringify(report.spawn.compositionP2)}>{JSON.stringify(report.spawn.compositionP1) === JSON.stringify(report.spawn.compositionP2) ? 'oui' : 'NON'}</td></tr>
+              <tr><td>Rayon sans ressource</td><td>{report.spawn.purgeRadius}</td></tr>
+              <tr><td>Ressources purgées</td><td>{report.spawn.purged}</td></tr>
+            </tbody>
+          </table>
+        {:else if !error}
+          <p>Génération…</p>
+        {/if}
       </section>
 
       <section>
@@ -461,6 +516,7 @@
         {showYields}
         {hideEntities}
         fertilityHeatmap={heat}
+        spawnGuarantee={showSpawnGuarantee ? spawnGuarantee : null}
       />
     </div>
   </div>
