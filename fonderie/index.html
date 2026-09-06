@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Fonderie 3D — visualiseur</title>
+<style>
+  :root { --panneau: rgba(10, 18, 24, 0.88); --texte: #cfe8e0; --neon: #3DFFCE; }
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: "Segoe UI", system-ui, sans-serif; }
+  #scene { position: absolute; inset: 0; }
+  #panneau {
+    position: absolute; top: 12px; left: 12px; width: 230px; padding: 12px 14px;
+    background: var(--panneau); border: 1px solid rgba(61,255,206,.25); border-radius: 8px;
+    color: var(--texte); font-size: 13px; user-select: none;
+  }
+  #panneau h1 { font-size: 14px; margin: 0 0 8px; color: var(--neon); letter-spacing: .08em; }
+  #panneau label { display: block; margin: 6px 0 2px; opacity: .8; }
+  #panneau select { width: 100%; }
+  .boutons { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .boutons button {
+    flex: 1 1 45%; padding: 4px 6px; font-size: 12px; cursor: pointer;
+    background: #12222c; color: var(--texte); border: 1px solid #2a4450; border-radius: 5px;
+  }
+  .boutons button.actif { border-color: var(--neon); color: var(--neon); }
+  #stats { margin-top: 10px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+  #stats b { color: var(--neon); }
+  #teintes button { height: 22px; flex: 1 1 22%; border-radius: 5px; border: 1px solid #2a4450; cursor: pointer; }
+  #drop {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(61,255,206,.07); border: 2px dashed var(--neon); color: var(--neon);
+    font-size: 20px; pointer-events: none;
+  }
+  #aide { margin-top: 10px; font-size: 11px; opacity: .6; line-height: 1.4; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./lib/three.module.min.js",
+    "three/addons/": "./lib/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="panneau">
+  <h1>FONDERIE 3D</h1>
+  <label for="modele">Modèle</label>
+  <select id="modele"></select>
+  <div class="boutons">
+    <button id="b-bloom" class="actif">Bloom</button>
+    <button id="b-fond">Fond clair</button>
+    <button id="b-wire">Fil de fer</button>
+    <button id="b-grille">Grille tuile</button>
+    <button id="b-rotation">Rotation auto</button>
+    <button id="b-capture">Capture PNG</button>
+  </div>
+  <label>Teinte accent joueur</label>
+  <div class="boutons" id="teintes">
+    <button data-t="neutre" style="background:#e8f1ee" class="actif"></button>
+    <button data-t="j1" style="background:#3DFFCE"></button>
+    <button data-t="j2" style="background:#FF9A3D"></button>
+    <button data-t="j3" style="background:#B03DFF"></button>
+  </div>
+  <div id="stats">—</div>
+  <div id="aide">Glisser-déposer un .glb ici. Glisser = orbiter, molette = zoom, clic droit = déplacer.</div>
+</div>
+<div id="drop">Déposer le .glb</div>
+<script type="module" src="./viewer.js"></script>
+</body>
+</html>
