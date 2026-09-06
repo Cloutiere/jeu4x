@@ -4,7 +4,7 @@
 
 ## 1. Le projet en 60 secondes
 
-**Jeu 4X multijoueur 1v1 principalement asynchrone**, clone léger et fidèle de **Civilization Revolution** (console) : grille hexagonale 40×40, tours simultanés résolus en fin de tour, client Svelte 5 + PixiJS v8, backend Cloudflare Workers + Durable Objects (WebSockets hibernation), budget 5 $/mois — tenu. Desktop only. Français dans les documents et l'UI, anglais dans le code.
+**Jeu 4X multijoueur 1v1 principalement asynchrone**, clone léger et fidèle de **Civilization Revolution** (console) : grille hexagonale 40×40, tours simultanés résolus en fin de tour, client Svelte 5 + rendu hybride PixiJS/Three.js (vraie 3D acceptée, chantiers V1/V2 livrés), backend Cloudflare Workers + Durable Objects (WebSockets hibernation), budget 5 $/mois — tenu. Desktop only. Français dans les documents et l'UI, anglais dans le code.
 
 **Mode de développement : agentique.** Erik (non-codeur, concepteur du jeu) pilote ; un agent d'implémentation code par phase à partir de handoffs que tu prépares ; tu acceptes les livraisons. Le projet est **en production** avec de vrais comptes OAuth (Google/Discord) et une vraie partie 1v1 terminée en ligne.
 
@@ -26,6 +26,17 @@
 **Piège de lecture** : le doc « Technologies et Déblocages » colle les numéros de citation aux chiffres (« 105 » = 10 [5], « 45 15 15 » = 4/1/1) — croiser avec CivFanatics.
 
 ## 3. Le workflow de pilotage (ce que tu fais, comment)
+
+### Le cycle de travail (le rituel établi entre Erik, toi et les agents — ce qui suit EST la façon de procéder)
+
+1. **Erik discute avec toi** : idées en vrac, signalements de bugs, réflexions de design, ou « vas-y » sur une étape déjà cadrée ;
+2. **Tu affines et écris le handoff** (`HANDOFF-*.md` à la racine pour les actifs) : découpage en tranches, défauts 🔶 avec veto possible, mission L0→Ln, critères mesurables, périmètre interdit ;
+3. **Tu donnes à Erik la phrase de lancement** : « Lis C:\Users\Erik\ZCodeProject\HANDOFF-X.md et exécute la mission. » — il la colle dans une session d'agent neuve ;
+4. **Erik travaille avec l'agent** : il suit, teste, rejoue ; **quand il est satisfait, c'est LUI qui fait committer et déployer** (l'agent committe, push, la CI déploie — tu ne commits jamais du code) ;
+5. **Erik revient vers toi avec le lien du rapport** (`REPORT-*.md`) ;
+6. **Tu vérifies et acceptes** (voir « Acceptation d'une livraison » ci-dessous), puis **tu mets la documentation à jour** : PROJET.md (état), PILOT-HANDOFF §4 (statut + file), le handoff passe à l'historique — un agent le fait parfois lui-même, à vérifier avant d'écrire (piège : fichier modifié entre-temps) ;
+7. **Erik nomme les prochaines étapes** (ou tu proposes la suite de la file) ; **tu demandes un rapport de recherche si l'étape en a besoin et qu'il ne l'a pas déjà fourni** (tu rédiges alors le prompt de deep research) ;
+8. **Tu écris le handoff suivant.** Et ainsi de suite. Les sessions d'agents tournent souvent **en parallèle** (atelier d'Erik + un chantier) : toujours vérifier l'état du répertoire avant d'écrire, ne jamais absorber ses retouches dans un commit doc.
 
 ### Cadrage
 Erik exprime souvent ses idées en vrac ou en documents de recherche. Ton travail : les affiner, **découper en tranches implémentables** (jamais un chantier interdépendant en une phase — la culture a pris 7f/7g/7h/7i), proposer des **défauts avec veto possible** (il répond « validé » ou corrige), et préparer les **hooks d'avenir** (ex. `navalAccess` avant le naval, `StartPlacementStrategy` avant le multi-joueurs, `era` avant les populations par ère).
@@ -53,7 +64,7 @@ Erik exprime souvent ses idées en vrac ou en documents de recherche. Ton travai
 - Les documents d'Erik se committent dans le dépôt comme sources ;
 - Ne jamais modifier RULES.md/DESIGN.md pendant qu'un agent travaille (conflits) — utiliser BACKLOG.md en attente.
 
-## 4. État actuel (fin de la Phase 7i — acceptée par ton prédécesseur)
+## 4. État actuel (tenu à jour — la vue synthétique est dans PROJET.md, cette section porte le détail de la file)
 
 **Phases complétées** : 0 (moteur pur déterministe), 1 (réseau DO/WS/OAuth), 2 (absorbée), 3 (rendu PixiJS), 4 (**partie 1v1 en ligne réelle**), 5 (durcissement + CI/CD GitHub Actions), 5.5 (police visuel), 6 (économie des terrains), 6b (génération procédurale **miroir 1v1** + labo `#/progen`), 6c (affinage : côte/océan, archipel par défaut, outil d'inspection), 7a (46 techs, recherche, Premier découvrir, obsolescence), 7b (refonte menu de ville, R-88..R-90), 7c (22 ressources data-driven), 7d (barbares & huttes), 7e (arbre complet, R-59 réelle, R-112 Colon 2 pop), 7f (culture : GP, jalons, Nations Unies, **victoire culturelle**), 7g (naval & espionnage : transport, soutien, vol de GP), 7h (gouvernements & Anarchie, GP restants, **victoire scientifique**, merveilles tractables), 7i (**alignement du moteur de ville** : consommation de nourriture, seuils non linéaires, fondation pop 2 par ère, citoyens intérieurs, destruction de ressource). **Tests : 556 verts.** `schemaVersion` : 12.
 
