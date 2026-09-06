@@ -13,7 +13,7 @@
   import * as THREE from 'three';
   import { hexToPixel, inRectangle, tileKeyOf, unitType, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS } from '@game/rules';
   import type { GameState, Hex } from '@game/rules';
-  import type { Order } from '@game/shared';
+  import type { CityId, Order } from '@game/shared';
   import { onDestroy } from 'svelte';
   import type { GameClient, GameView } from '../gameClient.js';
   import type { UiState, UiStore } from './ui.js';
@@ -24,7 +24,7 @@
   import { HEX_SIZE, hexesInRect, mapBounds, screenToHex } from './hexView.js';
   import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
   import type { Point } from './arrows.js';
-  import { clickAction, myEngineId } from './interaction.js';
+  import { clickAction, effectiveWorkedTiles, myEngineId } from './interaction.js';
   import type { ClickAction } from './interaction.js';
   // Chantier V1 (L3) — couche hybride : terrain Three.js + sprites PixiJS
   // projetés (option B du spike), derrière un flag de repli (défaut : 2D).
@@ -830,24 +830,23 @@
     }
 
     // Réassignations en attente (R-60) : retour immédiat — anneau pointillé
-    // sur la case demandée (+) et sur le citoyen qui sera retiré (−, dernier
-    // de la liste, même règle que le moteur).
-    for (const order of scene.orders) {
-      if (order.type !== 'SetWorkedTile') continue;
-      const city = scene.state.cities[order.cityId];
-      if (!city || !scene.explored.has(tileKeyOf(city))) continue;
-      const color = playerColor(city.owner);
-      if (order.tile !== null) {
-        const [q, r] = order.tile.split(',').map(Number);
-        if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
-        drawPendingMarker({ q, r }, color, true);
-      } else {
-        const last = city.workedTiles[city.workedTiles.length - 1];
-        if (last) {
-          const [q, r] = last.split(',').map(Number);
-          if (q !== undefined && r !== undefined && !Number.isNaN(q) && !Number.isNaN(r)) {
-            drawPendingMarker({ q, r }, color, false);
-          }
+    // sur les cases gagnées (+) et libérées (−). INTERACTION-3D : les ordres
+    // SetWorkedTile forment une FILE (le re-clic ne remplace plus) — la
+    // simulation séquentielle effectiveWorkedTiles est le miroir exact du
+    // moteur (pop/push R-60).
+    {
+      const seen = new Set<CityId>();
+      for (const order of scene.orders) {
+        if (order.type !== 'SetWorkedTile') continue;
+        const city = scene.state.cities[order.cityId];
+        if (!city || !scene.explored.has(tileKeyOf(city)) || seen.has(city.id)) continue;
+        seen.add(city.id);
+        const color = playerColor(city.owner);
+        const eff = scene.view ? effectiveWorkedTiles(scene.view, city) : { tiles: city.workedTiles, assigns: [], unassigns: [] };
+        for (const key of [...eff.unassigns, ...eff.assigns]) {
+          const [q, r] = key.split(',').map(Number);
+          if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+          drawPendingMarker({ q, r }, color, eff.assigns.includes(key));
         }
       }
     }

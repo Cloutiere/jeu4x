@@ -80,12 +80,23 @@ describe('clic droit = ordre de déplacement (L1)', () => {
     ]);
   });
 
-  it('pathTo refuse une destination inconnue, infranchissable, alliée ou inatteignable', () => {
+  it('pathTo refuse une destination inconnue, infranchissable ou inatteignable', () => {
     const state = baseState();
     expect(pathTo(state, { q: 0, r: 0 }, { q: 9, r: 9 })).toBeNull(); // inconnue (brouillard)
     expect(pathTo(state, { q: 0, r: 0 }, { q: 4, r: 4 })).toBeNull(); // eau
-    state.units.u9 = { id: 'u9', type: 'guerrier', owner: 'p1', q: 3, r: 3, hp: 3, mp: 1, veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false };
-    expect(pathTo(state, { q: 0, r: 0 }, { q: 3, r: 3 })).toBeNull(); // allié sur l'arrivée
+  });
+
+  it('INTERACTION-3D : pathTo accepte une destination occupée par un ALLIÉ (le moteur tranche, R-42/R-30) — non-régression : le TRANSIT à travers une case occupée reste refusé', () => {
+    const state = baseState();
+    state.units.u9 = { id: 'u9', type: 'guerrier', owner: 'p1', q: 3, r: 0, hp: 3, mp: 1, veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false };
+    // Arrivée alliée : traçable (l'occupant peut partir avant, R-41 ; sinon
+    // arrêt propre sur la case précédente, R-42).
+    expect(pathTo(state, { q: 0, r: 0 }, { q: 3, r: 0 })).toEqual([{ q: 1, r: 0 }, { q: 2, r: 0 }, { q: 3, r: 0 }]);
+    // Transit : aucun chemin ne TRAVERSE la case de l'allié (contournement
+    // par r=1, mais jamais d'étape intermédiaire dessus).
+    const around = pathTo(state, { q: 0, r: 0 }, { q: 6, r: 0 });
+    expect(around).not.toBeNull();
+    expect(around!.some((h) => h.q === 3 && h.r === 0)).toBe(false);
   });
 
   it('rightClickAction construit un moveDraft complet ; case invalide → cancelDraft', () => {

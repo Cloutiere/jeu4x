@@ -128,35 +128,35 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
     if (city && city.id === ui.selectedCityId) return { kind: 'deselect' };
   }
 
-  // 1. Un chemin est en construction : priorité aux interactions de chemin,
-  //    SAUF sur une case de ville AMIE — le clic interrompt le brouillon et
-  //    sélectionne la ville (Phase 7b : le menu de ville doit toujours être
-  //    accessible d'un clic ; le chemin déjà soumis reste en place).
+  // 1. Un chemin est en construction : priorité aux interactions de chemin.
+  //    INTERACTION-3D (retour d'Erik) : une ville AMIE ADJACENTE et ENTRABLE
+  //    est une étape de chemin comme les autres (entrée = garnison, R-30) —
+  //    le menu de ville reste accessible d'un clic sur une ville non
+  //    adjacente (Phase 7b) ou via l'alternance sans brouillon.
   if (selected && ui.draft && ui.draft.unitId === selected.id && ordersEditable(view)) {
     const draftCity = cityAtHex(state, hex);
-    if (draftCity && draftCity.owner === selected.owner) {
+    const last = ui.draft.path[ui.draft.path.length - 1] ?? selected;
+    const cityStep =
+      !!draftCity &&
+      draftCity.owner === selected.owner &&
+      areNeighbors(last, hex) &&
+      enterableKnown(state, selected, hex);
+    if (draftCity && !cityStep) {
       return { kind: 'selectCity', cityId: draftCity.id };
     }
     const trunc = truncateOf(ui.draft.path, hex);
     if (trunc) return { kind: 'truncate', path: trunc };
-    const last = ui.draft.path[ui.draft.path.length - 1] ?? selected;
     if (last.q === hex.q && last.r === hex.r) {
       // Clic sur la case courante : no-op si le chemin a commencé, sinon on
       // laisse passer (alternance unité ↔ ville sur une capitale défendue).
       if (ui.draft.path.length > 0) return { kind: 'none' };
     } else if (areNeighbors(last, hex) && enterableKnown(state, selected, hex)) {
-      // Case occupée par un ALLIÉ refusée comme étape de chemin (R-30, polish
-      // Phase 5) — EXCEPTION 7g : un transport ami à cargaison libre accepte
-      // l'embarquement (R-117). Une case ennemie reste traçable : y entrer
-      // déclenche le combat d'entrée (R-42) — comportement de la Phase 3.
-      const occupant = unitAtHex(state, hex);
-      if (
-        !occupant ||
-        occupant.owner !== selected.owner ||
-        boardableTransport(state, selected, occupant.id)
-      ) {
-        return { kind: 'extend', path: [...ui.draft.path, { q: hex.q, r: hex.r }] };
-      }
+      // INTERACTION-3D : TOUTE case adjacente entrable est traçable, occupée
+      // ou non — en résolution simultanée l'occupant amie peut partir avant
+      // (R-41) ; sinon le moteur s'arrête proprement sur la case précédente
+      // (R-42/R-30). Une case ennemie reste traçable : y entrer déclenche le
+      // combat d'entrée (R-42) — comportement de la Phase 3.
+      return { kind: 'extend', path: [...ui.draft.path, { q: hex.q, r: hex.r }] };
     }
     // Clic ailleurs : on abandonne le brouillon et on retombe sur la sélection.
   }
@@ -180,11 +180,12 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
 
   // 3. Ville amie sélectionnée et ordres modifiables : un clic sur une case
   //    réassigne un citoyen (R-60, Phase 6) — avec validation LOCALE des
-  //    mêmes contraintes que le moteur, pour un retour immédiat honnête :
-  //      - case déjà travaillée par cette ville → désassignation (null) ;
-  //      - sinon : dans le rayon de travail (bâtiments compris), travaillable,
-  //        pas une case de ville, pas travaillée par une autre ville, et la
-  //        ville doit avoir un citoyen disponible (sinon désassigner d'abord).
+  //    mêmes contraintes que le moteur, pour un retour immédiat honnête.
+  //    INTERACTION-3D : la validation porte sur l'ÉTAT EFFECTIF (ordres
+  //    SetWorkedTile en attente appliqués, miroir pop/push du moteur) —
+  //    sinon, après une désélection, la ville paraît pleine tout le tour
+  //    (l'état connu n'est mis à jour qu'à la résolution) et le re-clic est
+  //    refusé à tort.
   const unit = unitAtHex(state, hex);
   const city = unit ? cityAtHex(state, hex) : null;
   if (ui.selectedCityId && ordersEditable(view) && !ui.draft) {
@@ -192,7 +193,8 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
     if (selCity && selCity.owner === myEngineId(view)) {
       const key = tileKeyOf(hex);
       if (!unit && !city) {
-        if (selCity.workedTiles.includes(key)) {
+        const effective = effectiveWorkedTiles(view, selCity);
+        if (effective.tiles.includes(key)) {
           return { kind: 'setWorkedTile', cityId: selCity.id, tile: null };
         }
         const dist = hexDistance(selCity, hex);
@@ -203,7 +205,7 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
           dist <= workRadiusOf(selCity.buildings) &&
           !Object.values(state.cities).some((c) => c.q === hex.q && c.r === hex.r) &&
           !Object.values(state.cities).some((c) => c.id !== selCity.id && c.workedTiles.includes(key)) &&
-          selCity.workedTiles.length < selCity.pop;
+          effective.tiles.length < selCity.pop;
         if (free) return { kind: 'setWorkedTile', cityId: selCity.id, tile: key };
         return { kind: 'none' };
       }
@@ -237,28 +239,55 @@ export function myEngineId(view: GameView): string | null {
   return view.players.find((p) => p.id === view.playerId)?.engineId ?? null;
 }
 
+/**
+ * INTERACTION-3D · R-60 : état EFFECTIF des cases travaillées d'une ville —
+ * les ordres SetWorkedTile en attente (file, un par clic) sont appliqués en
+ * miroir exact du moteur (`applySetWorkedTile`) : `null` retire le dernier
+ * assigné (pop), une case valide ajoute un citoyen (push, si la ville n'est
+ * pas pleine à l'état effectif). Sert au prédicat de clic ET aux marqueurs
+ * d'attente 2D/3D. Plus `assigns` (cases gagnées) et `unassigns` (cases
+ * libérées) pour l'affichage des anneaux pointillés.
+ */
+export function effectiveWorkedTiles(
+  view: GameView,
+  city: { id: CityId; pop: number; workedTiles: string[] },
+): { tiles: string[]; assigns: string[]; unassigns: string[] } {
+  const tiles = [...city.workedTiles];
+  const assigns: string[] = [];
+  const unassigns: string[] = [];
+  for (const order of view.orders) {
+    if (order.type !== 'SetWorkedTile' || order.cityId !== city.id) continue;
+    if (order.tile === null) {
+      const removed = tiles.pop();
+      if (removed) unassigns.push(removed);
+    } else if (!tiles.includes(order.tile) && tiles.length < city.pop) {
+      tiles.push(order.tile);
+      assigns.push(order.tile);
+    }
+    // case déjà travaillée par la ville, ou ville pleine : ignoré (miroir moteur)
+  }
+  return { tiles, assigns, unassigns };
+}
+
 // ---------------------------------------------------------------------------
 // Phase 5 L1 — clic droit = ordre de déplacement, unités sans ordre
 // ---------------------------------------------------------------------------
 
 /**
  * Chemin pas à pas (BFS déterministe) vers une case connue praticable, à
- * travers les cases CONNUES praticables uniquement (jamais inventé). La case
- * de destination occupée par une unité ALLIÉE est refusée (R-30, retour
- * Phase 3) ; une case ennemie est admise (l'entrée déclenche le combat R-42,
- * la capture d'une ville vide R-57/R-65). Retourne le chemin SANS l'origine,
- * ou null si aucune case de départ/arrivée invalide ou inatteignable.
+ * travers les cases CONNUES praticables uniquement (jamais inventé).
+ * INTERACTION-3D (retour d'Erik) : la case de DESTINATION occupée par une
+ * unité ALLIÉE est admise — en résolution simultanée l'occupant peut partir
+ * avant (R-41), sinon le moteur s'arrête proprement sur la case précédente
+ * (R-42/R-30) ; le transit À TRAVERS une case occupée reste refusé. Une case
+ * ennemie est admise (l'entrée déclenche le combat R-42, la capture d'une
+ * ville vide R-57/R-65). Retourne le chemin SANS l'origine, ou null si
+ * aucune case de départ/arrivée invalide ou inatteignable.
  */
 export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
   const fromUnit = unitAtHex(state, from);
   const mover = fromUnit ? state.units[fromUnit.id] ?? null : null;
   if (!enterableKnown(state, mover, from) || !enterableKnown(state, mover, to)) return null;
-  const destUnit = unitAtHex(state, to);
-  const allyArrival =
-    destUnit && destUnit.owner === (fromUnit?.owner ?? '') &&
-    // 7g · R-117 : embarquement — l'arrivée sur un transport ami libre est légale.
-    !(mover && !unitType(mover.type).aquatic && boardableTransport(state, mover as never, destUnit.id));
-  if (destUnit && allyArrival) return null;
   if (from.q === to.q && from.r === to.r) return [];
   // BFS avec voisinage trié (q, r) croissant — déterministe. 7g : le
   // voisinage est évalué pour l'unité elle-même (naval ⇒ eau entrable).
@@ -271,9 +300,11 @@ export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
     const current = queue.shift()!;
     const nexts = neighbors(current)
       .filter((h) => enterableKnown(state, mover, h))
-      // pas d'étape intermédiaire sur une unité connue (alliée : interdit R-30 ;
-      // ennemie : s'y arrêter pour combattre est un choix explicite, pas un transit)
-      .filter((h) => !unitAtHex(state, h))
+      // pas d'étape intermédiaire sur une unité connue (alliée : R-30 ;
+      // ennemie : s'y arrêter pour combattre est un choix explicite, pas un
+      // transit) — SAUF la destination elle-même (INTERACTION-3D : occupée
+      // par un allié partant ou un ennemi à combattre, le moteur tranche).
+      .filter((h) => (h.q === to.q && h.r === to.r) || !unitAtHex(state, h))
       .sort((a, b) => a.q - b.q || a.r - b.r);
     for (const n of nexts) {
       const k = keyOf(n);

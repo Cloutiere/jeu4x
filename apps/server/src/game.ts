@@ -116,18 +116,15 @@ interface WsAttachment {
   playerId: PlayerId;
 }
 
-/** Sujet d'un ordre : remplace l'ordre brouillon existant du même sujet. */
+/** Sujet d'un ordre : remplace l'ordre brouillon existant du même sujet.
+ *  INTERACTION-3D : les SetWorkedTile d'une ville ne se remplacent PAS —
+ *  file d'ordres (désélection puis assignation dans le même tour, retour
+ *  d'Erik) ; le moteur applique pop/push dans l'ordre de soumission (R-60). */
 function sameSubject(a: Order, b: Order): boolean {
   if (a.type === 'SetProduction' || b.type === 'SetProduction' || a.type === 'SetWorkedTile' || b.type === 'SetWorkedTile') {
-    // Ordres de ville : un seul brouillon par ville et par type de sujet.
-    if (a.type === b.type) {
-      return (
-        (a.type === 'SetProduction' || a.type === 'SetWorkedTile') &&
-        (b.type === 'SetProduction' || b.type === 'SetWorkedTile') &&
-        a.cityId === b.cityId
-      );
-    }
-    return false;
+    if (a.type === 'SetWorkedTile' && b.type === 'SetWorkedTile') return false;
+    // Un seul brouillon de production par ville.
+    return a.type === 'SetProduction' && b.type === 'SetProduction' && a.cityId === b.cityId;
   }
   if (a.type === 'RushBuy' && b.type === 'RushBuy') {
     // 7l · R-135 : un seul rush par ville et par tour — l'ordre de même ville

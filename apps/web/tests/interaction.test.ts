@@ -79,15 +79,16 @@ describe('clickAction (L3)', () => {
     expect(action).toEqual({ kind: 'selectUnit', unitId: 'u3', mine: false });
   });
 
-  it('construction de chemin : clics adjacents praticables connus LIBRES, troncature en arrière', () => {
+  it('construction de chemin : clics adjacents praticables connus, troncature en arrière', () => {
     const view = viewOf(makeBattleState());
     const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } });
-    // Case occupée par un ALLIÉ : jamais une étape de chemin (R-30) — le clic
-    // retombe sur la sélection de l'allié (Phase 5). Case ENNEMIE traçable
-    // (entrée = combat R-42, comportement Phase 3). Les cases négatives sont
-    // hors de l'état filtré de la fixture → jamais traçables.
+    // INTERACTION-3D (retour d'Erik) : une case occupée par un ALLIÉ est
+    // traçable — en résolution simultanée l'occupant peut partir avant (R-41),
+    // sinon le moteur s'arrête proprement sur la case précédente (R-42/R-30) :
+    // il tranche. Case ENNEMIE traçable (entrée = combat R-42). Les cases
+    // négatives sont hors de l'état filtré de la fixture → jamais traçables.
     expect(clickAction(view, ui, { q: -1, r: 1 })).toEqual({ kind: 'deselect' });
-    expect(clickAction(view, ui, { q: 1, r: 0 })).toEqual({ kind: 'selectUnit', unitId: 'u2', mine: true }); // u2 allié → sélection
+    expect(clickAction(view, ui, { q: 1, r: 0 })).toEqual({ kind: 'extend', path: [{ q: 1, r: 0 }] }); // u2 allié : ciblé (le moteur tranche, R-42)
     expect(clickAction(view, ui, { q: 0, r: 1 })).toEqual({ kind: 'extend', path: [{ q: 0, r: 1 }] }); // u3 ennemi
     const ui2 = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [{ q: 0, r: 1 }] } });
     expect(clickAction(view, ui2, { q: 1, r: 1 })).toEqual({
@@ -138,17 +139,80 @@ describe('clickAction (L3)', () => {
     expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 0, r: 0 })).toEqual({ kind: 'selectCity', cityId: 'c2' });
   });
 
-  it('Phase 7b : avec un brouillon armé, un clic sur une ville AMIE interrompt le brouillon et sélectionne la ville', () => {
+  it('INTERACTION-3D : brouillon armé + ville AMIE ADJACENTE → extension du chemin (entrée = garnison, R-30), pas une interruption', () => {
     const state = makeState({
       width: 8,
       height: 8,
       units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 }],
-      cities: [{ id: 'c2', owner: 'p1', q: 1, r: 0 }], // ville amie VIDE (menu accessible d'un clic)
+      cities: [{ id: 'c2', owner: 'p1', q: 1, r: 0 }], // ville amie VIDE adjacente
     });
     const view = viewOf(state);
     const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [{ q: 0, r: 1 }] } });
-    expect(clickAction(view, ui, { q: 1, r: 0 })).toEqual({ kind: 'selectCity', cityId: 'c2' });
+    expect(clickAction(view, ui, { q: 1, r: 0 })).toEqual({ kind: 'extend', path: [{ q: 0, r: 1 }, { q: 1, r: 0 }] });
   });
+
+  it('Phase 7b préservée : brouillon armé + ville amie NON adjacente → le clic interrompt le brouillon et sélectionne la ville', () => {
+    const state = makeState({
+      width: 8,
+      height: 8,
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 }],
+      cities: [{ id: 'c2', owner: 'p1', q: 3, r: 0 }], // ville amie éloignée
+    });
+    const view = viewOf(state);
+    const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [{ q: 0, r: 1 }] } });
+    expect(clickAction(view, ui, { q: 3, r: 0 })).toEqual({ kind: 'selectCity', cityId: 'c2' });
+  });
+
+  it('INTERACTION-3D : non-régression — une case ENNEMIE adjacente reste un combat (attaque directe), pas une entrée libre', () => {
+    const view = viewOf(makeBattleState());
+    const action = clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 0, r: 1 });
+    expect(action).toEqual({ kind: 'attack', order: { type: 'Attack', unitId: 'u1', target: { q: 0, r: 1 } } });
+    // Brouillon armé : la case ennemie reste traçable (entrée = combat R-42).
+    const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } });
+    expect(clickAction(view, ui, { q: 0, r: 1 })).toEqual({ kind: 'extend', path: [{ q: 0, r: 1 }] });
+  });
+
+  it('INTERACTION-3D : ville PLEINE — le re-clic après désélection fonctionne (le prédicat tient compte de l\'ordre SetWorkedTile en attente)', () => {
+
+    const state = makeState({
+
+      width: 8,
+
+      height: 8,
+
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 5 }],
+
+      cities: [{ id: 'c1', owner: 'p1', q: 2, r: 1, pop: 2, capital: true, workedTiles: ['1,1', '2,2'] }],
+
+      terrainOverrides: { [tileKey(1, 2)]: 'foret' },
+
+    });
+
+    const view = viewOf(state, { orders: [{ type: 'SetWorkedTile', cityId: 'c1', tile: null }] });
+
+    const ui = uiOf({ selectedCityId: 'c1' });
+
+    // Un ordre de désassignation est EN ATTENTE : il reste un citoyen effectif
+
+    // à placer → le clic sur une case libre du rayon assigne (le re-clic
+
+    // fonctionne, retour d'Erik en 3D ; le prédicat est partagé 2D/3D).
+
+    expect(clickAction(view, ui, { q: 1, r: 2 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: '1,2' });
+
+    // Sans l'ordre en attente (ville pleine sur l'état connu) : refus honnête.
+
+    const view2 = viewOf(state);
+
+    expect(clickAction(view2, ui, { q: 1, r: 2 })).toEqual({ kind: 'none' });
+
+    // Case déjà travaillée à l'état effectif : désassignation.
+
+    expect(clickAction(view, ui, { q: 1, r: 1 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: null });
+
+  });
+
+
 
   it('passableKnown refuse l\'eau et les cases absentes du JSON filtré', () => {
     const state = makeBattleState();

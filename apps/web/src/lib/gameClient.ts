@@ -85,18 +85,15 @@ export function appendJournalEvents(v: GameView, incoming: GameEvent[]): GameVie
   return { ...v, events: [...v.events, ...fresh], seenEventSeq: maxSeq };
 }
 
-/** Sujet d'un ordre (miroir du GameDO) pour remplacer/annuler localement. */
-function sameSubject(a: Order, b: Order): boolean {
+/** Sujet d'un ordre (miroir du GameDO) pour remplacer/annuler localement.
+ *  INTERACTION-3D : les SetWorkedTile d'une ville ne se remplacent PAS —
+ *  ils forment une file (désélection puis assignation dans le même tour,
+ *  sémantique pop/push du moteur R-60). */
+export function sameSubject(a: Order, b: Order): boolean {
   if (a.type === 'SetProduction' || b.type === 'SetProduction' || a.type === 'SetWorkedTile' || b.type === 'SetWorkedTile') {
-    // Ordres de ville : un seul brouillon par ville et par type de sujet.
-    if (a.type === b.type) {
-      return (
-        (a.type === 'SetProduction' || a.type === 'SetWorkedTile') &&
-        (b.type === 'SetProduction' || b.type === 'SetWorkedTile') &&
-        a.cityId === b.cityId
-      );
-    }
-    return false;
+    if (a.type === 'SetWorkedTile' && b.type === 'SetWorkedTile') return false;
+    // Un seul brouillon de production par ville.
+    return a.type === 'SetProduction' && b.type === 'SetProduction' && a.cityId === b.cityId;
   }
   if (a.type === 'FormArmy' && b.type === 'FormArmy') {
     return [...a.members].sort().join(',') === [...b.members].sort().join(',');

@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { GameEvent } from '@game/shared';
-import { appendJournalEvents, initialView, reduceView } from '../src/lib/gameClient.js';
+import { appendJournalEvents, initialView, reduceView, sameSubject } from '../src/lib/gameClient.js';
 
 const EVENTS: GameEvent[] = [
   { seq: 10, type: 'Move', unitId: 'u1', owner: 'p1', from: { q: -4, r: 20 }, to: { q: -4, r: 19 } },
@@ -66,3 +66,18 @@ describe('reduceView · journal et missedEvents (L0)', () => {
 function stateOf(turn: number): ReturnType<typeof JSON.parse> {
   return { turn, phase: 'orders', units: {}, cities: {}, map: {}, players: {} };
 }
+
+describe('INTERACTION-3D · coalescing des ordres de ville (retour d\'Erik : le re-clic worked tile doit fonctionner)', () => {
+  const swt = (tile: string | null) => ({ type: 'SetWorkedTile', cityId: 'c1', tile }) as const;
+  it('deux SetWorkedTile de la même ville coexistent (file : désélection puis assignation)', () => {
+    expect(sameSubject(swt(null), swt('2,1'))).toBe(false);
+    expect(sameSubject(swt('2,1'), swt(null))).toBe(false);
+    expect(sameSubject(swt('2,1'), swt('1,2'))).toBe(false);
+  });
+  it('deux SetProduction de la même ville se remplacent toujours (comportement inchangé)', () => {
+    const sp = (item: object) => ({ type: 'SetProduction', cityId: 'c1', item } as const);
+    expect(sameSubject(sp({ kind: 'unit', id: 'guerrier' }), sp({ kind: 'unit', id: 'colon' }))).toBe(true);
+    // SetWorkedTile et SetProduction sont des sujets indépendants.
+    expect(sameSubject(swt('2,1'), sp({ kind: 'unit', id: 'guerrier' }))).toBe(false);
+  });
+});

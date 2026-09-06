@@ -194,6 +194,22 @@ describe('R-60 · ordre SetWorkedTile (Phase 6)', () => {
     expect(cityAt(newState, 0, 0)!.workedTiles).toContain('1,0');
   });
 
+  it("INTERACTION-3D : file d'ordres — désassignation (null) PUIS assignation d'une autre case dans le MÊME tour (retour d'Erik : le re-clic doit fonctionner)", () => {
+    const state = makeState({
+      terrainOverrides: { '1,0': 'foret', '0,1': 'foret' },
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: ['1,0'] }],
+    });
+    const { newState } = resolveTurn(state, {
+      p1: [
+        { type: 'SetWorkedTile', cityId: 'c1', tile: null },
+        { type: 'SetWorkedTile', cityId: 'c1', tile: '0,1' },
+      ],
+    }, 1);
+    const city = cityAt(newState, 0, 0)!;
+    expect(city.workedTiles).not.toContain('1,0');
+    expect(city.workedTiles).toContain('0,1');
+  });
+
   it('hors du rayon de travail → ignoré', () => {
     const state = makeState({
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1 }],
