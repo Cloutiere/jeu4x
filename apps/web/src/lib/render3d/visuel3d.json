@@ -552,35 +552,107 @@
       }
     },
     "uniteGuerrier": {
-      "echelle": 1.5,
-      "corps": {
-        "largeur": 0.085,
-        "hauteur": 0.1,
-        "profondeur": 0.15,
-        "survol": 0.12,
-        "couleur": "#1C2E3C"
+      "_comment": "Guerrier humanoide cyber « Script de Base » (atelier GUERRIER-3D, reference image_ref/guerrier.jpg) : casque a visiere, torse plastronne, epaulieres, bras/moufles, jambes/bottes, coeur-process neon, lame accent joueur a fil emissif. HOLOGRAMME : corps semi-transparent (materiau.opacite) dont l'interieur est TEINTÉ par l'accent joueur (couleurs = nuances neutres multipliées par l'accent), arêtes neon lumineuses (aretes.intensite) + glyphes binaires — du shading, pas de geometrie. Toutes les cotes sont en unites monde a echelle 1 ; « echelle » est le facteur global de l'instance. Angles en radians.",
+      "echelle": 2.875,
+      "couleurs": {
+        "corps": "#E8ECEF",
+        "plaques": "#C6CDD4",
+        "sousCorps": "#9AA3AC"
       },
-      "coeur": {
-        "rayon": 0.042,
-        "couleur": "#3DFFCE",
-        "emissif": 0.85
+      "materiau": {
+        "roughness": 0.42,
+        "metalness": 0.5,
+        "opacite": 0.5,
+        "aretes": {
+          "couleur": "#3dffce",
+          "intensite": 2.0,
+          "glyphes": 0.45
+        }
       },
-      "pattes": {
-        "nombre": 4,
-        "epaisseur": 0.018,
-        "ecartement": 0.1,
-        "couleur": "#141F28"
+      "casque": {
+        "largeur": 0.056,
+        "hauteur": 0.06,
+        "profondeur": 0.058,
+        "crete": {
+          "largeur": 0.02,
+          "hauteur": 0.012,
+          "longueur": 0.052
+        },
+        "visiere": {
+          "largeur": 0.044,
+          "hauteur": 0.01,
+          "couleur": "#E4FFF6",
+          "emissif": 2.2
+        }
+      },
+      "torse": {
+        "largeur": 0.098,
+        "hauteur": 0.115,
+        "profondeur": 0.06,
+        "plastron": {
+          "largeur": 0.08,
+          "hauteur": 0.052,
+          "profondeur": 0.016
+        },
+        "abdomen": {
+          "largeur": 0.066,
+          "hauteur": 0.05,
+          "profondeur": 0.05
+        }
+      },
+      "epaulieres": {
+        "taille": 0.048,
+        "hauteur": 0.038,
+        "profondeur": 0.052,
+        "ecart": 0.02,
+        "inclinaison": 0.14
       },
       "bras": {
-        "longueur": 0.11,
-        "epaisseur": 0.02,
-        "inclinaison": 0.55,
-        "couleur": "#141F28"
+        "longueur": 0.092,
+        "avBrasLongueur": 0.088,
+        "epaisseur": 0.026,
+        "ecart": 0.066,
+        "moufle": 0.03,
+        "angleAvBras": 0.85
+      },
+      "jambes": {
+        "cuisseLongueur": 0.1,
+        "tibiaLongueur": 0.095,
+        "epaisseur": 0.036,
+        "ecart": 0.03
+      },
+      "bottes": {
+        "hauteur": 0.04,
+        "longueur": 0.052,
+        "largeur": 0.036
+      },
+      "coeur": {
+        "taille": 0.02,
+        "couleur": "#3dffce",
+        "emissif": 1.8,
+        "hauteurRelative": 0.66
       },
       "arme": {
-        "longueur": 0.24,
-        "largeur": 0.034,
-        "emissif": 0.04
+        "angle": 0.55,
+        "lame": {
+          "longueur": 0.225,
+          "largeur": 0.032,
+          "epaisseur": 0.008,
+          "fil": {
+            "couleur": "#EAFFF7",
+            "emissif": 2.6,
+            "largeur": 0.3
+          }
+        },
+        "garde": {
+          "largeur": 0.064,
+          "hauteur": 0.012,
+          "profondeur": 0.016
+        },
+        "poignee": {
+          "longueur": 0.05,
+          "epaisseur": 0.015
+        }
       }
     },
     "uniteArcher": {

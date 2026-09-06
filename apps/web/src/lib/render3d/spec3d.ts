@@ -249,18 +249,193 @@ export interface SpecCratere {
 
 export interface SpecHutte { rayon: number; hauteur: number; couleur: number; accent: number; /** Lueur propre du dôme (lecture de la couleur sous éclairage sombre). */ lueur: number; visage: SpecVisage }
 
-/** « Script de Base » — Guerrier cyber 3D (atelier Erik 05/09) : petite
- *  créature numérique façon Transistor — torse, cœur-process néon, pattes,
- *  bras muni d'une lame accent joueur. `echelle` grandira avec les unités
- *  plus fortes (l'unité de base est la plus petite). */
+/** « Script de Base » — Guerrier HUMANOÏDE cyber 3D (atelier GUERRIER-3D,
+ *  référence `image_ref/guerrier.jpg`) : casque à visière, torse plastronné,
+ *  épaulières, bras/moufles, jambes/bottes, cœur-process néon, lame accent
+ *  joueur à fil émissif. Toutes les cotes sont en unités monde à `echelle` 1
+ *  (l'instance porte le facteur global) ; les angles sont en radians.
+ *  L'effet « hologramme matriciel » de la référence est du SHADING (arêtes
+ *  émissives + glyphes binaires en emissiveMap, fil de lame en emissiveMap) —
+ *  AUCUNE géométrie de ligne supplémentaire. */
 export interface SpecUniteGuerrier {
   echelle: number;
-  corps: { largeur: number; hauteur: number; profondeur: number; survol: number; couleur: number };
-  coeur: { rayon: number; couleur: number; emissif: number };
-  pattes: { nombre: number; epaisseur: number; ecartement: number; couleur: number };
-  bras: { longueur: number; epaisseur: number; inclinaison: number; couleur: number };
-  /** Lame de l'arme : couleur = accent joueur (par instance), émissif fixe. */
-  arme: { longueur: number; largeur: number; emissif: number };
+  /** Nuances NEUTRES (gris) de l'intérieur — multipliées par l'accent joueur
+   *  (instance) : c'est la couleur du propriétaire qui teinte l'hologramme. */
+  couleurs: { corps: number; plaques: number; sousCorps: number };
+  materiau: {
+    roughness: number;
+    metalness: number;
+    /** Transparence du corps « hologramme » (1 = opaque) — atelier 06/09. */
+    opacite: number;
+    /** Arêtes émissives des plaques + rangées de glyphes binaires (emissiveMap). */
+    aretes: { couleur: number; intensite: number; glyphes: number };
+  };
+  casque: {
+    largeur: number;
+    hauteur: number;
+    profondeur: number;
+    crete: { largeur: number; hauteur: number; longueur: number };
+    visiere: { largeur: number; hauteur: number; couleur: number; emissif: number };
+  };
+  torse: {
+    largeur: number;
+    hauteur: number;
+    profondeur: number;
+    plastron: { largeur: number; hauteur: number; profondeur: number };
+    abdomen: { largeur: number; hauteur: number; profondeur: number };
+  };
+  epaulieres: { taille: number; hauteur: number; profondeur: number; ecart: number; inclinaison: number };
+  bras: { longueur: number; avBrasLongueur: number; epaisseur: number; ecart: number; moufle: number; angleAvBras: number };
+  jambes: { cuisseLongueur: number; tibiaLongueur: number; epaisseur: number; ecart: number };
+  bottes: { hauteur: number; longueur: number; largeur: number };
+  /** Cœur-process néon plaqué sur le plastron (identité Mainframe). */
+  coeur: { taille: number; couleur: number; emissif: number; /** Fraction de la hauteur du torse depuis sa base. */ hauteurRelative: number };
+  arme: {
+    /** Angle de la lame depuis la verticale, vers l'avant (+z). */
+    angle: number;
+    lame: { longueur: number; largeur: number; epaisseur: number; fil: { couleur: number; emissif: number; /** Largeur du halo du fil (fraction de la face). */ largeur: number } };
+    garde: { largeur: number; hauteur: number; profondeur: number };
+    poignee: { longueur: number; epaisseur: number };
+  };
+}
+
+// --- Validateur du gabarit humanoïde (exporté : le chargeur ET les tests
+//     l'exigent — un spec incomplet ou corrompu doit être REFUSÉ) ------------
+
+function positif(v: unknown, ctx: string): number {
+  const n = nombre(v, ctx);
+  if (n <= 0) throw new Error(`visuel3d.json : dimension non positive pour ${ctx}`);
+  return n;
+}
+function positifOuNul(v: unknown, ctx: string): number {
+  const n = nombre(v, ctx);
+  if (n < 0) throw new Error(`visuel3d.json : valeur négative pour ${ctx}`);
+  return n;
+}
+function fraction(v: unknown, ctx: string): number {
+  const n = nombre(v, ctx);
+  if (n < 0 || n > 1) throw new Error(`visuel3d.json : fraction hors [0, 1] pour ${ctx}`);
+  return n;
+}
+function boite(brut: unknown, ctx: string, cles: readonly string[]): Record<string, number> {
+  const b = objet(brut, ctx);
+  const out: Record<string, number> = {};
+  for (const k of cles) out[k] = positif(b[k], `${ctx}.${k}`);
+  return out;
+}
+
+/** Valide et convertit §structures.uniteGuerrier (humanoïde). Exporté pour les
+ *  tests du chargeur : toute clé manquante, couleur ou dimension invalide est
+ *  refusée avec une erreur explicite. */
+export function validerUniteGuerrier(brut: unknown): SpecUniteGuerrier {
+  const g = objet(brut, 'structures.uniteGuerrier');
+  const echelle = nombre(g.echelle, 'structures.uniteGuerrier.echelle');
+  if (echelle < 0.2 || echelle > 4) throw new Error('visuel3d.json : structures.uniteGuerrier.echelle hors [0.2, 4]');
+
+  const couleursBrut = objet(g.couleurs, 'structures.uniteGuerrier.couleurs');
+  const couleurs = {
+    corps: couleur(couleursBrut.corps, 'structures.uniteGuerrier.couleurs.corps'),
+    plaques: couleur(couleursBrut.plaques, 'structures.uniteGuerrier.couleurs.plaques'),
+    sousCorps: couleur(couleursBrut.sousCorps, 'structures.uniteGuerrier.couleurs.sousCorps'),
+  };
+
+  const materiauBrut = objet(g.materiau, 'structures.uniteGuerrier.materiau');
+  const aretesBrut = objet(materiauBrut.aretes, 'structures.uniteGuerrier.materiau.aretes');
+  const materiau = {
+    roughness: fraction(materiauBrut.roughness, 'structures.uniteGuerrier.materiau.roughness'),
+    metalness: fraction(materiauBrut.metalness, 'structures.uniteGuerrier.materiau.metalness'),
+    opacite: fraction(materiauBrut.opacite, 'structures.uniteGuerrier.materiau.opacite'),
+    aretes: {
+      couleur: couleur(aretesBrut.couleur, 'structures.uniteGuerrier.materiau.aretes.couleur'),
+      intensite: positifOuNul(aretesBrut.intensite, 'structures.uniteGuerrier.materiau.aretes.intensite'),
+      glyphes: positifOuNul(aretesBrut.glyphes, 'structures.uniteGuerrier.materiau.aretes.glyphes'),
+    },
+  };
+
+  const casqueBrut = objet(g.casque, 'structures.uniteGuerrier.casque');
+  const creteBrut = boite(casqueBrut.crete, 'structures.uniteGuerrier.casque.crete', ['largeur', 'hauteur', 'longueur']);
+  const visiereBrut = objet(casqueBrut.visiere, 'structures.uniteGuerrier.casque.visiere');
+  const casque = {
+    largeur: positif(casqueBrut.largeur, 'structures.uniteGuerrier.casque.largeur'),
+    hauteur: positif(casqueBrut.hauteur, 'structures.uniteGuerrier.casque.hauteur'),
+    profondeur: positif(casqueBrut.profondeur, 'structures.uniteGuerrier.casque.profondeur'),
+    crete: creteBrut as { largeur: number; hauteur: number; longueur: number },
+    visiere: {
+      largeur: positif(visiereBrut.largeur, 'structures.uniteGuerrier.casque.visiere.largeur'),
+      hauteur: positif(visiereBrut.hauteur, 'structures.uniteGuerrier.casque.visiere.hauteur'),
+      couleur: couleur(visiereBrut.couleur, 'structures.uniteGuerrier.casque.visiere.couleur'),
+      emissif: positifOuNul(visiereBrut.emissif, 'structures.uniteGuerrier.casque.visiere.emissif'),
+    },
+  };
+
+  const torseBrut = objet(g.torse, 'structures.uniteGuerrier.torse');
+  const torse = {
+    largeur: positif(torseBrut.largeur, 'structures.uniteGuerrier.torse.largeur'),
+    hauteur: positif(torseBrut.hauteur, 'structures.uniteGuerrier.torse.hauteur'),
+    profondeur: positif(torseBrut.profondeur, 'structures.uniteGuerrier.torse.profondeur'),
+    plastron: boite(torseBrut.plastron, 'structures.uniteGuerrier.torse.plastron', ['largeur', 'hauteur', 'profondeur']) as { largeur: number; hauteur: number; profondeur: number },
+    abdomen: boite(torseBrut.abdomen, 'structures.uniteGuerrier.torse.abdomen', ['largeur', 'hauteur', 'profondeur']) as { largeur: number; hauteur: number; profondeur: number },
+  };
+
+  const epaulieresBrut = objet(g.epaulieres, 'structures.uniteGuerrier.epaulieres');
+  const epaulieres = {
+    taille: positif(epaulieresBrut.taille, 'structures.uniteGuerrier.epaulieres.taille'),
+    hauteur: positif(epaulieresBrut.hauteur, 'structures.uniteGuerrier.epaulieres.hauteur'),
+    profondeur: positif(epaulieresBrut.profondeur, 'structures.uniteGuerrier.epaulieres.profondeur'),
+    ecart: positifOuNul(epaulieresBrut.ecart, 'structures.uniteGuerrier.epaulieres.ecart'),
+    inclinaison: nombre(epaulieresBrut.inclinaison, 'structures.uniteGuerrier.epaulieres.inclinaison'),
+  };
+
+  const brasBrut = objet(g.bras, 'structures.uniteGuerrier.bras');
+  const bras = {
+    longueur: positif(brasBrut.longueur, 'structures.uniteGuerrier.bras.longueur'),
+    avBrasLongueur: positif(brasBrut.avBrasLongueur, 'structures.uniteGuerrier.bras.avBrasLongueur'),
+    epaisseur: positif(brasBrut.epaisseur, 'structures.uniteGuerrier.bras.epaisseur'),
+    ecart: positifOuNul(brasBrut.ecart, 'structures.uniteGuerrier.bras.ecart'),
+    moufle: positif(brasBrut.moufle, 'structures.uniteGuerrier.bras.moufle'),
+    angleAvBras: nombre(brasBrut.angleAvBras, 'structures.uniteGuerrier.bras.angleAvBras'),
+  };
+
+  const jambesBrut = objet(g.jambes, 'structures.uniteGuerrier.jambes');
+  const jambes = {
+    cuisseLongueur: positif(jambesBrut.cuisseLongueur, 'structures.uniteGuerrier.jambes.cuisseLongueur'),
+    tibiaLongueur: positif(jambesBrut.tibiaLongueur, 'structures.uniteGuerrier.jambes.tibiaLongueur'),
+    epaisseur: positif(jambesBrut.epaisseur, 'structures.uniteGuerrier.jambes.epaisseur'),
+    ecart: positifOuNul(jambesBrut.ecart, 'structures.uniteGuerrier.jambes.ecart'),
+  };
+
+  const bottes = boite(g.bottes, 'structures.uniteGuerrier.bottes', ['hauteur', 'longueur', 'largeur']) as { hauteur: number; longueur: number; largeur: number };
+
+  const coeurBrut = objet(g.coeur, 'structures.uniteGuerrier.coeur');
+  const coeur = {
+    taille: positif(coeurBrut.taille, 'structures.uniteGuerrier.coeur.taille'),
+    couleur: couleur(coeurBrut.couleur, 'structures.uniteGuerrier.coeur.couleur'),
+    emissif: positifOuNul(coeurBrut.emissif, 'structures.uniteGuerrier.coeur.emissif'),
+    hauteurRelative: fraction(coeurBrut.hauteurRelative, 'structures.uniteGuerrier.coeur.hauteurRelative'),
+  };
+
+  const armeBrut = objet(g.arme, 'structures.uniteGuerrier.arme');
+  const lameBrut = objet(armeBrut.lame, 'structures.uniteGuerrier.arme.lame');
+  const filBrut = objet(lameBrut.fil, 'structures.uniteGuerrier.arme.lame.fil');
+  const garde = boite(armeBrut.garde, 'structures.uniteGuerrier.arme.garde', ['largeur', 'hauteur', 'profondeur']) as { largeur: number; hauteur: number; profondeur: number };
+  const poignee = boite(armeBrut.poignee, 'structures.uniteGuerrier.arme.poignee', ['longueur', 'epaisseur']) as { longueur: number; epaisseur: number };
+  const arme = {
+    angle: nombre(armeBrut.angle, 'structures.uniteGuerrier.arme.angle'),
+    lame: {
+      longueur: positif(lameBrut.longueur, 'structures.uniteGuerrier.arme.lame.longueur'),
+      largeur: positif(lameBrut.largeur, 'structures.uniteGuerrier.arme.lame.largeur'),
+      epaisseur: positif(lameBrut.epaisseur, 'structures.uniteGuerrier.arme.lame.epaisseur'),
+      fil: {
+        couleur: couleur(filBrut.couleur, 'structures.uniteGuerrier.arme.lame.fil.couleur'),
+        emissif: positifOuNul(filBrut.emissif, 'structures.uniteGuerrier.arme.lame.fil.emissif'),
+        largeur: fraction(filBrut.largeur, 'structures.uniteGuerrier.arme.lame.fil.largeur'),
+      },
+    },
+    garde,
+    poignee,
+  };
+
+  return { echelle, couleurs, materiau, casque, torse, epaulieres, bras, jambes, bottes, coeur, arme };
 }
 
 /** « Sentinelle Réseau » — Archer cyber 3D : même gabarit de créature, bras
@@ -544,44 +719,7 @@ const VILLAGE3D: SpecVillage = {
   visage: visageDe(villageBrut.visage, 'structures.village.visage', true),
 };
 
-const uniteGuerrierBrut = objet(structuresBrut.uniteGuerrier, 'structures.uniteGuerrier');
-const ugCorpsBrut = objet(uniteGuerrierBrut.corps, 'structures.uniteGuerrier.corps');
-const ugCoeurBrut = objet(uniteGuerrierBrut.coeur, 'structures.uniteGuerrier.coeur');
-const ugPattesBrut = objet(uniteGuerrierBrut.pattes, 'structures.uniteGuerrier.pattes');
-const ugBrasBrut = objet(uniteGuerrierBrut.bras, 'structures.uniteGuerrier.bras');
-const ugArmeBrut = objet(uniteGuerrierBrut.arme, 'structures.uniteGuerrier.arme');
-const UNITE_GUERRIER3D: SpecUniteGuerrier = {
-  echelle: nombre(uniteGuerrierBrut.echelle, 'structures.uniteGuerrier.echelle'),
-  corps: {
-    largeur: nombre(ugCorpsBrut.largeur, 'structures.uniteGuerrier.corps.largeur'),
-    hauteur: nombre(ugCorpsBrut.hauteur, 'structures.uniteGuerrier.corps.hauteur'),
-    profondeur: nombre(ugCorpsBrut.profondeur, 'structures.uniteGuerrier.corps.profondeur'),
-    survol: nombre(ugCorpsBrut.survol, 'structures.uniteGuerrier.corps.survol'),
-    couleur: couleur(ugCorpsBrut.couleur, 'structures.uniteGuerrier.corps.couleur'),
-  },
-  coeur: {
-    rayon: nombre(ugCoeurBrut.rayon, 'structures.uniteGuerrier.coeur.rayon'),
-    couleur: couleur(ugCoeurBrut.couleur, 'structures.uniteGuerrier.coeur.couleur'),
-    emissif: nombre(ugCoeurBrut.emissif, 'structures.uniteGuerrier.coeur.emissif'),
-  },
-  pattes: {
-    nombre: nombre(ugPattesBrut.nombre, 'structures.uniteGuerrier.pattes.nombre'),
-    epaisseur: nombre(ugPattesBrut.epaisseur, 'structures.uniteGuerrier.pattes.epaisseur'),
-    ecartement: nombre(ugPattesBrut.ecartement, 'structures.uniteGuerrier.pattes.ecartement'),
-    couleur: couleur(ugPattesBrut.couleur, 'structures.uniteGuerrier.pattes.couleur'),
-  },
-  bras: {
-    longueur: nombre(ugBrasBrut.longueur, 'structures.uniteGuerrier.bras.longueur'),
-    epaisseur: nombre(ugBrasBrut.epaisseur, 'structures.uniteGuerrier.bras.epaisseur'),
-    inclinaison: nombre(ugBrasBrut.inclinaison, 'structures.uniteGuerrier.bras.inclinaison'),
-    couleur: couleur(ugBrasBrut.couleur, 'structures.uniteGuerrier.bras.couleur'),
-  },
-  arme: {
-    longueur: nombre(ugArmeBrut.longueur, 'structures.uniteGuerrier.arme.longueur'),
-    largeur: nombre(ugArmeBrut.largeur, 'structures.uniteGuerrier.arme.largeur'),
-    emissif: nombre(ugArmeBrut.emissif, 'structures.uniteGuerrier.arme.emissif'),
-  },
-};
+const UNITE_GUERRIER3D: SpecUniteGuerrier = validerUniteGuerrier(structuresBrut.uniteGuerrier);
 
 const uniteArcherBrut = objet(structuresBrut.uniteArcher, 'structures.uniteArcher');
 const uaCorpsBrut = objet(uniteArcherBrut.corps, 'structures.uniteArcher.corps');

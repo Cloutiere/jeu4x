@@ -55,37 +55,37 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json)', () => {
 });
 
 describe('planificateur — unités 3D', () => {
-  it('un guerrier produit le modèle 3D (torse, cœur, pattes, bras, lame accent)', () => {
+  it('un guerrier produit l’humanoïde cyber (corps fusionné, cœur, visière, lame accent)', () => {
     const plan = planifierStructures(entree({ unites: [unite(2, 3, 'guerrier')] }));
-    expect(plan.get('ugCorps')).toHaveLength(1);
+    expect(plan.get('guCorps')).toHaveLength(1);
     expect(plan.get('ugCoeur')).toHaveLength(1);
-    expect(plan.get('ugPatte')?.length).toBeGreaterThan(0);
-    expect(plan.get('ugBras')).toHaveLength(1);
-    expect(plan.get('ugArme')).toHaveLength(1); // lame accent joueur
+    expect(plan.get('guVisiere')).toHaveLength(1);
+    expect(plan.get('guLame')).toHaveLength(1); // lame accent joueur
     expect(plan.get('ugLasso')).toBeUndefined(); // pas de lasso sur un guerrier
+    expect(plan.get('ugPatte')).toBeUndefined(); // plus le gabarit créature
   });
 
   it('un archer produit le lasso électrique (et pas de lame)', () => {
     const plan = planifierStructures(entree({ unites: [unite(0, 0, 'archer', 'p2')] }));
     expect(plan.get('ugLasso')?.length).toBeGreaterThan(0);
     expect(plan.get('ugBoucle')).toHaveLength(1);
-    expect(plan.get('ugArme')).toBeUndefined();
+    expect(plan.get('guLame')).toBeUndefined();
   });
 
   it('l’accent propriétaire est porté par la lame du guerrier (R-65)', () => {
     const plan = planifierStructures(entree({ unites: [unite(0, 0, 'guerrier', 'p2')] }));
-    expect(plan.get('ugArme')![0]!.couleur).toBe(couleurDe('p2'));
+    expect(plan.get('guLame')![0]!.couleur).toBe(couleurDe('p2'));
     const planP1 = planifierStructures(entree({ unites: [unite(0, 0, 'guerrier', 'p1')] }));
-    expect(planP1.get('ugArme')![0]!.couleur).toBe(couleurDe('p1'));
+    expect(planP1.get('guLame')![0]!.couleur).toBe(couleurDe('p1'));
   });
 
   it('l’élévation du modèle suit le terrain de la case', () => {
     const plan = planifierStructures(entree({ unites: [unite(1, 1, 'guerrier', 'p1', { terrain: 'montagne' })] }));
-    const corps = plan.get('ugCorps')![0]!;
+    const corps = plan.get('guCorps')![0]!;
     const solMontagne = TERRAINS3D['montagne']!.elev;
-    expect(corps.y).toBeGreaterThan(solMontagne); // torse porté par les pattes AU-DESSUS du sol
+    expect(corps.y).toBe(solMontagne); // pieds posés sur le plateau de la tuile
     const planPrairie = planifierStructures(entree({ unites: [unite(1, 1, 'guerrier', 'p1', { terrain: 'prairie' })] }));
-    expect(planPrairie.get('ugCorps')![0]!.y).toBeLessThan(corps.y);
+    expect(planPrairie.get('guCorps')![0]!.y).toBeLessThan(corps.y);
   });
 
   it('l’interpolation de playback lerp position ET élévation entre deux cases', () => {
@@ -93,14 +93,14 @@ describe('planificateur — unités 3D', () => {
     const pb = hexWorldPos({ q: 1, r: 0 });
     const elevA = TERRAINS3D['montagne']!.elev;
     const elevB = TERRAINS3D['prairie']!.elev;
-    // Décalage torse/sol constant : référence = unité statique sur l'arrivée.
-    const statique = planifierStructures(entree({ unites: [unite(1, 0, 'guerrier')] })).get('ugCorps')![0]!;
+    // Décalage torse/sol constant : référence = unité statique sur l’arrivée.
+    const statique = planifierStructures(entree({ unites: [unite(1, 0, 'guerrier')] })).get('guCorps')![0]!;
     const surhausse = statique.y - elevB;
     const u = unite(1, 0, 'guerrier', 'p1', {
       terrain: 'prairie',
       interpole: { deQ: 0, deR: 0, deTerrain: 'montagne', t: 0.5 },
     });
-    const corps = planifierStructures(entree({ unites: [u] })).get('ugCorps')![0]!;
+    const corps = planifierStructures(entree({ unites: [u] })).get('guCorps')![0]!;
     expect(corps.x).toBeCloseTo((pa.x + pb.x) / 2, 5);
     expect(corps.z).toBeCloseTo((pa.z + pb.z) / 2, 5);
     expect(corps.y).toBeCloseTo((elevA + elevB) / 2 + surhausse, 5);
@@ -109,7 +109,7 @@ describe('planificateur — unités 3D', () => {
   it('sans interpolation, la position reste celle de la case (déterminisme)', () => {
     const p = hexWorldPos({ q: 3, r: -2 });
     const plan = planifierStructures(entree({ unites: [unite(3, -2, 'guerrier')] }));
-    const corps = plan.get('ugCorps')![0]!;
+    const corps = plan.get('guCorps')![0]!;
     expect(corps.x).toBeCloseTo(p.x, 5);
     expect(corps.z).toBeCloseTo(p.z, 5);
   });

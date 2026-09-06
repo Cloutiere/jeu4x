@@ -202,11 +202,11 @@
     void bloom;
     stage?.setBloom(bloom);
   });
-  $effect(() => {
-    if (!stage) return;
-    void fondSombre;
-    stage.scene.background = new THREE.Color(fondSombre ? 0x070b18 : 0xcfd6de);
-  });
+  /** Fond appliqué IMPÉRATIVEMENT (l'effet Svelte ne se déclenche pas
+   *  fiablement : `stage` est non réactif — atelier GUERRIER-3D 06/09). */
+  function appliquerFond(): void {
+    if (stage) stage.scene.background = new THREE.Color(fondSombre ? 0x070b18 : 0xcfd6de);
+  }
   // Reconstruction à chaque changement d'asset OU de variante (pop/capitale/grille).
   $effect(() => {
     const asset = selection;
@@ -403,6 +403,7 @@
     if (stage) { stage.dispose(); stage = null; }
     stageCanvas = canvasEl;
     stage = new Stage3D(canvasEl);
+    appliquerFond();
     // Orbite : render() appelle cam.apply() (tilt fixe sud) — on remplace apply
     // SUR L'INSTANCE par la pose sphérique de l'atelier, sinon l'orbite est
     // écrasée à chaque frame.
@@ -529,7 +530,7 @@
             <div class="rangee">
               <button class:actif={bloom} onclick={() => (bloom = !bloom)}>Bloom</button>
               <button class:actif={animation} onclick={() => (animation = !animation)}>Animation</button>
-              <button class:actif={!fondSombre} onclick={() => (fondSombre = !fondSombre)}>Fond clair</button>
+              <button class:actif={!fondSombre} onclick={() => { fondSombre = !fondSombre; appliquerFond(); }}>Fond clair</button>
               <button class:actif={grilleHex} onclick={() => (grilleHex = !grilleHex)}>Grille hex</button>
             </div>
             <div class="rangee">

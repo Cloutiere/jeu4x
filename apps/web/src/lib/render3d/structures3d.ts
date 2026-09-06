@@ -3,8 +3,8 @@
  * slots de cartes-ressources, cartes des 22 ressources (état neutre R-92 /
  * état révélé), Mainframe des villes (paliers de population, capitale
  * distincte, modules de bâtiments, module doré des merveilles), cratère (7m),
- * huttes et villages barbares. Les UNITÉS restent des sprites PixiJS (calque
- * volumétrique ultérieur — hors périmètre).
+ * huttes et villages barbares, et UNITÉS 3D (gabarits créature + humanoïde
+ * « Script de Base », branchés au jeu par `unites3d.ts`).
  *
  * Deux moitiés, comme world3d :
  *  - `planifierStructures` : PURE et déterministe — transforme l'état filtré
@@ -18,8 +18,10 @@
  * `visuel3d.json` §structures via `spec3d.ts` — calibrable sans code.
  */
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hexWorldPos, FOG_DIM, Pool } from './world3d.js';
-import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment } from './spec3d.js';
+import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment, SEED, mulberry32 } from './spec3d.js';
+import type { SpecUniteGuerrier } from './spec3d.js';
 import type { FogState } from './world3d.js';
 
 // ---------------------------------------------------------------------------
@@ -363,10 +365,13 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
     push('villageBouche', { x, y: yBouche, z: z + zBouche + 0.01, sx: f.bouche.largeur, sy: f.bouche.hauteur, sz: 0.016, ry: 0, couleur: dim(f.couleur, v.fog) });
   }
 
-  // --- Unités 3D — créatures cyber (atelier 05/09) ----------------------------
-  // « Script de Base » (guerrier) : pattes + bras armé d'une lame accent joueur.
-  // « Sentinelle Réseau » (archer) : bras levé lançant un lasso électrique —
-  // segments en arc terminés par une boucle néon (impression d'attaque à distance).
+  // --- Unités 3D — créatures & humanoïdes cyber -------------------------------
+  // « Sentinelle Réseau » (archer) : créature à pattes, bras levé lançant un
+  // lasso électrique — segments en arc terminés par une boucle néon.
+  // « Script de Base » (guerrier, atelier GUERRIER-3D, réf. image_ref/guerrier.jpg) :
+  // HUMANOÏDE facetté — casque à visière, torse plastronné, épaulières,
+  // bras/moufles, jambes/bottes — corps sombre fusionné à arêtes émissives,
+  // cœur-process néon (identité Mainframe), lame accent joueur à fil émissif.
   // `echelle` est le facteur global (unités plus fortes → plus grandes).
   for (const u of e.unites ?? []) {
     // Interpolation de playback : position ET élévation lerpées entre la case
@@ -383,59 +388,58 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
       elev = elevA + (elev - elevA) * it.t;
     }
     const accent = dim(e.couleurDe(u.owner ?? 'barbarien'), u.fog);
-    const archer = u.type === 'archer';
-    const ug = archer ? S.uniteArcher : S.uniteGuerrier;
-    const k = ug.echelle;
 
-    // torse (prisme hexagonal allongé vers l'avant) porté par les pattes
-    const yTorse = elev + (ug.corps.survol + ug.corps.hauteur / 2) * k;
-    push('ugCorps', {
-      x, y: yTorse, z,
-      sx: ug.corps.largeur * k, sy: ug.corps.hauteur * k, sz: ug.corps.profondeur * k,
-      ry: 0, couleur: dim(ug.corps.couleur, u.fog),
-    });
-    // cœur-process : néon cyan au sommet du torse
-    push('ugCoeur', {
-      x, y: yTorse + (ug.corps.hauteur / 2 + ug.coeur.rayon * 0.9) * k, z,
-      sx: ug.coeur.rayon * k, sy: ug.coeur.rayon * 1.5 * k, sz: ug.coeur.rayon * k,
-      ry: Math.PI / 6, couleur: dim(ug.coeur.couleur, u.fog),
-    });
-    // pattes : hanches sous le torse, pieds écartés au sol — boîtes longues
-    // en Z, tangées en azimut puis tangées vers le bas (ordre YXZ)
-    const rHanche = Math.min(ug.corps.largeur, ug.corps.profondeur) * 0.3 * k;
-    const DeltaR = (ug.pattes.ecartement - Math.min(ug.corps.largeur, ug.corps.profondeur) * 0.3) * k;
-    const chute = ug.corps.survol * k;
-    const longPatte = Math.hypot(chute, DeltaR);
-    const tangage = Math.atan2(chute, DeltaR);
-    const pas = (Math.PI * 2) / ug.pattes.nombre;
-    for (let i = 0; i < ug.pattes.nombre; i++) {
-      const theta = Math.PI / 4 + i * pas; // évite l'avant (+z) où tient le bras
-      const rMilieu = (rHanche + ug.pattes.ecartement * k) / 2;
-      push('ugPatte', {
-        x: x + Math.sin(theta) * rMilieu,
-        y: elev + chute / 2,
-        z: z + Math.cos(theta) * rMilieu,
-        sx: ug.pattes.epaisseur * k, sy: ug.pattes.epaisseur * k, sz: longPatte,
-        rx: tangage, ry: theta, couleur: dim(ug.pattes.couleur, u.fog),
+    if (u.type === 'archer') {
+      const ug = S.uniteArcher;
+      const k = ug.echelle;
+
+      // torse (prisme hexagonal allongé vers l'avant) porté par les pattes
+      const yTorse = elev + (ug.corps.survol + ug.corps.hauteur / 2) * k;
+      push('ugCorps', {
+        x, y: yTorse, z,
+        sx: ug.corps.largeur * k, sy: ug.corps.hauteur * k, sz: ug.corps.profondeur * k,
+        ry: 0, couleur: dim(ug.corps.couleur, u.fog),
       });
-    }
-    // épaule à l'avant du torse — bras vers l'avant (guerrier) ou levé (archer)
-    const yEpaule = elev + (ug.corps.survol + ug.corps.hauteur * 0.65) * k;
-    const zEpaule = (ug.corps.profondeur / 2) * k;
-    const dirY = -Math.sin(ug.bras.inclinaison);
-    const dirZ = Math.cos(ug.bras.inclinaison);
-    push('ugBras', {
-      x,
-      y: yEpaule + dirY * (ug.bras.longueur / 2) * k,
-      z: z + zEpaule + dirZ * (ug.bras.longueur / 2) * k,
-      sx: ug.bras.epaisseur * k, sy: ug.bras.epaisseur * k, sz: ug.bras.longueur * k,
-      rx: ug.bras.inclinaison, ry: 0, couleur: dim(ug.bras.couleur, u.fog),
-    });
-    // poing au bout du bras
-    const yPoing = yEpaule + dirY * ug.bras.longueur * k;
-    const zPoing = z + zEpaule + dirZ * ug.bras.longueur * k;
-
-    if (archer) {
+      // cœur-process : néon cyan au sommet du torse
+      push('ugCoeur', {
+        x, y: yTorse + (ug.corps.hauteur / 2 + ug.coeur.rayon * 0.9) * k, z,
+        sx: ug.coeur.rayon * k, sy: ug.coeur.rayon * 1.5 * k, sz: ug.coeur.rayon * k,
+        ry: Math.PI / 6, couleur: dim(ug.coeur.couleur, u.fog),
+      });
+      // pattes : hanches sous le torse, pieds écartés au sol — boîtes longues
+      // en Z, tangées en azimut puis tangées vers le bas (ordre YXZ)
+      const rHanche = Math.min(ug.corps.largeur, ug.corps.profondeur) * 0.3 * k;
+      const DeltaR = (ug.pattes.ecartement - Math.min(ug.corps.largeur, ug.corps.profondeur) * 0.3) * k;
+      const chute = ug.corps.survol * k;
+      const longPatte = Math.hypot(chute, DeltaR);
+      const tangage = Math.atan2(chute, DeltaR);
+      const pas = (Math.PI * 2) / ug.pattes.nombre;
+      for (let i = 0; i < ug.pattes.nombre; i++) {
+        const theta = Math.PI / 4 + i * pas; // évite l'avant (+z) où tient le bras
+        const rMilieu = (rHanche + ug.pattes.ecartement * k) / 2;
+        push('ugPatte', {
+          x: x + Math.sin(theta) * rMilieu,
+          y: elev + chute / 2,
+          z: z + Math.cos(theta) * rMilieu,
+          sx: ug.pattes.epaisseur * k, sy: ug.pattes.epaisseur * k, sz: longPatte,
+          rx: tangage, ry: theta, couleur: dim(ug.pattes.couleur, u.fog),
+        });
+      }
+      // épaule à l'avant du torse — bras levé (lancement vers l'avant-haut)
+      const yEpaule = elev + (ug.corps.survol + ug.corps.hauteur * 0.65) * k;
+      const zEpaule = (ug.corps.profondeur / 2) * k;
+      const dirY = -Math.sin(ug.bras.inclinaison);
+      const dirZ = Math.cos(ug.bras.inclinaison);
+      push('ugBras', {
+        x,
+        y: yEpaule + dirY * (ug.bras.longueur / 2) * k,
+        z: z + zEpaule + dirZ * (ug.bras.longueur / 2) * k,
+        sx: ug.bras.epaisseur * k, sy: ug.bras.epaisseur * k, sz: ug.bras.longueur * k,
+        rx: ug.bras.inclinaison, ry: 0, couleur: dim(ug.bras.couleur, u.fog),
+      });
+      // poing au bout du bras
+      const yPoing = yEpaule + dirY * ug.bras.longueur * k;
+      const zPoing = z + zEpaule + dirZ * ug.bras.longueur * k;
       // lasso électrique : arc de Bézier quadratique du poing vers l'avant,
       // segments affineés (effilés vers le bout), boucle néon à l'extrémité
       const la = S.uniteArcher.lasso;
@@ -471,19 +475,291 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
         ry: 0, couleur: dim(la.boucle.couleur, u.fog),
       });
     } else {
-      // lame : verticale au poing, couleur = accent joueur (R-65)
-      const arme = S.uniteGuerrier.arme;
-      push('ugArme', {
-        x,
-        y: yPoing + (arme.longueur / 2) * k * 0.7,
-        z: zPoing,
-        sx: arme.largeur * k, sy: arme.longueur * k, sz: arme.largeur * 0.4 * k,
-        ry: 0, couleur: accent,
+      // Humanoïde « Script de Base » (atelier GUERRIER-3D) : corps « hologramme »
+      // semi-transparent TEINTÉ par l'accent joueur (les nuances neutres du
+      // gabarit multiplient l'accent) — arêtes néon en émissif, indépendantes.
+      // 4 draw calls pour TOUTE l'armée de guerriers (instancing).
+      const g = S.uniteGuerrier;
+      const k = g.echelle;
+      push('guCorps', { x, y: elev, z, sx: k, sy: k, sz: k, ry: 0, couleur: accent });
+      const coeur = coeurGuerrierLocal(g);
+      push('ugCoeur', {
+        x, y: elev + coeur.y * k, z: z + coeur.z * k,
+        sx: g.coeur.taille * k, sy: g.coeur.taille * 1.5 * k, sz: g.coeur.taille * 0.5 * k,
+        ry: Math.PI / 6, couleur: dim(g.coeur.couleur, u.fog),
       });
+      const visiere = visiereGuerrierLocal(g);
+      push('guVisiere', {
+        x, y: elev + visiere.y * k, z: z + visiere.z * k,
+        sx: g.casque.visiere.largeur * k, sy: g.casque.visiere.hauteur * k, sz: 0.007 * k,
+        ry: 0, couleur: dim(g.casque.visiere.couleur, u.fog),
+      });
+      // lame accent joueur, même transform que le corps (géométrie pré-posée)
+      push('guLame', { x, y: elev, z, sx: k, sy: k, sz: k, ry: 0, couleur: accent });
     }
   }
 
   return plan;
+}
+
+// ---------------------------------------------------------------------------
+// Guerrier humanoïde cyber — usine de géométrie du gabarit (atelier
+// GUERRIER-3D, référence image_ref/guerrier.jpg). PUR (three.js sans DOM) :
+// les cotes du spec sont transformées en DEUX géométries fusionnées (corps
+// sombre + lame) — l'effet « hologramme matriciel » (arêtes néon, glyphes
+// binaires, fil de lame) est du SHADING posé sur ces géométries dans les
+// fabriques de pools, PAS de la géométrie de lignes supplémentaire.
+// ---------------------------------------------------------------------------
+
+/** Teinte tous les sommets d'une pièce (vertex colors — multipliées avec la
+ *  couleur d'instance, qui ne porte plus que le fog : nuances par pièce). */
+function coloriser(geo: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
+  const position = geo.attributes.position;
+  if (!position) throw new Error('structures3d : pièce sans attribut de position');
+  const n = position.count;
+  const couleurs = new Float32Array(n * 3);
+  const c = new THREE.Color(hex);
+  for (let i = 0; i < n; i++) {
+    couleurs[i * 3] = c.r;
+    couleurs[i * 3 + 1] = c.g;
+    couleurs[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(couleurs, 3));
+  return geo;
+}
+
+/** Pièce facettée du gabarit : boîte dimensionnée, tangée (rx) puis inclinée
+ *  (rz) et posée — le style low-poly assumé de la référence. */
+function piece(
+  parts: THREE.BufferGeometry[],
+  sx: number, sy: number, sz: number,
+  x: number, y: number, z: number,
+  couleur: number, rx = 0, rz = 0,
+): void {
+  const g = new THREE.BoxGeometry(sx, sy, sz);
+  if (rx !== 0) g.rotateX(rx);
+  if (rz !== 0) g.rotateZ(rz);
+  g.translate(x, y, z);
+  parts.push(coloriser(g, couleur));
+}
+
+/** Fusionne les pièces d'un groupe (un seul draw call par matériau et par
+ *  gabarit, instancié ensuite par unité). */
+function fusionner(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const fusion = mergeGeometries(parts, false);
+  for (const p of parts) p.dispose();
+  if (!fusion) throw new Error('structures3d : fusion du gabarit guerrier impossible');
+  return fusion;
+}
+
+/** Repères verticaux du gabarit — UNE définition partagée entre l'usine de
+ *  géométrie et les helpers du planificateur (les instances cœur/visière
+ *  doivent tomber juste devant la géométrie fusionnée). */
+function reperesGuerrier(g: SpecUniteGuerrier) {
+  const hanches = g.bottes.hauteur + g.jambes.tibiaLongueur + g.jambes.cuisseLongueur;
+  const baseTorse = hanches + g.torse.abdomen.hauteur;
+  const sommetTorse = baseTorse + g.torse.hauteur;
+  const yCasque = sommetTorse + g.casque.hauteur / 2 - 0.006;
+  return { hanches, baseTorse, sommetTorse, yCasque };
+}
+
+/** Position LOCALE du cœur-process néon (sur le plastron) — planificateur. */
+export function coeurGuerrierLocal(g: SpecUniteGuerrier): { y: number; z: number } {
+  const r = reperesGuerrier(g);
+  return {
+    y: r.baseTorse + g.torse.hauteur * g.coeur.hauteurRelative,
+    z: g.torse.profondeur / 2 + g.torse.plastron.profondeur + g.coeur.taille * 0.5 + 0.002,
+  };
+}
+
+/** Position LOCALE de la visière du casque — planificateur. */
+export function visiereGuerrierLocal(g: SpecUniteGuerrier): { y: number; z: number } {
+  const r = reperesGuerrier(g);
+  return { y: r.yCasque + g.casque.hauteur * 0.12, z: g.casque.profondeur / 2 + 0.0035 };
+}
+
+export interface GabaritGuerrierHumain {
+  /** Corps sombre fusionné (jambes, torse, bras, casque, poignée/garde) —
+   *  pieds à y = 0, face avant +z, vertex colors par pièce. */
+  corps: THREE.BufferGeometry;
+  /** Lame plate (accent joueur par instance) — même transform que le corps. */
+  lame: THREE.BufferGeometry;
+}
+
+/** Construit le gabarit humanoïde du Guerrier depuis le spec validé. */
+export function creerGuerrierHumain(g: SpecUniteGuerrier): GabaritGuerrierHumain {
+  const sombres: THREE.BufferGeometry[] = [];
+  const { corps, plaques, sousCorps } = g.couleurs;
+  const r = reperesGuerrier(g);
+
+  // Jambes — stance légère, bottes posées à y = 0
+  const hBotte = g.bottes.hauteur;
+  const yTibia = hBotte + g.jambes.tibiaLongueur / 2;
+  const yCuisse = hBotte + g.jambes.tibiaLongueur + g.jambes.cuisseLongueur / 2;
+  for (const cote of [-1, 1]) {
+    const x = cote * g.jambes.ecart;
+    piece(sombres, g.bottes.largeur, hBotte, g.bottes.longueur, x, hBotte / 2, 0.008, plaques);
+    piece(sombres, g.jambes.epaisseur, g.jambes.tibiaLongueur, g.jambes.epaisseur, x, yTibia, -0.002, corps);
+    piece(sombres, g.jambes.epaisseur * 1.12, g.jambes.cuisseLongueur, g.jambes.epaisseur * 1.12, x, yCuisse, 0, corps);
+  }
+
+  // Bassin/torse — abdomen plaquété, torse, plastron saillant
+  piece(sombres, g.torse.abdomen.largeur, g.torse.abdomen.hauteur, g.torse.abdomen.profondeur,
+    0, r.hanches + g.torse.abdomen.hauteur / 2, 0, plaques);
+  piece(sombres, g.torse.largeur, g.torse.hauteur, g.torse.profondeur,
+    0, r.baseTorse + g.torse.hauteur / 2, 0, corps);
+  piece(sombres, g.torse.plastron.largeur, g.torse.plastron.hauteur, g.torse.plastron.profondeur,
+    0, r.baseTorse + g.torse.hauteur * 0.6, g.torse.profondeur / 2 + g.torse.plastron.profondeur / 2 - 0.004, plaques);
+
+  // Épaulières — plaques débordantes, inclinées vers l'extérieur
+  const yEpaule = r.sommetTorse - g.epaulieres.hauteur * 0.55;
+  for (const cote of [-1, 1]) {
+    piece(sombres, g.epaulieres.taille, g.epaulieres.hauteur, g.epaulieres.profondeur,
+      cote * (g.torse.largeur / 2 + g.epaulieres.ecart), yEpaule + g.epaulieres.hauteur * 0.25, 0, plaques,
+      0, -cote * g.epaulieres.inclinaison);
+  }
+
+  // Bras — le long du corps ; l'avant-bras droit (x > 0) se lève vers l'avant
+  // pour présenter la poignée (référence : épée tenue basse, pointe avant-bas)
+  let main: { x: number; y: number; z: number } | null = null;
+  for (const cote of [-1, 1]) {
+    const x = cote * g.bras.ecart;
+    piece(sombres, g.bras.epaisseur, g.bras.longueur, g.bras.epaisseur,
+      x, yEpaule - g.bras.longueur / 2, 0, sousCorps);
+    const coudeY = yEpaule - g.bras.longueur;
+    const angle = cote > 0 ? g.bras.angleAvBras : 0;
+    const dy = -Math.cos(angle);
+    const dz = Math.sin(angle);
+    const l = g.bras.avBrasLongueur;
+    piece(sombres, g.bras.epaisseur * 0.9, l, g.bras.epaisseur * 0.9,
+      x, coudeY + dy * l / 2, dz * l / 2, sousCorps, -angle);
+    piece(sombres, g.bras.moufle, g.bras.moufle, g.bras.moufle,
+      x, coudeY + dy * (l + g.bras.moufle * 0.35), dz * (l + g.bras.moufle * 0.35), sousCorps);
+    if (cote > 0) {
+      main = { x, y: coudeY + dy * (l + g.bras.moufle * 0.7), z: dz * (l + g.bras.moufle * 0.7) };
+    }
+  }
+  if (!main) throw new Error('structures3d : gabarit guerrier sans main armée');
+
+  // Casque — dôme facetté + crête (aucun visage à modéliser, cf. référence)
+  piece(sombres, g.casque.largeur, g.casque.hauteur, g.casque.profondeur, 0, r.yCasque, 0, corps);
+  piece(sombres, g.casque.crete.largeur, g.casque.crete.hauteur, g.casque.crete.longueur,
+    0, r.yCasque + g.casque.hauteur / 2 + g.casque.crete.hauteur / 2 - 0.004, -0.004, plaques);
+
+  // Épée — poignée sombre dans la main, garde plaquétée, lame plate à part
+  const a = g.arme.angle;
+  const dyL = -Math.cos(a);
+  const dzL = Math.sin(a);
+  const dGarde = g.bras.moufle * 0.55;
+  piece(sombres, g.arme.poignee.epaisseur, g.arme.poignee.longueur, g.arme.poignee.epaisseur,
+    main.x, main.y, main.z, sousCorps, -a);
+  piece(sombres, g.arme.garde.largeur, g.arme.garde.hauteur, g.arme.garde.profondeur,
+    main.x, main.y + dyL * dGarde, main.z + dzL * dGarde, plaques, -a);
+  const lameGeo = new THREE.BoxGeometry(g.arme.lame.largeur, g.arme.lame.longueur, g.arme.lame.epaisseur);
+  lameGeo.rotateX(-a);
+  const dLame = dGarde + g.arme.garde.hauteur / 2 + g.arme.lame.longueur / 2;
+  lameGeo.translate(main.x, main.y + dyL * dLame, main.z + dzL * dLame);
+
+  return { corps: fusionner(sombres), lame: lameGeo };
+}
+
+/** Gabarit construit une seule fois (l'atelier et le jeu partagent le même). */
+let gabaritGuerrier: GabaritGuerrierHumain | null = null;
+function geoGuerrierHumain(): GabaritGuerrierHumain {
+  if (!gabaritGuerrier) gabaritGuerrier = creerGuerrierHumain(S.uniteGuerrier);
+  return gabaritGuerrier;
+}
+
+/** EmissiveMap « hologramme » du corps : arêtes néon de chaque plaque +
+ *  rangées de glyphes binaires (déterministes — mulberry32). */
+let aretesTex: THREE.CanvasTexture | null = null;
+function textureAretes(intensiteGlyphes: number): THREE.CanvasTexture {
+  if (aretesTex) return aretesTex;
+  const px = 256;
+  const c = document.createElement('canvas');
+  c.width = px; c.height = px;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, px, px);
+  const bord = Math.max(5, px * 0.045);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = bord;
+  ctx.strokeRect(bord / 2, bord / 2, px - bord, px - bord);
+  const rnd = mulberry32(SEED + 77);
+  ctx.fillStyle = `rgba(255,255,255,${Math.min(1, Math.max(0, intensiteGlyphes))})`;
+  for (let ligne = 0; ligne < 3; ligne++) {
+    const y = px * (0.56 + ligne * 0.09);
+    for (let i = 0; i < 24; i++) {
+      if (rnd() < 0.4) continue;
+      ctx.fillRect(px * 0.1 + rnd() * px * 0.8, y, 3 + rnd() * 6, 3.2);
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  aretesTex = tex;
+  return tex;
+}
+
+/** EmissiveMap du fil de la lame : traits blancs aux DEUX bords (lisible de
+ *  partout) + halo qui s'estompe vers le cœur de la lame. */
+let filTex: THREE.CanvasTexture | null = null;
+function textureFilLame(halo: number): THREE.CanvasTexture {
+  if (filTex) return filTex;
+  const px = 128;
+  const c = document.createElement('canvas');
+  c.width = px; c.height = px;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, px, px);
+  const largeurHalo = Math.max(0.02, halo);
+  for (const bord of [0.05, 0.9]) {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(px * bord, 0, px * 0.1, px);
+    const versAvant = bord < 0.5;
+    const x0 = versAvant ? px * 0.15 : px * bord - px * largeurHalo;
+    const x1 = versAvant ? x0 + px * largeurHalo : px * bord;
+    const grad = ctx.createLinearGradient(versAvant ? x0 : x1, 0, versAvant ? x1 : x0, 0);
+    grad.addColorStop(0, 'rgba(255,255,255,0.55)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x0, 0, x1 - x0, px);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  filTex = tex;
+  return tex;
+}
+
+/** Matériau du corps « hologramme » : nuances neutres × accent joueur
+ *  (instance), semi-transparent (on voit à travers) + arêtes émissives. */
+function matGuerrierCorps(): THREE.MeshStandardMaterial {
+  const m = matStructure({
+    roughness: S.uniteGuerrier.materiau.roughness,
+    metalness: S.uniteGuerrier.materiau.metalness,
+    emissive: S.uniteGuerrier.materiau.aretes.couleur,
+    emissiveIntensity: S.uniteGuerrier.materiau.aretes.intensite,
+  });
+  m.vertexColors = true;
+  // hologramme : l'intérieur laisse voir à travers (Erik 06/09) — depthWrite
+  // conservé pour que les plaques s'occluent entre elles proprement.
+  m.transparent = S.uniteGuerrier.materiau.opacite < 1;
+  m.opacity = S.uniteGuerrier.materiau.opacite;
+  m.depthWrite = true;
+  m.emissiveMap = textureAretes(S.uniteGuerrier.materiau.aretes.glyphes);
+  return m;
+}
+
+/** Matériau de la lame : diffuse = accent joueur (instance), fil émissif. */
+function matGuerrierLame(): THREE.MeshStandardMaterial {
+  const m = matStructure({
+    roughness: 0.25,
+    metalness: 0.25,
+    emissive: S.uniteGuerrier.arme.lame.fil.couleur,
+    emissiveIntensity: S.uniteGuerrier.arme.lame.fil.emissif,
+  });
+  m.emissiveMap = textureFilLame(S.uniteGuerrier.arme.lame.fil.largeur);
+  return m;
 }
 
 // ---------------------------------------------------------------------------
@@ -792,12 +1068,20 @@ export class StructuresWorld {
       // visage malveillant du village (yeux en barres rouges + bouche néon)
       ['villageYeux', { capacity: 512, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.3, emissive: S.village.visage.couleur, emissiveIntensity: S.village.visage.emissif }) }) }],
       ['villageBouche', { capacity: 256, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.3, emissive: S.village.visage.couleur, emissiveIntensity: S.village.visage.emissif }) }) }],
-      // « Script de Base » (Guerrier cyber 3D) — créature à pattes et bras armé
+      // Gabarit créature (Archer « Sentinelle Réseau ») — torse hexagonal à
+      // pattes. Le pool ugCoeur est PARTAGÉ avec l'humanoïde (même cœur-process
+      // néon, spec : couleur/emissif de uniteGuerrier.coeur).
       ['ugCorps', { capacity: 512, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.5, metalness: 0.35 }) }) }],
       ['ugCoeur', { capacity: 512, creer: () => ({ geo: new THREE.OctahedronGeometry(1), mat: matStructure({ roughness: 0.25, emissive: S.uniteGuerrier.coeur.couleur, emissiveIntensity: S.uniteGuerrier.coeur.emissif }) }) }],
       ['ugPatte', { capacity: 512 * 4, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.6, metalness: 0.3 }) }) }],
       ['ugBras', { capacity: 512, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.6, metalness: 0.3 }) }) }],
-      ['ugArme', { capacity: 512, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.3, emissive: 0xffffff, emissiveIntensity: S.uniteGuerrier.arme.emissif }) }) }],
+      // « Script de Base » (Guerrier humanoïde cyber, atelier GUERRIER-3D) —
+      // corps fusionné (vertex colors, arêtes émissives « hologramme »),
+      // visière néon, lame accent joueur : 1 draw call par pool pour TOUTE
+      // l'armée (instancing), gabarit construit une seule fois.
+      ['guCorps', { capacity: 512, creer: () => ({ geo: geoGuerrierHumain().corps, mat: matGuerrierCorps() }) }],
+      ['guVisiere', { capacity: 512, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.25, emissive: S.uniteGuerrier.casque.visiere.couleur, emissiveIntensity: S.uniteGuerrier.casque.visiere.emissif }) }) }],
+      ['guLame', { capacity: 512, creer: () => ({ geo: geoGuerrierHumain().lame, mat: matGuerrierLame() }) }],
       // lasso électrique de la Sentinelle (segments accent joueur + boucle néon)
       ['ugLasso', { capacity: 512 * 8, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.3, emissive: 0xffffff, emissiveIntensity: S.uniteArcher.lasso.emissif }) }) }],
       ['ugBoucle', { capacity: 512, creer: () => ({ geo: new THREE.TorusGeometry(1, 0.22, 6, 16), mat: matStructure({ roughness: 0.25, emissive: S.uniteArcher.lasso.boucle.couleur, emissiveIntensity: S.uniteArcher.lasso.boucle.emissif }) }) }],

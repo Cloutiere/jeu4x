@@ -4,7 +4,8 @@
  * terrains du moteur, calibrage 68f6f5a, cohérence des glyphes.
  */
 import { describe, expect, it } from 'vitest';
-import { TERRAINS3D, NEON, BAS, LONG_BUS, MATERIAU_DEFAUT, voiesBus, empreintesCpu } from '../src/lib/render3d/spec3d.js';
+import { TERRAINS3D, NEON, BAS, LONG_BUS, MATERIAU_DEFAUT, voiesBus, empreintesCpu, validerUniteGuerrier } from '../src/lib/render3d/spec3d.js';
+import visuelBrut from '../src/lib/render3d/visuel3d.json';
 
 describe('visuel3d — spec data-driven', () => {
   it('couvre exactement les 10 ids de terrain du moteur', () => {
@@ -57,5 +58,59 @@ describe('visuel3d — spec data-driven', () => {
     expect(voiesBus(2)).toEqual([-0.25, 0.25]);
     // quincunx écarté à ±0.30 (calibrage 68f6f5a)
     expect(empreintesCpu(5)).toContainEqual([-0.3, -0.3]);
+  });
+});
+
+describe('gabarit humanoïde du Guerrier — chargeur strict (atelier GUERRIER-3D)', () => {
+  const brut = structuredClone(
+    (visuelBrut as { structures: { uniteGuerrier: Record<string, unknown> } }).structures.uniteGuerrier,
+  );
+
+  function retirer(obj: Record<string, unknown>, chemin: string[]): void {
+    let c = obj;
+    for (const k of chemin.slice(0, -1)) c = c[k] as Record<string, unknown>;
+    delete c[chemin[chemin.length - 1]!];
+  }
+
+  it('accepte le spec livré : humanoïde complet (casque/visière, torse, bras, jambes, cœur, lame à fil)', () => {
+    const spec = validerUniteGuerrier(brut);
+    expect(spec.echelle).toBeGreaterThan(0);
+    expect(spec.casque.visiere.hauteur).toBeGreaterThan(0);
+    expect(spec.torse.plastron.largeur).toBeLessThan(spec.torse.largeur);
+    expect(spec.arme.lame.fil.emissif).toBeGreaterThan(0);
+    expect(spec.coeur.hauteurRelative).toBeGreaterThan(0);
+  });
+
+  it('refuse un spec INCOMPLET — champ manquant à n’importe quel niveau', () => {
+    const chemins = [
+      ['echelle'], ['couleurs', 'plaques'], ['materiau', 'opacite'], ['materiau', 'aretes'],
+      ['casque'], ['casque', 'visiere'], ['casque', 'crete', 'largeur'],
+      ['torse', 'plastron'], ['torse', 'abdomen', 'hauteur'],
+      ['epaulieres'], ['bras', 'angleAvBras'], ['jambes', 'tibiaLongueur'],
+      ['bottes'], ['coeur'], ['arme', 'lame', 'fil'], ['arme', 'garde'], ['arme', 'poignee'],
+    ];
+    for (const chemin of chemins) {
+      const copie = structuredClone(brut);
+      retirer(copie, chemin);
+      expect(() => validerUniteGuerrier(copie), `sans ${chemin.join('.')}`).toThrow(/visuel3d\.json/);
+    }
+  });
+
+  it('refuse les valeurs corrompues (couleur, dimension, fraction hors bornes)', () => {
+    const couleurKo = structuredClone(brut) as { coeur: { couleur: string } };
+    couleurKo.coeur.couleur = 'vert';
+    expect(() => validerUniteGuerrier(couleurKo)).toThrow(/couleur/);
+
+    const dimKo = structuredClone(brut) as { jambes: { epaisseur: number } };
+    dimKo.jambes.epaisseur = -0.02;
+    expect(() => validerUniteGuerrier(dimKo)).toThrow(/non positive/);
+
+    const fracKo = structuredClone(brut) as { coeur: { hauteurRelative: number } };
+    fracKo.coeur.hauteurRelative = 1.4;
+    expect(() => validerUniteGuerrier(fracKo)).toThrow(/fraction/);
+
+    const echelleKo = structuredClone(brut) as { echelle: number };
+    echelleKo.echelle = 9;
+    expect(() => validerUniteGuerrier(echelleKo)).toThrow(/echelle/);
   });
 });

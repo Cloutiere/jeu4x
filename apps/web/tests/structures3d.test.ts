@@ -7,11 +7,12 @@
  * verrouillé), R-60bis (tranches démographiques), R-65 (capture), 7m C15 (cratère).
  */
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import { RESOURCES, RESOURCE_UNKNOWN, BUILDINGS, tileKeyOf, makeState, getFilteredState } from '@game/rules';
 import type { Hex } from '@game/rules';
-import { STRUCTURES3D, categorieDeBatiment } from '../src/lib/render3d/spec3d.js';
+import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment } from '../src/lib/render3d/spec3d.js';
 import {
-  planifierStructures, palierDe, estCarteNeutre, peindrePicto, StructuresWorld,
+  planifierStructures, palierDe, estCarteNeutre, peindrePicto, StructuresWorld, creerGuerrierHumain,
 } from '../src/lib/render3d/structures3d.js';
 import type { EntreeStructures, TuileStructures, VilleStructures } from '../src/lib/render3d/structures3d.js';
 
@@ -203,20 +204,24 @@ describe('L2 — Cartes-ressources : slot standard + états R-92', () => {
     expect(plan.get('carte:poisson')![0]!.sx).toBe(STRUCTURES3D.formes.plaque.largeur);
   });
 
-  it('rend le Guerrier cyber 3D « Script de Base » (torse, pattes, cœur, bras armé)', () => {
+  it('rend le Guerrier HUMANOÏDE cyber « Script de Base » (atelier GUERRIER-3D)', () => {
     const plan = planifierStructures(entree({
       unites: [{ id: 'u1', q: 0, r: 0, fog: 'visible', terrain: 'prairie', owner: 'p1' }],
     }));
-    expect(plan.get('ugCorps')).toHaveLength(1);
+    // corps sombre fusionné posé au sol + cœur-process + visière + lame
+    expect(plan.get('guCorps')).toHaveLength(1);
     expect(plan.get('ugCoeur')).toHaveLength(1);
-    expect(plan.get('ugPatte')).toHaveLength(4);
-    expect(plan.get('ugBras')).toHaveLength(1);
-    expect(plan.get('ugArme')).toHaveLength(1);
-    // pattes à 4 azimuts distincts (diagonales, bras libre à l'avant)
-    const azimuts = new Set(plan.get('ugPatte')!.map((p) => p.ry));
-    expect(azimuts.size).toBe(4);
-    // le cœur-process culmine au-dessus du torse
-    expect(plan.get('ugCoeur')![0]!.y).toBeGreaterThan(plan.get('ugCorps')![0]!.y);
+    expect(plan.get('guVisiere')).toHaveLength(1);
+    expect(plan.get('guLame')).toHaveLength(1);
+    // le gabarit créature à 4 pattes a disparu du guerrier
+    expect(plan.get('guPatte')).toBeUndefined();
+    expect(plan.get('ugPatte')).toBeUndefined();
+    // pieds au sol : le corps fusionné est posé sur l'élévation de la case
+    expect(plan.get('guCorps')![0]!.y).toBe(TERRAINS3D['prairie']!.elev);
+    // le cœur-process flotte devant le plastron, AU-DESSUS du sol
+    expect(plan.get('ugCoeur')![0]!.y).toBeGreaterThan(plan.get('guCorps')![0]!.y);
+    // la visière est en haut du casque (au-dessus du cœur)
+    expect(plan.get('guVisiere')![0]!.y).toBeGreaterThan(plan.get('ugCoeur')![0]!.y);
     // la lame porte l'accent joueur (R-65 — capture change la couleur)
     const p1 = planifierStructures(entree({
       unites: [{ id: 'u1', q: 0, r: 0, fog: 'visible', terrain: 'prairie', owner: 'p1' }],
@@ -224,15 +229,37 @@ describe('L2 — Cartes-ressources : slot standard + états R-92', () => {
     const p2 = planifierStructures(entree({
       unites: [{ id: 'u1', q: 0, r: 0, fog: 'visible', terrain: 'prairie', owner: 'p2' }],
     }));
-    expect(p1.get('ugArme')![0]!.couleur).toBe(0xd64545);
-    expect(p2.get('ugArme')![0]!.couleur).toBe(0x3b6fd6);
+    expect(p1.get('guLame')![0]!.couleur).toBe(0xd64545);
+    expect(p2.get('guLame')![0]!.couleur).toBe(0x3b6fd6);
+    // l'intérieur « hologramme » du corps est AUSSI teinté par l'accent joueur
+    expect(p1.get('guCorps')![0]!.couleur).toBe(0xd64545);
+    expect(p2.get('guCorps')![0]!.couleur).toBe(0x3b6fd6);
+  });
+
+  it('budget du gabarit humanoïde : < 5 000 tris, pieds au sol, proportions cohérentes (tuile rayon 1)', () => {
+    const gab = creerGuerrierHumain(STRUCTURES3D.uniteGuerrier);
+    const tris = (geo: THREE.BufferGeometry): number =>
+      (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
+    const total = tris(gab.corps) + tris(gab.lame);
+    expect(total).toBeLessThan(5000);
+    // pieds posés (min y ≈ 0) et taille contenue : ~0,6 unité monde à echelle 1
+    gab.corps.computeBoundingBox();
+    const bb = gab.corps.boundingBox!;
+    expect(bb.min.y).toBeGreaterThanOrEqual(-0.001);
+    expect(bb.max.y).toBeGreaterThan(0.3);
+    expect(bb.max.y).toBeLessThan(1);
+    // la lame dépasse vers l'avant (+z) et descend sous la taille du torse
+    gab.lame.computeBoundingBox();
+    expect(gab.lame.boundingBox!.min.y).toBeGreaterThanOrEqual(-0.001);
+    // vertex colors présentes sur le corps fusionné (nuances par pièce)
+    expect(gab.corps.attributes.color).toBeDefined();
   });
 
   it('rend l’Archer cyber 3D « Sentinelle Réseau » (bras levé + lasso électrique)', () => {
     const plan = planifierStructures(entree({
       unites: [{ id: 'u1', q: 0, r: 0, fog: 'visible', terrain: 'prairie', owner: 'p1', type: 'archer' }],
     }));
-    // même gabarit de créature que le guerrier
+    // gabarit créature propre à l'archer (le guerrier est passé humanoïde)
     expect(plan.get('ugCorps')).toHaveLength(1);
     expect(plan.get('ugPatte')).toHaveLength(4);
     expect(plan.get('ugBras')).toHaveLength(1);

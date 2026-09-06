@@ -124,7 +124,7 @@ function structures3d(): AssetAtelier[] {
     {
       id: 'structures:uniteGuerrier',
       categorie: 'structures3d',
-      nom: 'Unité 3D — Script de Base (Guerrier cyber)',
+      nom: 'Unité 3D — Script de Base (Guerrier humanoïde cyber)',
       source: SRC_JSON('structures.uniteGuerrier'),
       sorte: 'structure3d',
     },
