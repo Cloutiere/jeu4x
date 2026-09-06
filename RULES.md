@@ -228,7 +228,7 @@ Tie-breaks R-81 partout (distance, puis `(q, r)`). **Les barbares ne subissent p
 | **boost science** | `T-24` 🔶 sur la recherche courante (R-85 : réserve `scienceStored` si aucun choix) |
 | **révélation de carte** | rayon 3 autour de la hutte ajouté à `explored` du joueur (pas à `visible`) |
 | ~~**embuscade**~~ | **RETRAIT de la table par défaut (décision Erik 06/09/2026)** — plus aucun barbare engendré à l'ouverture d'une hutte ; le kind `ambush` reste connu du moteur (types/turn, `ambushCount` retiré des données) pour une réintroduction éventuelle |
-| **rien** | aucun effet |
+| **rien** | **poids 0 (décision Erik 06/09/2026)** — conservé comme repli du tirage, plus jamais sorti ; erratum 06/09 : le cas `artefact_indice` manquait dans `drawHutReward` (la bande R-155 tombait dans le repli « rien ») — corrigé, l'indice est de nouveau tiré |
 Événement `HutOpened(hutId, byPlayer, reward)` dans tous les cas. Tirages d'engendrement impossibles (aucune case adjacente libre) : récompense perdue, événement émis quand même.
 
 **R-99 · Données de calibrage.** Toutes les constantes barbares/huttes vivent dans **`barbares.json`** (`spawnInterval`, `aggroRadius`, `villageDestructionGold`, `villageHP`, `capPerVillage`, `escalationTurn`, `units` d'escalade, `villageDefense`) et **`huttes.json`** (table de récompenses pondérée) — **zéro durcissement de règle dans le code** : calibrer = éditer le JSON + push (CI déploie), même philosophie que R-86/R-91. `constants.ts` ré-exporte les valeurs (source unique des T-18..T-26 côté code). Tests d'intégrité : table de récompenses fermée (kinds connus), poids ≥ 0 et somme > 0, bornes or cohérentes (`min ≤ max`), unités d'escalade existantes.

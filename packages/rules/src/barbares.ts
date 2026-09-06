@@ -215,6 +215,12 @@ export function drawHutReward(rng: SeededRng): HutReward {
         return { kind: 'reveal', radius: HUT_REWARDS.revealRadius };
       case 'ambush':
         return { kind: 'ambush', unitIds: [] };
+      // 7o · R-155 : l'indice est affiné côté application (turn.ts, RNG 50/50
+      // restant/position) — ici on marque seulement la nature du tir.
+      // CORRECTIFS-SOLO 06/09 : le cas manquait — la bande artefact_indice de
+      // la table tombait dans le repli « nothing » (indice jamais tiré).
+      case 'artefact_indice':
+        return { kind: 'artefact_indice', remaining: 0 };
       case 'nothing':
         return { kind: 'nothing' };
     }

@@ -8,6 +8,5 @@
     { "kind": "science", "weight": 15 },
     { "kind": "reveal", "weight": 12 },
     { "kind": "artefact_indice", "weight": 8 },
-    { "kind": "nothing", "weight": 10 }
-  ]
+    { "kind": "nothing", "weight": 0 }  ]
 }

@@ -8,9 +8,10 @@
 import { describe, expect, it } from 'vitest';
 import { resolveTurn } from '../src/turn.js';
 import { makeState, pathBetween } from '../src/fixtures.js';
-import { barbarianOrders, barbarianUnitType, createBarbarianUnit } from '../src/barbares.js';
+import { barbarianOrders, barbarianUnitType, createBarbarianUnit, drawHutReward } from '../src/barbares.js';
 import { BARBARIAN_ID, BARBARIANS, HUT_REWARDS, UNIT_TYPES, registerTestUnitType } from '../src/data.js';
 import { hexDistance, tileKeyOf, neighbors } from '../src/hex.js';
+import { createRng } from '../src/rng.js';
 import { getFilteredState, filterEventsForPlayer } from '../src/fog.js';
 import { checkForfeit } from '../src/forfeit.js';
 import { parseMap, loadBuiltinMapSync, createInitialState } from '../src/map.js';
@@ -507,7 +508,7 @@ function hutSeedOf(kind: HutReward['kind']): TurnResult {
 
 describe('R-98 · Huttes bonus', () => {
   it('R-98 : les 6 récompenses de la table sont atteignables, chacune par sa graine (une partie par graine)', () => {
-    for (const kind of ['gold', 'unit', 'science', 'reveal', 'nothing'] as const) {
+    for (const kind of ['gold', 'unit', 'science', 'reveal', 'artefact_indice'] as const) {
       const result = hutSeedOf(kind);
       const opened = result.events.find((e) => e.type === 'HutOpened');
       expect(opened).toMatchObject({ hutId: 'h1', byPlayer: 'p1', byUnitId: 'u1', at: HUT });
@@ -567,7 +568,7 @@ describe('R-98 · Huttes bonus', () => {
   // d'une hutte » signalés en solo sont donc l'embuscade canon (ouverture →
   // 2 barbares adjacents) ou un camp barbare pris pour une hutte.
   it('R-96/R-98 : tout BarbarianSpawned hors embuscade porte un villageId existant (jamais une hutte)', () => {
-    for (const kind of ['gold', 'unit', 'science', 'reveal', 'nothing'] as const) {
+    for (const kind of ['gold', 'unit', 'science', 'reveal', 'artefact_indice'] as const) {
       const result = hutSeedOf(kind);
       const spawns = result.events.filter((e) => e.type === 'BarbarianSpawned');
       const villageIds = new Set(result.newState.villages.map((v) => v.id));
@@ -578,10 +579,14 @@ describe('R-98 · Huttes bonus', () => {
     }
   });
 
-  it('R-98 : récompense rien — aucun effet hors événement', () => {
-    const result = hutSeedOf('nothing');
-    expect(result.newState.players['p1']!.treasury).toBe(0);
-    expect(barbarians(result.newState)).toHaveLength(0);
+  // « rien » retiré de la table (poids 0, décision Erik 06/09) — jamais tiré.
+  it('R-98 : « rien » (poids 0) et « ambush » (retirée 06/09) ne sortent JAMAIS du tirage ; artefact_indice oui', () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      const r = drawHutReward(createRng(seed));
+      expect(['nothing', 'ambush'], `tiré ${r.kind} à la graine ${seed}`).not.toContain(r.kind);
+    }
+    const kinds = new Set(Array.from({ length: 300 }, (_, i) => drawHutReward(createRng(i + 1)).kind));
+    expect(kinds.has('artefact_indice')).toBe(true); // R-155 : l'indice est tiré (bug de cas manquant corrigé)
   });
 
   it('R-98 : une hutte ne s’ouvre qu’une fois (deuxième entrant : plus rien)', () => {
