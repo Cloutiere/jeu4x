@@ -1,6 +1,6 @@
 # REPORT CHANTIER BOT-SOLO — Partie solo contre le bot interne du GameDO
 
-**Session du 05/09/2026** — exécution de [`HANDOFF-CHANTIER-BOT-SOLO.md`](HANDOFF-CHANTIER-BOT-SOLO.md). **Livré, testé, déployé.**
+**Session du 05/09/2026** — exécution de [`HANDOFF-CHANTIER-BOT-SOLO.md`](../../historique/handoffs/HANDOFF-CHANTIER-BOT-SOLO.md). **Livré, testé, déployé.**
 
 ## 1. Résultat en une phrase
 

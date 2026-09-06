@@ -1,6 +1,6 @@
 # HANDOFF PHASE 7c-impl — Implémentation du système de ressources (modèle approuvé)
 
-Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), baseline `pnpm test` + `pnpm typecheck` verts (**300 tests** : 226 rules / 50 web / 24 server), [`PROPOSITION-RESSOURCES.md`](PROPOSITION-RESSOURCES.md) — **le modèle est APPROUVÉ, décisions D1–D6 d'Erik actées §7** — et [`RECHERCHE-RESSOURCES.md`](RECHERCHE-RESSOURCES.md) (données officielles sourcées), `RULES.md` §2/§8.1 (pattern R-85/86/87), `assets-src/tools/generate.py` (pipeline d'art), `schemaVersion` actuel : **6**.
+Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), baseline `pnpm test` + `pnpm typecheck` verts (**300 tests** : 226 rules / 50 web / 24 server), [`PROPOSITION-RESSOURCES.md`](../../recherche/PROPOSITION-RESSOURCES.md) — **le modèle est APPROUVÉ, décisions D1–D6 d'Erik actées §7** — et [`RECHERCHE-RESSOURCES.md`](../../recherche/RECHERCHE-RESSOURCES.md) (données officielles sourcées), `RULES.md` §2/§8.1 (pattern R-85/86/87), `assets-src/tools/generate.py` (pipeline d'art), `schemaVersion` actuel : **6**.
 
 ## Mission — implémenter le système de ressources tel qu'approuvé (aucune nouvelle décision de règles)
 

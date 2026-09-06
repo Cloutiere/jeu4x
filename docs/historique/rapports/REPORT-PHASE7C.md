@@ -11,7 +11,7 @@ Date : 01/09/2026. Handoff : `HANDOFF-PHASE7C.md`. Session livrée jusqu'à l'**
 
 ## 2. L1 — Recherche exhaustive ✅
 
-**[`RECHERCHE-RESSOURCES.md`](RECHERCHE-RESSOURCES.md)** (recherche documentaire déléguée et exécutée par l'agent, avec sources URL par affirmation) :
+**[`RECHERCHE-RESSOURCES.md`](../../recherche/RECHERCHE-RESSOURCES.md)** (recherche documentaire déléguée et exécutée par l'agent, avec sources URL par affirmation) :
 
 - **Terrains** : liste fermée CivRev (7 terrains + la **rivière**, trait de case ; **ni oasis ni glace**). Nos rendements §2 et bonus défensifs sont conformes ; écart assumé relevé (colline officielle : +50 % attaque **et** défense). Rivière = candidat d'extension future noté.
 - **Ressources** : **22 ressources exhaustives** (tableau complet) — terrain officiel, bonus exact, technologie officielle, présence dans le PDF officiel, tech équivalente dans notre `techs.json`. Vérification croisée **20/20 des pages technologiques individuelles** : aucune divergence avec la table. Le « diamant » d'Erik = Gems (+2 or, montagne, sans tech). Aucun bonus de combat dans CivRev. Densité par carte : non documentée officiellement.
@@ -20,7 +20,7 @@ Date : 01/09/2026. Handoff : `HANDOFF-PHASE7C.md`. Session livrée jusqu'à l'**
 
 ## 3. L2 — Proposition de modèle éditable ✅ (SANS implémentation)
 
-**[`PROPOSITION-RESSOURCES.md`](PROPOSITION-RESSOURCES.md)** — `resources.json` normalisé (22 champs/ressource : `terrains[]` éditable = scénario diamant en une ligne, `yields`, `revealedByTech`, `officialTech` documentaire, `culture` réservé, `hiddenUntilRevealed`, `spawnWeight` pré-posé pour la 6b) ; placement par tableau `resources` inline dans chaque carte ; interaction brouillard/tech précisée (hook exact : `getFilteredState`, aucun événement nouveau) ; tests d'intégrité en miroir des techs (table fermée, références, index inverse, validation de carte, symétrie) ; `schemaVersion` 6→7 à migration triviale (champ `Tile.resource` déjà présent à null).
+**[`PROPOSITION-RESSOURCES.md`](../../recherche/PROPOSITION-RESSOURCES.md)** — `resources.json` normalisé (22 champs/ressource : `terrains[]` éditable = scénario diamant en une ligne, `yields`, `revealedByTech`, `officialTech` documentaire, `culture` réservé, `hiddenUntilRevealed`, `spawnWeight` pré-posé pour la 6b) ; placement par tableau `resources` inline dans chaque carte ; interaction brouillard/tech précisée (hook exact : `getFilteredState`, aucun événement nouveau) ; tests d'intégrité en miroir des techs (table fermée, références, index inverse, validation de carte, symétrie) ; `schemaVersion` 6→7 à migration triviale (champ `Tile.resource` déjà présent à null).
 
 **6 décisions D1–D6 soumises à Erik** (visibilité, culture no-go + données prêtes, Or→commerce, 13 ressources à tech absente, placement inline, périmètre de pose) et impacts moteur chiffrés en 12 livrables (moteur ~175 lignes, serveur/protocole zéro, UI/art une session).
 
@@ -33,6 +33,6 @@ Date : 01/09/2026. Handoff : `HANDOFF-PHASE7C.md`. Session livrée jusqu'à l'**
 
 ## 5. Arrêt — puis décisions d'Erik (01/09/2026)
 
-La main a été rendue à Erik conformément au handoff ; **les décisions D1–D6 sont reçues le jour même** et consignées dans [`PROPOSITION-RESSOURCES.md` §7](PROPOSITION-RESSOURCES.md) : D1 révélation par technologie (adaptation assumée, diffère de CivRev), D2 no-go culture moteur / données prêtes, D3 Or→commerce, D4 null+officialTech pour les 13, D5 placement inline, D6 les 3 cartes dotées. Le handoff d'implémentation **[`HANDOFF-PHASE7C-IMPL.md`](HANDOFF-PHASE7C-IMPL.md)** est écrit pour la session suivante ; le cadrage 7d (barbares/huttes) peut se faire en parallèle — la recherche a noté que les villages barbares CivRev apparaissent « always on top of a resource », utile pour l'équilibrage.
+La main a été rendue à Erik conformément au handoff ; **les décisions D1–D6 sont reçues le jour même** et consignées dans [`PROPOSITION-RESSOURCES.md` §7](../../recherche/PROPOSITION-RESSOURCES.md) : D1 révélation par technologie (adaptation assumée, diffère de CivRev), D2 no-go culture moteur / données prêtes, D3 Or→commerce, D4 null+officialTech pour les 13, D5 placement inline, D6 les 3 cartes dotées. Le handoff d'implémentation **[`HANDOFF-PHASE7C-IMPL.md`](../../historique/handoffs/HANDOFF-PHASE7C-IMPL.md)** est écrit pour la session suivante ; le cadrage 7d (barbares/huttes) peut se faire en parallèle — la recherche a noté que les villages barbares CivRev apparaissent « always on top of a resource », utile pour l'équilibrage.
 
-**Suite (même journée)** : la session d'implémentation a livré R-91 à R-94 (commit `b9341a3`), puis Erik a **révisé D1** — la présence des ressources reste visible via le marqueur « inconnue », l'identité se révèle à la tech (commit `c73c44b`). État final : 336 tests verts, CI/prod vérifiées, voir [`REPORT-PHASE7C-IMPL.md`](REPORT-PHASE7C-IMPL.md) et la révision consignée dans la proposition §7.
+**Suite (même journée)** : la session d'implémentation a livré R-91 à R-94 (commit `b9341a3`), puis Erik a **révisé D1** — la présence des ressources reste visible via le marqueur « inconnue », l'identité se révèle à la tech (commit `c73c44b`). État final : 336 tests verts, CI/prod vérifiées, voir [`REPORT-PHASE7C-IMPL.md`](../../historique/rapports/REPORT-PHASE7C-IMPL.md) et la révision consignée dans la proposition §7.

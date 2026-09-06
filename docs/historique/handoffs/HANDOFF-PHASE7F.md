@@ -1,6 +1,6 @@
 # HANDOFF PHASE 7f — Culture (tranche 1)
 
-Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), baseline `pnpm test` + `pnpm typecheck` verts (~464 tests), **la spécification rédigée par Erik : [Culture dans Civilization Revolution.md](Culture%20dans%20Civilization%20Revolution.md)** — elle fait foi pour les mécaniques — et `RULES.md` §8 (bâtiments à effets, R-109..R-112). `schemaVersion` actuel : **9**.
+Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), baseline `pnpm test` + `pnpm typecheck` verts (~464 tests), **la spécification rédigée par Erik : [Culture dans Civilization Revolution.md](../../recherche/Culture dans Civilization Revolution.md)** — elle fait foi pour les mécaniques — et `RULES.md` §8 (bâtiments à effets, R-109..R-112). `schemaVersion` actuel : **9**.
 
 Contexte : Phases 0→7e complétées — l'arbre complet (46 techs), les bâtiments à effets, R-59 (unités à distance), le Premier découvreur, l'obsolescence et les remplacements sont en production. Les **Temples** (Inhumation cérémonielle) et **Cathédrales** (Religion, remplace le Temple) existent en données avec leurs effets culturels décrits (`implemented:false`) — **cette phase les active et construit la victoire culturelle**.
 

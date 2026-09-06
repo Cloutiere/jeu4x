@@ -5,7 +5,7 @@
 ## 1. Livrables
 
 ### L0 — Règles écrites
-- `RULES.md` §8.7 « Gouvernements, GP restants & victoire scientifique » (R-121..R-125), base documentaire : la spec d'Erik [`Gouvernements Civilization Revolution.md`](Gouvernements%20Civilization%20Revolution.md) — valeurs EXACTES (République colon 1 pop, Monarchie palais ×2, Démocratie +50 % or/science, Fondamentalisme +1/+1 terrestre & bibliothèques/universités nulles, Communisme +50 % marteaux & temples/cathédrales nulles).
+- `RULES.md` §8.7 « Gouvernements, GP restants & victoire scientifique » (R-121..R-125), base documentaire : la spec d'Erik [`Gouvernements Civilization Revolution.md`](../../recherche/Gouvernements Civilization Revolution.md) — valeurs EXACTES (République colon 1 pop, Monarchie palais ×2, Démocratie +50 % or/science, Fondamentalisme +1/+1 terrestre & bibliothèques/universités nulles, Communisme +50 % marteaux & temples/cathédrales nulles).
 - Constantes nouvelles : **T-29** `anarchyTurns` = 1 (`governments.json`), **T-30** `greatPersonYieldThresholdBase` = 20 ×2 par GP du type (`culture.json`), **T-31** `leaderGpVictories` = 20 (`culture.json`).
 
 ### L1 — Moteur (`packages/rules`)

@@ -2,7 +2,7 @@
 
 Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), baseline `pnpm test` + `pnpm typecheck` verts (~244 tests), et les **règles nouvelles dans `RULES.md` §8.1** (R-85 recherche, R-86 arbre relationnel, R-87 débloquage) + **§3** (table des unités enrichie : Archer, Cavalier, Légion). `schemaVersion` actuel : **4**.
 
-Contexte : Phases 0→6 complétées, économie Civ Revolution en place (rendements, citoyens, bâtiments, commerce or/science — R-60/R-63/R-66), jeu en production avec CI/CD actif. Le PDF [CivRevTechTree_Official.pdf](CivRevTechTree_Official.pdf) est la référence de l'arbre complet — cette phase n'implémente que la **première colonne + les techs verrouillant les bâtiments économiques** (9 techs, table R-86).
+Contexte : Phases 0→6 complétées, économie Civ Revolution en place (rendements, citoyens, bâtiments, commerce or/science — R-60/R-63/R-66), jeu en production avec CI/CD actif. Le PDF [CivRevTechTree_Official.pdf](../../recherche/CivRevTechTree_Official.pdf) est la référence de l'arbre complet — cette phase n'implémente que la **première colonne + les techs verrouillant les bâtiments économiques** (9 techs, table R-86).
 
 **Décision d'Erik (31/08) : les données de technologies forment une base relationnelle — mais embarquée, pas D1** : fichiers normalisés + couche de requête + tests d'intégrité. La calibration se fait en éditant les données + `git push` (le CI déploie). D1 ne se justifiera que si les données deviennent dynamiques (édition en jeu) — hors périmètre.
 

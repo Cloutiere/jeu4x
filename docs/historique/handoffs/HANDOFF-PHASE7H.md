@@ -1,6 +1,6 @@
 # HANDOFF PHASE 7h — Gouvernements, Personnages Illustres restants & victoire scientifique
 
-Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), baseline `pnpm test` + `pnpm typecheck` verts (**510 tests** : rules 427, server 33, web 50), **la spec rédigée par Erik : [Gouvernements Civilization Revolution.md](Gouvernements%20Civilization%20Revolution.md) — elle fait foi, valeurs exactes**, `RULES.md` (R-112 Colon 2 pop, R-113..R-116 culture, R-117..R-119 naval/espion, R-109..R-111 techs). `schemaVersion` actuel : **11**.
+Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), baseline `pnpm test` + `pnpm typecheck` verts (**510 tests** : rules 427, server 33, web 50), **la spec rédigée par Erik : [Gouvernements Civilization Revolution.md](../../recherche/Gouvernements Civilization Revolution.md) — elle fait foi, valeurs exactes**, `RULES.md` (R-112 Colon 2 pop, R-113..R-116 culture, R-117..R-119 naval/espion, R-109..R-111 techs). `schemaVersion` actuel : **11**.
 
 Contexte 7g (livré) : naval complet (transport 1 terrestre, soutien naval `S_att`, naufrage), Espion + `SpyMission` vol de GP (R-119, jalon `gpStolen`, escalade inchangée), production navale côtière, UI/sprites/bot, migration v10→v11 (`aboard`/`cargo`). Session réelle : 3 vols de GP in-vivo.
 

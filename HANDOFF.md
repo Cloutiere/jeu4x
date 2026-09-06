@@ -39,6 +39,7 @@ Pas encore de monorepo complet (`apps/web`, `apps/server` arrivent en Phase 1). 
 ## 4. Conventions de travail
 
 - Documents en **français**, code et identifiants en anglais.
+- **Organisation documentaire** : la racine ne contient que les documents vivants ; les documents de **recherche** (spécifications d'Erik) sont dans `docs/recherche/`, les handoffs et rapports des phases terminées dans `docs/historique/`. **Un document de recherche est une spécification de référence — il ne contient aucune mission.** Ta mission est dans ton handoff ; l'état du projet est dans [PROJET.md](PROJET.md) ; l'index complet est [docs/index.md](docs/index.md).
 - **Test-first** : chaque règle `R-xx` applicable a au moins un test qui la cite dans son nom ou son commentaire.
 - **Déterminisme absolu** dans `packages/rules` (R-80/R-82) : pas de `Math.random()`, pas de `Date.now()`, tri explicite avant tout parcours de Map/objet.
 - Moteur **pur** : aucune dépendance réseau/IO/DOM, aucune mutation de l'état en entrée (immuabilité).

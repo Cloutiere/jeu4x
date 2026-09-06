@@ -1,6 +1,6 @@
 # HANDOFF PHASE 7c — Terrains & ressources exhaustives (recherche déléguée + données éditables)
 
-Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), baseline `pnpm test` + `pnpm typecheck` verts (~297 tests), `RULES.md` §2/§8.1 (terrains, techs R-85/R-86/R-87), `assets-src/tools/generate.py` (pipeline d'art), [CivRevTechTree_Official.pdf](CivRevTechTree_Official.pdf) (référence officielle), `schemaVersion` actuel : **6**.
+Tu reprends le pilotage. **Préalables :** `HANDOFF.md` §4 (conventions), baseline `pnpm test` + `pnpm typecheck` verts (~297 tests), `RULES.md` §2/§8.1 (terrains, techs R-85/R-86/R-87), `assets-src/tools/generate.py` (pipeline d'art), [CivRevTechTree_Official.pdf](../../recherche/CivRevTechTree_Official.pdf) (référence officielle), `schemaVersion` actuel : **6**.
 
 **Mission d'Erik (01/09)** : finaliser terrains et ressources. **La recherche documentaire est DÉLÉGUÉE À TOI** (wikis Civilization, le PDF officiel, le jeu de référence) — Erik ne fait pas la recherche à ta place. Contrainte structurelle : **rien de codé en dur** — terrain comme ressource doivent rester **éditables en données** (ex. le diamant apparaît aujourd'hui sur montagne et demain sur colline : l'édition d'un tableau suffit ; la visibilité d'une ressource peut dépendre d'une tech ; la tech qui la débloque et son bonus peuvent changer). Enfin, **le concept de « culture »** (certaines ressources de Civ Revolution génèrent des unités de culture — concept inexistant chez nous) doit être instruit et **proposé à Erik avant toute implémentation**.
 

@@ -6,7 +6,7 @@
 
 ## 1. Livré
 
-Base documentaire : la spécification d'Erik [`Artefacts Dans Civilization Revolution.md`](Artefacts%20Dans%20Civilization%20Revolution.md) (**elle fait foi**) + `RULES.md` §7.10 (**R-151..R-156** — écrites en tête de phase, test-first). Périmètre canon respecté : **les 6 artefacts du jeu de base** ; les 6 DLC sont en données (`dlcOnly: true`), **jamais générés** (test).
+Base documentaire : la spécification d'Erik [`Artefacts Dans Civilization Revolution.md`](../../recherche/Artefacts Dans Civilization Revolution.md) (**elle fait foi**) + `RULES.md` §7.10 (**R-151..R-156** — écrites en tête de phase, test-first). Périmètre canon respecté : **les 6 artefacts du jeu de base** ; les 6 DLC sont en données (`dlcOnly: true`), **jamais générés** (test).
 
 - **L0 — RULES.md** : section §7.10 (génération R-151, placement R-152, activation R-153, catalogue/effets R-154, détection R-155, données/migration R-156) + constantes **T-38..T-43**.
 - **L1 — Moteur** (`packages/rules/src/artefacts.ts`, ~700 lignes, pur et déterministe) :

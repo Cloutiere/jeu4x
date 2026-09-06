@@ -1,6 +1,6 @@
 # REPORT-PHASE7D.md — Barbares & huttes livrés (R-95 à R-99)
 
-Date : 01/09/2026 (soir). Exécution de [`HANDOFF-PHASE7D.md`](HANDOFF-PHASE7D.md) — dernier
+Date : 01/09/2026 (soir). Exécution de [`HANDOFF-PHASE7D.md`](../../historique/handoffs/HANDOFF-PHASE7D.md) — dernier
 prérequis de la génération procédurale (6b). Les règles ont été transcrites dans
 [`RULES.md`](RULES.md) §7.9 (R-95..R-99, T-18..T-26), implémentées test-first dans le
 moteur, exposées côté serveur, rendues côté client, et déployées.

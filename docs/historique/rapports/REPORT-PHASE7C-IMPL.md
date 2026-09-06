@@ -1,6 +1,6 @@
 # REPORT-PHASE7C-IMPL.md — Système de ressources livré (R-91 à R-94)
 
-Date : 01/09/2026. Exécution de [`HANDOFF-PHASE7C-IMPL.md`](HANDOFF-PHASE7C-IMPL.md) — le modèle approuvé (`PROPOSITION-RESSOURCES.md` §7, décisions D1–D6 d'Erik) a été implémenté **sans nouvelle décision de règles**. Commit `b9341a3`, CI verte, production vérifiée. La **Phase 7d (barbares/huttes)** peut être cadrée.
+Date : 01/09/2026. Exécution de [`HANDOFF-PHASE7C-IMPL.md`](../../historique/handoffs/HANDOFF-PHASE7C-IMPL.md) — le modèle approuvé (`PROPOSITION-RESSOURCES.md` §7, décisions D1–D6 d'Erik) a été implémenté **sans nouvelle décision de règles**. Commit `b9341a3`, CI verte, production vérifiée. La **Phase 7d (barbares/huttes)** peut être cadrée.
 
 > **Addendum (01/09, soir) — R-92 révisée par Erik.** Le masquage complet des ressources non débloquées est remplacé par le **marqueur « ressource inconnue »** : la présence reste visible sur les cases explorées, seule l'identité est masquée (état filtré diffuse `inconnue` au lieu de l'id réel ; le bonus reste verrouillé). Détaillé en §7.
 

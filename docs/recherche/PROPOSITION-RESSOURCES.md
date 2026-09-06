@@ -1,6 +1,6 @@
 # PROPOSITION-RESSOURCES.md — Modèle de données éditable pour les ressources (Phase 7c L2)
 
-Date : 01/09/2026. Base : [`RECHERCHE-RESSOURCES.md`](RECHERCHE-RESSOURCES.md) (L1, sources citées). **Aucune implémentation dans ce document** — conception soumise à l'approbation d'Erik, puis arrêt (le handoff d'implémentation suivra la décision).
+Date : 01/09/2026. Base : [`RECHERCHE-RESSOURCES.md`](../recherche/RECHERCHE-RESSOURCES.md) (L1, sources citées). **Aucune implémentation dans ce document** — conception soumise à l'approbation d'Erik, puis arrêt (le handoff d'implémentation suivra la décision).
 
 Contrainte structurante (mission 7c) : **rien de codé en dur**. Le scénario étalon : « le diamant apparaît aujourd'hui sur montagne et demain sur colline » doit se résoudre en éditant un tableau ; la tech qui débloque et le bonus doivent pouvoir changer en éditant le JSON.
 
@@ -125,7 +125,7 @@ Nouveau `packages/rules/tests/resources.test.ts` (le calibrage = éditer les JSO
 
 ## 5. Décision culture (L2.5 — go/no-go)
 
-**Recommandation : NO-GO pour 7c, GO pour les données.** Argumentation complète en [`RECHERCHE-RESSOURCES.md` §4.4](RECHERCHE-RESSOURCES.md) : la culture CivRev est un système à consommateurs (grandes personnes, flip de villes, victoire culturelle) qui n'existent pas chez nous ; son seul déclencheur actuel est deux ressources. Concrètement :
+**Recommandation : NO-GO pour 7c, GO pour les données.** Argumentation complète en [`RECHERCHE-RESSOURCES.md` §4.4](../recherche/RECHERCHE-RESSOURCES.md) : la culture CivRev est un système à consommateurs (grandes personnes, flip de villes, victoire culturelle) qui n'existent pas chez nous ; son seul déclencheur actuel est deux ressources. Concrètement :
 
 - `resources.json` porte les valeurs officielles (`encens.culture = 2`, `soie.culture = 3`) **dès maintenant**, ignorées par le moteur (test n°7 épingle l'état) ;
 - le jour où la culture est actée (phase grandes personnes/temples), le contour recommandé est : compteur **par ville** (`cultureStored`, miroir de `foodStored`) alimenté par les ressources travaillées + futurs bâtiments/merveilles, seuil 🔶 par grande personne, pas de flip ni de victoire culturelle en 1v1 ;
@@ -166,6 +166,6 @@ Ordre de grandeur : **une session d'implémentation** (moteur + serveur passif +
 | **D5** | Placement | ✅ **Inline** — tableau `resources` dans chaque carte JSON. |
 | **D6** | Périmètre de pose | ✅ **Les 3 cartes** dotées de ressources à l'implémentation (pédagogique : quelques-unes ; pangée et variee : jeu complet, placements symétriques pour variee-40). |
 
-**Implémentation livrée le même jour** (commits `b9341a3` puis `c73c44b`) : R-91 à R-94 écrites dans RULES.md §8.3, 22 ressources en données, 22 sprites, placements des 3 cartes, `schemaVersion` 6→7, 336 tests verts, CI/prod vérifiées, D1 vérifié en partie réelle (voir [`REPORT-PHASE7C-IMPL.md`](REPORT-PHASE7C-IMPL.md)). Erratum : le handoff d'implémentation annonçait 22 ressources en listant 20 ids (gibier et uranium omis) — corrigé à la livraison conformément à la recherche L1 §2 et D4.
+**Implémentation livrée le même jour** (commits `b9341a3` puis `c73c44b`) : R-91 à R-94 écrites dans RULES.md §8.3, 22 ressources en données, 22 sprites, placements des 3 cartes, `schemaVersion` 6→7, 336 tests verts, CI/prod vérifiées, D1 vérifié en partie réelle (voir [`REPORT-PHASE7C-IMPL.md`](../historique/rapports/REPORT-PHASE7C-IMPL.md)). Erratum : le handoff d'implémentation annonçait 22 ressources en listant 20 ids (gibier et uranium omis) — corrigé à la livraison conformément à la recherche L1 §2 et D4.
 
 Après décisions : handoff d'implémentation (`HANDOFF-PHASE7C-IMPL.md`), puis cadrage 7d (barbares/huttes — la recherche a d'ailleurs noté que les villages barbares CivRev apparaissent « always on top of a resource », un point d'équilibre à garder pour 7d).

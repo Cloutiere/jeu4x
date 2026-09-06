@@ -1,6 +1,6 @@
 # REPORT PHASE 7i — Alignement du moteur de ville sur Civ Revolution
 
-Date : 03/09/2026. Spec de référence : [Moteur Ville Civilization Revolution.md](Moteur%20Ville%20Civilization%20Revolution.md) (fait foi) + CivFanatics Info Center. Suites : **556 tests verts** (rules 472, web 50, server 34), typecheck propre (TSC + svelte-check 0 erreur), build web OK.
+Date : 03/09/2026. Spec de référence : [Moteur Ville Civilization Revolution.md](../../recherche/Moteur Ville Civilization Revolution.md) (fait foi) + CivFanatics Info Center. Suites : **556 tests verts** (rules 472, web 50, server 34), typecheck propre (TSC + svelte-check 0 erreur), build web OK.
 
 ## 1. Les cinq divergences — toutes corrigées
 

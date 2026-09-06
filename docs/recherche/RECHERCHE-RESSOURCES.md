@@ -1,7 +1,7 @@
 # RECHERCHE-RESSOURCES.md — Terrains, ressources et culture dans Civilization Revolution (référent officiel)
 
 Date : 01/09/2026 · Phase 7c L1 (recherche documentaire déléguée, aucune implémentation).
-Référentiel : **Sid Meier's Civilization Revolution** (2008, console/DS). La référence locale [CivRevTechTree_Official.pdf](CivRevTechTree_Official.pdf) (arbre technologique officiel, ci-après « le PDF ») est croisée avec le wiki Civilization Fandom (via web.archive.org — fetch direct bloqué 403) et les guides GameFAQs (via Wayback). Chaque affirmation porte sa source ; ce qui n'a pas pu être établi est marqué **[non tranché]**.
+Référentiel : **Sid Meier's Civilization Revolution** (2008, console/DS). La référence locale [CivRevTechTree_Official.pdf](../recherche/CivRevTechTree_Official.pdf) (arbre technologique officiel, ci-après « le PDF ») est croisée avec le wiki Civilization Fandom (via web.archive.org — fetch direct bloqué 403) et les guides GameFAQs (via Wayback). Chaque affirmation porte sa source ; ce qui n'a pas pu être établi est marqué **[non tranché]**.
 
 ---
 
@@ -147,7 +147,7 @@ La rivière est le seul élément de terrain hors prototype existant dans CivRev
 
 ## 6. Sources
 
-**Référence locale** : [CivRevTechTree_Official.pdf](CivRevTechTree_Official.pdf) — arbre technologique officiel (extraction texte du 31/08, complétée le 01/09) ; 20 ressources y figurent comme nœuds de techs, Gems/Spices en sont absentes (sans tech).
+**Référence locale** : [CivRevTechTree_Official.pdf](../recherche/CivRevTechTree_Official.pdf) — arbre technologique officiel (extraction texte du 31/08, complétée le 01/09) ; 20 ressources y figurent comme nœuds de techs, Gems/Spices en sont absentes (sans tech).
 
 **Wiki Civilization Fandom** (toutes via web.archive.org, snapshots 2021–2025) :
 - https://civilization.fandom.com/wiki/List_of_resources_in_CivRev (table des 22 ressources)

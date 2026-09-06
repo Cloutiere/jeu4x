@@ -10,14 +10,18 @@
 
 ## 2. L'écosystème documentaire (ta source de vérité)
 
-| Document | Rôle |
-|---|---|
-| `DESIGN.md` | Vision, architecture, décisions verrouillées (table des ✅/🔶), **plan d'exécution** (phases 0→7i et au-delà) |
-| `RULES.md` | **Spécification normative du jeu** — règles numérotées `R-xx`, constantes `T-xx`, interprétations `I-xx`/`X-xx`. Les agents l'implémentent, les tests citent ses identifiants |
-| `BACKLOG.md` | Idées d'Erik affinées, validations (4 vetoes culture/naval validés 30/08), idées 3-4 (relecture cinématique, flèches — livrées) |
-| `HANDOFF-PHASE*.md` | Missions par phase (structure standard, voir §4) |
-| `REPORT-PHASE*.md` | Rapports des agents (à vérifier, jamais avaliser sans contrôle) |
-| Docs de recherche d'Erik | `CivRevTechTree_Official.pdf`, `Civilization Révolution Technologies et Déblocages.md`, `Culture dans Civilization Revolution.md`, `Gouvernements Civilization Revolution.md`, `Moteur Ville Civilization Revolution.md`, `Civilization Revolution _ Merveilles et Personnages.md` (GP Consume/Settle + catalogue merveilles + artefacts), `RECHERCHE-RESSOURCES.md`/`PROPOSITION-RESSOURCES.md` — **ses recherches sont des specs** : les lire intégralement, en extraire les valeurs exactes, elles font foi en cas d'écart |
+**Restructuré le 05/09** : racine = documents vivants uniquement ; `docs/recherche/` = specs d'Erik ; `docs/historique/{handoffs,rapports}/` = archives des phases terminées ; index complet = [docs/index.md](docs/index.md). **Vue d'ensemble du projet = [PROJET.md](PROJET.md)** — tenue à jour à chaque acceptation, c'est LE document d'état (le plan de DESIGN.md est gelé, l'état réel vit dans PROJET.md).
+
+| Document | Emplacement | Rôle |
+|---|---|---|
+| `PROJET.md` | racine | **État centralisé** : réalisé, en cours, reste, chiffres — à mettre à jour à chaque acceptation |
+| `DESIGN.md` | racine | Vision, architecture, décisions verrouillées (table des ✅/🔶) — plan historique gelé |
+| `RULES.md` | racine | **Spécification normative du jeu** — règles `R-xx`, constantes `T-xx`, interprétations. Les agents l'implémentent, les tests citent ses identifiants |
+| `BACKLOG.md` | racine | Idées d'Erik en réserve (idée 5 = espionnage avancé) |
+| `HANDOFF-*.md` actifs | racine | Missions en cours (3-4 max) ; terminés → `docs/historique/handoffs/` |
+| `REPORT-*.md` | `docs/historique/rapports/` | Rapports des agents livrés (à vérifier, jamais avaliser sans contrôle) |
+| Docs de recherche d'Erik | `docs/recherche/` | Arbre tech officiel (PDF), Technologies et Déblocages, Culture, Gouvernements, Moteur Ville, Merveilles et Personnages, Guide Civilisations, Artefacts, Nuclear & Spy, Refonte Cybernétique, Économie d'or, RECHERCHE/PROPOSITION-RESSOURCES — **ses recherches sont des specs** : les lire intégralement, valeurs exactes, elles font foi en cas d'écart |
+| `ATELIER-ASSETS.md` | racine | Rituel des sessions de retouche visuelle d'Erik |
 
 **Piège de lecture** : le doc « Technologies et Déblocages » colle les numéros de citation aux chiffres (« 105 » = 10 [5], « 45 15 15 » = 4/1/1) — croiser avec CivFanatics.
 
