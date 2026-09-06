@@ -13,8 +13,10 @@ import cultureJson from './data/culture.json' with { type: 'json' };
 import espionnageJson from './data/espionnage.json' with { type: 'json' };
 import figuresJson from './data/figures.json' with { type: 'json' };
 import artefactsJson from './data/artefacts.json' with { type: 'json' };
+import deplacementJson from './data/deplacement.json' with { type: 'json' };
 import type {
   ArtefactsData,
+  DeplacementData,
   BarbariansData,
   BuildingData,
   CultureData,
@@ -43,6 +45,9 @@ export const FIGURES = figuresJson as unknown as FiguresData;
 export const ESPIONNAGE_DATA: EspionnageData = espionnageJson as unknown as EspionnageData;
 /** 7o · R-156 · Configuration des artefacts (artefacts.json — T-38..T-43). */
 export const ARTEFACTS: ArtefactsData = artefactsJson as unknown as ArtefactsData;
+/** DEPLACEMENT-PLANIFIE · R-158..R-161 · Configuration des déplacements
+ *  programmés (deplacement.json — limite fog, actions finales multi-étapes). */
+export const DEPLACEMENT: DeplacementData = deplacementJson as unknown as DeplacementData;
 /** 7o · R-154 · Artefact par id (pool artefacts.json — DLC compris, jamais générés). */
 export function artefact(id: string) {
   const a = ARTEFACTS.pool[id];

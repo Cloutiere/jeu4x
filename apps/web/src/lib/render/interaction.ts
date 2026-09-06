@@ -287,7 +287,11 @@ export function effectiveWorkedTiles(
 export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
   const fromUnit = unitAtHex(state, from);
   const mover = fromUnit ? state.units[fromUnit.id] ?? null : null;
-  if (!enterableKnown(state, mover, from) || !enterableKnown(state, mover, to)) return null;
+  // DEPLACEMENT-PLANIFIE · R-161 (D6) : la case d'arrivée INCONNUE (absente de
+  // l'état filtré) reste visable — l'unité y entre et s'arrête (un pas dans
+  // l'inconnu, le moteur valide le terrain à la résolution).
+  const toUnknown = !state.map[tileKeyOf(to)];
+  if (!enterableKnown(state, mover, from) || (!enterableKnown(state, mover, to) && !toUnknown)) return null;
   if (from.q === to.q && from.r === to.r) return [];
   // BFS avec voisinage trié (q, r) croissant — déterministe. 7g : le
   // voisinage est évalué pour l'unité elle-même (naval ⇒ eau entrable).
@@ -299,12 +303,15 @@ export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
   while (queue.length > 0) {
     const current = queue.shift()!;
     const nexts = neighbors(current)
-      .filter((h) => enterableKnown(state, mover, h))
+      .filter((h) => enterableKnown(state, mover, h) || (h.q === to.q && h.r === to.r && toUnknown))
       // pas d'étape intermédiaire sur une unité connue (alliée : R-30 ;
       // ennemie : s'y arrêter pour combattre est un choix explicite, pas un
       // transit) — SAUF la destination elle-même (INTERACTION-3D : occupée
       // par un allié partant ou un ennemi à combattre, le moteur tranche).
       .filter((h) => (h.q === to.q && h.r === to.r) || !unitAtHex(state, h))
+      // R-161 (D6) : une case inconnue n'est jamais TRAVERSÉE — seul le pas
+      // final peut y entrer (l'aperçu s'arrête au bord du visible + un pas).
+      .filter((h) => !!state.map[tileKeyOf(h)] || (h.q === to.q && h.r === to.r))
       .sort((a, b) => a.q - b.q || a.r - b.r);
     for (const n of nexts) {
       const k = keyOf(n);
@@ -321,7 +328,7 @@ export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
         }
         return path;
       }
-      queue.push(n);
+      if (state.map[tileKeyOf(n)]) queue.push(n); // les cases inconnues ne s'étendent pas
     }
   }
   return null;

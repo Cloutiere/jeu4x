@@ -8,7 +8,7 @@ import { makeState, tileKey } from '@game/rules';
 import type { GameState, Hex } from '@game/rules';
 import type { GameView } from '../src/lib/gameClient.js';
 import type { UiState } from '../src/lib/render/ui.js';
-import { clickAction, ordersEditable, passableKnown } from '../src/lib/render/interaction.js';
+import { clickAction, ordersEditable, passableKnown, pathTo } from '../src/lib/render/interaction.js';
 
 function viewOf(state: GameState, over: Partial<GameView> = {}): GameView {
   return {
@@ -219,5 +219,44 @@ describe('clickAction (L3)', () => {
     expect(passableKnown(state, { q: 4, r: 4 })).toBe(false); // eau
     expect(passableKnown(state, { q: 9, r: 9 })).toBe(false); // hors carte
     expect(passableKnown(state, { q: 3, r: 3 })).toBe(true); // prairie
+  });
+});
+
+// -------------------------------------------------------------------------
+// DEPLACEMENT-PLANIFIE · R-161 (D6) : pathTo respecte la limite de fog —
+// au plus UN pas terminal dans une case inconnue (absente de l'état filtré),
+// jamais de transit par l'inconnu.
+// -------------------------------------------------------------------------
+describe('pathTo · limite fog (R-161/D6, DEPLACEMENT-PLANIFIE)', () => {
+  function fogState(): GameState {
+    const s = makeState({
+      width: 8,
+      height: 8,
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 }],
+    });
+    // exploré : (0,0), (1,0), (2,0) — le reste est inconnu. Miroir d'un état
+    // FILTRÉ : les cases inexplorées sont ABSENTES de state.map — on les
+    // retire pour simuler ce que diffuse le serveur.
+    const explored = new Set(['0,0', '1,0', '2,0']);
+    s.players['p1']!.vision.explored = [...explored];
+    for (const key of Object.keys(s.map)) {
+      if (!explored.has(key)) delete s.map[key];
+    }
+    return s;
+  }
+
+  it('chemin entièrement connu : inchangé', () => {
+    const path = pathTo(fogState(), { q: 0, r: 0 }, { q: 2, r: 0 });
+    expect(path?.map((h) => `${h.q},${h.r}`)).toEqual(['1,0', '2,0']);
+  });
+
+  it('destination inconnue ADJACENTE au connu : un pas terminal dans l\'inconnu', () => {
+    const path = pathTo(fogState(), { q: 0, r: 0 }, { q: 3, r: 0 });
+    expect(path?.map((h) => `${h.q},${h.r}`)).toEqual(['1,0', '2,0', '3,0']);
+  });
+
+  it('destination inconnue non adjacente au connu : inatteignable (jamais traversé l\'inconnu)', () => {
+    const path = pathTo(fogState(), { q: 0, r: 0 }, { q: 4, r: 0 });
+    expect(path).toBeNull();
   });
 });

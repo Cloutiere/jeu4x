@@ -1,0 +1,6 @@
+{
+  "note": "DEPLACEMENT-PLANIFIE (R-158..R-161) — calibrage par édition, zéro durcissement (philosophie R-99).",
+  "fogUnknownEntriesPerTurn": 1,
+  "multiStepFinalActions": ["foundCity"],
+  "mpCostOfFinalAction": 1
+}

@@ -26,7 +26,7 @@ import {
 import type { Hex } from './hex.js';
 import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId, allKnownTechs } from './state.js';
 import type { BarbarianVillage, City, CityId, GameState, Order, Player, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
-import { BARBARIAN_ID, BARBARIANS, CULTURE, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, RESOURCES, isWaterTerrain, isSpyUnit } from './data.js';
+import { BARBARIAN_ID, BARBARIANS, CULTURE, DEPLACEMENT, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, RESOURCES, isWaterTerrain, isSpyUnit } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable } from './economy.js';
 import { combatRound, effectiveStrength } from './combat.js';
 import { computeVisibleTiles, recomputeVision } from './fog.js';
@@ -229,6 +229,19 @@ interface Board {
    * réassigne explicitement).
    */
   pendingFill: Set<CityId>;
+  /**
+   * DEPLACEMENT-PLANIFIE · R-161 (D6) : unités ayant DÉJÀ entré une case
+   * INCONNUE (non explorée) ce tour — la limite `fogUnknownEntriesPerTurn`
+   * interdit une seconde entrée (l'unité s'arrête).
+   */
+  unknownEntered: Set<UnitId>;
+  /** R-161 : cases explorées par joueur en début de tour (référence du fog). */
+  explored: Map<PlayerId, Set<TileKey>>;
+  /**
+   * R-158 (D5) : actions finales multi-étapes à exécuter en Phase C — unité
+   * ayant atteint le terme de son chemin composite avec les PM requis.
+   */
+  finalActions: Map<UnitId, 'foundCity'>;
 }
 
 // ---------------------------------------------------------------------------
@@ -506,6 +519,13 @@ function emit(board: Board, event: DistributiveOmit<GameEvent, 'seq'>): void {
 }
 
 function moveUnit(board: Board, unit: Unit, to: Hex): void {
+  // R-161 (D6) : l'entrée sur une case INCONNUE (non explorée en début de
+  // tour) est mémorisée — la limite `fogUnknownEntriesPerTurn` (deplacement.json)
+  // interdit toute poursuite au-delà (l'unité s'y arrête). Un joueur SANS
+  // cases explorées (fixtures — fog non modélisé) n'est pas soumis à la limite.
+  if (board.explored.get(unit.owner)?.has(tileKeyOf(to)) === false) {
+    board.unknownEntered.add(unit.id);
+  }
   const from = { q: unit.q, r: unit.r };
   unit.q = to.q;
   unit.r = to.r;
@@ -662,6 +682,7 @@ function applyFortifyOrders(board: Board, ordersByPlayer: Record<PlayerId, Order
           fortify.add(order.unitId);
           break;
         case 'Move':
+        case 'MultiStep':
         case 'Attack':
         case 'Hold':
         case 'FoundCity':
@@ -1184,12 +1205,19 @@ function haltedByNewSighting(board: Board, unit: Unit, next: Hex): boolean {
  *  - le halte ne s'applique pas à l'ennemi situé sur la case visée (I-1 :
  *    entrer sur cet ennemi déclenche le combat/collision prévu).
  */
-function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
+function executeMoveOrder(board: Board, unit: Unit, path: Hex[], source: Extract<Order, { type: 'Move' | 'MultiStep' }>): void {
   while (unit.mp > 0 && path.length > 0) {
     const next = path[0]!;
     // R-95 (Phase 7d) : les barbares ne subissent pas la halte X-2 — leurs
     // ordres (1 pas) sont régénérés à chaque résolution, la halte les figerait.
     if (!isBarbarian(unit.owner) && haltedByNewSighting(board, unit, next)) break; // halte, chemin gelé
+
+    // R-161 (D6) : limite de pénétration du fog — après UNE entrée en case
+    // inconnue ce tour, le reste du chemin est ignoré (l'unité s'arrête).
+    if (board.unknownEntered.has(unit.id)) {
+      path = [];
+      break;
+    }
 
     // 7g · R-117 : unité EMBARQUÉE — débarquement. Le premier pas doit être
     // une case TERRESTRE libre adjacente au transport ; l'unité poursuit
@@ -1391,35 +1419,101 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[]): void {
     break;
   }
   if (!board.st.units[unit.id]) return; // capturée en cours de route
-  unit.order = path.length > 0 ? { type: 'Move', unitId: unit.id, path } : null;
+  // Le chemin gelé conserve la FORME de l'ordre source (Move pour le bot et
+  // les clients simples, MultiStep pour un composite — R-158) avec son
+  // action finale si le composite n'a pas atteint son terme.
+  unit.order =
+    path.length > 0 ? ({ ...source, unitId: unit.id, path } as Extract<Order, { type: 'Move' | 'MultiStep' }>) : null;
 }
 
-/** Ordres de mouvement effectifs : nouvel ordre du tour, sinon chemin gelé (R-41). */
+/** Ordres de mouvement effectifs : nouvel ordre du tour (Move ou composite
+ *  MultiStep — R-158), sinon chemin gelé (reprise multi-tours). */
+interface MoveAssignment {
+  unit: Unit;
+  path: Hex[];
+  /** Ordre source (Move ou MultiStep) — l'écriture du chemin gelé conserve
+   *  sa forme (compat bot : le bot émet des Move). */
+  source: Extract<Order, { type: 'Move' | 'MultiStep' }>;
+  /** R-158 : action finale (composite uniquement). */
+  final: 'foundCity' | undefined;
+  /** R-159 (D2/D3) : priorité de programmation — 0 = chemin gelé (programmé
+   *  dans un tour antérieur), sinon 1 + index de l'ordre dans la liste du
+   *  joueur (chronologie de programmation du tour). */
+  priority: number;
+}
+
 function collectMoveOrders(
   board: Board,
   ordersByPlayer: Record<PlayerId, Order[]>,
-): Array<{ unit: Unit; path: Hex[] }> {
-  const claimed = new Map<UnitId, Hex[]>();
+): Array<MoveAssignment> {
+  const claimed = new Map<UnitId, { path: Hex[]; source: Extract<Order, { type: 'Move' | 'MultiStep' }>; priority: number }>();
   for (const playerId of Object.keys(ordersByPlayer).sort()) {
+    let index = 0;
     for (const order of ordersByPlayer[playerId] ?? []) {
-      if (order.type !== 'Move' || claimed.has(order.unitId)) continue;
+      if (order.type !== 'Move' && order.type !== 'MultiStep') continue;
+      index += 1;
+      if (claimed.has(order.unitId)) continue;
       const unit = board.st.units[order.unitId];
       if (!unit || unit.owner !== playerId) continue;
-      claimed.set(order.unitId, order.path.map((h) => ({ ...h })));
+      claimed.set(order.unitId, { path: order.path.map((h) => ({ ...h })), source: order, priority: index });
     }
   }
-  // Unités sans nouvel ordre mais avec un chemin gelé : reprise multi-tours.
+  // Unités sans nouvel ordre mais avec un chemin gelé : reprise multi-tours
+  // (Move OU MultiStep normalisé par la migration 19).
   for (const id of sortUnitIds(board)) {
     const unit = board.st.units[id]!;
-    if (claimed.has(id)) {
-      unit.order = { type: 'Move', unitId: id, path: claimed.get(id)! };
-    } else if (unit.order?.type === 'Move') {
-      claimed.set(id, unit.order.path.map((h) => ({ ...h })));
+    const claim = claimed.get(id);
+    if (claim) {
+      unit.order = { ...claim.source, path: claim.path.map((h) => ({ ...h })) };
+    } else if (unit.order && (unit.order.type === 'Move' || unit.order.type === 'MultiStep')) {
+      claimed.set(id, {
+        path: unit.order.path.map((h) => ({ ...h })),
+        source: unit.order,
+        priority: 0, // programmé dans un tour antérieur : priorité la plus ancienne
+      });
     }
   }
-  return [...claimed.entries()]
-    .map(([unitId, path]) => ({ unit: board.st.units[unitId]!, path }))
+  // R-159 (D2) : destinations DISPUTÉES entre unités AMIES — la première
+  // programmée obtient la case ; les suivantes voient leur chemin tronqué
+  // AVANT la destination contestée (elles avancent au maximum de leurs PM
+  // jusqu'à la dernière case libre avant elle, puis s'arrêtent — R-42).
+  // Le traitement reste en ordre `unitId` croissant (R-41) : la troncature
+  // pré-résolution rend la priorité effective sans réordonner le moteur.
+  const byDestination = new Map<string, MoveAssignment[]>();
+  const assignments = [...claimed.entries()]
+    .map(([unitId, claim]) => ({
+      unit: board.st.units[unitId]!,
+      path: claim.path,
+      source: claim.source,
+      final: claim.source.type === 'MultiStep' ? claim.source.final : undefined,
+      priority: claim.priority,
+    }))
     .sort((a, b) => compareUnitIds(a.unit.id, b.unit.id));
+  for (const a of assignments) {
+    if (a.path.length === 0) continue;
+    const dest = a.path[a.path.length - 1]!;
+    const key = `${a.unit.owner}|${dest.q},${dest.r}`;
+    const group = byDestination.get(key) ?? [];
+    group.push(a);
+    byDestination.set(key, group);
+  }
+  for (const group of byDestination.values()) {
+    if (group.length < 2) continue;
+    // R-44 : les membres désignés d'un même FormArmy peuvent se co-localiser
+    // au rendez-vous — jamais soumis à la troncature de dispute.
+    const candidates = group.filter((a) => !board.formGroups.has(a.unit.id));
+    if (candidates.length < 2) continue;
+    const winner = [...candidates].sort(
+      (x, y) => x.priority - y.priority || compareUnitIds(x.unit.id, y.unit.id),
+    )[0]!;
+    for (const loser of candidates) {
+      if (loser === winner) continue;
+      // Troncature : la destination (dernier pas) et au-delà sont retirés.
+      loser.path = loser.path.slice(0, -1);
+      loser.final = undefined; // l'action finale portait sur la case disputée
+    }
+  }
+  return assignments;
 }
 
 /**
@@ -3851,6 +3945,9 @@ export function resolveTurn(
     formGroups: new Map(),
     pendingRetreats: [],
     pendingFill: new Set(),
+    unknownEntered: new Set(),
+    explored: new Map(),
+    finalActions: new Map(),
   };
 
   for (const id of sortUnitIds(board)) {
@@ -3860,6 +3957,11 @@ export function resolveTurn(
   }
   for (const playerId of Object.keys(st.players).sort()) {
     board.initialVisible.set(playerId, computeVisibleTiles(st, playerId));
+    // R-161 (D6) : référence du fog — les cases explorées en DÉBUT de tour
+    // (vision.explored n'est mise à jour qu'en Phase D). Une liste VIDE
+    // (fixtures : fog non modélisé) est sans objet — aucune limite appliquée.
+    const explored = st.players[playerId]!.vision.explored;
+    if (explored.length > 0) board.explored.set(playerId, new Set(explored));
   }
   for (const order of allOrdersFlattened(ordersByPlayer)) {
     if (order.type === 'FormArmy') {
@@ -3872,9 +3974,37 @@ export function resolveTurn(
   // à un fortifié l'annule et s'exécute ; un Fortify efface tout chemin).
   applyFortifyOrders(board, allOrders);
   // mouvements (R-40..R-43), ordre unitId croissant (R-41) — barbares compris.
-  for (const { unit, path } of collectMoveOrders(board, allOrders)) {
+  // R-158 (D5) : un ordre composite MultiStep enchaîne déplacement(s) puis
+  // UNE action finale ; l'action est exécutée en Phase C si l'unité a atteint
+  // le terme du chemin, vivante, avec les PM requis (deplacement.json).
+  for (const { unit, path, source, final } of collectMoveOrders(board, allOrders)) {
     if (!st.units[unit.id] || unit.detainedBy) continue;
-    executeMoveOrder(board, unit, path);
+    const plannedLength = path.length; // executeMoveOrder consomme le tableau
+    executeMoveOrder(board, unit, path, source);
+    if (!final || final !== 'foundCity') continue;
+    const after = st.units[unit.id];
+    if (!after) continue; // capturée en route (R-43) : rien à fonder
+    if (plannedLength === 0) continue; // aucun déplacement programmé
+    // R-161 (D6) : une entrée en case inconnue ce tour annule l'action finale
+    // (l'étape suivante partirait d'une case inconnue — le reste est tu).
+    if (board.unknownEntered.has(after.id)) continue;
+    const last = path[path.length - 1] ?? source.path[source.path.length - 1];
+    if (!last || after.q !== last.q || after.r !== last.r) continue; // terme du chemin non atteint (halte, blocage, fog R-161)
+    const mpRequired = DEPLACEMENT.mpCostOfFinalAction;
+    if (after.mp < mpRequired) continue; // PM insuffisants : action annulée, mouvement conservé
+    board.finalActions.set(after.id, 'foundCity');
+  }
+  // R-158 : les actions finales foundCity sont injectées comme ordres
+  // FoundCity synthétiques — processFoundCity re-applique TOUTES les
+  // validations métier (Colon, terrain, T-09…). Annulée proprement sinon.
+  const allOrdersWithFinals: Record<PlayerId, Order[]> = { ...allOrders };
+  for (const [unitId] of board.finalActions) {
+    const unit = st.units[unitId];
+    if (!unit) continue;
+    allOrdersWithFinals[unit.owner] = [
+      ...(allOrdersWithFinals[unit.owner] ?? []),
+      { type: 'FoundCity', unitId },
+    ];
   }
   // Ordres Hold : effacent l'intention courante (chemin gelé compris).
   for (const order of allOrdersFlattened(allOrders)) {
@@ -3960,7 +4090,7 @@ export function resolveTurn(
   applySpyMissions(board, allOrders); // 7g · R-119
   applySpyActions(board, allOrders); // 7m · R-143 : actions d'espionnage en ville ennemie
   processCityCaptures(board);
-  processFoundCity(board, allOrders);
+  processFoundCity(board, allOrdersWithFinals);
   processVillages(board);
   applySetWorkedTile(board, allOrders);
   // 7l · C7 · R-130 (rév.) : PLUS de dissipation — la réserve de marteaux est

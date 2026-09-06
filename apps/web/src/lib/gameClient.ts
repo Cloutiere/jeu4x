@@ -142,8 +142,12 @@ export function reduceView(v: GameView, message: ServerToClientMessage): GameVie
     case 'OrderAck':
       if (!message.accepted) return v;
       if (message.order) {
-        // Remplacement local du brouillon du même sujet (miroir du serveur).
-        return { ...v, orders: [...v.orders.filter((o) => !sameSubject(o, message.order!)), message.order!] };
+        // Remplacement local du brouillon du même sujet — miroir du serveur :
+        // R-159 (D3) le remplacement CONSERVE la position dans la file
+        // (priorité de chronologie de programmation) ; un nouvel ordre va en fin de file.
+        const idx = v.orders.findIndex((o) => sameSubject(o, message.order!));
+        const orders = idx === -1 ? [...v.orders, message.order!] : v.orders.map((o, i) => (i === idx ? message.order! : o));
+        return { ...v, orders };
       }
       if (message.reason === 'verrouillé') return { ...v, locked: true };
       return v;

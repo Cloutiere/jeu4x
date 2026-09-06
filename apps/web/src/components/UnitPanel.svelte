@@ -45,6 +45,26 @@
     unit ? view.orders.find((o) => 'unitId' in o && o.unitId === unit.id) ?? null : null,
   );
 
+  /** DEPLACEMENT-PLANIFIE · R-158 (D5) : ordre de déplacement (simple ou
+   *  composite) de l'unité sélectionnée — support du bouton multi-étapes. */
+  const moveOrder = $derived(
+    currentOrder && (currentOrder.type === 'Move' || currentOrder.type === 'MultiStep') ? currentOrder : null,
+  );
+  const isFoundAtArrival = $derived(moveOrder?.type === 'MultiStep' && moveOrder.final === 'foundCity');
+
+  /** R-158 : convertit l'ordre de déplacement courant en composite
+   *  « déplacer puis fonder » (même chemin, action finale foundCity). */
+  function foundAtArrival(): void {
+    if (!unit || !moveOrder) return;
+    client.submitOrder({ type: 'MultiStep', unitId: unit.id, path: moveOrder.path, final: 'foundCity' });
+  }
+
+  /** R-158 : retirer l'action finale (revient à un déplacement simple). */
+  function removeFoundAtArrival(): void {
+    if (!unit || !moveOrder) return;
+    client.submitOrder({ type: 'Move', unitId: unit.id, path: moveOrder.path });
+  }
+
   /** Cibles d'attaque : UNITÉS ennemies VISIBLES adjacentes (état filtré).
    * Une ville vide adjacente ne se « combat » pas : on y entre (R-57/R-65). */
   const attackTargets = $derived.by(() => {
@@ -80,6 +100,10 @@
     switch (o.type) {
       case 'Move':
         return `Déplacement (${o.path.length} case${o.path.length > 1 ? 's' : ''})`;
+      case 'MultiStep':
+        return o.final === 'foundCity'
+          ? `Multi-étapes (R-158) : 1. déplacer (${o.path.length} case${o.path.length > 1 ? 's' : ''}) → 2. fonder`
+          : `Déplacement (${o.path.length} case${o.path.length > 1 ? 's' : ''})`;
       case 'Attack':
         return `Attaque en (${o.target.q},${o.target.r})`;
       case 'FoundCity':
@@ -342,6 +366,29 @@
           >
             Fonder une ville
           </button>
+          {#if moveOrder && !isFoundAtArrival}
+            <!-- DEPLACEMENT-PLANIFIE · R-158 (D5) : déplacement(s) PUIS fondation
+                 dans le même tour, dans la limite des PM. Si les PM manquent au
+                 terme du chemin, la fondation est annulée et le mouvement conservé. -->
+            <button
+              type="button"
+              class="primary"
+              disabled={!editable}
+              title="Ordre multi-étapes (R-158) : le colon exécute son déplacement puis fonde — dans la limite de ses PM ; PM insuffisants → fondation annulée, mouvement conservé."
+              onclick={foundAtArrival}
+            >
+              1. Déplacer ({moveOrder.path.length} case{moveOrder.path.length > 1 ? 's' : ''}) → 2. Fonder
+            </button>
+          {:else if isFoundAtArrival}
+            <button
+              type="button"
+              disabled={!editable}
+              title="Retire la fondation à l'arrivée — conserve le déplacement simple (R-158)."
+              onclick={removeFoundAtArrival}
+            >
+              Ne pas fonder à l'arrivée
+            </button>
+          {/if}
         {/if}
         {#if currentOrder}
           <button type="button" disabled={!editable} onclick={() => unit && client.cancelOrderFor(unit.id)}>

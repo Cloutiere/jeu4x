@@ -11,8 +11,8 @@
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS } from '@game/rules';
-  import type { GameState, Hex } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS } from '@game/rules';
+  import type { GameState, Hex, ProgramPreview } from '@game/rules';
   import type { CityId, Order } from '@game/shared';
   import { onDestroy } from 'svelte';
   import type { GameClient, GameView } from '../gameClient.js';
@@ -878,24 +878,85 @@
       }
     }
 
-    // Ordres de déplacement PERSISTANTS (Phase 5.5 L1) : flèche de l'origine
-    // à la destination, tête sur la case d'arrivée. Ordre actif (miroir
-    // OrderAck) = trait plein jaune ; chemin gelé (unit.order restant après
-    // une halte, R-40) = pointillé atténué. Effacés à la résolution
-    // (TurnResult : orders=[] et unit.order consommé) ou à l'annulation
-    // (CancelOrder → OrderAck rejeté/remplacement → reconstruit ici).
+    // Ordres de déplacement PERSISTANTS (Phase 5.5 L1) — DEPLACEMENT-PLANIFIE
+    // (R-160 · D1) : les flèches sont désormais dessinées depuis l'APERÇU
+    // OPTIMISTE du moteur (`previewPrograms`) : Move ET composites MultiStep
+    // (R-158), chemin TRONQUÉ PAR LE FOG (flèche au bord du visible + un pas —
+    // R-161/D6 ; le reste est tu). Fantômes aux destinations prévues, PILE
+    // (badge de comptage), CASES DISPUTÉES surlignées (≥ 2 unités amies),
+    // marqueur d'action finale (fondation). Dessiné dans overlayLayer :
+    // visible en 2D comme en 3D (projection de caméra partagée).
     const solidUnits = new Set<string>();
+    const myId: string | null = scene.myId;
+    scenePreviews = myId ? previewPrograms(scene.state, { [myId]: scene.orders }) : [];
+    const ghostColor = myId ? playerColor(myId) : 0xf0c419;
+    for (const p of scenePreviews) {
+      const origin = scene.state.units[p.unitId];
+      if (!origin || p.path.length === 0) continue;
+      solidUnits.add(p.unitId);
+      drawArrow(hexToPixel(origin, HEX_SIZE), p.path, p.final ? 0x8ce99a : 0xf0c419, 0.9, false);
+      if (p.final === 'foundCity' && p.destination) {
+        // R-158 (D5) : marqueur de l'action finale — fondation à l'arrivée.
+        const found = new Text({
+          text: '⌂',
+          style: { fontFamily: 'sans-serif', fontSize: 26, fill: 0x8ce99a, stroke: { color: 0x1d242b, width: 3 } },
+        });
+        found.anchor.set(0.5);
+        found.position.copyFrom(hexToPixel(p.destination, HEX_SIZE));
+        overlayLayer.addChild(found);
+      }
+    }
     for (const order of scene.orders) {
-      if (order.type === 'Move' && order.path.length > 0) {
-        const origin = scene.state.units[order.unitId];
-        if (!origin) continue;
-        solidUnits.add(order.unitId);
-        drawArrow(hexToPixel(origin, HEX_SIZE), order.path, 0xf0c419, 0.9, false);
-      } else if (order.type === 'Attack') {
+      if (order.type === 'Attack') {
         const gr = new Graphics();
         drawCross(gr, 18, 0xd64545);
         gr.position.copyFrom(hexToPixel(order.target, HEX_SIZE));
         overlayLayer.addChild(gr);
+      }
+    }
+    // Fantômes + pile + disputées (D1/D2) : regroupement par destination.
+    {
+      const groups = new Map<string, { q: number; r: number; count: number; disputed: boolean; winner: boolean }>();
+      for (const p of scenePreviews) {
+        if (!p.destination) continue;
+        const key = `${p.destination.q},${p.destination.r}`;
+        const g = groups.get(key) ?? { q: p.destination.q, r: p.destination.r, count: 0, disputed: false, winner: false };
+        g.count += 1;
+        g.disputed = g.disputed || p.disputed;
+        g.winner = g.winner || p.disputedWinner;
+        groups.set(key, g);
+      }
+      for (const g of groups.values()) {
+        const pos = hexToPixel(g, HEX_SIZE);
+        if (g.disputed) {
+          // Case disputée surlignée (R-160/D1) — hex rouge + ⚔, tooltip au survol.
+          const dis = new Graphics();
+          dis.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 4, color: 0xff6b6b, alpha: 0.9 });
+          dis.position.copyFrom(pos);
+          overlayLayer.addChild(dis);
+        }
+        // Fantôme d'unité (position finale prévue) — cercle translucide à la
+        // couleur du joueur ; badge de comptage si plusieurs unités (pile).
+        const ghost = new Graphics();
+        ghost.circle(0, 0, HEX_SIZE * 0.42).fill({ color: ghostColor, alpha: 0.3 }).stroke({ width: 2, color: ghostColor, alpha: 0.7 });
+        ghost.position.copyFrom(pos);
+        overlayLayer.addChild(ghost);
+        if (g.count > 1) {
+          const badge = new Text({
+            text: `×${g.count}`,
+            style: { fontFamily: 'sans-serif', fontSize: 16, fill: 0xffffff, stroke: { color: 0x1d242b, width: 3 } },
+          });
+          badge.anchor.set(0.5);
+          badge.position.copyFrom(pos);
+          overlayLayer.addChild(badge);
+        }
+        if (g.disputed && g.winner) {
+          // R-159 (D2/D3) : la gagnante de la dispute est marquée d'un point.
+          const win = new Graphics();
+          win.circle(0, 0, 7).fill({ color: 0xffe082 });
+          win.position.set(pos.x, pos.y - HEX_SIZE * 0.42);
+          overlayLayer.addChild(win);
+        }
       }
     }
     // Chemins gelés : reste de chemin qui s'exécutera à la prochaine
@@ -904,8 +965,9 @@
     for (const unit of Object.values(scene.state.units)) {
       if (unit.owner !== scene.myId) continue;
       if (solidUnits.has(unit.id)) continue;
-      if (unit.order?.type === 'Move' && unit.order.path.length > 0) {
-        drawArrow(hexToPixel(unit, HEX_SIZE), unit.order.path, 0xf0c419, 0.4, true);
+      if (unit.order && (unit.order.type === 'Move' || unit.order.type === 'MultiStep') && unit.order.path.length > 0) {
+        const frozenPath = fogTruncate(unit.order.path, scene.myId);
+        if (frozenPath.length > 0) drawArrow(hexToPixel(unit, HEX_SIZE), frozenPath, 0xf0c419, 0.4, true);
       }
     }
 
@@ -1326,6 +1388,30 @@
   let tip = $state<{ x: number; y: number; lines: string[] } | null>(null);
   let tipHex: string | null = null;
 
+  // DEPLACEMENT-PLANIFIE (R-160) : aperçu de la dernière frame — source du
+  // tooltip « case disputée » (transparence pédagogique, L4.6).
+  let scenePreviews: ProgramPreview[] = [];
+
+  /** R-161 (D6) : troncature fog d'un chemin gelé (affichage pointillé) —
+   *  miroir de la troncature de previewPrograms ; explored vide (fixtures /
+   *  états anciens) = pas de fog modélisé, chemin intégral. */
+  function fogTruncate(path: Hex[], owner: string): Hex[] {
+    const state = scene.state;
+    if (!state) return path;
+    const explored = state.players[owner]?.vision.explored ?? [];
+    if (explored.length === 0) return path;
+    const known = new Set(explored);
+    const out: Hex[] = [];
+    for (const step of path) {
+      if (!known.has(tileKeyOf(step))) {
+        out.push(step);
+        break; // un pas dans l'inconnu, le reste est tu
+      }
+      out.push(step);
+    }
+    return out;
+  }
+
   function buildTipLines(hex: Hex): string[] {
     const state = scene.state;
     if (!state) return [];
@@ -1351,6 +1437,11 @@
       if (a.q === hex.q && a.r === hex.r) {
         lines.push(`Artefact : ${ARTEFACTS.pool[a.artefactId]?.name ?? a.artefactId}`);
       }
+    }
+    // R-160 (D1, transparence pédagogique) : case disputée — expliquer la
+    // règle de priorité au survol.
+    if (scenePreviews.some((p) => p.disputed && p.destination && p.destination.q === hex.q && p.destination.r === hex.r)) {
+      lines.push('⚔ Case disputée : la première unité programmée obtiendra la case — les autres s\'arrêteront sur la dernière case libre avant (R-159).');
     }
     return lines;
   }

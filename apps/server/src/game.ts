@@ -18,6 +18,7 @@ import {
   checkForfeit,
   createInitialState,
   createRng,
+  DEPLACEMENT,
   filterEventsForPlayer,
   generateProceduralMap,
   getFilteredState,
@@ -149,6 +150,21 @@ function isHex(v: unknown): v is { q: number; r: number } {
   );
 }
 
+/**
+ * DEPLACEMENT-PLANIFIE · R-159 (D3, décision d'Erik du 06/09) : re-programmer
+ * une unité REMPLACE son ordre en CONSERVANT sa position dans la file (la
+ * priorité = chronologie de première programmation du tour) ; annuler puis
+ * re-programmer remet l'ordre EN FIN de file (le re-programmé vient d'être
+ * ajouté, il n'existait plus — append). Pur et testé.
+ */
+export function upsertOrderPreservingPriority(list: Order[], order: Order): Order[] {
+  const idx = list.findIndex((o) => sameSubject(o, order));
+  if (idx === -1) return [...list, order];
+  const out = [...list];
+  out[idx] = order;
+  return out;
+}
+
 /** Validation structurelle côté serveur (le moteur re-valide tout à la résolution).
  *  Exportée pour tests — pure, aucune dépendance au GameDO. */
 export function orderShapeError(order: unknown): string | null {
@@ -160,6 +176,18 @@ export function orderShapeError(order: unknown): string | null {
         return 'chemin invalide';
       }
       return null;
+    case 'MultiStep': {
+      // DEPLACEMENT-PLANIFIE · R-158 (D5) : ordre composite — déplacement(s)
+      // puis UNE action finale. La forme est validée EN PREMIER (leçon 7f) ;
+      // la validité métier (PM, chemin praticable, limite fog R-161, exécution
+      // de l'action) est re-vérifiée par le moteur à la résolution.
+      if (!Array.isArray(o.path) || o.path.length === 0 || o.path.length > 400 || !o.path.every(isHex)) {
+        return 'chemin invalide';
+      }
+      if (typeof o.unitId !== 'string') return 'unitId manquant';
+      if (o.final === undefined || o.final === null) return null; // déplacement simple en forme composite
+      return DEPLACEMENT.multiStepFinalActions.includes(o.final as string) ? null : 'action finale inconnue';
+    }
     case 'Attack':
       return isHex(o.target) ? null : 'cible invalide';
     case 'FoundCity':
@@ -904,7 +932,8 @@ export class GameDO {
     const ownerError = this.orderOwnerError(engineId, order);
     if (ownerError) return this.sendOrderRejection(ws, ownerError);
 
-    this.orders[engineId] = [...this.orders[engineId].filter((o) => !sameSubject(o, order)), order];
+    // R-159 (D3) : remplacement en place — la priorité de programmation est conservée.
+    this.orders[engineId] = upsertOrderPreservingPriority(this.orders[engineId] ?? [], order);
     await this.state.storage.put({ orders: this.orders });
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order, reason: null });
   }
@@ -1160,7 +1189,7 @@ export class GameDO {
       const plan = botPolicy(game, p.engineId, rng);
       for (const order of plan.orders) {
         if (orderShapeError(order) !== null) continue; // jamais un ordre mal formé
-        this.orders[p.engineId] = [...(this.orders[p.engineId] ?? []).filter((o) => !sameSubject(o, order)), order];
+        this.orders[p.engineId] = upsertOrderPreservingPriority(this.orders[p.engineId] ?? [], order);
       }
       for (const action of plan.actions) {
         if (action.type === 'SetResearch') {

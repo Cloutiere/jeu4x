@@ -100,6 +100,24 @@ UI : bouton « Fortifier » sur le panneau d'unité + marqueur écu sur le sprit
 
 Les ordres sont **modifiables/annulables jusqu'au verrouillage** (« Fin de tour »). Après verrouillage : irrévocable. Les ordres vivent côté serveur (persistés à chaque modification).
 
+## 4bis. Programmation des déplacements — DEPLACEMENT-PLANIFIE (ajouté le 06/09/2026, décisions D1–D6 d'Erik)
+
+**R-158 · Ordre multi-étapes (D5).** Nouvel ordre **`MultiStep { unitId, path, final? }`** — enchaîne **déplacement(s)** (le `path` suit exactement les règles R-40..R-43) puis **UNE action finale**, dans la limite des PM (ex. Colon : 1 case puis fonder). Hors périmètre : action PUIS re-mouvement. L'action finale (`foundCity` — catalogue data-driven `deplacement.json` `multiStepFinalActions`) s'exécute en Phase C si l'unité a atteint le terme du chemin, est vivante, n'est PAS entrée dans le fog ce tour (R-161) et dispose d'au moins `mpCostOfFinalAction` 🔶 (1) PM — sinon elle est **annulée sans erreur** et le mouvement (partiel ou complet) est conservé. L'**attaque après déplacement** n'est pas une étape finale : le dernier pas du chemin SUR la case de l'ennemi déclenche le combat d'entrée existant (R-42/D4). Un ordre multi-étapes qui échoue en cours de route (blocage amical, halte X-2, chemin invalide) exécute ce qui peut l'être et s'arrête — jamais de crash ni d'ordre fantôme ; le chemin gelé conserve la forme composite. Le **bot** reste aux ordres simples : `Move` reste accepté en entrée pour toujours (compat composite). **Migration `schemaVersion` 18 → 19** : les chemins gelés persistés (`unit.order` de type `Move`) sont normalisés en composites à une étape — sans perte, idempotent ; une partie pré-19 reprend sans erreur.
+
+**R-159 · Priorité de destination (D2/D3).** La **priorité** = **chronologie de première programmation du tour** (index d'ordre croissant dans la file du joueur ; un chemin gelé — programmé dans un tour antérieur — a la priorité la plus ancienne ; tie-break `unitId` croissant, R-81).
+- **D2 — destination disputée amie/amie** : la **première unité programmée obtient la case** ; les suivantes ont leur chemin **tronqué avant la destination contestée** — elles avancent au maximum de leurs PM jusqu'à la **dernière case libre avant la destination** puis s'arrêtent (à 0 case disponible, elles restent sur place). Le traitement des mouvements reste en ordre `unitId` croissant (R-41) : la troncature pré-résolution rend la priorité effective sans réordonner le moteur. Les membres désignés d'un même `FormArmy` ne sont jamais soumis à la troncature (co-location légale R-44).
+- **D3 — édition** : re-programmer une unité **remplace** son ordre **en conservant sa position dans la file** (`upsertOrderPreservingPriority` — serveur) ; **annuler puis re-programmer** la remet **en fin de file**. Ordres « impossibles en apparence » acceptés à la programmation — c'est la résolution qui tranche.
+
+**R-160 · Aperçu optimiste (D1).** Fonction pure `previewPrograms` (moteur, source unique UI 2D/3D) : chaque ordre est affiché **comme s'il réussissait** — pas de prédiction des ordres ennemis (tours simultanés). L'aperçu expose : chemin prévu, destination finale, action finale, **cases disputées** (destination revendiquée par ≥ 2 unités amies) et gagnant de la dispute (miroir R-159). Calculé **sur l'état filtré**, il ne révèle rien au-delà du visible (aucune fuite fog — miroir du bug 7o). UI : flèches de programmation (couleur = nation, vert = action finale), fantômes aux destinations prévues, badge de comptage (pile), hex surligné + tooltip pédagogique sur les cases disputées.
+
+**R-161 · Limite de pénétration du fog (D6).** Une unité ne peut entrer que sur **UNE seule case inconnue par tour** (`deplacement.json` `fogUnknownEntriesPerTurn` 🔶 = 1), quelle que soit sa portée — elle entre sur la première case inconnue et **s'y arrête**, le reste du chemin étant ignoré ; une case inconnue **infranchissable** arrête l'unité AVANT le fog (aucune entrée). S'applique au **pathfinding** (client : l'aperçu s'arrête au bord du visible + un pas — une case inconnue n'est jamais traversée), à la **programmation** et à la **résolution**. L'entrée en case inconnue **annule l'action finale** d'un composite (l'étape suivante partirait d'une case inconnue). Un joueur sans cases explorées (fixtures — fog non modélisé) n'est pas soumis à la limite (interprétation 🔶 documentée).
+
+| Constante | Valeur | Source |
+|---|---|---|
+| `fogUnknownEntriesPerTurn` (T-46) | 1 🔶 (R-161) | `deplacement.json` |
+| `multiStepFinalActions` (T-47) | `["foundCity"]` 🔶 (R-158) | `deplacement.json` |
+| `mpCostOfFinalAction` (T-48) | 1 🔶 (R-158 — interprétation « dans la limite des PM ») | `deplacement.json` |
+
 ## 5. Structure de la résolution (entre deux tours)
 
 Déclenchée quand **les deux joueurs ont verrouillé** ou à l'**échéance du timer** (auto-verrouillage des ordres courants).

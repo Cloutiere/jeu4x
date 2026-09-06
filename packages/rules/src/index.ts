@@ -29,6 +29,7 @@ export * from './artefacts.js';
 export * from './barbares.js';
 export * from './map.js';
 export * from './fog.js';
+export * from './preview.js';
 export * from './turn.js';
 export * from './forfeit.js';
 export * from './fixtures.js';

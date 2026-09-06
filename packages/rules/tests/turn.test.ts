@@ -66,7 +66,7 @@ describe('Phase A · R-40/R-41 · mouvement garanti, ordre déterministe', () =>
     expect(events.some((e) => e.type === 'Move' && e.unitId === 'u1')).toBe(true);
   });
 
-  it('R-41 : deux movers vers la même case — le plus petit unitId passe d’abord', () => {
+  it('R-159 (D2, DEPLACEMENT-PLANIFIE) : destination disputée entre amies — la PREMIÈRE programmée obtient la case', () => {
     const state = makeState({
       units: [
         { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
@@ -75,13 +75,31 @@ describe('Phase A · R-40/R-41 · mouvement garanti, ordre déterministe', () =>
     });
     const orders: Record<string, Order[]> = {
       p1: [
-        { type: 'Move', unitId: 'u2', path: [{ q: 1, r: 0 }] },
+        { type: 'Move', unitId: 'u2', path: [{ q: 1, r: 0 }] }, // programmée en premier
+        { type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] },
+      ],
+    };
+    const { newState } = resolveTurn(state, orders, 1);
+    expect(unit(newState, 'u2')).toMatchObject({ q: 1, r: 0 }); // priorité : elle obtient la case
+    expect(unit(newState, 'u1')).toMatchObject({ q: 0, r: 0 }); // tronquée : reste sur place (dernière case libre = origine)
+  });
+
+  it('R-41 : le traitement des mouvements reste en ordre unitId croissant (destinations différentes)', () => {
+    const state = makeState({
+      units: [
+        { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
+        { id: 'u2', type: 'guerrier', owner: 'p1', q: 2, r: 0 },
+      ],
+    });
+    const orders: Record<string, Order[]> = {
+      p1: [
+        { type: 'Move', unitId: 'u2', path: [{ q: 3, r: 0 }] },
         { type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] },
       ],
     };
     const { newState } = resolveTurn(state, orders, 1);
     expect(unit(newState, 'u1')).toMatchObject({ q: 1, r: 0 });
-    expect(unit(newState, 'u2')).toMatchObject({ q: 2, r: 0 }); // bloqué par l’ami
+    expect(unit(newState, 'u2')).toMatchObject({ q: 3, r: 0 });
   });
 
   it('R-42 : occupé par un ami → arrêt sur la case précédente, chemin restant conservé', () => {

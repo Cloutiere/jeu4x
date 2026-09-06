@@ -505,6 +505,12 @@ describe('7m · E2E chaîné — Manhattan → ICBM → frappe → occupation (C
     // T2 : la cible est à portée de VISION (40 PM — déplacement au contact).
     // L'ICBM est posée en (0,0) : avec 40 PM elle rejoint (10,0) — adjacente
     // à la capitale adverse — qui devient visible (vision 2 du missile).
+    // R-161 (D6, DEPLACEMENT-PLANIFIE) : les cases du chemin sont explorées
+    // au préalable — sinon la limite de pénétration du fog (1 case inconnue
+    // par tour) arrêterait le missile sur la première case inexplorée.
+    for (const key of ['6,0', '8,0', '10,0']) {
+      if (!t1.players['p1']!.vision.explored.includes(key)) t1.players['p1']!.vision.explored.push(key);
+    }
     const t2orders: Record<string, Order[]> = {
       p1: [{ type: 'Move', unitId: nuke!.id, path: [{ q: 6, r: 0 }, { q: 8, r: 0 }, { q: 10, r: 0 }] }],
     };

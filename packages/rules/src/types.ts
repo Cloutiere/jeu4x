@@ -532,6 +532,20 @@ export interface ArtefactsData {
 }
 
 /**
+ * DEPLACEMENT-PLANIFIE · R-158..R-161 · Configuration des déplacements
+ * programmés (deplacement.json — calibrage sans code, R-99).
+ */
+export interface DeplacementData {
+  /** R-161 (D6) : entrées en case INCONNUE (non explorée) par unité et par tour. */
+  fogUnknownEntriesPerTurn: number;
+  /** R-158 (D5) : actions finales exécutables après le(s) déplacement(s). */
+  multiStepFinalActions: string[];
+  /** PM minimal requis au terme des déplacements pour que l'action finale
+   *  s'exécute (interprétation 🔶 documentée : « dans la limite des PM »). */
+  mpCostOfFinalAction: number;
+}
+
+/**
  * R-92 (D1 révisée le 01/09/2026) : marqueur diffusé à la place de l'id réel
  * quand l'identité d'une ressource est masquée (tech non débloquée,
  * `hiddenUntilRevealed: true`). JAMAIS persisté : posé uniquement par

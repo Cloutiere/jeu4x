@@ -68,7 +68,20 @@ export type Order =
    *  non-Palais choisi 🔶). Action hostile exécutée = espion consommé ;
    *  duel d'espions préalable si garnison adverse (R-144) ; `leave` préserve
    *  l'espion. */
-  | { type: 'SpyAction'; unitId: UnitId; cityId: CityId; action: SpyActionKind; buildingId?: string };
+  | { type: 'SpyAction'; unitId: UnitId; cityId: CityId; action: SpyActionKind; buildingId?: string }
+  /** DEPLACEMENT-PLANIFIE · R-158 (D5) : ordre MULTI-ÉTAPES — déplacement(s)
+   *  puis UNE action finale (fondation) dans la même tour, dans la limite des
+   *  PM. Hors périmètre : action PUIS re-mouvement. Le chemin se comporte
+   *  exactement comme un `Move` (R-40..R-43, limite fog R-161) ; l'action
+   *  finale s'exécute en Phase C si l'unité a atteint le terme du chemin,
+   *  est vivante et dispose encore des PM requis (deplacement.json
+   *  `mpCostOfFinalAction`) — sinon elle est annulée, le mouvement conservé.
+   *  L'attaque après déplacement n'a pas besoin d'étape finale : le dernier
+   *  pas du chemin SUR la case de l'ennemi déclenche déjà le combat d'entrée
+   *  (R-42/D4). Le bot reste aux ordres simples (`Move` accepté en entrée —
+   *  compat composite). La migration 18→19 normalise les chemins gelés
+   *  persistés (`unit.order`) en composites à une étape. */
+  | { type: 'MultiStep'; unitId: UnitId; path: Array<{ q: number; r: number }>; final?: 'foundCity' };
 
 /** 7m · R-143 : catalogue fermé des actions d'espionnage en ville ennemie. */
 export type SpyActionKind =
@@ -356,7 +369,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 18;
+export const CURRENT_SCHEMA_VERSION = 19;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -832,6 +845,29 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
     if (!Array.isArray(state.artefacts)) out.artefacts = [];
     if (!Array.isArray(state.pendingArtefactChoices)) out.pendingArtefactChoices = [];
     return out;
+  },
+  /**
+   * v18 → v19 : DEPLACEMENT-PLANIFIE (R-158). Les chemins gelés persistés
+   * (`unit.order` de type `Move` — intention restante d'un déplacement
+   * multi-tours) sont normalisés en ordres composites à UNE étape
+   * (`MultiStep` sans action finale — même sémantique de reprise). Les ordres
+   * de tour vivent hors de l'état (GameDO, clé `orders`) : le moteur accepte
+   * `Move` en entrée pour toujours (compat bot et clients anciens), donc
+   * aucun autre changement. Idempotent.
+   */
+  19: (state) => {
+    const units = (state.units ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(units).sort()) {
+      const u = units[id]!;
+      const order = u.order as Record<string, unknown> | null;
+      const normalized =
+        order && order.type === 'Move'
+          ? { type: 'MultiStep', unitId: order.unitId, path: order.path }
+          : order;
+      migrated[id] = { ...u, order: normalized };
+    }
+    return { ...state, units: migrated };
   },
 };
 

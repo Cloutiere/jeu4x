@@ -4,7 +4,9 @@
  * régression du e2e GUI (Stonehenge refusé à la soumission avant correction).
  */
 import { describe, expect, it } from 'vitest';
-import { orderShapeError } from '../src/game.js';
+import { orderShapeError, upsertOrderPreservingPriority } from '../src/game.js';
+import type { Order } from '@game/rules';
+
 
 describe('orderShapeError · SetProduction (7f, merveilles)', () => {
   it('accepte un item de production de type merveille (kind wonder)', () => {
@@ -76,5 +78,50 @@ describe('orderShapeError · SetProduction (7f, merveilles)', () => {
     expect(orderShapeError({ type: 'SpyAction', unitId: 'u3', cityId: 'c2', action: 'destroyBuilding' })).not.toBeNull();
     expect(orderShapeError({ type: 'SpyAction', unitId: 'u3', cityId: 'c2', action: 'assassinate' })).not.toBeNull();
     expect(orderShapeError({ type: 'SpyAction', unitId: 'u3', action: 'stealGold' })).not.toBeNull();
+  });
+});
+
+describe('orderShapeError · MultiStep (DEPLACEMENT-PLANIFIE, R-158)', () => {
+  it('accepte un ordre composite : chemin + action finale foundCity', () => {
+    expect(
+      orderShapeError({ type: 'MultiStep', unitId: 'u1', path: [{ q: 1, r: 0 }], final: 'foundCity' }),
+    ).toBeNull();
+  });
+
+  it('accepte un composite SANS action finale (déplacement en forme composite)', () => {
+    expect(orderShapeError({ type: 'MultiStep', unitId: 'u1', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }] })).toBeNull();
+  });
+
+  it('refuse la forme invalide : chemin vide, chemins non hex, action finale inconnue', () => {
+    expect(orderShapeError({ type: 'MultiStep', unitId: 'u1', path: [] })).not.toBeNull();
+    expect(orderShapeError({ type: 'MultiStep', unitId: 'u1', path: [{ q: 1.5, r: 0 }] })).not.toBeNull();
+    expect(orderShapeError({ type: 'MultiStep', unitId: 'u1', path: '0,0' })).not.toBeNull();
+    expect(
+      orderShapeError({ type: 'MultiStep', unitId: 'u1', path: [{ q: 1, r: 0 }], final: 'raidTreasury' }),
+    ).not.toBeNull();
+    expect(orderShapeError({ type: 'MultiStep', path: [{ q: 1, r: 0 }] })).not.toBeNull();
+  });
+});
+
+describe('upsertOrderPreservingPriority (R-159 · D3)', () => {
+  const existing: Order[] = [
+    { type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] },
+    { type: 'Hold', unitId: 'u2' },
+    { type: 'Move', unitId: 'u3', path: [{ q: 2, r: 0 }] },
+  ];
+
+  it('re-programmer une unité REMPLACE son ordre EN PLACE (priorité conservée)', () => {
+    const out = upsertOrderPreservingPriority(existing, { type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] });
+    expect(out.map((o) => ('unitId' in o ? o.unitId : null))).toEqual(['u1', 'u2', 'u3']);
+    expect(out[0]).toEqual({ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] });
+  });
+
+  it('un nouvel ordre (après annulation) est ajouté EN FIN de file', () => {
+    const withoutU3: Order[] = [
+      { type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] },
+      { type: 'Hold', unitId: 'u2' },
+    ];
+    const out = upsertOrderPreservingPriority(withoutU3, { type: 'Move', unitId: 'u3', path: [{ q: 2, r: 0 }] });
+    expect(out.map((o) => ('unitId' in o ? o.unitId : null))).toEqual(['u1', 'u2', 'u3']);
   });
 });
