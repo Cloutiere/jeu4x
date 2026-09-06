@@ -2,7 +2,7 @@
 
 **Tenue par le pilot, mise à jour à chaque acceptation de phase.** Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md).
 
-**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **868+ tests verts** · `schemaVersion` **18** · budget Cloudflare tenu (~5 $/mois).
+**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **928 tests verts** · `schemaVersion` **18** · budget Cloudflare tenu (~5 $/mois).
 
 ---
 
@@ -34,15 +34,16 @@
 6. **INTERACTION-3D** ✅ — déplacements vers villes/cases alliées libérables + worked tiles en file d'ordres (livré 06/09) ;
 7. **SPAWN-START** ✅ — voisinage du Colon garanti (2 forêts, 2 prairies, 1 eau) + 0 ressource au rayon 2, cartes préfabriquées ajustées (livré 06/09) ;
 8. **CENTREVILLE** ✅ — socle garanti 1N/1P/1C sur tout terrain, tranche démographique au-dessus (livré 06/09) ;
+9. **CALIBRAGE-CANON** ✅ — calibrage canon 06/09 appliqué (rapports d'Erik) : rush industriel ×4, sac de ville 25 %, GP or = Explorateur/Industriel, Confucius 2 GP **hors escalade**, Templiers toujours Vétérane, Égypte = **tirage seedé** sans choix (UI/protocole nettoyés), Zoulous = Aqueduc passif (seuils ÷2), artefacts 4-5 / distance 8 / indice 15 % (livré 06/09, `REPORT-CALIBRAGE-CANON.md`) ;
 
-**921 tests verts** · `schemaVersion` 18 · CI et prod saines.
+**928 tests verts** · `schemaVersion` 18 · CI et prod saines.
 
 ## 📋 File d'attente
 
 - **V3 — Renommage thématique** : libellés FR nanotech (ids code inchangés) ;
 - **Espionnage avancé** (BACKLOG idée 5) : infiltration, XP, points d'espionnage, menu de renseignement, fenêtre d'annulation — rapport de recherche 4X commandé par Erik ;
 - En suspens : territoire/frontières (flip culturel, Hollywood), sauts technologiques ; docs de recherche attendus : XP & promotions, territoire ;
-- Arbitrages 🔶 en attente d'Erik : liste consolidée dans [PILOT-HANDOFF.md](PILOT-HANDOFF.md) §dernier item.
+- Arbitrages 🔶 restants (3D/visuel bloc 4, divers 5.1-5.9) : liste consolidée dans [PILOT-HANDOFF.md](PILOT-HANDOFF.md) §dernier item.
 
 ## 📚 Où est quoi (règles d'emplacement)
 

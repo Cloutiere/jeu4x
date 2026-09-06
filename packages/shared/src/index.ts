@@ -39,9 +39,6 @@ export interface GameCreationSettings {
   /** 7n · R-145 · Civilisation de l'HÔTE (choix à la création — défaut 🔶 :
    *  absent = 'neutre', aucun trait). Le choix du 2e joueur se fait au join. */
   civId?: string;
-  /** 7n · R-150 🔶 : Merveille Antique de l'Égypte (choix au setup, liste
-   *  fermée `egypteWonderChoices` de civilizations.json — sinon ignoré). */
-  wonderId?: string;
   /** Chantier BOT-SOLO : partie SOLO contre le bot interne du GameDO —
    *  créée avec p2 = joueur bot (« Bot », `bot: true`), démarrage immédiat
    *  (pas de code d'invitation). Champ META (lobby/Welcome — aucun champ
@@ -62,8 +59,6 @@ export interface GamePlayerInfo extends PlayerInfo {
   engineId: string;
   /** 7n · R-145 : civilisation choisie ('neutre' = aucune — parties migrées). */
   civId?: string;
-  /** 7n · R-150 🔶 : Merveille Antique (Égypte uniquement — validée serveur). */
-  wonderId?: string;
   /** Chantier BOT-SOLO : joueur bot interne (pas de socket — ses ordres sont
    *  générés par le GameDO à la résolution). */
   bot?: boolean;
@@ -77,7 +72,7 @@ export interface GameSummary {
   isPublic: boolean;
   /** 7n : la civ choisie (optionnelle — affichage lobby) accompagne chaque joueur.
    *  Chantier BOT-SOLO : `bot: true` marque le joueur bot (badge « solo »). */
-  players: Array<PlayerInfo & { civId?: string; wonderId?: string; bot?: boolean }>;
+  players: Array<PlayerInfo & { civId?: string; bot?: boolean }>;
   settings: GameCreationSettings;
   turn: number;
   /** Création, epoch ms (méta lobby — jamais dans le GameState moteur). */
@@ -121,9 +116,10 @@ export type ClientToServerMessage = ProtoMessage &
     | { type: 'ChooseWonder'; cityId: CityId; wonderId: string }
     /** --- Messages de lobby (socket LobbyDO) --- */
     | { type: 'CreateGame'; settings: GameCreationSettings }
-    /** 7n · R-145 : `civId` (+ `wonderId` pour la Merveille Antique de
-     *  l'Égypte 🔶) — choix de civilisation du joueur B au join. */
-    | { type: 'JoinGame'; code: string; civId?: string; wonderId?: string }
+    /** 7n · R-145 : `civId` — choix de civilisation du joueur B au join.
+     *  Calibrage canon (Erik 06/09) : la Merveille Antique de l'Égypte est
+     *  tirée au RNG seedé par le MOTEUR — plus aucun choix client. */
+    | { type: 'JoinGame'; code: string; civId?: string }
     | { type: 'ListGames' }
     | { type: 'AbandonGame'; code: string }
   );

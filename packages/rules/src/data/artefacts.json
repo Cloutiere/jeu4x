@@ -1,19 +1,22 @@
 {
   "params": {
+    "calibrageNote": "Calibrage canon (rapport « Artefacts de Civilization Revolution », Erik 06/09) : tirage seedé 4-5 artefacts par carte (jamais la réserve complète), placement à distance ≥ 8 des capitales (canon 8-10), indice de hutte à 15 % (canon 15-20 %), Confucius = 2 GP dataminés et HORS escalade du seuil culturel T-27/T-30, Templiers = unité toujours Vétérane (5 XP).",
+    "confuciusEscaladeExemption": true,
+    "templiersAlwaysVeteran": true,
     "count": 4,
-    "countMin": 3,
-    "countMax": 6,
+    "countMin": 4,
+    "countMax": 5,
     "atlantisAlwaysDrawn": true,
     "islandMaxSize": 5,
     "maxMainland": 2,
-    "minDistanceToCapitals": 6,
+    "minDistanceToCapitals": 8,
     "atlantisMinLandDistance": 2,
     "spacing": 4,
     "septCitesOrByEra": { "ancienne": 200, "medievale": 250, "industrielle": 300, "moderne": 400 },
     "templiersUnitByEra": { "ancienne": "chevalier", "medievale": "chevalier", "industrielle": "canon", "moderne": "char_d_assaut" },
-    "confuciusGpCount": 3,
+    "confuciusGpCount": 2,
     "atlantideTechCount": 3,
-    "indicePositionChance": 0.5,
+    "indicePositionChance": 0.15,
     "volSpatialTech": "vol_spatial"
   },
   "pool": {
@@ -45,7 +48,7 @@
       "id": "ecole_confucius",
       "name": "École de Confucius",
       "effect": "personnagesGratuits",
-      "effectLabel": "Accorde immédiatement 3 Personnages Illustres à votre empire",
+      "effectLabel": "Accorde immédiatement 2 Personnages Illustres à votre empire (hors escalade du seuil culturel)",
       "activation": "terre",
       "dlcOnly": false
     },
@@ -53,7 +56,7 @@
       "id": "chevaliers_templiers",
       "name": "Chevaliers Templiers",
       "effect": "uniteMilitaireParEre",
-      "effectLabel": "Rejoint votre empire avec une unité militaire avancée selon l'ère (Chevalier, Canon ou Char d'assaut)",
+      "effectLabel": "Rejoint votre empire avec une unité militaire VÉTÉRANE selon l'ère (Chevalier, Canon ou Char d'assaut)",
       "activation": "terre",
       "dlcOnly": false
     },

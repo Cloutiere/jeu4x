@@ -12,8 +12,9 @@ export interface LobbyClient {
   status: Writable<NetStatus>;
   error: Writable<string | null>;
   createGame(settings: GameCreationSettings): void;
-  /** 7n · R-145 : civ (et merveille Égypte 🔶) au join. */
-  join(code: string, civId?: string, wonderId?: string): void;
+  /** 7n · R-145 : civ au join. Calibrage canon (Erik 06/09) : la Merveille
+   *  Antique de l'Égypte est tirée par le moteur — plus aucun choix client. */
+  join(code: string, civId?: string): void;
   abandon(code: string): void;
   close(): void;
 }
@@ -53,10 +54,9 @@ export function createLobbyClient(): LobbyClient {
     createGame(settings) {
       handle.send({ type: 'CreateGame', settings });
     },
-    join(code: string, civId?: string, wonderId?: string) {
-      // 7n · R-145 : choix de civilisation du joueur B au join (🔶 Égypte :
-      // wonderId pour la Merveille Antique).
-      handle.send({ type: 'JoinGame', code, ...(civId ? { civId } : {}), ...(wonderId ? { wonderId } : {}) });
+    join(code: string, civId?: string) {
+      // 7n · R-145 : choix de civilisation du joueur B au join.
+      handle.send({ type: 'JoinGame', code, ...(civId ? { civId } : {}) });
     },
     abandon(code) {
       handle.send({ type: 'AbandonGame', code });

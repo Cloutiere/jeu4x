@@ -26,7 +26,7 @@ import type { LoadedMap, MapPlayerSpawn } from './map.js';
 import type { MapArtefact } from './map.js';
 import { TECHS, WONDERS, isUnitObsolete } from './techs.js';
 import { greatPersonClassFor } from './culture.js';
-import { civHutGoldMultOf, civVeteranUnitsOf, uniqueReplacing } from './civilizations.js';
+import { civHutGoldMultOf, uniqueReplacing } from './civilizations.js';
 import { freeSpawnTiles } from './barbares.js';
 
 /** Omit distributif (miroir turn.ts) : préserve l'union typée des événements. */
@@ -394,12 +394,17 @@ function applyActivation(ctx: ArtefactActivationContext, entity: Artefact, unit:
       break;
     }
     case 'personnagesGratuits': {
-      // École de Confucius : 3 GP par ROTATION R-127 (indices successifs),
+      // École de Confucius : 2 GP par ROTATION R-127 (indices successifs),
       // posés à la capitale (sinon première cité — case libre adjacente),
-      // sans jalon (miroir C2) ; l'escalade T-27/T-30 s'applique.
+      // sans jalon (miroir C2). Calibrage canon (rapport « Artefacts de
+      // Civilization Revolution », Erik 06/09) : EXEMPTION D'ESCALADE — les GP
+      // de Confucius sont une manne hors progression : ils N'incrémentENT ni
+      // `greatPersonsObtained` (seuil culturel T-27) ni `greatPersonsByType`
+      // (escalade T-30) ; le seuil du prochain GP reste celui d'avant l'octroi.
       const ids: string[] = [];
+      const baseIndex = player.greatPersonsObtained;
       for (let i = 0; i < ARTEFACTS.params.confuciusGpCount; i++) {
-        const cls = greatPersonClassFor(null, player.greatPersonsObtained);
+        const cls = greatPersonClassFor(null, baseIndex + i);
         const anchor = firstCityAnchorOf(st, unit.owner);
         if (!anchor) break; // aucune case : GP perdu (miroir R-114 🔶)
         const stats = unitType(cls);
@@ -420,8 +425,8 @@ function applyActivation(ctx: ArtefactActivationContext, entity: Artefact, unit:
           aboard: null,
           cargo: null,
         };
-        player.greatPersonsByType = { ...player.greatPersonsByType, [cls]: (player.greatPersonsByType[cls] ?? 0) + 1 };
-        player.greatPersonsObtained += 1;
+        // Exemption d'escalade (calibrage canon) : AUCUN incrément de
+        // greatPersonsObtained / greatPersonsByType ici.
         ids.push(unitId);
         ctx.emit({ type: 'GreatPersonSpawned', unitId, unitType: cls, cityId: anchor.cityId, owner: unit.owner, at: anchor.hex });
       }
@@ -448,7 +453,10 @@ function applyActivation(ctx: ArtefactActivationContext, entity: Artefact, unit:
           r: anchor.r,
           hp: stats.hpMax,
           mp: stats.movement,
-          veteran: civVeteranUnitsOf(player).has(baseType) || civVeteranUnitsOf(player).has(effectiveType),
+          // Calibrage canon (rapport Artefacts, Erik 06/09) : l'unité des
+          // Chevaliers Templiers arrive TOUJOURS Vétérane (5 XP) — indépendant
+          // du trait `uniteVeteran` (qui ne vise que les unités PRODUITES).
+          veteran: ARTEFACTS.params.templiersAlwaysVeteran === true,
           isArmy: false,
           order: null,
           detainedBy: null,

@@ -56,8 +56,8 @@ export function civUniqueSummary(civId: string): string {
   return `Uniques : ${names.join(', ')}`;
 }
 
-/** 7n 🔶 · Libellé du choix de merveille Antique (Égypte). */
-export const EGYPT_WONDER_LABEL = 'Merveille Antique de départ (choix 🔶)';
+// Calibrage canon (Erik 06/09) : le libellé du choix de merveille Antique
+// (Égypte) est supprimé — la merveille est tirée par le moteur, sans choix.
 
 /** 7j · R-126 · Nom fr des 6 classes canoniques de GP. */
 const GP_CLASS_LABELS: Record<string, string> = {

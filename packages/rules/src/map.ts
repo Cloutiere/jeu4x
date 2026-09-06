@@ -39,10 +39,16 @@ import {
   civVeteranUnitsOf,
   civUnitStatBonusOf,
   uniqueReplacing,
-  isEgyptWonderChoiceValid,
+  civStartsAncientWonder,
   civDataOf,
+  CIVILIZATIONS,
 } from './civilizations.js';
 import { greatPersonClassFor } from './culture.js';
+import { createRng } from './rng.js';
+
+/** Graine dédiée du tirage de la Merveille Antique de l'Égypte (XOR avec le
+ *  seed de génération — miroir ARTEFACT_SEED_SALT, R-151). */
+const EGYPT_WONDER_SEED_SALT = 0x2a7f3b91;
 
 export interface MapPlayerSpawn {
   id: PlayerId;
@@ -381,9 +387,8 @@ export function loadBuiltinMapSync(id: BuiltinMapId): LoadedMap {
  */
 export interface CivSetup {
   civId: string;
-  /** 7n 🔶 : choix de la Merveille Antique de l'Égypte (params
-   *  `egypteWonderChoices` — validé par isEgyptWonderChoiceValid). */
-  wonderId?: string;
+  // Calibrage canon (Erik 06/09) : la Merveille Antique de l'Égypte est TIRÉE
+  // au RNG seedé de génération — plus aucun choix `wonderId` au setup/lobby.
 }
 
 export function createInitialState(
@@ -565,6 +570,11 @@ export function createInitialState(
   }
 
   // ---- 7n · R-150 : AVANTAGES DE DÉPART des civilisations (déterministes) --
+  // Calibrage canon (Erik 06/09) : la Merveille Antique de l'Égypte est tirée
+  // au RNG DÉDIÉ dérivé du seed de GÉNÉRATION (même seed ⇒ même merveille ;
+  // le RNG de résolution n'est PAS consommé — miroir artefacts R-151). Les
+  // éventuelles Égyptes multiples tirent dans l'ordre des spawns.
+  const egyptWonderRng = createRng((rngSeed ^ EGYPT_WONDER_SEED_SALT) >>> 0);
   for (const spawn of map.spawns) {
     const setup = civSetup[spawn.id];
     const civId = setup?.civId ?? 'neutre';
@@ -590,10 +600,14 @@ export function createInitialState(
         if (!capital.buildings.includes(b)) capital.buildings.push(b);
       }
       capital.buildings.sort();
-      // 4. Merveille Antique de l'Égypte (choix du joueur au setup 🔶 —
-      //    validé par isEgyptWonderChoiceValid ; invalide = ignoré).
-      if (setup?.wonderId && isEgyptWonderChoiceValid(civId, setup.wonderId)) {
-        capital.wonders.push(setup.wonderId);
+      // 4. Merveille Antique de l'Égypte — TIRAGE SEEDÉ, SANS choix du joueur
+      //    (calibrage canon, Erik 06/09) : une merveille parmi les 6 Merveilles
+      //    Antiques (`egypteWonderChoices`, données), construite gratuitement
+      //    dans la capitale à la fondation.
+      if (civStartsAncientWonder(civId)) {
+        const choices = CIVILIZATIONS.params.egypteWonderChoices;
+        const pick = choices.length > 0 ? choices[egyptWonderRng.nextInt(choices.length)] : undefined;
+        if (pick && !capital.wonders.includes(pick)) capital.wonders.push(pick);
       }
     }
     // 5. Or de départ (Aztèques — 🔶 +25, params).

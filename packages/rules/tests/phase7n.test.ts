@@ -28,7 +28,7 @@ import {
   playerHasTrait,
   uniqueReplacing,
   uniqueUnitsOf,
-  isEgyptWonderChoiceValid,
+  civStartsAncientWonder,
 } from '../src/civilizations.js';
 import { applySetGovernment } from '../src/governments.js';
 import { rushBuyCostOf } from '../src/economyOr.js';
@@ -276,21 +276,27 @@ describe('7n · R-150 · Avantages de départ (createInitialState — setup dét
     expect(civStartTechs('chine')).toEqual(['ecriture']);
   });
 
-  it('Égypte : Merveille Antique au choix 🔶 (validation de la liste params)', () => {
+  it('Égypte : Merveille Antique TIRÉE au RNG seedé de génération, SANS choix (Calibrage canon — Erik 06/09)', () => {
     const s = createInitialState(loadBuiltinMapSync('pedagogique-40'), 1234, {
-      p1: { civId: 'egypte', wonderId: 'grande_pyramide' },
+      p1: { civId: 'egypte' },
       p2: { civId: 'inde' },
     });
-    expect(s.cities['c1']!.wonders).toEqual(['grande_pyramide']);
-    // Choix hors liste (params 🔶) : ignoré.
-    const s2 = createInitialState(loadBuiltinMapSync('pedagogique-40'), 1234, {
-      p1: { civId: 'egypte', wonderId: 'nations_unies' },
+    // La capitale égyptienne porte UNE merveille, tirée parmi les 6 canoniques.
+    expect(s.cities['c1']!.wonders).toHaveLength(1);
+    expect(CIVILIZATIONS.params.egypteWonderChoices).toContain(s.cities['c1']!.wonders[0]);
+    // Déterminisme (même seed ⇒ même merveille — RNG dédié de génération,
+    // le RNG de résolution n'est pas consommé).
+    const again = createInitialState(loadBuiltinMapSync('pedagogique-40'), 1234, {
+      p1: { civId: 'egypte' },
       p2: { civId: 'inde' },
     });
-    expect(s2.cities['c1']!.wonders).toEqual([]);
-    expect(isEgyptWonderChoiceValid('egypte', 'stonehenge')).toBe(true);
-    expect(isEgyptWonderChoiceValid('egypte', 'banque_mondiale')).toBe(false);
-    expect(isEgyptWonderChoiceValid('inde', 'stonehenge')).toBe(false);
+    expect(again.cities['c1']!.wonders).toEqual(s.cities['c1']!.wonders);
+    // Le pool est le canon console : Grande Muraille incluse, Grande
+    // Bibliothèque (non Antique canon) exclue.
+    expect(CIVILIZATIONS.params.egypteWonderChoices).toContain('grande_muraille');
+    expect(CIVILIZATIONS.params.egypteWonderChoices).not.toContain('grande_bibliotheque');
+    expect(civStartsAncientWonder('egypte')).toBe(true);
+    expect(civStartsAncientWonder('inde')).toBe(false);
   });
 
   it('Aztèques : or de départ 🔶 (+25) ; Amérique : GP gratuit (classe déterministe R-127)', () => {
@@ -605,5 +611,74 @@ describe('7n · Migration v16 → v17 (R-145/R-147/R-149 — additive, idempoten
     const filtered = getFilteredState(s, 'p1');
     expect(filtered.players['p2']!.civId).toBe('zoulous'); // canon : la civ adverse est visible
     expect(filtered.players['p2']!.era).toBe('ancienne');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Calibrage canon (rapports d'Erik, 06/09) — Zoulous Aqueduc passif,
+// techs gratuites comptées dans le compage d'ère
+// ---------------------------------------------------------------------------
+
+describe('7n · R-146 (rév. Calibrage) · Zoulous — Aqueduc passif : seuils ÷ 2', () => {
+  /** Ville pop 2, anneau 1 en désert (0 N) : récolte 2 N (centre), consommation
+   *  2 → surplus 0 ; la croissance ne dépend que du seuil et de la réserve. */
+  function growthState(): GameState {
+    const state = makeState({
+      width: 8,
+      height: 8,
+      terrainOverrides: {
+        '1,0': 'desert', '0,1': 'desert', '-1,0': 'desert',
+        '0,-1': 'desert', '1,-1': 'desert', '-1,1': 'desert',
+      },
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 10, workedTiles: [] }],
+    });
+    state.players['p1']!.civId = 'zoulous';
+    return state;
+  }
+
+  it('Zoulou Médiévale : seuil 20 (pop 2→3) divisé par deux → croissance dès 10 nourriture', () => {
+    const state = growthState();
+    state.players['p1']!.era = 'medievale'; // trait actif dès l'ère Médiévale
+    const { newState } = resolveTurn(state, {}, 1);
+    const city = newState.cities['c1']!;
+    expect(city.pop).toBe(3); // seuil 10 atteint : 10×n → 5×n
+    expect(city.foodStored).toBe(0);
+  });
+
+  it('Zoulou Antique (trait inactif) : seuil canon 20 — pas de croissance à 10', () => {
+    const state = growthState();
+    state.players['p1']!.era = 'ancienne';
+    const { newState } = resolveTurn(state, {}, 1);
+    const city = newState.cities['c1']!;
+    expect(city.pop).toBe(2); // seuil 20 non atteint
+    expect(city.foodStored).toBe(10);
+  });
+
+  it('ni multiplicateur de nourriture ni de vitesse : la RÉCOLTE est inchangée', () => {
+    const state = growthState();
+    state.players['p1']!.era = 'medievale';
+    const { newState } = resolveTurn(state, {}, 1);
+    // 10 − 10 (seuil) + 0 (surplus) = 0 : rien ne s'ajoute ni ne se multiplie.
+    expect(newState.cities['c1']!.foodStored).toBe(0);
+  });
+});
+
+describe('7n · R-147 (rév. Calibrage) · Les techs GRATUITES comptent dans le compage d\'ère', () => {
+  it('une tech gratuite (palier économique 250 → Monnaie, octroi direct) franchit le seuil de 5', () => {
+    // 4 techs recherchées + la tech gratuite du palier or = 5 au compage.
+    const state = makeState({
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2 }],
+    });
+    state.players['p1']!.techsUnlocked = ['travail_du_bronze', 'equitation', 'poterie', 'code_des_lois'];
+    state.players['p1']!.treasury = 250; // palier R-136 → Monnaie gratuite
+    const t1 = resolveTurn(state, {}, 1);
+    expect(t1.newState.players['p1']!.techsUnlocked).toContain('monnaie'); // gratuite
+    // R-147 : la transition est appliquée AU TOUR SUIVANT — le compage de fin
+    // de tour 1 n'a pas encore relu les 5 techs (4 recherchées + 1 gratuite).
+    expect(t1.newState.players['p1']!.era).toBe('ancienne');
+    const t2 = resolveTurn(t1.newState, {}, 2);
+    // Les 5 techs sont comptées (la gratuite INCLUSE — canon) → ère Médiévale.
+    expect(t2.events.some((e) => e.type === 'EraChanged' && e.player === 'p1' && e.era === 'medievale')).toBe(true);
+    expect(t2.newState.players['p1']!.era).toBe('medievale');
   });
 });

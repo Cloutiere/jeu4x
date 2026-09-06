@@ -8,7 +8,7 @@
  * WebSocket hibernation : chaque socket est authentifié au connect (JWT en
  * query param ou cookie) et porte `{ playerId, name }` en attachment.
  */
-import { CIVILIZATIONS, createRng, isEgyptWonderChoiceValid } from '@game/rules';
+import { CIVILIZATIONS, createRng } from '@game/rules';
 import type { PlayerId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
 import type {
@@ -27,8 +27,10 @@ import { BOT_NAME, BOT_PLAYER_ID } from './botPolicy.js';
 interface LobbyGame {
   code: string;
   hostId: PlayerId;
-  /** 7n · R-145 : chaque joueur choisit sa civilisation (create/join). */
-  players: Array<{ id: PlayerId; name: string; civId?: string; wonderId?: string; bot?: boolean }>;
+  /** 7n · R-145 : chaque joueur choisit sa civilisation (create/join).
+   *  Calibrage canon (Erik 06/09) : la Merveille Antique de l'Égypte est
+   *  tirée par le moteur — plus aucun champ wonderId côté lobby. */
+  players: Array<{ id: PlayerId; name: string; civId?: string; bot?: boolean }>;
   status: GameStatus;
   isPublic: boolean;
   settings: GameCreationSettings;
@@ -92,7 +94,6 @@ export class LobbyDO {
         id: p.id,
         name: p.name,
         ...(p.civId ? { civId: p.civId } : {}),
-        ...(p.wonderId ? { wonderId: p.wonderId } : {}),
         ...(p.bot === true ? { bot: true } : {}),
       })),
       settings: game.settings,
@@ -197,7 +198,7 @@ export class LobbyDO {
           await this.handleCreate(ws, att, msg.settings);
           break;
         case 'JoinGame':
-          await this.handleJoin(ws, att, msg.code, (msg as { civId?: string }).civId, (msg as { wonderId?: string }).wonderId);
+          await this.handleJoin(ws, att, msg.code, (msg as { civId?: string }).civId);
           break;
         case 'ListGames':
           this.sendTo(ws, await this.gameListFor(att.playerId));
@@ -235,15 +236,11 @@ export class LobbyDO {
     if (settings.turnTimerMinutes !== null && !(typeof settings.turnTimerMinutes === 'number' && settings.turnTimerMinutes > 0)) {
       return this.sendError(ws, 'badMessage', 'timer invalide');
     }
-    // 7n · R-145 : la civ de l'hôte est validée (connue des données) ; la
-    // Merveille Antique (Égypte 🔶) l'est par la liste fermée des params.
+    // 7n · R-145 : la civ de l'hôte est validée (connue des données). La
+    // Merveille Antique (Égypte) est TIRÉE par le moteur — plus de choix.
     const hostCiv = (settings as { civId?: string }).civId;
     if (hostCiv !== undefined && !CIVILIZATIONS.civs[hostCiv]) {
       return this.sendError(ws, 'badMessage', 'civilisation inconnue');
-    }
-    const hostWonder = (settings as { wonderId?: string }).wonderId;
-    if (!isEgyptWonderChoiceValid(hostCiv, hostWonder)) {
-      return this.sendError(ws, 'badMessage', 'merveille de départ invalide');
     }
     // Chantier BOT-SOLO (L2) : la case à cocher « Partie solo » crée la
     // partie avec p2 = joueur bot et la DÉMARRE immédiatement (pas de code
@@ -280,7 +277,7 @@ export class LobbyDO {
       method: 'POST',
       body: JSON.stringify({
         code,
-        host: { id: att.playerId, name: att.name, civId: (settings as { civId?: string }).civId, wonderId: (settings as { wonderId?: string }).wonderId },
+        host: { id: att.playerId, name: att.name, civId: (settings as { civId?: string }).civId },
         settings,
         isPublic: settings.isPublic === true,
         seed,
@@ -297,7 +294,6 @@ export class LobbyDO {
         id: att.playerId,
         name: att.name,
         ...((settings as { civId?: string }).civId ? { civId: (settings as { civId?: string }).civId } : {}),
-        ...((settings as { wonderId?: string }).wonderId ? { wonderId: (settings as { wonderId?: string }).wonderId } : {}),
       }],
       status: 'waiting',
       isPublic: settings.isPublic === true,
@@ -330,7 +326,7 @@ export class LobbyDO {
     await this.broadcastList();
   }
 
-  private async handleJoin(ws: WebSocket, att: WsAttachment, rawCode: string, civId?: string, wonderId?: string): Promise<void> {
+  private async handleJoin(ws: WebSocket, att: WsAttachment, rawCode: string, civId?: string): Promise<void> {
     const code = String(rawCode ?? '').toUpperCase();
     if (!isValidCode(code)) return this.sendError(ws, 'notFound', 'code invalide');
     const game = await this.getGame(code);
@@ -348,12 +344,9 @@ export class LobbyDO {
     if (civId !== undefined && !CIVILIZATIONS.civs[civId]) {
       return this.sendError(ws, 'badMessage', 'civilisation inconnue');
     }
-    if (!isEgyptWonderChoiceValid(civId, wonderId)) {
-      return this.sendError(ws, 'badMessage', 'merveille de départ invalide');
-    }
     const join = await this.gameStub(code).fetch('https://game.internal/internal/join', {
       method: 'POST',
-      body: JSON.stringify({ player: { id: att.playerId, name: att.name, civId, wonderId } }),
+      body: JSON.stringify({ player: { id: att.playerId, name: att.name, civId } }),
     });
     if (!join.ok) {
       return this.sendError(ws, join.status === 409 ? 'gameFull' : 'internal', 'impossible de rejoindre la partie');
@@ -362,7 +355,6 @@ export class LobbyDO {
       id: att.playerId,
       name: att.name,
       ...(civId ? { civId } : {}),
-      ...(wonderId ? { wonderId } : {}),
     });
     game.status = 'active';
     await this.putGame(game);

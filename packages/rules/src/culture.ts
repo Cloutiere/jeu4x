@@ -87,6 +87,25 @@ export function figureClassForTech(techId: string | null | undefined): GreatPers
   return null;
 }
 
+/**
+ * R-136 (rév. Calibrage canon — Erik 06/09) · Classe du GP du canal OR
+ * (paliers 500 et 10 000 or) : EXPLICITE — « Grand Explorateur/Industriel »
+ * (classe `explorateur`), et non plus le ciblage technologique R-127. Si la
+ * liste de figures de la classe est épuisée (autant de GP or déjà accordés que
+ * de figures), rotation de secours Bâtisseur PUIS Savant (dernière classe
+ * retenue au-delà). Déterministe (R-80/R-81 — aucun RNG).
+ */
+export function goldMilestoneGpClass(goldGpIndex: number): GreatPersonClass {
+  const chain: GreatPersonClass[] = ['explorateur', 'batisseur', 'savant'];
+  let remaining = Math.max(0, goldGpIndex);
+  for (const cls of chain) {
+    const figures = FIGURES.classes[cls]?.figures.length ?? 1;
+    if (remaining < figures) return cls;
+    remaining -= figures;
+  }
+  return chain[chain.length - 1]!;
+}
+
 /** 7j · R-126 · Première figure d'une classe rattachée à une tech (libellés UI). */
 export function figureNameForTech(techId: string): string | null {
   for (const cls of GP_CLASSES) {

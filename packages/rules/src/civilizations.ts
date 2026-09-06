@@ -236,10 +236,14 @@ export function civOverrunRatioOf(player: { civId?: string; era: TechEra } | und
   return CIVILIZATIONS.params.overrunBaseRatio;
 }
 
-/** croissanceAcceleree : réduction du seuil de croissance (Zoulous Médiévale —
- *  « type Aqueduc », s'ajoute à celui de l'Aqueduc, plafonné par l'appelant). */
-export function civGrowthReductionOf(player: { civId?: string; era: TechEra } | undefined): number {
-  return traitEntriesOf(player, 'croissanceAcceleree').reduce((s, t) => s + (t.reduction ?? 0), 0);
+/** croissanceSeuilDivise : DIVISEUR des seuils de croissance (Zoulous
+ *  Médiévale — mécanique canon « Aqueduc passif », dataminé : les seuils de
+ *  growth.json sont divisés par deux pour toutes les villes de l'empire, sans
+ *  le bâtiment ; ce n'est NI un multiplicateur de nourriture NI de vitesse).
+ *  Se COMBINE multiplicativement avec la réduction de l'Aqueduc (1 − r_aq)
+ *  × (1 ÷ divisor) — voir turn.ts. */
+export function civGrowthThresholdDivisorOf(player: { civId?: string; era: TechEra } | undefined): number {
+  return traitEntriesOf(player, 'croissanceSeuilDivise').reduce((d, t) => d * (t.divisor ?? 1), 1);
 }
 
 /** gpFrequents : multiplicateur des seuils d'obtention des GP (Grèce/Rome —
@@ -339,14 +343,14 @@ export function civStartGold(civId: string | undefined): number {
   return 0;
 }
 
-/** Le choix de merveille Antique de l'Égypte est-il VALIDE (params — liste
- *  fermée, éditable en données) ? */
-export function isEgyptWonderChoiceValid(civId: string | undefined, wonderId: string | null | undefined): boolean {
+/** La civ commence-t-elle avec une Merveille Antique (Égypte — trait
+ *  `merveilleAntiqueDepart`) ? Calibrage canon (rapports Calibrage/Rules
+ *  Research, Erik 06/09) : LAQUELLE est tirée au RNG seedé de génération
+ *  (map.ts) parmi `egypteWonderChoices` — SANS choix du joueur. */
+export function civStartsAncientWonder(civId: string | undefined): boolean {
   const civ = civDataOf(civId);
-  if (!civ) return wonderId == null;
-  const wants = [...civ.start, ...civ.eras.ancienne].some((t) => t.key === 'merveilleAntiqueDepart' && !t.inactif);
-  if (!wants) return wonderId == null;
-  return typeof wonderId === 'string' && CIVILIZATIONS.params.egypteWonderChoices.includes(wonderId);
+  if (!civ) return false;
+  return [...civ.start, ...civ.eras.ancienne].some((t) => t.key === 'merveilleAntiqueDepart' && !t.inactif);
 }
 
 // ---------------------------------------------------------------------------

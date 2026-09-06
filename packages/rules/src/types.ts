@@ -519,6 +519,10 @@ export interface ArtefactParams {
   indicePositionChance: number;
   /** R-155 · Tech de révélation complète (Vol Spatial). */
   volSpatialTech: string;
+  /** Calibrage canon (Erik 06/09) : Confucius — GP HORS escalade T-27/T-30. */
+  confuciusEscaladeExemption: boolean;
+  /** Calibrage canon (Erik 06/09) : l'unité des Templiers arrive Vétérane (5 XP). */
+  templiersAlwaysVeteran: boolean;
 }
 
 /** R-156 · Configuration complète (artefacts.json). */
@@ -636,7 +640,7 @@ export interface CivTrait {
   amount?: number; // unitAttack, unitDefense, unitMovement, popFondation
   buildings?: string[]; // coutBuildingMoitie
   ratio?: number; // overrun
-  reduction?: number; // croissanceAcceleree
+  divisor?: number; // croissanceSeuilDivise (Zoulous — seuils de croissance ÷ N)
   scope?: string; // rushHalfPrice ('unit')
 }
 

@@ -2,10 +2,10 @@
   "eraRushFactors": {
     "ancienne": 2,
     "medievale": 3,
-    "industrielle": 5,
+    "industrielle": 4,
     "moderne": 8
   },
-  "rushFactorsNote": "R-135 🔶 : ancrés sur les exemples du doc d'Erik — Antique ×2 (Guerrier 10 → 20-30, Pyramides 150 → 300-450), Médiévale ×3 (Marché 60 → 180, Banque 120 → 360, Pyramides 150 → 450), Moderne ×8 (Bibliothèque 40 → 320, Banque 120 → 960) ; Industrielle ×5 PROPOSÉ (aucun exemple exact — à calibrer).",
+  "rushFactorsNote": "R-135 (calibrage canon — rapport « Calibrage Mécaniques Civilization Revolution », Erik 06/09) : coûts console dataminés — Antique ×2 (Guerrier 10 → 20-30, Pyramides 150 → 300-450), Médiévale ×3 (Marché 60 → 180, Banque 120 → 360), Industrielle ×4 (Marché 60 → 240, Banque 120 → 480), Moderne ×8 (Bibliothèque 40 → 320, Banque 120 → 960) ; progression canon ×2/×3/×4/×8.",
   "rushForbiddenWonders": [
     "banque_mondiale",
     "nations_unies"
@@ -59,8 +59,8 @@
     "monnaie",
     "bancaire"
   ],
-  "cityCapturePlunderPct": 0.5,
-  "cityCapturePlunderNote": "R-134 🔶 : part de la trésorerie du perdant versée au captreur à la prise d'une ville (sources muettes — à calibrer).",
+  "cityCapturePlunderPct": 0.25,
+  "cityCapturePlunderNote": "R-134 (calibrage canon — rapport Calibrage §2, Erik 06/09) : part de la trésorerie du perdant versée au captreur à la prise d'une ville secondaire — 25 % protège la Victoire économique contre le snowballing.",
   "interestRatePct": 0.02,
   "interestNote": "R-134 🔶 (hook 7n) : intérêts passifs de trésorerie — actifs uniquement pour une civilisation dotée du trait (clé 'interets', civilizations.json 7n).",
   "interestTraitKey": "interets",

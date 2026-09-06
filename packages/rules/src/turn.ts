@@ -58,6 +58,7 @@ import {
   greatPersonThresholdFor,
   isWonderObsolete,
   greatPersonClassFor,
+  goldMilestoneGpClass,
   settledGpMultiplier,
   settledGpCostFactor,
   settledGreatPersonsOfCities,
@@ -111,7 +112,7 @@ import {
   civCommerceCaptureMultOf,
   civEmpireGoldMultOf,
   civGpThresholdMultOf,
-  civGrowthReductionOf,
+  civGrowthThresholdDivisorOf,
   civHealAfterVictory,
   civHutGoldMultOf,
   civNavalAttackBonusOf,
@@ -3426,10 +3427,13 @@ function processEconomy(board: Board): void {
     for (const b of city.buildings) {
       growthReduction = Math.max(growthReduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
     }
-    // 7n · R-149 (trait Zoulou `croissanceAcceleree`) : réduction de seuil
-    // « type Aqueduc » — S'AJOUTE à celle du bâtiment (plafonnée par le
-    // plancher de seuil de growthThresholdFor).
-    growthReduction += civGrowthReductionOf(player);
+    // 7n · R-146 (rév. Calibrage canon — Erik 06/09) · trait Zoulou
+    // `croissanceSeuilDivise` : mécanique canon « Aqueduc passif » — les
+    // seuils de growth.json sont DIVISÉS par deux pour toutes les villes
+    // zouloues dès l'ère Médiévale (ni nourriture ni vitesse — structurel).
+    // Se combine MULTIPLICATIVEMENT avec la réduction de l'Aqueduc :
+    // seuil effectif = base × (1 − r_aqueduc) ÷ divisor.
+    growthReduction = 1 - (1 - growthReduction) / civGrowthThresholdDivisorOf(player);
     // 7j · R-126 · Settle · Humanitaire : +50 % du taux de croissance (le
     // SURPLUS alimentaire est multiplié, additif 🔶, arrondi au plus proche) ;
     // un déficit n'est PAS amplifié.
@@ -3745,8 +3749,15 @@ function applyEconomyMilestone(
     }
     case 'greatPerson': {
       // GP gratuit (canaux or 500 / 10 000 — doc GP confirmé) : capitale,
-      // classe par ciblage technologique R-127, SANS jalon (miroir C2).
-      if (capital) spawnGreatPerson(board, capital, greatPersonClassFor(player.researching, player.greatPersonsObtained), false);
+      // SANS jalon (miroir C2). Révision Calibrage canon (Erik 06/09) : la
+      // classe est EXPLICITE — Grand Explorateur/Industriel (R-136), rotation
+      // de secours Bâtisseur puis Savant si les figures de la classe sont
+      // épuisées ; le ciblage technologique R-127 reste propre au canal culture.
+      const idx = ECONOMY.milestones.indexOf(milestone);
+      const goldGpIndex = ECONOMY.milestones
+        .slice(0, idx)
+        .filter((m) => m.reward === 'greatPerson').length;
+      if (capital) spawnGreatPerson(board, capital, goldMilestoneGpClass(goldGpIndex), false);
       break;
     }
     case 'granary':

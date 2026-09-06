@@ -2,35 +2,29 @@
   /**
    * 7n · R-145 · Sélecteur de civilisation (16 cartes — doc « Guide
    * Civilisations ») : nom, dirigeant, avantage de départ, résumé des bonus
-   * d'ère cumulatifs, unités uniques. Le choix de l'Égypte ouvre une liste de
-   * Merveilles Antique 🔶 (params `egypteWonderChoices` — données).
+   * d'ère cumulatifs, unités uniques.
+   * Calibrage canon (Erik 06/09) : la Merveille Antique de l'Égypte est TIRÉE
+   * au RNG seedé par le moteur — l'UI ne propose plus de sélection.
    * Le client ne calcule aucune règle : tout est lu des données partagées.
    */
-  import { CIVILIZATIONS, WONDERS, uniqueUnitsOf, UNIT_TYPES } from '@game/rules';
-  import { civName, civLeader, civStartLabels, civEraSummary, civUniqueSummary, EGYPT_WONDER_LABEL } from '../lib/labels.js';
+  import { CIVILIZATIONS } from '@game/rules';
+  import { civName, civLeader, civStartLabels, civEraSummary, civUniqueSummary } from '../lib/labels.js';
 
   interface Props {
     /** Civ choisie (null = neutre — aucune civ, parties migrées). */
     value: string | null;
-    /** Merveille Antique (Égypte uniquement). */
-    wonder?: string | null;
-    onchange: (civId: string | null, wonderId?: string | null) => void;
+    onchange: (civId: string | null) => void;
     compact?: boolean;
   }
-  const { value, wonder = null, onchange, compact = false }: Props = $props();
+  const { value, onchange, compact = false }: Props = $props();
 
   const civIds = Object.keys(CIVILIZATIONS.civs).sort((a, b) =>
     CIVILIZATIONS.civs[a]!.name.localeCompare(CIVILIZATIONS.civs[b]!.name, 'fr'),
   );
 
-  const wonderChoices = $derived(
-    CIVILIZATIONS.params.egypteWonderChoices.map((id) => ({ id, name: WONDERS[id]?.name ?? id })),
-  );
-
   function pick(id: string): void {
     if (id === value) return;
-    // Égypte : proposer la première merveille de la liste (choix modifiable 🔶).
-    onchange(id, id === 'egypte' ? CIVILIZATIONS.params.egypteWonderChoices[0]! : null);
+    onchange(id);
   }
 </script>
 
@@ -53,20 +47,6 @@
   {/each}
 </div>
 
-{#if value === 'egypte'}
-  <label class="wonder-choice">
-    {EGYPT_WONDER_LABEL}
-    <select
-      value={wonder ?? CIVILIZATIONS.params.egypteWonderChoices[0]}
-      onchange={(e) => onchange('egypte', (e.currentTarget as HTMLSelectElement).value)}
-    >
-      {#each wonderChoices as w (w.id)}
-        <option value={w.id}>{w.name}</option>
-      {/each}
-    </select>
-  </label>
-{/if}
-
 <style>
   .civpicker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.45rem; }
   .civpicker.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -82,5 +62,4 @@
   .start { font-size: 0.72rem; color: #bfe8cc; }
   .eras { font-size: 0.68rem; color: #9db8a6; }
   .uniques { font-size: 0.68rem; color: #8fb4ff; }
-  .wonder-choice { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; font-size: 0.85rem; }
 </style>

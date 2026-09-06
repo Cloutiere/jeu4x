@@ -23,11 +23,11 @@
   let timerMinutes = $state(60);
   let isPublic = $state(true);
   let joinCode = $state('');
-  // 7n · R-145 : choix de civilisation (hôte à la création, invité au join 🔶).
+  // 7n · R-145 : choix de civilisation (hôte à la création, invité au join).
+  // Calibrage canon (Erik 06/09) : la Merveille Antique de l'Égypte est tirée
+  // par le moteur — plus aucun choix de merveille au lobby.
   let hostCiv = $state<string | null>('amerique');
-  let hostWonder = $state<string | null>(null);
   let joinCiv = $state<string | null>('rome');
-  let joinWonder = $state<string | null>(null);
   let showCivPicker = $state(true);
   // Chantier BOT-SOLO : partie solo (le bot rejoint en p2, civ au choix —
   // « aléatoire » = tirage seedé par la partie).
@@ -41,14 +41,13 @@
       turnTimerMinutes: timerMinutes > 0 ? timerMinutes : null,
       isPublic,
       ...(hostCiv ? { civId: hostCiv } : {}),
-      ...(hostCiv && hostWonder ? { wonderId: hostWonder } : {}),
       ...(solo ? { solo: true } : {}),
       ...(solo && botCiv !== 'random' ? { botCivId: botCiv } : {}),
     });
   }
 
   function joinWithCiv(code: string): void {
-    client.join(code, joinCiv ?? undefined, joinCiv && joinWonder ? joinWonder : undefined);
+    client.join(code, joinCiv ?? undefined);
   }
 </script>
 
@@ -102,7 +101,7 @@
     {/if}
     <button type="button" onclick={createGame}>Créer</button>
     <h3>Choisissez votre civilisation <em>(16 — 7n)</em></h3>
-    <CivPicker value={hostCiv} wonder={hostWonder} onchange={(civ, wonder) => { hostCiv = civ; hostWonder = wonder ?? null; }} />
+    <CivPicker value={hostCiv} onchange={(civ) => { hostCiv = civ; }} />
   </section>
 
   <section>
@@ -111,7 +110,7 @@
     <button type="button" onclick={() => joinWithCiv(joinCode.toUpperCase())}>Rejoindre</button>
     <details>
       <summary>Choisir la civilisation de l'invité ({civName(joinCiv)})</summary>
-      <CivPicker value={joinCiv} wonder={joinWonder} onchange={(civ, wonder) => { joinCiv = civ; joinWonder = wonder ?? null; }} compact />
+      <CivPicker value={joinCiv} onchange={(civ) => { joinCiv = civ; }} compact />
     </details>
   </section>
 

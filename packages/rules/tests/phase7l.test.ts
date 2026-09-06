@@ -20,7 +20,7 @@ import {
   eraRushFactorForEra,
   explorerGoldInjectionForEra,
 } from '../src/economyOr.js';
-import { greatPersonThresholdFor, settledGpMultiplier, settledGpCostFactor, wonderProductionIssue } from '../src/culture.js';
+import { greatPersonThresholdFor, goldMilestoneGpClass, settledGpMultiplier, settledGpCostFactor, wonderProductionIssue } from '../src/culture.js';
 import { tileYield } from '../src/economy.js';
 import { growthThresholdFor } from '../src/growth.js';
 import cultureData from '../src/data/culture.json' with { type: 'json' };
@@ -156,7 +156,7 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
     expect(resolveTurn(withCurrency, {}, 1).newState.players['p1']!.treasury).toBe(4); // +3 directs + socle
   });
 
-  it('capture de ville = SAC : part 🔶 0,5 de la trésorerie du perdant (CityCaptured.plunder)', () => {
+  it('capture de ville = SAC : part canon 0,25 de la trésorerie du perdant (CityCaptured.plunder — Calibrage §2)', () => {
     const state = makeState({
       units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 4, r: 4 }],
       cities: [
@@ -167,10 +167,10 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
     state.players['p2']!.treasury = 100;
     const result = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 4 }] }] }, 1);
     const captured = result.events.find((e) => e.type === 'CityCaptured');
-    expect(captured).toMatchObject({ type: 'CityCaptured', cityId: 'c2', toOwner: 'p1', plunder: 50 });
-    // p1 : butin 50 + socle des DEUX villes (c1 + c2 capturée) = 52.
-    expect(result.newState.players['p1']!.treasury).toBe(52);
-    expect(result.newState.players['p2']!.treasury).toBe(50);
+    expect(captured).toMatchObject({ type: 'CityCaptured', cityId: 'c2', toOwner: 'p1', plunder: 25 });
+    // p1 : butin 25 + socle des DEUX villes (c1 + c2 capturée) = 27.
+    expect(result.newState.players['p1']!.treasury).toBe(27);
+    expect(result.newState.players['p2']!.treasury).toBe(75);
   });
 
   it('intérêts 2 % : hook 7n — DÉSACTIVÉ sans trait de civilisation', () => {
@@ -213,11 +213,21 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
 // ---------------------------------------------------------------------------
 
 describe('7l · R-135 · formule du rush-buy (marteaux restants × facteur d\'ère)', () => {
-  it('facteurs data-driven 🔶 : Antique ×2, Médiévale ×3, Industrielle ×5 (proposé), Moderne ×8', () => {
+  it('facteurs data-driven (rév. Calibrage canon) : Antique ×2, Médiévale ×3, Industrielle ×4, Moderne ×8', () => {
     expect(eraRushFactorForEra('ancienne')).toBe(2); // R-147 : ère par compage (champ era)
     expect(eraRushFactorForEra('medievale')).toBe(3);
-    expect(eraRushFactorForEra('industrielle')).toBe(5);
+    // Coûts console dataminés : Marché 60M = 240 or, Banque 120M = 480 or.
+    expect(eraRushFactorForEra('industrielle')).toBe(4);
     expect(eraRushFactorForEra('moderne')).toBe(8);
+  });
+
+  it('Marché/Banque en Industrielle = ×4 (canon dataminé — rapport Calibrage §1)', () => {
+    const industrial = capitalState();
+    industrial.players['p1']!.era = 'industrielle'; // 7n · R-147 : ère persistée
+    industrial.cities['c1']!.production = { item: { kind: 'building', id: 'marche' }, progress: 0 };
+    expect(rushBuyCostOf(industrial, industrial.cities['c1']!)).toBe(240); // 60 × 4
+    industrial.cities['c1']!.production = { item: { kind: 'building', id: 'banque' }, progress: 0 };
+    expect(rushBuyCostOf(industrial, industrial.cities['c1']!)).toBe(480); // 120 × 4
   });
 
   it('Guerrier à 0 marteau en Antique = ×2 du coût (20 or) — exemple chiffré du doc', () => {
@@ -396,8 +406,21 @@ describe('7l · R-136 · paliers économiques (ladder canon)', () => {
     const result = resolveTurn(state, {}, 1);
     const gps = result.events.filter((e) => e.type === 'GreatPersonSpawned');
     expect(gps).toHaveLength(2); // canaux or 500 + 10 000
+    // Rév. Calibrage canon (Erik 06/09) : classe EXPLICITE du canal or —
+    // Grand Explorateur/Industriel (R-136), pas le ciblage technologique R-127.
+    for (const g of gps) expect(g.type === 'GreatPersonSpawned' && g.unitType).toBe('explorateur');
     expect(result.newState.players['p1']!.cultureMilestones).toBe(0); // PAS de jalon (miroir C2)
     expect(result.newState.players['p1']!.greatPersonsObtained).toBe(2);
+  });
+
+  it('R-136 (rév. Calibrage) : rotation de secours de la classe or — Bâtisseur puis Savant si figures épuisées', () => {
+    // La classe explorateur compte 3 figures (figures.json) : indices 0-2 →
+    // explorateur, 3-4 → batisseur, 5+ → savant (dernière classe retenue).
+    expect(goldMilestoneGpClass(0)).toBe('explorateur');
+    expect(goldMilestoneGpClass(2)).toBe('explorateur');
+    expect(goldMilestoneGpClass(3)).toBe('batisseur');
+    expect(goldMilestoneGpClass(5)).toBe('batisseur'); // Bâtisseur : 3 figures aussi
+    expect(goldMilestoneGpClass(6)).toBe('savant');
   });
 
   it('1 000 or → Grenier partout ; 5 000 or → Aqueduc partout (R-66/R-111 : déjà dotée = saute)', () => {

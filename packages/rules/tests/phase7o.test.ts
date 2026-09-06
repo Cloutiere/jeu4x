@@ -16,6 +16,7 @@ import {
   ARTEFACTS,
   HUT_REWARDS,
   createRng,
+  greatPersonThresholdFor,
 } from '../src/index.js';
 import {
   angkorEligibleWonders,
@@ -75,18 +76,23 @@ describe('7o · R-156 · Données artefacts.json (doc fait foi)', () => {
     }
   });
 
-  it('T-38..T-43 : count 4 (canon 3–6), Atlantide toujours tirée, tables or/unités/GP/techs', () => {
+  it('T-38..T-43 (rév. Calibrage canon) : tirage 4-5, Atlantide toujours tirée, tables or/unités/GP/techs', () => {
     const p = ARTEFACTS.params;
     expect(p.count).toBe(4);
-    expect(p.countMin).toBe(3);
-    expect(p.countMax).toBe(6);
+    // Canon : 4 à 5 artefacts générés par carte, jamais la réserve complète.
+    expect(p.countMin).toBe(4);
+    expect(p.countMax).toBe(5);
     expect(p.atlantisAlwaysDrawn).toBe(true);
     expect(p.septCitesOrByEra).toEqual({ ancienne: 200, medievale: 250, industrielle: 300, moderne: 400 });
     expect(p.templiersUnitByEra).toEqual({
       ancienne: 'chevalier', medievale: 'chevalier', industrielle: 'canon', moderne: 'char_d_assaut',
     });
-    expect(p.confuciusGpCount).toBe(3);
+    expect(p.confuciusGpCount).toBe(2); // canon dataminé
+    expect(p.confuciusEscaladeExemption).toBe(true);
+    expect(p.templiersAlwaysVeteran).toBe(true);
     expect(p.atlantideTechCount).toBe(3);
+    expect(p.indicePositionChance).toBe(0.15); // canon 15-20 %, borne basse
+    expect(p.minDistanceToCapitals).toBe(8); // canon 8-10, borne basse
     expect(p.volSpatialTech).toBe('vol_spatial');
   });
 
@@ -442,8 +448,8 @@ describe('7o · R-154 · Arche d’Alliance — Temples gratuits, Temples → Ca
   });
 });
 
-describe('7o · R-154 · École de Confucius — 3 GP, rotation R-127, sans jalon', () => {
-  it('3 GP posés à la capitale (rotation des classes), compteurs d’escalade +3, aucun jalon', () => {
+describe('7o · R-154 (rév. Calibrage canon) · École de Confucius — 2 GP, SANS escalade', () => {
+  it('2 GP posés à la capitale (rotation des classes), AUCUN jalon, AUCUNE escalade', () => {
     const state = makeState({
       width: 12,
       height: 10,
@@ -451,10 +457,13 @@ describe('7o · R-154 · École de Confucius — 3 GP, rotation R-127, sans jalo
       units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4 }],
       cities: [{ id: 'c1', owner: 'p1', q: 1, r: 1, capital: true }],
     });
+    // Le joueur a DÉJÀ des GP à son actif : l'exemption doit préserver l'index.
+    state.players['p1']!.greatPersonsObtained = 4;
+    const before = structuredClone(state.players['p1']!.greatPersonsByType);
     const orders: Record<string, Order[]> = { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }], p2: [] };
     const { newState, events } = resolveTurn(state, orders, SEED);
     const spawned = events.filter((e) => e.type === 'GreatPersonSpawned');
-    expect(spawned).toHaveLength(3);
+    expect(spawned).toHaveLength(2); // canon dataminé : 2 GP
     for (const e of spawned) {
       expect(e.type === 'GreatPersonSpawned' && e.cityId).toBe('c1');
     }
@@ -465,13 +474,26 @@ describe('7o · R-154 · École de Confucius — 3 GP, rotation R-127, sans jalo
       expect(e.type === 'GreatPersonSpawned' && hexDistance(e.at, { q: 1, r: 1 })).toBeLessThanOrEqual(1);
     }
     const classes = spawned.map((e) => (e.type === 'GreatPersonSpawned' ? e.unitType : ''));
-    expect(new Set(classes).size).toBe(3); // rotation : classes distinctes
-    expect(newState.players['p1']!.greatPersonsObtained).toBe(3);
+    expect(new Set(classes).size).toBe(2); // rotation : classes distinctes
     expect(newState.players['p1']!.cultureMilestones).toBe(0); // sans jalon (miroir C2)
-    const totalByType = Object.values(newState.players['p1']!.greatPersonsByType).reduce((a, b) => a + b, 0);
-    expect(totalByType).toBe(3);
-    const gpUnits = Object.values(newState.units).filter((u) => u.owner === 'p1' && classes.includes(u.type));
-    expect(gpUnits.length).toBe(3);
+    // EXEMPTION d'escalade (calibrage canon — manne hors progression) : ni le
+    // seuil culturel T-27 (`greatPersonsObtained`) ni les compteurs T-30 ne bougent.
+    expect(newState.players['p1']!.greatPersonsObtained).toBe(4);
+    expect(newState.players['p1']!.greatPersonsByType).toEqual(before);
+  });
+
+  it('le seuil culturel du PROCHAIN GP (T-27) est inchangé après Confucius', () => {
+    const state = makeState({
+      width: 12,
+      height: 10,
+      artefacts: [{ artefactId: 'ecole_confucius', q: 5, r: 5 }],
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4 }],
+      cities: [{ id: 'c1', owner: 'p1', q: 1, r: 1, capital: true }],
+    });
+    const thresholdBefore = greatPersonThresholdFor(state.players['p1']!.greatPersonsObtained);
+    const orders: Record<string, Order[]> = { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }], p2: [] };
+    const { newState } = resolveTurn(state, orders, SEED);
+    expect(greatPersonThresholdFor(newState.players['p1']!.greatPersonsObtained)).toBe(thresholdBefore);
   });
 });
 
@@ -493,6 +515,8 @@ describe('7o · R-154 · Chevaliers Templiers — unité selon l’ère, unique 
     expect(activated && activated.type === 'ArtifactActivated' && activated.unitType).toBe('chevalier');
     const granted = Object.values(newState.units).find((u) => u.type === 'chevalier' && u.owner === 'p1');
     expect(granted).toBeDefined();
+    // Calibrage canon : l'unité des Templiers arrive TOUJOURS Vétérane (5 XP).
+    expect(granted!.veteran).toBe(true);
     expect(hexDistance(granted!, { q: 5, r: 5 })).toBe(1); // la case de l'artefact est occupée par l'activateur
   });
 
@@ -507,6 +531,9 @@ describe('7o · R-154 · Chevaliers Templiers — unité selon l’ère, unique 
     const r1 = resolveTurn(moderne, mkOrders('u1'), SEED);
     const activated1 = r1.events.find((e) => e.type === 'ArtifactActivated');
     expect(activated1 && activated1.type === 'ArtifactActivated' && activated1.unitType).toBe('char_d_assaut');
+    // Vétérane (5 XP) quelle que soit l'unité de l'ère — canon.
+    const tank = Object.values(r1.newState.units).find((u) => u.type === 'char_d_assaut' && u.owner === 'p1');
+    expect(tank!.veteran).toBe(true);
 
     const espagne = makeState({
       width: 12,

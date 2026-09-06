@@ -9,11 +9,11 @@
       "stonehenge",
       "colosse_de_rhodes",
       "grande_pyramide",
+      "grande_muraille",
       "jardins_suspendus",
-      "oracle_de_delphes",
-      "grande_bibliotheque"
+      "oracle_de_delphes"
     ],
-    "egypteWonderNote": "7n 🔶 : merveilles de l'ère Antique proposées au choix de l'Égypte au setup (le canon dit « une Merveille Antique » sans préciser — proposition d'Erik : choix du joueur). Éditable sans code."
+    "egypteWonderNote": "Calibrage canon (rapports « Calibrage Mécaniques » + « Rules Research », Erik 06/09) : les 6 Merveilles Antiques du canon console ; la Merveille de l'Égypte est TIRÉE au RNG seedé de génération (pas de résolution) et construite gratuitement dans la capitale à la fondation — SANS choix du joueur. Éditable sans code."
   },
   "civs": {
     "amerique": {
@@ -52,7 +52,7 @@
       "name": "Aztèques",
       "leader": "Montezuma",
       "start": [
-        { "key": "orDepart", "amount": 25, "label": "Réserve d'or initiale importante (+25 🔶)" }
+        { "key": "orDepart", "amount": 25, "label": "Réserve d'or initiale importante (+25 — canon dataminé, montant fixe au tour 1)" }
       ],
       "eras": {
         "ancienne": [{ "key": "soinVictoire", "label": "Les unités se soignent automatiquement après une victoire" }],
@@ -146,7 +146,7 @@
       ],
       "eras": {
         "ancienne": [{ "key": "techGratuite", "tech": "democratie", "label": "Connaissance gratuite de la Démocratie" }],
-        "medievale": [{ "key": "gpFrequents", "label": "Taux d'apparition des Personnages Illustres augmenté (seuils ×0,75 🔶)" }],
+        "medievale": [{ "key": "gpFrequents", "label": "Taux d'apparition des Personnages Illustres augmenté (seuils ×0,75 — canon confirmé, fourchette 25-50 %, borne basse)" }],
         "industrielle": [{ "key": "coutBuildingMoitie", "buildings": ["bibliotheque"], "label": "Coût des Bibliothèques divisé par deux" }],
         "moderne": [
           { "key": "terrainBonus", "terrain": "eau", "food": 1, "label": "+1 nourriture sur les cases maritimes (côte)" },
@@ -214,7 +214,7 @@
       "eras": {
         "ancienne": [{ "key": "routesMoitie", "inactif": true, "label": "Coût de construction des routes divisé par deux (inactif — pas d'ouvriers/routes)" }],
         "medievale": [{ "key": "coutMerveilleMoitie", "label": "Coût de construction des Merveilles divisé par deux" }],
-        "industrielle": [{ "key": "gpFrequents", "label": "Taux d'apparition des Personnages Illustres augmenté (seuils ×0,75 🔶)" }],
+        "industrielle": [{ "key": "gpFrequents", "label": "Taux d'apparition des Personnages Illustres augmenté (seuils ×0,75 — canon confirmé, fourchette 25-50 %, borne basse)" }],
         "moderne": [{ "key": "popFondation", "amount": 1, "label": "Les nouvelles villes débutent avec +1 de Population" }]
       },
       "uniqueUnits": ["cataphracte"]
@@ -224,7 +224,7 @@
       "name": "Russie",
       "leader": "Catherine la Grande",
       "start": [
-        { "key": "carteRevelee", "label": "Carte de la région environnante entièrement révélée au départ (rayon 5 🔶)" }
+        { "key": "carteRevelee", "label": "Carte de la région environnante entièrement révélée au départ (rayon 5 — canon : ~2-3 cases au-delà de la vision du Colon)" }
       ],
       "eras": {
         "ancienne": [{ "key": "terrainBonus", "terrain": "plaine", "food": 1, "label": "+1 nourriture sur les cases de plaines" }],
@@ -258,7 +258,7 @@
       ],
       "eras": {
         "ancienne": [{ "key": "unitMovement", "units": ["guerrier", "guerrier_impi"], "amount": 1, "label": "+1 en Déplacement pour les Guerriers (Impi compris)" }],
-        "medievale": [{ "key": "croissanceAcceleree", "reduction": 0.33, "label": "Croissance urbaine accélérée (bonus passif de type Aqueduc 🔶)" }],
+        "medievale": [{ "key": "croissanceSeuilDivise", "divisor": 2, "label": "Croissance urbaine accélérée (seuils de croissance divisés par deux — Aqueduc passif canon, dataminé)" }],
         "industrielle": [{ "key": "empireGoldMult", "mult": 1.5, "label": "+50 % de production globale d'or" }],
         "moderne": [{ "key": "coutUniteMoitie", "units": ["fusilier"], "label": "Coût d'entraînement des Fusiliers divisé par deux" }]
       },

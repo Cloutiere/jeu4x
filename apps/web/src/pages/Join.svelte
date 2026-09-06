@@ -17,9 +17,10 @@
   let error = $state<string | null>(null);
   let run = 0;
   let unsubs: Array<() => void> = [];
-  // 7n · R-145 : le joueur B choisit SA civilisation au join 🔶 (défaut Rome).
+  // 7n · R-145 : le joueur B choisit SA civilisation au join (défaut Rome).
+  // Calibrage canon (Erik 06/09) : la Merveille Antique de l'Égypte est tirée
+  // par le moteur — plus aucun choix de merveille.
   let joinCiv = $state<string | null>('rome');
-  let joinWonder = $state<string | null>(null);
   let sessionReady = $state(false);
 
   $effect(() => {
@@ -56,7 +57,7 @@
     if (!client) return;
     // Le message part même si le socket n'est pas encore ouvert : net.ts
     // le met en file et l'envoie à l'ouverture.
-    client.join(code, joinCiv ?? undefined, joinCiv && joinWonder ? joinWonder : undefined);
+    client.join(code, joinCiv ?? undefined);
   }
 
   onDestroy(() => {
@@ -72,7 +73,7 @@
   <main class="joinciv">
     <h1>Rejoindre la partie {code}</h1>
     <p>{message}</p>
-    <CivPicker value={joinCiv} wonder={joinWonder} onchange={(civ, wonder) => { joinCiv = civ; joinWonder = wonder ?? null; }} compact />
+    <CivPicker value={joinCiv} onchange={(civ) => { joinCiv = civ; }} compact />
     <button type="button" class="confirm" onclick={confirmJoin}>Rejoindre avec cette civilisation</button>
   </main>
 {:else}
