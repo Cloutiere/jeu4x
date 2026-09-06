@@ -571,6 +571,23 @@ describe('R-98 · Huttes bonus', () => {
     expect(result.newState.villages).toHaveLength(0); // hors village, cap non affecté
   });
 
+  // CORRECTIFS-SOLO 3 (enquête Erik 05/09) : invariant général — hors
+  // embuscade R-98, AUCUN engendrement barbare ne provient d'une hutte : tout
+  // BarbarianSpawned nomme un VILLAGE existant (R-96). Les guerriers « sortis
+  // d'une hutte » signalés en solo sont donc l'embuscade canon (ouverture →
+  // 2 barbares adjacents) ou un camp barbare pris pour une hutte.
+  it('R-96/R-98 : tout BarbarianSpawned hors embuscade porte un villageId existant (jamais une hutte)', () => {
+    for (const kind of ['gold', 'unit', 'science', 'reveal', 'nothing'] as const) {
+      const result = hutSeedOf(kind);
+      const spawns = result.events.filter((e) => e.type === 'BarbarianSpawned');
+      const villageIds = new Set(result.newState.villages.map((v) => v.id));
+      for (const s of spawns) {
+        if (s.type !== 'BarbarianSpawned') continue;
+        expect(villageIds.has(s.villageId), `spawn hors village (kind=${kind})`).toBe(true);
+      }
+    }
+  });
+
   it('R-98 : récompense rien — aucun effet hors événement', () => {
     const result = hutSeedOf('nothing');
     expect(result.newState.players['p1']!.treasury).toBe(0);

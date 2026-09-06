@@ -7,7 +7,7 @@
  * verrouillé), R-60bis (tranches démographiques), R-65 (capture), 7m C15 (cratère).
  */
 import { describe, expect, it } from 'vitest';
-import { RESOURCES, RESOURCE_UNKNOWN, BUILDINGS, tileKeyOf } from '@game/rules';
+import { RESOURCES, RESOURCE_UNKNOWN, BUILDINGS, tileKeyOf, makeState, getFilteredState } from '@game/rules';
 import type { Hex } from '@game/rules';
 import { STRUCTURES3D, categorieDeBatiment } from '../src/lib/render3d/spec3d.js';
 import {
@@ -427,4 +427,38 @@ describe('Peintre de pictogrammes (contrat, sans DOM)', () => {
   });
 });
 
-void tileKeyOf;
+
+
+// CORRECTIFS-SOLO 2 (R-92) : le calque cartes-ressources alimenté par un VRAI
+// état filtré du moteur (le même pipeline que GameCanvas en jeu) — avant la
+// tech : carte neutre « ? » ; après : carte pleine identifiée. Le signalement
+// d'Erik (identités visibles sans tech) venait des données (13 ressources à
+// hiddenUntilRevealed: false), pas du calque — ce test verrouille le pipeline.
+describe('CORRECTIFS-SOLO 2 — pipeline état filtré → calque cartes 3D (R-92)', () => {
+  function planDepuisEtatFiltre(techs: string[]) {
+    const state = makeState({
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 }],
+    });
+    const key = '2,0';
+    state.map[key] = { terrain: 'colline', resource: 'or' }; // Or : révélé par Monnaie
+    state.players['p1']!.vision.explored = [key];
+    state.players['p1']!.techsUnlocked = techs;
+    const filtered = getFilteredState(state, 'p1');
+    const t = filtered.map[key]!;
+    return planifierStructures(entree({
+      tuiles: [{ q: 0, r: 0, terrain: t.terrain ?? 'colline', ressource: t.resource ?? null, fog: 'explored' }],
+    }));
+  }
+
+  it('avant Monnaie : la carte d’Or est NEUTRE (marqueur inconnue, jamais l’identité)', () => {
+    const plan = planDepuisEtatFiltre([]);
+    expect(plan.get('carteInconnue')).toHaveLength(1);
+    expect(plan.get('carte:or')).toBeUndefined();
+  });
+
+  it('après Monnaie : la carte d’Or est pleine et identifiée', () => {
+    const plan = planDepuisEtatFiltre(['monnaie']);
+    expect(plan.get('carte:or')).toHaveLength(1);
+    expect(plan.get('carteInconnue')).toBeUndefined();
+  });
+});

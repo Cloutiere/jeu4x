@@ -13,7 +13,7 @@
     "revealedByTech": "production_de_masse",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 3
   },
   "betail": {
@@ -48,7 +48,7 @@
     "revealedByTech": "irrigation",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 12
   },
   "baleine": {
@@ -99,7 +99,7 @@
     "revealedByTech": "automobile",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 4
   },
   "charbon": {
@@ -116,7 +116,7 @@
     "revealedByTech": "machine_a_vapeur",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 5
   },
   "chene": {
@@ -133,7 +133,7 @@
     "revealedByTech": "construction",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 9
   },
   "encens": {
@@ -150,7 +150,7 @@
     "revealedByTech": "rites_funeraires",
     "officialTech": null,
     "culture": 2,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 7
   },
   "epices": {
@@ -220,7 +220,7 @@
     "revealedByTech": "feudalite",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 10
   },
   "or": {
@@ -237,7 +237,7 @@
     "revealedByTech": "monnaie",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 4,
     "directGold": 3,
     "effect": "+3 or/tour versés directement à la trésorerie quand la case est travaillée (canon, dès Monnaie — rév. R-134)"
@@ -256,7 +256,7 @@
     "revealedByTech": "maconnerie",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 8
   },
   "petrole": {
@@ -273,7 +273,7 @@
     "revealedByTech": "combustion",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 3
   },
   "poisson": {
@@ -327,7 +327,7 @@
     "revealedByTech": "poudre_a_canon",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 3
   },
   "teinture": {
@@ -344,7 +344,7 @@
     "revealedByTech": "monarchie",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 6
   },
   "uranium": {
@@ -361,7 +361,7 @@
     "revealedByTech": "energie_nucleaire",
     "officialTech": null,
     "culture": null,
-    "hiddenUntilRevealed": false,
+    "hiddenUntilRevealed": true,
     "spawnWeight": 2
   },
   "vin": {

@@ -8,7 +8,8 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, isProducible, isUnitObsolete, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, uniqueReplacing, eraOfPlayer, civIdOf, activeTraitsOf } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, eraOfPlayer, civIdOf, activeTraitsOf } from '@game/rules';
+  import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
   import { greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
@@ -277,25 +278,24 @@
     eta: number | null;
   }
 
-  function optionFor(item: ProductionItem, name: string, cost: number, effect: string, tech: string | null, requires: string | null = null): ProdOption {
-    // 7e : producibilité complète — tech, implémentation, obsolescence,
-    // prérequis de bâtiment (Banque exige un Marché…). Palais : fixed.
-    const unlocked = isProducible({ tech: tech ?? null, requiresBuilding: requires ?? undefined }, techsUnlocked, city?.buildings ?? []);
-    let requiresLabel: string | null = null;
-    if (tech && !techsUnlocked.includes(tech)) requiresLabel = TECHS[tech]?.name ?? tech;
-    if (requires && !(city?.buildings ?? []).includes(requires)) {
-      requiresLabel = requiresLabel ? `${requiresLabel} + ${BUILDINGS[requires]?.name ?? requires}` : (BUILDINGS[requires]?.name ?? requires);
-    }
+  // CORRECTIFS-SOLO 1 : options d'unités/bâtiments extraites dans
+  // `lib/productionMenu.ts` — producibilité par `canSetProduction` (même
+  // source que le serveur et le bot, R-87) ; ICBM jamais listée (R-138).
+  const menuCtx = $derived.by(() => {
+    if (!city) return null;
     return {
-      item,
-      name,
-      cost,
-      effect,
-      unlocked,
-      requires: requiresLabel,
-      eta: unlocked && prodPerTurn > 0 ? Math.ceil(cost / prodPerTurn) : null,
+      techsUnlocked,
+      buildings: city.buildings ?? [],
+      civId: cityCivId,
+      coastal: cityCoastal,
+      prodPerTurn,
     };
-  }
+  });
+
+  const unitOptions = $derived.by(() => {
+    if (!menuCtx) return [] as ProdOption[];
+    return optionsUnites(menuCtx) as ProdOption[];
+  });
 
   // 7n · R-145 : civ du propriétaire de la ville (menus + tooltips traits).
   const cityCivId = $derived(city && view.state ? civIdOf(view.state.players[city.owner]) : 'neutre');
@@ -303,36 +303,9 @@
   // 7n · R-145 : traits ACTIFS de la ville (tooltips — inactifs grisés).
   const cityTraits = $derived(cityCivId === 'neutre' ? [] : activeTraitsOf({ civId: cityCivId, era: cityEra }));
 
-  const unitOptions = $derived.by(() => {
-    const options: ProdOption[] = [];
-    for (const u of Object.values(UNIT_TYPES)) {
-      if (u.implemented === false) continue; // Caravane, aériens, ICBM : pas proposés (7h+)
-      if (u.greatPerson) continue; // 7f · R-114 : les GP ne sortent JAMAIS des files
-      // 7n · R-148 : les unités uniques ne sont proposées qu'à LEUR civ ; une
-      // unité standard remplacée par un unique disponible est retirée du menu.
-      if (u.uniqueTo && u.uniqueTo !== cityCivId) continue;
-      if (!u.uniqueTo && uniqueReplacing(cityCivId, u.id, techsUnlocked)) continue;
-      // 7e · R-110 : les unités obsolètes sont retirées du menu (CivRev).
-      if (isUnitObsolete(u.id, techsUnlocked)) continue;
-      const effect = u.id === 'colon'
-        ? `Fonde une ville (consomme ${u.populationCost ?? 0} population)`
-        : u.aquatic
-          ? `${u.attack}/${u.defense}/${u.movement} — naval (${u.navalAccess === 'ocean' ? 'côte + océan' : 'côte seule'})${u.cargoCapacity ? ' · transporte 1 unité terrestre' : ''}`
-          : u.isRanged
-            ? `${u.attack}/${u.defense}/${u.movement} — à distance`
-            : `${u.attack}/${u.defense}/${u.movement}`;
-      const opt = optionFor({ kind: 'unit', id: u.id }, u.name, u.cost, effect, u.tech ?? null);
-      if (u.aquatic) {
-        // 7g · R-117 : une unité navale exige une ville côtière (accès mer).
-        if (!cityCoastal) {
-          opt.unlocked = false;
-          opt.requires = 'Requiert : accès à la mer';
-          opt.eta = null;
-        }
-      }
-      options.push(opt);
-    }
-    return sortUnlockedFirst(options);
+  const buildingOptions = $derived.by(() => {
+    if (!menuCtx) return [] as ProdOption[];
+    return optionsBatiments(menuCtx) as ProdOption[];
   });
 
   /**
@@ -373,45 +346,6 @@
     }
     return options;
   });
-
-  const buildingOptions = $derived.by(() => {
-    const options: ProdOption[] = [];
-    for (const b of Object.values(BUILDINGS)) {
-      if (b.fixed || b.implemented === false) continue; // Palais, composants du Vaisseau
-      if (city && city.buildings.includes(b.id)) continue; // déjà construit (R-66)
-      if (b.replaces && city && city.buildings.includes(b.replaces)) continue; // remplacé (R-111)
-      const effect = [
-        b.workRadiusBonus > 0 ? 'Rayon de travail 1 → 2' : (b.effect ?? tileEffectLabel(b)),
-        b.replaces ? `remplace ${BUILDINGS[b.replaces]?.name ?? b.replaces}` : null,
-        b.requiresBuilding ? `requiert ${BUILDINGS[b.requiresBuilding]?.name ?? b.requiresBuilding}` : null,
-      ].filter((s): s is string => s !== null).join(' — ');
-      options.push(optionFor({ kind: 'building', id: b.id }, b.name, b.cost, effect, b.tech ?? null, b.requiresBuilding ?? null));
-    }
-    return sortUnlockedFirst(options);
-  });
-
-  function sortUnlockedFirst(options: ProdOption[]): ProdOption[] {
-    return [...options].sort((a, b) => (a.unlocked === b.unlocked ? 0 : a.unlocked ? -1 : 1));
-  }
-
-  /** Libellé d'effet d'un bâtiment à bonus de terrain (tileBonus peut être null — crash 7a corrigé). */
-  function tileEffectLabel(b: (typeof BUILDINGS)[string]): string {
-    if (!b.tileBonus) return b.effect ?? 'Effet à venir';
-    const parts: string[] = [];
-    if (b.tileBonus.food) parts.push(`+${b.tileBonus.food} N`);
-    if (b.tileBonus.production) parts.push(`+${b.tileBonus.production} P`);
-    if (b.tileBonus.commerce) parts.push(`+${b.tileBonus.commerce} C`);
-    return `${parts.join(' ')} par ${TERRAIN_NAMES[b.tileBonus.terrain] ?? b.tileBonus.terrain}`;
-  }
-
-  const TERRAIN_NAMES: Record<string, string> = {
-    plaine: 'plaine',
-    colline: 'colline',
-    montagne: 'montagne',
-    desert: 'désert',
-    eau: 'mer',
-    ocean: 'océan',
-  };
 
   /** Nom de la ressource posée sur une case (R-91/R-92) — tooltip. Le
    *  marqueur « inconnue » est libellé explicitement (identité masquée). */

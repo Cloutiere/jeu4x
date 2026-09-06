@@ -99,6 +99,21 @@ describe('R-92 · ressources non révélées (Phase 7c, D1 révisée : marqueur 
     expect(fogged.map[KEY]!.resource).toBe('gemmes');
   });
 
+  // CORRECTIFS-SOLO 2 : balayage EXHAUSTIF — le test initial ne couvrait que le
+  // Fer (hiddenUntilRevealed: true) ; 15 ressources portaient `false` en
+  // contradiction avec R-92 (« aucune ressource v1 n'utilise ce cas ») et
+  // fuyaient leur identité avant la tech, en 2D comme en 3D.
+  it('balayage : TOUTE ressource à revealedByTech non débloquée est diffusée « inconnue »', async () => {
+    const { RESOURCES } = await import('../src/data.js');
+    for (const res of Object.values(RESOURCES)) {
+      if (res.revealedByTech === null) continue;
+      const state = stateWithFer();
+      state.map[KEY] = { terrain: 'colline', resource: res.id as never };
+      const fogged = getFilteredState(state, 'p1');
+      expect(fogged.map[KEY]!.resource, `identité de « ${res.id} » fuyarde sans la tech ${res.revealedByTech}`).toBe(RESOURCE_UNKNOWN);
+    }
+  });
+
   it('getFilteredState ne mute pas l’état (la ressource reste dans l’état serveur)', () => {
     const state = stateWithFer();
     const before = JSON.stringify(state);

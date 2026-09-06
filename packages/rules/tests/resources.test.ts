@@ -59,6 +59,15 @@ describe('R-91 · intégrité référentielle de resources.json', () => {
     expect(Object.keys(resourceTable)).toHaveLength(22);
   });
 
+  // CORRECTIFS-SOLO 2 (R-92) : « aucune ressource v1 n'utilise ce cas » —
+  // toute ressource à tech de révélation est masquée jusqu'au déblocage.
+  it('toute ressource à revealedByTech porte hiddenUntilRevealed: true', () => {
+    for (const r of Object.values(resourceTable)) {
+      if (r.revealedByTech === null) continue;
+      expect(r.hiddenUntilRevealed, `${r.id} : identité visible avant la tech ${r.revealedByTech}`).toBe(true);
+    }
+  });
+
   it('chaque entrée de `terrains` existe dans terrain.json et ≠ ville', () => {
     for (const r of Object.values(resourceTable)) {
       expect(r.terrains.length, `${r.id} : au moins un terrain`).toBeGreaterThan(0);
