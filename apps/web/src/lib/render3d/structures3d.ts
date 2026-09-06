@@ -63,6 +63,10 @@ export interface EntiteStructure {
   owner?: string;
   /** Gabarit de créature : 'guerrier' (défaut) ou 'archer' (lasso électrique). */
   type?: 'guerrier' | 'archer';
+  /** Interpolation de playback (chantier unités 3D) : l'unité se déplace de
+   *  (deQ, deR) — terrain de départ `deTerrain` pour l'élévation — vers sa
+   *  case (q, r) à la fraction `t` [0..1]. Absent = position statique. */
+  interpole?: { deQ: number; deR: number; deTerrain?: string; t: number };
 }
 
 export interface EntreeStructures {
@@ -365,8 +369,19 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
   // segments en arc terminés par une boucle néon (impression d'attaque à distance).
   // `echelle` est le facteur global (unités plus fortes → plus grandes).
   for (const u of e.unites ?? []) {
-    const { x, z } = hexWorldPos({ q: u.q, r: u.r });
-    const elev = TERRAINS3D[u.terrain ?? '']?.elev ?? 0;
+    // Interpolation de playback : position ET élévation lerpées entre la case
+    // de départ et la case d'arrivée (mouvements animés du vrai jeu).
+    let { x, z } = hexWorldPos({ q: u.q, r: u.r });
+    let elev = TERRAINS3D[u.terrain ?? '']?.elev ?? 0;
+    if (u.interpole) {
+      const it = u.interpole;
+      const a = hexWorldPos({ q: it.deQ, r: it.deR });
+      const b = hexWorldPos({ q: u.q, r: u.r });
+      const elevA = TERRAINS3D[it.deTerrain ?? '']?.elev ?? elev;
+      x = a.x + (b.x - a.x) * it.t;
+      z = a.z + (b.z - a.z) * it.t;
+      elev = elevA + (elev - elevA) * it.t;
+    }
     const accent = dim(e.couleurDe(u.owner ?? 'barbarien'), u.fog);
     const archer = u.type === 'archer';
     const ug = archer ? S.uniteArcher : S.uniteGuerrier;
@@ -644,6 +659,11 @@ export interface StructuresWorldStats {
   instances: number;
   pools: number;
   derniersRebuildMs: number;
+}
+
+/** Détail par pool (instances utilisées) — vérifications GUI/e2e (dev). */
+export function detailsPools(plan: PlanStructures): Record<string, number> {
+  return Object.fromEntries([...plan.entries()].map(([k, v]) => [k, v.length]));
 }
 
 export interface StructuresWorldOpts {

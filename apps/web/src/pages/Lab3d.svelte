@@ -52,6 +52,9 @@
   // cratère, huttes/villages) — pire cas d'instanciation mesuré sur 40×40.
   import { StructuresWorld, planifierStructures } from '../lib/render3d/structures3d.js';
   import type { EntreeStructures } from '../lib/render3d/structures3d.js';
+  // Chantier V2-unités3D : assemblage PARTAGÉ du calque unités (miroir exact
+  // de GameCanvas — catalogue data-driven, playback, fog).
+  import { unitesStructures } from '../lib/render3d/unites3d.js';
 
   // --- Réglages du banc -----------------------------------------------------
   let seed = $state(20260904);
@@ -206,6 +209,9 @@
           .map((c) => ({ id: c.id, q: c.q, r: c.r, pop: c.pop, capital: c.capital, owner: c.owner, buildings: c.buildings, wonders: c.wonders ?? [], fog: fogDe(tileKeyOf(c)) })),
         huttes: filtered.huts.filter((h) => dansFenetre(h.q, h.r)).map((h) => ({ id: h.id, q: h.q, r: h.r, fog: fogDe(tileKeyOf(h)), terrain: filtered?.map[tileKeyOf(h)]?.terrain })),
         villages: filtered.villages.filter((v) => dansFenetre(v.q, v.r)).map((v) => ({ id: v.id, q: v.q, r: v.r, fog: fogDe(tileKeyOf(v)), terrain: filtered?.map[tileKeyOf(v)]?.terrain })),
+        // Même module que le jeu (unites3d.ts) : guerrier/archer de l'état
+        // filtré en 3D, autres types en sprite — aucune logique dupliquée.
+        unites: filtered ? unitesStructures({ state: filtered, visible }) : [],
         couleurDe,
       };
     }

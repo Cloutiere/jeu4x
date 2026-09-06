@@ -36,8 +36,11 @@
   import type { ContexteRendement } from '../render3d/rendement.js';
   // Chantier V2 — structures 3D : Mainframe des villes, cartes-ressources en
   // slots, cratère, huttes/villages barbares (les unités restent des sprites).
-  import { StructuresWorld, planifierStructures } from '../render3d/structures3d.js';
+  import { StructuresWorld, planifierStructures, detailsPools } from '../render3d/structures3d.js';
   import type { PlanStructures } from '../render3d/structures3d.js';
+  // Chantier V2-unités3D — assemblage PARTAGÉ du calque unités (miroir Lab3d,
+  // catalogue data-driven : guerrier/archer en 3D, autres types en sprite).
+  import { aModele3D, unitesStructures } from '../render3d/unites3d.js';
 
   interface Props {
     client: GameClient;
@@ -166,6 +169,8 @@
   let structures3d: StructuresWorld | null = null;
   let canvas3d: HTMLCanvasElement | null = null;
   let rendement: ContexteRendement | null = null;
+  /** Dernier plan de structures (détail par pool — hook de vérification dev). */
+  let dernierPlanStructures: PlanStructures | null = null;
   /** 3D actif = flag du parent ET moteur 3D monté (setup réussi). */
   const mode3dActif = (): boolean => mode3d && !!stage3d && !!terrain3d;
   /**
@@ -340,6 +345,14 @@
         entitiesLayer.addChild(c);
         unitSprites.set(unit.id, c);
       }
+      // V2-unités3D : une unité AVEC modèle 3D masque son sprite d'art (le
+      // modèle 3D est le rendu) mais le conteneur projeté reste — barre de PV,
+      // fortification, cargo, badge espion suivent. Sans modèle : sprite 2D.
+      const en3d = structures3dActives && aModele3D(unit.type);
+      const baseU = c.getChildByLabel('base');
+      const accentU = c.getChildByLabel('accent');
+      if (baseU) baseU.visible = !en3d;
+      if (accentU) accentU.visible = !en3d;
       const p = hexToPixel(unit, HEX_SIZE);
       const anim = playback.moveOf(unit.id);
       if (anim) {
@@ -525,10 +538,12 @@
     if (!tex) return c; // type d'unité sans placeholder (ne devrait pas arriver en v1)
     const color = playerColor(owner);
     const base = new Sprite(tex.base);
+    base.label = 'base';
     base.anchor.set(0.5, 1);
     base.scale.set(0.5);
     base.y = 10;
     const accent = new Sprite(tex.accent);
+    accent.label = 'accent';
     accent.anchor.set(0.5, 1);
     accent.scale.set(0.5);
     accent.y = 10;
@@ -1111,6 +1126,9 @@
         const b = hexToPixel(anim.to, HEX_SIZE);
         poser3d(c, a.x + (b.x - a.x) * anim.t, a.y + (b.y - a.y) * anim.t);
       }
+      // V2-unités3D : le calque 3D suit l'interpolation du playback (positions
+      // + élévations lerpées par le planificateur — unites3d/interpole).
+      if (mode3dActif()) mettreAJourStructures3d();
       rebuildEffects();
     }
     if (mode3dActif()) {
@@ -1177,7 +1195,11 @@
     }
     const huttes = state.huts.map((h) => ({ id: h.id, q: h.q, r: h.r, fog: scene.visible.has(tileKeyOf(h)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(h)]?.terrain }));
     const villages = state.villages.map((v) => ({ id: v.id, q: v.q, r: v.r, fog: scene.visible.has(tileKeyOf(v)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(v)]?.terrain }));
-    const plan: PlanStructures = planifierStructures({ tuiles, villes, huttes, villages, couleurDe: playerColor });
+    // Unités 3D (chantier V2-unités3D) : assemblage PARTAGÉ avec le labo
+    // (unites3d.ts) — playback interpolé suivi par le calque, mapping data-driven.
+    const unites = unitesStructures({ state, visible: scene.visible, moveOf: (id) => playback.moveOf(id) });
+    const plan: PlanStructures = planifierStructures({ tuiles, villes, huttes, villages, unites, couleurDe: playerColor });
+    dernierPlanStructures = plan;
     structures3d.update(plan);
   }
 
@@ -1544,8 +1566,9 @@
           const w = hexToPixel({ q, r }, HEX_SIZE);
           return { x: w.x * camera.scale + camera.x, y: w.y * camera.scale + camera.y };
         },
-        // V2 : statistiques de la couche structures 3D (vérifications GUI/e2e).
-        structures: () => (structures3d ? { ...structures3d.stats } : null),
+        // V2 : statistiques de la couche structures 3D (vérifications GUI/e2e) —
+        // détail par pool (unités 3D visibles ? cf. unites3d).
+        structures: () => (structures3d ? { ...structures3d.stats, details: dernierPlanStructures ? detailsPools(dernierPlanStructures) : null } : null),
       };
     }
 
@@ -1612,11 +1635,17 @@
         const c = app.renderer.extract.canvas(app.stage) as HTMLCanvasElement;
         return c.toDataURL("image/png");
       },
-      sprites(): Array<{ layer: string; label: string; x: number; y: number; scale: number; children: number }> {
-    const dump: Array<{ layer: string; label: string; x: number; y: number; scale: number; children: number }> = [];
+      sprites(): Array<{ layer: string; label: string; x: number; y: number; scale: number; children: number; detail: string[] }> {
+    const dump: Array<{ layer: string; label: string; x: number; y: number; scale: number; children: number; detail: string[] }> = [];
     const walk = (layer: Container, name: string): void => {
       for (const child of layer.children) {
-        dump.push({ layer: name, label: String(child.label ?? ""), x: Math.round(child.x), y: Math.round(child.y), scale: child.scale.x, children: child.children.length });
+        dump.push({
+          layer: name, label: String(child.label ?? ""), x: Math.round(child.x), y: Math.round(child.y),
+          scale: child.scale.x, children: child.children.length,
+          // V2-unités3D : détail des sous-enfants (base/accent masqués si le
+          // modèle 3D est le rendu — preuve e2e du sprite caché).
+          detail: child.children.map((g) => `${String(g.label ?? '?')}:${g.visible ? 'v' : 'CACHE'}`),
+        });
       }
     };
     walk(tilesLayer, "tiles");

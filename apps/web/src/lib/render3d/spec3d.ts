@@ -630,6 +630,31 @@ const UNITE_ARCHER3D: SpecUniteArcher = {
   },
 };
 
+/** Gabarits de créature 3D rendus par le planificateur (atelier Erik). */
+export type GabaritUnite = 'guerrier' | 'archer';
+const GABARITS: ReadonlySet<string> = new Set(['guerrier', 'archer']);
+
+/**
+ * Catalogue des modèles 3D d'unités (atelier Erik) : type MOTEUR → gabarit de
+ * créature. Data-driven — un type absent de la table garde son sprite billboard
+ * 2D ; quand Erik ajoute un modèle au catalogue (`visuel3d.json`), il apparaît
+ * en 3D au jeu sans nouveau code.
+ */
+export const MODELES_UNITES3D: Record<string, GabaritUnite> = Object.fromEntries(
+  Object.entries(objet(structuresBrut.unites3d, 'structures.unites3d')).map(([type, v]) => {
+    if (type.startsWith('_')) return [type, null as unknown as GabaritUnite]; // clé de commentaire
+    if (typeof v !== 'string' || !GABARITS.has(v)) {
+      throw new Error(`visuel3d.json : gabarit inconnu pour l'unité « ${type} » (${JSON.stringify(v)})`);
+    }
+    return [type, v as GabaritUnite];
+  }).filter(([, g]) => g !== null),
+);
+
+/** Gabarit 3D d'un type d'unité moteur — null = pas de modèle 3D (sprite 2D). */
+export function gabaritUnite3D(type: string): GabaritUnite | null {
+  return MODELES_UNITES3D[type] ?? null;
+}
+
 export const STRUCTURES3D: SpecStructures = {
   slot: SLOT3D,
   formes: FORMES3D,

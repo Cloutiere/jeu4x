@@ -621,6 +621,11 @@
           "emissif": 0.9
         }
       }
+    },
+    "unites3d": {
+      "_comment": "Catalogue des modeles 3D d'unites (atelier Erik) : type moteur -> gabarit de creature. Tout type ABSENT de cette table garde son sprite billboard 2D. Un nouveau modele travaille en atelier = une entree ici, sans nouveau code.",
+      "guerrier": "guerrier",
+      "archer": "archer"
     }
   }
 }
