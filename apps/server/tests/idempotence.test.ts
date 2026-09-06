@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveTurn } from '@game/rules';
 import type { GameState, Order } from '@game/rules';
 import type { GameCreationSettings, Snapshot } from '@game/shared';
-import { adminDump, createGame, gameNamespace, joinGame, makeToken, openGameSocket } from './helpers.js';
+import { adminDump, createGame, gameNamespace, joinGame, makeToken, moveTargetFor, openGameSocket } from './helpers.js';
 
 const WITH_TIMER: GameCreationSettings = { mapId: 'pangee-40', turnTimerMinutes: 5, isPublic: true };
 const ALICE = { id: 'dev:alice', name: 'Alice' };
@@ -23,7 +23,7 @@ describe('GameDO · crash pendant resolveTurn → reprise idempotente', () => {
     expect(snap.state.turn).toBe(0);
 
     // Ordre + verrouillage de A ; B sera auto-verrouillé par le flux d'alarme.
-    const move: Order = { type: 'Move', unitId: 'u1', path: [{ q: -3, r: 19 }] };
+    const move: Order = { type: 'Move', unitId: 'u1', path: [moveTargetFor(snap)] };
     alice.send({ type: 'SubmitOrder', order: move });
     await alice.waitFor('OrderAck');
     alice.send({ type: 'EndTurn' });

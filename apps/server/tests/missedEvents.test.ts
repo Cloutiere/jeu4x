@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { GameCreationSettings, Snapshot, TurnResult, Welcome } from '@game/shared';
-import { createGame, joinGame, makeToken, openGameSocket } from './helpers.js';
+import { createGame, joinGame, makeToken, moveTargetFor, openGameSocket } from './helpers.js';
 
 const NO_TIMER: GameCreationSettings = { mapId: 'pedagogique-40', turnTimerMinutes: null, isPublic: true };
 
@@ -23,12 +23,12 @@ describe('GameDO · missedEvents de la dernière résolution (L0)', () => {
     const alice = await openGameSocket(code, await makeToken(ALICE.id, ALICE.name));
     const bob = await openGameSocket(code, await makeToken(BOB.id, BOB.name));
     await alice.waitFor('Welcome');
-    await alice.waitFor('Snapshot');
+    const snapA = (await alice.waitFor('Snapshot')) as Snapshot;
     await bob.waitFor('Welcome');
     await bob.waitFor('Snapshot');
 
     // Tour 0 résolu normalement (les deux sockets étaient connectés).
-    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [{ q: -3, r: 19 }] } });
+    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [moveTargetFor(snapA)] } });
     await alice.waitFor('OrderAck');
     alice.send({ type: 'EndTurn' });
     await alice.waitFor('OrderAck');

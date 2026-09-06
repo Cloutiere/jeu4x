@@ -173,3 +173,23 @@ export async function adminDump(code: string): Promise<AdminDump> {
   expect(res.status).toBe(200);
   return res.json() as Promise<AdminDump>;
 }
+
+/**
+ * Case de destination d'un Move de test : premier voisin praticable (ordre
+ * canonique R-81) de la position RÉELLE de l'unité sur la carte — les cartes
+ * préfabriquées peuvent évoluer (ajustements SPAWN-START), les tests ne
+ * doivent pas coder en dur des coordonnées de départ.
+ */
+export function moveTargetFor(
+  snap: { state: { map: Record<string, { terrain: string } | undefined>; units: Record<string, { q: number; r: number } | undefined> } },
+  unitId = 'u1',
+): { q: number; r: number } {
+  const unit = snap.state.units[unitId];
+  if (!unit) throw new Error(`unité ${unitId} absente du snapshot`);
+  for (const [dq, dr] of [[0, -1], [-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1]] as const) {
+    const h = { q: unit.q + dq, r: unit.r + dr };
+    const tile = snap.state.map[`${h.q},${h.r}`];
+    if (tile && !['eau', 'ocean', 'montagne', 'ville'].includes(tile.terrain)) return h;
+  }
+  throw new Error('aucune case praticable adjacente pour le Move de test');
+}

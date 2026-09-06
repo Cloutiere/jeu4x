@@ -6,7 +6,7 @@
 import { runDurableObjectAlarm } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import type { GameCreationSettings, Snapshot, TurnResult, Welcome } from '@game/shared';
-import { adminDump, createGame, gameNamespace, joinGame, makeToken, openGameSocket } from './helpers.js';
+import { adminDump, createGame, gameNamespace, joinGame, makeToken, moveTargetFor, openGameSocket } from './helpers.js';
 
 const NO_TIMER: GameCreationSettings = { mapId: 'pangee-40', turnTimerMinutes: null, isPublic: true };
 const WITH_TIMER: GameCreationSettings = { mapId: 'pangee-40', turnTimerMinutes: 5, isPublic: true };
@@ -77,8 +77,8 @@ describe('GameDO · temps réel à deux onglets', () => {
     expect(snapA.seq).toBe(0);
     expect(snapB.seq).toBe(0);
 
-    // A déplace son guerrier (u1, en (-3,20)), tout le monde verrouille → résolution.
-    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [{ q: -3, r: 19 }] } });
+    // A déplace son guerrier (position réelle du snapshot), tout le monde verrouille → résolution.
+    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [moveTargetFor(snapA)] } });
     const ack = await alice.waitFor('OrderAck');
     expect(ack.type).toBe('OrderAck');
     if (ack.type !== 'OrderAck') return;
@@ -174,9 +174,9 @@ describe('GameDO · brouillons d\'ordres persistés (§3.5)', () => {
 
 describe('GameDO · alarme : timer, reconnexion, resync, forfait', () => {
   it('échéance du timer : auto-verrouillage des ordres courants + résolution + missedTurns', async () => {
-    const { code, alice } = await readySockets(WITH_TIMER);
+    const { code, alice, snapA } = await readySockets(WITH_TIMER);
     // A soumet un ordre puis verrouille ; B ne verrouille pas (déconnecté).
-    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [{ q: -3, r: 19 }] } });
+    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path: [moveTargetFor(snapA)] } });
     await alice.waitFor('OrderAck');
     alice.send({ type: 'EndTurn' });
     await alice.waitFor('OrderAck');
