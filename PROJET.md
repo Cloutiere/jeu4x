@@ -31,6 +31,11 @@
 3. **CENTREVILLE** — socle garanti 1N/1P/1C (`HANDOFF-CENTREVILLE.md`) — ✅ livré (voir `REPORT-CENTREVILLE.md`) ;
 4. **UNITES-3D** — brancher les créatures 3D d'Erik (Script de Base, Sentinelle Réseau) au monde de jeu (`HANDOFF-CHANTIER-V2-UNITES3D.md`) ;
 5. **ATELIER** — sessions de retouche en cours (Erik + agent, rituel `ATELIER-ASSETS.md`) ;
+6. **INTERACTION-3D** ✅ — déplacements vers villes/cases alliées libérables + worked tiles en file d'ordres (livré 06/09) ;
+7. **SPAWN-START** ✅ — voisinage du Colon garanti (2 forêts, 2 prairies, 1 eau) + 0 ressource au rayon 2, cartes préfabriquées ajustées (livré 06/09) ;
+8. **CENTREVILLE** ✅ — socle garanti 1N/1P/1C sur tout terrain, tranche démographique au-dessus (livré 06/09) ;
+
+**921 tests verts** · `schemaVersion` 18 · CI et prod saines.
 
 ## 📋 File d'attente
 
