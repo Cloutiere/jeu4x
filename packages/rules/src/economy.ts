@@ -22,6 +22,7 @@ import { civTerrainBonusesOf, civToutesRessources } from './civilizations.js';
 import type { TechEra, TerrainId, TileResource, Yields } from './types.js';
 import { resourceBonus } from './resources.js';
 import { CITY_WORK_RADIUS } from './constants.js';
+import { GROWTH } from './growth.js';
 import type { TileKey } from './state.js';
 
 export const ZERO_YIELDS: Yields = { food: 0, production: 0, commerce: 0 };
@@ -113,6 +114,18 @@ export function tileYield(
   }
   const resBonus = resourceBonus(tile.resource ? (RESOURCES[tile.resource] ?? null) : null, techsUnlocked, civ ? civToutesRessources(civ) : false);
   if (resBonus) y = addYields(y, resBonus);
+  // R-66 (rév. 06/09) : socle garanti du centre-ville — la case de ville
+  // produit AU MINIMUM 1N/1P/1C sur N'IMPORTE QUEL terrain. Plancher par
+  // ressource appliqué SUR les rendements calculés (terrain + bâtiments +
+  // traits de civ) : il ne plafonne rien. Source unique moteur/UI/3D.
+  if (tile.terrain === 'ville') {
+    const f = GROWTH.cityCenter.floor;
+    y = {
+      food: Math.max(f.food, y.food),
+      production: Math.max(f.production, y.production),
+      commerce: Math.max(f.commerce, y.commerce),
+    };
+  }
   return y;
 }
 

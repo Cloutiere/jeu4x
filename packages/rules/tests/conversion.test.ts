@@ -98,8 +98,9 @@ describe('R-90 · défaut et SetConversion (action immédiate)', () => {
 });
 
 describe('R-90/R-88 · Phase C — la conversion alimente or et science (resolveTurn)', () => {
-  /** Ville p1 avec une case désert travaillée (0/0/1 C) ; 7i · R-66 (rév.) :
-   *  le commerce du centre suit la tranche (0 pour pop ≤ 6) → C=1. */
+  /** Ville p1 avec une case désert travaillée (0/0/1 C) ; R-66 (rév. 06/09) :
+   *  socle garanti du centre = 1 C (la tranche R-60bis ajoute 0 sous pop 7)
+   *  → C=2. */
   function stateWithConversion(conversion: 'gold' | 'science', buildings: string[] = []): GameState {
     return makeState({
       width: 4,
@@ -123,26 +124,26 @@ describe('R-90/R-88 · Phase C — la conversion alimente or et science (resolve
 
   it('R-90 : conversion or → or = 1, science = 0 (réserve vide sans tech choisie)', () => {
     const { newState } = resolveTurn(stateWithConversion('gold'), { p1: [], p2: [] }, 7);
-    expect(newState.players.p1!.treasury).toBe(1);
+    expect(newState.players.p1!.treasury).toBe(2);
     expect(newState.players.p1!.scienceStored).toBe(0);
   });
 
   it('R-90 : conversion science → science = 2 en réserve, or = 0', () => {
     const { newState } = resolveTurn(stateWithConversion('science'), { p1: [], p2: [] }, 7);
     expect(newState.players.p1!.treasury).toBe(0);
-    expect(newState.players.p1!.scienceStored).toBe(1);
+    expect(newState.players.p1!.scienceStored).toBe(2);
   });
 
-  it('R-88 : ville à bibliothèque en conversion or → 1 or + 1 science (max(1 ; round(0,2)))', () => {
+  it('R-88 : ville à bibliothèque en conversion or → 2 or + 1 science (max(1 ; round(0,4)))', () => {
     const { newState } = resolveTurn(stateWithConversion('gold', ['bibliotheque']), { p1: [], p2: [] }, 7);
-    expect(newState.players.p1!.treasury).toBe(1);
+    expect(newState.players.p1!.treasury).toBe(2);
     expect(newState.players.p1!.scienceStored).toBe(1);
   });
 
-  it('R-88 : ville à bibliothèque en conversion science → round(1,5) = 2 science, 0 or', () => {
+  it('R-88 : ville à bibliothèque en conversion science → round(1,5) = 3 science, 0 or', () => {
     const { newState } = resolveTurn(stateWithConversion('science', ['bibliotheque']), { p1: [], p2: [] }, 7);
     expect(newState.players.p1!.treasury).toBe(0);
-    expect(newState.players.p1!.scienceStored).toBe(2);
+    expect(newState.players.p1!.scienceStored).toBe(3);
   });
 
   it('R-88 : la science de la bibliothèque alimente la recherche en cours', () => {

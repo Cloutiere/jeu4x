@@ -78,9 +78,9 @@ describe('R-109 · Premier découvrir (7e)', () => {
     });
     state.firstBy = { industrialisation: 'p1' }; // récompense perCity {gold: 5}
     const { newState } = resolveTurn(state, {}, 1);
-    // 2 villes × 5 or de récompense. 7i · R-66 (rév.) : plus d'or de centre
-    // à pop ≤ 6 (le commerce du centre suit la tranche).
-    expect(newState.players['p1']!.treasury).toBe(10);
+    // 2 villes × 5 or de récompense. R-66 (rév. 06/09) : socle garanti du
+    // centre = 1 C/tour/ville (tranche 0 sous pop 7) → +2 or.
+    expect(newState.players['p1']!.treasury).toBe(12);
   });
 });
 

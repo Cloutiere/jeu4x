@@ -83,7 +83,10 @@
     }
   ],
   "cityCenter": {
-    "minProduction": 1,
-    "commerceByTier": true
+    "floor": {
+      "food": 1,
+      "production": 1,
+      "commerce": 1
+    }
   }
 }

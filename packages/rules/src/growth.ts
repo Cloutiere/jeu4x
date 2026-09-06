@@ -28,7 +28,9 @@ export interface GrowthData {
   growthThresholds: Record<string, number>;
   /** Tranches démographiques des citoyens intérieurs (D4 — R-60bis). */
   interiorCitizens: Array<{ minPop: number; maxPop: number; label: string; production: number; commerce: number }>;
-  cityCenter: { minProduction: number; commerceByTier: boolean };
+  /** R-66 (rév. 06/09) : socle garanti du centre-ville — plancher par
+   *  ressource (1N/1P/1C 🔶) appliqué SUR les rendements calculés. */
+  cityCenter: { floor: { food: number; production: number; commerce: number } };
 }
 
 export const GROWTH: GrowthData = growthJson as unknown as GrowthData;

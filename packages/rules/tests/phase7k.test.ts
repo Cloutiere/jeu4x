@@ -249,12 +249,12 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
       cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 1, workedTiles: ['3,2'], wonders: ['compagnie_des_indes'] }],
     });
     const out = resolveTurn(state, {}, 42).newState;
-    // Centre pop 1 = 0 commerce (tranche Ouvrier) ; océan 2 C (+1 Cie des Indes) = 3 or/tour ;
-    // sans la merveille : 0 + 2 = 2 or.
-    expect(out.players['p1']!.treasury).toBe(3);
+    // Centre pop 1 = socle 1 C (R-66 rév. 06/09, tranche Ouvrier 0) ;
+    // océan 2 C (+1 Cie des Indes) = 4 or/tour ; sans la merveille : 1 + 2 = 3 or.
+    expect(out.players['p1']!.treasury).toBe(4);
     const sans = structuredClone(state);
     sans.cities['c1']!.wonders = [];
-    expect(resolveTurn(sans, {}, 42).newState.players['p1']!.treasury).toBe(2);
+    expect(resolveTurn(sans, {}, 42).newState.players['p1']!.treasury).toBe(3);
   });
 
   it('Atelier de Léonard : met à niveau gratuitement les unités obsolètes (R-111 — guerrier → legion), EMPIRE du propriétaire', () => {
@@ -274,17 +274,17 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
   });
 
   it('7l · C10 · Foire de Troyes : ×2 la part OR de la cité ; cumul Internet MULTIPLICATIF ×4', () => {
-    // Cité à 1 commerce (case de désert travaillée — le centre pop 1 ne donne
-    // aucun commerce, tranche Ouvrier) en conversion or : 1 or → 2 or.
+    // Cité à 2 commerces (case de désert travaillée + socle du centre,
+    // R-66 rév. 06/09) en conversion or : 2 or → 4 or.
     const state = makeState({
       terrainOverrides: { '2,1': 'desert' },
       cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 1, workedTiles: ['2,1'], wonders: ['foire_de_troyes'] }],
     });
-    expect(resolveTurn(state, {}, 42).newState.players['p1']!.treasury).toBe(2);
+    expect(resolveTurn(state, {}, 42).newState.players['p1']!.treasury).toBe(4);
     // Cumul Troyes + Internet : MULTIPLICATIF ×4 (7l · C10 — remplace MAX).
     const both = structuredClone(state);
     both.cities['c1']!.wonders = ['foire_de_troyes', 'internet'];
-    expect(resolveTurn(both, {}, 42).newState.players['p1']!.treasury).toBe(4);
+    expect(resolveTurn(both, {}, 42).newState.players['p1']!.treasury).toBe(8);
     expect(cityGoldMultOf(['foire_de_troyes'], [])).toBe(2);
   });
 
@@ -298,7 +298,7 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
     });
     state.cities['c1']!.wonders = ['internet'];
     const out = resolveTurn(state, {}, 42).newState;
-    expect(out.players['p1']!.treasury).toBe(4); // 2 villes × 1 or ×2 (empire)
+    expect(out.players['p1']!.treasury).toBe(8); // 2 villes × 2 C (socle+désert) ×2 (empire)
   });
 
   it('Complexe militaro-industriel : −20 % le coût de production des unités MILITAIRES (Colon exclu — production seule, 7l)', () => {

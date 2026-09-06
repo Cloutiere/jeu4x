@@ -20,6 +20,7 @@ import {
   populationCap,
   GROWTH,
 } from '../src/growth.js';
+import { tileYield, autoAssignWorkedTiles } from '../src/economy.js';
 
 describe('D1 · R-63 (rév.) — la nourriture se consomme', () => {
   it('surplus = récolte − population : une ville pop 3 sans surplus ne grandit plus', () => {
@@ -140,10 +141,11 @@ describe('D4 · R-60bis — citoyens intérieurs (tranches démographiques)', ()
     });
     const { newState } = resolveTurn(state, {}, 1);
     // aucune case assignée (pas de re-remplissage hors pendingFill) →
-    // 7 citoyens intérieurs : commerce = 1 (centre, tranche 7-12) + 7 × 1
+    // 7 citoyens intérieurs : commerce = 1 (socle R-66 rév.) + 1 (tranche
+    // 7-12) + 7 × 1 (intérieurs) — R-66 (rév. 06/09)
     const city = cityAt(newState, 0, 0)!;
     expect(city.workedTiles).toHaveLength(0);
-    expect(newState.players['p1']!.treasury).toBe(8);
+    expect(newState.players['p1']!.treasury).toBe(9);
   });
 
   it('Tribunal : les citoyens intérieurs redeviennent travailleurs de terrain (priorité extérieure)', () => {
@@ -217,9 +219,10 @@ describe('R-66 (rév.) — centre-ville : min 1 Production, commerce par tranche
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: [] }],
     });
     const { newState } = resolveTurn(state, {}, 1);
-    // production = 1 (centre, minimum R-66) + 2 × 1 (2 intérieurs Ouvriers)
-    // → la ville produit des marteaux malgré le désert ; commerce = 0 + 0
-    expect(newState.players['p1']!.treasury).toBe(0);
+    // production = 1 (centre, socle R-66 rév.) + 2 × 1 (2 intérieurs Ouvriers)
+    // → la ville produit des marteaux malgré le désert ; commerce = socle 1 C
+    // + tranche 0 (pop ≤ 6) — R-66 (rév. 06/09)
+    expect(newState.players['p1']!.treasury).toBe(1);
     // la file progresse : preuve de production du centre
     const s2 = makeState({
       width: 8,
@@ -263,5 +266,112 @@ describe('7i · La pompe à colons (doc §Impact Économique)', () => {
     }
     expect(Object.values(s.cities)[0]!.pop).toBe(2);
     expect(tours).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('R-66 (rév. 06/09) — socle garanti 1N / 1P / 1C du centre-ville', () => {
+  // Terrains fondables (passables, hors cratère — R-64/C15).
+  const FONDABLES = ['prairie', 'plaine', 'foret', 'colline', 'desert'] as const;
+
+  it('multi-terrains : fondé sur N\'IMPORTE QUEL terrain, le centre produit ≥ 1N / 1P / 1C', () => {
+    for (const terrain of FONDABLES) {
+      const state = makeState({
+        width: 8,
+        height: 8,
+        terrainOverrides: {
+          '0,0': terrain,
+          '1,0': terrain, '0,1': terrain, '-1,0': terrain,
+          '0,-1': terrain, '1,-1': terrain, '-1,1': terrain,
+        },
+        cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: [] }],
+      });
+      // La fondation transforme la case en terrain `ville` (R-64) ; le socle
+      // R-66 (rév.) garantit le plancher 1/1/1 par ressource (tileYield —
+      // source unique moteur/UI/3D).
+      const y = tileYield(state.map, [], '0,0')!;
+      expect(y.food, `nourriture sur ${terrain}`).toBeGreaterThanOrEqual(1);
+      expect(y.production, `production sur ${terrain}`).toBeGreaterThanOrEqual(1);
+      expect(y.commerce, `commerce sur ${terrain}`).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('centre sur désert, pop 1 : commerce du socle = 1 dès la fondation (tranche R-60bis = 0)', () => {
+    const state = makeState({
+      width: 8,
+      height: 8,
+      terrainOverrides: {
+        '1,0': 'desert', '0,1': 'desert', '-1,0': 'desert',
+        '0,-1': 'desert', '1,-1': 'desert', '-1,1': 'desert',
+      },
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: [] }],
+    });
+    const { newState } = resolveTurn(state, {}, 1);
+    // Socle 1 C (conversion Or par défaut) ; la tranche démographique ajoute 0.
+    expect(newState.players['p1']!.treasury).toBe(1);
+  });
+
+  it('la tranche démographique s\'ajoute AU-DESSUS du socle : pop 7 → 1 C (socle) + 1 C (Vendeur)', () => {
+    const state = makeState({
+      width: 10,
+      height: 10,
+      fill: 'prairie',
+      // la carte fixture couvre les coordonnées non négatives : on pose
+      // explicitement les 7 cases travaillées (anneau 1 + 1 case à distance 2).
+      terrainOverrides: {
+        '1,0': 'prairie', '0,1': 'prairie', '-1,0': 'prairie',
+        '0,-1': 'prairie', '1,-1': 'prairie', '-1,1': 'prairie', '2,0': 'prairie',
+      },
+      cities: [
+        {
+          id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 7,
+          buildings: ['tribunal'],
+          workedTiles: ['1,0', '0,1', '-1,0', '0,-1', '1,-1', '-1,1', '2,0'],
+        },
+      ],
+    });
+    const { newState } = resolveTurn(state, {}, 1);
+    // 7 travailleurs (rayon 2 — Tribunal) → 0 intérieur ;
+    // commerce du centre = socle 1 C + tranche Vendeur 1 C = 2 → trésorerie 2.
+    expect(newState.players['p1']!.treasury).toBe(2);
+  });
+
+  it('le socle est un PLANCHER, pas un plafond : Égypte (désert, ère Antique) dépasse le socle', () => {
+    // Trait Égypte Antique : +1 N / +1 C sur chaque case de DÉSERT (R-146) —
+    // le plancher du centre ne plafonne pas les rendements.
+    const desert = { '0,0': { terrain: 'desert' as const } };
+    const y = tileYield(desert, [], '0,0', [], [], undefined, { civId: 'egypte', era: 'ancienne' })!;
+    expect(y.food).toBe(1); // 0 (désert) + 1 (trait) — jamais raboté vers le socle
+    expect(y.commerce).toBe(2); // 1 (désert) + 1 (trait)
+    // Le centre (terrain ville) donne 2 N : au-dessus du socle 1 N, inchangé.
+    const centre = tileYield({ '0,0': { terrain: 'ville' as const } }, [], '0,0')!;
+    expect(centre.food).toBe(2);
+  });
+
+  it('non-régression D5 : fonder sur une ressource la détruit toujours (ResourceDestroyed)', () => {
+    const state = makeState({
+      width: 10,
+      height: 10,
+      units: [{ id: 'u1', type: 'colon', owner: 'p1', q: 5, r: 5 }],
+    });
+    state.map['5,5'] = { terrain: 'colline', resource: 'fer' };
+    const { newState, events } = resolveTurn(state, { p1: [{ type: 'FoundCity', unitId: 'u1' }] }, 1);
+    expect(newState.map['5,5']).toEqual({ terrain: 'ville', resource: null });
+    expect(events.some((e) => e.type === 'ResourceDestroyed' && e.resource === 'fer')).toBe(true);
+    // …et le centre fraîchement fondé respecte le socle 1/1/1.
+    const y = tileYield(newState.map, [], '5,5')!;
+    expect(y.food).toBeGreaterThanOrEqual(1);
+    expect(y.production).toBeGreaterThanOrEqual(1);
+    expect(y.commerce).toBeGreaterThanOrEqual(1);
+  });
+
+  it('bot/assignation non perturbés : l\'auto-assignation R-60 ne déplace jamais le citoyen du centre', () => {
+    const state = makeState({
+      width: 8,
+      height: 8,
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: [] }],
+    });
+    const assigned = autoAssignWorkedTiles(state.map, [], { q: 0, r: 0, pop: 1, buildings: [] });
+    expect(assigned).not.toContain('0,0'); // le centre est travaillé d'office, non assignable
+    expect(assigned).toHaveLength(1);
   });
 });

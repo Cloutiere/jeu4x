@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, workRadiusOf, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, eraOfPlayer, civIdOf, activeTraitsOf } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, tileKeyOf, workRadiusOf, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, eraOfPlayer, civIdOf, activeTraitsOf } from '@game/rules';
   import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
   import { greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
@@ -83,15 +83,13 @@
   );
   const player = $derived(city ? view.state?.players[city.owner] ?? null : null);
 
-  /** Cumuls de la ville : centre gratuit (7i · R-66 rév. : commerce de
-   *  tranche) + Σ cases travaillées + citoyens intérieurs (7i · R-60bis).
+  /** Cumuls de la ville : centre gratuit (socle garanti 1N/1P/1C — R-66
+   *  rév. 06/09 ; tranche R-60bis au-dessus du socle) + Σ cases travaillées.
    *  7k · R-132 : les merveilles portent des bonus par terrain (Cie des
    *  Indes — océan), obsolescence évaluée sur l'union (M1/R-128). */
   const yields = $derived.by(() => {
     if (!city || !view.state) return null;
-    const tier = interiorCitizenFor(city.pop);
-    const interior = interiorCountOf(city.pop, city.workedTiles.length);
-    const t = { food: 2, production: Math.max(1, 1) + interior * tier.production, commerce: tier.commerce + interior * tier.commerce };
+    const t = { ...centerYields(city.pop, city.workedTiles.length) };
     for (const key of city.workedTiles) {
       const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? [], city.wonders, allTechs);
       if (!y) continue;
@@ -135,9 +133,7 @@
   /** Production par tour de la ville (miroir Phase C : raw × Usine × (1 + 0,25×(pop−1)), R-63 🔶 + 7e + citoyens intérieurs 7i). */
   const prodPerTurn = $derived.by(() => {
     if (!city || !view.state) return 0;
-    const tier = interiorCitizenFor(city.pop);
-    const interior = interiorCountOf(city.pop, city.workedTiles.length);
-    let raw = 1 + interior * tier.production; // case de ville (min 1 P — R-66 rév.) + intérieurs
+    let raw = centerYields(city.pop, city.workedTiles.length).production; // case de ville (socle 1 P — R-66 rév.) + intérieurs
     for (const key of city.workedTiles) {
       const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? [], city.wonders, allTechs);
       if (y) raw += y.production;
@@ -360,16 +356,32 @@
     (e.currentTarget as HTMLElement | null)?.style.setProperty('display', 'none');
   }
 
+  /** R-66 (rév. 06/09) : rendement du CENTRE-VILLE — via tileYield (source
+   *  unique moteur : le socle garanti 1N/1P/1C y est appliqué en plancher
+   *  pour le terrain `ville`) + tranche démographique au-dessus du socle et
+   *  citoyens intérieurs (R-60bis). */
+  function centerYields(pop: number, workedCount: number): { food: number; production: number; commerce: number } {
+    const tier = interiorCitizenFor(pop);
+    const interior = interiorCountOf(pop, workedCount);
+    const p = city && view.state ? view.state.players[city.owner] : undefined;
+    const civ = p && p.civId !== 'neutre' ? { civId: p.civId, era: p.era } : undefined;
+    const base = city && view.state
+      ? tileYield(view.state.map, city.buildings, tileKeyOf(city), p?.techsUnlocked ?? [], city.wonders, allTechs, civ)!
+      : { food: 2, production: 1, commerce: 1 };
+    return {
+      food: base.food,
+      production: base.production + interior * tier.production,
+      commerce: base.commerce + tier.commerce + interior * tier.commerce,
+    };
+  }
+
   /** Cumuls anticipés : les tiles attendues après résolution (miroir des ordres). */
   function projectedYields(tiles: string[]): { food: number; production: number; commerce: number } {
-    const t = { food: 2, production: 1, commerce: 1 }; // case de ville (R-60)
-    if (!view.state || !city) return t;
-    const tier = interiorCitizenFor(city.pop);
-    const interior = interiorCountOf(city.pop, tiles.length);
-    t.production = 1 + interior * tier.production;
-    t.commerce = tier.commerce + interior * tier.commerce;
+    if (!city || !view.state) return { food: 0, production: 0, commerce: 0 };
+    const t = { ...centerYields(city.pop, tiles.length) };
+    const st = view.state;
     for (const key of tiles) {
-      const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? [], city.wonders, allTechs);
+      const y = tileYield(st.map, city.buildings, key, st.players[city.owner]?.techsUnlocked ?? [], city.wonders, allTechs);
       if (!y) continue;
       t.food += y.food;
       t.production += y.production;
@@ -436,6 +448,7 @@
         {/if}
       </div>
       {#if hasPending}<p class="hint pending-note">▲ valeurs projetées (réassignation en attente)</p>{/if}
+      <p class="hint center-floor" title="R-66 (rév.) : la case de ville produit au minimum 1 N, 1 P et 1 C, quel que soit le terrain (socle garanti) — le commerce de tranche démographique (R-60bis) s'ajoute au-dessus.">Centre-ville : socle garanti 1 N / 1 P / 1 C — quel que soit le terrain</p>
       {#if mine}
         <!-- 7i · D1 · R-63 (rév.) : la consommation de nourriture, cœur pédagogique -->
         <p

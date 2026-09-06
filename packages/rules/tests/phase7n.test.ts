@@ -443,8 +443,9 @@ describe('7n · R-149 · Traits — économie, croissance, combat, huttes', () =
     const before = state.players['p1']!.scienceProgress;
     void before;
     const out = resolveTurn(state, {}, 1).newState;
-    // Le désert (0/0/1) converti science → 1 + 3 (Temple) = 4 fioles ce tour.
-    expect(out.players['p1']!.scienceProgress['alphabet']).toBe(4);
+    // Désert (0/0/1) + socle du centre (1 C, R-66 rév. 06/09) convertis
+    // science → 2 + 3 (Temple) = 5 fioles ce tour.
+    expect(out.players['p1']!.scienceProgress['alphabet']).toBe(5);
   });
 
   it('or de départ et empireGoldMult (Aztèques/Zoulous/Espagne Industrielle) : +50 % or', () => {
@@ -455,7 +456,7 @@ describe('7n · R-149 · Traits — économie, croissance, combat, huttes', () =
     state.players['p1']!.civId = 'zoulous';
     state.players['p1']!.era = 'industrielle';
     const out = resolveTurn(state, {}, 1).newState;
-    expect(out.players['p1']!.treasury).toBe(2); // 1 commerce → 1 or ×1,5 → round = 2
+    expect(out.players['p1']!.treasury).toBe(3); // 2 C (désert + socle) → 2 or ×1,5 → round = 3
   });
 
   it('coutUniteMoitie / coutBuildingMoitie / coutMerveilleMoitie (Inde, Allemagne, Chine, Rome)', () => {

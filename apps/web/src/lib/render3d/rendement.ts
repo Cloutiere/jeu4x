@@ -41,7 +41,9 @@ export function contexteRendement(state: GameState, myEngineId: string | null): 
 /**
  * Allumage par famille d'une case (bus = nourriture, CPU = production,
  * RAM = commerce). Comptes bruts — world3d borne au potentiel affiché.
- * Case sans rendement (ville, cratère) : undefined (pas de glyphes de toute façon).
+ * Case sans rendement (cratère) : undefined (pas de glyphes de toute façon).
+ * R-66 (rév. 06/09) : la case de ville (socle garanti 1N/1P/1C) s'allume
+ * dès pop 1 — glyphe commerce compris — via le même tileYield (miroir).
  */
 export function allumeDe(ctx: ContexteRendement, key: TileKey): Allumage3D | undefined {
   const ville = ctx.travaillePar.get(key);

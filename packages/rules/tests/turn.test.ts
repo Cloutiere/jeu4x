@@ -569,22 +569,22 @@ describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () 
   });
 
   it('R-90 (révisée 7b) : conversion binaire par ville — or par défaut, science sur choix', () => {
-    // 7i · R-66 (rév.) : le commerce du centre suit la tranche (0 pop ≤ 6) —
-    // la mer travaillée (0/0/2) porte le commerce de la ville.
+    // R-66 (rév. 06/09) : socle garanti du centre = 1 C (tranche 0 sous pop 7)
+    // + la mer travaillée (0/0/2) → 3 C au total.
     const state = makeState({
       terrainOverrides: { '0,1': 'eau' },
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, workedTiles: ['0,1'] }],
     });
     const r = resolveTurn(state, {}, 1);
     expect(r.newState.players['p1']!.scienceStored).toBe(0);
-    expect(r.newState.players['p1']!.treasury).toBe(2);
+    expect(r.newState.players['p1']!.treasury).toBe(3);
     // conversion science (amende R-61 : plus de curseur, choix par ville)
     const state2 = makeState({
       terrainOverrides: { '0,1': 'eau' },
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, conversion: 'science', workedTiles: ['0,1'] }],
     });
     const r2 = resolveTurn(state2, {}, 1);
-    expect(r2.newState.players['p1']!.scienceStored).toBe(2);
+    expect(r2.newState.players['p1']!.scienceStored).toBe(3);
     expect(r2.newState.players['p1']!.treasury).toBe(0);
   });
 });

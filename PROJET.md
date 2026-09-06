@@ -27,8 +27,8 @@
 ## 🚧 En cours / prêts à lancer
 
 1. **INTERACTION-3D** — déplacements refusés à tort (ville, case amie libérable) + re-clic des worked tiles (`HANDOFF-INTERACTION-3D.md`) ;
-2. **SPAWN-START** — voisinage du Colon garanti (2 forêts, 2 prairies, 1 eau) + 0 ressource au rayon 2 (`HANDOFF-SPAWN-START.md`) ;
-3. **CENTREVILLE** — socle garanti 1N/1P/1C (`HANDOFF-CENTREVILLE.md`) ;
+2. **SPAWN-START** — voisinage du Colon garanti (2 forêts, 2 prairies, 1 eau) + 0 ressource au rayon 2 (`HANDOFF-SPAWN-START.md`) — ✅ livré (voir `REPORT-SPAWN-START.md`) ;
+3. **CENTREVILLE** — socle garanti 1N/1P/1C (`HANDOFF-CENTREVILLE.md`) — ✅ livré (voir `REPORT-CENTREVILLE.md`) ;
 4. **UNITES-3D** — brancher les créatures 3D d'Erik (Script de Base, Sentinelle Réseau) au monde de jeu (`HANDOFF-CHANTIER-V2-UNITES3D.md`) ;
 5. **ATELIER** — sessions de retouche en cours (Erik + agent, rituel `ATELIER-ASSETS.md`) ;
 

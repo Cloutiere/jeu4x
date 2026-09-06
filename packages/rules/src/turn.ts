@@ -3227,13 +3227,23 @@ function cityEconomyInputs(board: Board, city: City, allTechs: readonly string[]
 
   // Rendements : centre-ville automatique et gratuit + Σ cases travaillées
   // (base §2 + bonus bâtiments R-66 + bonus ressource si accès, R-93).
-  // 7i · R-66 (rév.) : le centre-ville garantit AU MINIMUM 1 Production et son
-  // commerce évolue avec la tranche démographique (D4 — interprétation 🔶).
-  const cityTile = TERRAINS['ville']!.yields!;
+  // R-66 (rév. 06/09) : le centre passe par tileYield (source unique) — le
+  // socle garanti 1N/1P/1C y est appliqué en plancher par ressource, et le
+  // commerce de tranche R-60bis s'ajoute AU-DESSUS du socle (résout le
+  // calibrage 7i : 1 C dès la fondation, la tranche s'empile ensuite).
+  const center = tileYield(
+    board.st.map,
+    city.buildings,
+    tileKeyOf(city),
+    player.techsUnlocked,
+    city.wonders,
+    allTechs,
+    player,
+  )!;
   const tier = interiorCitizenFor(city.pop);
-  let food = cityTile.food;
-  let rawProduction = Math.max(GROWTH.cityCenter.minProduction, cityTile.production) + empireBonus.production;
-  let commerce = (GROWTH.cityCenter.commerceByTier ? tier.commerce : cityTile.commerce) + empireBonus.commerce;
+  let food = center.food;
+  let rawProduction = center.production + empireBonus.production;
+  let commerce = center.commerce + tier.commerce + empireBonus.commerce;
   let directGold = 0;
   for (const key of city.workedTiles) {
     // 7k · R-132 / 7l · C9 : les merveilles portent des bonus par terrain

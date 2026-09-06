@@ -196,6 +196,9 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       settledGreatPersons: spec.settledGreatPersons ?? [], // 7j · R-126
       wasCaptured: false, // 7n · R-149 (trait Mongol commerceCaptures)
     };
+    // Miroir processFoundCity (R-64) : la case de ville est un terrain `ville`,
+    // la ressource éventuelle est détruite — condition du socle R-66 (rév.).
+    map[tileKeyOf(cities[id]!)] = { terrain: 'ville', resource: null };
   });
 
   const warPairs = opts.warPairs ?? defaultWarPairs(players);

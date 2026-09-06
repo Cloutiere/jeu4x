@@ -91,9 +91,10 @@ describe('Campagne multi-tours (critère 2)', () => {
     expect(allEvents.some((e) => e.type === 'Captured' && e.outcome === 'destroyed')).toBe(true);
     expect(allEvents.some((e) => e.type === 'BootyGold' && e.player === 'p2' && e.amount === 10)).toBe(true);
     expect(state.units['u5']).toBeUndefined();
-    // T-12 : butin 10. 7i · R-66 (rév.) : le commerce du centre suit la
-    // tranche démographique (0 pour pop ≤ 6) — c2 ne génère plus d'or de centre.
-    expect(state.players['p2']!.treasury).toBe(10);
+    // T-12 : butin 10. R-66 (rév. 06/09) : socle garanti du centre = 1 C/tour
+    // (la tranche R-60bis ajoute 0 sous pop 7) — c2 verse 1 or par tour
+    // résolu (t1→t3) en plus du butin.
+    expect(state.players['p2']!.treasury).toBe(13);
 
     // Tour 4 : le guerrier p1 se met en marche (chemin multi-tours).
     step({ p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }] }] }, 14);
