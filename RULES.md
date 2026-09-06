@@ -227,7 +227,7 @@ Tie-breaks R-81 partout (distance, puis `(q, r)`). **Les barbares ne subissent p
 | **unité gratuite** | un guerrier engendré sur une case adjacente libre (escalade R-95 non appliquée : toujours guerrier) |
 | **boost science** | `T-24` 🔶 sur la recherche courante (R-85 : réserve `scienceStored` si aucun choix) |
 | **révélation de carte** | rayon 3 autour de la hutte ajouté à `explored` du joueur (pas à `visible`) |
-| **embuscade** | 2 barbares engendrés **immédiatement, hors village** (cases adjacentes libres, cap des villages non affecté) |
+| ~~**embuscade**~~ | **RETRAIT de la table par défaut (décision Erik 06/09/2026)** — plus aucun barbare engendré à l'ouverture d'une hutte ; le kind `ambush` reste connu du moteur (types/turn, `ambushCount` retiré des données) pour une réintroduction éventuelle |
 | **rien** | aucun effet |
 Événement `HutOpened(hutId, byPlayer, reward)` dans tous les cas. Tirages d'engendrement impossibles (aucune case adjacente libre) : récompense perdue, événement émis quand même.
 

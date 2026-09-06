@@ -91,7 +91,7 @@ describe('R-99 · Données barbares.json / huttes.json', () => {
   });
 
   it('R-99 : huttes.json — table fermée, poids valides, bornes or cohérentes (T-24..T-26)', () => {
-    const kinds: HutReward['kind'][] = ['gold', 'unit', 'science', 'reveal', 'ambush', 'artefact_indice', 'nothing']; // 7o · R-155
+    const kinds: HutReward['kind'][] = ['gold', 'unit', 'science', 'reveal', 'ambush', 'artefact_indice', 'nothing']; // 7o · R-155 — ambush RETIRÉE de la table (décision Erik 06/09) mais kind encore connu du moteur
     const total = HUT_REWARDS.rewards.reduce((a, r) => a + r.weight, 0);
     expect(total).toBeGreaterThan(0);
     for (const def of HUT_REWARDS.rewards) {
@@ -102,7 +102,6 @@ describe('R-99 · Données barbares.json / huttes.json', () => {
     expect(gold.amountMin!).toBeLessThanOrEqual(gold.amountMax!);
     expect(HUT_REWARDS.scienceBoost).toBeGreaterThan(0); // T-24
     expect(HUT_REWARDS.revealRadius).toBeGreaterThanOrEqual(1);
-    expect(HUT_REWARDS.ambushCount).toBeGreaterThan(0);
     expect(UNIT_TYPES[HUT_REWARDS.freeUnit]).toBeDefined();
   });
 
@@ -508,7 +507,7 @@ function hutSeedOf(kind: HutReward['kind']): TurnResult {
 
 describe('R-98 · Huttes bonus', () => {
   it('R-98 : les 6 récompenses de la table sont atteignables, chacune par sa graine (une partie par graine)', () => {
-    for (const kind of ['gold', 'unit', 'science', 'reveal', 'ambush', 'nothing'] as const) {
+    for (const kind of ['gold', 'unit', 'science', 'reveal', 'nothing'] as const) {
       const result = hutSeedOf(kind);
       const opened = result.events.find((e) => e.type === 'HutOpened');
       expect(opened).toMatchObject({ hutId: 'h1', byPlayer: 'p1', byUnitId: 'u1', at: HUT });
@@ -558,18 +557,9 @@ describe('R-98 · Huttes bonus', () => {
     expect(vision.visible).not.toContain(revealed); // explored seulement (R-98)
   });
 
-  it('R-98 : récompense embuscade — 2 barbares engendrés immédiatement, adjacents, hors village', () => {
-    const result = hutSeedOf('ambush');
-    const opened = result.events.find((e) => e.type === 'HutOpened')!;
-    if (opened.type !== 'HutOpened' || opened.reward.kind !== 'ambush') throw new Error('impossible');
-    expect(opened.reward.unitIds).toHaveLength(HUT_REWARDS.ambushCount);
-    for (const id of opened.reward.unitIds) {
-      const barb = result.newState.units[id]!;
-      expect(barb.owner).toBe(BARBARIAN_ID);
-      expect(hexDistance(barb, HUT)).toBe(1); // adjacents à la hutte
-    }
-    expect(result.newState.villages).toHaveLength(0); // hors village, cap non affecté
-  });
+  // Embuscade RETIRÉE de la table huttes.json (décision Erik 06/09/2026) :
+  // ouvrir une hutte n'engendre plus jamais de barbares. Le kind 'ambush'
+  // reste connu du moteur (types/turn) pour une réintroduction éventuelle.
 
   // CORRECTIFS-SOLO 3 (enquête Erik 05/09) : invariant général — hors
   // embuscade R-98, AUCUN engendrement barbare ne provient d'une hutte : tout
