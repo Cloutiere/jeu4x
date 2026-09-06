@@ -49,3 +49,5 @@ Ajustements appliqués (diffs minimaux, inspectables dans le commit) :
 ## Livraison
 
 Commit sur `main` → CI GitHub Actions (deploy Cloudflare) → health prod vérifiée après push.
+
+Suivi de CI : le premier run a échoué sur un **test serveur** codant en dur la position du Guerrier de départ sur pangee-40 (`(-3,20)` → path `(-3,19)`) — la garantie R-157 déplace ce Guerrier au premier voisin libre trié (`(-5,20)`, libéré par la purge) et `(-3,19)` est désormais une case d'eau du voisinage forcé. Correctif : helper `moveTargetFor(snap)` (tests `game`/`idempotence`/`missedEvents`) — la destination du Move de test est dérivée de la position réelle de l'unité sur la carte (robuste aux évolutions de cartes). Run CI vert, prod `{"ok":true}`.
