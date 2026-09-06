@@ -10,6 +10,7 @@ Liens relatifs à ce dossier `docs/`. Racine : documents vivants. Historique : p
 - [HANDOFF.md](../HANDOFF.md) — conventions des sessions d'implémentation (§4)
 - [PILOT-HANDOFF.md](../PILOT-HANDOFF.md) — mémoire de pilotage + file d'attente détaillée
 - [ATELIER-ASSETS.md](../ATELIER-ASSETS.md) — rituel des sessions de retouche visuelle
+- [presentation-technique.md](presentation-technique.md) — présentation du jeu + stack pour analyse externe
 - Handoffs **actifs** : [INTERACTION-3D](../HANDOFF-INTERACTION-3D.md) · [SPAWN-START](../HANDOFF-SPAWN-START.md) · [CENTREVILLE](../HANDOFF-CENTREVILLE.md) · [UNITES-3D](../HANDOFF-CHANTIER-V2-UNITES3D.md)
 
 ## recherche/ — Spécifications d'Erik (font foi sur toute valeur)
