@@ -122,6 +122,20 @@ function structures3d(): AssetAtelier[] {
       sorte: 'structure3d',
     },
     {
+      id: 'structures:uniteGuerrier',
+      categorie: 'structures3d',
+      nom: 'Unité 3D — Script de Base (Guerrier cyber)',
+      source: SRC_JSON('structures.uniteGuerrier'),
+      sorte: 'structure3d',
+    },
+    {
+      id: 'structures:uniteArcher',
+      categorie: 'structures3d',
+      nom: 'Unité 3D — Sentinelle Réseau (Archer cyber, lasso électrique)',
+      source: SRC_JSON('structures.uniteArcher'),
+      sorte: 'structure3d',
+    },
+    {
       id: 'structures:mainframePalier',
       categorie: 'structures3d',
       nom: `Paliers du Mainframe (pop max ${s.mainframe.paliers.map((p) => p.popMax).join(' / ')})`,

@@ -76,11 +76,15 @@ describe('L0 — spec structures data-driven (visuel3d.json)', () => {
 });
 
 describe('L1 — Mainframe (Nœud Serveur) : suit l’état de la ville', () => {
-  it('pose un Mainframe sur chaque ville (socle + corps + bande + antenne + pointe)', () => {
+  it('pose un Mainframe sur chaque ville (socle + die + liseret + nervures + cœur)', () => {
     const plan = planifierStructures(entree({ villes: [ville('v1', 2, 3)] }));
-    for (const pool of ['mfSocle', 'mfCorps', 'mfBande', 'mfAntenne', 'mfPointe']) {
+    for (const pool of ['mfSocle', 'mfCorps', 'mfBande', 'mfCoeur']) {
       expect(plan.get(pool)).toHaveLength(1);
     }
+    expect(plan.get('mfNervure')).toHaveLength(4); // croix + 2 diagonales
+    // style « processeur géant » : le die est une dalle PLATE (plus large que haute)
+    const die = plan.get('mfCorps')![0]!;
+    expect(die.sx).toBeGreaterThan(die.sy);
   });
 
   it('croît avec la population : 3 paliers de gabarit (miroir R-60bis 🔶)', () => {
@@ -97,7 +101,7 @@ describe('L1 — Mainframe (Nœud Serveur) : suit l’état de la ville', () => 
     expect(hauteur(1)).toBeLessThan(hauteur(31));
   });
 
-  it('distingue la capitale : couronne + antenne longue + accent élargi 🔶', () => {
+  it('distingue la capitale : couronne + cœur surélevé + accent élargi 🔶', () => {
     const plan = planifierStructures(entree({
       villes: [ville('cap', 0, 0, { capital: true }), ville('ord', 5, 0)],
     }));
@@ -105,9 +109,9 @@ describe('L1 — Mainframe (Nœud Serveur) : suit l’état de la ville', () => 
     const bandeCap = plan.get('mfBande')![0]!;
     const bandeOrd = plan.get('mfBande')![1]!;
     expect(bandeCap.sx).toBeGreaterThan(bandeOrd.sx); // accent joueur plus large
-    const antenneCap = plan.get('mfAntenne')![0]!;
-    const antenneOrd = plan.get('mfAntenne')![1]!;
-    expect(antenneCap.sy).toBeGreaterThan(antenneOrd.sy);
+    const coeurCap = plan.get('mfCoeur')![0]!;
+    const coeurOrd = plan.get('mfCoeur')![1]!;
+    expect(coeurCap.sy).toBeGreaterThan(coeurOrd.sy);
   });
 
   it('affiche un module générique par catégorie de bâtiment (art dédiée V3+ 🔶)', () => {
@@ -199,6 +203,52 @@ describe('L2 — Cartes-ressources : slot standard + états R-92', () => {
     expect(plan.get('carte:poisson')![0]!.sx).toBe(STRUCTURES3D.formes.plaque.largeur);
   });
 
+  it('rend le Guerrier cyber 3D « Script de Base » (torse, pattes, cœur, bras armé)', () => {
+    const plan = planifierStructures(entree({
+      unites: [{ id: 'u1', q: 0, r: 0, fog: 'visible', terrain: 'prairie', owner: 'p1' }],
+    }));
+    expect(plan.get('ugCorps')).toHaveLength(1);
+    expect(plan.get('ugCoeur')).toHaveLength(1);
+    expect(plan.get('ugPatte')).toHaveLength(4);
+    expect(plan.get('ugBras')).toHaveLength(1);
+    expect(plan.get('ugArme')).toHaveLength(1);
+    // pattes à 4 azimuts distincts (diagonales, bras libre à l'avant)
+    const azimuts = new Set(plan.get('ugPatte')!.map((p) => p.ry));
+    expect(azimuts.size).toBe(4);
+    // le cœur-process culmine au-dessus du torse
+    expect(plan.get('ugCoeur')![0]!.y).toBeGreaterThan(plan.get('ugCorps')![0]!.y);
+    // la lame porte l'accent joueur (R-65 — capture change la couleur)
+    const p1 = planifierStructures(entree({
+      unites: [{ id: 'u1', q: 0, r: 0, fog: 'visible', terrain: 'prairie', owner: 'p1' }],
+    }));
+    const p2 = planifierStructures(entree({
+      unites: [{ id: 'u1', q: 0, r: 0, fog: 'visible', terrain: 'prairie', owner: 'p2' }],
+    }));
+    expect(p1.get('ugArme')![0]!.couleur).toBe(0xd64545);
+    expect(p2.get('ugArme')![0]!.couleur).toBe(0x3b6fd6);
+  });
+
+  it('rend l’Archer cyber 3D « Sentinelle Réseau » (bras levé + lasso électrique)', () => {
+    const plan = planifierStructures(entree({
+      unites: [{ id: 'u1', q: 0, r: 0, fog: 'visible', terrain: 'prairie', owner: 'p1', type: 'archer' }],
+    }));
+    // même gabarit de créature que le guerrier
+    expect(plan.get('ugCorps')).toHaveLength(1);
+    expect(plan.get('ugPatte')).toHaveLength(4);
+    expect(plan.get('ugBras')).toHaveLength(1);
+    // bras LEVÉ (inclinaison négative) contrairement au guerrier (tendu vers le bas)
+    expect(plan.get('ugBras')![0]!.rx).toBeLessThan(0);
+    // lasso électrique : N segments en arc + 1 boucle néon au bout
+    const lasso = plan.get('ugLasso')!;
+    expect(lasso).toHaveLength(STRUCTURES3D.uniteArcher.lasso.segments);
+    expect(lasso[0]!.couleur).toBe(STRUCTURES3D.uniteArcher.lasso.boucle.couleur); // néon électrique
+    // l'arc s'étend vers l'avant : dernier segment plus loin que le premier
+    expect(lasso[lasso.length - 1]!.z).toBeGreaterThan(lasso[0]!.z);
+    expect(plan.get('ugBoucle')).toHaveLength(1);
+    // pas de lame sur l'archer
+    expect(plan.get('ugArme')).toBeUndefined();
+  });
+
   it('estCarteNeutre : null et marqueur « inconnue » → neutre ; id de la spec → pleine', () => {
     expect(estCarteNeutre(null)).toBe(true);
     expect(estCarteNeutre(RESOURCE_UNKNOWN)).toBe(true);
@@ -264,21 +314,35 @@ describe('L3 — Cratère, huttes et villages barbares', () => {
     expect(plan.get('cratereFond')![0]!.couleur).toBe(STRUCTURES3D.cratere.fond.couleur);
   });
 
-  it('rend les huttes bonus en structure 3D discrète (dôme + accent doré)', () => {
+  it('rend la hutte en dôme pâle au visage bienveillant (yeux doux + bouche)', () => {
     const plan = planifierStructures(entree({
       huttes: [{ id: 'h1', q: 0, r: 0, fog: 'visible', terrain: 'prairie' }],
     }));
     expect(plan.get('hutte')).toHaveLength(1);
     expect(plan.get('hutteAccent')![0]!.couleur).toBe(STRUCTURES3D.hutte.accent);
+    // visage bienveillant : 2 yeux ronds + 1 bouche, couleur pâle de la spec
+    expect(plan.get('hutteYeux')).toHaveLength(2);
+    expect(plan.get('hutteBouche')).toHaveLength(1);
+    expect(plan.get('hutteYeux')![0]!.couleur).toBe(STRUCTURES3D.hutte.visage.couleur);
   });
 
-  it('rend les villages barbares en camp 3D (dôme + mur d’enceinte, accent barbare)', () => {
+  it('rend le village en dôme rouge élancé au visage malveillant (yeux inclinés + bouche néon)', () => {
     const plan = planifierStructures(entree({
       villages: [{ id: 'v1', q: 0, r: 0, fog: 'visible', terrain: 'plaine' }],
     }));
     expect(plan.get('village')).toHaveLength(1);
     expect(plan.get('villageMur')).toHaveLength(1);
     expect(plan.get('village')![0]!.couleur).toBe(STRUCTURES3D.village.couleur);
+    // plus haut que large (silhouette élancée demandée par Erik)
+    const dome = plan.get('village')![0]!;
+    expect(dome.sy).toBeGreaterThan(dome.sx);
+    // visage malveillant : 2 yeux en barres inclinées en miroir + 1 bouche
+    const yeux = plan.get('villageYeux')!;
+    expect(yeux).toHaveLength(2);
+    expect(Math.abs(yeux[0]!.ry)).toBeCloseTo(STRUCTURES3D.village.visage.yeux.inclinaison!, 5);
+    expect(Math.sign(yeux[0]!.ry!)).toBe(-Math.sign(yeux[1]!.ry!));
+    expect(plan.get('villageBouche')).toHaveLength(1);
+    expect(yeux[0]!.couleur).toBe(STRUCTURES3D.village.visage.couleur);
   });
 });
 

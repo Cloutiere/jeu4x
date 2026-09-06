@@ -391,51 +391,57 @@
     },
     "mainframe": {
       "socle": {
-        "rayon": 0.62,
+        "rayon": 0.8,
         "hauteur": 0.05,
-        "couleur": "#0F2028"
+        "couleur": "#0A141C"
       },
       "paliers": [
         {
           "popMax": 6,
-          "rayon": 0.4,
-          "hauteur": 0.5
+          "rayon": 0.36,
+          "hauteur": 0.1
         },
         {
           "popMax": 18,
           "rayon": 0.44,
-          "hauteur": 0.8
+          "hauteur": 0.14
         },
         {
           "popMax": 31,
-          "rayon": 0.48,
-          "hauteur": 1.1
+          "rayon": 0.52,
+          "hauteur": 0.18
         }
       ],
       "corps": {
-        "couleur": "#24384A",
+        "couleur": "#152634",
         "bande": {
-          "hauteur": 0.08
+          "hauteur": 0.022
         }
       },
-      "antenne": {
-        "rayon": 0.022,
-        "hauteur": 0.34,
-        "pointe": "#3DFFCE"
+      "nervures": {
+        "largeur": 0.032,
+        "hauteur": 0.014,
+        "portee": 1.85,
+        "couleur": "#3DFFCE",
+        "emissif": 0.7
+      },
+      "coeur": {
+        "rayon": 0.09,
+        "hauteur": 0.06,
+        "couleur": "#3DFFCE",
+        "emissif": 0.9
       },
       "capitale": {
         "couronne": {
-          "rayon": 0.53,
-          "hauteur": 0.045
+          "rayon": 0.17,
+          "hauteur": 0.55
         },
-        "antenne": {
-          "hauteur": 0.52
-        },
+        "coeurHauteur": 1.8,
         "accentLargeur": 1.35
       },
       "modules": {
-        "taille": 0.17,
-        "rayonPorteur": 0.5,
+        "taille": 0.13,
+        "rayonPorteur": 0.64,
         "categories": {
           "science": "#58C79A",
           "or": "#F0C419",
@@ -488,19 +494,51 @@
     "hutte": {
       "rayon": 0.17,
       "hauteur": 0.14,
-      "couleur": "#5C5648",
-      "accent": "#D9A93F"
+      "couleur": "#D9D3C5",
+      "accent": "#D9A93F",
+      "visage": {
+        "couleur": "#F4ECD2",
+        "emissif": 0.55,
+        "yeux": {
+          "rayon": 0.018,
+          "espacement": 0.07,
+          "hauteurRelative": 0.55
+        },
+        "bouche": {
+          "largeur": 0.06,
+          "hauteur": 0.014,
+          "hauteurRelative": 0.3
+        }
+      },
+      "lueur": 0.25
     },
     "village": {
-      "rayon": 0.24,
-      "hauteur": 0.18,
-      "couleur": "#4E4A40",
+      "rayon": 0.26,
+      "hauteur": 0.38,
+      "couleur": "#B32222",
       "mur": {
         "rayon": 0.33,
         "epaisseur": 0.04,
         "hauteur": 0.09
       },
-      "accent": "#8A7A66"
+      "accent": "#C0392B",
+      "visage": {
+        "couleur": "#FF3B30",
+        "emissif": 0.85,
+        "yeux": {
+          "longueur": 0.14,
+          "hauteur": 0.036,
+          "espacement": 0.15,
+          "hauteurRelative": 0.6,
+          "inclinaison": 0.5
+        },
+        "bouche": {
+          "largeur": 0.24,
+          "hauteur": 0.034,
+          "hauteurRelative": 0.3
+        }
+      },
+      "lueur": 0.2
     },
     "carteBonus": {
       "espacement": 0.085,
@@ -511,6 +549,77 @@
         "ram": "#58C79A",
         "or": "#F0C419",
         "culture": "#FF3CE8"
+      }
+    },
+    "uniteGuerrier": {
+      "echelle": 1.5,
+      "corps": {
+        "largeur": 0.085,
+        "hauteur": 0.1,
+        "profondeur": 0.15,
+        "survol": 0.12,
+        "couleur": "#1C2E3C"
+      },
+      "coeur": {
+        "rayon": 0.042,
+        "couleur": "#3DFFCE",
+        "emissif": 0.85
+      },
+      "pattes": {
+        "nombre": 4,
+        "epaisseur": 0.018,
+        "ecartement": 0.1,
+        "couleur": "#141F28"
+      },
+      "bras": {
+        "longueur": 0.11,
+        "epaisseur": 0.02,
+        "inclinaison": 0.55,
+        "couleur": "#141F28"
+      },
+      "arme": {
+        "longueur": 0.24,
+        "largeur": 0.034,
+        "emissif": 0.04
+      }
+    },
+    "uniteArcher": {
+      "echelle": 1.5,
+      "corps": {
+        "largeur": 0.085,
+        "hauteur": 0.1,
+        "profondeur": 0.15,
+        "survol": 0.12,
+        "couleur": "#1C2E3C"
+      },
+      "coeur": {
+        "rayon": 0.042,
+        "couleur": "#3DFFCE",
+        "emissif": 0.85
+      },
+      "pattes": {
+        "nombre": 4,
+        "epaisseur": 0.018,
+        "ecartement": 0.12,
+        "couleur": "#141F28"
+      },
+      "bras": {
+        "longueur": 0.11,
+        "epaisseur": 0.02,
+        "inclinaison": -0.5,
+        "couleur": "#141F28"
+      },
+      "lasso": {
+        "segments": 8,
+        "longueur": 0.2,
+        "hauteur": 0.13,
+        "epaisseur": 0.02,
+        "emissif": 0.5,
+        "boucle": {
+          "rayon": 0.05,
+          "couleur": "#3DFFCE",
+          "emissif": 0.9
+        }
       }
     }
   }

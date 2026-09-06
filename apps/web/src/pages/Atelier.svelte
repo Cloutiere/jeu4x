@@ -170,6 +170,10 @@
       entree.huttes.push({ id: 'atelier-h', q: 0, r: 0, fog: 'visible', terrain: 'prairie' });
     } else if (asset.id === 'structures:village') {
       entree.villages.push({ id: 'atelier-v', q: 0, r: 0, fog: 'visible', terrain: 'prairie' });
+    } else if (asset.id === 'structures:uniteGuerrier') {
+      entree.unites = [{ id: 'atelier-u', q: 0, r: 0, fog: 'visible', terrain: 'prairie', owner: 'p1' }];
+    } else if (asset.id === 'structures:uniteArcher') {
+      entree.unites = [{ id: 'atelier-u', q: 0, r: 0, fog: 'visible', terrain: 'prairie', owner: 'p1', type: 'archer' }];
     }
     return entree;
   }

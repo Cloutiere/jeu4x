@@ -205,10 +205,14 @@ export interface SpecMainframe {
   socle: { rayon: number; hauteur: number; couleur: number };
   paliers: SpecPalier[];
   corps: { couleur: number; bande: { hauteur: number } };
-  antenne: { rayon: number; hauteur: number; pointe: number };
+  /** Nervures néon gravées sur le die (style Transistor). */
+  nervures: { largeur: number; hauteur: number; portee: number; couleur: number; emissif: number };
+  /** Cœur émissif central (remplace l'antenne). */
+  coeur: { rayon: number; hauteur: number; couleur: number; emissif: number };
   capitale: {
     couronne: { rayon: number; hauteur: number };
-    antenne: { hauteur: number };
+    /** Hauteur du cœur de capitale × celle d'une ville ordinaire. */
+    coeurHauteur: number;
     /** Largeur de l'accent joueur (bande) × celle d'une ville ordinaire. */
     accentLargeur: number;
   };
@@ -228,13 +232,65 @@ export interface SpecCratere {
   fond: { couleur: number };
 }
 
-export interface SpecHutte { rayon: number; hauteur: number; couleur: number; accent: number }
+/** Visage électronique plaqué sur la face avant d'un dôme (Erik 05/09 :
+ *  hutte bienveillante pâle, village malveillant rouge). */export interface SpecVisage {
+  couleur: number;
+  emissif: number;
+  yeux: {
+    rayon?: number;
+    longueur?: number;
+    hauteur?: number;
+    espacement: number;
+    hauteurRelative: number;
+    inclinaison?: number;
+  };
+  bouche: { largeur: number; hauteur: number; hauteurRelative: number };
+}
+
+export interface SpecHutte { rayon: number; hauteur: number; couleur: number; accent: number; /** Lueur propre du dôme (lecture de la couleur sous éclairage sombre). */ lueur: number; visage: SpecVisage }
+
+/** « Script de Base » — Guerrier cyber 3D (atelier Erik 05/09) : petite
+ *  créature numérique façon Transistor — torse, cœur-process néon, pattes,
+ *  bras muni d'une lame accent joueur. `echelle` grandira avec les unités
+ *  plus fortes (l'unité de base est la plus petite). */
+export interface SpecUniteGuerrier {
+  echelle: number;
+  corps: { largeur: number; hauteur: number; profondeur: number; survol: number; couleur: number };
+  coeur: { rayon: number; couleur: number; emissif: number };
+  pattes: { nombre: number; epaisseur: number; ecartement: number; couleur: number };
+  bras: { longueur: number; epaisseur: number; inclinaison: number; couleur: number };
+  /** Lame de l'arme : couleur = accent joueur (par instance), émissif fixe. */
+  arme: { longueur: number; largeur: number; emissif: number };
+}
+
+/** « Sentinelle Réseau » — Archer cyber 3D : même gabarit de créature, bras
+ *  levé lançant un lasso électrique (segments en arc + boucle néon au bout). */
+export interface SpecUniteArcher {
+  echelle: number;
+  corps: { largeur: number; hauteur: number; profondeur: number; survol: number; couleur: number };
+  coeur: { rayon: number; couleur: number; emissif: number };
+  pattes: { nombre: number; epaisseur: number; ecartement: number; couleur: number };
+  /** Inclinaison négative = bras levé (lancement vers l'avant-haut). */
+  bras: { longueur: number; epaisseur: number; inclinaison: number; couleur: number };
+  lasso: {
+    segments: number;
+    /** Portée horizontale et hauteur de l'arc (échelle locale × echelle). */
+    longueur: number;
+    hauteur: number;
+    epaisseur: number;
+    emissif: number;
+    boucle: { rayon: number; couleur: number; emissif: number };
+  };
+}
 export interface SpecVillage {
   rayon: number;
   hauteur: number;
   couleur: number;
   mur: { rayon: number; epaisseur: number; hauteur: number };
   accent: number;
+  /** Lueur propre du dôme (lecture de la couleur sous éclairage sombre). */
+  lueur: number;
+  visage: SpecVisage;
 }
 
 export interface SpecStructures {
@@ -247,6 +303,8 @@ export interface SpecStructures {
   cratere: SpecCratere;
   hutte: SpecHutte;
   village: SpecVillage;
+  uniteGuerrier: SpecUniteGuerrier;
+  uniteArcher: SpecUniteArcher;
 }
 
 const CATEGORIES: ReadonlySet<string> = new Set(['science', 'or', 'production', 'culture', 'defense']);
@@ -342,10 +400,10 @@ const mainframeBrut = objet(structuresBrut.mainframe, 'structures.mainframe');
 const socleBrut = objet(mainframeBrut.socle, 'structures.mainframe.socle');
 const corpsBrut = objet(mainframeBrut.corps, 'structures.mainframe.corps');
 const bandeBrut = objet(corpsBrut.bande, 'structures.mainframe.corps.bande');
-const antenneBrut = objet(mainframeBrut.antenne, 'structures.mainframe.antenne');
+const nervuresBrut = objet(mainframeBrut.nervures, 'structures.mainframe.nervures');
+const coeurBrut = objet(mainframeBrut.coeur, 'structures.mainframe.coeur');
 const capitaleBrut = objet(mainframeBrut.capitale, 'structures.mainframe.capitale');
 const couronneBrut = objet(capitaleBrut.couronne, 'structures.mainframe.capitale.couronne');
-const antenneCapBrut = objet(capitaleBrut.antenne, 'structures.mainframe.capitale.antenne');
 const modulesBrut = objet(mainframeBrut.modules, 'structures.mainframe.modules');
 const categoriesBrut = objet(modulesBrut.categories, 'structures.mainframe.modules.categories');
 const categorieBatimentBrut = objet(mainframeBrut.categorieBatiment, 'structures.mainframe.categorieBatiment');
@@ -373,17 +431,25 @@ const MAINFRAME3D: SpecMainframe = {
     couleur: couleur(corpsBrut.couleur, 'structures.mainframe.corps.couleur'),
     bande: { hauteur: nombre(bandeBrut.hauteur, 'structures.mainframe.corps.bande.hauteur') },
   },
-  antenne: {
-    rayon: nombre(antenneBrut.rayon, 'structures.mainframe.antenne.rayon'),
-    hauteur: nombre(antenneBrut.hauteur, 'structures.mainframe.antenne.hauteur'),
-    pointe: couleur(antenneBrut.pointe, 'structures.mainframe.antenne.pointe'),
+  nervures: {
+    largeur: nombre(nervuresBrut.largeur, 'structures.mainframe.nervures.largeur'),
+    hauteur: nombre(nervuresBrut.hauteur, 'structures.mainframe.nervures.hauteur'),
+    portee: nombre(nervuresBrut.portee, 'structures.mainframe.nervures.portee'),
+    couleur: couleur(nervuresBrut.couleur, 'structures.mainframe.nervures.couleur'),
+    emissif: nombre(nervuresBrut.emissif, 'structures.mainframe.nervures.emissif'),
+  },
+  coeur: {
+    rayon: nombre(coeurBrut.rayon, 'structures.mainframe.coeur.rayon'),
+    hauteur: nombre(coeurBrut.hauteur, 'structures.mainframe.coeur.hauteur'),
+    couleur: couleur(coeurBrut.couleur, 'structures.mainframe.coeur.couleur'),
+    emissif: nombre(coeurBrut.emissif, 'structures.mainframe.coeur.emissif'),
   },
   capitale: {
     couronne: {
       rayon: nombre(couronneBrut.rayon, 'structures.mainframe.capitale.couronne.rayon'),
       hauteur: nombre(couronneBrut.hauteur, 'structures.mainframe.capitale.couronne.hauteur'),
     },
-    antenne: { hauteur: nombre(antenneCapBrut.hauteur, 'structures.mainframe.capitale.antenne.hauteur') },
+    coeurHauteur: nombre(capitaleBrut.coeurHauteur, 'structures.mainframe.capitale.coeurHauteur'),
     accentLargeur: nombre(capitaleBrut.accentLargeur, 'structures.mainframe.capitale.accentLargeur'),
   },
   modules: {
@@ -424,12 +490,42 @@ const CRATERE3D: SpecCratere = {
   fond: { couleur: couleur(fondBrut.couleur, 'structures.cratere.fond.couleur') },
 };
 
+/** Parse un visage (yeux + bouche) — hutte (yeux ronds) ou village (yeux
+ *  en barres inclinées). */
+function visageDe(brut: unknown, ctx: string, yeuxBarres: boolean): SpecVisage {
+  const v = objet(brut, ctx);
+  const yeux = objet(v.yeux, `${ctx}.yeux`);
+  const bouche = objet(v.bouche, `${ctx}.bouche`);
+  return {
+    couleur: couleur(v.couleur, `${ctx}.couleur`),
+    emissif: nombre(v.emissif, `${ctx}.emissif`),
+    yeux: {
+      ...(yeuxBarres
+        ? {
+            longueur: nombre(yeux.longueur, `${ctx}.yeux.longueur`),
+            hauteur: nombre(yeux.hauteur, `${ctx}.yeux.hauteur`),
+          }
+        : { rayon: nombre(yeux.rayon, `${ctx}.yeux.rayon`) }),
+      espacement: nombre(yeux.espacement, `${ctx}.yeux.espacement`),
+      hauteurRelative: nombre(yeux.hauteurRelative, `${ctx}.yeux.hauteurRelative`),
+      ...(yeuxBarres ? { inclinaison: nombre(yeux.inclinaison, `${ctx}.yeux.inclinaison`) } : {}),
+    },
+    bouche: {
+      largeur: nombre(bouche.largeur, `${ctx}.bouche.largeur`),
+      hauteur: nombre(bouche.hauteur, `${ctx}.bouche.hauteur`),
+      hauteurRelative: nombre(bouche.hauteurRelative, `${ctx}.bouche.hauteurRelative`),
+    },
+  };
+}
+
 const hutteBrut = objet(structuresBrut.hutte, 'structures.hutte');
 const HUTTE3D: SpecHutte = {
   rayon: nombre(hutteBrut.rayon, 'structures.hutte.rayon'),
   hauteur: nombre(hutteBrut.hauteur, 'structures.hutte.hauteur'),
   couleur: couleur(hutteBrut.couleur, 'structures.hutte.couleur'),
   accent: couleur(hutteBrut.accent, 'structures.hutte.accent'),
+  lueur: nombre(hutteBrut.lueur, 'structures.hutte.lueur'),
+  visage: visageDe(hutteBrut.visage, 'structures.hutte.visage', false),
 };
 
 const villageBrut = objet(structuresBrut.village, 'structures.village');
@@ -444,6 +540,94 @@ const VILLAGE3D: SpecVillage = {
     hauteur: nombre(murBrut.hauteur, 'structures.village.mur.hauteur'),
   },
   accent: couleur(villageBrut.accent, 'structures.village.accent'),
+  lueur: nombre(villageBrut.lueur, 'structures.village.lueur'),
+  visage: visageDe(villageBrut.visage, 'structures.village.visage', true),
+};
+
+const uniteGuerrierBrut = objet(structuresBrut.uniteGuerrier, 'structures.uniteGuerrier');
+const ugCorpsBrut = objet(uniteGuerrierBrut.corps, 'structures.uniteGuerrier.corps');
+const ugCoeurBrut = objet(uniteGuerrierBrut.coeur, 'structures.uniteGuerrier.coeur');
+const ugPattesBrut = objet(uniteGuerrierBrut.pattes, 'structures.uniteGuerrier.pattes');
+const ugBrasBrut = objet(uniteGuerrierBrut.bras, 'structures.uniteGuerrier.bras');
+const ugArmeBrut = objet(uniteGuerrierBrut.arme, 'structures.uniteGuerrier.arme');
+const UNITE_GUERRIER3D: SpecUniteGuerrier = {
+  echelle: nombre(uniteGuerrierBrut.echelle, 'structures.uniteGuerrier.echelle'),
+  corps: {
+    largeur: nombre(ugCorpsBrut.largeur, 'structures.uniteGuerrier.corps.largeur'),
+    hauteur: nombre(ugCorpsBrut.hauteur, 'structures.uniteGuerrier.corps.hauteur'),
+    profondeur: nombre(ugCorpsBrut.profondeur, 'structures.uniteGuerrier.corps.profondeur'),
+    survol: nombre(ugCorpsBrut.survol, 'structures.uniteGuerrier.corps.survol'),
+    couleur: couleur(ugCorpsBrut.couleur, 'structures.uniteGuerrier.corps.couleur'),
+  },
+  coeur: {
+    rayon: nombre(ugCoeurBrut.rayon, 'structures.uniteGuerrier.coeur.rayon'),
+    couleur: couleur(ugCoeurBrut.couleur, 'structures.uniteGuerrier.coeur.couleur'),
+    emissif: nombre(ugCoeurBrut.emissif, 'structures.uniteGuerrier.coeur.emissif'),
+  },
+  pattes: {
+    nombre: nombre(ugPattesBrut.nombre, 'structures.uniteGuerrier.pattes.nombre'),
+    epaisseur: nombre(ugPattesBrut.epaisseur, 'structures.uniteGuerrier.pattes.epaisseur'),
+    ecartement: nombre(ugPattesBrut.ecartement, 'structures.uniteGuerrier.pattes.ecartement'),
+    couleur: couleur(ugPattesBrut.couleur, 'structures.uniteGuerrier.pattes.couleur'),
+  },
+  bras: {
+    longueur: nombre(ugBrasBrut.longueur, 'structures.uniteGuerrier.bras.longueur'),
+    epaisseur: nombre(ugBrasBrut.epaisseur, 'structures.uniteGuerrier.bras.epaisseur'),
+    inclinaison: nombre(ugBrasBrut.inclinaison, 'structures.uniteGuerrier.bras.inclinaison'),
+    couleur: couleur(ugBrasBrut.couleur, 'structures.uniteGuerrier.bras.couleur'),
+  },
+  arme: {
+    longueur: nombre(ugArmeBrut.longueur, 'structures.uniteGuerrier.arme.longueur'),
+    largeur: nombre(ugArmeBrut.largeur, 'structures.uniteGuerrier.arme.largeur'),
+    emissif: nombre(ugArmeBrut.emissif, 'structures.uniteGuerrier.arme.emissif'),
+  },
+};
+
+const uniteArcherBrut = objet(structuresBrut.uniteArcher, 'structures.uniteArcher');
+const uaCorpsBrut = objet(uniteArcherBrut.corps, 'structures.uniteArcher.corps');
+const uaCoeurBrut = objet(uniteArcherBrut.coeur, 'structures.uniteArcher.coeur');
+const uaPattesBrut = objet(uniteArcherBrut.pattes, 'structures.uniteArcher.pattes');
+const uaBrasBrut = objet(uniteArcherBrut.bras, 'structures.uniteArcher.bras');
+const uaLassoBrut = objet(uniteArcherBrut.lasso, 'structures.uniteArcher.lasso');
+const uaBoucleBrut = objet(uaLassoBrut.boucle, 'structures.uniteArcher.lasso.boucle');
+const UNITE_ARCHER3D: SpecUniteArcher = {
+  echelle: nombre(uniteArcherBrut.echelle, 'structures.uniteArcher.echelle'),
+  corps: {
+    largeur: nombre(uaCorpsBrut.largeur, 'structures.uniteArcher.corps.largeur'),
+    hauteur: nombre(uaCorpsBrut.hauteur, 'structures.uniteArcher.corps.hauteur'),
+    profondeur: nombre(uaCorpsBrut.profondeur, 'structures.uniteArcher.corps.profondeur'),
+    survol: nombre(uaCorpsBrut.survol, 'structures.uniteArcher.corps.survol'),
+    couleur: couleur(uaCorpsBrut.couleur, 'structures.uniteArcher.corps.couleur'),
+  },
+  coeur: {
+    rayon: nombre(uaCoeurBrut.rayon, 'structures.uniteArcher.coeur.rayon'),
+    couleur: couleur(uaCoeurBrut.couleur, 'structures.uniteArcher.coeur.couleur'),
+    emissif: nombre(uaCoeurBrut.emissif, 'structures.uniteArcher.coeur.emissif'),
+  },
+  pattes: {
+    nombre: nombre(uaPattesBrut.nombre, 'structures.uniteArcher.pattes.nombre'),
+    epaisseur: nombre(uaPattesBrut.epaisseur, 'structures.uniteArcher.pattes.epaisseur'),
+    ecartement: nombre(uaPattesBrut.ecartement, 'structures.uniteArcher.pattes.ecartement'),
+    couleur: couleur(uaPattesBrut.couleur, 'structures.uniteArcher.pattes.couleur'),
+  },
+  bras: {
+    longueur: nombre(uaBrasBrut.longueur, 'structures.uniteArcher.bras.longueur'),
+    epaisseur: nombre(uaBrasBrut.epaisseur, 'structures.uniteArcher.bras.epaisseur'),
+    inclinaison: nombre(uaBrasBrut.inclinaison, 'structures.uniteArcher.bras.inclinaison'),
+    couleur: couleur(uaBrasBrut.couleur, 'structures.uniteArcher.bras.couleur'),
+  },
+  lasso: {
+    segments: nombre(uaLassoBrut.segments, 'structures.uniteArcher.lasso.segments'),
+    longueur: nombre(uaLassoBrut.longueur, 'structures.uniteArcher.lasso.longueur'),
+    hauteur: nombre(uaLassoBrut.hauteur, 'structures.uniteArcher.lasso.hauteur'),
+    epaisseur: nombre(uaLassoBrut.epaisseur, 'structures.uniteArcher.lasso.epaisseur'),
+    emissif: nombre(uaLassoBrut.emissif, 'structures.uniteArcher.lasso.emissif'),
+    boucle: {
+      rayon: nombre(uaBoucleBrut.rayon, 'structures.uniteArcher.lasso.boucle.rayon'),
+      couleur: couleur(uaBoucleBrut.couleur, 'structures.uniteArcher.lasso.boucle.couleur'),
+      emissif: nombre(uaBoucleBrut.emissif, 'structures.uniteArcher.lasso.boucle.emissif'),
+    },
+  },
 };
 
 export const STRUCTURES3D: SpecStructures = {
@@ -456,6 +640,8 @@ export const STRUCTURES3D: SpecStructures = {
   cratere: CRATERE3D,
   hutte: HUTTE3D,
   village: VILLAGE3D,
+  uniteGuerrier: UNITE_GUERRIER3D,
+  uniteArcher: UNITE_ARCHER3D,
 };
 
 // ---------------------------------------------------------------------------

@@ -59,6 +59,10 @@ export interface EntiteStructure {
   fog: FogState;
   /** Terrain de la case (élévation du plateau) — fourni par l'appelant. */
   terrain?: string;
+  /** Propriétaire (accent joueur) — unités 3D de l'atelier pour l'instant. */
+  owner?: string;
+  /** Gabarit de créature : 'guerrier' (défaut) ou 'archer' (lasso électrique). */
+  type?: 'guerrier' | 'archer';
 }
 
 export interface EntreeStructures {
@@ -66,6 +70,8 @@ export interface EntreeStructures {
   villes: VilleStructures[];
   huttes: EntiteStructure[];
   villages: EntiteStructure[];
+  /** Unités 3D (version cyber — atelier ; calque d'unités du monde à venir). */
+  unites?: EntiteStructure[];
   /** Couleur d'accent d'un joueur (injection — évite de tirer pixi.js ici). */
   couleurDe: (owner: string) => number;
 }
@@ -229,7 +235,9 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
     }
   }
 
-  // --- Mainframe (villes) ----------------------------------------------------
+  // --- Mainframe (villes) — « processeur géant » style Transistor -------------
+  // PCB hexagonal sombre, die plat dont l'emprise croît avec la population,
+  // nervures néon gravées rayonnant du cœur central, liseret accent joueur.
   for (const v of e.villes) {
     const { x, z } = hexWorldPos({ q: v.q, r: v.r });
     const elev = TERRAINS3D['ville']?.elev ?? 0;
@@ -237,20 +245,32 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
     const palier = palierDe(v.pop);
     const mf = S.mainframe;
 
+    // PCB (socle plat) puis die : dalle plate basse, plus large à chaque palier
     push('mfSocle', { x, y: elev + mf.socle.hauteur / 2, z, sx: mf.socle.rayon, sy: mf.socle.hauteur, sz: mf.socle.rayon, ry: 0, couleur: dim(mf.socle.couleur, v.fog) });
-    const baseCorps = elev + mf.socle.hauteur;
-    push('mfCorps', { x, y: baseCorps + palier.hauteur / 2, z, sx: palier.rayon, sy: palier.hauteur, sz: palier.rayon, ry: 0, couleur: dim(mf.corps.couleur, v.fog) });
-    // bande d'accent joueur (capitale : plus large — « accent joueur plus large »)
-    const largeurBande = palier.rayon * (v.capital ? mf.capitale.accentLargeur : 1);
-    push('mfBande', { x, y: baseCorps + palier.hauteur - mf.corps.bande.hauteur / 2, z, sx: largeurBande, sy: mf.corps.bande.hauteur, sz: largeurBande, ry: 0, couleur: accent });
-    // antenne (+ longue en capitale) et pointe néon
-    const hAntenne = v.capital ? mf.capitale.antenne.hauteur : mf.antenne.hauteur;
-    const sommet = baseCorps + palier.hauteur;
-    push('mfAntenne', { x, y: sommet + hAntenne / 2, z, sx: mf.antenne.rayon, sy: hAntenne, sz: mf.antenne.rayon, ry: 0, couleur: dim(0x8a9199, v.fog) });
-    push('mfPointe', { x, y: sommet + hAntenne + 0.03, z, sx: 1, sy: 1, sz: 1, ry: 0, couleur: dim(mf.antenne.pointe, v.fog) });
-    // couronne de la capitale (anneau sous le sommet, accent joueur)
+    const baseDie = elev + mf.socle.hauteur;
+    push('mfCorps', { x, y: baseDie + palier.hauteur / 2, z, sx: palier.rayon, sy: palier.hauteur, sz: palier.rayon, ry: 0, couleur: dim(mf.corps.couleur, v.fog) });
+    // liseré néon accent joueur AUTOUR du die (cadre, pas une plaque) ;
+    // capitale : cadre plus large (débordant sur le PCB)
+    const largeurBande = palier.rayon * (v.capital ? mf.capitale.accentLargeur : 1) * 1.03;
+    push('mfBande', { x, y: baseDie + palier.hauteur - mf.corps.bande.hauteur / 2, z, sx: largeurBande, sy: mf.corps.bande.hauteur, sz: largeurBande, ry: 0, couleur: accent });
+    // nervures néon : croix + diagonales rayonnant du cœur vers les bords
+    const sommet = baseDie + palier.hauteur;
+    const nv = mf.nervures;
+    const portee = palier.rayon * nv.portee;
+    const nervures: Array<{ ry: number; longueur: number }> = [
+      { ry: 0, longueur: portee },
+      { ry: Math.PI / 2, longueur: portee },
+      { ry: Math.PI / 4, longueur: portee * 0.6 },
+      { ry: -Math.PI / 4, longueur: portee * 0.6 },
+    ];
+    for (const n of nervures) {
+      push('mfNervure', { x, y: sommet + nv.hauteur / 2, z, sx: n.longueur, sy: nv.hauteur, sz: nv.largeur, ry: n.ry, couleur: dim(nv.couleur, v.fog) });
+    }
+    // cœur émissif central (capitale : cœur plus haut + couronne en orbite)
+    const hCoeur = mf.coeur.hauteur * (v.capital ? mf.capitale.coeurHauteur : 1);
+    push('mfCoeur', { x, y: sommet + hCoeur / 2, z, sx: mf.coeur.rayon, sy: hCoeur, sz: mf.coeur.rayon, ry: 0, couleur: dim(mf.coeur.couleur, v.fog) });
     if (v.capital) {
-      push('mfCouronne', { x, y: sommet - mf.capitale.couronne.hauteur, z, sx: 1, sy: 1, sz: 1, ry: 0, couleur: accent });
+      push('mfCouronne', { x, y: sommet + hCoeur * mf.capitale.couronne.hauteur, z, sx: 1, sy: 1, sz: 1, ry: 0, couleur: accent });
     }
 
     // modules génériques : un par CATÉGORIE de bâtiment présente (art dédiée V3+)
@@ -290,18 +310,162 @@ export function planifierStructures(e: EntreeStructures): PlanStructures {
     push('cratereFond', { x, y: elev + 0.006, z, sx: c.rayon, sy: 1, sz: c.rayon, ry: 0, couleur: dim(c.fond.couleur, t.fog) });
   }
 
-  // --- Huttes & villages barbares (structures statiques discrètes) ------------
+  // --- Huttes & villages barbares — visages électroniques (Erik 05/09) --------
+  // Hutte : dôme pâle au visage bienveillant (yeux doux + petite bouche).
+  // Village : dôme rouge élancé au visage malveillant (yeux en barres
+  // inclinées + bouche néon). Face avant = +z, plaquée sur le dôme.
   for (const h of e.huttes) {
     const { x, z } = hexWorldPos({ q: h.q, r: h.r });
     const elev = TERRAINS3D[h.terrain ?? '']?.elev ?? 0;
+    const f = S.hutte.visage;
     push('hutte', { x, y: elev, z, sx: S.hutte.rayon, sy: S.hutte.hauteur, sz: S.hutte.rayon, ry: 0, couleur: dim(S.hutte.couleur, h.fog) });
     push('hutteAccent', { x, y: elev + S.hutte.hauteur + 0.04, z, sx: 1, sy: 1, sz: 1, ry: 0, couleur: dim(S.hutte.accent, h.fog) });
+    const yYeux = elev + S.hutte.hauteur * f.yeux.hauteurRelative;
+    // z sur la surface de l'ellipsoïde : r(y) puis raccord au décalage x
+    const rTroncYeux = S.hutte.rayon * Math.sqrt(Math.max(0.01, 1 - f.yeux.hauteurRelative ** 2));
+    for (const cote of [-1, 1]) {
+      const dx = f.yeux.espacement;
+      const zSurf = Math.sqrt(Math.max(0.01, rTroncYeux * rTroncYeux - dx * dx));
+      push('hutteYeux', { x: x + cote * dx, y: yYeux, z: z + zSurf * 0.92, sx: 1, sy: 1, sz: 1, ry: 0, couleur: dim(f.couleur, h.fog) });
+    }
+    const yBouche = elev + S.hutte.hauteur * f.bouche.hauteurRelative;
+    const rTroncBouche = S.hutte.rayon * Math.sqrt(Math.max(0.01, 1 - f.bouche.hauteurRelative ** 2));
+    const zBouche = Math.sqrt(Math.max(0.01, rTroncBouche * rTroncBouche - (f.bouche.largeur / 2) ** 2));
+    push('hutteBouche', { x, y: yBouche, z: z + zBouche * 0.95, sx: f.bouche.largeur, sy: f.bouche.hauteur, sz: 0.012, ry: 0, couleur: dim(f.couleur, h.fog) });
   }
   for (const v of e.villages) {
     const { x, z } = hexWorldPos({ q: v.q, r: v.r });
     const elev = TERRAINS3D[v.terrain ?? '']?.elev ?? 0;
+    const f = S.village.visage;
     push('village', { x, y: elev, z, sx: S.village.rayon, sy: S.village.hauteur, sz: S.village.rayon, ry: 0, couleur: dim(S.village.couleur, v.fog) });
     push('villageMur', { x, y: elev + S.village.mur.hauteur / 2, z, sx: 1, sy: 1, sz: 1, ry: 0, couleur: dim(S.village.accent, v.fog) });
+    // yeux en barres inclinées (air menaçant) — rotation ry en miroir,
+    // plaqués sur la surface de l'ellipsoïde (z raccordé au décalage x)
+    const yYeux = elev + S.village.hauteur * f.yeux.hauteurRelative;
+    const rTroncYeux = S.village.rayon * Math.sqrt(Math.max(0.01, 1 - f.yeux.hauteurRelative ** 2));
+    for (const cote of [-1, 1]) {
+      const dx = f.yeux.espacement + f.yeux.longueur! / 2;
+      const zSurf = Math.sqrt(Math.max(0.01, rTroncYeux * rTroncYeux - dx * dx));
+      push('villageYeux', {
+        x: x + cote * f.yeux.espacement, y: yYeux, z: z + zSurf + 0.012,
+        sx: f.yeux.longueur!, sy: f.yeux.hauteur!, sz: 0.02,
+        ry: cote * f.yeux.inclinaison!, couleur: dim(f.couleur, v.fog),
+      });
+    }
+    // bouche néon plate (grille « électronique »)
+    const yBouche = elev + S.village.hauteur * f.bouche.hauteurRelative;
+    const rTroncBouche = S.village.rayon * Math.sqrt(Math.max(0.01, 1 - f.bouche.hauteurRelative ** 2));
+    const zBouche = Math.sqrt(Math.max(0.01, rTroncBouche * rTroncBouche - (f.bouche.largeur / 2) ** 2));
+    push('villageBouche', { x, y: yBouche, z: z + zBouche + 0.01, sx: f.bouche.largeur, sy: f.bouche.hauteur, sz: 0.016, ry: 0, couleur: dim(f.couleur, v.fog) });
+  }
+
+  // --- Unités 3D — créatures cyber (atelier 05/09) ----------------------------
+  // « Script de Base » (guerrier) : pattes + bras armé d'une lame accent joueur.
+  // « Sentinelle Réseau » (archer) : bras levé lançant un lasso électrique —
+  // segments en arc terminés par une boucle néon (impression d'attaque à distance).
+  // `echelle` est le facteur global (unités plus fortes → plus grandes).
+  for (const u of e.unites ?? []) {
+    const { x, z } = hexWorldPos({ q: u.q, r: u.r });
+    const elev = TERRAINS3D[u.terrain ?? '']?.elev ?? 0;
+    const accent = dim(e.couleurDe(u.owner ?? 'barbarien'), u.fog);
+    const archer = u.type === 'archer';
+    const ug = archer ? S.uniteArcher : S.uniteGuerrier;
+    const k = ug.echelle;
+
+    // torse (prisme hexagonal allongé vers l'avant) porté par les pattes
+    const yTorse = elev + (ug.corps.survol + ug.corps.hauteur / 2) * k;
+    push('ugCorps', {
+      x, y: yTorse, z,
+      sx: ug.corps.largeur * k, sy: ug.corps.hauteur * k, sz: ug.corps.profondeur * k,
+      ry: 0, couleur: dim(ug.corps.couleur, u.fog),
+    });
+    // cœur-process : néon cyan au sommet du torse
+    push('ugCoeur', {
+      x, y: yTorse + (ug.corps.hauteur / 2 + ug.coeur.rayon * 0.9) * k, z,
+      sx: ug.coeur.rayon * k, sy: ug.coeur.rayon * 1.5 * k, sz: ug.coeur.rayon * k,
+      ry: Math.PI / 6, couleur: dim(ug.coeur.couleur, u.fog),
+    });
+    // pattes : hanches sous le torse, pieds écartés au sol — boîtes longues
+    // en Z, tangées en azimut puis tangées vers le bas (ordre YXZ)
+    const rHanche = Math.min(ug.corps.largeur, ug.corps.profondeur) * 0.3 * k;
+    const DeltaR = (ug.pattes.ecartement - Math.min(ug.corps.largeur, ug.corps.profondeur) * 0.3) * k;
+    const chute = ug.corps.survol * k;
+    const longPatte = Math.hypot(chute, DeltaR);
+    const tangage = Math.atan2(chute, DeltaR);
+    const pas = (Math.PI * 2) / ug.pattes.nombre;
+    for (let i = 0; i < ug.pattes.nombre; i++) {
+      const theta = Math.PI / 4 + i * pas; // évite l'avant (+z) où tient le bras
+      const rMilieu = (rHanche + ug.pattes.ecartement * k) / 2;
+      push('ugPatte', {
+        x: x + Math.sin(theta) * rMilieu,
+        y: elev + chute / 2,
+        z: z + Math.cos(theta) * rMilieu,
+        sx: ug.pattes.epaisseur * k, sy: ug.pattes.epaisseur * k, sz: longPatte,
+        rx: tangage, ry: theta, couleur: dim(ug.pattes.couleur, u.fog),
+      });
+    }
+    // épaule à l'avant du torse — bras vers l'avant (guerrier) ou levé (archer)
+    const yEpaule = elev + (ug.corps.survol + ug.corps.hauteur * 0.65) * k;
+    const zEpaule = (ug.corps.profondeur / 2) * k;
+    const dirY = -Math.sin(ug.bras.inclinaison);
+    const dirZ = Math.cos(ug.bras.inclinaison);
+    push('ugBras', {
+      x,
+      y: yEpaule + dirY * (ug.bras.longueur / 2) * k,
+      z: z + zEpaule + dirZ * (ug.bras.longueur / 2) * k,
+      sx: ug.bras.epaisseur * k, sy: ug.bras.epaisseur * k, sz: ug.bras.longueur * k,
+      rx: ug.bras.inclinaison, ry: 0, couleur: dim(ug.bras.couleur, u.fog),
+    });
+    // poing au bout du bras
+    const yPoing = yEpaule + dirY * ug.bras.longueur * k;
+    const zPoing = z + zEpaule + dirZ * ug.bras.longueur * k;
+
+    if (archer) {
+      // lasso électrique : arc de Bézier quadratique du poing vers l'avant,
+      // segments affineés (effilés vers le bout), boucle néon à l'extrémité
+      const la = S.uniteArcher.lasso;
+      const H: [number, number, number] = [x, yPoing, zPoing];
+      const E: [number, number, number] = [x, yPoing - 0.05 * k, zPoing + la.longueur * k];
+      const C: [number, number, number] = [x, yPoing + la.hauteur * k, zPoing + la.longueur * 0.45 * k];
+      const bez = (t: number, a: number, c: number, b: number): number =>
+        (1 - t) * (1 - t) * a + 2 * (1 - t) * t * c + t * t * b;
+      const n = Math.max(2, Math.round(la.segments));
+      let px = H[0], py = H[1], pz = H[2];
+      for (let i = 1; i <= n; i++) {
+        const t = i / n;
+        const nx = bez(t, H[0], C[0], E[0]);
+        const ny = bez(t, H[1], C[1], E[1]);
+        const nz = bez(t, H[2], C[2], E[2]);
+        const dx = nx - px, dy = ny - py, dz = nz - pz;
+        const long = Math.hypot(dx, dy, dz);
+        // orientation : +z local aligné sur le segment (tangage puis lacet, YXZ)
+        const alpha = Math.asin(Math.max(-1, Math.min(1, dy / long)));
+        const theta = Math.atan2(dx, dz);
+        const effile = 1 - (i / n) * 0.5;
+        push('ugLasso', {
+          x: (px + nx) / 2, y: (py + ny) / 2, z: (pz + nz) / 2,
+          sx: la.epaisseur * effile * k, sy: la.epaisseur * effile * k, sz: long,
+          rx: alpha, ry: theta, couleur: dim(la.boucle.couleur, u.fog),
+        });
+        px = nx; py = ny; pz = nz;
+      }
+      // boucle électrique au bout (face +z, émissive — claque au bloom)
+      push('ugBoucle', {
+        x: E[0], y: E[1], z: E[2] + la.boucle.rayon * 0.5 * k,
+        sx: la.boucle.rayon * k, sy: la.boucle.rayon * k, sz: la.boucle.rayon * k,
+        ry: 0, couleur: dim(la.boucle.couleur, u.fog),
+      });
+    } else {
+      // lame : verticale au poing, couleur = accent joueur (R-65)
+      const arme = S.uniteGuerrier.arme;
+      push('ugArme', {
+        x,
+        y: yPoing + (arme.longueur / 2) * k * 0.7,
+        z: zPoing,
+        sx: arme.largeur * k, sy: arme.longueur * k, sz: arme.largeur * 0.4 * k,
+        ry: 0, couleur: accent,
+      });
+    }
   }
 
   return plan;
@@ -512,6 +676,31 @@ function hexPrismeUnitaire(): THREE.BufferGeometry {
   return geo;
 }
 
+/** Cadre hexagonal horizontal (liseré néon du die du Mainframe) — rayon
+ *  EXTÉRIEUR unitaire, épaisseur proportionnelle (fraction intérieure),
+ *  centré verticalement comme le prisme : l'instance porte le rayon du die. */
+function cadreHexagonal(fractionInterieure: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const trou = new THREE.Path();
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 6 + (i * Math.PI) / 3;
+    if (i === 0) {
+      shape.moveTo(Math.cos(a), Math.sin(a));
+      trou.moveTo(Math.cos(a) * fractionInterieure, Math.sin(a) * fractionInterieure);
+    } else {
+      shape.lineTo(Math.cos(a), Math.sin(a));
+      trou.lineTo(Math.cos(a) * fractionInterieure, Math.sin(a) * fractionInterieure);
+    }
+  }
+  shape.closePath();
+  trou.closePath();
+  shape.holes.push(trou);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false });
+  geo.rotateX(-Math.PI / 2);
+  geo.translate(0, -0.5, 0);
+  return geo;
+}
+
 /** Cadre rectangulaire horizontal (liseré du slot « carte ») — dimensions
  *  ABSOLUES en XZ (l'instance ne scale pas : le cadre garde son épaisseur). */
 function cadreRectangle(largeur: number, longueur: number, epaisseur: number): THREE.BufferGeometry {
@@ -562,20 +751,36 @@ export class StructuresWorld {
       // sans fabrique, le garde-fou de update() sauterait silencieusement
       // toute carte dont l'identité est connue (bug d'Erik du 05/09).
       ...Object.keys(S.cartes).map((id): [string, FabriquePool] => [`carte:${id}`, { capacity: 512, creer: () => this.creerCarte(id) }]),
-      ['mfSocle', { capacity: cv * 2, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.8 }) }) }],
-      ['mfCorps', { capacity: cv * 2, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.5, metalness: 0.35 }) }) }],
-      ['mfBande', { capacity: cv * 2, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.35, metalness: 0.2 }) }) }],
-      ['mfAntenne', { capacity: cv * 2, creer: () => ({ geo: new THREE.CylinderGeometry(1, 1, 1, 8), mat: matStructure({ roughness: 0.3, metalness: 0.75 }) }) }],
-      ['mfPointe', { capacity: cv * 2, creer: () => ({ geo: new THREE.SphereGeometry(0.035, 8, 6), mat: matStructure({ emissive: S.mainframe.antenne.pointe, emissiveIntensity: 0.9, roughness: 0.3 }) }) }],
+      ['mfSocle', { capacity: cv * 2, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.9 }) }) }],
+      ['mfCorps', { capacity: cv * 2, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.45, metalness: 0.4 }) }) }],
+      ['mfBande', { capacity: cv * 2, creer: () => ({ geo: cadreHexagonal(0.9), mat: matStructure({ roughness: 0.3, emissive: 0xffffff, emissiveIntensity: 0.12 }) }) }],
+      // nervures néon gravées sur le die + cœur émissif central (style Transistor)
+      ['mfNervure', { capacity: cv * 8, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.3, emissive: S.mainframe.nervures.couleur, emissiveIntensity: S.mainframe.nervures.emissif }) }) }],
+      ['mfCoeur', { capacity: cv * 2, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.3, emissive: S.mainframe.coeur.couleur, emissiveIntensity: S.mainframe.coeur.emissif }) }) }],
       ['mfCouronne', { capacity: cv, creer: () => ({ geo: new THREE.TorusGeometry(S.mainframe.capitale.couronne.rayon, 0.016, 6, 24).rotateX(Math.PI / 2), mat: matStructure({ roughness: 0.35 }) }) }],
       ['mfModule', { capacity: cv * 6, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.45 }) }) }],
       ['mfMerveille', { capacity: cv, creer: () => ({ geo: new THREE.ConeGeometry(1, 1, 4), mat: matStructure({ emissive: S.mainframe.merveille.couleur, emissiveIntensity: S.mainframe.merveille.emissif, roughness: 0.3, metalness: 0.4 }) }) }],
       ['cratereRebord', { capacity: 64, creer: () => ({ geo: new THREE.TorusGeometry(S.cratere.rayon, S.cratere.rebord.epaisseur, 8, 24).rotateX(Math.PI / 2), mat: matStructure({ roughness: 0.9 }) }) }],
       ['cratereFond', { capacity: 64, creer: () => ({ geo: new THREE.CircleGeometry(1, 24).rotateX(-Math.PI / 2), mat: matStructure({ roughness: 0.95 }) }) }],
-      ['hutte', { capacity: 256, creer: () => ({ geo: new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat: matStructure({ roughness: 0.85 }) }) }],
+      ['hutte', { capacity: 256, creer: () => ({ geo: new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat: matStructure({ roughness: 0.8, emissive: S.hutte.couleur, emissiveIntensity: S.hutte.lueur }) }) }],
       ['hutteAccent', { capacity: 256, creer: () => ({ geo: new THREE.SphereGeometry(0.035, 8, 6), mat: matStructure({ emissive: S.hutte.accent, emissiveIntensity: 0.8, roughness: 0.3 }) }) }],
-      ['village', { capacity: 256, creer: () => ({ geo: new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat: matStructure({ roughness: 0.85 }) }) }],
+      // visage bienveillant de la hutte (yeux ronds doux + bouche pâle)
+      ['hutteYeux', { capacity: 512, creer: () => ({ geo: new THREE.SphereGeometry(S.hutte.visage.yeux.rayon!, 8, 6), mat: matStructure({ roughness: 0.35, emissive: S.hutte.visage.couleur, emissiveIntensity: S.hutte.visage.emissif }) }) }],
+      ['hutteBouche', { capacity: 256, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.35, emissive: S.hutte.visage.couleur, emissiveIntensity: S.hutte.visage.emissif }) }) }],
+      ['village', { capacity: 256, creer: () => ({ geo: new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat: matStructure({ roughness: 0.8, emissive: S.village.couleur, emissiveIntensity: S.village.lueur }) }) }],
       ['villageMur', { capacity: 256, creer: () => ({ geo: new THREE.TorusGeometry(S.village.mur.rayon, S.village.mur.epaisseur, 6, 24).rotateX(Math.PI / 2), mat: matStructure({ roughness: 0.8 }) }) }],
+      // visage malveillant du village (yeux en barres rouges + bouche néon)
+      ['villageYeux', { capacity: 512, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.3, emissive: S.village.visage.couleur, emissiveIntensity: S.village.visage.emissif }) }) }],
+      ['villageBouche', { capacity: 256, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.3, emissive: S.village.visage.couleur, emissiveIntensity: S.village.visage.emissif }) }) }],
+      // « Script de Base » (Guerrier cyber 3D) — créature à pattes et bras armé
+      ['ugCorps', { capacity: 512, creer: () => ({ geo: hexPrismeUnitaire(), mat: matStructure({ roughness: 0.5, metalness: 0.35 }) }) }],
+      ['ugCoeur', { capacity: 512, creer: () => ({ geo: new THREE.OctahedronGeometry(1), mat: matStructure({ roughness: 0.25, emissive: S.uniteGuerrier.coeur.couleur, emissiveIntensity: S.uniteGuerrier.coeur.emissif }) }) }],
+      ['ugPatte', { capacity: 512 * 4, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.6, metalness: 0.3 }) }) }],
+      ['ugBras', { capacity: 512, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.6, metalness: 0.3 }) }) }],
+      ['ugArme', { capacity: 512, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.3, emissive: 0xffffff, emissiveIntensity: S.uniteGuerrier.arme.emissif }) }) }],
+      // lasso électrique de la Sentinelle (segments accent joueur + boucle néon)
+      ['ugLasso', { capacity: 512 * 8, creer: () => ({ geo: new THREE.BoxGeometry(1, 1, 1), mat: matStructure({ roughness: 0.3, emissive: 0xffffff, emissiveIntensity: S.uniteArcher.lasso.emissif }) }) }],
+      ['ugBoucle', { capacity: 512, creer: () => ({ geo: new THREE.TorusGeometry(1, 0.22, 6, 16), mat: matStructure({ roughness: 0.25, emissive: S.uniteArcher.lasso.boucle.couleur, emissiveIntensity: S.uniteArcher.lasso.boucle.emissif }) }) }],
     ]);
   }
 
@@ -647,7 +852,10 @@ export class StructuresWorld {
         if (p.used >= p.mesh.instanceMatrix.count) break; // capacité dépassée (garde-fou)
         pos.set(i.x, i.y, i.z);
         scale.set(i.sx, i.sy, i.sz);
-        e.set(i.rx ?? 0, i.ry, 0);
+        // ordre YXZ : lacet (ry) d'abord, puis tangage LOCAL (rx) — indispensable
+        // pour les pattes/bras orientés en azimut (aucun pool existant ne combine
+        // rx et ry avec l'ancien ordre : sans effet ailleurs).
+        e.set(i.rx ?? 0, i.ry, 0, 'YXZ');
         m.compose(pos, new THREE.Quaternion().setFromEuler(e), scale);
         p.push(m, this.tmpColor.set(i.couleur));
       }
