@@ -120,9 +120,9 @@ describe('R-66 · bâtiments (Phase 6)', () => {
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
     expect(city.workedTiles).toContain('0,1');
-    // nourriture du tour = 2 (centre) + 1 (plaine) + 2 (Grenier) = 5 ;
-    // réserve = SURPLUS = 5 − 1 citoyen (D1 · R-63 rév.) = 4
-    expect(city.foodStored).toBe(4);
+    // nourriture du tour = 1 (centre — POLISSAGE-1 C1) + 1 (plaine) + 2 (Grenier) = 4 ;
+    // réserve = SURPLUS = 4 − 1 citoyen (D1 · R-63 rév.) = 3
+    expect(city.foodStored).toBe(3);
   });
 
   it('R-66 : le Tribunal étend le rayon — une case à distance 2 devient travaillable', () => {

@@ -620,8 +620,9 @@ describe('7n · Migration v16 → v17 (R-145/R-147/R-149 — additive, idempoten
 // ---------------------------------------------------------------------------
 
 describe('7n · R-146 (rév. Calibrage) · Zoulous — Aqueduc passif : seuils ÷ 2', () => {
-  /** Ville pop 2, anneau 1 en désert (0 N) : récolte 2 N (centre), consommation
-   *  2 → surplus 0 ; la croissance ne dépend que du seuil et de la réserve. */
+  /** Ville pop 2, anneau 1 en désert (0 N) : récolte 1 N (centre — POLISSAGE-1 C1),
+   *  consommation 2 → surplus −1 ; réserve 11 compense le déficit du tour pour
+   *  que la croissance ne dépende que du seuil et de la réserve. */
   function growthState(): GameState {
     const state = makeState({
       width: 8,
@@ -630,7 +631,7 @@ describe('7n · R-146 (rév. Calibrage) · Zoulous — Aqueduc passif : seuils �
         '1,0': 'desert', '0,1': 'desert', '-1,0': 'desert',
         '0,-1': 'desert', '1,-1': 'desert', '-1,1': 'desert',
       },
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 10, workedTiles: [] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 11, workedTiles: [] }],
     });
     state.players['p1']!.civId = 'zoulous';
     return state;

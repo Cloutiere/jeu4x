@@ -9,6 +9,7 @@ import type { MapData } from '../src/map.js';
 import { CURRENT_SCHEMA_VERSION } from '../src/state.js';
 import { hexDistance, tileKeyOf, colRowToHex } from '../src/hex.js';
 import { RESOURCES, TERRAINS, isWaterTerrain } from '../src/data.js';
+import { BARBARIANS } from '../src/data.js';
 import type { TerrainId } from '../src/types.js';
 
 /** Petite carte valide 14×3 de prairie, capitales à distance 13 ≥ 12.
@@ -202,8 +203,9 @@ describe('L3 · createInitialState', () => {
       // la case de capitale porte le terrain "ville" (RULES.md §2)
       expect(state.map[tileKeyOf(city)]!.terrain).toBe('ville');
     }
-    // 1 Guerrier par joueur, adjacent à la capitale (décision d'Erik du 01/09).
-    expect(Object.keys(state.units)).toHaveLength(2);
+    // 1 Guerrier par joueur, adjacent à la capitale (décision d'Erik du 01/09)
+    // + les dotations barbares initiales (POLISSAGE-1 C3 · T-50 : 1/village).
+    expect(Object.keys(state.units)).toHaveLength(2 + 3 * BARBARIANS.initialUnits);
     for (const city of Object.values(state.cities)) {
       const defenders = Object.values(state.units).filter(
         (u) => u.owner === city.owner && hexDistance(u, city) === 1,

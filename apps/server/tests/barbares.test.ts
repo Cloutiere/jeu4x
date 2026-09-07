@@ -27,8 +27,8 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     expect(dump.barbares!.huts).toHaveLength(2); // R-98 : 2 huttes
     for (const v of dump.barbares!.villages) {
       expect(v.hp).toBe(3); // T-21
-      expect(v.spawnCountdown).toBe(3); // T-18
-      expect(v.unitésVivantes).toBe(0);
+      expect(v.spawnCountdown).toBe(10); // T-18 (POLISSAGE-1 C3)
+      expect(v.unitésVivantes).toBe(1); // dotation initiale T-50 (POLISSAGE-1 C3)
     }
     expect(dump.state!.mapId).toBe('pangee-40');
   });
@@ -121,8 +121,9 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     expect(dump.state!.villages).toHaveLength(3);
     expect(dump.state!.huts).toHaveLength(2);
     for (const v of dump.state!.villages!) {
-      expect(v.spawnCountdown).toBe(3); // compteurs à zéro (T-18)
-      expect(v.spawnedUnits).toEqual([]);
+      expect(v.spawnCountdown).toBe(10); // T-18 (POLISSAGE-1 C3)
+      // Dotation initiale T-50 : l'enrichissement pose aussi le barbare de début de partie.
+      expect(v.spawnedUnits).toHaveLength(1);
     }
   });
 });

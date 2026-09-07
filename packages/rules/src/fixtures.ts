@@ -21,6 +21,7 @@ import type { TerrainId } from './types.js';
 import { SCIENCE_RATIO_DEFAULT } from './constants.js';
 import { CONVERSION_DEFAULT } from './conversion.js';
 import { NEUTRAL_CIV } from './civilizations.js';
+import { spawnInitialGarrisons } from './barbares.js';
 
 export interface UnitSpec {
   id?: UnitId;
@@ -242,7 +243,9 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
     mapId: opts.mapId ?? null,
     firstBy: {}, // 7e : Premier découvrir (aucun au départ)
   };
-  return state;
+  // C3 · T-50 (POLISSAGE-1) : la fixture modélise le début de partie comme le
+  // moteur — dotation initiale d'un barbare par camp (miroir applyMapEntities).
+  return spawnInitialGarrisons(state);
 }
 
 /** Variante rapide : état + accès indexés pour les assertions. */

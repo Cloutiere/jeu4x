@@ -59,6 +59,10 @@ export const VILLAGE_DESTRUCTION_GOLD = BARBARIANS.villageDestructionGold;
 export const VILLAGE_HP = BARBARIANS.villageHP;
 /** T-22 · Cap d'unités vivantes engendrées par village (R-96). 🔶 */
 export const CAP_PER_VILLAGE = BARBARIANS.capPerVillage;
+/** T-49 · POLISSAGE-1 C3 : garde minimale par camp (R-97). 🔶 */
+export const BARBARIAN_GARDE_MINIMALE = BARBARIANS.gardeMinimale;
+/** T-50 · POLISSAGE-1 C3 : dotation initiale d’un camp au début de partie (R-96). 🔶 */
+export const BARBARIAN_INITIAL_UNITS = BARBARIANS.initialUnits;
 /** T-23 · Escalade : le type « escalated » engendre après ce tour (R-95). 🔶 */
 export const ESCALATION_TURN = BARBARIANS.escalationTurn;
 /** T-24 · Boost de science d'une hutte (R-98). 🔶 */

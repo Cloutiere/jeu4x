@@ -183,12 +183,19 @@ export interface TurnResult extends ProtoMessage {
   state: GameState;
 }
 
-/** Accusé de réception d'un ordre ou d'un verrouillage (EndTurn). */
+/** Accusé de réception d'un ordre ou d'un verrouillage (EndTurn).
+ *  POLISSAGE-1 C2 (R-160) : sur une ANNULATION acceptée, le serveur renvoie
+ *  l'unité ou la ville dont les brouillons (et le chemin gelé éventuel) ont
+ *  été retirés — le client purge son aperçu immédiatement. */
 export interface OrderAck extends ProtoMessage {
   type: 'OrderAck';
   accepted: boolean;
   order: Order | null;
   reason: string | null;
+  /** Annulation : unité dont les brouillons + chemin gelé sont retirés. */
+  cancelledUnitId?: UnitId | null;
+  /** Annulation : ville dont les brouillons (production / worked tiles) sont retirés. */
+  cancelledCityId?: CityId | null;
 }
 
 export interface ErrorMessage extends ProtoMessage {

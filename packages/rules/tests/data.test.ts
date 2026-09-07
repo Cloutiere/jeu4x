@@ -80,12 +80,12 @@ describe('Données v1 (RULES.md §2-3)', () => {
 });
 
 describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
-  it('rendements §2 révisés : plaine 1/0/0, forêt 0/2/0, colline 0/1/0, prairie 2/0/0, ville 2/1/1', () => {
+  it('rendements §2 révisés : plaine 1/0/0, forêt 0/2/0, colline 0/1/0, prairie 2/0/0, ville 1/1/1 (POLISSAGE-1 C1 — socle de capitale 1 bus/1 cpu/1 ram, décision Erik ; plancher R-66 inchangé)', () => {
     expect(terrainTable['prairie']!.yields).toEqual({ food: 2, production: 0, commerce: 0 });
     expect(terrainTable['plaine']!.yields).toEqual({ food: 1, production: 0, commerce: 0 });
     expect(terrainTable['foret']!.yields).toEqual({ food: 0, production: 2, commerce: 0 });
     expect(terrainTable['colline']!.yields).toEqual({ food: 0, production: 1, commerce: 0 });
-    expect(terrainTable['ville']!.yields).toEqual({ food: 2, production: 1, commerce: 1 });
+    expect(terrainTable['ville']!.yields).toEqual({ food: 1, production: 1, commerce: 1 });
   });
 
   it('le champ de rendement est `commerce` (pas `gold`) — C réparti or/science (R-61)', () => {

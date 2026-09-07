@@ -428,6 +428,12 @@ export interface BarbariansData {
   villageDefense: number;
   /** T-22 · Cap d'unités vivantes engendrées par village (R-96). */
   capPerVillage: number;
+  /** T-49 · POLISSAGE-1 C3 : garde minimale — au moins N unités du camp
+   *  restent au camp (distance ≤ 1 du village d'origine, R-97). */
+  gardeMinimale: number;
+  /** T-50 · POLISSAGE-1 C3 : dotation initiale — N unités dans le camp au
+   *  début de la partie (R-96). */
+  initialUnits: number;
   /** T-23 · Escalade : type « escalated » après ce tour (R-95). */
   escalationTurn: number;
   /** R-95 · Unités d'engendrement (escalation). */

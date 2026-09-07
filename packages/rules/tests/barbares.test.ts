@@ -78,13 +78,15 @@ function barbarians(state: GameState): string[] {
 // ---------------------------------------------------------------------------
 
 describe('R-99 · Données barbares.json / huttes.json', () => {
-  it('R-99/T-18..T-23 : barbares.json porte les constantes, types d’escalade connus', () => {
-    expect(BARBARIANS.spawnInterval).toBe(3); // T-18
-    expect(BARBARIANS.aggroRadius).toBe(6); // T-19
+  it('R-99/T-18..T-23 + T-49/T-50 : barbares.json porte les constantes (POLISSAGE-1 C3), types d’escalade connus', () => {
+    expect(BARBARIANS.spawnInterval).toBe(10); // T-18 (C3 : était 3)
+    expect(BARBARIANS.aggroRadius).toBe(2); // T-19 (C3 : était 6 — sortie à 2 cases ou moins)
     expect(BARBARIANS.villageDestructionGold).toBe(50); // T-20 (7l · R-134 : canon +50 or — était 25 🔶 7d)
     expect(BARBARIANS.villageHP).toBe(3); // T-21
-    expect(BARBARIANS.capPerVillage).toBe(2); // T-22
-    expect(BARBARIANS.escalationTurn).toBe(15); // T-23
+    expect(BARBARIANS.capPerVillage).toBe(3); // T-22 (C3 : était 2)
+    expect(BARBARIANS.gardeMinimale).toBe(1); // T-49 (C3 : ≥ 1 unité reste au camp)
+    expect(BARBARIANS.initialUnits).toBe(1); // T-50 (C3 : 1 barbare au camp au début)
+    expect(BARBARIANS.escalationTurn).toBe(15); // T-23 (inchangé — seul le RYTHME change)
     expect(BARBARIANS.barbarianId).toBe('barbarien'); // R-95
     expect(BARBARIANS.villageDefense).toBeGreaterThanOrEqual(0);
     expect(UNIT_TYPES[BARBARIANS.units.initial]).toBeDefined();
@@ -284,7 +286,7 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
   });
 
   it('R-97-2 : pas bloqué (ami sur la ligne) → pas alternatif réducteur, sinon tenir', () => {
-    // La ligne vers (5,4) passe par (6,5) où stationne un ami ; (5,6), autre
+    // La ligne vers (5,5) passe par (6,5) où stationne un ami ; (5,6), autre
     // voisin réducteur de distance, lui succède (tri (q, r)).
     const state = makeState({
       width: 14,
@@ -292,12 +294,51 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
       units: [
         { id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 6, r: 6 },
         { id: 'b2', type: 'guerrier', owner: BARBARIAN_ID, q: 6, r: 5 },
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4 },
+        { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 5 }, // distance 2 ≤ T-19
       ],
     });
     const orders = barbarianOrders(state);
     const b1 = orders.find((o) => 'unitId' in o && o.unitId === 'b1')!;
     expect(b1).toMatchObject({ type: 'Move', path: [{ q: 5, r: 6 }] });
+  });
+
+  it('C3 · T-49 : cap 3, garde 1 — deux barbares du camp sortent, le TROISIÈME tient (Hold)', () => {
+    // 3 barbares au camp (cap T-22), ennemi à distance 2 (aggro T-19) : les
+    // deux premiers (tri unitId) sortent, le camp garde son unité (T-49).
+    const state = makeState({
+      width: 14,
+      height: 12,
+      villages: [{ q: 6, r: 5, spawnCountdown: 99 }],
+      units: [
+        { id: 'u1', type: 'guerrier', owner: 'p1', q: 6, r: 3 }, // distance 2 du village, non adjacent aux gardes
+      ],
+    });
+    // Remplace la dotation T-50 par 3 barbares AU camp (spawnedUnits câblés).
+    const gabarit = state.units[state.villages[0]!.spawnedUnits[0]!]!;
+    for (const id of [...state.villages[0]!.spawnedUnits]) delete state.units[id];
+    state.villages[0]!.spawnedUnits = ['b1', 'b2', 'b3'];
+    state.units['b1'] = { ...gabarit, id: 'b1', q: 5, r: 5 }; // cases adjacentes au village (6,5)
+    state.units['b2'] = { ...gabarit, id: 'b2', q: 7, r: 4 };
+    state.units['b3'] = { ...gabarit, id: 'b3', q: 6, r: 6 };
+    const orders = barbarianOrders(state);
+    const moves = orders.filter((o) => o.type === 'Move');
+    const holds = orders.filter((o) => o.type === 'Hold');
+    expect(moves).toHaveLength(2); // au plus 2 sortent (cap 3 − garde 1)
+    expect(holds).toHaveLength(1); // le garde reste au camp
+  });
+
+  it('C3 · T-49 : la garde n’empêche jamais le combat défensif — l’unité au camp ATTAQUE l’ennemi adjacent', () => {
+    const state = makeState({
+      width: 14,
+      height: 12,
+      villages: [{ q: 6, r: 5, spawnCountdown: 99 }],
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 6, r: 4 }], // voisin de (5,5)
+    });
+    // Un seul barbare, au camp (dotation T-50 repositionnée sur (5,5)).
+    const dotation = state.villages[0]!.spawnedUnits[0]!;
+    state.units[dotation] = { ...state.units[dotation]!, q: 5, r: 5 };
+    const orders = barbarianOrders(state);
+    expect(orders).toContainEqual({ type: 'Attack', unitId: dotation, target: { q: 6, r: 4 } });
   });
 });
 
@@ -306,43 +347,74 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
 // ---------------------------------------------------------------------------
 
 describe('R-96 · Villages barbares', () => {
-  it('R-96/T-18 : premier engendrement au tour 3, sur une case adjacente libre, compteurs réarmés', () => {
+  it('R-96/T-50 : dotation initiale — 1 barbare dans le camp au début de la partie, inscrit dans spawnedUnits', () => {
     const state = makeState({ width: 12, height: 10, villages: [{ q: 5, r: 5 }] });
-    expect(state.villages[0]).toMatchObject({ id: 'v1', hp: BARBARIANS.villageHP, spawnCountdown: BARBARIANS.spawnInterval, spawnedUnits: [] });
-    const { state: after, events } = resolveEmpty(state, 3);
-    expect(after.turn).toBe(3);
+    expect(state.villages[0]).toMatchObject({ id: 'v1', hp: BARBARIANS.villageHP, spawnCountdown: BARBARIANS.spawnInterval });
+    const spawned = state.villages[0]!.spawnedUnits;
+    expect(spawned).toHaveLength(BARBARIANS.initialUnits); // T-50
+    const barbare = state.units[spawned[0]!]!;
+    expect(barbare).toMatchObject({ owner: BARBARIAN_ID, type: BARBARIANS.units.initial });
+    expect(hexDistance(barbare, { q: 5, r: 5 })).toBe(1); // case adjacente libre (R-96)
+  });
+
+  it('R-96/T-18 : premier RÉENGENDREMENT au tour 10 (spawnInterval), sur une case adjacente libre, compteur réarmé', () => {
+    const state = makeState({ width: 12, height: 10, villages: [{ q: 5, r: 5 }] });
+    const { state: after, events } = resolveEmpty(state, 10);
+    expect(after.turn).toBe(10);
     const spawns = events.filter((e) => e.type === 'BarbarianSpawned');
-    expect(spawns).toHaveLength(1);
+    expect(spawns).toHaveLength(1); // la dotation initiale (T-50) n'émet pas d'événement
     const at = (spawns[0] as Extract<GameEvent, { type: 'BarbarianSpawned' }>).at;
     expect(hexDistance(at, { q: 5, r: 5 })).toBe(1); // case adjacente libre (R-96)
     expect(spawns[0]).toMatchObject({ villageId: 'v1', owner: BARBARIAN_ID });
     const spawned = barbarians(after);
-    expect(spawned).toHaveLength(1);
-    expect(after.units[spawned[0]!]).toMatchObject({ type: BARBARIANS.units.initial, q: at.q, r: at.r });
+    expect(spawned).toHaveLength(2); // dotation initiale + engendrement du tour 10
     expect(after.villages[0]!.spawnCountdown).toBe(BARBARIANS.spawnInterval);
     expect(after.villages[0]!.spawnedUnits).toEqual(spawned);
   });
 
-  it('R-96 : aucun engendrement hors cycle (tours 4-5)', () => {
+  it('R-96 : aucun engendrement hors cycle (tours 1-9)', () => {
     const state = makeState({ width: 12, height: 10, villages: [{ q: 5, r: 5 }] });
-    const { state: after, events } = resolveEmpty(state, 5);
-    expect(events.filter((e) => e.type === 'BarbarianSpawned')).toHaveLength(1); // tour 3 seulement
-    expect(after.turn).toBe(5);
+    const { state: after, events } = resolveEmpty(state, 9);
+    expect(events.filter((e) => e.type === 'BarbarianSpawned')).toHaveLength(0);
+    expect(barbarians(after)).toHaveLength(1); // la dotation initiale seule (T-50)
+    expect(after.turn).toBe(9);
   });
 
-  it('R-96/T-22 : cap de 2 unités vivantes par village (les barbares partent à l’aggro, le village réengendre, puis se tait)', () => {
+  it('R-96/T-22 : cap de 3 unités vivantes par village — le camp se régénère à 3 sans jamais le dépasser', () => {
     const state = makeState({
       width: 14,
       height: 12,
       villages: [{ q: 5, r: 5 }],
-      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 9 }], // distance 4 ≤ T-19 : attire les barbares
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 9 }], // distance 4 > T-19 (2) : n'attire pas les barbares
     });
-    const { events } = resolveEmpty(state, 9);
+    const { state: after, events } = resolveEmpty(state, 25);
     const spawns = events.filter((e) => e.type === 'BarbarianSpawned');
-    expect(spawns).toHaveLength(2); // tours 3 et 6 ; au tour 9 le cap T-22 est atteint
+    expect(spawns).toHaveLength(2); // tours 10 et 20 — dotation + 2 = 3 (cap T-22)
+    expect(barbarians(after)).toHaveLength(3);
+    const { state: encore } = resolveEmpty(after, 10); // tour 30 : le cap est atteint
+    expect(barbarians(encore)).toHaveLength(3); // le camp se régénère à 3, jamais plus
   });
 
-  it('R-96/T-23 : escalade — engendrement d’archers après le tour 15', () => {
+  it('R-96/T-22 + T-49 : cap 3 et garde 1 → au plus 2 barbares SORTENT simultanément (≥ 1 au camp)', () => {
+    const state = makeState({
+      width: 14,
+      height: 12,
+      villages: [{ q: 5, r: 5 }],
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 3 }], // distance 2 ≤ T-19 : attire
+    });
+    // Résous assez pour peupler le camp (dotation + tours 10, 20) puis laisser
+    // les barbares sortir plusieurs tours de suite.
+    let cur = state;
+    for (let i = 0; i < 40; i++) cur = resolveTurn(cur, {}, 17 + i).newState;
+    // Le camp garde TOUJOURS au moins 1 unité à distance ≤ 1 du village (T-49).
+    const autourDuCamp = Object.values(cur.units).filter(
+      (u) => u.owner === BARBARIAN_ID && hexDistance(u, { q: 5, r: 5 }) <= 1,
+    );
+    expect(autourDuCamp.length).toBeGreaterThanOrEqual(BARBARIANS.gardeMinimale);
+    expect(cur.villages[0]!.spawnedUnits.filter((id) => cur.units[id]).length).toBeLessThanOrEqual(BARBARIANS.capPerVillage);
+  });
+
+  it('R-96/T-23 : escalade — engendrement d’archers après le tour 15 (dotation initiale inchangée : guerrier)', () => {
     const state = makeState({
       width: 12,
       height: 10,
@@ -351,9 +423,13 @@ describe('R-96 · Villages barbares', () => {
     });
     const { state: after, events } = resolveEmpty(state, 1);
     expect(after.turn).toBe(16);
-    const spawned = barbarians(after);
-    expect(spawned).toHaveLength(1);
-    expect(after.units[spawned[0]!]!.type).toBe(BARBARIANS.units.escalated);
+    const spawn = events.find((e): e is Extract<GameEvent, { type: 'BarbarianSpawned' }> => e.type === 'BarbarianSpawned')!;
+    expect(after.units[spawn.unitId]!.type).toBe(BARBARIANS.units.escalated);
+    // La dotation initiale (T-50) reste du type initial — seule la pousse du
+    // village subit l'escalade.
+    expect(after.units[after.villages[0]!.spawnedUnits.find((id) => id !== spawn.unitId)!]!.type).toBe(
+      BARBARIANS.units.initial,
+    );
     expect(eventTypes(events)).toContain('BarbarianSpawned');
   });
 
@@ -731,7 +807,7 @@ describe('Interactions barbares ↔ règles existantes (L1.5/L1.6)', () => {
         { id: 'u2', type: 'guerrier', owner: 'p2', q: 1, r: 1 },
       ],
     });
-    const { state: after, events } = resolveEmpty(state, 4);
+    const { state: after, events } = resolveEmpty(state, 10);
     const json = JSON.stringify(after);
     expect(json).not.toContain('"Fortify"');
     expect(json).not.toContain('"FoundCity"');
@@ -773,7 +849,7 @@ describe('Interactions barbares ↔ règles existantes (L1.5/L1.6)', () => {
         { id: 'u2', type: 'guerrier', owner: 'p2', q: 0, r: 0 }, // loin
       ],
     });
-    const { state: after, events } = resolveEmpty(state, 3);
+    const { state: after, events } = resolveEmpty(state, 10);
     const spawn = events.find((e) => e.type === 'BarbarianSpawned')!;
     expect(filterEventsForPlayer(after, 'p1', [spawn])).toHaveLength(1); // p1 voit
     expect(filterEventsForPlayer(after, 'p2', [spawn])).toHaveLength(0); // p2 ne voit pas
@@ -785,16 +861,19 @@ describe('Interactions barbares ↔ règles existantes (L1.5/L1.6)', () => {
 // ---------------------------------------------------------------------------
 
 describe('L4.1 · Scénario e2e seedé (village → attaque → hutte → destruction → rasement → défaite)', () => {
-  /** État de campagne : 3 villages, 1 hutte, 2 villes p1 dont la capitale. */
+  /** État de campagne : 3 villages, 1 hutte, 2 villes p1 dont la capitale.
+   *  POLISSAGE-1 C3 : la menace vient de la DOTATION initiale (T-50) puis des
+   *  réengendrements (T-18 = 10) ; les compteurs de v2/v3 sont décalés pour
+   *  que les rasements de c2 puis c1 s'enchaînent de façon déterministe. */
   function campagne(): GameState {
     return makeState({
       width: 20,
       height: 12,
       rngSeed: 2026,
       villages: [
-        { q: 5, r: 5 }, // v1 : scène de combat (bait u1 + geant u2)
-        { q: 0, r: 4 }, // v2 : menace la capitale c1 (distance 5)
-        { q: 12, r: 6 }, // v3 : menace la ville c2 (distance 3)
+        { q: 5, r: 5 }, // v2 (tri (q,r)) : scène de combat (bait u1 + geant u2)
+        { q: 0, r: 7, spawnCountdown: 8 }, // v1 : menace la capitale c1 (distance 2) — réengendrement tour 8
+        { q: 12, r: 6, spawnCountdown: 1 }, // v3 : menace la ville c2 (distance ≤ 2) — réengendrement tour 1
       ],
       huts: [{ q: 7, r: 4 }],
       cities: [
@@ -802,8 +881,8 @@ describe('L4.1 · Scénario e2e seedé (village → attaque → hutte → destru
         { id: 'c2', owner: 'p1', q: 13, r: 4, capital: false },
       ],
       units: [
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 6 }, // appât adjacent à v1
-        { id: 'u2', type: 'geant', owner: 'p1', q: 9, r: 5 }, // marche vers v1 et la détruit
+        { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 6 }, // appât adjacent à v2
+        { id: 'u2', type: 'geant', owner: 'p1', q: 9, r: 5 }, // marche vers v2 et la détruit
         { id: 'u3', type: 'colon', owner: 'p1', q: 9, r: 4 }, // ouvre la hutte
       ],
     });
@@ -812,11 +891,11 @@ describe('L4.1 · Scénario e2e seedé (village → attaque → hutte → destru
   const V1: Hex = { q: 5, r: 5 };
   const HUT_E2E: Hex = { q: 7, r: 4 };
 
-  /** Ordres p1 du tour : u3 ouvre la hutte (après l’engendrement T-18), u2
-   *  marche vers le village de combat puis y entre (entrer = attaquer, R-96). */
+  /** Ordres p1 du tour : u3 ouvre la hutte (dès le tour 1), u2 marche vers le
+   *  village de combat puis y entre (entrer = attaquer, R-96). */
   function ordersFor(s: GameState): Record<string, Order[]> {
     const p1: Order[] = [];
-    if (s.turn >= 3 && s.units['u3'] && s.huts.some((h) => h.q === HUT_E2E.q && h.r === HUT_E2E.r)) {
+    if (s.units['u3'] && s.huts.some((h) => h.q === HUT_E2E.q && h.r === HUT_E2E.r)) {
       p1.push({ type: 'Move', unitId: 'u3', path: pathBetween(s.units['u3']!, HUT_E2E) });
     }
     const u2 = s.units['u2'];
@@ -826,7 +905,7 @@ describe('L4.1 · Scénario e2e seedé (village → attaque → hutte → destru
     return { p1 };
   }
 
-  it('la chaîne complète : engendrement T-18, attaque barbare, hutte, destruction +or, villes rasées, défaite', () => {
+  it('la chaîne complète : dotation T-50, attaque barbare, hutte, destruction +or, villes rasées, défaite', () => {
     let state = campagne();
     const events: GameEvent[] = [];
     const step = (want?: (r: TurnResult) => boolean): void => {
@@ -842,25 +921,31 @@ describe('L4.1 · Scénario e2e seedé (village → attaque → hutte → destru
       }
     };
 
-    // 1. Tours 1-3 : les trois villages engendrent au tour 3 (T-18).
-    step();
-    step();
-    step((r) => r.newState.turn === 3 && r.events.filter((e) => e.type === 'BarbarianSpawned').length === 3);
-    expect(state.turn).toBe(3);
+    // 1. Dotation initiale (T-50) : 1 barbare dans CHAQUE camp dès le début.
     expect(barbarians(state)).toHaveLength(3);
-    // La fixture re-trie les villages par (q, r) : résoudre l’id par position.
+    expect(state.turn).toBe(0);
+    // La fixture re-trie les villages par (q, r) : résoudre l'id par position.
     const villageId = state.villages.find((v) => v.q === 5 && v.r === 5)!.id;
     const barbOfV1 = state.villages.find((v) => v.id === villageId)!.spawnedUnits[0]!;
 
-    // 2. Tour 4 : le barbare de v1 se dirige vers l’appât puis l’attaque ;
-    //    u3 ouvre la hutte (récompense quelconque).
+    // 2. Tour 1 : u3 ouvre la hutte (récompense quelconque) ; le barbare de
+    //    v2, au contact de l'appât, engage.
     step((r) => r.events.some((e) => e.type === 'HutOpened'));
-    const attack = events.find((e) => e.type === 'Attack' && e.attackerId === barbOfV1);
-    expect(attack, 'le barbare engendré attaque l’unité adjacente').toBeDefined();
+    expect(events.some((e) => e.type === 'HutOpened')).toBe(true);
 
-    // 3. u2 détruit v1 : or T-20 au vainqueur, disparition définitive, vétéran.
-    const goldBefore = state.players['p1']!.treasury;
+    // 3. u2 détruit v2 : or T-20 au vainqueur, disparition définitive, vétéran.
+    //    Marche d'approche d'abord (u2 est à distance 4 du village).
     let guard = 0;
+    while (
+      state.villages.some((v) => v.id === villageId) &&
+      state.units['u2'] &&
+      hexDistance(state.units['u2']!, V1) > 1 &&
+      guard++ < 12
+    ) {
+      step();
+    }
+    const goldBefore = state.players['p1']!.treasury;
+    guard = 0;
     while (state.villages.some((v) => v.id === villageId) && guard++ < 20) {
       const hpBefore = state.villages.find((v) => v.id === villageId)!.hp;
       const b1Alive = !!state.units[barbOfV1];
@@ -962,7 +1047,10 @@ describe('R-96/R-98 · Placements villages/huttes dans les cartes', () => {
     expect(state.villages.map((v) => v.id)).toEqual(['v1', 'v2', 'v3']);
     expect(state.huts.map((h) => h.id)).toEqual(['h1', 'h2']);
     for (const v of state.villages) {
-      expect(v).toMatchObject({ hp: BARBARIANS.villageHP, spawnCountdown: BARBARIANS.spawnInterval, spawnedUnits: [] });
+      expect(v).toMatchObject({ hp: BARBARIANS.villageHP, spawnCountdown: BARBARIANS.spawnInterval });
+      // POLISSAGE-1 C3 · T-50 : la dotation initiale est posée par la carte.
+      expect(v.spawnedUnits).toHaveLength(1);
+      expect(state.units[v.spawnedUnits[0]!]).toMatchObject({ owner: BARBARIAN_ID });
     }
     expect(state.mapId).toBe('variee-40');
   });

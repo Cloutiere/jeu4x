@@ -33,6 +33,7 @@ import { hexDistance, tileKeyOf, colRowToHex, neighbors } from '../src/hex.js';
 import type { Hex } from '../src/hex.js';
 import { createRng } from '../src/rng.js';
 import { RESOURCES, TERRAINS, isWaterTerrain } from '../src/data.js';
+import { BARBARIANS } from '../src/data.js';
 import type { TerrainId } from '../src/types.js';
 
 const W = 40;
@@ -203,7 +204,13 @@ describe('Phase 6b · Générateur procédural — structure & validations', () 
     // Phase 6c (Erik) : démarrage Colon + Guerrier SANS capitale — aucune
     // ville à l'initialisation, le Colon fondera via FoundCity (R-64).
     expect(Object.keys(state.cities)).toEqual([]);
-    expect(Object.keys(state.units)).toEqual(['u1', 'u2', 'u3', 'u4']);
+    // u1..u4 = Colon + Guerrier des 2 joueurs ; u5+ = dotations barbares
+    // initiales (POLISSAGE-1 C3 · T-50 : 1 par village, ids par (q, r)).
+    const expectedUnits = ['u1', 'u2', 'u3', 'u4'];
+    for (let i = 0; i < state.villages.length * BARBARIANS.initialUnits; i++) {
+      expectedUnits.push(`u${5 + i}`);
+    }
+    expect(Object.keys(state.units)).toEqual(expectedUnits);
     expect(state.units.u1!.type).toBe('colon');
     expect(state.units.u1!.owner).toBe('p1');
     expect(state.units.u2!.type).toBe('guerrier');

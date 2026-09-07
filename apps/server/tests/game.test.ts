@@ -117,6 +117,75 @@ describe('GameDO · temps réel à deux onglets', () => {
   });
 });
 
+/**
+ * POLISSAGE-1 C2 (R-160) — l'annulation d'un ordre retire IMMÉDIATEMENT
+ * flèche/fantôme de l'aperçu : l'OrderAck porte l'unité annulée (le client
+ * purge son brouillon) et un chemin gelé annulé est effacé de l'état
+ * (Snapshot de rafraîchissement qui suit l'accusé).
+ */
+describe('GameDO · POLISSAGE-1 C2 · annulation d\'ordre et aperçu (R-160)', () => {
+  /** Deux cases praticables consécutives au départ de l'unité (chemin 2 pas). */
+  function twoStepPath(
+    snap: { state: { map: Record<string, { terrain: string } | undefined>; units: Record<string, { q: number; r: number } | undefined> } },
+  ): Array<{ q: number; r: number }> {
+    const first = moveTargetFor(snap);
+    const unit = snap.state.units['u1']!;
+    const blockers = ['eau', 'ocean', 'montagne', 'ville'];
+    for (const [dq, dr] of [[0, -1], [-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1]] as const) {
+      const second = { q: first.q + dq, r: first.r + dr };
+      if (second.q === unit.q && second.r === unit.r) continue;
+      const tile = snap.state.map[`${second.q},${second.r}`];
+      if (tile && !blockers.includes(tile.terrain)) return [first, second];
+    }
+    throw new Error('pas de chemin 2 cases praticable pour le test');
+  }
+
+  it('annuler un brouillon → OrderAck avec cancelledUnitId, l\'aperçu client purge', async () => {
+    const { alice, snapA } = await readySockets(NO_TIMER);
+    const path = twoStepPath(snapA);
+    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path } });
+    const ack = await alice.waitFor('OrderAck');
+    if (ack.type !== 'OrderAck') return;
+    expect(ack.accepted).toBe(true);
+
+    alice.send({ type: 'CancelOrder', unitId: 'u1' });
+    const cancel = await alice.waitFor('OrderAck');
+    if (cancel.type !== 'OrderAck') return;
+    expect(cancel.accepted).toBe(true);
+    expect(cancel.order).toBeNull();
+    expect(cancel.cancelledUnitId).toBe('u1');
+    alice.close();
+  });
+
+  it('annuler un chemin gelé → effacé de l\'état, Snapshot de rafraîchissement (R-160)', async () => {
+    const { alice, bob, snapA } = await readySockets(NO_TIMER);
+    const path = twoStepPath(snapA);
+    alice.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: 'u1', path } });
+    await alice.waitFor('OrderAck');
+    alice.send({ type: 'EndTurn' });
+    await alice.waitFor('OrderAck');
+    bob.send({ type: 'EndTurn' });
+    const result = (await alice.waitFor('TurnResult')) as TurnResult;
+    // Le guerrier (1 PM) n'a fait qu'un pas : le reste du chemin est gelé.
+    const frozen = result.state.units['u1']!.order;
+    expect(frozen).not.toBeNull();
+    expect(frozen!.type === 'Move' && frozen!.path.length).toBe(1);
+
+    alice.send({ type: 'CancelOrder', unitId: 'u1' });
+    const cancel = await alice.waitFor('OrderAck');
+    if (cancel.type !== 'OrderAck') return;
+    expect(cancel.accepted).toBe(true);
+    expect(cancel.cancelledUnitId).toBe('u1');
+    // Le Snapshot qui suit montre le chemin gelé effacé : l'aperçu (flèche
+    // pointillée + previewPrograms) ne voit plus l'ordre annulé.
+    const snap = (await alice.waitFor('Snapshot')) as Snapshot;
+    expect(snap.state.units['u1']!.order).toBeNull();
+    expect(snap.orders).toEqual([]);
+    alice.close();
+    bob.close();
+  });
+});
+
 describe('GameDO · SetConversion (R-90, Phase 7b — action immédiate)', () => {
   it('la conversion or→science d’une ville possédée est appliquée et diffusée aux deux clients', async () => {
     const { code, alice, bob } = await readySockets(NO_TIMER);

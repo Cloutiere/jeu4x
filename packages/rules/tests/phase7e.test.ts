@@ -164,14 +164,15 @@ describe('R-111 · Marché/Banque : multiplicateurs d’or et REMPLACEMENT (7e)'
 describe('7e · Effets de bâtiments actifs', () => {
   it('Aqueduc : seuil de croissance réduit d’un tiers (surplus 4 fait croître avec Aqueduc, pas sans — table 7l · C4)', () => {
     const withAqueduct = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, buildings: ['aqueduc'], foodStored: 9, workedTiles: ['1,0', '0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, buildings: ['aqueduc'], foodStored: 10, workedTiles: ['1,0', '0,1'] }],
     });
     const without = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 9, workedTiles: ['1,0', '0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 10, workedTiles: ['1,0', '0,1'] }],
     });
     const grown = resolveTurn(withAqueduct, {}, 1).newState;
     const notGrown = resolveTurn(without, {}, 1).newState;
-    // Surplus = récolte 6 (centre 2 + 2 prairies) − 2 citoyens = 4 ; réserve 9 + 4 = 13.
+    // Surplus = récolte 5 (centre 1 — POLISSAGE-1 C1 + 2 prairies) − 2 citoyens = 3 ;
+    // réserve 10 + 3 = 13.
     // Seuil vers pop 3 sans Aqueduc (7l · C4 : 10 × n) : 20 → 13 < 20, pas de croissance.
     expect(notGrown.cities['c1']!.pop).toBe(2);
     // Seuil avec Aqueduc 🔶 : round(20 × 0,67) = 13 → 13 ≥ 13, croissance.

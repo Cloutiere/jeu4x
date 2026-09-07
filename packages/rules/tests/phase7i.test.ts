@@ -24,7 +24,7 @@ import { tileYield, autoAssignWorkedTiles } from '../src/economy.js';
 
 describe('D1 · R-63 (rév.) — la nourriture se consomme', () => {
   it('surplus = récolte − population : une ville pop 3 sans surplus ne grandit plus', () => {
-    // anneau 1 en plaine (1 N) : récolte = 2 (centre) + 3 × 1 = 5 < 3 citoyens × ... → déficit
+    // anneau 1 en plaine (1 N) : récolte = 1 (centre — POLISSAGE-1 C1) + 5 × 1 = 6 → surplus faible
     const state = makeState({
       width: 8,
       height: 8,
@@ -41,8 +41,8 @@ describe('D1 · R-63 (rév.) — la nourriture se consomme', () => {
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
-    // récolte 2 (centre) + 5 plaines = 7 ; consommation 5 → surplus +2
-    expect(city.foodStored).toBe(2);
+    // récolte 1 (centre — POLISSAGE-1 C1) + 5 plaines = 6 ; consommation 5 → surplus +1
+    expect(city.foodStored).toBe(1);
     expect(city.pop).toBe(5); // pas de croissance
   });
 
@@ -258,14 +258,15 @@ describe('7i · La pompe à colons (doc §Impact Économique)', () => {
     s = r1.newState;
     expect(r1.events.some((e) => e.type === 'UnitProduced' && e.unitType === 'colon')).toBe(true);
     expect(Object.values(s.cities)[0]!.pop).toBe(1);
-    // Tours suivants : surplus alimentaire → pop 2 retrouvée en ≤ 3 tours.
+    // Tours suivants : surplus alimentaire → pop 2 retrouvée en ≤ 5 tours
+    // (POLISSAGE-1 C1 : centre 1 N → récolte 3, surplus 2, seuil 10).
     let tours = 0;
-    while (Object.values(s.cities)[0]!.pop < 2 && tours < 5) {
+    while (Object.values(s.cities)[0]!.pop < 2 && tours < 7) {
       s = resolveTurn(s, {}, 42).newState;
       tours += 1;
     }
     expect(Object.values(s.cities)[0]!.pop).toBe(2);
-    expect(tours).toBeLessThanOrEqual(3);
+    expect(tours).toBeLessThanOrEqual(5);
   });
 });
 
@@ -342,9 +343,10 @@ describe('R-66 (rév. 06/09) — socle garanti 1N / 1P / 1C du centre-ville', ()
     const y = tileYield(desert, [], '0,0', [], [], undefined, { civId: 'egypte', era: 'ancienne' })!;
     expect(y.food).toBe(1); // 0 (désert) + 1 (trait) — jamais raboté vers le socle
     expect(y.commerce).toBe(2); // 1 (désert) + 1 (trait)
-    // Le centre (terrain ville) donne 2 N : au-dessus du socle 1 N, inchangé.
+    // Le centre (terrain ville) donne 1 N (POLISSAGE-1 C1) : pile le socle —
+    // le plancher reste en garantie (cas futurs type cratère), il ne plafonne rien.
     const centre = tileYield({ '0,0': { terrain: 'ville' as const } }, [], '0,0')!;
-    expect(centre.food).toBe(2);
+    expect(centre.food).toBe(1);
   });
 
   it('non-régression D5 : fonder sur une ressource la détruit toujours (ResourceDestroyed)', () => {

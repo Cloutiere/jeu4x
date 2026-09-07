@@ -211,17 +211,17 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     };
 
     // Tour 1 : fondation. 7i · D3 : pop 2 → 2 citoyens auto-assignés
-    // (plaines 1 N) ; réserve = SURPLUS = (2+1+1) récolte − 2 citoyens = 2
-    // (7i · D1 · R-63 rév.).
+    // (plaines 1 N) ; réserve = SURPLUS = (1+1+1) récolte − 2 citoyens = 1
+    // (7i · D1 · R-63 rév. ; POLISSAGE-1 C1 : centre-ville 1 N au lieu de 2).
     step({ p1: [{ type: 'FoundCity', unitId: 'u1' }] });
     const cityId = Object.keys(state.cities)[0]!;
     expect(state.cities[cityId]!.pop).toBe(2);
     expect(state.cities[cityId]!.workedTiles.length).toBe(2);
-    expect(state.cities[cityId]!.foodStored).toBe(2);
+    expect(state.cities[cityId]!.foodStored).toBe(1);
 
-    // Tours 2-10 : surplus 2/tour → réserve 20 = seuil vers pop 3
-    // (7l · C4 : seuil linéaire 10 × n — 10 × 2) → croissance au tour 10.
-    for (let t = 0; t < 9; t++) step({});
+    // Tours 2-20 : surplus 1/tour → réserve 20 = seuil vers pop 3
+    // (7l · C4 : seuil linéaire 10 × n — 10 × 2) → croissance au tour 20.
+    for (let t = 0; t < 19; t++) step({});
     expect(state.cities[cityId]!.pop).toBe(3);
     expect(allEvents.some((e) => e.type === 'PopulationGrew')).toBe(true);
     expect(state.cities[cityId]!.workedTiles.length).toBe(3); // +1 citoyen auto-assigné (R-60)
@@ -260,14 +260,15 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     // Grenier atteint pile le seuil de la table)
     state.cities[cityId]!.foodStored = 0;
     state.cities[cityId]!.pop = 4;
-    // 7i · D1 : la réserve reçoit le SURPLUS (récolte − population).
+    // 7i · D1 : la réserve reçoit le SURPLUS (récolte − population) ;
+    // centre 1 N (POLISSAGE-1 C1).
     const expectedFood =
-      2 + tiles.reduce((acc, key) => acc + tileYield(state.map, ['grenier'], key)!.food, 0) -
+      1 + tiles.reduce((acc, key) => acc + tileYield(state.map, ['grenier'], key)!.food, 0) -
       state.cities[cityId]!.pop;
     step({});
     expect(state.cities[cityId]!.foodStored).toBe(expectedFood);
     expect(expectedFood).toBeGreaterThan(
-      2 + tiles.reduce((a, k) => a + tileYield(state.map, [], k)!.food, 0) - state.cities[cityId]!.pop,
+      1 + tiles.reduce((a, k) => a + tileYield(state.map, [], k)!.food, 0) - state.cities[cityId]!.pop,
     ); // le bonus du Grenier se sent vraiment
 
     // 7i : stock et population recadrés pour garder le scénario déterministe

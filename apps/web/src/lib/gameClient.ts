@@ -103,6 +103,18 @@ export function sameSubject(a: Order, b: Order): boolean {
   return ua !== null && ub !== null && ua === ub;
 }
 
+/** POLISSAGE-1 C2 (R-160) : retire des brouillons les ordres touchant l'unité
+ *  annulée (Move/MultiStep/Attack/Hold/FoundCity/FormArmy membre compris) ou
+ *  la ville annulée (SetProduction/SetWorkedTile). Pur et testé. */
+export function removeCancelledOrders(orders: Order[], unitId: UnitId | null, cityId: CityId | null): Order[] {
+  if (!unitId && !cityId) return orders;
+  return orders.filter((o) => {
+    if (unitId && ('unitId' in o ? o.unitId === unitId : o.type === 'FormArmy' && o.members.includes(unitId))) return false;
+    if (cityId && (o.type === 'SetProduction' || o.type === 'SetWorkedTile') && o.cityId === cityId) return false;
+    return true;
+  });
+}
+
 /** Réducteur PUR : vue suivante à partir de la vue courante et d'un message serveur. */
 export function reduceView(v: GameView, message: ServerToClientMessage): GameView {
   switch (message.type) {
@@ -150,7 +162,14 @@ export function reduceView(v: GameView, message: ServerToClientMessage): GameVie
         return { ...v, orders };
       }
       if (message.reason === 'verrouillé') return { ...v, locked: true };
-      return v;
+      // POLISSAGE-1 C2 (R-160) : annulation acceptée → l'aperçu ne voit plus
+      // l'ordre annulé (flèche, fantôme, marqueur d'action finale disparaissent
+      // immédiatement). Le chemin gelé éventuel, lui, est effacé côté serveur
+      // (état) et revient par le Snapshot qui suit l'accusé.
+      return {
+        ...v,
+        orders: removeCancelledOrders(v.orders, message.cancelledUnitId ?? null, message.cancelledCityId ?? null),
+      };
     case 'GameList':
     case 'GameCreated':
     case 'GameJoined':

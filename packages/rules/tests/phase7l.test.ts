@@ -43,12 +43,12 @@ describe('7l · Bloc 0 · C4 — courbe de croissance linéaire 10 × n (R-63 r�
     expect(growthThresholdFor(10)).toBe(100);
   });
 
-  it('moteur : pop 2 avec réserve 16 + surplus 4 franchit le seuil 20 (2→3)', () => {
+  it('moteur : pop 2 avec réserve 17 + surplus 3 franchit le seuil 20 (2→3)', () => {
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 16, workedTiles: ['1,0', '0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 17, workedTiles: ['1,0', '0,1'] }],
     });
     const out = resolveTurn(state, {}, 1).newState;
-    // récolte 6 (centre 2 + 2 prairies) − 2 citoyens = 4 → 16 + 4 = 20 = seuil.
+    // récolte 5 (centre 1 — POLISSAGE-1 C1 + 2 prairies) − 2 citoyens = 3 → 17 + 3 = 20 = seuil.
     expect(out.cities['c1']!.pop).toBe(3);
   });
 });

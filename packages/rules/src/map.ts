@@ -27,6 +27,7 @@ import { SCIENCE_RATIO_DEFAULT, VISION_RADIUS_CITY } from './constants.js';
 import { CONVERSION_DEFAULT } from './conversion.js';
 import { autoAssignWorkedTiles } from './economy.js';
 import { hexesWithinRadius } from './hex.js';
+import { spawnInitialGarrisons } from './barbares.js';
 import { artefactsForMap } from './artefacts.js';
 import {
   eraOfTechCount,
@@ -685,5 +686,7 @@ export function applyMapEntities(state: GameState, map: LoadedMap): GameState {
   const huts: Hut[] = [...map.huts]
     .sort((a, b) => a.q - b.q || a.r - b.r)
     .map((h, i) => ({ id: `h${i + 1}`, q: h.q, r: h.r }));
-  return { ...state, mapId: map.data.id, villages, huts };
+  // C3 · T-50 (POLISSAGE-1) : dotation initiale — 1 barbare dans chaque camp
+  // au début de la partie (spawnInitialGarrisons : pure).
+  return spawnInitialGarrisons({ ...state, mapId: map.data.id, villages, huts });
 }

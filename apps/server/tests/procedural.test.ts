@@ -45,8 +45,12 @@ test('procedural-40 : création, join, dump admin complet et symétrique', async
   expect(state.huts).toHaveLength(12);
   // Phase 6c (Erik) : démarrage Colon + Guerrier sans capitale.
   expect(Object.keys(state.cities)).toEqual([]);
-  // Colon + Guerrier par joueur : u1 colon p1, u2 guerrier p1, u3 colon p2, u4 guerrier p2.
-  expect(Object.keys(state.units)).toEqual(['u1', 'u2', 'u3', 'u4']);
+  // Colon + Guerrier par joueur : u1 colon p1, u2 guerrier p1, u3 colon p2, u4 guerrier p2
+  // + les dotations barbares initiales (POLISSAGE-1 C3 · T-50 : 1/village, 12 villages).
+  expect(Object.keys(state.units)).toEqual([
+    'u1', 'u2', 'u3', 'u4',
+    ...Array.from({ length: 12 }, (_, i) => `u${5 + i}`),
+  ]);
   // (le type Snapshot du dump ne porte pas `type` — cast local pour l'assertion)
   const unitTypes = state.units as unknown as Record<string, { type: string; owner: string }>;
   expect(unitTypes.u1!.type).toBe('colon');

@@ -644,10 +644,10 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
 
   it('R-63 (rév. 7l · C4) : croissance au seuil de la table LINÉAIRE 10 × n — surplus = récolte − population', () => {
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 7, workedTiles: ['0,1'] }],
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 8, workedTiles: ['0,1'] }],
     });
     const { newState, events } = resolveTurn(state, {}, 1);
-    // récolte = 2 (centre) + 2 (prairie) = 4 ; surplus = 4 − 1 citoyen = 3
+    // récolte = 1 (centre — POLISSAGE-1 C1) + 2 (prairie) = 3 ; surplus = 3 − 1 citoyen = 2
     // → réserve 10 = seuil vers pop 2 (7l · C4 : 10 × n, ici 10 × 1) → croissance.
     const city = cityAt(newState, 0, 0)!;
     expect(city.pop).toBe(2);
@@ -663,9 +663,9 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
-    // récolte 2 (centre), surplus = 2 − 1 = 1 → réserve 3 < seuil 10 (C4)
+    // récolte 1 (centre — POLISSAGE-1 C1), surplus = 1 − 1 = 0 → réserve 2 < seuil 10 (C4)
     expect(city.pop).toBe(1);
-    expect(city.foodStored).toBe(3);
+    expect(city.foodStored).toBe(2);
   });
 });
 

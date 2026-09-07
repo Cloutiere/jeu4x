@@ -63,7 +63,7 @@ src/
     ├── barbares.json     Config barbares : T-18..T-23 + villageDefense (R-99)
     ├── huttes.json       Table pondérée des récompenses de huttes (R-99)
     ├── culture.json      Constantes culturelles 7f : T-27 + jalons (R-99)
-    ├── terrain.json      8 terrains + case de ville (2/1/1, +50 %)
+    ├── terrain.json      8 terrains + case de ville (1/1/1, +50 %)
     └── maps/             pedagogique-40, pangee-40, variee-40
                           (ressources R-94 + villages/huttes 7d)
 tests/                 combat, data, techs, research, conversion, resources, hex,
@@ -158,7 +158,7 @@ Documentées dans le code et le rapport de session ; les principales :
    `10 × pop`, production `+25 %/pop` au-delà de la 1ʳᵉ population, file vidée
    après complétion, unité en attente si case de ville occupée. (Le curseur
    `scienceRatio` 0.5 est déprécié depuis R-90.)
-9. **Case de ville** : terrain `'ville'` (2/1/1, +50 %) posé à la fondation.
+9. **Case de ville** : terrain `'ville'` (1/1/1, +50 %) posé à la fondation.
 10. **Forfait T-06** : le seuil est atteint dès que `missedTurns` vaut
    `FORFEIT_MISSED_TURNS` (« défaite après T-06 timers manqués », RULES.md §1).
    Le compteur est tenu par le serveur (GameDO) ; si les deux joueurs

@@ -1134,15 +1134,41 @@ export class GameDO {
               !((o.type === 'SetProduction' || o.type === 'SetWorkedTile') && o.cityId === cityId),
           )
         : before.filter((o) => !orderTouchesUnit(o, unitId!));
-    const removed = this.orders[engineId].length !== before.length;
+    // POLISSAGE-1 C2 (R-160) : un chemin gelé (Move/MultiStep restant sur
+    // l'unité, programmé un tour antérieur) annulé disparaît lui aussi —
+    // effacé de l'état immédiatement, l'aperçu ne doit plus le montrer.
+    let frozenCleared = false;
+    if (unitId !== undefined) {
+      const unit = this.game.units[unitId];
+      if (
+        unit &&
+        unit.owner === engineId &&
+        unit.order &&
+        (unit.order.type === 'Move' || unit.order.type === 'MultiStep') &&
+        unit.order.path.length > 0
+      ) {
+        unit.order = null;
+        frozenCleared = true;
+      }
+    }
+    const removed = this.orders[engineId].length !== before.length || frozenCleared;
     if (removed) await this.state.storage.put({ orders: this.orders });
+    if (frozenCleared) await this.state.storage.put({ game: this.game });
     this.sendTo(ws, {
       proto: PROTO_VERSION,
       type: 'OrderAck',
       accepted: removed,
       order: null,
       reason: removed ? null : 'aucun ordre à annuler',
+      cancelledUnitId: cityId !== undefined ? null : (unitId ?? null),
+      cancelledCityId: cityId ?? null,
     });
+    // Chemin gelé effacé → l'état diffusé change : un Snapshot rafraîchit
+    // l'aperçu du demandeur (miroir du renvoi immédiat de SetResearch).
+    if (frozenCleared) {
+      const snap = this.snapshotFor(playerId, null);
+      if (snap) this.sendTo(ws, snap);
+    }
   }
 
   /** « Fin de tour » : verrouillage irrévocable (RULES.md §4) ; résolution si les deux ont verrouillé.
