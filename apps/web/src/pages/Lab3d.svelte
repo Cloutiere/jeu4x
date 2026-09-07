@@ -54,7 +54,11 @@
   import type { EntreeStructures } from '../lib/render3d/structures3d.js';
   // Chantier V2-unités3D : assemblage PARTAGÉ du calque unités (miroir exact
   // de GameCanvas — catalogue data-driven, playback, fog).
-  import { unitesStructures } from '../lib/render3d/unites3d.js';
+  import { unitesStructures, unitesGLBStructures } from '../lib/render3d/unites3d.js';
+  import type { UniteGLBEntree } from '../lib/render3d/unites3d.js';
+  // Fonderie T3 : calque des unités à modèle .glb (même catalogue que le jeu).
+  import { ChargeurModelesGLB, UnitesGLBWorld } from '../lib/render3d/unitesglb.js';
+  import { MODELES_UNITES3D } from '../lib/render3d/spec3d.js';
 
   // --- Réglages du banc -----------------------------------------------------
   let seed = $state(20260904);
@@ -88,6 +92,9 @@
   let stage: Stage3D | null = null;
   let world: TerrainWorld | null = null;
   let structures: StructuresWorld | null = null;
+  let unitesGlb: UnitesGLBWorld | null = null;
+  /** Dernières entrées .glb assemblées (consumées par le calque au sync). */
+  let dernieresUnitesGlb: UniteGLBEntree[] = [];
   let renderA: RenderOptionA | null = null;
   let renderB: RenderOptionB | null = null;
   let destroyed = false;
@@ -191,6 +198,7 @@
    *  fenêtre, pire cas synthétique sur la carte entière — miroir du bench L0). */
   function assemblerStructures(): EntreeStructures {
     const couleurDe = (owner: string): number => (owner === 'p2' ? 0x3b6fd6 : 0xd64545);
+    dernieresUnitesGlb = [];
     if (!carteEntiere && filtered) {
       const visible = new Set(filtered.players['p1']?.vision.visible ?? []);
       const explored = new Set(filtered.players['p1']?.vision.explored ?? []);
@@ -202,6 +210,7 @@
         if (!dansFenetre(q, r) || !explored.has(key)) continue;
         tuiles.push({ q, r, terrain: tile.terrain, fog: fogDe(key), ressource: tile.resource ?? null });
       }
+      dernieresUnitesGlb = unitesGLBStructures({ state: filtered, visible });
       return {
         tuiles,
         villes: Object.values(filtered.cities)
@@ -209,9 +218,9 @@
           .map((c) => ({ id: c.id, q: c.q, r: c.r, pop: c.pop, capital: c.capital, owner: c.owner, buildings: c.buildings, wonders: c.wonders ?? [], fog: fogDe(tileKeyOf(c)) })),
         huttes: filtered.huts.filter((h) => dansFenetre(h.q, h.r)).map((h) => ({ id: h.id, q: h.q, r: h.r, fog: fogDe(tileKeyOf(h)), terrain: filtered?.map[tileKeyOf(h)]?.terrain })),
         villages: filtered.villages.filter((v) => dansFenetre(v.q, v.r)).map((v) => ({ id: v.id, q: v.q, r: v.r, fog: fogDe(tileKeyOf(v)), terrain: filtered?.map[tileKeyOf(v)]?.terrain })),
-        // Même module que le jeu (unites3d.ts) : guerrier/archer de l'état
+        // Même module que le jeu (unites3d.ts) : unités à modèle 3D de l'état
         // filtré en 3D, autres types en sprite — aucune logique dupliquée.
-        unites: filtered ? unitesStructures({ state: filtered, visible }) : [],
+        unites: unitesStructures({ state: filtered, visible }),
         couleurDe,
       };
     }
@@ -315,6 +324,7 @@
   function demonterRendu(): void {
     world?.dispose(); world = null;
     structures?.dispose(); structures = null;
+    unitesGlb?.dispose(); unitesGlb = null;
     renderA?.dispose(); renderA = null;
     const b = renderB;
     renderB = null;
@@ -330,6 +340,11 @@
     world = new TerrainWorld(stage.scene, { capacity: 1700, bloom });
     structures = new StructuresWorld({ capacityTuiles: 1700, capacityVilles: 64 });
     stage.scene.add(structures.group);
+    unitesGlb = new UnitesGLBWorld(new ChargeurModelesGLB(), () => { dataVersion++; });
+    unitesGlb.precharger(
+      Object.values(MODELES_UNITES3D).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])),
+    );
+    stage.scene.add(unitesGlb.group);
     stage.cam.bounds = mapBoundsWorld(filtered.mapWidth, filtered.mapHeight);
     if (option === 'A') {
       renderA = new RenderOptionA(stage.scene);
@@ -375,6 +390,7 @@
       world.update(data.tiles);
       const entreeStructures = assemblerStructures();
       structures?.update(planifierStructures(entreeStructures));
+      unitesGlb?.update(dernieresUnitesGlb, entreeStructures.couleurDe);
       renderA?.sync(data);
       if (renderB) renderB.sync(stage, data, stage.viewW, stage.viewH);
       lastSyncedVersion = dataVersion;

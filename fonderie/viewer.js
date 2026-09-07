@@ -1,13 +1,19 @@
 // FONDERIE 3D — visualiseur autonome (T1). Zéro dépendance au projet : Three.js
 // r0.185.1 en fichiers locaux (copiés de node_modules du jeu, même version exacte).
 //
-// RÉGLAGES DE RENDU « copiés du jeu » (garde-fou de fidélité, handoff §T1.1) :
-// le périmètre de lecture interdisait d'ouvrir le code de rendu du jeu, les
-// valeurs ci-dessous sont donc des choix consignés à CONFIRMER par Erik :
-//   - bloom : UnrealBloomPass(resolution, force=0.7, rayon=0.5, seuil=0.5)
-//   - tone mapping : ACESFilmic, exposition 1.0
-//   - éclairage : hémisphérique doux + directionnelle clé, aucune ombre portée
-// Toute valeur validée ici devra être identique en jeu (session T3).
+// RÉGLAGES DE RENDU « copiés, pas importés » (session T3, 06/09 — réconciliés
+// avec le JEU, qui fait foi : apps/web/src/lib/render3d/stage3d.ts ; valeurs
+// COPIÉES en commentaire/valeur, PAS importées — aucune dépendance de code,
+// cf. convention du handoff fonderie) :
+//   - bloom : UnrealBloomPass(0.55, 0.4, 0.62) — ÉTEINT par défaut dans le jeu
+//     (bascule en partie, décision Erik 4.1) ; activé ici pour l'atelier
+//   - tone mapping : AUCUN (défaut Three NoToneMapping), exposition 1.0 —
+//     l'ACESFilmic ×1.3 consigné en T1 n'était PAS celui du jeu (écart
+//     documenté dans REPORT-FONDERIE-T3.md ; le look change ici, voulu)
+//   - éclairage : Hemisphere(0x2c4a5a, 0x0a1420, 0.95) + Directional
+//     (0xe8fff6, 0.85, position -5,9,3) + PointLight néon (0x3dffce, 0.45,
+//     portée 18, decay 2, position 0,4,0) — aucune ombre portée
+//   - fond sombre : 0x070b18 (couleur exacte de la scène du jeu)
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -18,7 +24,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const NEON = 0x3DFFCE;
-const FONDS = { sombre: 0x0a1218, clair: 0xdde8ec };
+const FONDS = { sombre: 0x070b18, clair: 0xdde8ec };
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(FONDS.sombre);
@@ -29,23 +35,23 @@ camera.position.set(2.6, 2.2, 3.4);
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping; // cf. commentaire d'en-tête
-renderer.toneMappingExposure = 1.3;
+renderer.toneMapping = THREE.NoToneMapping; // le jeu n'en pose AUCUN (cf. en-tête)
+renderer.toneMappingExposure = 1.0;
 document.getElementById('scene').appendChild(renderer.domElement);
 
-// Éclairage neutre (aucune ombre portée — le bloom fait le travail)
-scene.add(new THREE.HemisphereLight(0xbfd8e8, 0x0c1216, 1.1));
-const cle = new THREE.DirectionalLight(0xffffff, 1.5);
-cle.position.set(3, 6, 4);
+// Éclairage = valeurs du jeu (stage3d.ts — cf. en-tête), aucune ombre portée
+scene.add(new THREE.HemisphereLight(0x2c4a5a, 0x0a1420, 0.95));
+const cle = new THREE.DirectionalLight(0xe8fff6, 0.85);
+cle.position.set(-5, 9, 3);
 scene.add(cle);
-const contre = new THREE.DirectionalLight(0x9fd8c8, 0.4);
-contre.position.set(-4, 2, -3);
-scene.add(contre);
+const halo = new THREE.PointLight(0x3dffce, 0.45, 18, 2);
+halo.position.set(0, 4, 0);
+scene.add(halo);
 
-// Bloom (réglages consignés en en-tête)
+// Bloom (réglages du jeu : 0.55 / 0.4 / 0.62 — stage3d.ts, cf. en-tête)
 const compositeur = new EffectComposer(renderer);
 compositeur.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.45, 0.35, 1.0);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.4, 0.62);
 compositeur.addPass(bloom);
 compositeur.addPass(new OutputPass());
 

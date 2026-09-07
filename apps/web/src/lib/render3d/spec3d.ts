@@ -772,25 +772,63 @@ const UNITE_ARCHER3D: SpecUniteArcher = {
 export type GabaritUnite = 'guerrier' | 'archer';
 const GABARITS: ReadonlySet<string> = new Set(['guerrier', 'archer']);
 
-/**
- * Catalogue des modèles 3D d'unités (atelier Erik) : type MOTEUR → gabarit de
- * créature. Data-driven — un type absent de la table garde son sprite billboard
- * 2D ; quand Erik ajoute un modèle au catalogue (`visuel3d.json`), il apparaît
- * en 3D au jeu sans nouveau code.
- */
-export const MODELES_UNITES3D: Record<string, GabaritUnite> = Object.fromEntries(
-  Object.entries(objet(structuresBrut.unites3d, 'structures.unites3d')).map(([type, v]) => {
-    if (type.startsWith('_')) return [type, null as unknown as GabaritUnite]; // clé de commentaire
-    if (typeof v !== 'string' || !GABARITS.has(v)) {
+/** Entrée du catalogue des unités 3D (session T3, fonderie) :
+ *  - gabarit procédural de l'atelier ('guerrier' | 'archer') ;
+ *  - modèle .glb de la fonderie (`assets-src/modeles/<glb>`, servie par
+ *    `public/modeles/`) avec son facteur d'échelle par type (défaut
+ *    conservateur — Erik calibre à l'œil, sans code). */
+export type EntreeUnite3D =
+  | { kind: 'gabarit'; gabarit: GabaritUnite }
+  | { kind: 'glb'; glb: string; echelle: number };
+
+const GLB_RE = /^[a-z0-9_]+\.glb$/;
+
+/** Valide UNE entrée du catalogue (exporté : les tests du chargeur de mapping
+ *  exigent une erreur CLAIRE sur toute entrée invalide — pas de fallback
+ *  silencieux : gabarit inconnu, nom de fichier, échelle hors bornes). */
+export function parseEntreeUnite3D(type: string, v: unknown): EntreeUnite3D {
+  if (typeof v === 'string') {
+    if (!GABARITS.has(v)) {
       throw new Error(`visuel3d.json : gabarit inconnu pour l'unité « ${type} » (${JSON.stringify(v)})`);
     }
-    return [type, v as GabaritUnite];
-  }).filter(([, g]) => g !== null),
+    return { kind: 'gabarit', gabarit: v as GabaritUnite };
+  }
+  const g = objet(v, `structures.unites3d.${type}`);
+  const glb = g.glb;
+  if (typeof glb !== 'string' || !GLB_RE.test(glb)) {
+    throw new Error(`visuel3d.json : nom de fichier .glb invalide pour l'unité « ${type} » (${JSON.stringify(glb)})`);
+  }
+  const echelle = nombre(g.echelle ?? 1, `structures.unites3d.${type}.echelle`);
+  if (echelle < 0.05 || echelle > 4) {
+    throw new Error(`visuel3d.json : structures.unites3d.${type}.echelle hors [0.05, 4]`);
+  }
+  return { kind: 'glb', glb, echelle };
+}
+
+/**
+ * Catalogue des modèles 3D d'unités (atelier + fonderie) : type MOTEUR →
+ * gabarit de créature OU fichier .glb. Data-driven — un type absent de la
+ * table garde son sprite billboard 2D (régression impossible par construction) ;
+ * quand Erik ajoute une entrée (`visuel3d.json`), elle apparaît en 3D au jeu
+ * sans nouveau code.
+ */
+export const MODELES_UNITES3D: Record<string, EntreeUnite3D> = Object.fromEntries(
+  Object.entries(objet(structuresBrut.unites3d, 'structures.unites3d')).map(([type, v]) => {
+    if (type.startsWith('_')) return [type, null as unknown as EntreeUnite3D]; // clé de commentaire
+    return [type, parseEntreeUnite3D(type, v)];
+  }).filter(([, e]) => e !== null),
 );
 
-/** Gabarit 3D d'un type d'unité moteur — null = pas de modèle 3D (sprite 2D). */
-export function gabaritUnite3D(type: string): GabaritUnite | null {
+/** Entrée 3D d'un type d'unité moteur — null = pas de modèle 3D (sprite 2D). */
+export function entreeUnite3D(type: string): EntreeUnite3D | null {
   return MODELES_UNITES3D[type] ?? null;
+}
+
+/** Gabarit PROCÉDURAL d'un type (compatibilité — les types à .glb répondent
+ *  null : leur rendu passe par `unitesglb.ts`). */
+export function gabaritUnite3D(type: string): GabaritUnite | null {
+  const e = entreeUnite3D(type);
+  return e && e.kind === 'gabarit' ? e.gabarit : null;
 }
 
 export const STRUCTURES3D: SpecStructures = {

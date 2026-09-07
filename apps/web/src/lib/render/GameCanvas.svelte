@@ -39,8 +39,12 @@
   import { StructuresWorld, planifierStructures, detailsPools } from '../render3d/structures3d.js';
   import type { PlanStructures } from '../render3d/structures3d.js';
   // Chantier V2-unités3D — assemblage PARTAGÉ du calque unités (miroir Lab3d,
-  // catalogue data-driven : guerrier/archer en 3D, autres types en sprite).
-  import { aModele3D, unitesStructures } from '../render3d/unites3d.js';
+  // catalogue data-driven : unités à modèle 3D, autres types en sprite).
+  import { aModele3D, unitesStructures, unitesGLBStructures } from '../render3d/unites3d.js';
+  // Fonderie T3 — calque des unités à modèle .glb (chargement en cache,
+  // teinte joueur par propriétaire, instancing ; cf. unitesglb.ts).
+  import { ChargeurModelesGLB, UnitesGLBWorld } from '../render3d/unitesglb.js';
+  import { MODELES_UNITES3D } from '../render3d/spec3d.js';
 
   interface Props {
     client: GameClient;
@@ -175,6 +179,9 @@
   let stage3d: Stage3D | null = null;
   let terrain3d: TerrainWorld | null = null;
   let structures3d: StructuresWorld | null = null;
+  // Fonderie T3 : calque des unités à modèle .glb (pools instanciés séparés —
+  // les géométries/matériaux sont chargés une fois par fichier).
+  let unitesGlb: UnitesGLBWorld | null = null;
   let canvas3d: HTMLCanvasElement | null = null;
   let rendement: ContexteRendement | null = null;
   /** Dernier plan de structures (détail par pool — hook de vérification dev). */
@@ -1285,10 +1292,13 @@
     const villages = state.villages.map((v) => ({ id: v.id, q: v.q, r: v.r, fog: scene.visible.has(tileKeyOf(v)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(v)]?.terrain }));
     // Unités 3D (chantier V2-unités3D) : assemblage PARTAGÉ avec le labo
     // (unites3d.ts) — playback interpolé suivi par le calque, mapping data-driven.
-    const unites = unitesStructures({ state, visible: scene.visible, moveOf: (id) => playback.moveOf(id) });
+    const srcUnites = { state, visible: scene.visible, moveOf: (id: string) => playback.moveOf(id) };
+    const unites = unitesStructures(srcUnites);
     const plan: PlanStructures = planifierStructures({ tuiles, villes, huttes, villages, unites, couleurDe: playerColor });
     dernierPlanStructures = plan;
     structures3d.update(plan);
+    // Fonderie T3 : calque .glb (mêmes filtres état filtré/R-117/fog).
+    unitesGlb?.update(unitesGLBStructures(srcUnites), playerColor);
   }
 
   /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping linéaire. */
@@ -1636,6 +1646,14 @@
       // V2 : Mainframe, cartes-ressources, cratère, huttes/villages (instanciés).
       structures3d = new StructuresWorld({ capacityTuiles: 1700, capacityVilles: 64 });
       stage3d.scene.add(structures3d.group);
+      // Fonderie T3 : les modèles .glb du catalogue sont préchargés une fois
+      // par fichier ; à chaque chargement, on relance la mise à jour (les
+      // unités apparaissent dès que leur modèle est prêt).
+      unitesGlb = new UnitesGLBWorld(new ChargeurModelesGLB(), () => { entitiesDirty = true; });
+      unitesGlb.precharger(
+        Object.values(MODELES_UNITES3D).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])),
+      );
+      stage3d.scene.add(unitesGlb.group);
       if (scene.state) {
         stage3d.cam.bounds = mapBoundsWorld(scene.state.mapWidth, scene.state.mapHeight);
         rendement = contexteRendement(scene.state, scene.myId);
@@ -1684,8 +1702,9 @@
           return { x: w.x * camera.scale + camera.x, y: w.y * camera.scale + camera.y };
         },
         // V2 : statistiques de la couche structures 3D (vérifications GUI/e2e) —
-        // détail par pool (unités 3D visibles ? cf. unites3d).
-        structures: () => (structures3d ? { ...structures3d.stats, details: dernierPlanStructures ? detailsPools(dernierPlanStructures) : null } : null),
+        // détail par pool (unités 3D visibles ? cf. unites3d). Fonderie T3 :
+        // stats du calque .glb (unites/pools/lignes/manquants).
+        structures: () => (structures3d ? { ...structures3d.stats, details: dernierPlanStructures ? detailsPools(dernierPlanStructures) : null, glb: unitesGlb ? { ...unitesGlb.stats } : null } : null),
       };
     }
 
@@ -1805,6 +1824,10 @@
     if (structures3d) {
       structures3d.dispose();
       structures3d = null;
+    }
+    if (unitesGlb) {
+      unitesGlb.dispose();
+      unitesGlb = null;
     }
     if (terrain3d) {
       terrain3d.dispose();

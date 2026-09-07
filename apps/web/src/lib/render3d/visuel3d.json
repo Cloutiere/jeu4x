@@ -695,9 +695,29 @@
       }
     },
     "unites3d": {
-      "_comment": "Catalogue des modeles 3D d'unites (atelier Erik) : type moteur -> gabarit de creature. Tout type ABSENT de cette table garde son sprite billboard 2D. Un nouveau modele travaille en atelier = une entree ici, sans nouveau code.",
-      "guerrier": "guerrier",
-      "archer": "archer"
+      "_comment": "Catalogue des modeles 3D d'unites (fonderie T3, 06/09) : type MOTEUR -> { \"glb\": \"fichier.glb\", \"echelle\": 1.0 } (modeles de assets-src/modeles/, servis par public/modeles/) — ou gabarit de creature de l'atelier (\"guerrier\" | \"archer\"). Tout type ABSENT de cette table garde son sprite billboard 2D. Activer/desactiver un type = editer cette table, sans code. Echelle par type : defaut conservateur 1.0 (modeles ~2.75 unites de haut, gabarit precedent accepte a 2.875) — calibrage a l'oeil par Erik.",
+      "guerrier": { "glb": "guerrier.glb", "echelle": 0.67 },
+      "colon": { "glb": "colon.glb", "echelle": 1.0 },
+      "archer": { "glb": "archer.glb", "echelle": 1.0 },
+      "legion": { "glb": "glace.glb", "echelle": 1.0 },
+      "cavalier": { "glb": "veloce.glb", "echelle": 1.0 },
+      "piquier": { "glb": "piquier.glb", "echelle": 1.0 },
+      "catapulte": { "glb": "catapulte.glb", "echelle": 1.0 },
+      "chevalier": { "glb": "chevalier.glb", "echelle": 1.0 },
+      "fusilier": { "glb": "fusiller.glb", "echelle": 1.0 },
+      "canon": { "glb": "canon.glb", "echelle": 1.0 },
+      "char_d_assaut": { "glb": "char.glb", "echelle": 1.0 },
+      "chasseur": { "glb": "chasseur.glb", "echelle": 1.0 },
+      "infanterie_moderne": { "glb": "infanterie.glb", "echelle": 1.0 },
+      "galion": { "glb": "gallion.glb", "echelle": 1.0 },
+      "sous_marin": { "glb": "sousmarin.glb", "echelle": 1.0 },
+      "croiseur": { "glb": "croiseur.glb", "echelle": 1.0 },
+      "cuirasse": { "glb": "cuirasse.glb", "echelle": 1.0 },
+      "icbm": { "glb": "icbm.glb", "echelle": 1.0 },
+      "espion": { "glb": "espion.glb", "echelle": 1.0 },
+      "bombardier": { "glb": "bombardier.glb", "echelle": 1.0 },
+      "galere": { "glb": "galere.glb", "echelle": 1.0 },
+      "artillerie": { "glb": "artillerie.glb", "echelle": 1.0 }
     }
   }
 }

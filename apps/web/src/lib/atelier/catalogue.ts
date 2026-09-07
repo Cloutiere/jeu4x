@@ -13,6 +13,7 @@
 import {
   TERRAINS3D,
   STRUCTURES3D,
+  MODELES_UNITES3D,
 } from '../render3d/spec3d.js';
 import {
   TERRAINS,
@@ -159,6 +160,23 @@ function structures3d(): AssetAtelier[] {
   ];
 }
 
+// --- Unités 3D à modèle .glb (fonderie T3 : visuel3d.json §structures.unites3d
+//     entrées { glb, echelle } — un type par fichier de assets-src/modeles/) ---
+function unitesGlb(): AssetAtelier[] {
+  return Object.entries(MODELES_UNITES3D)
+    .filter(([, e]) => e.kind === 'glb')
+    .map(([type, e]) => {
+      if (e.kind !== 'glb') throw new Error('catalogue : entrée .glb inattendue');
+      return {
+      id: `uniteglb:${e.glb}`,
+      categorie: 'structures3d' as const,
+      nom: `Unité 3D .glb — ${UNIT_TYPES[type]?.name ?? type}`,
+      source: `${SRC_JSON(`structures.unites3d.${type}`)} (fonderie : assets-src/modeles/${e.glb})`,
+      sorte: 'structure3d' as const,
+      };
+    });
+}
+
 // --- Cartes-ressources (visuel3d.json §structures.cartes × resources.json) --
 function cartesRessources(): AssetAtelier[] {
   return Object.keys(RESOURCES).map((id) => ({
@@ -223,6 +241,7 @@ export function construireCatalogue(): AssetAtelier[] {
   return [
     ...terrains3d(),
     ...structures3d(),
+    ...unitesGlb(),
     ...cartesRessources(),
     ...sprites2d(),
     ...overlays(),

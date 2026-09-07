@@ -30,7 +30,11 @@
   import { StructuresWorld, planifierStructures } from '../lib/render3d/structures3d.js';
   import type { EntreeStructures, TuileStructures } from '../lib/render3d/structures3d.js';
   import { PLAYER_COLORS } from '../lib/render/textures.js';
-  import { TERRAINS3D, STRUCTURES3D } from '../lib/render3d/spec3d.js';
+  import { TERRAINS3D, STRUCTURES3D, MODELES_UNITES3D } from '../lib/render3d/spec3d.js';
+  import type { EntreeUnite3D } from '../lib/render3d/spec3d.js';
+  // Fonderie T3 : isolement des unités à modèle .glb (même calque que le jeu).
+  import { ChargeurModelesGLB, UnitesGLBWorld } from '../lib/render3d/unitesglb.js';
+  import type { UniteGLBEntree } from '../lib/render3d/unites3d.js';
 
   // --- Grille (catalogue + recherche) ----------------------------------------
   let categorieActive = $state<'toutes' | CategorieAtelier>('toutes');
@@ -108,6 +112,9 @@
   let stage: Stage3D | null = null;
   let world: TerrainWorld | null = null;
   let structures: StructuresWorld | null = null;
+  let unitesGlb: UnitesGLBWorld | null = null;
+  /** Entrées .glb de l'asset isolé (rejouées après chargement du fichier). */
+  let entreesGlb: UniteGLBEntree[] = [];
   let destroyed = false;
 
   /** Orbite maison : azimut/hauteur/distance autour de la tuile (0,0). */
@@ -132,6 +139,18 @@
     if (asset.sorte === 'carte3d') return asset.id.slice('carte:'.length);
     if (asset.id === 'structures:carteNeutre') return '__inconnue'; // hors registre → carte neutre (R-92)
     return null;
+  }
+
+  /** Couleur d'accent de l'atelier (J1 = menthe du jeu). */
+  const couleurAtelier = (owner: string): number => (PLAYER_COLORS[owner] ?? 0x8a5ad6);
+
+  /** Entrées du calque .glb pour un asset `uniteglb:<fichier>` (fonderie T3). */
+  function entreesGlbPour(asset: AssetAtelier): UniteGLBEntree[] {
+    if (!asset.id.startsWith('uniteglb:')) return [];
+    const fichier = asset.id.slice('uniteglb:'.length);
+    const entree = (Object.values(MODELES_UNITES3D) as EntreeUnite3D[]).find((e) => e.kind === 'glb' && e.glb === fichier);
+    if (!entree || entree.kind !== 'glb') return [];
+    return [{ id: 'atelier-glb', q: 0, r: 0, fog: 'visible' as const, terrain: 'prairie', owner: 'p1', glb: entree.glb, echelle: entree.echelle }];
   }
 
   /** Entrées du planificateur de structures pour l'asset isolé. */
@@ -182,6 +201,8 @@
   function demonterScene(): void {
     world?.dispose(); world = null;
     structures?.dispose(); structures = null;
+    unitesGlb?.dispose(); unitesGlb = null;
+    entreesGlb = [];
   }
 
   function reconstruireScene(asset: AssetAtelier): void {
@@ -192,10 +213,31 @@
     stage.scene.add(structures.group);
     world.update(tilesPour(asset));
     structures.update(planifierStructures(entreePour(asset)));
-    // Recentre l'orbite sur un asset neuf.
+    // Fonderie T3 : les unités .glb passent par LEUR calque (chargement du
+    // fichier une fois, réaffiché dès qu'il est prêt — on relance la scène).
+    entreesGlb = entreesGlbPour(asset);
+    if (entreesGlb.length > 0) {
+      if (!unitesGlb) {
+        unitesGlb = new UnitesGLBWorld(new ChargeurModelesGLB(), () => {
+          if (unitesGlb && entreesGlb.length > 0) unitesGlb.update(entreesGlb, couleurAtelier);
+        });
+        stage.scene.add(unitesGlb.group);
+      }
+      unitesGlb.precharger(entreesGlb.map((e) => e.glb));
+      unitesGlb.update(entreesGlb, couleurAtelier);
+    }
+    // Recentre l'orbite sur un asset neuf. Les unités .glb (fonderie) font
+    // ~2.75 unités de haut (STYLE-3D) : cadrage reculé par rapport aux
+    // structures (~1 unité sur la tuile).
     orbite.theta = Math.PI * 0.25;
     orbite.phi = 1.0;
-    orbite.dist = 2.2;
+    if (entreesGlb.length > 0) {
+      orbite.dist = 5.2;
+      orbite.cibleY = 1.1;
+    } else {
+      orbite.dist = 2.2;
+      orbite.cibleY = 0.2;
+    }
   }
 
   $effect(() => {

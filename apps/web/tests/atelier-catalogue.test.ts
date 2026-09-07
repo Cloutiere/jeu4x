@@ -5,7 +5,7 @@
  * si un sprite référencé manque, ces tests échouent.
  */
 import { describe, expect, it } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 import { TERRAINS, UNIT_TYPES, BUILDINGS, RESOURCES, ARTEFACTS, RESOURCE_UNKNOWN } from '@game/rules';
@@ -111,6 +111,14 @@ describe('atelier — catalogue L0', () => {
     expect(idsDe('sprites')).toContain('res_inconnue');
     expect(RESOURCE_UNKNOWN).toBe('inconnue');
     expect(existsSync(path.join(ART_DIR, 'res_inconnue.png'))).toBe(true);
+  });
+
+  it('les 22 .glb de la fonderie sont exposés comme structures 3D (fichiers servis présents)', () => {
+    const MODELES_DIR = fileURLToPath(new URL('../public/modeles/', import.meta.url));
+    const fichiers = readdirSync(MODELES_DIR).filter((f) => f.endsWith('.glb')).sort();
+    const exposes = idsDe('structures3d').filter((id) => id.startsWith('uniteglb:')).map((id) => id.slice('uniteglb:'.length)).sort();
+    expect(exposes).toEqual(fichiers);
+    expect(fichiers.length).toBe(22);
   });
 
   it('les overlays (effets programmatiques) sont des fiches sans fichier', () => {
