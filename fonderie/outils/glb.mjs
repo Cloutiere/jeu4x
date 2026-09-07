@@ -56,7 +56,7 @@ class Blob {
   buffer() { return Buffer.concat(this.morceaux); }
 }
 
-export function construireGLB({ primitives, materiaux, image, extensionsUtilisees = [] }) {
+export function construireGLB({ primitives, materiaux, image, imageEmissive, extensionsUtilisees = [], nom = 'guerrier' }) {
   // primitives: [{ mode:'TRIANGLES'|'LINES', positions:Float32Array, normals?:Float32Array, material:index }]
   const blob = new Blob();
   const bufferViews = [], accessors = [], meshes = [];
@@ -96,13 +96,18 @@ export function construireGLB({ primitives, materiaux, image, extensionsUtilisee
     }
     prims.push(prim);
   }
-  meshes.push({ name: 'guerrier', primitives: prims });
+  meshes.push({ name: nom, primitives: prims });
 
   let images, textures;
   if (image) {
     blob.aligner4();
     images = [{ bufferView: ajouterBufferView(image, 0), mimeType: 'image/png' }];
     textures = [{ source: 0 }];
+    if (imageEmissive) {
+      blob.aligner4();
+      images.push({ bufferView: ajouterBufferView(imageEmissive, 0), mimeType: 'image/png' });
+      textures.push({ source: 1 });
+    }
   }
 
   blob.aligner4();
@@ -111,7 +116,7 @@ export function construireGLB({ primitives, materiaux, image, extensionsUtilisee
     extensionsUsed: extensionsUtilisees.length ? extensionsUtilisees : undefined,
     scene: 0,
     scenes: [{ nodes: [0] }],
-    nodes: [{ name: 'guerrier', mesh: 0 }],
+    nodes: [{ name: nom, mesh: 0 }],
     meshes,
     materials: materiaux,
     accessors,

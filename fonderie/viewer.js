@@ -83,46 +83,81 @@ scene.add(grille);
 
 // ---------- chargement des modèles ----------
 const chargeur = new GLTFLoader();
-let modeleCourant = null;
+let racines = [];      // racines affichées (1 en mode normal, 2 en mode A/B)
+let modeAB = false;
+let selection = null;  // nom du fichier choisi au menu déroulant
 
-function chargerGLB(url, nom) {
-  chargeur.load(url, (gltf) => {
-    // succès
-    if (modeleCourant) scene.remove(modeleCourant);
-    modeleCourant = gltf.scene;
-    scene.add(modeleCourant);
-    cadrer(modeleCourant);
-    compterStats(modeleCourant, nom);
-    appliquerTeinte(teinte);
-  }, undefined, (err) => {
-    document.getElementById('stats').innerHTML = `<b>ERREUR de chargement</b><br>${err.message || err}`;
-  });
+function nettoyer() {
+  for (const r of racines) scene.remove(r);
+  racines = [];
 }
-
-function cadrer(obj) {
-  const boite = new THREE.Box3().setFromObject(obj);
+function cadrerUnion() {
+  if (!racines.length) return;
+  const boite = new THREE.Box3();
+  for (const r of racines) boite.expandByObject(r);
   const taille = boite.getSize(new THREE.Vector3()), centre = boite.getCenter(new THREE.Vector3());
   controls.target.copy(centre);
   const d = Math.max(taille.x, taille.y, taille.z) * 1.7;
   // vue de trois-quarts AVANT : la face avant du modèle est en -Z (convention du jeu)
   camera.position.set(centre.x + d * 0.75, centre.y + d * 0.45, centre.z - d * 0.95);
 }
+function chargerGLB(url, nom) {
+  chargeur.load(url, (gltf) => {
+    nettoyer();
+    racines = [gltf.scene];
+    scene.add(gltf.scene);
+    cadrerUnion();
+    compterStats();
+    appliquerTeinte(teinte);
+  }, undefined, (err) => {
+    document.getElementById('stats').innerHTML = `<b>ERREUR de chargement</b><br>${err.message || err}`;
+  });
+}
+// Mode A/B : chevalier.glb (même personnage, en jeu) à gauche, modèle sélectionné à droite
+// (knight_v3 par défaut), mêmes réglages, hauteurs égalisées pour comparer le style
+// (les tailles réelles se calibrent en jeu via visuel3d.json §echelle).
+function activerAB(on) {
+  modeAB = on;
+  if (!on) { chargerGLB(`modeles/${selection}`, selection); return; }
+  Promise.all([
+    chargeur.loadAsync('modeles/chevalier.glb'),
+    chargeur.loadAsync(`modeles/${selection}`),
+  ]).then(([a, b]) => {
+    nettoyer();
+    const H = 2.6; // hauteur commune (celle du knight_v3)
+    for (const [gltf, x] of [[a, -1.15], [b, 1.15]]) {
+      const boite = new THREE.Box3().setFromObject(gltf.scene);
+      const h = boite.max.y - boite.min.y;
+      const e = H / h;
+      gltf.scene.scale.setScalar(e);
+      gltf.scene.position.x = x;
+      scene.add(gltf.scene);
+      racines.push(gltf.scene);
+    }
+    cadrerUnion();
+    compterStats();
+    appliquerTeinte(teinte);
+  }).catch((err) => {
+    document.getElementById('stats').innerHTML = `<b>ERREUR A/B</b><br>${err.message || err}`;
+  });
+}
 
 let stats = { nom: '—', tris: 0, materiaux: 0, primitives: 0 };
-function compterStats(obj, nom) {
+function compterStats() {
   // comptage honnête : glTF loader crée des LineSegments pour les primitives
   // mode 1 (arêtes néon) — elles comptent 0 triangle ; seuls les meshes comptent.
   // draw calls ≈ nombre d'objets rendus (renderer.info est faussé par le compositeur).
   let tris = 0, primitives = 0;
   const materiaux = new Set();
-  obj.traverse((n) => {
-    if (n.isMesh) {
+  for (const r of racines) r.traverse((n) => {
+    if (n.isMesh || n.isLine) {
       const g = n.geometry;
-      tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+      if (n.isMesh) tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
       (Array.isArray(n.material) ? n.material : [n.material]).forEach(m => materiaux.add(m.uuid));
     }
     if (n.isMesh || n.isLine || n.isPoints) primitives++;
   });
+  const nom = modeAB ? `A/B : chevalier | ${selection || '—'}` : (selection || '—');
   stats = { nom, tris: Math.round(tris), materiaux: materiaux.size, primitives };
   majStats();
 }
@@ -133,13 +168,24 @@ function majStats() {
 }
 
 // ---------- teinte accent joueur (la claque dédiée, STYLE §2) ----------
-const TEINTES = { neutre: 0xffffff, j1: 0x3DFFCE, j2: 0xFF9A3D, j3: 0xB03DFF };
+const TEINTES = {
+  neutre: 0xffffff,
+  j1: 0x3DFFCE, j2: 0xFF9A3D, j3: 0xB03DFF,
+  // propositions tour 3 (pas de rouge franc : réservé aux barbares)
+  j4: 0x3D9AFF, // bleu
+  j5: 0xFFE23D, // jaune
+  j6: 0xFF3DB8, // rose (magenta, distinct du rouge barbare)
+  j7: 0xFF3D3D, // rouge — RÉSERVÉ AUX BARBARES (jamais pour un joueur)
+};
 let teinte = 'neutre';
 function appliquerTeinte(cle) {
-  if (!modeleCourant) return;
-  modeleCourant.traverse((n) => {
-    if (n.isMesh && n.material && n.material.name === 'accent_joueur')
-      n.material.color.set(TEINTES[cle]);
+  for (const r of racines) r.traverse((n) => {
+    if (n.isMesh && n.material && n.material.name === 'accent_joueur') {
+      // la teinte MULTIPLIE la couleur de base du glb (qui peut porter un facteur
+      // de compensation > 1, comme le corps v1) au lieu de l'écraser
+      if (!n.material.userData.couleurBase) n.material.userData.couleurBase = n.material.color.clone();
+      n.material.color.copy(n.material.userData.couleurBase).multiply(new THREE.Color(TEINTES[cle]));
+    }
   });
 }
 
@@ -148,7 +194,7 @@ const $ = (id) => document.getElementById(id);
 const boutonsEtat = {
   'b-bloom': { actif: true, f: (v) => (bloom.enabled = v) },
   'b-fond': { actif: false, f: (v) => scene.background.set(v ? FONDS.clair : FONDS.sombre) },
-  'b-wire': { actif: false, f: (v) => modeleCourant && modeleCourant.traverse(n => { if (n.isMesh) n.material.wireframe = v; }) },
+  'b-wire': { actif: false, f: (v) => racines.forEach(r => r.traverse(n => { if (n.isMesh) n.material.wireframe = v; })) },
   'b-grille': { actif: false, f: (v) => (grille.visible = v) },
   'b-rotation': { actif: false, f: (v) => (controls.autoRotate = v) },
 };
@@ -174,6 +220,12 @@ for (const b of document.querySelectorAll('#teintes button')) {
   });
 }
 
+// Bouton A/B : chevalier.glb (en jeu) à côté du modèle sélectionné, même caméra
+$('b-ab').addEventListener('click', () => {
+  activerAB(!modeAB);
+  $('b-ab').classList.toggle('actif', modeAB);
+});
+
 // Liste des .glb du dossier modeles/ (servie par serveur.mjs) + glisser-déposer
 async function listerModeles() {
   try {
@@ -186,8 +238,15 @@ async function listerModeles() {
       o.value = o.textContent = f;
       sel.appendChild(o);
     }
-    if (fichiers.length) chargerGLB(`modeles/${fichiers[0]}`, fichiers[0]);
-    sel.addEventListener('change', () => chargerGLB(`modeles/${sel.value}`, sel.value));
+    // par défaut : le knight_v3 (livraison de la session) s'il existe, sinon le premier
+    selection = fichiers.includes('knight_v3.glb') ? 'knight_v3.glb' : fichiers[0];
+    sel.value = selection;
+    if (selection) chargerGLB(`modeles/${selection}`, selection);
+    sel.addEventListener('change', () => {
+      if (modeAB) { modeAB = false; $('b-ab').classList.remove('actif'); }
+      selection = sel.value;
+      chargerGLB(`modeles/${selection}`, selection);
+    });
   } catch { /* ouvert hors serveur : le glisser-déposer reste disponible */ }
 }
 listerModeles();
@@ -221,7 +280,8 @@ renderer.setAnimationLoop(() => {
 window.__fonderie = {
   scene: () => scene,
   THREE,
-  modeleChargé: () => !!modeleCourant,
-  meshes: () => { const r = []; modeleCourant && modeleCourant.traverse(n => r.push(n.type + (n.isMesh ? ':' + n.material.name : ''))); return r; },
-  mats: () => { const r = []; modeleCourant && modeleCourant.traverse(n => { if (n.isMesh && !r.some(m => m.uuid === n.material.uuid)) r.push({ uuid: n.material.uuid, nom: n.material.name, emissive: n.material.emissive && [n.material.emissive.r, n.material.emissive.g, n.material.emissive.b], intensite: n.material.emissiveIntensity, couleur: n.material.color && [n.material.color.r, n.material.color.g, n.material.color.b], opacite: n.material.opacity, type: n.material.type }); }); return r; },
+  modeAB: () => modeAB,
+  racines: () => racines.length,
+  meshes: () => { const r = []; racines.forEach(x => x.traverse(n => r.push(n.type + (n.isMesh ? ':' + n.material.name : '')))); return r; },
+  mats: () => { const r = []; racines.forEach(x => x.traverse(n => { if (n.isMesh && !r.some(m => m.uuid === n.material.uuid)) r.push({ uuid: n.material.uuid, nom: n.material.name, emissive: n.material.emissive && [n.material.emissive.r, n.material.emissive.g, n.material.emissive.b], intensite: n.material.emissiveIntensity, couleur: n.material.color && [n.material.color.r, n.material.color.g, n.material.color.b], opacite: n.material.opacity, type: n.material.type }); })); return r; },
 };
