@@ -13,7 +13,7 @@ Traduction opérationnelle : une construction géométrique épurée de formes f
 | Élément | Règle |
 |---|---|
 | Néon (arêtes, fil d'arme, cœur, lignes de code) | **#3DFFCE** — émissif intense. C'est LA couleur d'identité du jeu (cœurs, nervures, glyphes déjà dans visuel3d.json) |
-| Corps | Sombre translucide (teinte bleu-vert profond, type #1C2E3C) **teinté par la couleur du joueur** — la teinte se fait par matériau/claque dédiée, pas en recolorant le néon |
+| Corps | **Teinté par la couleur du joueur** (le matériau `accent_joueur` — le néon n'est JAMAIS teinté). Deux modes validés par Erik : **opaque** (sur assets externes texturés — texture neutre-claire, la teinte multiplie ; compensation de luminance cuite dans le fichier, ex. ×6.6) ou **translucide** (fabrication maison, alpha 0.35-0.6, structures internes visibles) |
 | Translucence | Corps en matériau semi-transparent (opacity ~0.35-0.6) ; les formes internes (cœur, structure) restent visibles À TRAVERS le corps — c'est le côté « hologramme » |
 | Arêtes | Liserés néon sur les arêtes principales (edges emissive ou second mesh d'arêtes), pas de contour noir « cartoon » |
 | Glyphes | Les lignes de code / binaires sont une **texture émissive**, jamais de la géométrie |

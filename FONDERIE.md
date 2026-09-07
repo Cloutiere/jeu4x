@@ -21,7 +21,16 @@
 - La fabrication et l'intégration ne sont **jamais la même session** ; le commit ne part que sur la demande explicite d'Erik.
 - Les modèles ~2,5-3 000 tris chacun ; l'échelle d'affichage par type se calibre dans `visuel3d.json` (`echelle`), à l'œil.
 
+## Les deux workflows d'habillage d'assets externes (leçons des sessions des 06-07/09)
+
+- **Mode sculpteur (clay nu sans UV) — à éviter** : testé sur `guerrier_2.2.glb`, résultat rejeté par Erik. Découper des zones matériaux triangle par triangle est laborieux et médiocre.
+- **Mode peintre (modèle texturé avec UV, ex. exports Tripo) — le workflow standard** : géométrie et UV conservées telles quelles, on **repeint la texture** dans la palette STYLE (corps neutre-clair, arêtes néon #3DFFCE, glyphes), on dérive la couche émissive, le néon devient un petit second matériau. Exemple réussi : `knight_v3.glb` (rapport `fonderie/REPORT-FONDERIE-HABILLAGE-TRIPO.md`).
+- **Conventions du corps teintable (validées par Erik le 07/09)** : le **corps entier est le matériau `accent_joueur`** (le jeu le teinte par propriétaire) — texture **opaque et neutre-claire** pour que la teinte se lise en multiplication ; le fichier cuit la compensation de luminance (facteur élevé) car le loader l'écrête. **Le code de teinte doit MULTIPLIER la couleur, jamais remplacer `material.color`** — exigence d'intégration consignée au rapport.
+- **Teintes joueur** : J1 menthe, J2 orange, J3 violet, J4 bleu #3D9AFF, J5 jaune #FFE23D, J6 rose #FF3DB8 — démontrées dans le visualiseur ; le mapping joueur → teinte se tranchera à l'intégration.
+- Un générateur externe (Tripo…) produit la FORME et le LOOK ; les conventions du jeu (noms de matériaux, émissif, origine, orientation, échelle) sont TOUJOURS appliquées par une session fonderie locale.
+
 ## Historique
 
 - **06/09 — FONDERIE-3D** : création (visualiseur + STYLE-3D + Guerrier, puis 21 autres unités dans la même session) — rapport `fonderie/REPORT-FONDERIE-3D.md`.
 - **06/09 — FONDERIE-T3** : intégration au jeu (22 .glb mappés, teinte joueur, fusion par matériau ~3 draw calls/modèle, bench 60 FPS) — rapport `REPORT-FONDERIE-T3.md`.
+- **06-07/09 — HABILLAGE externe** : mode sculpteur sur clay rejeté ; **mode peintre validé sur le knight Tripo** (corps opaque teintable, facteur cuit, teintes J4-J6) — rapports dans `fonderie/`.
