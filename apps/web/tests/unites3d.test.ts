@@ -10,11 +10,18 @@
 import { describe, expect, it } from 'vitest';
 import { tileKeyOf } from '@game/rules';
 import type { GameState } from '@game/rules';
-import { MODELES_UNITES3D, TERRAINS3D, gabaritUnite3D } from '../src/lib/render3d/spec3d.js';
+import { MODELES_UNITES3D, TERRAINS3D, gabaritUnite3D, entreeUnite3D, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
 import { planifierStructures } from '../src/lib/render3d/structures3d.js';
 import type { EntiteStructure, EntreeStructures } from '../src/lib/render3d/structures3d.js';
-import { aModele3D, unitesStructures } from '../src/lib/render3d/unites3d.js';
+import { aModele3D, unitesStructures, unitesGLBStructures } from '../src/lib/render3d/unites3d.js';
 import { hexWorldPos } from '../src/lib/render3d/world3d.js';
+import { parserModeleGLB, UnitesGLBWorld } from '../src/lib/render3d/unitesglb.js';
+import { existsSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import * as path from 'node:path';
+import { UNIT_TYPES } from '@game/rules';
+
+const MODELES_DIR = fileURLToPath(new URL('../public/modeles/', import.meta.url));
 
 const couleurDe = (owner: string): number => (owner === 'p2' ? 0x3b6fd6 : 0xd64545);
 
@@ -34,23 +41,45 @@ function etat(units: Array<Record<string, unknown>>, terrains: Record<string, st
   } as unknown as GameState;
 }
 
-describe('catalogue data-driven type → modèle 3D (visuel3d.json)', () => {
-  it('mappe guerrier → gabarit guerrier et archer → gabarit archer', () => {
-    expect(gabaritUnite3D('guerrier')).toBe('guerrier');
-    expect(gabaritUnite3D('archer')).toBe('archer');
+describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)', () => {
+  it('mappe les types couverts vers un .glb de la fonderie (gabarit guerrier REMPLACÉ)', () => {
+    // echelle = curseur de calibrage d'Erik (a l'oeil) : on verifie sa presence, pas sa valeur figee
+    const guerrier = entreeUnite3D('guerrier');
+    expect(guerrier).toMatchObject({ kind: 'glb', glb: 'guerrier.glb' });
+    expect(guerrier.kind === 'glb' && guerrier.echelle > 0).toBe(true);
+    expect(gabaritUnite3D('guerrier')).toBeNull(); // le .glb remplace le gabarit paramétrique
+    expect(entreeUnite3D('legion')).toMatchObject({ kind: 'glb', glb: 'glace.glb' });
+    expect(entreeUnite3D('sous_marin')).toMatchObject({ kind: 'glb', glb: 'sousmarin.glb' });
   });
 
-  it('les types SANS modèle (les ~53 autres) n’ont PAS de gabarit — sprite 2D', () => {
-    for (const t of ['colon', 'cavalier', 'legion', 'galere', 'espion', 'char_d_assaut', 'guerrier_jaguar']) {
-      expect(gabaritUnite3D(t), `type ${t}`).toBeNull();
+  it('chaque type catalogué est un id RÉEL du moteur et son .glb existe (fichier servi)', () => {
+    for (const [type, e] of Object.entries(MODELES_UNITES3D)) {
+      expect(UNIT_TYPES[type], `type moteur ${type}`).toBeDefined();
+      if (e.kind === 'glb') {
+        expect(existsSync(path.join(MODELES_DIR, e.glb)), `public/modeles/${e.glb}`).toBe(true);
+      }
+    }
+  });
+
+  it('les 22 .glb de la fonderie sont TOUS mappés (aucun fichier orphelin)', () => {
+    const fichiers = readdirSync(MODELES_DIR).filter((f) => f.endsWith('.glb')).sort();
+    const mappes = Object.values(MODELES_UNITES3D).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])).sort();
+    expect(mappes).toEqual(fichiers);
+    expect(fichiers.length).toBe(22);
+  });
+
+  it('les types SANS entrée (civs uniques, GP, caravane…) gardent leur sprite 2D', () => {
+    for (const t of ['guerrier_jaguar', 'caravane', 'milice', 'savant', 'explorateur', 'leader', 'trebuchet']) {
+      expect(entreeUnite3D(t), `type ${t}`).toBeNull();
       expect(aModele3D(t), `type ${t}`).toBe(false);
     }
   });
 
-  it('toute entrée du catalogue pointe vers un gabarit RENDU par le planificateur', () => {
-    for (const gab of Object.values(MODELES_UNITES3D)) {
-      expect(['guerrier', 'archer']).toContain(gab);
-    }
+  it('REFUSE toute entrée invalide avec une erreur claire (pas de fallback silencieux)', () => {
+    expect(() => parseEntreeUnite3D('x', 'inconnu')).toThrow(/gabarit inconnu/);
+    expect(() => parseEntreeUnite3D('x', { glb: 'Guerrier.GLB' })).toThrow(/\.glb invalide/);
+    expect(() => parseEntreeUnite3D('x', { glb: 'guerrier.glb', echelle: 0 })).toThrow(/echelle hors/);
+    expect(() => parseEntreeUnite3D('x', {})).toThrow(/\.glb invalide/);
   });
 });
 
@@ -118,23 +147,30 @@ describe('planificateur — unités 3D', () => {
 describe('unites3d — assemblage partagé labo/jeu (état filtré → calque)', () => {
   const visible = new Set(['0,0', '1,0']);
 
-  it('assemble les champs du calque depuis l’état filtré (id, gabarit, owner, fog, terrain)', () => {
+  it('assemble les champs du calque PROCÉDURAL quand un type pointe un gabarit (fiche atelier)', () => {
+    // Le catalogue T3 ne mappe plus AUCUN type moteur vers un gabarit (les
+    // .glb les remplacent) — le calque procédural reste disponible : il est
+    // exercé via planifierStructures (tests ci-dessus) et revient par une
+    // simple édition de visuel3d.json. Ici : les types à gabarit n'existent
+    // plus, donc le calque procédural est vide sur cet état.
     const state = etat(
       [{ id: 'g1', type: 'guerrier', owner: 'p1', q: 0, r: 0, aboard: null }],
       { '0,0': 'prairie' },
     );
-    const unites = unitesStructures({ state, visible });
-    expect(unites).toHaveLength(1);
-    expect(unites[0]).toMatchObject({ id: 'g1', q: 0, r: 0, owner: 'p1', type: 'guerrier', fog: 'visible', terrain: 'prairie' });
+    expect(unitesStructures({ state, visible })).toHaveLength(0); // guerrier = .glb désormais
+    const glb = unitesGLBStructures({ state, visible });
+    expect(glb).toHaveLength(1);
+    expect(glb[0]).toMatchObject({ id: 'g1', q: 0, r: 0, owner: 'p1', glb: 'guerrier.glb', fog: 'visible', terrain: 'prairie' });
   });
 
-  it('filtre les types sans modèle 3D (ils restent en sprite billboard)', () => {
+  it('route les types par calque : .glb d’un côté, sprite billboard de l’autre', () => {
     const state = etat([
       { id: 'c1', type: 'colon', owner: 'p1', q: 0, r: 0 },
+      { id: 'j1', type: 'guerrier_jaguar', owner: 'p1', q: 1, r: 0 },
       { id: 'g1', type: 'guerrier', owner: 'p1', q: 1, r: 0 },
-    ], { '0,0': 'prairie', '1,0': 'plaine' });
-    const unites = unitesStructures({ state, visible });
-    expect(unites.map((u) => u.id)).toEqual(['g1']);
+    ], { '0,0': 'prairie', '1,0': 'prairie' });
+    expect(unitesStructures({ state, visible }).map((u) => u.id)).toEqual([]);
+    expect(unitesGLBStructures({ state, visible }).map((u) => u.id)).toEqual(['c1', 'g1']);
   });
 
   it('unité embarquée (R-117) et hors vision : absentes du calque', () => {
@@ -152,15 +188,52 @@ describe('unites3d — assemblage partagé labo/jeu (état filtré → calque)',
       visible,
       moveOf: (id) => (id === 'g1' ? { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, t: 0.25 } : null),
     });
-    expect(unites[0]!.interpole).toEqual({ deQ: 0, deR: 0, deTerrain: 'prairie', t: 0.25 });
+    expect(unitesGLBStructures({ state, visible, moveOf: (id) => (id === 'g1' ? { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, t: 0.25 } : null) })[0]!.interpole)
+      .toEqual({ deQ: 0, deR: 0, deTerrain: 'prairie', t: 0.25 });
   });
 
   it('sans playback : aucune interpolation (position statique)', () => {
     const state = etat([{ id: 'g1', type: 'guerrier', owner: 'p1', q: 1, r: 0 }], { '1,0': 'prairie' });
-    expect(unitesStructures({ state, visible })[0]!.interpole).toBeUndefined();
+    expect(unitesGLBStructures({ state, visible })[0]!.interpole).toBeUndefined();
   });
 
   it('clé de tuile cohérente avec le moteur (tileKeyOf)', () => {
     expect(tileKeyOf({ q: 0, r: 0 })).toBe('0,0');
+  });
+});
+
+describe('calque .glb — fonderie T3 (assemblage + garde-fous)', () => {
+  const visible = new Set(['0,0', '1,0']);
+
+  it('unitesGLBStructures assemble les entrées .glb (owner, echelle du catalogue, playback)', () => {
+    const state = etat(
+      [{ id: 'l1', type: 'legion', owner: 'p1', q: 0, r: 0, aboard: null }],
+      { '0,0': 'prairie' },
+    );
+    const entrees = unitesGLBStructures({ state, visible });
+    expect(entrees).toHaveLength(1);
+    expect(entrees[0]).toMatchObject({ id: 'l1', q: 0, r: 0, owner: 'p1', glb: 'glace.glb', echelle: 1, fog: 'visible', terrain: 'prairie' });
+  });
+
+  it('filtre comme le calque procédural : embarquées R-117 et hors vision absentes', () => {
+    const state = etat([
+      { id: 'a', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
+      { id: 'b', type: 'guerrier', owner: 'p1', q: 1, r: 0, aboard: 'nav' },
+      { id: 'c', type: 'guerrier', owner: 'p1', q: 9, r: 9 },
+    ], { '0,0': 'prairie', '1,0': 'prairie', '9,9': 'prairie' });
+    expect(unitesGLBStructures({ state, visible })).toHaveLength(1);
+  });
+
+  it('update() avec un modèle PAS ENCORE chargé le signale dans stats.manquants (pas de rendu muet)', () => {
+    const monde = new UnitesGLBWorld();
+    monde.update([{ id: 'u1', q: 0, r: 0, fog: 'visible', owner: 'p1', glb: 'guerrier.glb', echelle: 1 }], () => 0xffffff);
+    expect(monde.stats.manquants).toEqual(['guerrier.glb']);
+    expect(monde.stats.unites).toBe(0);
+    monde.dispose();
+  });
+
+  it('parserModeleGLB refuse une scène sans géométrie avec une erreur claire', () => {
+    const scene = { traverse: () => {} };
+    expect(() => parserModeleGLB(scene as never)).toThrow(/aucune géométrie/);
   });
 });
