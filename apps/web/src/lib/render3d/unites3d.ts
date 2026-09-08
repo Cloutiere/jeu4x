@@ -59,6 +59,9 @@ export interface UniteGLBEntree {
    *  180 pour les v3 cuites face -Z). Suit le déplacement (le lerp porte la
    *  position ; la rotation est constante par modèle). */
   rotation?: number;
+  /** Hauteur de VOL en unités monde au-dessus du sol (défaut 0 — posé au sol ;
+   *  colon = appareil volant, T4quater). Constante par modèle : suit le lerp. */
+  survol?: number;
   interpole?: { deQ: number; deR: number; deTerrain?: string; t: number };
 }
 
@@ -117,7 +120,7 @@ export function unitesGLBStructures(src: SourceUnites): UniteGLBEntree[] {
   return extraire(src, (type, owner) => entreeUnite3DDe(owner, type)?.kind === 'glb', ({ id, type, q, r, owner, terrain, anim }) => {
     const entree = entreeUnite3DDe(owner, type)!;
     if (entree.kind !== 'glb') throw new Error(`unites3d : « ${type} » (owner ${owner}) n'est pas une entrée .glb`);
-    const e: UniteGLBEntree = { id, q, r, fog: 'visible', terrain, owner, glb: entree.glb, echelle: entree.echelle, rotation: entree.rotation };
+    const e: UniteGLBEntree = { id, q, r, fog: 'visible', terrain, owner, glb: entree.glb, echelle: entree.echelle, rotation: entree.rotation, survol: entree.survol };
     if (anim) {
       e.interpole = {
         deQ: anim.from.q,

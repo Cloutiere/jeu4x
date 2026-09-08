@@ -170,6 +170,22 @@ sur demande). 23 .glb servis = 23 branchés (test), plus aucun orphelin.
 rules), typecheck 4/4, bench 40×40 sans régression (60 FPS / 197 draw calls / 0.6 ms CPU —
 `bench-40x40-t4ter.png`). Zéro gameplay touché.
 
+## T4quater — Le colon est un appareil volant (08/09)
+
+- `colon` : `echelle` 0.5 → **0.3** (0.6 × la taille T4ter) et nouvelle clé
+  **`survol`** = **0.83** — hauteur de VOL en unités monde au-dessus du sol de la
+  tuile (0.6 : imperceptible en jeu, lu « posé au sol » ; 1.1 : vol évident mais
+  trop haut → descente à 0.83 = 75 % à la demande d'Erik).
+- Data-driven et générale comme la rotation : clé validée par `spec3d.ts` (défaut 0,
+  hors [0, 2] refusé), portée par `UniteGLBEntree`, appliquée à la pose dans
+  `unitesglb.ts` (`y = élévation lerpée + survol`, pools + clones LINES) — constante
+  par modèle, suit le déplacement sans casser le lerp. L'atelier la passe aussi
+  (fiche comme en jeu). **Test** : parse (défaut 0, bornes) + pose (y = 0.6, x/z et
+  échelle inchangées).
+- Vérifié : suite verte (web 164/164), typecheck 4/4, fiche atelier
+  `atelier-colon-v3-survol.png` (colon réduit, décollé de la tuile). 🔶 `survol`
+  calibrable d'une ligne de JSON par Erik.
+
 ## Reste à Erik (décisions, hors de cette session)
 
 1. ~~`barbare_v3.glb` : quel type moteur ?~~ **Tranché T4bis** : surcharge propriétaire

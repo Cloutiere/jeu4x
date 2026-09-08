@@ -697,7 +697,7 @@
     "unites3d": {
       "_comment": "Catalogue des modeles 3D d'unites : type MOTEUR -> { \"glb\": \"fichier.glb\", \"echelle\": 1.0, \"rotation\": 0 } (modeles de assets-src/modeles/, servis par public/modeles/) — ou gabarit de creature de l'atelier (\"guerrier\" | \"archer\"). Tout type ABSENT de cette table garde son sprite billboard 2D. Activer/desactiver un type = editer cette table, sans code. T4 (07/09) : 20 types pointent des _v3.glb valides par Erik ; calibrage d'Erik apres verification en ligne : echelle 0.5 (moitie) et rotation 180 (les v3 cuites face -Z regardent l'arriere de la carte vues par la camera) — data-driven, les fichiers ne sont pas re-ecrits. Non remplaces : cavalier (veloce), sous_marin (sousmarin) — v1, echelle 1.0, pas de rotation. guerrier = knight_v3 rebaptise guerrier_v3 (decision d'Erik : le knight EST le guerrier). Les barbares (owner 'barbarien') affichent barbare_v3 via la table unites3dSurchargeProprietaire.",
       "guerrier": { "glb": "guerrier_v3.glb", "echelle": 0.5, "rotation": 180 },
-      "colon": { "glb": "colon_v3.glb", "echelle": 0.5, "rotation": 180 },
+      "colon": { "glb": "colon_v3.glb", "echelle": 0.3, "rotation": 180, "survol": 0.83 },
       "archer": { "glb": "archer_v3.glb", "echelle": 0.5, "rotation": 180 },
       "legion": { "glb": "legion_v3.glb", "echelle": 0.5, "rotation": 180 },
       "cavalier": { "glb": "veloce.glb", "echelle": 1.0 },

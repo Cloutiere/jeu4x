@@ -779,7 +779,16 @@ const GABARITS: ReadonlySet<string> = new Set(['guerrier', 'archer']);
  *    conservateur — Erik calibre à l'œil, sans code). */
 export type EntreeUnite3D =
   | { kind: 'gabarit'; gabarit: GabaritUnite }
-  | { kind: 'glb'; glb: string; echelle: number; /** Rotation de pose en DEGRÉS autour de Y (défaut 0 — calibrage Erik T4ter : 180 pour les v3 cuites face -Z). */ rotation: number };
+  | {
+      kind: 'glb';
+      glb: string;
+      echelle: number;
+      /** Rotation de pose en DEGRÉS autour de Y (défaut 0 — calibrage Erik T4ter : 180 pour les v3 cuites face -Z). */
+      rotation: number;
+      /** Survol : hauteur de VOL en unités monde AU-DESSUS du sol de la tuile
+       *  (défaut 0 — posé au sol ; colon = appareil volant, calibrage T4quater). */
+      survol: number;
+    };
 
 const GLB_RE = /^[a-z0-9_]+\.glb$/;
 
@@ -808,7 +817,11 @@ export function parseEntreeUnite3D(type: string, v: unknown): EntreeUnite3D {
   if (!Number.isFinite(rotation) || Math.abs(rotation) > 360) {
     throw new Error(`visuel3d.json : structures.unites3d.${type}.rotation hors [-360, 360]`);
   }
-  return { kind: 'glb', glb, echelle, rotation };
+  const survol = nombre(g.survol ?? 0, `structures.unites3d.${type}.survol`);
+  if (survol < 0 || survol > 2) {
+    throw new Error(`visuel3d.json : structures.unites3d.${type}.survol hors [0, 2]`);
+  }
+  return { kind: 'glb', glb, echelle, rotation, survol };
 }
 
 /**

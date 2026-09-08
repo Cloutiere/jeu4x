@@ -154,7 +154,7 @@
       (Object.values(MODELES_UNITES3D) as EntreeUnite3D[]).find((e) => e.kind === 'glb' && e.glb === fichier) ??
       Object.values(SURCHARGE_UNITES3D_PAR_PROPRIO).find((e) => e.kind === 'glb' && e.glb === fichier);
     if (!entree || entree.kind !== 'glb') return [];
-    return [{ id: 'atelier-glb', q: 0, r: 0, fog: 'visible' as const, terrain: 'prairie', owner: 'p1', glb: entree.glb, echelle: entree.echelle, rotation: entree.rotation }];
+    return [{ id: 'atelier-glb', q: 0, r: 0, fog: 'visible' as const, terrain: 'prairie', owner: 'p1', glb: entree.glb, echelle: entree.echelle, rotation: entree.rotation, survol: entree.survol }];
   }
 
   /** Entrées du planificateur de structures pour l'asset isolé. */

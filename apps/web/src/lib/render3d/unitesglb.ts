@@ -235,13 +235,16 @@ export class UnitesGLBWorld {
       const accentDim = u.fog === 'visible' ? accentHex : new THREE.Color(accentHex).multiply(FOG_DIM).getHex();
       // Rotation de pose du catalogue (degrés autour de Y, défaut 0). Lerp de
       // playback PORTE LA POSITION uniquement — la rotation, constante par
-      // modèle, suit le déplacement sans casser l'interpolation.
+      // modèle, suit le déplacement sans casser l'interpolation. `survol`
+      // (T4quater) décolle l'appareil du sol : hauteur constante ajoutée à
+      // l'élévation (lerpée) de la tuile.
       const rotationY = ((u.rotation ?? 0) * Math.PI) / 180;
+      const y = elev + (u.survol ?? 0);
       if (rotationY === 0) {
-        this.tmpMatrix.makeScale(k, k, k).setPosition(x, elev, z);
+        this.tmpMatrix.makeScale(k, k, k).setPosition(x, y, z);
       } else {
         this.tmpMatrix.makeRotationY(rotationY).multiply(this.tmpScale.makeScale(k, k, k));
-        this.tmpMatrix.setPosition(x, elev, z);
+        this.tmpMatrix.setPosition(x, y, z);
       }
 
       for (let i = 0; i < modele.parties.length; i++) {
@@ -275,7 +278,7 @@ export class UnitesGLBWorld {
         if (u.fog !== 'visible') mat.color.multiply(FOG_DIM);
         this.materiauxClones.push(mat);
         const clone = new THREE.LineSegments(modele.lignes.geo, mat);
-        clone.position.set(x, elev, z);
+        clone.position.set(x, y, z);
         clone.scale.setScalar(k);
         clone.rotation.y = rotationY;
         clone.frustumCulled = false;
