@@ -728,6 +728,12 @@
       "glb": "ville_v1.glb",
       "echelle": 1.0,
       "rotation": 0
+    },
+    "villageBarbare3d": {
+      "_comment": "Visuel 3D du VILLAGE barbare (asset Tripo, decision d'Erik du 08/09) : meme format que ville3d. Couleurs D'ORIGINE conservees (aucune teinte joueur ni rouge barbare — l'asset est deja rouge) ; meme traitement de luminosite que la ville (texture aussi en emissiveMap, force 0.7 cuite). Absent = fallback dome procedural de structures3d. Les HUTTES restent procedurales.",
+      "glb": "village_barbare_v1.glb",
+      "echelle": 0.65,
+      "rotation": 0
     }
   }
 }

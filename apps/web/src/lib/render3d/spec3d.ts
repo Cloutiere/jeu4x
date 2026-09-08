@@ -885,6 +885,17 @@ export const VILLE3D: EntreeUnite3D | null =
     ? null
     : parseEntreeUnite3D('ville3d', structuresBrut.ville3d);
 
+/** Visuel 3D du VILLAGE barbare (asset Tripo, décision d'Erik du 08/09) :
+ *  même mécanique que `VILLE3D` — couleurs d'ORIGINE conservées (aucune teinte
+ *  accent_joueur : le .glb n'a PAS de matériau `accent_joueur`, le calque ne
+ *  teinte donc rien) ; luminosité par texture aussi branchée en emissiveMap.
+ *  Absent = fallback dôme procédural de `structures3d.ts`. Les huttes restent
+ *  procédurales. */
+export const VILLAGE_BARBARE3D: EntreeUnite3D | null =
+  structuresBrut.villageBarbare3d === undefined
+    ? null
+    : parseEntreeUnite3D('villageBarbare3d', structuresBrut.villageBarbare3d);
+
 export const STRUCTURES3D: SpecStructures = {
   slot: SLOT3D,
   formes: FORMES3D,

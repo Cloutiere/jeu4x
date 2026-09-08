@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { tileKeyOf } from '@game/rules';
 import type { GameState } from '@game/rules';
-import { MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO, VILLE3D, TERRAINS3D, gabaritUnite3D, entreeUnite3D, entreeUnite3DDe, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
+import { MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO, VILLE3D, VILLAGE_BARBARE3D, TERRAINS3D, gabaritUnite3D, entreeUnite3D, entreeUnite3DDe, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
 import { planifierStructures } from '../src/lib/render3d/structures3d.js';
 import type { EntiteStructure, EntreeStructures } from '../src/lib/render3d/structures3d.js';
 import { aModele3D, unitesStructures, unitesGLBStructures } from '../src/lib/render3d/unites3d.js';
@@ -86,13 +86,14 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
     const mappes = [
       ...Object.values(MODELES_UNITES3D).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])),
       ...Object.values(SURCHARGE_UNITES3D_PAR_PROPRIO).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])),
-      // VILLE-TRIPO T2 : le visuel de la ville est un .glb servi (spec ville3d)
+      // VILLE-TRIPO T2 + village barbare (08/09) : structures .glb servies
       ...(VILLE3D && VILLE3D.kind === 'glb' ? [VILLE3D.glb] : []),
+      ...(VILLAGE_BARBARE3D && VILLAGE_BARBARE3D.kind === 'glb' ? [VILLAGE_BARBARE3D.glb] : []),
     ].sort();
     // T4bis : barbare_v3 est branché via unites3dSurchargeProprietaire (owner
     // 'barbarien') — plus aucun orphelin, aucun fichier servi sans branchement.
     expect(mappes).toEqual(fichiers);
-    expect(fichiers.length).toBe(24);
+    expect(fichiers.length).toBe(25);
   });
 
   it('les types SANS entrée (civs uniques, GP, caravane…) gardent leur sprite 2D', () => {

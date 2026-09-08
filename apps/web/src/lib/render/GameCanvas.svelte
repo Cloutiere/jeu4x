@@ -44,7 +44,7 @@
   // Fonderie T3 — calque des unités à modèle .glb (chargement en cache,
   // teinte joueur par propriétaire, instancing ; cf. unitesglb.ts).
   import { ChargeurModelesGLB, UnitesGLBWorld } from '../render3d/unitesglb.js';
-  import { MODELES_UNITES3D, VILLE3D } from '../render3d/spec3d.js';
+  import { MODELES_UNITES3D, VILLE3D, VILLAGE_BARBARE3D } from '../render3d/spec3d.js';
   // VILLE-TRIPO T2 — entrée .glb d'une ville (même format que le catalogue unités).
   import type { UniteGLBEntree } from '../render3d/unites3d.js';
   // TRAVAIL-VILLE-3D — contours en vraie 3D : cadres des cases travaillées +
@@ -194,6 +194,9 @@
   // cache, fusion, teinte accent_joueur par propriétaire). Null tant que
   // visuel3d.json §structures.ville3d ne pointe pas un .glb (fallback Mainframe).
   let villesGlb: UnitesGLBWorld | null = null;
+  // VILLAGE barbare (asset Tripo, 08/09) : même mécanique — SANS teinte (le
+  // .glb n'a pas de matériau accent_joueur, ses couleurs d'origine tiennent).
+  let villagesGlb: UnitesGLBWorld | null = null;
   // TRAVAIL-VILLE-3D : contours 3D (worked tiles + rayon de cultivation).
   let marqueurs3d: Marqueurs3D | null = null;
   let canvas3d: HTMLCanvasElement | null = null;
@@ -1412,7 +1415,25 @@
       }
     }
     const huttes = state.huts.map((h) => ({ id: h.id, q: h.q, r: h.r, fog: scene.visible.has(tileKeyOf(h)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(h)]?.terrain }));
-    const villages = state.villages.map((v) => ({ id: v.id, q: v.q, r: v.r, fog: scene.visible.has(tileKeyOf(v)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(v)]?.terrain }));
+    // VILLAGE barbare .glb (08/09) : même bascule que les villes — hors
+    // planificateur (dôme procédural retiré du rendu, fallback si spec absente).
+    const villageGlb = VILLAGE_BARBARE3D && VILLAGE_BARBARE3D.kind === 'glb' ? VILLAGE_BARBARE3D : null;
+    const villages: Parameters<typeof planifierStructures>[0]['villages'] = [];
+    const villagesGlbEntrees: UniteGLBEntree[] = [];
+    for (const v of state.villages) {
+      if (!scene.visible.has(tileKeyOf(v))) continue;
+      const fog = scene.visible.has(tileKeyOf(v)) ? 'visible' as const : 'explored' as const;
+      if (villageGlb) {
+        villagesGlbEntrees.push({
+          id: v.id, q: v.q, r: v.r, fog,
+          terrain: state.map[tileKeyOf(v)]?.terrain,
+          owner: 'barbarien', // aucun matériau accent_joueur dans le .glb : la teinte est sans effet
+          glb: villageGlb.glb, echelle: villageGlb.echelle, rotation: villageGlb.rotation, survol: villageGlb.survol,
+        });
+      } else {
+        villages.push({ id: v.id, q: v.q, r: v.r, fog, terrain: state.map[tileKeyOf(v)]?.terrain });
+      }
+    }
     // Unités 3D (chantier V2-unités3D) : assemblage PARTAGÉ avec le labo
     // (unites3d.ts) — playback interpolé suivi par le calque, mapping data-driven.
     // CORRECTIFS-SELECTION : position optimiste (destination du chemin).
@@ -1436,6 +1457,8 @@
     // VILLE-TRIPO T2 : les villes passent par le MÊME pipeline (teinte
     // multiplicative accent_joueur, fog, instancing) — monde dédié.
     villesGlb?.update(villesGlbEntrees, playerColor);
+    // VILLAGE barbare : même pipeline, SANS teinte (couleurs d'origine).
+    villagesGlb?.update(villagesGlbEntrees, playerColor);
   }
 
   /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping linéaire. */
@@ -1822,6 +1845,12 @@
         villesGlb.precharger([VILLE3D.glb]);
         stage3d.scene.add(villesGlb.group);
       }
+      // VILLAGE barbare .glb (idem ville, sans teinte).
+      if (VILLAGE_BARBARE3D && VILLAGE_BARBARE3D.kind === 'glb') {
+        villagesGlb = new UnitesGLBWorld(new ChargeurModelesGLB(), () => { entitiesDirty = true; });
+        villagesGlb.precharger([VILLAGE_BARBARE3D.glb]);
+        stage3d.scene.add(villagesGlb.group);
+      }
       // TRAVAIL-VILLE-3D : contours 3D des worked tiles + rayon de cultivation.
       marqueurs3d = new Marqueurs3D();
       stage3d.scene.add(marqueurs3d.group);
@@ -2008,6 +2037,10 @@
     if (villesGlb) {
       villesGlb.dispose();
       villesGlb = null;
+    }
+    if (villagesGlb) {
+      villagesGlb.dispose();
+      villagesGlb = null;
     }
     if (marqueurs3d) {
       marqueurs3d.dispose();
