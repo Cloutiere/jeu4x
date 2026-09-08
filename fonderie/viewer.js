@@ -113,6 +113,35 @@ function chargerGLB(url, nom) {
     document.getElementById('stats').innerHTML = `<b>ERREUR de chargement</b><br>${err.message || err}`;
   });
 }
+// Mode A/B ville (handoff VILLE-TRIPO) : variante A (corps Tripo intact) à gauche,
+// variante B (corps accent_joueur neutre-clair) à droite, hauteurs égalisées.
+function activerABVille(on) {
+  modeAB = on;
+  if (!on) { chargerGLB(`modeles/${selection}`, selection); return; }
+  Promise.all([
+    chargeur.loadAsync('modeles/ville_v1_A.glb'),
+    chargeur.loadAsync('modeles/ville_v1_B.glb'),
+  ]).then(([a, b]) => {
+    nettoyer();
+    const H = Math.max(
+      new THREE.Box3().setFromObject(a.scene).max.y,
+      new THREE.Box3().setFromObject(b.scene).max.y);
+    // vérifié à l'écran (capture J5) : -X apparaît À DROITE => A à +x pour être à gauche
+    for (const [gltf, x] of [[a, 1.5], [b, -1.5]]) {
+      const boite = new THREE.Box3().setFromObject(gltf.scene);
+      gltf.scene.scale.setScalar(H / (boite.max.y - boite.min.y));
+      gltf.scene.position.x = x;
+      scene.add(gltf.scene);
+      racines.push(gltf.scene);
+    }
+    cadrerUnion();
+    compterStats();
+    appliquerTeinte(teinte);
+  }).catch((err) => {
+    document.getElementById('stats').innerHTML = `<b>ERREUR A/B ville</b><br>${err.message || err}`;
+  });
+}
+
 // Mode A/B : chevalier.glb (même personnage, en jeu) à gauche, modèle sélectionné à droite
 // (knight_v3 par défaut), mêmes réglages, hauteurs égalisées pour comparer le style
 // (les tailles réelles se calibrent en jeu via visuel3d.json §echelle).
@@ -157,7 +186,9 @@ function compterStats() {
     }
     if (n.isMesh || n.isLine || n.isPoints) primitives++;
   });
-  const nom = modeAB ? `A/B : chevalier | ${selection || '—'}` : (selection || '—');
+  const nom = modeAB
+    ? ($('b-abville').classList.contains('actif') ? 'A/B ville : A | B' : `A/B : chevalier | ${selection || '—'}`)
+    : (selection || '—');
   stats = { nom, tris: Math.round(tris), materiaux: materiaux.size, primitives };
   majStats();
 }
@@ -222,8 +253,18 @@ for (const b of document.querySelectorAll('#teintes button')) {
 
 // Bouton A/B : chevalier.glb (en jeu) à côté du modèle sélectionné, même caméra
 $('b-ab').addEventListener('click', () => {
-  activerAB(!modeAB);
-  $('b-ab').classList.toggle('actif', modeAB);
+  $('b-abville').classList.remove('actif');
+  const on = !$('b-ab').classList.contains('actif');
+  activerAB(on);
+  $('b-ab').classList.toggle('actif', on);
+});
+
+// Bouton A/B ville : les deux variantes de la ville côte à côte (A à gauche, B à droite)
+$('b-abville').addEventListener('click', () => {
+  $('b-ab').classList.remove('actif');
+  const on = !$('b-abville').classList.contains('actif');
+  activerABVille(on);
+  $('b-abville').classList.toggle('actif', on);
 });
 
 // Liste des .glb du dossier modeles/ (servie par serveur.mjs) + glisser-déposer
@@ -238,8 +279,9 @@ async function listerModeles() {
       o.value = o.textContent = f;
       sel.appendChild(o);
     }
-    // par défaut : barbare_v3 (knight_v3 promu guerrier_v3 en jeu, T4bis), sinon le premier
-    selection = fichiers.includes('barbare_v3.glb') ? 'barbare_v3.glb' : fichiers[0];
+    // par défaut : la ville (session VILLE-TRIPO), sinon barbare_v3, sinon le premier
+    selection = fichiers.includes('ville_v1_A.glb') ? 'ville_v1_A.glb'
+      : fichiers.includes('barbare_v3.glb') ? 'barbare_v3.glb' : fichiers[0];
     sel.value = selection;
     if (selection) chargerGLB(`modeles/${selection}`, selection);
     sel.addEventListener('change', () => {
@@ -279,6 +321,7 @@ renderer.setAnimationLoop(() => {
 // débogage
 window.__fonderie = {
   scene: () => scene,
+  camera: () => camera,
   THREE,
   modeAB: () => modeAB,
   racines: () => racines.length,

@@ -56,7 +56,9 @@ class Blob {
   buffer() { return Buffer.concat(this.morceaux); }
 }
 
-export function construireGLB({ primitives, materiaux, image, imageEmissive, extensionsUtilisees = [], nom = 'guerrier' }) {
+// imagesCustom : [{ data: Buffer, mimeType }] — liste libre d'images (les index de texture
+// des matériaux s'y réfèrent directement). Prioritaire sur image/imageEmissive (villes, JPEG Tripo).
+export function construireGLB({ primitives, materiaux, image, imageEmissive, imagesCustom, extensionsUtilisees = [], nom = 'guerrier' }) {
   // primitives: [{ mode:'TRIANGLES'|'LINES', positions:Float32Array, normals?:Float32Array, material:index }]
   const blob = new Blob();
   const bufferViews = [], accessors = [], meshes = [];
@@ -99,7 +101,14 @@ export function construireGLB({ primitives, materiaux, image, imageEmissive, ext
   meshes.push({ name: nom, primitives: prims });
 
   let images, textures;
-  if (image) {
+  if (imagesCustom) {
+    images = [], textures = [];
+    for (const im of imagesCustom) {
+      blob.aligner4();
+      images.push({ bufferView: ajouterBufferView(im.data, 0), mimeType: im.mimeType });
+      textures.push({ source: images.length - 1 });
+    }
+  } else if (image) {
     blob.aligner4();
     images = [{ bufferView: ajouterBufferView(image, 0), mimeType: 'image/png' }];
     textures = [{ source: 0 }];
