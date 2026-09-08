@@ -1636,6 +1636,11 @@
   }
 
   function onPointerUp(e: PointerEvent): void {
+    // CORRECTIFS-SELECTION (bogue souris réelle) : un pointerup du BOUTON DROIT
+    // ne doit PAS déclencher la décision de clic gauche (sélection/désélection)
+    // — sinon il court avant le `contextmenu` et l'unité est désélectionnée
+    // avant que le clic droit (destination) ne soit traité.
+    if (e.button !== 0) return;
     const p = canvasPos(e);
     const wasDragging = dragging;
     pointer = null;
