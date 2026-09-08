@@ -171,6 +171,7 @@ export class UnitesGLBWorld {
   private disposed = false;
   private tmpColor = new THREE.Color();
   private tmpMatrix = new THREE.Matrix4();
+  private tmpScale = new THREE.Matrix4();
 
   constructor(
     private chargeur: ChargeurModelesGLB = new ChargeurModelesGLB(),
@@ -232,7 +233,16 @@ export class UnitesGLBWorld {
       const fogClair = u.fog === 'visible' ? 0xffffff : FOG_DIM.getHex();
       const accentHex = couleurDe(u.owner ?? 'barbarien');
       const accentDim = u.fog === 'visible' ? accentHex : new THREE.Color(accentHex).multiply(FOG_DIM).getHex();
-      this.tmpMatrix.makeScale(k, k, k).setPosition(x, elev, z);
+      // Rotation de pose du catalogue (degrés autour de Y, défaut 0). Lerp de
+      // playback PORTE LA POSITION uniquement — la rotation, constante par
+      // modèle, suit le déplacement sans casser l'interpolation.
+      const rotationY = ((u.rotation ?? 0) * Math.PI) / 180;
+      if (rotationY === 0) {
+        this.tmpMatrix.makeScale(k, k, k).setPosition(x, elev, z);
+      } else {
+        this.tmpMatrix.makeRotationY(rotationY).multiply(this.tmpScale.makeScale(k, k, k));
+        this.tmpMatrix.setPosition(x, elev, z);
+      }
 
       for (let i = 0; i < modele.parties.length; i++) {
         const p = modele.parties[i]!;
@@ -267,6 +277,7 @@ export class UnitesGLBWorld {
         const clone = new THREE.LineSegments(modele.lignes.geo, mat);
         clone.position.set(x, elev, z);
         clone.scale.setScalar(k);
+        clone.rotation.y = rotationY;
         clone.frustumCulled = false;
         this.group.add(clone);
         this.clonesLignes.push(clone);

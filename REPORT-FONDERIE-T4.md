@@ -144,6 +144,32 @@ le guerrier du joueur rend bien le knight teinté (`partie-3d-tour10.png`) et la
 des requêtes modèles ne contient AUCUN .glb archivé (22 mappés chargés, `barbare_v3`
 sur demande). 23 .glb servis = 23 branchés (test), plus aucun orphelin.
 
+## T4ter — Calibrage d'Erik après vérification en ligne (07/09)
+
+1. **Unités réduites de moitié** ✓ — les 20 entrées `_v3` du catalogue `unites3d` et la
+   surcharge propriétaire passent à `echelle: 0.5` (JSON uniquement ; `veloce`/`sousmarin`
+   v1 restent à 1.0).
+2. **Rotation vers l'avant de la carte** ✓ — data-driven et générale, sans ré-écriture des
+   fichiers : nouvelle clé `rotation` (DEGRÉS autour de Y, défaut 0) au format du catalogue
+   ET de la surcharge, validée par `spec3d.ts` (`parseEntreeUnite3D` — hors [-360, 360]
+   refusé), portée par `UniteGLBEntree` (`unites3d.ts`) et appliquée à la pose dans
+   `unitesglb.ts` (`makeRotationY × échelle` sur les pools instanciés + `rotation.y` sur
+   les clones LINES). Le lerp de playback ne porte QUE la position : la rotation, constante
+   par modèle, suit le déplacement sans casser l'interpolation (tests à l'appui). L'atelier
+   rend les fiches COMME EN JEU (`entreesGlbPour` passe `echelle` + `rotation`, y compris
+   via la surcharge). `rotation: 180` posé sur les 20 types v3 + barbare.
+   **Tests** : parse (défaut 0, degrés, erreur claire), pose matricielle (180° = -1 sur X/Z,
+   échelle conservée, position inchangée), portée catalogue + surcharge.
+   **Visuel** : la fiche `guerrier_v3` montrait le DOS avant, la FACE après
+   (`atelier-guerrier-v3-rotation.png` vs `atelier-guerrier-v3-knight.png`) ; en jeu le
+   barbare (`barbare_v3`, teinte rouge) est vu de face à mi-taille
+   (`partie-3d-t4ter-barbare.png`, `partie-3d-t4ter-taille-moitie.png`) ; déplacement soumis
+   et résolu proprement en 3D (`partie-3d-t4ter-playback-*.png`, tour 37→38).
+
+**Vérifications T4ter** : suite complète verte (web 164/164 — 3 nouveaux tests, server,
+rules), typecheck 4/4, bench 40×40 sans régression (60 FPS / 197 draw calls / 0.6 ms CPU —
+`bench-40x40-t4ter.png`). Zéro gameplay touché.
+
 ## Reste à Erik (décisions, hors de cette session)
 
 1. ~~`barbare_v3.glb` : quel type moteur ?~~ **Tranché T4bis** : surcharge propriétaire

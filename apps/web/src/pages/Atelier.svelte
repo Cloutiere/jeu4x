@@ -30,7 +30,7 @@
   import { StructuresWorld, planifierStructures } from '../lib/render3d/structures3d.js';
   import type { EntreeStructures, TuileStructures } from '../lib/render3d/structures3d.js';
   import { PLAYER_COLORS } from '../lib/render/textures.js';
-  import { TERRAINS3D, STRUCTURES3D, MODELES_UNITES3D } from '../lib/render3d/spec3d.js';
+  import { TERRAINS3D, STRUCTURES3D, MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO } from '../lib/render3d/spec3d.js';
   import type { EntreeUnite3D } from '../lib/render3d/spec3d.js';
   // Fonderie T3 : isolement des unités à modèle .glb (même calque que le jeu).
   import { ChargeurModelesGLB, UnitesGLBWorld } from '../lib/render3d/unitesglb.js';
@@ -144,13 +144,17 @@
   /** Couleur d'accent de l'atelier (J1 = menthe du jeu). */
   const couleurAtelier = (owner: string): number => (PLAYER_COLORS[owner] ?? 0x8a5ad6);
 
-  /** Entrées du calque .glb pour un asset `uniteglb:<fichier>` (fonderie T3). */
+  /** Entrées du calque .glb pour un asset `uniteglb:<fichier>` (fonderie T3).
+   *  L'atelier rend le modèle COMME EN JEU : echelle + rotation du catalogue
+   *  (T4ter), y compris via la surcharge par propriétaire (barbare_v3). */
   function entreesGlbPour(asset: AssetAtelier): UniteGLBEntree[] {
     if (!asset.id.startsWith('uniteglb:')) return [];
     const fichier = asset.id.slice('uniteglb:'.length);
-    const entree = (Object.values(MODELES_UNITES3D) as EntreeUnite3D[]).find((e) => e.kind === 'glb' && e.glb === fichier);
+    const entree =
+      (Object.values(MODELES_UNITES3D) as EntreeUnite3D[]).find((e) => e.kind === 'glb' && e.glb === fichier) ??
+      Object.values(SURCHARGE_UNITES3D_PAR_PROPRIO).find((e) => e.kind === 'glb' && e.glb === fichier);
     if (!entree || entree.kind !== 'glb') return [];
-    return [{ id: 'atelier-glb', q: 0, r: 0, fog: 'visible' as const, terrain: 'prairie', owner: 'p1', glb: entree.glb, echelle: entree.echelle }];
+    return [{ id: 'atelier-glb', q: 0, r: 0, fog: 'visible' as const, terrain: 'prairie', owner: 'p1', glb: entree.glb, echelle: entree.echelle, rotation: entree.rotation }];
   }
 
   /** Entrées du planificateur de structures pour l'asset isolé. */

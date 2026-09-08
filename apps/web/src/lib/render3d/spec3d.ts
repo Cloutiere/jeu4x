@@ -779,7 +779,7 @@ const GABARITS: ReadonlySet<string> = new Set(['guerrier', 'archer']);
  *    conservateur — Erik calibre à l'œil, sans code). */
 export type EntreeUnite3D =
   | { kind: 'gabarit'; gabarit: GabaritUnite }
-  | { kind: 'glb'; glb: string; echelle: number };
+  | { kind: 'glb'; glb: string; echelle: number; /** Rotation de pose en DEGRÉS autour de Y (défaut 0 — calibrage Erik T4ter : 180 pour les v3 cuites face -Z). */ rotation: number };
 
 const GLB_RE = /^[a-z0-9_]+\.glb$/;
 
@@ -802,7 +802,13 @@ export function parseEntreeUnite3D(type: string, v: unknown): EntreeUnite3D {
   if (echelle < 0.05 || echelle > 4) {
     throw new Error(`visuel3d.json : structures.unites3d.${type}.echelle hors [0.05, 4]`);
   }
-  return { kind: 'glb', glb, echelle };
+  // Rotation de pose en degrés autour de Y (défaut 0 = inchangé). Data-driven :
+  // calibrage sans ré-écriture des fichiers (T4ter, Erik).
+  const rotation = nombre(g.rotation ?? 0, `structures.unites3d.${type}.rotation`);
+  if (!Number.isFinite(rotation) || Math.abs(rotation) > 360) {
+    throw new Error(`visuel3d.json : structures.unites3d.${type}.rotation hors [-360, 360]`);
+  }
+  return { kind: 'glb', glb, echelle, rotation };
 }
 
 /**

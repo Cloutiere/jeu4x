@@ -105,6 +105,14 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
     expect(() => parseEntreeUnite3D('x', { glb: 'Guerrier.GLB' })).toThrow(/\.glb invalide/);
     expect(() => parseEntreeUnite3D('x', { glb: 'guerrier.glb', echelle: 0 })).toThrow(/echelle hors/);
     expect(() => parseEntreeUnite3D('x', {})).toThrow(/\.glb invalide/);
+    expect(() => parseEntreeUnite3D('x', { glb: 'guerrier.glb', rotation: 400 })).toThrow(/rotation hors/);
+    expect(() => parseEntreeUnite3D('x', { glb: 'guerrier.glb', rotation: 'a' })).toThrow(/rotation/);
+  });
+
+  it('rotation du catalogue : défaut 0, degrés validés (T4ter)', () => {
+    expect(parseEntreeUnite3D('x', { glb: 'a.glb' })).toMatchObject({ kind: 'glb', rotation: 0 });
+    expect(parseEntreeUnite3D('x', { glb: 'a.glb', echelle: 1, rotation: 180 })).toMatchObject({ kind: 'glb', rotation: 180 });
+    expect(parseEntreeUnite3D('x', { glb: 'a.glb', rotation: -90 })).toMatchObject({ kind: 'glb', rotation: -90 });
   });
 });
 
@@ -237,7 +245,7 @@ describe('calque .glb — fonderie T3 (assemblage + garde-fous)', () => {
     );
     const entrees = unitesGLBStructures({ state, visible });
     expect(entrees).toHaveLength(1);
-    expect(entrees[0]).toMatchObject({ id: 'l1', q: 0, r: 0, owner: 'p1', glb: 'legion_v3.glb', echelle: 1, fog: 'visible', terrain: 'prairie' });
+    expect(entrees[0]).toMatchObject({ id: 'l1', q: 0, r: 0, owner: 'p1', glb: 'legion_v3.glb', echelle: 0.5, rotation: 180, fog: 'visible', terrain: 'prairie' });
   });
 
   it('filtre comme le calque procédural : embarquées R-117 et hors vision absentes', () => {
@@ -263,6 +271,44 @@ describe('calque .glb — fonderie T3 (assemblage + garde-fous)', () => {
     const humain = entrees.find((e) => e.owner === 'j1')!;
     expect(barbare.glb).toBe('barbare_v3.glb'); // surcharge propriétaire
     expect(humain.glb).toBe('guerrier_v3.glb'); // modèle de type pour un humain
+  });
+
+  it('rotation de pose : rotation 180 tourne la matrice de π, sans rotation la pose est inchangée (T4ter)', () => {
+    const monde = new UnitesGLBWorld();
+    const geo = new THREE.BufferGeometry();
+    const mat = new THREE.MeshStandardMaterial({ name: 'corps' });
+    const interne = monde as unknown as { modeles: Map<string, ModeleGLB>; pools: Map<string, { pool: { mesh: THREE.InstancedMesh } }> };
+    interne.modeles.set('test_v3.glb', { parties: [{ geo, mat, accent: false }], lignes: null });
+    const m = new THREE.Matrix4();
+
+    monde.update([{ id: 'u1', q: 0, r: 0, fog: 'visible', owner: 'p1', glb: 'test_v3.glb', echelle: 2 }], couleurDe);
+    const pool = interne.pools.get('test_v3.glb#0')!.pool.mesh;
+    pool.getMatrixAt(0, m);
+    // sans rotation : échelle seule sur la diagonale, position de la case
+    expect(m.elements[0]).toBe(2);
+    expect(m.elements[10]).toBe(2);
+    expect(m.elements[12]).toBeCloseTo(0, 5);
+
+    monde.update([{ id: 'u1', q: 0, r: 0, fog: 'visible', owner: 'p1', glb: 'test_v3.glb', echelle: 2, rotation: 180 }], couleurDe);
+    pool.getMatrixAt(0, m);
+    // rotation 180° autour de Y = -1 sur X et Z, échelle conservée…
+    expect(m.elements[0]).toBeCloseTo(-2, 5);
+    expect(m.elements[5]).toBe(2);
+    expect(m.elements[10]).toBeCloseTo(-2, 5);
+    // …et la POSITION est inchangée (le lerp de playback reste valide)
+    expect(m.elements[12]).toBeCloseTo(0, 5);
+    expect(m.elements[13]).toBeCloseTo(0, 5);
+    expect(m.elements[14]).toBeCloseTo(0, 5);
+    monde.dispose();
+  });
+
+  it('unitesGLBStructures porte la rotation du catalogue (y compris via la surcharge)', () => {
+    const guerrier = entreeUnite3D('guerrier');
+    expect(guerrier.kind === 'glb' && guerrier.rotation).toBe(180); // calibrage Erik, T4ter
+    const state = etat([{ id: 'b1', type: 'guerrier', owner: 'barbarien', q: 0, r: 0 }], { '0,0': 'prairie' });
+    const barbare = unitesGLBStructures({ state, visible: new Set(['0,0']) })[0]!;
+    expect(barbare.rotation).toBe(180);
+    expect(barbare.echelle).toBe(0.5);
   });
 
   it('update() avec un modèle PAS ENCORE chargé le signale dans stats.manquants (pas de rendu muet)', () => {
