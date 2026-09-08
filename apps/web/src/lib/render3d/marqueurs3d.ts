@@ -26,6 +26,9 @@ export interface ContourDef {
   /** Épaisseur en PIXELS ÉCRAN (constante au zoom). */
   largeur: number;
   alpha: number;
+  /** CORRECTIFS-SELECTION : polyline OUVERTE (ligne de cheminement d'un
+   *  ordre — pas de fermeture sur le premier sommet). */
+  ouvert?: boolean;
 }
 
 export class Marqueurs3D {
@@ -45,8 +48,9 @@ export class Marqueurs3D {
       if (c.points.length < 2) continue;
       const geo = new LineGeometry();
       const flats: number[] = [];
-      // Boucle fermée : la ligne referme sur le premier sommet.
-      const boucle = [...c.points, c.points[0]!];
+      // Boucle fermée : la ligne referme sur le premier sommet — sauf polyline
+      // OUVERTE (`ouvert`, ligne de cheminement d'un ordre).
+      const boucle = c.ouvert ? c.points : [...c.points, c.points[0]!];
       for (const p of boucle) {
         flats.push(p.x / HEX_SIZE, p.elev + SURELEVATION, p.y / HEX_SIZE);
       }

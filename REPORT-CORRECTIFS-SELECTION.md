@@ -18,6 +18,12 @@ Implémentation : `rightClickAction` rétablie (retourne `moveDraft`/`cancelOrde
 
 **Note environnement** : dans la partie solo TS8VB9 ouverte depuis des heures, la soumission d'ordres ne se reflétait plus (même via le bouton « Tenir la position », code intouché) — tuyau WS/DO de la session longue, pas le code ; une partie neuve fonctionne parfaitement. Si Erik voit un jour ça : créer une partie neuve / redémarrer le worker dev.
 
+## ⚡ ADDENDUM 2 (08/09, soir) — itérations d'Erik en conditions réelles
+
+1. **Bogue souris réelle (critique, trouvé en prod)** : `onPointerUp` ne filtrait pas le BOUTON — le `pointerup` du clic droit déclenchait la décision de clic gauche (sélection/désélection) AVANT le `contextmenu` : l'unité était désélectionnée et le clic droit ne pouvait jamais programmer. Fix : `onPointerUp` ignore tout bouton ≠ gauche. Les tests GUI synthétiques n'envoyant que `contextmenu`, le bogue était invisible en automatisation — le flux complet pointerdown/up + contextmenu est désormais le scénario de vérification.
+2. **Schéma visuel final du cheminement (retour Erik)** : plus de bulle animée ni de fantôme d'arrivée (M3 remplacé) — l'unité programmée est affichée À SA DESTINATION (position optimiste, `positionDe` ajouté à `SourceUnites` pour le calque .glb 3D, miroir 2D dans `rebuildEntities`) ; **seule la ligne jaune demeure, AVEC sa pointe**, et en 3D elle est tracée dans le calque Three (`marqueurs3d`, polyline ouverte `ouvert: true`, posée sur le relief) donc SOUS le modèle de l'unité — plus jamais par-dessus. Marqueur ⌂ de fondation et surlignage des cases disputées conservés.
+3. **Leçon outillage** : le Vite dev de longue date servait des modules périmés (cache de transformation sans invalidation mtime fiable) — un F5 ne suffisait pas, il a fallu redémarrer Vite ; par ailleurs trois `wrangler dev` coexistaient en locaux, dont des `workerd` orphelins qui pendait les requêtes de session (page bloquée sur « Chargement… »). Nettoyage : un seul Vite + un seul wrangler.
+
 ---
 
 ## 0. Préalables

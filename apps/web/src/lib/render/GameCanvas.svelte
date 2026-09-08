@@ -916,17 +916,22 @@
     // panneau ville restent inchangés.
 
     // Ordres de déplacement PERSISTANTS — CORRECTIFS-SELECTION (retour d'Erik) :
-    // seule la LIGNE jaune de cheminement demeure (pastille et pointe retirées).
-    // L'unité elle-même est affichée À SA DESTINATION (position optimiste,
-    // rebuildEntities) — plus de bulle animée ni de fantôme à l'arrivée.
-    // Les ordres composites MultiStep (R-158) gardent le marqueur ⌂ de
-    // fondation ; les cases DISPUTÉES (R-159/D2) restent surlignées.
+    // la ligne de cheminement (AVEC sa pointe) demeure SOUS l'unité, laquelle
+    // est affichée À SA DESTINATION (position optimiste, rebuildEntities).
+    // En 3D, la ligne vit dans le calque Three (marqueurs3d, posée sur le
+    // relief SOUS les modèles) ; en 2D, `entitiesLayer` est au-dessus de
+    // `overlayLayer` — l'ordre de dessin fait le reste.
     const solidUnits = new Set<string>();
+    chemins3d = [];
     for (const p of scenePreviews) {
       const origin = scene.state.units[p.unitId];
       if (!origin || p.path.length === 0) continue;
       solidUnits.add(p.unitId);
-      drawArrow(hexToPixel(origin, HEX_SIZE), p.path, p.final ? 0x8ce99a : 0xf0c419, 0.9, false, true);
+      if (mode3dActif()) {
+        chemins3d.push(...chemin3dDe(origin, p.path, p.final ? 0x8ce99a : 0xf0c419, 0.9));
+      } else {
+        drawArrow(hexToPixel(origin, HEX_SIZE), p.path, p.final ? 0x8ce99a : 0xf0c419, 0.9, false);
+      }
       if (p.final === 'foundCity' && p.destination) {
         // R-158 (D5) : marqueur de l'action finale — fondation à l'arrivée.
         const found = new Text({
@@ -979,7 +984,13 @@
       if (solidUnits.has(unit.id)) continue;
       if (unit.order && (unit.order.type === 'Move' || unit.order.type === 'MultiStep') && unit.order.path.length > 0) {
         const frozenPath = fogTruncate(unit.order.path, scene.myId);
-        if (frozenPath.length > 0) drawArrow(hexToPixel(unit, HEX_SIZE), frozenPath, 0xf0c419, 0.4, true);
+        if (frozenPath.length > 0) {
+          if (mode3dActif()) {
+            chemins3d.push(...chemin3dDe(unit, frozenPath, 0xf0c419, 0.4));
+          } else {
+            drawArrow(hexToPixel(unit, HEX_SIZE), frozenPath, 0xf0c419, 0.4, true);
+          }
+        }
       }
     }
 
@@ -1120,7 +1131,7 @@
       contours.push({ points: contourHexTile(selection, HEX_SIZE, 8, elevSel), color: 0xffe082, largeur: 5, alpha: 1 });
       contours.push({ points: contourHexTile(selection, HEX_SIZE, 16, elevSel), color: 0x2b2620, largeur: 2, alpha: 0.6 });
     }
-    marqueurs3d.definir(contours);
+    marqueurs3d.definir([...contours, ...chemins3d]);
   }
 
   function hexLocalPoints(r: number): number[] {
@@ -1138,15 +1149,16 @@
   }
 
   /** Flèche persistante d'un ordre Move (Phase 5.5 L1) : tracé + tête pleine.
-   *  CORRECTIFS-SELECTION : `plain` = ligne SEULE (cheminement des ordres —
-   *  ni pastille ni pointe, l'unité étant affichée à sa destination). */
+   *  CORRECTIFS-SELECTION : en 3D, les lignes de cheminement sont tracées dans
+   *  le calque Three (`chemins3d` → marqueurs3d, SOUS les modèles d'unités —
+   *  la ligne ne recouvre plus l'unité arrivée à destination) ; cette fonction
+   *  Pixi ne sert qu'au 2D, où `entitiesLayer` est AU-DESSUS de `overlayLayer`. */
   function drawArrow(
     origin: { x: number; y: number },
     path: Hex[],
     color: number,
     alpha: number,
     dashed: boolean,
-    plain = false,
   ): void {
     const points: Point[] = [origin, ...path.map((h) => hexToPixel(h, HEX_SIZE))];
     const segs = segmentsOf(points);
@@ -1155,13 +1167,48 @@
     const gr = new Graphics();
     for (const [a, b] of dashed ? segs.flatMap(([a, b]) => dashSegments(a, b)) : segs) gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
     gr.stroke({ width: 6, color, alpha });
-    if (!plain) {
-      // Pastille discrète à l'origine (départ lisible même sur un chemin court).
-      gr.circle(points[0]!.x, points[0]!.y, 8).fill({ color, alpha });
-      gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
-    }
-    (gr as Suivable).__suivi3d = { points, width: 6, color, alpha, dashed, tete: !plain, pastille: !plain };
+    // Pastille discrète à l'origine (départ lisible même sur un chemin court).
+    gr.circle(points[0]!.x, points[0]!.y, 8).fill({ color, alpha });
+    gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
+    (gr as Suivable).__suivi3d = { points, width: 6, color, alpha, dashed, tete: true, pastille: true };
     overlayLayer.addChild(gr);
+  }
+
+  /** CORRECTIFS-SELECTION : chemin en POLYLINE 3D ouverte posée sur le relief
+   *  (calque Three, SOUS les modèles d'unités). Points moteur + élévation de
+   *  chaque case traversée. Retourne [ligne, pointe en V] — la pointe indique
+   *  le sens du cheminement, posée sur la case de destination. */
+  function chemin3dDe(origin: Hex, path: Hex[], color: number, alpha: number): ContourDef[] {
+    const state = scene.state!;
+    const eleve = (h: Hex): PointContour => {
+      const px = hexToPixel(h, HEX_SIZE);
+      return { x: px.x, y: px.y, elev: elevationDe(state.map[tileKeyOf(h)]?.terrain) };
+    };
+    const ligne: ContourDef = { points: [eleve(origin), ...path.map(eleve)], color, largeur: 6, alpha, ouvert: true };
+    // Pointe en V sur la destination (miroir d'arrowHeadPoints, posée au sol).
+    const dest = path[path.length - 1]!;
+    const avant = path.length > 1 ? path[path.length - 2]! : origin;
+    const pd = hexToPixel(dest, HEX_SIZE);
+    const pa = hexToPixel(avant, HEX_SIZE);
+    const dx = pd.x - pa.x;
+    const dy = pd.y - pa.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    const taille = 30;
+    const eD = elevationDe(state.map[tileKeyOf(dest)]?.terrain);
+    const pointe: ContourDef = {
+      points: [
+        { x: pd.x - (ux * taille - -uy * taille * 0.5), y: pd.y - (uy * taille - ux * taille * 0.5), elev: eD },
+        { x: pd.x, y: pd.y, elev: eD },
+        { x: pd.x - (ux * taille + -uy * taille * 0.5), y: pd.y - (uy * taille + ux * taille * 0.5), elev: eD },
+      ],
+      color,
+      largeur: 6,
+      alpha: Math.min(1, alpha + 0.1),
+      ouvert: true,
+    };
+    return [ligne, pointe];
   }
 
   /** Effets de playback (flashs, destructions) — reconstruits par frame. */
@@ -1505,6 +1552,11 @@
     if (!p || p.path.length === 0) return null;
     return p.destination;
   }
+
+  /** CORRECTIFS-SELECTION : lignes de cheminement 3D (calque Three, posées
+   *  sur le relief SOUS les unités) — remplies par rebuildOverlay, consommées
+   *  par mettreAJourMarqueurs3d. */
+  let chemins3d: ContourDef[] = [];
 
   /** R-161 (D6) : troncature fog d'un chemin gelé (affichage pointillé) —
    *  miroir de la troncature de previewPrograms ; explored vide (fixtures /
