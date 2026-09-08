@@ -245,7 +245,11 @@ export class UnitesGLBWorld {
           let mat = p.mat;
           if (p.accent) {
             mat = p.mat.clone();
-            mat.color.set(accentDim);
+            // Teinte MULTIPLICATIVE : le glb cuit un facteur de luminance dans
+            // accent_joueur.color (6.6 — choix d'Erik, piège knight rapport
+            // HABILLAGE-TRIPO #7) ; remplacer la couleur l'écraserait et le
+            // corps repartirait sombre. Même comportement que fonderie/viewer.js.
+            mat.color.copy(p.mat.color).multiply(new THREE.Color(accentDim));
             this.materiauxClones.push(mat);
           }
           entry = { pool: new Pool(p.geo, mat, CAPACITE, this.group) };

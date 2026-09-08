@@ -238,8 +238,8 @@ async function listerModeles() {
       o.value = o.textContent = f;
       sel.appendChild(o);
     }
-    // par défaut : le knight_v3 (livraison de la session) s'il existe, sinon le premier
-    selection = fichiers.includes('knight_v3.glb') ? 'knight_v3.glb' : fichiers[0];
+    // par défaut : barbare_v3 (knight_v3 promu guerrier_v3 en jeu, T4bis), sinon le premier
+    selection = fichiers.includes('barbare_v3.glb') ? 'barbare_v3.glb' : fichiers[0];
     sel.value = selection;
     if (selection) chargerGLB(`modeles/${selection}`, selection);
     sel.addEventListener('change', () => {

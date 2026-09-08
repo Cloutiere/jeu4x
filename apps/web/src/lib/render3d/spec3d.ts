@@ -824,6 +824,30 @@ export function entreeUnite3D(type: string): EntreeUnite3D | null {
   return MODELES_UNITES3D[type] ?? null;
 }
 
+/** Surcharge DATA-DRIVEN par propriétaire (T4bis, décision d'Erik du 07/09) :
+ *  `structures.unites3dSurchargeProprietaire` — id propriétaire moteur (ex.
+ *  `barbarien` = BARBARIAN_ID) → entrée .glb. Toute unité du calque .glb dont
+ *  l'owner correspond affiche CE modèle, quel que soit son type. Table absente
+ *  ou vide = aucune surcharge. Changer un modèle = une ligne de JSON, sans code. */
+export const SURCHARGE_UNITES3D_PAR_PROPRIO: Record<string, EntreeUnite3D> =
+  structuresBrut.unites3dSurchargeProprietaire === undefined
+    ? {}
+    : Object.fromEntries(
+        Object.entries(objet(structuresBrut.unites3dSurchargeProprietaire, 'structures.unites3dSurchargeProprietaire'))
+          .map(([owner, v]) => {
+            if (owner.startsWith('_')) return [owner, null as unknown as EntreeUnite3D]; // clé de commentaire
+            return [owner, parseEntreeUnite3D(`proprietaire:${owner}`, v)];
+          })
+          .filter(([, e]) => e !== null),
+      );
+
+/** Entrée 3D effective d'une unité : la surcharge par propriétaire GAGNE sur
+ *  l'entrée par type (défaut = catalogue par type). */
+export function entreeUnite3DDe(owner: string | undefined, type: string): EntreeUnite3D | null {
+  const surcharge = owner === undefined ? undefined : SURCHARGE_UNITES3D_PAR_PROPRIO[owner];
+  return surcharge ?? entreeUnite3D(type);
+}
+
 /** Gabarit PROCÉDURAL d'un type (compatibilité — les types à .glb répondent
  *  null : leur rendu passe par `unitesglb.ts`). */
 export function gabaritUnite3D(type: string): GabaritUnite | null {

@@ -10,12 +10,14 @@
 import { describe, expect, it } from 'vitest';
 import { tileKeyOf } from '@game/rules';
 import type { GameState } from '@game/rules';
-import { MODELES_UNITES3D, TERRAINS3D, gabaritUnite3D, entreeUnite3D, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
+import { MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO, TERRAINS3D, gabaritUnite3D, entreeUnite3D, entreeUnite3DDe, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
 import { planifierStructures } from '../src/lib/render3d/structures3d.js';
 import type { EntiteStructure, EntreeStructures } from '../src/lib/render3d/structures3d.js';
 import { aModele3D, unitesStructures, unitesGLBStructures } from '../src/lib/render3d/unites3d.js';
 import { hexWorldPos } from '../src/lib/render3d/world3d.js';
 import { parserModeleGLB, UnitesGLBWorld } from '../src/lib/render3d/unitesglb.js';
+import type { ModeleGLB } from '../src/lib/render3d/unitesglb.js';
+import * as THREE from 'three';
 import { existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
@@ -45,11 +47,29 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
   it('mappe les types couverts vers un .glb de la fonderie (gabarit guerrier REMPLACÉ)', () => {
     // echelle = curseur de calibrage d'Erik (a l'oeil) : on verifie sa presence, pas sa valeur figee
     const guerrier = entreeUnite3D('guerrier');
-    expect(guerrier).toMatchObject({ kind: 'glb', glb: 'guerrier.glb' });
+    expect(guerrier).toMatchObject({ kind: 'glb', glb: 'guerrier_v3.glb' }); // knight rebaptisé (décision Erik, T4bis)
     expect(guerrier.kind === 'glb' && guerrier.echelle > 0).toBe(true);
     expect(gabaritUnite3D('guerrier')).toBeNull(); // le .glb remplace le gabarit paramétrique
-    expect(entreeUnite3D('legion')).toMatchObject({ kind: 'glb', glb: 'glace.glb' });
+    expect(entreeUnite3D('legion')).toMatchObject({ kind: 'glb', glb: 'legion_v3.glb' });
     expect(entreeUnite3D('sous_marin')).toMatchObject({ kind: 'glb', glb: 'sousmarin.glb' });
+    expect(entreeUnite3D('colon')).toMatchObject({ kind: 'glb', glb: 'colon_v3.glb' }); // validé Erik, T4bis
+    expect(entreeUnite3D('chasseur')).toMatchObject({ kind: 'glb', glb: 'chasseur_v3.glb' }); // validé Erik, T4bis
+  });
+
+  it('surcharge par propriétaire : un barbare affiche barbare_v3, un joueur humain reste sur le modèle de son type (T4bis)', () => {
+    // Decision d'Erik : barbare_v3 est LE modèle des unités barbares (owner
+    // 'barbarien' = BARBARIAN_ID), data-driven (unites3dSurchargeProprietaire).
+    expect(entreeUnite3DDe('barbarien', 'guerrier')).toMatchObject({ kind: 'glb', glb: 'barbare_v3.glb' });
+    expect(entreeUnite3DDe('barbarien', 'archer')).toMatchObject({ kind: 'glb', glb: 'barbare_v3.glb' });
+    // Même type, joueur humain : modèle de type, JAMAIS le barbare.
+    expect(entreeUnite3DDe('p1', 'guerrier')).toMatchObject({ kind: 'glb', glb: 'guerrier_v3.glb' });
+    expect(entreeUnite3DDe(undefined, 'guerrier')).toMatchObject({ kind: 'glb', glb: 'guerrier_v3.glb' });
+    // La surcharge S'APPLIQUE à tout type moteur (« quel que soit son type ») :
+    // même un type sans modèle propre devient barbare_v3 — et aModele3D le
+    // suit (le sprite 2D est masqué, pas de double rendu).
+    expect(entreeUnite3DDe('barbarien', 'caravane')).toMatchObject({ kind: 'glb', glb: 'barbare_v3.glb' });
+    expect(aModele3D('caravane', 'barbarien')).toBe(true);
+    expect(aModele3D('caravane')).toBe(false); // sans owner : sprite 2D
   });
 
   it('chaque type catalogué est un id RÉEL du moteur et son .glb existe (fichier servi)', () => {
@@ -61,11 +81,16 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
     }
   });
 
-  it('les 22 .glb de la fonderie sont TOUS mappés (aucun fichier orphelin)', () => {
+  it('les .glb servis sont TOUS mappés (24 fichiers, barbare_v3 via la surcharge propriétaire)', () => {
     const fichiers = readdirSync(MODELES_DIR).filter((f) => f.endsWith('.glb')).sort();
-    const mappes = Object.values(MODELES_UNITES3D).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])).sort();
+    const mappes = [
+      ...Object.values(MODELES_UNITES3D).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])),
+      ...Object.values(SURCHARGE_UNITES3D_PAR_PROPRIO).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])),
+    ].sort();
+    // T4bis : barbare_v3 est branché via unites3dSurchargeProprietaire (owner
+    // 'barbarien') — plus aucun orphelin, aucun fichier servi sans branchement.
     expect(mappes).toEqual(fichiers);
-    expect(fichiers.length).toBe(22);
+    expect(fichiers.length).toBe(23);
   });
 
   it('les types SANS entrée (civs uniques, GP, caravane…) gardent leur sprite 2D', () => {
@@ -160,7 +185,7 @@ describe('unites3d — assemblage partagé labo/jeu (état filtré → calque)',
     expect(unitesStructures({ state, visible })).toHaveLength(0); // guerrier = .glb désormais
     const glb = unitesGLBStructures({ state, visible });
     expect(glb).toHaveLength(1);
-    expect(glb[0]).toMatchObject({ id: 'g1', q: 0, r: 0, owner: 'p1', glb: 'guerrier.glb', fog: 'visible', terrain: 'prairie' });
+    expect(glb[0]).toMatchObject({ id: 'g1', q: 0, r: 0, owner: 'p1', glb: 'guerrier_v3.glb', fog: 'visible', terrain: 'prairie' });
   });
 
   it('route les types par calque : .glb d’un côté, sprite billboard de l’autre', () => {
@@ -212,7 +237,7 @@ describe('calque .glb — fonderie T3 (assemblage + garde-fous)', () => {
     );
     const entrees = unitesGLBStructures({ state, visible });
     expect(entrees).toHaveLength(1);
-    expect(entrees[0]).toMatchObject({ id: 'l1', q: 0, r: 0, owner: 'p1', glb: 'glace.glb', echelle: 1, fog: 'visible', terrain: 'prairie' });
+    expect(entrees[0]).toMatchObject({ id: 'l1', q: 0, r: 0, owner: 'p1', glb: 'legion_v3.glb', echelle: 1, fog: 'visible', terrain: 'prairie' });
   });
 
   it('filtre comme le calque procédural : embarquées R-117 et hors vision absentes', () => {
@@ -222,6 +247,22 @@ describe('calque .glb — fonderie T3 (assemblage + garde-fous)', () => {
       { id: 'c', type: 'guerrier', owner: 'p1', q: 9, r: 9 },
     ], { '0,0': 'prairie', '1,0': 'prairie', '9,9': 'prairie' });
     expect(unitesGLBStructures({ state, visible })).toHaveLength(1);
+  });
+
+  it('unitesGLBStructures applique la SURCHARGE propriétaire : un barbare produit barbare_v3, le joueur reste sur son type (T4bis)', () => {
+    const state = etat(
+      [
+        { id: 'b1', type: 'guerrier', owner: 'barbarien', q: 0, r: 0, aboard: null },
+        { id: 'p1', type: 'guerrier', owner: 'j1', q: 1, r: 0, aboard: null },
+      ],
+      { '0,0': 'prairie', '1,0': 'prairie' },
+    );
+    const entrees = unitesGLBStructures({ state, visible });
+    expect(entrees).toHaveLength(2);
+    const barbare = entrees.find((e) => e.owner === 'barbarien')!;
+    const humain = entrees.find((e) => e.owner === 'j1')!;
+    expect(barbare.glb).toBe('barbare_v3.glb'); // surcharge propriétaire
+    expect(humain.glb).toBe('guerrier_v3.glb'); // modèle de type pour un humain
   });
 
   it('update() avec un modèle PAS ENCORE chargé le signale dans stats.manquants (pas de rendu muet)', () => {
@@ -235,5 +276,46 @@ describe('calque .glb — fonderie T3 (assemblage + garde-fous)', () => {
   it('parserModeleGLB refuse une scène sans géométrie avec une erreur claire', () => {
     const scene = { traverse: () => {} };
     expect(() => parserModeleGLB(scene as never)).toThrow(/aucune géométrie/);
+  });
+
+  it('teinte joueur MULTIPLICATIVE : facteur de luminance du glb conservé, J1 ≠ J2, néon intact (T4/M2)', () => {
+    // Piège knight (rapport HABILLAGE-TRIPO #7) : le glb cuit un facteur 6.6
+    // dans accent_joueur.color — un color.set(teinte) l'écraserait et le
+    // corps repartirait sombre. La teinte doit MULTIPLIER la couleur de base.
+    const monde = new UnitesGLBWorld();
+    const base = new THREE.Color(0.5, 0.5, 0.5).multiplyScalar(6.6);
+    const matAccent = new THREE.MeshStandardMaterial({ name: 'accent_joueur' });
+    matAccent.color.copy(base);
+    const matNeon = new THREE.MeshStandardMaterial({ name: 'neon' });
+    matNeon.color.set('#3DFFCE');
+    const modele: ModeleGLB = {
+      parties: [
+        { geo: new THREE.BufferGeometry(), mat: matAccent, accent: true },
+        { geo: new THREE.BufferGeometry(), mat: matNeon, accent: false },
+      ],
+      lignes: null,
+    };
+    const interne = monde as unknown as { modeles: Map<string, ModeleGLB>; pools: Map<string, { pool: { mesh: THREE.InstancedMesh } }> };
+    interne.modeles.set('test_v3.glb', modele);
+    const entrees = (owner: string) =>
+      [{ id: 'u1', q: 0, r: 0, fog: 'visible' as const, owner, glb: 'test_v3.glb', echelle: 1 }];
+    monde.update(entrees('p1'), couleurDe);
+    monde.update(entrees('p2'), couleurDe);
+
+    const accentP1 = new THREE.Color(couleurDe('p1'));
+    const accentP2 = new THREE.Color(couleurDe('p2'));
+    const couleurPool = (cle: string): THREE.Color =>
+      (interne.pools.get(cle)!.pool.mesh.material as THREE.MeshStandardMaterial).color;
+    const teinteP1 = couleurPool(`test_v3.glb#0#${couleurDe('p1').toString(16)}`);
+    const teinteP2 = couleurPool(`test_v3.glb#0#${couleurDe('p2').toString(16)}`);
+    // J1 vs J2 : couleurs DISTINCTES
+    expect(teinteP1.getHex()).not.toBe(teinteP2.getHex());
+    // Luminance de base CONSERVÉE : teinte = base × accent (pas d'écrasement)
+    expect(teinteP1.r / accentP1.r).toBeCloseTo(base.r, 3);
+    expect(teinteP1.g / accentP1.g).toBeCloseTo(base.g, 3);
+    expect(teinteP2.b / accentP2.b).toBeCloseTo(base.b, 3);
+    // Le néon n'est JAMAIS teinté (partie non-accent, matériau partagé intact)
+    expect(couleurPool('test_v3.glb#1').getHex()).toBe(matNeon.color.getHex());
+    monde.dispose();
   });
 });

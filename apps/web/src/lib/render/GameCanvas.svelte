@@ -363,7 +363,7 @@
       // V2-unités3D : une unité AVEC modèle 3D masque son sprite d'art (le
       // modèle 3D est le rendu) mais le conteneur projeté reste — barre de PV,
       // fortification, cargo, badge espion suivent. Sans modèle : sprite 2D.
-      const en3d = structures3dActives && aModele3D(unit.type);
+      const en3d = structures3dActives && aModele3D(unit.type, unit.owner);
       const baseU = c.getChildByLabel('base');
       const accentU = c.getChildByLabel('accent');
       if (baseU) baseU.visible = !en3d;
