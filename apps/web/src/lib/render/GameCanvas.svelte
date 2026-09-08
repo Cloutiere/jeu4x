@@ -11,9 +11,9 @@
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS, workRadiusOf } from '@game/rules';
   import type { GameState, Hex, ProgramPreview } from '@game/rules';
-  import type { CityId, Order } from '@game/shared';
+  import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
   import type { GameClient, GameView } from '../gameClient.js';
   import type { UiState, UiStore } from './ui.js';
@@ -45,6 +45,12 @@
   // teinte joueur par propriétaire, instancing ; cf. unitesglb.ts).
   import { ChargeurModelesGLB, UnitesGLBWorld } from '../render3d/unitesglb.js';
   import { MODELES_UNITES3D } from '../render3d/spec3d.js';
+  // TRAVAIL-VILLE-3D — contours en vraie 3D : cadres des cases travaillées +
+  // rayon de cultivation, posés sur le relief (géométrie pure dans contours.ts).
+  import { contourHexTile, contourRegion } from '../render3d/contours.js';
+  import type { PointContour } from '../render3d/contours.js';
+  import { Marqueurs3D } from '../render3d/marqueurs3d.js';
+  import type { ContourDef } from '../render3d/marqueurs3d.js';
 
   interface Props {
     client: GameClient;
@@ -182,6 +188,8 @@
   // Fonderie T3 : calque des unités à modèle .glb (pools instanciés séparés —
   // les géométries/matériaux sont chargés une fois par fichier).
   let unitesGlb: UnitesGLBWorld | null = null;
+  // TRAVAIL-VILLE-3D : contours 3D (worked tiles + rayon de cultivation).
+  let marqueurs3d: Marqueurs3D | null = null;
   let canvas3d: HTMLCanvasElement | null = null;
   let rendement: ContexteRendement | null = null;
   /** Dernier plan de structures (détail par pool — hook de vérification dev). */
@@ -766,29 +774,52 @@
       drawRing(spawnGuarantee.ring2, 0x00b4d8, 2, 10, 0.5);
     }
 
-    // Possession des cases de ville (frontière couleur joueur).
-    for (const city of Object.values(scene.state.cities)) {
-      if (!scene.explored.has(tileKeyOf(city))) continue;
-      const gr = new Graphics();
-      gr.poly(hexLocalPoints(HEX_SIZE - 6)).stroke({ width: 4, color: playerColor(city.owner), alpha: 0.9 });
-      gr.position.copyFrom(hexToPixel(city, HEX_SIZE));
-      overlayLayer.addChild(gr);
+    // Possession des cases de ville (frontière couleur joueur). TRAVAIL-VILLE-3D :
+    // en 3D ce contour vit dans le calque Three (marqueurs3d, posé sur le relief) —
+    // l'hexagone Pixi projeté resterait à plat au-dessus du plateau.
+    if (!mode3dActif()) {
+      for (const city of Object.values(scene.state.cities)) {
+        if (!scene.explored.has(tileKeyOf(city))) continue;
+        const gr = new Graphics();
+        gr.poly(hexLocalPoints(HEX_SIZE - 6)).stroke({ width: 4, color: playerColor(city.owner), alpha: 0.9 });
+        gr.position.copyFrom(hexToPixel(city, HEX_SIZE));
+        overlayLayer.addChild(gr);
+      }
     }
 
     // Cases travaillées (R-60, Phase 6) : cadre de la couleur du propriétaire
-    // sur chaque case travaillée par une ville visible (la ville sélectionnée
-    // reçoit en plus un cadre intérieur plus marqué).
-    for (const city of Object.values(scene.state.cities)) {
-      if (!scene.explored.has(tileKeyOf(city))) continue;
-      if (!city.workedTiles || city.workedTiles.length === 0) continue;
-      const color = playerColor(city.owner);
-      for (const key of city.workedTiles) {
-        const [q, r] = key.split(',').map(Number);
-        if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+    // sur chaque case travaillée. TRAVAIL-VILLE-3D (M2) : l'état affiché est
+    // EFFECTIF (miroir `effectiveWorkedTiles` de la file d'ordres) — le
+    // marqueur apparaît/disparaît IMMÉDIATEMENT au clic, sans « +/− » (les
+    // ordres restent soumis au serveur et validés comme avant). En 3D, les
+    // contours vivent dans le calque Three (`marqueurs3d`, posés sur le
+    // relief) — le tracé Pixi projeté est réservé au mode 2D.
+    if (!mode3dActif()) {
+      for (const city of Object.values(scene.state.cities)) {
+        if (!scene.explored.has(tileKeyOf(city))) continue;
+        const eff = scene.view ? effectiveWorkedTiles(scene.view, city) : { tiles: city.workedTiles };
+        const color = playerColor(city.owner);
+        for (const key of eff.tiles) {
+          const [q, r] = key.split(',').map(Number);
+          if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+          const gr = new Graphics();
+          gr.poly(hexLocalPoints(HEX_SIZE - 14)).stroke({ width: 3, color, alpha: 0.9 });
+          gr.poly(hexLocalPoints(HEX_SIZE - 22)).stroke({ width: 1.5, color, alpha: 0.5 });
+          gr.position.copyFrom(hexToPixel({ q, r }, HEX_SIZE));
+          overlayLayer.addChild(gr);
+        }
+      }
+      // Rayon de cultivation (TRAVAIL-VILLE-3D · M3) : contour EXTÉRIEUR des
+      // cases de la ville sélectionnée (rayon data-driven — workRadiusOf),
+      // couleur joueur, ligne seule (aucune teinte de tuile), en 2D.
+      const cult = bouclesCultivation();
+      if (cult) {
         const gr = new Graphics();
-        gr.poly(hexLocalPoints(HEX_SIZE - 14)).stroke({ width: 3, color, alpha: 0.9 });
-        gr.poly(hexLocalPoints(HEX_SIZE - 22)).stroke({ width: 1.5, color, alpha: 0.5 });
-        gr.position.copyFrom(hexToPixel({ q, r }, HEX_SIZE));
+        for (const boucle of cult.boucles) {
+          gr.moveTo(boucle[0]!.x, boucle[0]!.y);
+          for (const p of boucle.slice(1)) gr.lineTo(p.x, p.y);
+        }
+        gr.stroke({ width: 4, color: cult.color, alpha: 0.9 });
         overlayLayer.addChild(gr);
       }
     }
@@ -863,27 +894,10 @@
       }
     }
 
-    // Réassignations en attente (R-60) : retour immédiat — anneau pointillé
-    // sur les cases gagnées (+) et libérées (−). INTERACTION-3D : les ordres
-    // SetWorkedTile forment une FILE (le re-clic ne remplace plus) — la
-    // simulation séquentielle effectiveWorkedTiles est le miroir exact du
-    // moteur (pop/push R-60).
-    {
-      const seen = new Set<CityId>();
-      for (const order of scene.orders) {
-        if (order.type !== 'SetWorkedTile') continue;
-        const city = scene.state.cities[order.cityId];
-        if (!city || !scene.explored.has(tileKeyOf(city)) || seen.has(city.id)) continue;
-        seen.add(city.id);
-        const color = playerColor(city.owner);
-        const eff = scene.view ? effectiveWorkedTiles(scene.view, city) : { tiles: city.workedTiles, assigns: [], unassigns: [] };
-        for (const key of [...eff.unassigns, ...eff.assigns]) {
-          const [q, r] = key.split(',').map(Number);
-          if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
-          drawPendingMarker({ q, r }, color, eff.assigns.includes(key));
-        }
-      }
-    }
+    // TRAVAIL-VILLE-3D (M2) : les marqueurs « +/− » d'attente sont SUPPRIMÉS —
+    // l'état effectif (tracé ci-dessus en 2D, calque 3D dédié sinon) reflète
+    // déjà la file d'ordres au clic. Les indicateurs de la file dans le
+    // panneau ville restent inchangés.
 
     // Ordres de déplacement PERSISTANTS (Phase 5.5 L1) — DEPLACEMENT-PLANIFIE
     // (R-160 · D1) : les flèches sont désormais dessinées depuis l'APERÇU
@@ -1004,9 +1018,11 @@
       }
     }
 
-    // Sélection (anneau hexagonal).
-    const selectedTile: { q: number; r: number } | null = selectedTileOf();
-    if (selectedTile) {
+    // Sélection (anneau hexagonal). TRAVAIL-VILLE-3D : en 3D, l'anneau vit
+    // dans le calque Three (marqueurs3d, posé sur le relief) — l'anneau Pixi
+    // projeté resterait à plat.
+    const selectedTile: Hex | null = selectedTileOf();
+    if (selectedTile && !mode3dActif()) {
       const gr = new Graphics();
       gr.poly(hexLocalPoints(HEX_SIZE - 8)).stroke({ width: 5, color: 0xffe082 });
       gr.poly(hexLocalPoints(HEX_SIZE - 16)).stroke({ width: 2, color: 0x2b2620, alpha: 0.6 });
@@ -1056,6 +1072,65 @@
     return unit ? hexToPixel(unit, HEX_SIZE) : null;
   }
 
+  /** Rayon de cultivation de la ville sélectionnée (TRAVAIL-VILLE-3D · M3) :
+   *  boucles du contour EXTÉRIEUR (générique pour tout rayon — l'aqueduc
+   *  l'étendra plus tard), couleur du propriétaire, ou null si pas de ville
+   *  sélectionnée explorée. Le fog filtre la région : une case inexplorée
+   *  n'entre jamais dans le contour (rien n'est inventé). */
+  function bouclesCultivation(): { boucles: PointContour[][]; color: number } | null {
+    const state = scene.state;
+    if (!state || !scene.ui.selectedCityId) return null;
+    const city = state.cities[scene.ui.selectedCityId];
+    if (!city || !scene.explored.has(tileKeyOf(city))) return null;
+    const rayon = workRadiusOf(city.buildings);
+    const boucles = contourRegion(
+      city,
+      rayon,
+      HEX_SIZE,
+      (hex) => elevationDe(state.map[tileKeyOf(hex)]?.terrain),
+    );
+    return { boucles, color: playerColor(city.owner) };
+  }
+
+  /** Pousse les contours 3D (worked tiles + cultivation) dans le calque
+   *  Three — appelé quand l'overlay est sale, en mode 3D uniquement. */
+  function mettreAJourMarqueurs3d(): void {
+    if (!marqueurs3d || !scene.state || !scene.view) return;
+    marqueurs3d.resize(vw, vh);
+    const contours: ContourDef[] = [];
+    for (const city of Object.values(scene.state.cities)) {
+      if (!scene.explored.has(tileKeyOf(city))) continue;
+      // Possession de la case de ville elle-même (miroir du trait 2D, en 3D
+      // posé sur le relief au lieu d'être projeté à plat).
+      const elevVille = elevationDe(scene.state.map[tileKeyOf(city)]?.terrain);
+      contours.push({ points: contourHexTile(city, HEX_SIZE, 6, elevVille), color: playerColor(city.owner), largeur: 4, alpha: 0.9 });
+      const eff = effectiveWorkedTiles(scene.view, city);
+      const color = playerColor(city.owner);
+      for (const key of eff.tiles) {
+        if (!scene.explored.has(key)) continue;
+        const [q, r] = key.split(',').map(Number);
+        if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+        const hex = { q, r };
+        const elev = elevationDe(scene.state.map[tileKeyOf(hex)]?.terrain);
+        contours.push({ points: contourHexTile(hex, HEX_SIZE, 14, elev), color, largeur: 3, alpha: 0.9 });
+        contours.push({ points: contourHexTile(hex, HEX_SIZE, 22, elev), color, largeur: 1.5, alpha: 0.5 });
+      }
+    }
+    const cult = bouclesCultivation();
+    if (cult) {
+      for (const boucle of cult.boucles) contours.push({ points: boucle, color: cult.color, largeur: 4, alpha: 0.9 });
+    }
+    // Anneau de SÉLECTION (unité/ville) en 3D : miroir du trait 2D (ambre +
+    // liseré sombre), posé sur le relief de la case sélectionnée.
+    const selection = selectedTileOf();
+    if (selection && scene.explored.has(tileKeyOf(selection))) {
+      const elevSel = elevationDe(scene.state.map[tileKeyOf(selection)]?.terrain);
+      contours.push({ points: contourHexTile(selection, HEX_SIZE, 8, elevSel), color: 0xffe082, largeur: 5, alpha: 1 });
+      contours.push({ points: contourHexTile(selection, HEX_SIZE, 16, elevSel), color: 0x2b2620, largeur: 2, alpha: 0.6 });
+    }
+    marqueurs3d.definir(contours);
+  }
+
   function hexLocalPoints(r: number): number[] {
     const pts: number[] = [];
     for (let i = 0; i < 6; i++) {
@@ -1068,23 +1143,6 @@
   function drawCross(gr: Graphics, r: number, color: number): void {
     gr.moveTo(-r, -r).lineTo(r, r).moveTo(r, -r).lineTo(-r, r);
     gr.stroke({ width: 5, color });
-  }
-
-  /** Réassignation en attente (R-60) : anneau pointillé + signe + / −. */
-  function drawPendingMarker(hex: Hex, color: number, assign: boolean): void {
-    const gr = new Graphics();
-    gr.poly(hexLocalPoints(HEX_SIZE - 18)).stroke({ width: 3, color, alpha: 0.95 });
-    // Pointillés : tirets sur les 6 côtés — approximation avec 6 arcs pleins
-    // espacés (petits segments aux sommets internes).
-    gr.circle(0, 0, 9).fill({ color: 0x1b1b22, alpha: 0.85 }).stroke({ width: 2, color, alpha: 1 });
-    const s = 5;
-    if (assign) {
-      gr.moveTo(-s, 0).lineTo(s, 0).moveTo(0, -s).lineTo(0, s).stroke({ width: 2.5, color: 0xffffff });
-    } else {
-      gr.moveTo(-s, 0).lineTo(s, 0).stroke({ width: 2.5, color: 0xffffff });
-    }
-    gr.position.copyFrom(hexToPixel(hex, HEX_SIZE));
-    overlayLayer.addChild(gr);
   }
 
   /** Flèche persistante d'un ordre Move (Phase 5.5 L1) : tracé + tête pleine. */
@@ -1203,6 +1261,9 @@
     if (overlayDirty) {
       rebuildOverlay();
       overlayDirty = false;
+      // TRAVAIL-VILLE-3D : en 3D, les contours worked tiles/cultivation
+      // suivent le même cycle de invalidation que l'overlay (état + UI).
+      if (mode3dActif()) mettreAJourMarqueurs3d();
     }
     if (cameraChanged) {
       if (!mode3dActif()) {
@@ -1654,6 +1715,9 @@
         Object.values(MODELES_UNITES3D).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])),
       );
       stage3d.scene.add(unitesGlb.group);
+      // TRAVAIL-VILLE-3D : contours 3D des worked tiles + rayon de cultivation.
+      marqueurs3d = new Marqueurs3D();
+      stage3d.scene.add(marqueurs3d.group);
       if (scene.state) {
         stage3d.cam.bounds = mapBoundsWorld(scene.state.mapWidth, scene.state.mapHeight);
         rendement = contexteRendement(scene.state, scene.myId);
@@ -1714,6 +1778,7 @@
       vw = Math.max(1, entry.contentRect.width);
       vh = Math.max(1, entry.contentRect.height);
       app.renderer.resize(vw, vh);
+      marqueurs3d?.resize(vw, vh);
       if (stage3d) {
         stage3d.resize(vw, vh);
         stage3d.cam.clamp(vw, vh);
@@ -1828,6 +1893,10 @@
     if (unitesGlb) {
       unitesGlb.dispose();
       unitesGlb = null;
+    }
+    if (marqueurs3d) {
+      marqueurs3d.dispose();
+      marqueurs3d = null;
     }
     if (terrain3d) {
       terrain3d.dispose();
