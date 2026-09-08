@@ -29,6 +29,10 @@ export interface SourceUnites {
   visible: Set<string>;
   /** Interpolation du playback par unité (null = position statique). */
   moveOf?: (unitId: string) => AnimUnite | null;
+  /** CORRECTIFS-SELECTION : position AFFICHÉE optimiste (l'unité programmée
+   *  apparaît à sa destination pendant la phase d'ordres) — prioritaire sur
+   *  la case moteur, sauf pendant le playback (l'anim gagne). */
+  positionDe?: (unitId: string) => Hex | null;
 }
 
 /**
@@ -78,14 +82,18 @@ function extraire<T>(src: SourceUnites, rendu: (type: string, owner: string) => 
     const key = tileKeyOf(unit);
     if (!src.visible.has(key)) continue; // miroir 2D : hors vision = absent
     const fog: EntiteStructure['fog'] = 'visible';
+    // Position optimiste (aperçu) — sauf pendant le playback (l'anim gagne).
+    const optimiste = src.moveOf?.(unit.id) ? null : src.positionDe?.(unit.id) ?? null;
+    const posee = optimiste ?? unit;
+    const poseKey = tileKeyOf(posee);
     out.push(construire({
       id: unit.id,
       type: unit.type,
-      q: unit.q,
-      r: unit.r,
+      q: posee.q,
+      r: posee.r,
       owner: unit.owner,
       fog,
-      terrain: src.state.map[key]?.terrain,
+      terrain: src.state.map[poseKey]?.terrain,
       anim: src.moveOf?.(unit.id) ?? null,
     }));
   }

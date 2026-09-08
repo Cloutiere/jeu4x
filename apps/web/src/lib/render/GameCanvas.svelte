@@ -22,7 +22,7 @@
   import { loadTextures, playerColor } from './textures.js';
   import type { GameTextures } from './textures.js';
   import { HEX_SIZE, hexesInRect, mapBounds, screenToHex } from './hexView.js';
-  import { arrowHeadPoints, dashSegments, segmentsOf, pointLeLongDuChemin } from './arrows.js';
+  import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
   import type { Point } from './arrows.js';
   import { clickAction, effectiveWorkedTiles, myEngineId } from './interaction.js';
   import type { ClickAction } from './interaction.js';
@@ -149,9 +149,6 @@
   let tilesLayer = new Container();
   let resourceLayer = new Container(); // R-91 : icônes de ressources sur les cases
   let overlayLayer = new Container();
-  // CORRECTIFS-SELECTION · M3 : couche dédiée de l'aperçu animé (au-dessus des
-  // flèches, SOUS les entités — coexiste sans chevaucher la lecture du plateau).
-  let previewLayer = new Container();
   let entitiesLayer = new Container();
   let effectsLayer = new Container();
   const camera = new Camera();
@@ -197,6 +194,8 @@
   let rendement: ContexteRendement | null = null;
   /** Dernier plan de structures (détail par pool — hook de vérification dev). */
   let dernierPlanStructures: PlanStructures | null = null;
+  /** CORRECTIFS-SELECTION : dernières entrées .glb (positions optimistes — debug). */
+  let dernierPlanGlb: Array<{ id: string; q: number; r: number }> = [];
   /** 3D actif = flag du parent ET moteur 3D monté (setup réussi). */
   const mode3dActif = (): boolean => mode3d && !!stage3d && !!terrain3d;
   /**
@@ -233,6 +232,9 @@
     scene.state = v.state;
     scene.myId = myEngineId(v);
     scene.orders = v.orders;
+    // CORRECTIFS-SELECTION : l'aperçu est calculé à chaque vue poussée — il
+    // alimente la ligne de cheminement ET la position optimiste des unités.
+    scenePreviews = scene.myId ? previewPrograms(v.state!, { [scene.myId]: v.orders }) : [];
     const vision = v.state && scene.myId ? v.state.players[scene.myId]?.vision : undefined;
     scene.explored = new Set(vision?.explored ?? []);
     scene.visible = new Set(vision?.visible ?? []);
@@ -379,7 +381,12 @@
       const accentU = c.getChildByLabel('accent');
       if (baseU) baseU.visible = !en3d;
       if (accentU) accentU.visible = !en3d;
-      const p = hexToPixel(unit, HEX_SIZE);
+      // CORRECTIFS-SELECTION : l'unité programmée est affichée À SA DESTINATION
+      // (position optimiste — comme si le déplacement avait eu lieu) ; sans
+      // ordre, elle reste sur sa case moteur. Pendant le playback, l'inter-
+      // polation prime (bloc « playback.active » du tick).
+      const posee = positionAfficheeDe(unit) ?? unit;
+      const p = hexToPixel(posee, HEX_SIZE);
       const anim = playback.moveOf(unit.id);
       if (anim) {
         // poser3d et non position.set : le tampon monde (__wx/__wy) doit
@@ -902,23 +909,18 @@
     // déjà la file d'ordres au clic. Les indicateurs de la file dans le
     // panneau ville restent inchangés.
 
-    // Ordres de déplacement PERSISTANTS (Phase 5.5 L1) — DEPLACEMENT-PLANIFIE
-    // (R-160 · D1) : les flèches sont désormais dessinées depuis l'APERÇU
-    // OPTIMISTE du moteur (`previewPrograms`) : Move ET composites MultiStep
-    // (R-158), chemin TRONQUÉ PAR LE FOG (flèche au bord du visible + un pas —
-    // R-161/D6 ; le reste est tu). Fantômes aux destinations prévues, PILE
-    // (badge de comptage), CASES DISPUTÉES surlignées (≥ 2 unités amies),
-    // marqueur d'action finale (fondation). Dessiné dans overlayLayer :
-    // visible en 2D comme en 3D (projection de caméra partagée).
+    // Ordres de déplacement PERSISTANTS — CORRECTIFS-SELECTION (retour d'Erik) :
+    // seule la LIGNE jaune de cheminement demeure (pastille et pointe retirées).
+    // L'unité elle-même est affichée À SA DESTINATION (position optimiste,
+    // rebuildEntities) — plus de bulle animée ni de fantôme à l'arrivée.
+    // Les ordres composites MultiStep (R-158) gardent le marqueur ⌂ de
+    // fondation ; les cases DISPUTÉES (R-159/D2) restent surlignées.
     const solidUnits = new Set<string>();
-    const myId: string | null = scene.myId;
-    scenePreviews = myId ? previewPrograms(scene.state, { [myId]: scene.orders }) : [];
-    const ghostColor = myId ? playerColor(myId) : 0xf0c419;
     for (const p of scenePreviews) {
       const origin = scene.state.units[p.unitId];
       if (!origin || p.path.length === 0) continue;
       solidUnits.add(p.unitId);
-      drawArrow(hexToPixel(origin, HEX_SIZE), p.path, p.final ? 0x8ce99a : 0xf0c419, 0.9, false);
+      drawArrow(hexToPixel(origin, HEX_SIZE), p.path, p.final ? 0x8ce99a : 0xf0c419, 0.9, false, true);
       if (p.final === 'foundCity' && p.destination) {
         // R-158 (D5) : marqueur de l'action finale — fondation à l'arrivée.
         const found = new Text({
@@ -938,44 +940,24 @@
         overlayLayer.addChild(gr);
       }
     }
-    // Fantômes + pile + disputées (D1/D2) : regroupement par destination.
+    // Cases DISPUTÉES (R-160/D1) : surlignage rouge + point de la gagnante.
     {
-      const groups = new Map<string, { q: number; r: number; count: number; disputed: boolean; winner: boolean }>();
+      const groups = new Map<string, { q: number; r: number; disputed: boolean; winner: boolean }>();
       for (const p of scenePreviews) {
-        if (!p.destination) continue;
+        if (!p.destination || !p.disputed) continue;
         const key = `${p.destination.q},${p.destination.r}`;
-        const g = groups.get(key) ?? { q: p.destination.q, r: p.destination.r, count: 0, disputed: false, winner: false };
-        g.count += 1;
-        g.disputed = g.disputed || p.disputed;
+        const g = groups.get(key) ?? { q: p.destination.q, r: p.destination.r, disputed: false, winner: false };
+        g.disputed = true;
         g.winner = g.winner || p.disputedWinner;
         groups.set(key, g);
       }
       for (const g of groups.values()) {
         const pos = hexToPixel(g, HEX_SIZE);
-        if (g.disputed) {
-          // Case disputée surlignée (R-160/D1) — hex rouge + ⚔, tooltip au survol.
-          const dis = new Graphics();
-          dis.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 4, color: 0xff6b6b, alpha: 0.9 });
-          dis.position.copyFrom(pos);
-          overlayLayer.addChild(dis);
-        }
-        // Fantôme d'unité (position finale prévue) — cercle translucide à la
-        // couleur du joueur ; badge de comptage si plusieurs unités (pile).
-        const ghost = new Graphics();
-        ghost.circle(0, 0, HEX_SIZE * 0.42).fill({ color: ghostColor, alpha: 0.3 }).stroke({ width: 2, color: ghostColor, alpha: 0.7 });
-        ghost.position.copyFrom(pos);
-        overlayLayer.addChild(ghost);
-        if (g.count > 1) {
-          const badge = new Text({
-            text: `×${g.count}`,
-            style: { fontFamily: 'sans-serif', fontSize: 16, fill: 0xffffff, stroke: { color: 0x1d242b, width: 3 } },
-          });
-          badge.anchor.set(0.5);
-          badge.position.copyFrom(pos);
-          overlayLayer.addChild(badge);
-        }
-        if (g.disputed && g.winner) {
-          // R-159 (D2/D3) : la gagnante de la dispute est marquée d'un point.
+        const dis = new Graphics();
+        dis.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 4, color: 0xff6b6b, alpha: 0.9 });
+        dis.position.copyFrom(pos);
+        overlayLayer.addChild(dis);
+        if (g.winner) {
           const win = new Graphics();
           win.circle(0, 0, 7).fill({ color: 0xffe082 });
           win.position.set(pos.x, pos.y - HEX_SIZE * 0.42);
@@ -1032,72 +1014,6 @@
       gr.position.copyFrom(hexToPixel(selectedTile, HEX_SIZE));
       overlayLayer.addChild(gr);
     }
-
-    // CORRECTIFS-SELECTION · M3 : le pool de l'aperçu animé suit la même
-    // invalidation que l'overlay — un ordre annulé (purge unifiée M2) retire
-    // l'aperçu animé, les flèches et les fantômes ENSEMBLE.
-    synchroniserApercuAnime();
-  }
-
-  // -----------------------------------------------------------------------
-  // CORRECTIFS-SELECTION · M3 — aperçu animé du déplacement programmé :
-  // une copie translucide glisse en boucle le long du chemin prévu (tronqué
-  // fog R-161 par previewPrograms), pendant que l'unité RÉELLE reste sur sa
-  // case source jusqu'à la résolution. Perf : un SEUL Graphics par unité
-  // programmée, réutilisé frame à frame (pas d'instanciation par frame) ;
-  // l'anim se contente de reposer le marqueur (poser3d) le long du polyline.
-  // -----------------------------------------------------------------------
-
-  /** Vitesse de glissement (unités monde / s) ≈ 2,3 cases/s — lisible. */
-  const VITESSE_APERCU = 4 * HEX_SIZE;
-  const previewMovers = new Map<string, Graphics>();
-
-  function synchroniserApercuAnime(): void {
-    const myId = scene.myId;
-    const color = myId ? playerColor(myId) : 0xf0c419;
-    const voulus = new Set<string>();
-    if (scene.state && myId) {
-      for (const p of scenePreviews) {
-        if (p.path.length === 0) continue;
-        const unit = scene.state.units[p.unitId];
-        if (!unit || unit.owner !== myId) continue;
-        voulus.add(p.unitId);
-        let g = previewMovers.get(p.unitId);
-        if (!g) {
-          g = new Graphics();
-          g.circle(0, 0, HEX_SIZE * 0.3).fill({ color, alpha: 0.45 }).stroke({ width: 3, color, alpha: 0.8 });
-          previewLayer.addChild(g);
-          previewMovers.set(p.unitId, g);
-        }
-      }
-    }
-    for (const [id, g] of previewMovers) {
-      if (!voulus.has(id)) {
-        g.destroy();
-        previewMovers.delete(id);
-      }
-    }
-  }
-
-  /** Repose chaque marqueur le long de son chemin (boucle douce, par frame). */
-  function animerApercu(now: number): void {
-    if (previewMovers.size === 0 || !scene.state) return;
-    for (const [unitId, g] of previewMovers) {
-      const unit = scene.state.units[unitId];
-      const preview = scenePreviews.find((p) => p.unitId === unitId);
-      if (!unit || !preview || preview.path.length === 0) {
-        g.visible = false;
-        continue;
-      }
-      const points = [hexToPixel(unit, HEX_SIZE), ...preview.path.map((h) => hexToPixel(h, HEX_SIZE))];
-      let total = 0;
-      for (let i = 0; i + 1 < points.length; i++) {
-        total += Math.hypot(points[i + 1]!.x - points[i]!.x, points[i + 1]!.y - points[i]!.y);
-      }
-      const pos = pointLeLongDuChemin(points, ((now / 1000) * VITESSE_APERCU) % total);
-      poser3d(g, pos.x, pos.y);
-      g.visible = true;
-    }
   }
 
   function selectedTileOf(): Hex | null {
@@ -1110,7 +1026,8 @@
     }
     if (scene.ui.selectedUnitId) {
       const unit = state.units[scene.ui.selectedUnitId];
-      if (unit) return { q: unit.q, r: unit.r };
+      // CORRECTIFS-SELECTION : l'anneau suit l'unité à sa destination optimiste.
+      if (unit) return positionAfficheeDe(unit) ?? { q: unit.q, r: unit.r };
     }
     if (scene.ui.selectedCityId) {
       const city = state.cities[scene.ui.selectedCityId];
@@ -1214,13 +1131,16 @@
     gr.stroke({ width: 5, color });
   }
 
-  /** Flèche persistante d'un ordre Move (Phase 5.5 L1) : tracé + tête pleine. */
+  /** Flèche persistante d'un ordre Move (Phase 5.5 L1) : tracé + tête pleine.
+   *  CORRECTIFS-SELECTION : `plain` = ligne SEULE (cheminement des ordres —
+   *  ni pastille ni pointe, l'unité étant affichée à sa destination). */
   function drawArrow(
     origin: { x: number; y: number },
     path: Hex[],
     color: number,
     alpha: number,
     dashed: boolean,
+    plain = false,
   ): void {
     const points: Point[] = [origin, ...path.map((h) => hexToPixel(h, HEX_SIZE))];
     const segs = segmentsOf(points);
@@ -1229,10 +1149,12 @@
     const gr = new Graphics();
     for (const [a, b] of dashed ? segs.flatMap(([a, b]) => dashSegments(a, b)) : segs) gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
     gr.stroke({ width: 6, color, alpha });
-    // Pastille discrète à l'origine (départ lisible même sur un chemin court).
-    gr.circle(points[0]!.x, points[0]!.y, 8).fill({ color, alpha });
-    gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
-    (gr as Suivable).__suivi3d = { points, width: 6, color, alpha, dashed, tete: true, pastille: true };
+    if (!plain) {
+      // Pastille discrète à l'origine (départ lisible même sur un chemin court).
+      gr.circle(points[0]!.x, points[0]!.y, 8).fill({ color, alpha });
+      gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
+    }
+    (gr as Suivable).__suivi3d = { points, width: 6, color, alpha, dashed, tete: !plain, pastille: !plain };
     overlayLayer.addChild(gr);
   }
 
@@ -1356,9 +1278,8 @@
       if (mode3dActif()) mettreAJourStructures3d();
       rebuildEffects();
     }
-    // CORRECTIFS-SELECTION · M3 : l'aperçu animé glisse en 2D comme en 3D —
-    // reposé AVANT la projection 3D (poser3d estampe la position monde).
-    animerApercu(now);
+    // CORRECTIFS-SELECTION : l'aperçu animé a été remplacé par la position
+    // optimiste des unités (rebuildEntities) — plus de couche dédiée.
     if (mode3dActif()) {
       projeterCalques3d();
       terrain3d!.tick(dt / 1000, true);
@@ -1425,13 +1346,24 @@
     const villages = state.villages.map((v) => ({ id: v.id, q: v.q, r: v.r, fog: scene.visible.has(tileKeyOf(v)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(v)]?.terrain }));
     // Unités 3D (chantier V2-unités3D) : assemblage PARTAGÉ avec le labo
     // (unites3d.ts) — playback interpolé suivi par le calque, mapping data-driven.
-    const srcUnites = { state, visible: scene.visible, moveOf: (id: string) => playback.moveOf(id) };
+    // CORRECTIFS-SELECTION : position optimiste (destination du chemin).
+    const srcUnites = {
+      state,
+      visible: scene.visible,
+      moveOf: (id: string) => playback.moveOf(id),
+      positionDe: (id: string) => {
+        const u = state.units[id];
+        return u ? positionAfficheeDe(u) : null;
+      },
+    };
     const unites = unitesStructures(srcUnites);
     const plan: PlanStructures = planifierStructures({ tuiles, villes, huttes, villages, unites, couleurDe: playerColor });
     dernierPlanStructures = plan;
     structures3d.update(plan);
     // Fonderie T3 : calque .glb (mêmes filtres état filtré/R-117/fog).
-    unitesGlb?.update(unitesGLBStructures(srcUnites), playerColor);
+    const glbEntrees = unitesGLBStructures(srcUnites);
+    dernierPlanGlb = glbEntrees;
+    unitesGlb?.update(glbEntrees, playerColor);
   }
 
   /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping linéaire. */
@@ -1471,7 +1403,7 @@
         gr.poly(arrowHeadPoints(lastFrom, lastTo, 34 * k).flatMap((p) => [p.x, p.y])).fill({ color: s.color, alpha: Math.min(1, s.alpha + 0.1) });
       }
     };
-    for (const [layer, reconstruiteEnBloc] of [[entitiesLayer, false], [previewLayer, false], [overlayLayer, true], [effectsLayer, true]] as const) {
+    for (const [layer, reconstruiteEnBloc] of [[entitiesLayer, false], [overlayLayer, true], [effectsLayer, true]] as const) {
       for (const child of layer.children) {
         const c = child as Container & Suivable & { __wx?: number; __wy?: number; __ws?: number };
         if (c.__suivi3d) {
@@ -1532,8 +1464,22 @@
   let tipHex: string | null = null;
 
   // DEPLACEMENT-PLANIFIE (R-160) : aperçu de la dernière frame — source du
-  // tooltip « case disputée » (transparence pédagogique, L4.6).
+  // tooltip « case disputée » (transparence pédagogique, L4.6) et, depuis les
+  // CORRECTIFS-SELECTION, de la position optimiste des unités programmées.
   let scenePreviews: ProgramPreview[] = [];
+
+  /**
+   * CORRECTIFS-SELECTION : position AFFICHÉE d'une unité — la DESTINATION de
+   * son chemin programmé (l'unité « occupe » déjà sa case d'arrivée pendant
+   * la phase d'ordres), ou null si elle reste sur sa case moteur. Unités du
+   * joueur seulement (l'aperçu n'existe pas pour les autres).
+   */
+  function positionAfficheeDe(unit: { id: string; owner: string }): Hex | null {
+    if (!scene.state || !scene.myId || unit.owner !== scene.myId) return null;
+    const p = scenePreviews.find((pv) => pv.unitId === unit.id);
+    if (!p || p.path.length === 0) return null;
+    return p.destination;
+  }
 
   /** R-161 (D6) : troncature fog d'un chemin gelé (affichage pointillé) —
    *  miroir de la troncature de previewPrograms ; explored vide (fixtures /
@@ -1768,10 +1714,9 @@
     tilesLayer = new Container();
     resourceLayer = new Container();
     overlayLayer = new Container();
-    previewLayer = new Container();
     entitiesLayer = new Container();
     effectsLayer = new Container();
-    world.addChild(tilesLayer, resourceLayer, overlayLayer, previewLayer, entitiesLayer, effectsLayer);
+    world.addChild(tilesLayer, resourceLayer, overlayLayer, entitiesLayer, effectsLayer);
     application.stage.addChild(world);
     if (mode3d && canvas3d) {
       // Terrain en 3D ; les icônes de ressources 2D sont masquées (les
@@ -1848,7 +1793,7 @@
         // V2 : statistiques de la couche structures 3D (vérifications GUI/e2e) —
         // détail par pool (unités 3D visibles ? cf. unites3d). Fonderie T3 :
         // stats du calque .glb (unites/pools/lignes/manquants).
-        structures: () => (structures3d ? { ...structures3d.stats, details: dernierPlanStructures ? detailsPools(dernierPlanStructures) : null, glb: unitesGlb ? { ...unitesGlb.stats } : null } : null),
+        structures: () => (structures3d ? { ...structures3d.stats, details: dernierPlanStructures ? detailsPools(dernierPlanStructures) : null, glb: unitesGlb ? { ...unitesGlb.stats, entrees: dernierPlanGlb } : null } : null),
       };
     }
 
@@ -1933,7 +1878,6 @@
     walk(resourceLayer, "resources");
     walk(entitiesLayer, "entities");
     walk(overlayLayer, "overlay");
-    walk(previewLayer, "preview");
     walk(effectsLayer, "effects");
     return dump;
       },
@@ -1952,6 +1896,8 @@
           unitSprites: unitSprites.size,
           citySprites: citySprites.size,
           camera: { x: camera.x, y: camera.y, scale: camera.scale },
+          orders: scene.orders.length,
+          previews: scenePreviews.length,
           bounds,
           vw,
           vh,
@@ -2013,7 +1959,6 @@
     villageSprites.clear();
     hutSprites.clear();
     artefactSprites.clear();
-    previewMovers.clear();
     artefactPingGlow = null;
     textures = null;
     world = new Container();
