@@ -30,9 +30,6 @@ export type ClickAction =
    *  pressentie (la confirmation reste à l'écran, avant l'ordre `Launch`). */
   | { kind: 'nukeTarget'; hex: Hex };
 
-/** Clic droit (Phase 5 L1) : chemin complet vers la case visée, ou annulation. */
-export type RightClickAction = { kind: 'moveDraft'; path: Hex[]; unitId: UnitId } | { kind: 'cancelDraft' };
-
 export function unitAtHex(state: GameState, hex: Hex): { id: UnitId; owner: string } | null {
   for (const u of Object.values(state.units)) {
     // 7g · R-117 : une unité EMBARQUÉE n'est pas une entité de carte — le clic
@@ -335,19 +332,49 @@ export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
 }
 
 /**
- * Décision de clic droit PURE (Phase 5 L1) : avec une unité amie sélectionnée
- * et des ordres modifiables, un clic droit sur une case connue praticable
- * construit le chemin complet et le soumet (moveDraft) ; sinon le clic droit
- * annule le brouillon courant (cancelDraft).
+ * CORRECTIFS-SELECTION · M1 — décision de clic droit PURE : le clic droit
+ * CHANGE DE SÉLECTION (ce qui est sous le curseur), il ne programme JAMAIS de
+ * déplacement (la programmation est au clic gauche, pas à pas). Défauts
+ * consignés (veto Erik possible, rapport §M1) :
+ *  - unité sous le curseur → sélection de l'unité (amie ou ennemie visible,
+ *    lecture seule ; sur une case unité+ville, l'UNITÉ d'abord comme au
+ *    1er clic gauche) ;
+ *  - ville seule → sélection de la ville ;
+ *  - case vide / rien de nouveau → AUCUNE action : la sélection existante est
+ *    PRÉSERVÉE (le clic droit ne désélectionne plus, n'annule plus le
+ *    brouillon — annulation relocalisée sur Échap et le bouton du panneau).
  */
-export function rightClickAction(view: GameView, ui: UiState, hex: Hex): RightClickAction {
+export function rightSelectAction(view: GameView, _ui: UiState, hex: Hex): ClickAction {
   const state = view.state;
-  if (!state || !ordersEditable(view)) return { kind: 'cancelDraft' };
-  const selected = ui.selectedUnitId ? state.units[ui.selectedUnitId] : null;
-  if (!selected || selected.owner !== myEngineId(view)) return { kind: 'cancelDraft' };
-  const path = pathTo(state, selected, hex);
-  if (path && path.length > 0) return { kind: 'moveDraft', path, unitId: selected.id };
-  return { kind: 'cancelDraft' };
+  if (!state) return { kind: 'none' };
+  const unit = unitAtHex(state, hex);
+  if (unit) return { kind: 'selectUnit', unitId: unit.id, mine: unit.owner === myEngineId(view) };
+  const city = cityAtHex(state, hex);
+  if (city) return { kind: 'selectCity', cityId: city.id };
+  return { kind: 'none' };
+}
+
+/**
+ * CORRECTIFS-SELECTION · M2 — purge UNIFIÉE d'une annulation d'ordre. Cause
+ * racine des « flèches orphelines » : l'annulation purgeait un seul des DEUX
+ * pools de rendu — « Annuler l'ordre » retirait l'ordre soumis (la flèche
+ * d'aperçu ET sa pointe disparaissaient) mais laissait le brouillon UI
+ * `ui.draft` (la ligne jaune SANS pointe demeurait sur le terrain) ; à
+ * l'inverse, Échap ne purgeait que le brouillon. Cette fonction pure retourne
+ * ce que l'annulation de l'unité `unitId` doit produire : faut-il envoyer le
+ * CancelOrder (un ordre soumis existe), et quel brouillon UI en résulte
+ * (celui de la même unité part ENSEMBLE, les autres sont préservés).
+ */
+export function annulationOrdre(
+  view: GameView,
+  ui: UiState,
+  unitId: UnitId,
+): { ordreExistant: boolean; draft: UiState['draft'] } {
+  const ordreExistant = view.orders.some((o) =>
+    'unitId' in o ? o.unitId === unitId : o.type === 'FormArmy' && o.members.includes(unitId),
+  );
+  const draft = ui.draft && ui.draft.unitId === unitId ? null : ui.draft;
+  return { ordreExistant, draft };
 }
 
 /**

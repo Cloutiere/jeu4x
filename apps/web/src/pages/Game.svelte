@@ -21,7 +21,7 @@
   import { createUiState, selectNothing } from '../lib/render/ui.js';
   import type { UiStore } from '../lib/render/ui.js';
   import { Playback } from '../lib/render/playback.js';
-  import { rightClickAction, unitsWithoutOrders, myEngineId } from '../lib/render/interaction.js';
+  import { rightSelectAction, annulationOrdre, unitsWithoutOrders, myEngineId } from '../lib/render/interaction.js';
   import type { ClickAction } from '../lib/render/interaction.js';
   import { unexecutedOrders } from '../lib/feedback.js';
   import GameCanvas from '../lib/render/GameCanvas.svelte';
@@ -265,18 +265,16 @@
     ui.update((u) => ({ ...u, draft: { unitId: d.unitId, path: [] } }));
   }
 
-  /** Clic droit (Phase 5 L1) : chemin complet soumis, ou annulation du brouillon. */
+  /**
+   * Clic droit (CORRECTIFS-SELECTION · M1) : le clic droit CHANGE DE
+   * SÉLECTION (unité/ville sous le curseur) et ne programme plus JAMAIS de
+   * déplacement — la programmation se fait au clic gauche, pas à pas. Sur une
+   * case vide : aucune action (la sélection existante est préservée).
+   */
   function handleRightClick(hex: Hex): void {
-    // 7m · R-139 : ciblage ICBM armé — le clic droit ne trace pas de chemin.
+    // 7m · R-139 : ciblage ICBM armé — le clic droit ne change pas de sélection.
     if (get(ui).nukeArmed) return;
-    const v = get(view);
-    const action = rightClickAction(v, get(ui), hex);
-    if (action.kind === 'cancelDraft') {
-      cancelDraft();
-      return;
-    }
-    ui.update((u) => ({ ...u, draft: { unitId: action.unitId, path: action.path } }));
-    client.submitOrder({ type: 'Move', unitId: action.unitId, path: action.path });
+    handleAction(rightSelectAction(get(view), get(ui), hex));
   }
 
   // ---------------------------------------------------------------------
@@ -341,8 +339,29 @@
     client.endTurn();
   }
 
+  /**
+   * CORRECTIFS-SELECTION · M2 — annulation UNIFIÉE (une seule voie de purge) :
+   * Échap, le clic sur le panneau ou toute autre voie passent ici. Le
+   * brouillon UI ET l'ordre soumis de la même unité partent ENSEMBLE —
+   * sinon l'un des deux pools de rendu laissait une flèche orpheline
+   * (le corps sans la pointe, ou l'inverse).
+   */
   function cancelDraft(): void {
+    const d = get(ui).draft;
+    if (d) {
+      const { ordreExistant } = annulationOrdre(get(view), get(ui), d.unitId);
+      ui.update((u) => ({ ...u, draft: null }));
+      if (ordreExistant) client.cancelOrderFor(d.unitId);
+      return;
+    }
     ui.update((u) => ({ ...u, draft: null }));
+  }
+
+  /** « Annuler l'ordre » (panneau unité) — même purge unifiée que cancelDraft. */
+  function handleCancelOrder(unitId: string): void {
+    const { ordreExistant, draft } = annulationOrdre(get(view), get(ui), unitId);
+    ui.update((u) => ({ ...u, draft }));
+    if (ordreExistant) client.cancelOrderFor(unitId);
   }
 
   // ---------------------------------------------------------------------
@@ -749,7 +768,7 @@
 
       <aside class="side">
         {#if myName}<p class="me">Vous jouez : <strong>{myName}</strong></p>{/if}
-        <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onArmNuke={armNuke} onCancelNuke={cancelNuke} />
+        <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onCancelOrder={handleCancelOrder} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onArmNuke={armNuke} onCancelNuke={cancelNuke} />
         <CityPanel view={$view} ui={$ui} {client} />
         {#if $view.state && myEngineId($view)}
           <section class="ship" aria-label="Vaisseau spatial">

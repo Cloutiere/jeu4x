@@ -36,7 +36,7 @@
   } from '@game/rules';
   import type { GameState, Hex, Order } from '@game/rules';
   import type { GameView } from '../lib/gameClient.js';
-  import { clickAction, rightClickAction } from '../lib/render/interaction.js';
+  import { clickAction, rightSelectAction } from '../lib/render/interaction.js';
   import type { ClickAction } from '../lib/render/interaction.js';
   import { createUiState } from '../lib/render/ui.js';
   import type { UiState } from '../lib/render/ui.js';
@@ -481,14 +481,16 @@
     if (!stage || !view.state) return;
     const hex = pickAt(canvasPos(e));
     if (!hex) return;
-    const action = rightClickAction(view, uiSnap, hex);
-    if (action.kind === 'moveDraft') {
-      ui.set({ ...uiSnap, selectedUnitId: action.unitId, selectedCityId: null, draft: { unitId: action.unitId, path: action.path } });
-      clicInfo = `clic droit → chemin ${action.path.length} étape(s) vers ${hex.q},${hex.r} (affiché, non soumis — labo)`;
-    } else {
-      ui.set({ ...uiSnap, draft: null });
-      clicInfo = `clic droit → annulation brouillon (visé ${hex.q},${hex.r})`;
+    // CORRECTIFS-SELECTION · M1 : miroir du jeu — le clic droit CHANGE DE
+    // SÉLECTION (unité/ville), il ne programme plus de déplacement ; case
+    // vide = aucune action (sélection préservée).
+    const action = rightSelectAction(view, uiSnap, hex);
+    if (action.kind === 'none') {
+      clicInfo = `clic droit → case vide, sélection préservée (visé ${hex.q},${hex.r})`;
+      return;
     }
+    appliquerAction(action, hex);
+    clicInfo = `clic droit → sélection (visé ${hex.q},${hex.r})`;
   }
   function onKey(e: KeyboardEvent): void {
     if (e.key === 'Escape') ui.set({ selectedUnitId: null, selectedCityId: null, draft: null });

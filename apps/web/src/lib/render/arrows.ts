@@ -106,3 +106,26 @@ export function arrowGeometry(origin: Hex, path: Hex[], size: number, dashed = f
     head: arrowHeadPoints(lastFrom, lastTo),
   };
 }
+
+/**
+ * CORRECTIFS-SELECTION · M3 — point situé à `distance` (unités monde) le long
+ * d'un polyline de points d'ancrage (aperçu animé glissant sur le chemin
+ * programmé). Pur et testé : interpolation linéaire sur le segment porteur,
+ * borné au départ (distance ≤ 0) et à l'arrivée (distance ≥ longueur totale).
+ */
+export function pointLeLongDuChemin(points: Point[], distance: number): Point {
+  if (points.length === 0) return { x: 0, y: 0 };
+  if (points.length === 1 || distance <= 0) return { ...points[0]! };
+  let reste = distance;
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (reste <= len) {
+      const t = len === 0 ? 0 : reste / len;
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    }
+    reste -= len;
+  }
+  return { ...points[points.length - 1]! };
+}

@@ -8,7 +8,7 @@ import { makeState, tileKey } from '@game/rules';
 import type { GameState, Hex } from '@game/rules';
 import type { GameView } from '../src/lib/gameClient.js';
 import type { UiState } from '../src/lib/render/ui.js';
-import { clickAction, pathTo, rightClickAction, unitsWithoutOrders } from '../src/lib/render/interaction.js';
+import { clickAction, pathTo, rightSelectAction, unitsWithoutOrders } from '../src/lib/render/interaction.js';
 import { unexecutedOrders } from '../src/lib/feedback.js';
 import type { GameEvent } from '@game/shared';
 
@@ -99,18 +99,17 @@ describe('clic droit = ordre de déplacement (L1)', () => {
     expect(around!.some((h) => h.q === 3 && h.r === 0)).toBe(false);
   });
 
-  it('rightClickAction construit un moveDraft complet ; case invalide → cancelDraft', () => {
+  it('CORRECTIFS-SELECTION · M1 : le clic droit SÉLECTIONNE (unité/ville) et ne programme plus jamais de déplacement', () => {
     const view = viewOf(baseState());
     const ui = uiOf({ selectedUnitId: 'u1' });
-    const a = rightClickAction(view, ui, { q: 2, r: 0 });
-    expect(a).toEqual({ kind: 'moveDraft', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }], unitId: 'u1' });
-    expect(rightClickAction(view, ui, { q: 9, r: 9 })).toEqual({ kind: 'cancelDraft' });
+    // Unité sous le curseur → sélection (jamais moveDraft).
+    expect(rightSelectAction(view, ui, { q: 0, r: 0 })).toEqual({ kind: 'selectUnit', unitId: 'u1', mine: true });
+    // Case vide → aucune action (la sélection existante est préservée).
+    expect(rightSelectAction(view, ui, { q: 9, r: 9 })).toEqual({ kind: 'none' });
   });
 
-  it('rightClickAction sans sélection ni droit de modifier → cancelDraft', () => {
-    const view = viewOf(baseState());
-    expect(rightClickAction(view, uiOf(), { q: 2, r: 0 })).toEqual({ kind: 'cancelDraft' });
-    expect(rightClickAction(viewOf(baseState(), { locked: true }), uiOf({ selectedUnitId: 'u1' }), { q: 2, r: 0 })).toEqual({ kind: 'cancelDraft' });
+  it('CORRECTIFS-SELECTION · M1 : le clic droit sélectionne aussi verrouillé (lecture), jamais un ordre', () => {
+    expect(rightSelectAction(viewOf(baseState(), { locked: true }), uiOf(), { q: 0, r: 0 })).toEqual({ kind: 'selectUnit', unitId: 'u1', mine: true });
   });
 });
 

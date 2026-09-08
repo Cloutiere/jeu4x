@@ -17,6 +17,8 @@
     ui: UiState;
     client: GameClient;
     onCancelDraft(): void;
+    /** CORRECTIFS-SELECTION · M2 : annulation UNIFIÉE (ordre soumis + brouillon UI purgés ensemble). */
+    onCancelOrder(unitId: string): void;
     onConfirmDraft?(): void;
     onCenterUnit(unitId: string): void;
     /** 7m · R-139 : arme le mode ciblage d'ICBM (toute case cliquée devient
@@ -25,7 +27,7 @@
     onCancelNuke?(): void;
   }
 
-  let { view, ui, client, onCancelDraft, onConfirmDraft, onCenterUnit, onArmNuke, onCancelNuke }: Props = $props();
+  let { view, ui, client, onCancelDraft, onCancelOrder, onConfirmDraft, onCenterUnit, onArmNuke, onCancelNuke }: Props = $props();
 
   const unit = $derived(view.state && ui.selectedUnitId ? view.state.units[ui.selectedUnitId] : null);
   const mine = $derived(!!unit && unit.owner === myEngineId(view));
@@ -332,11 +334,12 @@
       {#if currentOrder}<p class="order">Ordre : {orderLabel(currentOrder)}</p>{/if}
 
       {#if draftHere}
-        <!-- Phase 5 L1 : le chemin est soumis automatiquement (tracé gauche pas à
-             pas ou clic droit sur la destination) — plus de bouton « Valider ». -->
-        <p class="hint">Chemin soumis automatiquement — cliquez des cases pour l'étendre, clic droit ailleurs pour l'annuler.</p>
+        <!-- CORRECTIFS-SELECTION · M1 : la programmation est au clic gauche (pas
+             à pas) ; le clic droit change de sélection. Annulation : Échap ou
+             « Annuler l'ordre » (purge unifiée du brouillon ET de l'ordre). -->
+        <p class="hint">Chemin soumis automatiquement — cliquez des cases pour l'étendre ; Échap ou « Annuler l'ordre » pour tout annuler.</p>
       {:else if editable}
-        <p class="hint">Clic gauche : tracer pas à pas · Clic droit sur une case : chemin complet soumis d'un coup.</p>
+        <p class="hint">Clic gauche : sélectionner puis tracer le déplacement pas à pas · Clic droit : sélectionner ce qui est sous le curseur.</p>
       {/if}
       <div class="btns">
         <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'Hold', unitId: unit.id })}>
@@ -391,7 +394,7 @@
           {/if}
         {/if}
         {#if currentOrder}
-          <button type="button" disabled={!editable} onclick={() => unit && client.cancelOrderFor(unit.id)}>
+          <button type="button" disabled={!editable} onclick={() => unit && onCancelOrder(unit.id)}>
             Annuler l'ordre
           </button>
         {/if}

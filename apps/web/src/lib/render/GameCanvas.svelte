@@ -22,7 +22,7 @@
   import { loadTextures, playerColor } from './textures.js';
   import type { GameTextures } from './textures.js';
   import { HEX_SIZE, hexesInRect, mapBounds, screenToHex } from './hexView.js';
-  import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
+  import { arrowHeadPoints, dashSegments, segmentsOf, pointLeLongDuChemin } from './arrows.js';
   import type { Point } from './arrows.js';
   import { clickAction, effectiveWorkedTiles, myEngineId } from './interaction.js';
   import type { ClickAction } from './interaction.js';
@@ -149,6 +149,9 @@
   let tilesLayer = new Container();
   let resourceLayer = new Container(); // R-91 : icônes de ressources sur les cases
   let overlayLayer = new Container();
+  // CORRECTIFS-SELECTION · M3 : couche dédiée de l'aperçu animé (au-dessus des
+  // flèches, SOUS les entités — coexiste sans chevaucher la lecture du plateau).
+  let previewLayer = new Container();
   let entitiesLayer = new Container();
   let effectsLayer = new Container();
   const camera = new Camera();
@@ -1029,6 +1032,72 @@
       gr.position.copyFrom(hexToPixel(selectedTile, HEX_SIZE));
       overlayLayer.addChild(gr);
     }
+
+    // CORRECTIFS-SELECTION · M3 : le pool de l'aperçu animé suit la même
+    // invalidation que l'overlay — un ordre annulé (purge unifiée M2) retire
+    // l'aperçu animé, les flèches et les fantômes ENSEMBLE.
+    synchroniserApercuAnime();
+  }
+
+  // -----------------------------------------------------------------------
+  // CORRECTIFS-SELECTION · M3 — aperçu animé du déplacement programmé :
+  // une copie translucide glisse en boucle le long du chemin prévu (tronqué
+  // fog R-161 par previewPrograms), pendant que l'unité RÉELLE reste sur sa
+  // case source jusqu'à la résolution. Perf : un SEUL Graphics par unité
+  // programmée, réutilisé frame à frame (pas d'instanciation par frame) ;
+  // l'anim se contente de reposer le marqueur (poser3d) le long du polyline.
+  // -----------------------------------------------------------------------
+
+  /** Vitesse de glissement (unités monde / s) ≈ 2,3 cases/s — lisible. */
+  const VITESSE_APERCU = 4 * HEX_SIZE;
+  const previewMovers = new Map<string, Graphics>();
+
+  function synchroniserApercuAnime(): void {
+    const myId = scene.myId;
+    const color = myId ? playerColor(myId) : 0xf0c419;
+    const voulus = new Set<string>();
+    if (scene.state && myId) {
+      for (const p of scenePreviews) {
+        if (p.path.length === 0) continue;
+        const unit = scene.state.units[p.unitId];
+        if (!unit || unit.owner !== myId) continue;
+        voulus.add(p.unitId);
+        let g = previewMovers.get(p.unitId);
+        if (!g) {
+          g = new Graphics();
+          g.circle(0, 0, HEX_SIZE * 0.3).fill({ color, alpha: 0.45 }).stroke({ width: 3, color, alpha: 0.8 });
+          previewLayer.addChild(g);
+          previewMovers.set(p.unitId, g);
+        }
+      }
+    }
+    for (const [id, g] of previewMovers) {
+      if (!voulus.has(id)) {
+        g.destroy();
+        previewMovers.delete(id);
+      }
+    }
+  }
+
+  /** Repose chaque marqueur le long de son chemin (boucle douce, par frame). */
+  function animerApercu(now: number): void {
+    if (previewMovers.size === 0 || !scene.state) return;
+    for (const [unitId, g] of previewMovers) {
+      const unit = scene.state.units[unitId];
+      const preview = scenePreviews.find((p) => p.unitId === unitId);
+      if (!unit || !preview || preview.path.length === 0) {
+        g.visible = false;
+        continue;
+      }
+      const points = [hexToPixel(unit, HEX_SIZE), ...preview.path.map((h) => hexToPixel(h, HEX_SIZE))];
+      let total = 0;
+      for (let i = 0; i + 1 < points.length; i++) {
+        total += Math.hypot(points[i + 1]!.x - points[i]!.x, points[i + 1]!.y - points[i]!.y);
+      }
+      const pos = pointLeLongDuChemin(points, ((now / 1000) * VITESSE_APERCU) % total);
+      poser3d(g, pos.x, pos.y);
+      g.visible = true;
+    }
   }
 
   function selectedTileOf(): Hex | null {
@@ -1287,6 +1356,9 @@
       if (mode3dActif()) mettreAJourStructures3d();
       rebuildEffects();
     }
+    // CORRECTIFS-SELECTION · M3 : l'aperçu animé glisse en 2D comme en 3D —
+    // reposé AVANT la projection 3D (poser3d estampe la position monde).
+    animerApercu(now);
     if (mode3dActif()) {
       projeterCalques3d();
       terrain3d!.tick(dt / 1000, true);
@@ -1399,7 +1471,7 @@
         gr.poly(arrowHeadPoints(lastFrom, lastTo, 34 * k).flatMap((p) => [p.x, p.y])).fill({ color: s.color, alpha: Math.min(1, s.alpha + 0.1) });
       }
     };
-    for (const [layer, reconstruiteEnBloc] of [[entitiesLayer, false], [overlayLayer, true], [effectsLayer, true]] as const) {
+    for (const [layer, reconstruiteEnBloc] of [[entitiesLayer, false], [previewLayer, false], [overlayLayer, true], [effectsLayer, true]] as const) {
       for (const child of layer.children) {
         const c = child as Container & Suivable & { __wx?: number; __wy?: number; __ws?: number };
         if (c.__suivi3d) {
@@ -1691,9 +1763,10 @@
     tilesLayer = new Container();
     resourceLayer = new Container();
     overlayLayer = new Container();
+    previewLayer = new Container();
     entitiesLayer = new Container();
     effectsLayer = new Container();
-    world.addChild(tilesLayer, resourceLayer, overlayLayer, entitiesLayer, effectsLayer);
+    world.addChild(tilesLayer, resourceLayer, overlayLayer, previewLayer, entitiesLayer, effectsLayer);
     application.stage.addChild(world);
     if (mode3d && canvas3d) {
       // Terrain en 3D ; les icônes de ressources 2D sont masquées (les
@@ -1853,6 +1926,7 @@
     walk(resourceLayer, "resources");
     walk(entitiesLayer, "entities");
     walk(overlayLayer, "overlay");
+    walk(previewLayer, "preview");
     walk(effectsLayer, "effects");
     return dump;
       },
@@ -1932,6 +2006,7 @@
     villageSprites.clear();
     hutSprites.clear();
     artefactSprites.clear();
+    previewMovers.clear();
     artefactPingGlow = null;
     textures = null;
     world = new Container();
