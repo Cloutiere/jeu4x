@@ -6,7 +6,7 @@
  * présentes dans `state.map`). La validation métier reste côté serveur.
  */
 import { hexDistance, neighbors, TERRAINS, tileKeyOf, unitType, workRadiusOf, canEnterTerrain, isCoastalCityHex, cargoCapacityOf } from '@game/rules';
-import type { Hex, Order } from '@game/rules';
+import type { Hex } from '@game/rules';
 import type { CityId, GameState, UnitId } from '@game/shared';
 import type { GameView } from '../gameClient.js';
 import type { UiState } from './ui.js';
@@ -17,12 +17,12 @@ export type ClickAction =
   /** Sélection d'une unité (amie si `mine`, sinon ennemie visible — lecture seule). */
   | { kind: 'selectUnit'; unitId: UnitId; mine: boolean }
   | { kind: 'selectCity'; cityId: CityId }
-  /** Extension/troncature du chemin en construction (`unitId` : armer un
-   *  brouillon frais sur cette unité si aucun n'est actif — entrée de ville). */
-  | { kind: 'extend'; path: Hex[]; unitId?: UnitId }
-  | { kind: 'truncate'; path: Hex[] }
-  /** Attaque directe d'une case ennemie visible adjacente. */
-  | { kind: 'attack'; order: Order }
+  /** CORRECTIFS-SELECTION (schéma d'Erik du 08/09) : clic droit = DESTINATION
+   *  du déplacement — chemin complet construit (`pathTo`) et soumis. */
+  | { kind: 'moveDraft'; path: Hex[]; unitId: UnitId }
+  /** Clic droit sans destination valide : annulation unifiée de l'ordre de
+   *  l'unité sélectionnée (cf. `annulationOrdre` — M2). */
+  | { kind: 'cancelOrder'; unitId: UnitId }
   /** R-60 (Phase 6) : réassignation d'un citoyen — ville sélectionnée, case
    *  cliquée (`null` = désassignation, cf. toggle de la case courante). */
   | { kind: 'setWorkedTile'; cityId: CityId; tile: string | null }
@@ -88,16 +88,19 @@ export function boardableTransport(
   );
 }
 
-function areNeighbors(a: Hex, b: Hex): boolean {
-  return hexDistance(a, b) === 1 && neighbors(a).some((n) => n.q === b.q && n.r === b.r);
-}
-
 /** L'ordre peut-il être modifié (phase « orders », non verrouillé, partie active) ? */
 export function ordersEditable(view: GameView): boolean {
   return view.status === 'active' && view.phase === 'orders' && !view.locked;
 }
 
-/** Décision de clic PURE : hex cliquée + vue + état UI → action. */
+/**
+ * Décision de clic PURE (clic GAUCHE — schéma d'Erik du 08/09) : le clic
+ * gauche SÉLECTIONNE UNIQUEMENT (unité/ville, re-clic = désélection,
+ * worked tiles d'une ville sélectionnée R-60). Il ne trace PLUS de chemin et
+ * ne programme PLUS d'attaque directe — la programmation (déplacement comme
+ * attaque-par-entrée, combat d'entrée R-42 sur le dernier pas) passe par le
+ * CLIC DROIT (`rightClickAction`).
+ */
 export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction {
   const state = view.state;
   if (!state) return { kind: 'none' };
@@ -106,13 +109,11 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
   // (le lancement n'est soumis qu'après la modale de confirmation, côté page).
   if (ui.nukeArmed) return { kind: 'nukeTarget', hex };
 
-  const selected = ui.selectedUnitId ? state.units[ui.selectedUnitId] : null;
-
   // 0. Re-clic sur l'entité sélectionnée = désélection (retour Phase 5 L1,
   //    1re partie en ligne). Exception : capitale défendue — le re-clic sur
   //    l'unité sélectionne la ville (alternance deterministic préservée,
-  //    le re-clic sur la ville reprend l'unité via la règle 3).
-  if (ui.selectedUnitId && !ui.draft?.path.length) {
+  //    le re-clic sur la ville reprend l'unité via la règle 2).
+  if (ui.selectedUnitId) {
     const clicked = unitAtHex(state, hex);
     if (clicked && clicked.id === ui.selectedUnitId) {
       const city = cityAtHex(state, hex);
@@ -120,62 +121,12 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
       return { kind: 'deselect' };
     }
   }
-  if (ui.selectedCityId && !ui.draft) {
+  if (ui.selectedCityId) {
     const city = cityAtHex(state, hex);
     if (city && city.id === ui.selectedCityId) return { kind: 'deselect' };
   }
 
-  // 1. Un chemin est en construction : priorité aux interactions de chemin.
-  //    INTERACTION-3D (retour d'Erik) : une ville AMIE ADJACENTE et ENTRABLE
-  //    est une étape de chemin comme les autres (entrée = garnison, R-30) —
-  //    le menu de ville reste accessible d'un clic sur une ville non
-  //    adjacente (Phase 7b) ou via l'alternance sans brouillon.
-  if (selected && ui.draft && ui.draft.unitId === selected.id && ordersEditable(view)) {
-    const draftCity = cityAtHex(state, hex);
-    const last = ui.draft.path[ui.draft.path.length - 1] ?? selected;
-    const cityStep =
-      !!draftCity &&
-      draftCity.owner === selected.owner &&
-      areNeighbors(last, hex) &&
-      enterableKnown(state, selected, hex);
-    if (draftCity && !cityStep) {
-      return { kind: 'selectCity', cityId: draftCity.id };
-    }
-    const trunc = truncateOf(ui.draft.path, hex);
-    if (trunc) return { kind: 'truncate', path: trunc };
-    if (last.q === hex.q && last.r === hex.r) {
-      // Clic sur la case courante : no-op si le chemin a commencé, sinon on
-      // laisse passer (alternance unité ↔ ville sur une capitale défendue).
-      if (ui.draft.path.length > 0) return { kind: 'none' };
-    } else if (areNeighbors(last, hex) && enterableKnown(state, selected, hex)) {
-      // INTERACTION-3D : TOUTE case adjacente entrable est traçable, occupée
-      // ou non — en résolution simultanée l'occupant amie peut partir avant
-      // (R-41) ; sinon le moteur s'arrête proprement sur la case précédente
-      // (R-42/R-30). Une case ennemie reste traçable : y entrer déclenche le
-      // combat d'entrée (R-42) — comportement de la Phase 3.
-      return { kind: 'extend', path: [...ui.draft.path, { q: hex.q, r: hex.r }] };
-    }
-    // Clic ailleurs : on abandonne le brouillon et on retombe sur la sélection.
-  }
-
-  // 2. Attaque directe : unité amie combattante sélectionnée + UNITÉ ennemie
-  //    visible adjacente (présente dans l'état filtré ⇒ visible). Une ville
-  //    ennemie SANS unité visible ne se « combat » pas : on entre dessus
-  //    (capture si vide — R-57/R-65 ; assaut du défenseur sinon, R-42), ce
-  //    qui revient à une simple étape de déplacement.
-  if (selected && selected.owner === myEngineId(view) && ordersEditable(view) && !ui.draft) {
-    const enemy = unitAtHex(state, hex);
-    const enemyCity = enemy ? null : cityAtHex(state, hex);
-    const adjacent = hexDistance({ q: selected.q, r: selected.r }, hex) === 1;
-    if (adjacent && enemy && enemy.owner !== selected.owner && unitType(selected.type).canAttack) {
-      return { kind: 'attack', order: { type: 'Attack', unitId: selected.id, target: { q: hex.q, r: hex.r } } };
-    }
-    if (adjacent && enemyCity && enemyCity.owner !== selected.owner) {
-      return { kind: 'extend', path: [{ q: hex.q, r: hex.r }], unitId: selected.id };
-    }
-  }
-
-  // 3. Ville amie sélectionnée et ordres modifiables : un clic sur une case
+  // 1. Ville amie sélectionnée et ordres modifiables : un clic sur une case
   //    réassigne un citoyen (R-60, Phase 6) — avec validation LOCALE des
   //    mêmes contraintes que le moteur, pour un retour immédiat honnête.
   //    INTERACTION-3D : la validation porte sur l'ÉTAT EFFECTIF (ordres
@@ -209,7 +160,7 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
     }
   }
 
-  // 4. Sélection. Case avec unité ET ville (capitale défendue) : alterner —
+  // 2. Sélection. Case avec unité ET ville (capitale défendue) : alterner —
   //    1er clic l'unité, 2e clic la ville (le re-clic sur l'unité sélectionnée
   //    est déjà traité en règle 0).
   if (unit && city) {
@@ -220,15 +171,8 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
   const aloneCity = cityAtHex(state, hex);
   if (aloneCity) return { kind: 'selectCity', cityId: aloneCity.id };
 
-  // 5. Vide (connu ou brouillard) : déselection.
+  // 3. Vide (connu ou brouillard) : déselection.
   return { kind: 'deselect' };
-}
-
-function truncateOf(path: Hex[], hex: Hex): Hex[] | null {
-  for (let i = 0; i < path.length; i++) {
-    if (path[i]!.q === hex.q && path[i]!.r === hex.r) return path.slice(0, i + 1);
-  }
-  return null;
 }
 
 /** Id moteur du joueur local ('p1'/'p2'), null si pas encore connu. */
@@ -332,26 +276,23 @@ export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
 }
 
 /**
- * CORRECTIFS-SELECTION · M1 — décision de clic droit PURE : le clic droit
- * CHANGE DE SÉLECTION (ce qui est sous le curseur), il ne programme JAMAIS de
- * déplacement (la programmation est au clic gauche, pas à pas). Défauts
- * consignés (veto Erik possible, rapport §M1) :
- *  - unité sous le curseur → sélection de l'unité (amie ou ennemie visible,
- *    lecture seule ; sur une case unité+ville, l'UNITÉ d'abord comme au
- *    1er clic gauche) ;
- *  - ville seule → sélection de la ville ;
- *  - case vide / rien de nouveau → AUCUNE action : la sélection existante est
- *    PRÉSERVÉE (le clic droit ne désélectionne plus, n'annule plus le
- *    brouillon — annulation relocalisée sur Échap et le bouton du panneau).
+ * CORRECTIFS-SELECTION (schéma d'Erik du 08/09) — décision de clic droit
+ * PURE : avec une unité AMIE sélectionnée et des ordres modifiables, le clic
+ * droit est la DESTINATION du déplacement — le chemin complet est construit
+ * (`pathTo`, BFS connu, R-161 fog) et soumis. Un ennemi en dernière case est
+ * admis : y entrer déclenche le combat d'entrée (R-42) — c'est aussi la voie
+ * d'attaque. Sans unité sélectionnée, hors ordres modifiables, ou sans
+ * chemin valide : annulation UNIFIÉE de l'ordre de l'unité sélectionnée
+ * (miroir d'Échap — purge brouillon + ordre, cf. M2), sinon aucun effet.
  */
-export function rightSelectAction(view: GameView, _ui: UiState, hex: Hex): ClickAction {
+export function rightClickAction(view: GameView, ui: UiState, hex: Hex): ClickAction {
   const state = view.state;
-  if (!state) return { kind: 'none' };
-  const unit = unitAtHex(state, hex);
-  if (unit) return { kind: 'selectUnit', unitId: unit.id, mine: unit.owner === myEngineId(view) };
-  const city = cityAtHex(state, hex);
-  if (city) return { kind: 'selectCity', cityId: city.id };
-  return { kind: 'none' };
+  if (!state || !ordersEditable(view)) return { kind: 'none' };
+  const selected = ui.selectedUnitId ? state.units[ui.selectedUnitId] : null;
+  if (!selected || selected.owner !== myEngineId(view)) return { kind: 'none' };
+  const path = pathTo(state, selected, hex);
+  if (path && path.length > 0) return { kind: 'moveDraft', path, unitId: selected.id };
+  return { kind: 'cancelOrder', unitId: selected.id };
 }
 
 /**

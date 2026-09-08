@@ -8,7 +8,7 @@ import { makeState, tileKey } from '@game/rules';
 import type { GameState, Hex } from '@game/rules';
 import type { GameView } from '../src/lib/gameClient.js';
 import type { UiState } from '../src/lib/render/ui.js';
-import { clickAction, pathTo, rightSelectAction, unitsWithoutOrders } from '../src/lib/render/interaction.js';
+import { clickAction, pathTo, rightClickAction, unitsWithoutOrders } from '../src/lib/render/interaction.js';
 import { unexecutedOrders } from '../src/lib/feedback.js';
 import type { GameEvent } from '@game/shared';
 
@@ -62,11 +62,9 @@ describe('re-clic = désélection (L1)', () => {
     expect(clickAction(view, uiOf({ selectedCityId: 'c1' }), { q: 3, r: 3 })).toEqual({ kind: 'deselect' });
   });
 
-  it('un brouillon de chemin en cours n’est pas cassé par le re-clic (troncature prioritaire)', () => {
-    const view = viewOf(baseState());
-    const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }] } });
-    expect(clickAction(view, ui, { q: 1, r: 0 })).toEqual({ kind: 'truncate', path: [{ q: 1, r: 0 }] });
-  });
+  // CORRECTIFS-SELECTION (schéma du 08/09) : le re-clic désélectionne TOUJOURS
+  // — plus de brouillon de chemin tracé au clic gauche (l'ancien test
+  // « troncature prioritaire » incarnait le comportement supprimé).
 });
 
 describe('clic droit = ordre de déplacement (L1)', () => {
@@ -99,17 +97,18 @@ describe('clic droit = ordre de déplacement (L1)', () => {
     expect(around!.some((h) => h.q === 3 && h.r === 0)).toBe(false);
   });
 
-  it('CORRECTIFS-SELECTION · M1 : le clic droit SÉLECTIONNE (unité/ville) et ne programme plus jamais de déplacement', () => {
+  it('CORRECTIFS-SELECTION (schéma du 08/09) : le clic droit est la DESTINATION — chemin complet soumis ; case invalide → annulation unifiée', () => {
     const view = viewOf(baseState());
     const ui = uiOf({ selectedUnitId: 'u1' });
-    // Unité sous le curseur → sélection (jamais moveDraft).
-    expect(rightSelectAction(view, ui, { q: 0, r: 0 })).toEqual({ kind: 'selectUnit', unitId: 'u1', mine: true });
-    // Case vide → aucune action (la sélection existante est préservée).
-    expect(rightSelectAction(view, ui, { q: 9, r: 9 })).toEqual({ kind: 'none' });
+    // Destination valide : chemin BFS complet vers la case visée.
+    expect(rightClickAction(view, ui, { q: 2, r: 0 })).toEqual({ kind: 'moveDraft', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }], unitId: 'u1' });
+    // Case inconnue non adjacente : annulation unifiée de l'ordre de l'unité.
+    expect(rightClickAction(view, ui, { q: 9, r: 9 })).toEqual({ kind: 'cancelOrder', unitId: 'u1' });
   });
 
-  it('CORRECTIFS-SELECTION · M1 : le clic droit sélectionne aussi verrouillé (lecture), jamais un ordre', () => {
-    expect(rightSelectAction(viewOf(baseState(), { locked: true }), uiOf(), { q: 0, r: 0 })).toEqual({ kind: 'selectUnit', unitId: 'u1', mine: true });
+  it('CORRECTIFS-SELECTION : sans unité sélectionnée ou verrouillé, le clic droit ne fait rien', () => {
+    expect(rightClickAction(viewOf(baseState()), uiOf(), { q: 2, r: 0 })).toEqual({ kind: 'none' });
+    expect(rightClickAction(viewOf(baseState(), { locked: true }), uiOf({ selectedUnitId: 'u1' }), { q: 2, r: 0 })).toEqual({ kind: 'none' });
   });
 });
 

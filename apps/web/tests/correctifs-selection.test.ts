@@ -11,7 +11,7 @@ import type { GameState } from '@game/rules';
 import type { GameView } from '../src/lib/gameClient.js';
 import { removeCancelledOrders } from '../src/lib/gameClient.js';
 import type { UiState } from '../src/lib/render/ui.js';
-import { annulationOrdre, rightSelectAction } from '../src/lib/render/interaction.js';
+import { annulationOrdre, rightClickAction } from '../src/lib/render/interaction.js';
 import { pointLeLongDuChemin } from '../src/lib/render/arrows.js';
 import type { Point } from '../src/lib/render/arrows.js';
 
@@ -56,45 +56,46 @@ function makeBattleState(): GameState {
 }
 
 // ---------------------------------------------------------------------------
-// M1 — le clic droit change de sélection, ne programme JAMAIS de déplacement
+// M1 (schéma d'Erik du 08/09) — clic gauche = sélection UNIQUEMENT,
+// clic droit = destination du déplacement
 // ---------------------------------------------------------------------------
 
-describe('rightSelectAction · M1 (clic droit = sélection)', () => {
-  it('unité amie sous le curseur → sélection (jamais un chemin)', () => {
-    const view = viewOf(makeBattleState());
-    expect(rightSelectAction(view, uiOf(), { q: 0, r: 0 })).toEqual({ kind: 'selectUnit', unitId: 'u1', mine: true });
-  });
-
-  it('ennemi visible → sélection lecture seule (pas de programmation, pas d\'annulation)', () => {
-    const view = viewOf(makeBattleState());
-    expect(rightSelectAction(view, uiOf(), { q: 0, r: 1 })).toEqual({ kind: 'selectUnit', unitId: 'u3', mine: false });
-  });
-
-  it('ville sous le curseur → sélection de la ville', () => {
-    const view = viewOf(makeBattleState());
-    expect(rightSelectAction(view, uiOf(), { q: 2, r: 1 })).toEqual({ kind: 'selectCity', cityId: 'c1' });
-  });
-
-  it('case vide → AUCUNE action : la sélection existante est préservée (défaut consigné)', () => {
-    const view = viewOf(makeBattleState());
-    const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } });
-    expect(rightSelectAction(view, ui, { q: 5, r: 5 })).toEqual({ kind: 'none' });
-  });
-
-  it('case unité+ville (capitale défendue) → l\'UNITÉ d\'abord (défaut consigné)', () => {
+describe('rightClickAction · M1 (clic droit = destination du déplacement)', () => {
+  it('unité amie sélectionnée + destination valide → moveDraft (chemin complet)', () => {
     const state = makeState({
-      width: 4,
-      height: 4,
+      width: 8,
+      height: 8,
       units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 }],
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0 }],
     });
     const view = viewOf(state);
-    expect(rightSelectAction(view, uiOf(), { q: 0, r: 0 })).toEqual({ kind: 'selectUnit', unitId: 'u1', mine: true });
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 2, r: 0 })).toEqual({
+      kind: 'moveDraft',
+      path: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+      unitId: 'u1',
+    });
   });
 
-  it('ordres verrouillés : la sélection reste possible (lecture), toujours aucun ordre', () => {
+  it('sans unité sélectionnée → aucun effet (le clic gauche reste la seule sélection)', () => {
+    const view = viewOf(makeBattleState());
+    expect(rightClickAction(view, uiOf(), { q: 2, r: 0 })).toEqual({ kind: 'none' });
+  });
+
+  it('unité ennemie sélectionnée (lecture seule) → aucun effet', () => {
+    const view = viewOf(makeBattleState());
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u3' }), { q: 1, r: 1 })).toEqual({ kind: 'none' });
+  });
+
+  it('destination invalide → annulation unifiée de l\'ordre de l\'unité sélectionnée', () => {
+    const view = viewOf(makeBattleState());
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 9, r: 9 })).toEqual({
+      kind: 'cancelOrder',
+      unitId: 'u1',
+    });
+  });
+
+  it('ordres verrouillés → aucun effet', () => {
     const view = viewOf(makeBattleState(), { locked: true });
-    expect(rightSelectAction(view, uiOf(), { q: 0, r: 0 })).toEqual({ kind: 'selectUnit', unitId: 'u1', mine: true });
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 2, r: 0 })).toEqual({ kind: 'none' });
   });
 });
 

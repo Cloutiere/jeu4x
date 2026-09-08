@@ -36,7 +36,7 @@
   } from '@game/rules';
   import type { GameState, Hex, Order } from '@game/rules';
   import type { GameView } from '../lib/gameClient.js';
-  import { clickAction, rightSelectAction } from '../lib/render/interaction.js';
+  import { clickAction, rightClickAction } from '../lib/render/interaction.js';
   import type { ClickAction } from '../lib/render/interaction.js';
   import { createUiState } from '../lib/render/ui.js';
   import type { UiState } from '../lib/render/ui.js';
@@ -481,16 +481,19 @@
     if (!stage || !view.state) return;
     const hex = pickAt(canvasPos(e));
     if (!hex) return;
-    // CORRECTIFS-SELECTION · M1 : miroir du jeu — le clic droit CHANGE DE
-    // SÉLECTION (unité/ville), il ne programme plus de déplacement ; case
-    // vide = aucune action (sélection préservée).
-    const action = rightSelectAction(view, uiSnap, hex);
-    if (action.kind === 'none') {
-      clicInfo = `clic droit → case vide, sélection préservée (visé ${hex.q},${hex.r})`;
-      return;
+    // CORRECTIFS-SELECTION (schéma d'Erik du 08/09) : miroir du jeu — le clic
+    // droit est la DESTINATION du déplacement de l'unité sélectionnée
+    // (affiché, non soumis — labo) ; sans destination valide = annulation.
+    const action = rightClickAction(view, uiSnap, hex);
+    if (action.kind === 'moveDraft') {
+      ui.set({ ...uiSnap, selectedUnitId: action.unitId, selectedCityId: null, draft: { unitId: action.unitId, path: action.path } });
+      clicInfo = `clic droit → chemin ${action.path.length} étape(s) vers ${hex.q},${hex.r} (affiché, non soumis — labo)`;
+    } else if (action.kind === 'cancelOrder') {
+      ui.set({ ...uiSnap, draft: null });
+      clicInfo = `clic droit → annulation (visé ${hex.q},${hex.r})`;
+    } else {
+      clicInfo = `clic droit → aucun effet (visé ${hex.q},${hex.r})`;
     }
-    appliquerAction(action, hex);
-    clicInfo = `clic droit → sélection (visé ${hex.q},${hex.r})`;
   }
   function onKey(e: KeyboardEvent): void {
     if (e.key === 'Escape') ui.set({ selectedUnitId: null, selectedCityId: null, draft: null });
@@ -510,14 +513,6 @@
       case 'deselect':
         ui.set({ selectedUnitId: null, selectedCityId: null, draft: null });
         clicInfo = `(${hex.q},${hex.r}) → désélection`;
-        break;
-      case 'extend':
-        ui.set({ ...uiSnap, draft: { unitId: action.unitId ?? uiSnap.selectedUnitId ?? '', path: action.path } });
-        clicInfo = `(${hex.q},${hex.r}) → chemin ${action.path.length} étape(s)`;
-        break;
-      case 'truncate':
-        ui.set({ ...uiSnap, draft: { unitId: uiSnap.draft?.unitId ?? '', path: action.path } });
-        clicInfo = `(${hex.q},${hex.r}) → troncature à ${action.path.length} étape(s)`;
         break;
       case 'none':
         clicInfo = `(${hex.q},${hex.r}) → aucun effet (réassignation / hors rayon)`;

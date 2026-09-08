@@ -21,7 +21,7 @@
   import { createUiState, selectNothing } from '../lib/render/ui.js';
   import type { UiStore } from '../lib/render/ui.js';
   import { Playback } from '../lib/render/playback.js';
-  import { rightSelectAction, annulationOrdre, unitsWithoutOrders, myEngineId } from '../lib/render/interaction.js';
+  import { rightClickAction, annulationOrdre, unitsWithoutOrders, myEngineId } from '../lib/render/interaction.js';
   import type { ClickAction } from '../lib/render/interaction.js';
   import { unexecutedOrders } from '../lib/feedback.js';
   import GameCanvas from '../lib/render/GameCanvas.svelte';
@@ -210,39 +210,26 @@
   });
 
   function handleAction(action: ClickAction): void {
-    const v = get(view);
     switch (action.kind) {
-      case 'selectUnit': {
-        const unit = v.state?.units[action.unitId];
-        const own = !!unit && unit.owner === myEngineId(v);
-        // Sélection amie modifiable : arme un brouillon de déplacement vide.
-        const editable = own && v.status === 'active' && v.phase === 'orders' && !v.locked;
-        ui.set({ selectedUnitId: action.unitId, selectedCityId: null, draft: editable && unit ? { unitId: unit.id, path: [] } : null });
+      case 'selectUnit':
+        // CORRECTIFS-SELECTION (schéma d'Erik du 08/09) : le clic gauche
+        // SÉLECTIONNE UNIQUEMENT — aucun brouillon armé, la programmation
+        // passe par le clic droit (destination).
+        ui.set({ selectedUnitId: action.unitId, selectedCityId: null, draft: null });
         break;
-      }
       case 'selectCity':
         ui.set({ selectedUnitId: null, selectedCityId: action.cityId, draft: null });
         break;
       case 'deselect':
         selectNothing(ui);
         break;
-      case 'extend':
-      case 'truncate':
-        ui.update((u) => {
-          if (u.draft) return { ...u, draft: { ...u.draft, path: action.path } };
-          // Extension sans brouillon actif (entrée dans une ville ennemie — R-57).
-          const unitId = action.kind === 'extend' ? action.unitId ?? u.selectedUnitId : null;
-          return unitId ? { ...u, draft: { unitId, path: action.path } } : u;
-        });
-        // Phase 5 L1 : soumission automatique — chaque extension/troncature
-        // re-soumet le brouillon complet (plus de bouton « Valider »).
-        {
-          const d = get(ui).draft;
-          if (d && d.path.length > 0) client.submitOrder({ type: 'Move', unitId: d.unitId, path: d.path });
-        }
+      case 'moveDraft':
+        // Clic droit = DESTINATION du déplacement : chemin complet soumis.
+        client.submitOrder({ type: 'Move', unitId: action.unitId, path: action.path });
         break;
-      case 'attack':
-        client.submitOrder(action.order);
+      case 'cancelOrder':
+        // Clic droit sans destination valide : purge unifiée (M2).
+        handleCancelOrder(action.unitId);
         break;
       case 'setWorkedTile':
         client.submitOrder({ type: 'SetWorkedTile', cityId: action.cityId, tile: action.tile });
@@ -266,15 +253,15 @@
   }
 
   /**
-   * Clic droit (CORRECTIFS-SELECTION · M1) : le clic droit CHANGE DE
-   * SÉLECTION (unité/ville sous le curseur) et ne programme plus JAMAIS de
-   * déplacement — la programmation se fait au clic gauche, pas à pas. Sur une
-   * case vide : aucune action (la sélection existante est préservée).
+   * Clic droit (CORRECTIFS-SELECTION — schéma d'Erik du 08/09) : avec une
+   * unité amie sélectionnée, le clic droit est la DESTINATION du déplacement
+   * (chemin complet soumis) ; sans destination valide, il annule l'ordre
+   * courant de l'unité (purge unifiée M2).
    */
   function handleRightClick(hex: Hex): void {
-    // 7m · R-139 : ciblage ICBM armé — le clic droit ne change pas de sélection.
+    // 7m · R-139 : ciblage ICBM armé — le clic droit reste le ciblage.
     if (get(ui).nukeArmed) return;
-    handleAction(rightSelectAction(get(view), get(ui), hex));
+    handleAction(rightClickAction(get(view), get(ui), hex));
   }
 
   // ---------------------------------------------------------------------

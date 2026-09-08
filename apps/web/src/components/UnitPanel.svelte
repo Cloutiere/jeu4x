@@ -334,12 +334,9 @@
       {#if currentOrder}<p class="order">Ordre : {orderLabel(currentOrder)}</p>{/if}
 
       {#if draftHere}
-        <!-- CORRECTIFS-SELECTION · M1 : la programmation est au clic gauche (pas
-             à pas) ; le clic droit change de sélection. Annulation : Échap ou
-             « Annuler l'ordre » (purge unifiée du brouillon ET de l'ordre). -->
-        <p class="hint">Chemin soumis automatiquement — cliquez des cases pour l'étendre ; Échap ou « Annuler l'ordre » pour tout annuler.</p>
+        <p class="hint">Clic droit sur une case : destination du déplacement (chemin complet soumis) · Clic droit hors case valide : annulation.</p>
       {:else if editable}
-        <p class="hint">Clic gauche : sélectionner puis tracer le déplacement pas à pas · Clic droit : sélectionner ce qui est sous le curseur.</p>
+        <p class="hint">Clic gauche : sélectionner (re-clic : désélectionner) · Clic droit : destination du déplacement de l'unité sélectionnée.</p>
       {/if}
       <div class="btns">
         <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'Hold', unitId: unit.id })}>

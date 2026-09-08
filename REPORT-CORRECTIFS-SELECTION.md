@@ -2,7 +2,23 @@
 
 Exécution du handoff [`HANDOFF-CORRECTIFS-SELECTION.md`](HANDOFF-CORRECTIFS-SELECTION.md). **Zéro changement gameplay** : input, rendu d'overlay et aperçu uniquement — `packages/rules` et serveur NON touchés, `schemaVersion` **19 inchangée**.
 
-**État final : 1006 tests verts (750 rules + 72 server + 184 web, +15 nets), typecheck 4/4, vérification GUI réelle en partie solo 2D ET 3D (captures `dev-logs/captures-correctifs-selection/`), 60 FPS avec aperçu animé actif. RIEN N'EST COMMITTÉ — Erik déclenche.**
+**État final : 1004 tests verts (750 rules + 72 server + 182 web), typecheck 4/4, vérification GUI réelle en partie solo 2D ET 3D (captures `dev-logs/captures-correctifs-selection/`), 60 FPS avec aperçu animé actif. RIEN N'EST COMMITTÉ — Erik déclenche.**
+
+## ⚡ ADDENDUM (08/09, après la première livraison) — SCHÉMA D'ERIK TRANCHÉ
+
+À la reprise en main, Erik a tranché le schéma définitif des clics (remplace les défauts §1) :
+
+- **Clic gauche = SÉLECTION UNIQUEMENT** (unité/ville ; re-clic sur l'unité sélectionnée = **désélection** — demande explicite d'Erik ; alternance unité↔ville préservée sur capitale défendue). Le clic gauche ne trace PLUS de chemin et ne programme PLUS l'attaque directe — cliquer un ennemi/case le sélectionne simplement (lecture).
+- **Clic droit = DESTINATION du déplacement** de l'unité sélectionnée : chemin complet (`pathTo`, BFS connu, R-161 fog) soumis d'un coup. Un ennemi en dernière case = combat d'entrée (R-42). C'est aussi la voie d'attaque/entrée de ville.
+- **Clic droit sans destination valide** (case inconnue inatteignable, aucune unité sélectionnée, verrouillé) = **annulation unifiée** de l'ordre de l'unité sélectionnée (miroir d'Échap — purge M2 brouillon + ordre) ; sans unité sélectionnée, aucun effet.
+- Worked tiles (R-60, ville sélectionnée + clic gauche) : inchangés. Ciblage ICBM (clic droit neutralisé) : inchangé.
+- Hook dev ajouté : `__game.rightClickHex(q, r)` (miroir du clic droit, DEV uniquement — vérifications GUI indépendantes du picking écran).
+
+Implémentation : `rightClickAction` rétablie (retourne `moveDraft`/`cancelOrder`), `clickAction` simplifiée (sélection + worked tiles), `Game.svelte`/`Lab3d.svelte`/`UnitPanel.svelte` remis en miroir, tests réécrits (`interaction.test.ts`, `phase5.test.ts`, `correctifs-selection.test.ts`). Vérifié en GUI : sélection/re-clic au gauche, programmation + flèche + aperçu animé au droit, annulation au droit hors destination — en 2D et 3D (partie solo neuve K7TKK3 ; captures `*-scheme-final-*.png`).
+
+**Note environnement** : dans la partie solo TS8VB9 ouverte depuis des heures, la soumission d'ordres ne se reflétait plus (même via le bouton « Tenir la position », code intouché) — tuyau WS/DO de la session longue, pas le code ; une partie neuve fonctionne parfaitement. Si Erik voit un jour ça : créer une partie neuve / redémarrer le worker dev.
+
+---
 
 ## 0. Préalables
 

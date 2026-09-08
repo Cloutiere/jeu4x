@@ -1822,6 +1822,8 @@
     if (import.meta.env.DEV) {
       (window as unknown as Record<string, unknown>).__game = {
         clickHex: (q: number, r: number) => onAction(clickAction(scene.view!, scene.ui, { q, r })),
+        // CORRECTIFS-SELECTION : miroir clic droit (destination) — vérifications GUI.
+        rightClickHex: (q: number, r: number) => onRightClick({ q, r }),
         // Picking réel (2D ou 3D selon le flag) — vérifications GUI automatisées.
         pickAt: (x: number, y: number) => { const h = hexSousEcran(x, y); return h ? `${h.q},${h.r}` : null; },
         centerOn: (q: number, r: number) => centerOnHex({ q, r }),
