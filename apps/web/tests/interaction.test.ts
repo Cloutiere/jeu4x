@@ -8,7 +8,7 @@ import { makeState, tileKey } from '@game/rules';
 import type { GameState, Hex } from '@game/rules';
 import type { GameView } from '../src/lib/gameClient.js';
 import type { UiState } from '../src/lib/render/ui.js';
-import { clickAction, ordersEditable, passableKnown, pathTo } from '../src/lib/render/interaction.js';
+import { clickAction, ordersEditable, passableKnown, pathTo, rightClickAction } from '../src/lib/render/interaction.js';
 
 function viewOf(state: GameState, over: Partial<GameView> = {}): GameView {
   return {
@@ -57,20 +57,20 @@ describe('clickAction (L3)', () => {
     expect(clickAction(view, uiOf(), { q: 0, r: 1 })).toEqual({ kind: 'selectUnit', unitId: 'u3', mine: false });
   });
 
-  it('guerrier sélectionné + ennemi visible adjacent → attaque directe', () => {
+  it('CORRECTIFS-SELECTION (schéma du 08/09) : le clic gauche est SÉLECTION UNIQUE — cliquer un ennemi adjacent le sélectionne (lecture), il ne programme plus ni attaque ni chemin', () => {
     const view = viewOf(makeBattleState());
-    const action = clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 0, r: 1 });
-    expect(action).toEqual({ kind: 'attack', order: { type: 'Attack', unitId: 'u1', target: { q: 0, r: 1 } } });
+    expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 0, r: 1 })).toEqual({
+      kind: 'selectUnit',
+      unitId: 'u3',
+      mine: false,
+    });
   });
 
-  it('ville ennemie adjacente SANS unité visible → étape de déplacement (capture par entrée, R-57/R-65), pas un Attack', () => {
+  it('CORRECTIFS-SELECTION : ville ennemie adjacente cliquée au gauche → sélection de ville (la capture par entrée R-57/R-65 passe par le clic droit)', () => {
     const state = makeBattleState();
-    // Ville p2 vide adjacente au guerrier u1 (0,0) : (-1,1) est voisine.
     state.cities.c9 = { id: 'c9', q: -1, r: 1, owner: 'p2', pop: 1, capital: false, foodStored: 0, production: null, workedTile: null };
     const view = viewOf(state);
-    // Brouillon annulé (draft null) : le clic arme un brouillon frais sur l'unité.
-    const action = clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: -1, r: 1 });
-    expect(action).toEqual({ kind: 'extend', path: [{ q: -1, r: 1 }], unitId: 'u1' });
+    expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: -1, r: 1 })).toEqual({ kind: 'selectCity', cityId: 'c9' });
   });
 
   it('le colon (non-combattant) ne produit pas d\'attaque — sélection au clic', () => {
@@ -79,39 +79,23 @@ describe('clickAction (L3)', () => {
     expect(action).toEqual({ kind: 'selectUnit', unitId: 'u3', mine: false });
   });
 
-  it('construction de chemin : clics adjacents praticables connus, troncature en arrière', () => {
+  it('CORRECTIFS-SELECTION : le clic gauche ne trace JAMAIS de chemin — case adjacente vide → désélection, re-clic sur l\'unité → désélection', () => {
     const view = viewOf(makeBattleState());
-    const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } });
-    // INTERACTION-3D (retour d'Erik) : une case occupée par un ALLIÉ est
-    // traçable — en résolution simultanée l'occupant peut partir avant (R-41),
-    // sinon le moteur s'arrête proprement sur la case précédente (R-42/R-30) :
-    // il tranche. Case ENNEMIE traçable (entrée = combat R-42). Les cases
-    // négatives sont hors de l'état filtré de la fixture → jamais traçables.
-    expect(clickAction(view, ui, { q: -1, r: 1 })).toEqual({ kind: 'deselect' });
-    expect(clickAction(view, ui, { q: 1, r: 0 })).toEqual({ kind: 'extend', path: [{ q: 1, r: 0 }] }); // u2 allié : ciblé (le moteur tranche, R-42)
-    expect(clickAction(view, ui, { q: 0, r: 1 })).toEqual({ kind: 'extend', path: [{ q: 0, r: 1 }] }); // u3 ennemi
-    const ui2 = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [{ q: 0, r: 1 }] } });
-    expect(clickAction(view, ui2, { q: 1, r: 1 })).toEqual({
-      kind: 'extend',
-      path: [{ q: 0, r: 1 }, { q: 1, r: 1 }],
-    });
-    // Re-clic sur la 1re étape → troncature.
-    expect(clickAction(view, ui2, { q: 0, r: 1 })).toEqual({ kind: 'truncate', path: [{ q: 0, r: 1 }] });
-    // Re-clic sur la case de l'unité (chemin vide, pas de ville) → désélection (Phase 5 L1).
-    expect(clickAction(view, uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } }), { q: 0, r: 0 })).toEqual({
-      kind: 'deselect',
-    });
+    const ui = uiOf({ selectedUnitId: 'u1' });
+    // Case vide adjacente : pas d'extension (la programmation est au clic droit).
+    expect(clickAction(view, ui, { q: 1, r: 1 })).toEqual({ kind: 'deselect' });
+    // Re-clic sur l'unité sélectionnée : désélection (demande explicite d'Erik).
+    expect(clickAction(view, ui, { q: 0, r: 0 })).toEqual({ kind: 'deselect' });
   });
 
-  it('une case inconnue (brouillard) n\'étend jamais le chemin', () => {
+  it('CORRECTIFS-SELECTION : une case inconnue (brouillard) clic-gauchée → désélection, jamais inventée', () => {
     const state = makeBattleState();
     delete (state.map as Record<string, unknown>)[tileKey(-1, 1)]; // voisine de u1 mais hors état filtré
     const view = viewOf(state);
-    const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } });
-    expect(clickAction(view, ui, { q: -1, r: 1 }).kind).toBe('deselect');
+    expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: -1, r: 1 }).kind).toBe('deselect');
   });
 
-  it('ordres verrouillés : sélection possible mais ni attaque ni extension', () => {
+  it('ordres verrouillés : la sélection reste possible, aucun ordre programmable (verrou)', () => {
     const view = viewOf(makeBattleState(), { locked: true });
     expect(ordersEditable(view)).toBe(false);
     expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 0, r: 1 })).toEqual({
@@ -119,9 +103,8 @@ describe('clickAction (L3)', () => {
       unitId: 'u3',
       mine: false,
     });
-    const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } });
-    // Le clic n'étend pas le chemin (verrouillé) : il retombe sur la sélection.
-    expect(clickAction(view, ui, { q: 0, r: 1 })).toEqual({ kind: 'selectUnit', unitId: 'u3', mine: false });
+    // Le clic droit verrouillé ne programme pas (aucune destination).
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 1, r: 1 })).toEqual({ kind: 'none' });
   });
 
   it('clic sur une ville → sélection de ville ; clic dans le vide → déselection', () => {
@@ -139,7 +122,7 @@ describe('clickAction (L3)', () => {
     expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 0, r: 0 })).toEqual({ kind: 'selectCity', cityId: 'c2' });
   });
 
-  it('INTERACTION-3D : brouillon armé + ville AMIE ADJACENTE → extension du chemin (entrée = garnison, R-30), pas une interruption', () => {
+  it('CORRECTIFS-SELECTION : clic droit = destination — ville AMIE ADJACENTE atteignable (entrée = garnison, R-30), ville amie distante aussi (BFS)', () => {
     const state = makeState({
       width: 8,
       height: 8,
@@ -147,11 +130,14 @@ describe('clickAction (L3)', () => {
       cities: [{ id: 'c2', owner: 'p1', q: 1, r: 0 }], // ville amie VIDE adjacente
     });
     const view = viewOf(state);
-    const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [{ q: 0, r: 1 }] } });
-    expect(clickAction(view, ui, { q: 1, r: 0 })).toEqual({ kind: 'extend', path: [{ q: 0, r: 1 }, { q: 1, r: 0 }] });
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 1, r: 0 })).toEqual({
+      kind: 'moveDraft',
+      path: [{ q: 1, r: 0 }],
+      unitId: 'u1',
+    });
   });
 
-  it('Phase 7b préservée : brouillon armé + ville amie NON adjacente → le clic interrompt le brouillon et sélectionne la ville', () => {
+  it('CORRECTIFS-SELECTION : ville amie NON adjacente — le clic GAUCHE sélectionne la ville (sélection pure)', () => {
     const state = makeState({
       width: 8,
       height: 8,
@@ -159,17 +145,27 @@ describe('clickAction (L3)', () => {
       cities: [{ id: 'c2', owner: 'p1', q: 3, r: 0 }], // ville amie éloignée
     });
     const view = viewOf(state);
-    const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [{ q: 0, r: 1 }] } });
-    expect(clickAction(view, ui, { q: 3, r: 0 })).toEqual({ kind: 'selectCity', cityId: 'c2' });
+    expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 3, r: 0 })).toEqual({ kind: 'selectCity', cityId: 'c2' });
+    // … et le clic droit la PROGRAMME (chemin BFS complet).
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 3, r: 0 })).toEqual({
+      kind: 'moveDraft',
+      path: [{ q: 1, r: 0 }, { q: 2, r: 0 }, { q: 3, r: 0 }],
+      unitId: 'u1',
+    });
   });
 
-  it('INTERACTION-3D : non-régression — une case ENNEMIE adjacente reste un combat (attaque directe), pas une entrée libre', () => {
+  it('CORRECTIFS-SELECTION : clic droit sur un ENNEMI adjacent → moveDraft (le dernier pas déclenche le combat d\'entrée, R-42)', () => {
     const view = viewOf(makeBattleState());
-    const action = clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 0, r: 1 });
-    expect(action).toEqual({ kind: 'attack', order: { type: 'Attack', unitId: 'u1', target: { q: 0, r: 1 } } });
-    // Brouillon armé : la case ennemie reste traçable (entrée = combat R-42).
-    const ui = uiOf({ selectedUnitId: 'u1', draft: { unitId: 'u1', path: [] } });
-    expect(clickAction(view, ui, { q: 0, r: 1 })).toEqual({ kind: 'extend', path: [{ q: 0, r: 1 }] });
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 0, r: 1 })).toEqual({
+      kind: 'moveDraft',
+      path: [{ q: 0, r: 1 }],
+      unitId: 'u1',
+    });
+    // Sans destination valide (case inconnue non adjacente) : annulation unifiée de l'ordre.
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 9, r: 9 })).toEqual({
+      kind: 'cancelOrder',
+      unitId: 'u1',
+    });
   });
 
   it('INTERACTION-3D : ville PLEINE — le re-clic après désélection fonctionne (le prédicat tient compte de l\'ordre SetWorkedTile en attente)', () => {
