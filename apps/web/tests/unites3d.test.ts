@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { tileKeyOf } from '@game/rules';
 import type { GameState } from '@game/rules';
-import { MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO, TERRAINS3D, gabaritUnite3D, entreeUnite3D, entreeUnite3DDe, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
+import { MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO, VILLE3D, TERRAINS3D, gabaritUnite3D, entreeUnite3D, entreeUnite3DDe, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
 import { planifierStructures } from '../src/lib/render3d/structures3d.js';
 import type { EntiteStructure, EntreeStructures } from '../src/lib/render3d/structures3d.js';
 import { aModele3D, unitesStructures, unitesGLBStructures } from '../src/lib/render3d/unites3d.js';
@@ -86,11 +86,13 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
     const mappes = [
       ...Object.values(MODELES_UNITES3D).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])),
       ...Object.values(SURCHARGE_UNITES3D_PAR_PROPRIO).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])),
+      // VILLE-TRIPO T2 : le visuel de la ville est un .glb servi (spec ville3d)
+      ...(VILLE3D && VILLE3D.kind === 'glb' ? [VILLE3D.glb] : []),
     ].sort();
     // T4bis : barbare_v3 est branché via unites3dSurchargeProprietaire (owner
     // 'barbarien') — plus aucun orphelin, aucun fichier servi sans branchement.
     expect(mappes).toEqual(fichiers);
-    expect(fichiers.length).toBe(23);
+    expect(fichiers.length).toBe(24);
   });
 
   it('les types SANS entrée (civs uniques, GP, caravane…) gardent leur sprite 2D', () => {
@@ -107,12 +109,15 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
     expect(() => parseEntreeUnite3D('x', {})).toThrow(/\.glb invalide/);
     expect(() => parseEntreeUnite3D('x', { glb: 'guerrier.glb', rotation: 400 })).toThrow(/rotation hors/);
     expect(() => parseEntreeUnite3D('x', { glb: 'guerrier.glb', rotation: 'a' })).toThrow(/rotation/);
+    expect(() => parseEntreeUnite3D('x', { glb: 'guerrier.glb', survol: -1 })).toThrow(/survol hors/);
+    expect(() => parseEntreeUnite3D('x', { glb: 'guerrier.glb', survol: 3 })).toThrow(/survol hors/);
   });
 
-  it('rotation du catalogue : défaut 0, degrés validés (T4ter)', () => {
-    expect(parseEntreeUnite3D('x', { glb: 'a.glb' })).toMatchObject({ kind: 'glb', rotation: 0 });
+  it('rotation du catalogue : défaut 0, degrés validés (T4ter) ; survol défaut 0 (T4quater)', () => {
+    expect(parseEntreeUnite3D('x', { glb: 'a.glb' })).toMatchObject({ kind: 'glb', rotation: 0, survol: 0 });
     expect(parseEntreeUnite3D('x', { glb: 'a.glb', echelle: 1, rotation: 180 })).toMatchObject({ kind: 'glb', rotation: 180 });
     expect(parseEntreeUnite3D('x', { glb: 'a.glb', rotation: -90 })).toMatchObject({ kind: 'glb', rotation: -90 });
+    expect(parseEntreeUnite3D('x', { glb: 'a.glb', survol: 0.6 })).toMatchObject({ kind: 'glb', survol: 0.6 });
   });
 });
 
@@ -299,6 +304,12 @@ describe('calque .glb — fonderie T3 (assemblage + garde-fous)', () => {
     expect(m.elements[12]).toBeCloseTo(0, 5);
     expect(m.elements[13]).toBeCloseTo(0, 5);
     expect(m.elements[14]).toBeCloseTo(0, 5);
+
+    // survol (T4quater) : l'appareil vole AU-DESSUS du sol, position x/z inchangée
+    monde.update([{ id: 'u1', q: 0, r: 0, fog: 'visible', owner: 'p1', glb: 'test_v3.glb', echelle: 2, survol: 0.6 }], couleurDe);
+    pool.getMatrixAt(0, m);
+    expect(m.elements[13]).toBeCloseTo(0.6, 5);
+    expect(m.elements[0]).toBe(2); // pas de rotation : diagonale inchangée
     monde.dispose();
   });
 

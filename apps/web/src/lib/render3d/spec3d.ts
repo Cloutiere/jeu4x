@@ -874,6 +874,17 @@ export function gabaritUnite3D(type: string): GabaritUnite | null {
   return e && e.kind === 'gabarit' ? e.gabarit : null;
 }
 
+/** Visuel 3D de la VILLE (VILLE-TRIPO T2, décision d'Erik du 08/09) : entrée
+ *  .glb du catalogue (même format que `unites3d` — cf. `visuel3d.json`
+ *  §structures.ville3d). Présente = TOUTE ville affiche CE modèle via le
+ *  calque .glb (paliers popMax et modules/merveille/cœur OBSOLÈTES pour le
+ *  visuel — données moteur conservées). Absente = fallback Mainframe
+ *  procédural de `structures3d.ts` (aucune suppression sauvage). */
+export const VILLE3D: EntreeUnite3D | null =
+  structuresBrut.ville3d === undefined
+    ? null
+    : parseEntreeUnite3D('ville3d', structuresBrut.ville3d);
+
 export const STRUCTURES3D: SpecStructures = {
   slot: SLOT3D,
   formes: FORMES3D,

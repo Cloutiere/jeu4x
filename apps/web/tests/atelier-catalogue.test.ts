@@ -119,8 +119,9 @@ describe('atelier — catalogue L0', () => {
     const exposes = idsDe('structures3d').filter((id) => id.startsWith('uniteglb:')).map((id) => id.slice('uniteglb:'.length)).sort();
     // barbare_v3.glb n'a pas de type moteur : il est branché par la table
     // unites3dSurchargeProprietaire (owner 'barbarien') — fiche catalogue 🔶.
-    expect(exposes).toEqual(fichiers.filter((f) => f !== 'barbare_v3.glb'));
-    expect(fichiers.length).toBe(23);
+    // ville_v1.glb (VILLE-TRIPO T2) : visuel de la ville, hors catalogue unités.
+    expect(exposes).toEqual(fichiers.filter((f) => f !== 'barbare_v3.glb' && f !== 'ville_v1.glb'));
+    expect(fichiers.length).toBe(24);
   });
 
   it('les overlays (effets programmatiques) sont des fiches sans fichier', () => {

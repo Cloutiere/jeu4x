@@ -6,6 +6,7 @@
 - Décisions consignées : lueur des anneaux 1.6 OK ; **échelle 2,6 OK** (débordement des anneaux accepté) ; **distinction capitale REPORTÉE** (défaut du handoff, pas d'objection) ; pas de couche émissive supplémentaire à faire (la carte émissive corps couvre le besoin).
 - **Promotion effectuée** : `fonderie/modeles/ville_v1_A.glb` → **`assets-src/modeles/ville_v1.glb`**. L'intégration jeu (T2) reste une session séparée.
 - **Mapping joueur → teinte tranché par Erik** (pour T2) : **J1 = `#3DFFCE`** (menthe/azur, la couleur néon d'identité), **J2 = `#FF9A3D`** (orange) ; le **rouge `#FF3D3D` reste réservé aux barbares**. Violet/bleu/jaune/rose (`#B03DFF`, `#3D9AFF`, `#FFE23D`, `#FF3DB8`) restent disponibles pour d'éventuels J3-J6.
+- **Point de cadrage T2 tranché par Erik** : **RETIRER** les modules de bâtiments, la merveille dorée et le cœur procéduraux — en jeu, la ville = **uniquement l'asset `ville_v1.glb`**, quel que soit son contenu (population, bâtiments et merveilles restent des données moteur, sans visuel dédié).
 
 ## Livrables (validés)
 

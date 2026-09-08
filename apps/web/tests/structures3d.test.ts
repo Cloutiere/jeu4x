@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { RESOURCES, RESOURCE_UNKNOWN, BUILDINGS, tileKeyOf, makeState, getFilteredState } from '@game/rules';
 import type { Hex } from '@game/rules';
-import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment } from '../src/lib/render3d/spec3d.js';
+import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment, VILLE3D } from '../src/lib/render3d/spec3d.js';
 import {
   planifierStructures, palierDe, estCarteNeutre, peindrePicto, StructuresWorld, creerGuerrierHumain,
 } from '../src/lib/render3d/structures3d.js';
@@ -73,6 +73,17 @@ describe('L0 — spec structures data-driven (visuel3d.json)', () => {
   it('rend la carte neutre plus petite que la pleine (R-92 — « taille de base réduite »)', () => {
     expect(STRUCTURES3D.carteNeutre.facteur).toBeLessThan(1);
     expect(STRUCTURES3D.carteNeutre.facteur).toBeGreaterThan(0.3);
+  });
+});
+
+describe('VILLE-TRIPO T2 — visuel .glb de la ville (décision Erik 08/09)', () => {
+  it('la spec §structures.ville3d pointe l’asset validé (toutes les villes, quel que soit le pop)', () => {
+    expect(VILLE3D).not.toBeNull();
+    expect(VILLE3D).toMatchObject({ kind: 'glb', glb: 'ville_v1.glb', echelle: 1.0 });
+  });
+  it('le fallback Mainframe reste planifiable (atelier — aucune suppression sauvage)', () => {
+    const plan = planifierStructures(entree({ villes: [ville('v1', 2, 3)] }));
+    expect(plan.get('mfSocle')).toHaveLength(1);
   });
 });
 

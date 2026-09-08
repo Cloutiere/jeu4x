@@ -44,7 +44,9 @@
   // Fonderie T3 — calque des unités à modèle .glb (chargement en cache,
   // teinte joueur par propriétaire, instancing ; cf. unitesglb.ts).
   import { ChargeurModelesGLB, UnitesGLBWorld } from '../render3d/unitesglb.js';
-  import { MODELES_UNITES3D } from '../render3d/spec3d.js';
+  import { MODELES_UNITES3D, VILLE3D } from '../render3d/spec3d.js';
+  // VILLE-TRIPO T2 — entrée .glb d'une ville (même format que le catalogue unités).
+  import type { UniteGLBEntree } from '../render3d/unites3d.js';
   // TRAVAIL-VILLE-3D — contours en vraie 3D : cadres des cases travaillées +
   // rayon de cultivation, posés sur le relief (géométrie pure dans contours.ts).
   import { contourHexTile, contourRegion } from '../render3d/contours.js';
@@ -188,6 +190,10 @@
   // Fonderie T3 : calque des unités à modèle .glb (pools instanciés séparés —
   // les géométries/matériaux sont chargés une fois par fichier).
   let unitesGlb: UnitesGLBWorld | null = null;
+  // VILLE-TRIPO T2 : calque .glb des VILLES (même pipeline que les unités —
+  // cache, fusion, teinte accent_joueur par propriétaire). Null tant que
+  // visuel3d.json §structures.ville3d ne pointe pas un .glb (fallback Mainframe).
+  let villesGlb: UnitesGLBWorld | null = null;
   // TRAVAIL-VILLE-3D : contours 3D (worked tiles + rayon de cultivation).
   let marqueurs3d: Marqueurs3D | null = null;
   let canvas3d: HTMLCanvasElement | null = null;
@@ -1331,16 +1337,32 @@
         ressource: tile.resource ?? null,
       });
     }
+    // VILLE-TRIPO T2 : quand §structures.ville3d pointe un .glb, les villes ne
+    // vont PLUS au planificateur (Mainframe + modules/merveille/cœur retirés
+    // du rendu — données moteur conservées) ; elles sont rendues par le calque
+    // .glb, teinte accent_joueur par propriétaire. Absent = fallback Mainframe.
+    const villeGlb = VILLE3D && VILLE3D.kind === 'glb' ? VILLE3D : null;
     const villes: Parameters<typeof planifierStructures>[0]['villes'] = [];
+    const villesGlbEntrees: UniteGLBEntree[] = [];
     for (const city of Object.values(state.cities)) {
       // Miroir du rendu 2D : villes visibles seulement (le fog filtre l'état).
       if (!scene.visible.has(tileKeyOf(city))) continue;
-      villes.push({
-        id: city.id, q: city.q, r: city.r,
-        pop: city.pop, capital: city.capital, owner: city.owner,
-        buildings: city.buildings, wonders: city.wonders ?? [],
-        fog: scene.visible.has(tileKeyOf(city)) ? 'visible' : 'explored',
-      });
+      const fog = scene.visible.has(tileKeyOf(city)) ? 'visible' as const : 'explored' as const;
+      if (villeGlb) {
+        villesGlbEntrees.push({
+          id: city.id, q: city.q, r: city.r, fog,
+          terrain: state.map[tileKeyOf(city)]?.terrain,
+          owner: city.owner,
+          glb: villeGlb.glb, echelle: villeGlb.echelle, rotation: villeGlb.rotation, survol: villeGlb.survol,
+        });
+      } else {
+        villes.push({
+          id: city.id, q: city.q, r: city.r,
+          pop: city.pop, capital: city.capital, owner: city.owner,
+          buildings: city.buildings, wonders: city.wonders ?? [],
+          fog,
+        });
+      }
     }
     const huttes = state.huts.map((h) => ({ id: h.id, q: h.q, r: h.r, fog: scene.visible.has(tileKeyOf(h)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(h)]?.terrain }));
     const villages = state.villages.map((v) => ({ id: v.id, q: v.q, r: v.r, fog: scene.visible.has(tileKeyOf(v)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(v)]?.terrain }));
@@ -1364,6 +1386,9 @@
     const glbEntrees = unitesGLBStructures(srcUnites);
     dernierPlanGlb = glbEntrees;
     unitesGlb?.update(glbEntrees, playerColor);
+    // VILLE-TRIPO T2 : les villes passent par le MÊME pipeline (teinte
+    // multiplicative accent_joueur, fog, instancing) — monde dédié.
+    villesGlb?.update(villesGlbEntrees, playerColor);
   }
 
   /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping linéaire. */
@@ -1738,6 +1763,13 @@
         Object.values(MODELES_UNITES3D).flatMap((e) => (e.kind === 'glb' ? [e.glb] : [])),
       );
       stage3d.scene.add(unitesGlb.group);
+      // VILLE-TRIPO T2 : la ville est un .glb (spec §structures.ville3d) —
+      // même pipeline, monde dédié (stats distinctes des unités).
+      if (VILLE3D && VILLE3D.kind === 'glb') {
+        villesGlb = new UnitesGLBWorld(new ChargeurModelesGLB(), () => { entitiesDirty = true; });
+        villesGlb.precharger([VILLE3D.glb]);
+        stage3d.scene.add(villesGlb.group);
+      }
       // TRAVAIL-VILLE-3D : contours 3D des worked tiles + rayon de cultivation.
       marqueurs3d = new Marqueurs3D();
       stage3d.scene.add(marqueurs3d.group);
@@ -1920,6 +1952,10 @@
     if (unitesGlb) {
       unitesGlb.dispose();
       unitesGlb = null;
+    }
+    if (villesGlb) {
+      villesGlb.dispose();
+      villesGlb = null;
     }
     if (marqueurs3d) {
       marqueurs3d.dispose();
