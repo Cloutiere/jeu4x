@@ -916,6 +916,16 @@ export const TUILE_PRAIRIE3D: EntreeUnite3D | null =
     ? null
     : parseEntreeUnite3D('tuilePrairie3d', structuresBrut.tuilePrairie3d);
 
+/** Visuel 3D de la TUILE plaine SOUS GRENIER (asset Tripo, décision d'Erik du
+ *  08/09) : bus de données CENTRAL allumé, 2 bus de chaque côté en cuivre
+ *  éteint (matériau `bus_cuivre`, zéro émissif). Posée sur les tuiles plaine
+ *  TRAVAILLÉES par une ville possédant le grenier (R-66 : +2 nourriture).
+ *  Absent = substrat procédural. */
+export const TUILE_PLAINE_GRENIER3D: EntreeUnite3D | null =
+  structuresBrut.tuilePlaineGrenier3d === undefined
+    ? null
+    : parseEntreeUnite3D('tuilePlaineGrenier3d', structuresBrut.tuilePlaineGrenier3d);
+
 export const STRUCTURES3D: SpecStructures = {
   slot: SLOT3D,
   formes: FORMES3D,

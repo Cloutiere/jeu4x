@@ -746,6 +746,12 @@
       "glb": "prairie_v1.glb",
       "echelle": 1.0,
       "rotation": 0
+    },
+    "tuilePlaineGrenier3d": {
+      "_comment": "Visuel 3D de la TUILE plaine d'une ville SOUS GRENIER (R-66 : +2 nourriture sur plaine ; decision d'Erik du 08/09) : bus de donnees CENTRAL allume, 2 bus de chaque cote en cuivre eteint. Posee sur les tuiles plaine TRAVAILLEES par une ville possedant le grenier. Absent = substrat procedural.",
+      "glb": "plaine_grenier_v1.glb",
+      "echelle": 1.0,
+      "rotation": 0
     }
   }
 }

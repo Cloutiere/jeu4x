@@ -46,3 +46,21 @@
 - **GameCanvas** : monde dédié `prairiesGlb`, une instance par tuile prairie de
   l'état filtré (visible = pleine, explorée = atténuée fog, inexplorée absente).
 - 189 tests verts, svelte-check 0 erreur.
+
+## Addendum 4 (08/09 — demande d'Erik) : TUILE plaine SOUS GRENIER en .glb
+
+- **Asset source** `image_ref/plaine_on_tripo.glb` (8 757 tris, 1 matériau texturé, empreinte
+  hexagonale comme la prairie) → **`assets-src/modeles/plaine_grenier_v1.glb`**.
+- **Les bus sont PEINTS dans la texture** (aucun relief) : nouvelle méthode de ciblage —
+  couverture néon par triangle en espace UV (texture décodée via `sharp`, seule dépendance
+  externe, déjà dans le dépôt ; NODE_PATH requis), puis regroupement en 5 bandes parallèles
+  détectées automatiquement (-0.430, -0.237, **+0.102 = centre**, +0.247, +0.441).
+- **Variante demandée** : bus central ALLUMÉ, 2 bus de chaque côté en **cuivre éteint** :
+  - triangles des bus latéraux → matériau `bus_cuivre` (couleur pleine `#B87333`, metal 0.6,
+    rough 0.6, ZÉRO émissif — 386 tris) ;
+  - carte émissive = texture source **masquée** (régions UV des bus latéraux noircies,
+    `captures/plaine-grenier-emissive.jpg`) — le bus central seul brille.
+- **Condition de jeu** : tuile `plaine` TRAVAILLÉE par une ville possédant le **grenier**
+  (R-66 : +2 nourriture sur plaine). Rendu par le même calque que les prairies (monde dédié,
+  capacité 2048). dy -0.099 cuit (affleure le prisme, glyphes de rendement au-dessus).
+- **Spec** `visuel3d.json` §`structures.tuilePlaineGrenier3d`. 190 tests verts, svelte-check 0 erreur.

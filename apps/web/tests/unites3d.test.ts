@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { tileKeyOf } from '@game/rules';
 import type { GameState } from '@game/rules';
-import { MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D, TERRAINS3D, gabaritUnite3D, entreeUnite3D, entreeUnite3DDe, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
+import { MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D, TUILE_PLAINE_GRENIER3D, TERRAINS3D, gabaritUnite3D, entreeUnite3D, entreeUnite3DDe, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
 import { planifierStructures } from '../src/lib/render3d/structures3d.js';
 import type { EntiteStructure, EntreeStructures } from '../src/lib/render3d/structures3d.js';
 import { aModele3D, unitesStructures, unitesGLBStructures } from '../src/lib/render3d/unites3d.js';
@@ -91,11 +91,12 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
       ...(VILLAGE_BARBARE3D && VILLAGE_BARBARE3D.kind === 'glb' ? [VILLAGE_BARBARE3D.glb] : []),
       ...(HUTTE_TRIPO3D && HUTTE_TRIPO3D.kind === 'glb' ? [HUTTE_TRIPO3D.glb] : []),
       ...(TUILE_PRAIRIE3D && TUILE_PRAIRIE3D.kind === 'glb' ? [TUILE_PRAIRIE3D.glb] : []),
+      ...(TUILE_PLAINE_GRENIER3D && TUILE_PLAINE_GRENIER3D.kind === 'glb' ? [TUILE_PLAINE_GRENIER3D.glb] : []),
     ].sort();
     // T4bis : barbare_v3 est branché via unites3dSurchargeProprietaire (owner
     // 'barbarien') — plus aucun orphelin, aucun fichier servi sans branchement.
     expect(mappes).toEqual(fichiers);
-    expect(fichiers.length).toBe(27);
+    expect(fichiers.length).toBe(28);
   });
 
   it('les types SANS entrée (civs uniques, GP, caravane…) gardent leur sprite 2D', () => {
