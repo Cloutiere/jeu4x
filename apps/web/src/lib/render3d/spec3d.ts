@@ -896,6 +896,15 @@ export const VILLAGE_BARBARE3D: EntreeUnite3D | null =
     ? null
     : parseEntreeUnite3D('villageBarbare3d', structuresBrut.villageBarbare3d);
 
+/** Visuel 3D de la HUTTE (amie/autonome, asset Tripo, décision d'Erik du
+ *  08/09) : même mécanique que `VILLAGE_BARBARE3D` — couleurs d'ORIGINE
+ *  (aucune teinte), luminosité par texture aussi branchée en emissiveMap.
+ *  Absent = fallback dôme procédural de `structures3d.ts`. */
+export const HUTTE_TRIPO3D: EntreeUnite3D | null =
+  structuresBrut.hutte3d === undefined
+    ? null
+    : parseEntreeUnite3D('hutte3d', structuresBrut.hutte3d);
+
 export const STRUCTURES3D: SpecStructures = {
   slot: SLOT3D,
   formes: FORMES3D,

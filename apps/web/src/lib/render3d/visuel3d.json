@@ -734,6 +734,12 @@
       "glb": "village_barbare_v1.glb",
       "echelle": 0.65,
       "rotation": 0
+    },
+    "hutte3d": {
+      "_comment": "Visuel 3D de la HUTTE (amie/autonome, asset Tripo, decision d'Erik du 08/09) : meme format que villageBarbare3d. Couleurs D'ORIGINE conservees (aucune teinte) ; meme traitement de luminosite que la ville (texture aussi en emissiveMap, force 0.7 cuite). Absent = fallback dome procedural de structures3d.",
+      "glb": "hutte_v1.glb",
+      "echelle": 0.3,
+      "rotation": 0
     }
   }
 }

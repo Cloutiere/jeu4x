@@ -44,7 +44,7 @@
   // Fonderie T3 — calque des unités à modèle .glb (chargement en cache,
   // teinte joueur par propriétaire, instancing ; cf. unitesglb.ts).
   import { ChargeurModelesGLB, UnitesGLBWorld } from '../render3d/unitesglb.js';
-  import { MODELES_UNITES3D, VILLE3D, VILLAGE_BARBARE3D } from '../render3d/spec3d.js';
+  import { MODELES_UNITES3D, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D } from '../render3d/spec3d.js';
   // VILLE-TRIPO T2 — entrée .glb d'une ville (même format que le catalogue unités).
   import type { UniteGLBEntree } from '../render3d/unites3d.js';
   // TRAVAIL-VILLE-3D — contours en vraie 3D : cadres des cases travaillées +
@@ -197,6 +197,8 @@
   // VILLAGE barbare (asset Tripo, 08/09) : même mécanique — SANS teinte (le
   // .glb n'a pas de matériau accent_joueur, ses couleurs d'origine tiennent).
   let villagesGlb: UnitesGLBWorld | null = null;
+  // HUTTE (asset Tripo, 08/09) : idem — couleurs d'origine, sans teinte.
+  let huttesGlb: UnitesGLBWorld | null = null;
   // TRAVAIL-VILLE-3D : contours 3D (worked tiles + rayon de cultivation).
   let marqueurs3d: Marqueurs3D | null = null;
   let canvas3d: HTMLCanvasElement | null = null;
@@ -1414,7 +1416,25 @@
         });
       }
     }
-    const huttes = state.huts.map((h) => ({ id: h.id, q: h.q, r: h.r, fog: scene.visible.has(tileKeyOf(h)) ? 'visible' as const : 'explored' as const, terrain: state.map[tileKeyOf(h)]?.terrain }));
+    // HUTTE .glb (08/09) : même bascule que les villages — hors planificateur
+    // (dôme procédural retiré du rendu, fallback si spec absente).
+    const hutteGlb = HUTTE_TRIPO3D && HUTTE_TRIPO3D.kind === 'glb' ? HUTTE_TRIPO3D : null;
+    const huttes: Parameters<typeof planifierStructures>[0]['huttes'] = [];
+    const huttesGlbEntrees: UniteGLBEntree[] = [];
+    for (const h of state.huts) {
+      if (!scene.visible.has(tileKeyOf(h))) continue;
+      const fog = scene.visible.has(tileKeyOf(h)) ? 'visible' as const : 'explored' as const;
+      if (hutteGlb) {
+        huttesGlbEntrees.push({
+          id: h.id, q: h.q, r: h.r, fog,
+          terrain: state.map[tileKeyOf(h)]?.terrain,
+          owner: 'barbarien', // aucun matériau accent_joueur dans le .glb : la teinte est sans effet
+          glb: hutteGlb.glb, echelle: hutteGlb.echelle, rotation: hutteGlb.rotation, survol: hutteGlb.survol,
+        });
+      } else {
+        huttes.push({ id: h.id, q: h.q, r: h.r, fog, terrain: state.map[tileKeyOf(h)]?.terrain });
+      }
+    }
     // VILLAGE barbare .glb (08/09) : même bascule que les villes — hors
     // planificateur (dôme procédural retiré du rendu, fallback si spec absente).
     const villageGlb = VILLAGE_BARBARE3D && VILLAGE_BARBARE3D.kind === 'glb' ? VILLAGE_BARBARE3D : null;
@@ -1459,6 +1479,8 @@
     villesGlb?.update(villesGlbEntrees, playerColor);
     // VILLAGE barbare : même pipeline, SANS teinte (couleurs d'origine).
     villagesGlb?.update(villagesGlbEntrees, playerColor);
+    // HUTTE : même pipeline, SANS teinte.
+    huttesGlb?.update(huttesGlbEntrees, playerColor);
   }
 
   /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping linéaire. */
@@ -1851,6 +1873,12 @@
         villagesGlb.precharger([VILLAGE_BARBARE3D.glb]);
         stage3d.scene.add(villagesGlb.group);
       }
+      // HUTTE .glb (idem, sans teinte).
+      if (HUTTE_TRIPO3D && HUTTE_TRIPO3D.kind === 'glb') {
+        huttesGlb = new UnitesGLBWorld(new ChargeurModelesGLB(), () => { entitiesDirty = true; });
+        huttesGlb.precharger([HUTTE_TRIPO3D.glb]);
+        stage3d.scene.add(huttesGlb.group);
+      }
       // TRAVAIL-VILLE-3D : contours 3D des worked tiles + rayon de cultivation.
       marqueurs3d = new Marqueurs3D();
       stage3d.scene.add(marqueurs3d.group);
@@ -2041,6 +2069,10 @@
     if (villagesGlb) {
       villagesGlb.dispose();
       villagesGlb = null;
+    }
+    if (huttesGlb) {
+      huttesGlb.dispose();
+      huttesGlb = null;
     }
     if (marqueurs3d) {
       marqueurs3d.dispose();

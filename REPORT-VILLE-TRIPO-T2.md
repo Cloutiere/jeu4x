@@ -16,3 +16,16 @@
   demande).
 - 186 tests verts (2 nouveaux), svelte-check 0 erreur. Capture fonderie :
   `captures/village-barbare-v1.png`.
+
+## Addendum 2 (08/09 — demande d'Erik) : HUTTES en .glb
+
+- **Nouvel asset** `image_ref/hutte_tripo.glb` (6 446 tris, 1 matériau texturé, origine au sol,
+  1,0 de haut) → **`assets-src/modeles/hutte_v1.glb`** + `public/modeles/`.
+- Même traitement que le village (`preparer-structure-tripo.mjs`, force 0.7) : couleurs d'ORIGINE,
+  luminosité par texture aussi en emissiveMap.
+- **Spec** `visuel3d.json` §`structures.hutte3d` : `{ glb, echelle: 0.3, rotation: 0 }` (calée sur
+  le dôme procédural rayon 0,17). Absent = fallback dôme procédural. Export `HUTTE_TRIPO3D`
+  (le nom `HUTTE3D` était déjà pris par la spec procédurale du dôme).
+- **GameCanvas** : même bascule que les villages — huttes hors planificateur quand la spec existe,
+  monde `UnitesGLBWorld` dédié.
+- 188 tests verts, svelte-check 0 erreur.

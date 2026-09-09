@@ -119,11 +119,11 @@ describe('atelier — catalogue L0', () => {
     const exposes = idsDe('structures3d').filter((id) => id.startsWith('uniteglb:')).map((id) => id.slice('uniteglb:'.length)).sort();
     // barbare_v3.glb n'a pas de type moteur : il est branché par la table
     // unites3dSurchargeProprietaire (owner 'barbarien') — fiche catalogue 🔶.
-    // ville_v1.glb (VILLE-TRIPO T2) et village_barbare_v1.glb (08/09) :
-    // visuels de STRUCTURES, hors catalogue unités.
-    const structures = ['barbare_v3.glb', 'ville_v1.glb', 'village_barbare_v1.glb'];
+    // ville_v1.glb, village_barbare_v1.glb et hutte_v1.glb (VILLE-TRIPO T2 +
+    // 08/09) : visuels de STRUCTURES, hors catalogue unités.
+    const structures = ['barbare_v3.glb', 'ville_v1.glb', 'village_barbare_v1.glb', 'hutte_v1.glb'];
     expect(exposes).toEqual(fichiers.filter((f) => !structures.includes(f)));
-    expect(fichiers.length).toBe(25);
+    expect(fichiers.length).toBe(26);
   });
 
   it('les overlays (effets programmatiques) sont des fiches sans fichier', () => {
