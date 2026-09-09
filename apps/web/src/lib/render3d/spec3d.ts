@@ -905,6 +905,17 @@ export const HUTTE_TRIPO3D: EntreeUnite3D | null =
     ? null
     : parseEntreeUnite3D('hutte3d', structuresBrut.hutte3d);
 
+/** Visuel 3D de la TUILE prairie (asset Tripo, décision d'Erik du 08/09) :
+ *  recouvre le prisme procédural sans le remplacer — l'asset épouse l'hexagone
+ *  (échelle 1.0) et son `dy` cuit (-0.095) affleure le haut du prisme, les
+ *  glyphes de rendement restent posés au-dessus. Couleurs d'ORIGINE (aucune
+ *  teinte), luminosité par texture aussi en emissiveMap. Absent = substrat
+ *  procédural seul. */
+export const TUILE_PRAIRIE3D: EntreeUnite3D | null =
+  structuresBrut.tuilePrairie3d === undefined
+    ? null
+    : parseEntreeUnite3D('tuilePrairie3d', structuresBrut.tuilePrairie3d);
+
 export const STRUCTURES3D: SpecStructures = {
   slot: SLOT3D,
   formes: FORMES3D,

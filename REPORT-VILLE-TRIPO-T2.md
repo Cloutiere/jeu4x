@@ -29,3 +29,20 @@
 - **GameCanvas** : même bascule que les villages — huttes hors planificateur quand la spec existe,
   monde `UnitesGLBWorld` dédié.
 - 188 tests verts, svelte-check 0 erreur.
+
+## Addendum 3 (08/09 — demande d'Erik) : TUILE prairie en .glb
+
+- **Nouvel asset** `image_ref/prairie.glb` (4 994 tris, 1 matériau texturé) →
+  **`assets-src/modeles/prairie_v1.glb`** + `public/modeles/`.
+- L'asset ÉPOUSE déjà l'hexagone (empreinte 0,858 × 1,0 pour un hex 0,866 × 1,0) :
+  **échelle 1.0, rotation 0**. `dy` -0.095 cuit dans le nœud (nouveau paramètre de
+  `preparer-structure-tripo.mjs` — translation JSON, binaire intact) pour que sa
+  surface AFFLEURE le haut du prisme : substrat procédural conservé dessous (coins
+  de l'hex), **glyphes de rendement (voies de nourriture) toujours visibles
+  au-dessus**. Couleurs d'ORIGINE, émissif 0.7.
+- **Spec** `visuel3d.json` §`structures.tuilePrairie3d` (absent = substrat seul).
+- **`unitesglb.ts`** : capacité des pools paramétrable (défaut 512) — le calque
+  prairie utilise 2048 (jusqu'à ~1600 tuiles sur 40×40).
+- **GameCanvas** : monde dédié `prairiesGlb`, une instance par tuile prairie de
+  l'état filtré (visible = pleine, explorée = atténuée fog, inexplorée absente).
+- 189 tests verts, svelte-check 0 erreur.

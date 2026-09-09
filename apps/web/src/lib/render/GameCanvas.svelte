@@ -44,7 +44,7 @@
   // Fonderie T3 — calque des unités à modèle .glb (chargement en cache,
   // teinte joueur par propriétaire, instancing ; cf. unitesglb.ts).
   import { ChargeurModelesGLB, UnitesGLBWorld } from '../render3d/unitesglb.js';
-  import { MODELES_UNITES3D, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D } from '../render3d/spec3d.js';
+  import { MODELES_UNITES3D, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D } from '../render3d/spec3d.js';
   // VILLE-TRIPO T2 — entrée .glb d'une ville (même format que le catalogue unités).
   import type { UniteGLBEntree } from '../render3d/unites3d.js';
   // TRAVAIL-VILLE-3D — contours en vraie 3D : cadres des cases travaillées +
@@ -199,6 +199,9 @@
   let villagesGlb: UnitesGLBWorld | null = null;
   // HUTTE (asset Tripo, 08/09) : idem — couleurs d'origine, sans teinte.
   let huttesGlb: UnitesGLBWorld | null = null;
+  // TUILE prairie (asset Tripo, 08/09) : recouvrement du prisme procédural —
+  // capacité large (1 instance par tuile prairie, jusqu'à ~1600 sur 40×40).
+  let prairiesGlb: UnitesGLBWorld | null = null;
   // TRAVAIL-VILLE-3D : contours 3D (worked tiles + rayon de cultivation).
   let marqueurs3d: Marqueurs3D | null = null;
   let canvas3d: HTMLCanvasElement | null = null;
@@ -1481,6 +1484,28 @@
     villagesGlb?.update(villagesGlbEntrees, playerColor);
     // HUTTE : même pipeline, SANS teinte.
     huttesGlb?.update(huttesGlbEntrees, playerColor);
+    // TUILE prairie : recouvrement du prisme (visible ET explorée — le
+    // inexploré reste absent, miroir du terrain procédural), SANS teinte.
+    if (prairiesGlb) {
+      const tuilePrairie = TUILE_PRAIRIE3D && TUILE_PRAIRIE3D.kind === 'glb' ? TUILE_PRAIRIE3D : null;
+      const prairiesGlbEntrees: UniteGLBEntree[] = [];
+      if (tuilePrairie) {
+        for (const [key, tile] of Object.entries(state.map)) {
+          if (tile.terrain !== 'prairie') continue;
+          // l'état filtré ne contient QUE les cases explorées (inexploré absent)
+          const [q, r] = key.split(',').map(Number);
+          if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+          prairiesGlbEntrees.push({
+            id: `prairie:${key}`, q, r,
+            fog: scene.visible.has(key) ? 'visible' : 'explored',
+            terrain: tile.terrain,
+            owner: 'barbarien', // aucun matériau accent_joueur : la teinte est sans effet
+            glb: tuilePrairie.glb, echelle: tuilePrairie.echelle, rotation: tuilePrairie.rotation, survol: tuilePrairie.survol,
+          });
+        }
+      }
+      prairiesGlb.update(prairiesGlbEntrees, playerColor);
+    }
   }
 
   /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping linéaire. */
@@ -1879,6 +1904,12 @@
         huttesGlb.precharger([HUTTE_TRIPO3D.glb]);
         stage3d.scene.add(huttesGlb.group);
       }
+      // TUILE prairie .glb (recouvrement, sans teinte) — capacité 2048.
+      if (TUILE_PRAIRIE3D && TUILE_PRAIRIE3D.kind === 'glb') {
+        prairiesGlb = new UnitesGLBWorld(new ChargeurModelesGLB(), () => { entitiesDirty = true; }, 2048);
+        prairiesGlb.precharger([TUILE_PRAIRIE3D.glb]);
+        stage3d.scene.add(prairiesGlb.group);
+      }
       // TRAVAIL-VILLE-3D : contours 3D des worked tiles + rayon de cultivation.
       marqueurs3d = new Marqueurs3D();
       stage3d.scene.add(marqueurs3d.group);
@@ -2073,6 +2104,10 @@
     if (huttesGlb) {
       huttesGlb.dispose();
       huttesGlb = null;
+    }
+    if (prairiesGlb) {
+      prairiesGlb.dispose();
+      prairiesGlb = null;
     }
     if (marqueurs3d) {
       marqueurs3d.dispose();

@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { RESOURCES, RESOURCE_UNKNOWN, BUILDINGS, tileKeyOf, makeState, getFilteredState } from '@game/rules';
 import type { Hex } from '@game/rules';
-import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D } from '../src/lib/render3d/spec3d.js';
+import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D } from '../src/lib/render3d/spec3d.js';
 import {
   planifierStructures, palierDe, estCarteNeutre, peindrePicto, StructuresWorld, creerGuerrierHumain,
 } from '../src/lib/render3d/structures3d.js';
@@ -106,6 +106,13 @@ describe('HUTTE .glb (asset Tripo, décision Erik 08/09)', () => {
   it('le fallback dôme procédural reste planifiable (atelier)', () => {
     const plan = planifierStructures(entree({ huttes: [{ id: 'h', q: 1, r: 1, fog: 'visible', terrain: 'prairie' }] }));
     expect(plan.get('hutte')).toHaveLength(1);
+  });
+});
+
+describe('TUILE prairie .glb (asset Tripo, décision Erik 08/09)', () => {
+  it('la spec §structures.tuilePrairie3d pointe l’asset (épouse l’hexagone : échelle 1.0)', () => {
+    expect(TUILE_PRAIRIE3D).not.toBeNull();
+    expect(TUILE_PRAIRIE3D).toMatchObject({ kind: 'glb', glb: 'prairie_v1.glb', echelle: 1.0 });
   });
 });
 

@@ -136,6 +136,7 @@ export class ChargeurModelesGLB {
   }
 }
 
+/** Capacité par défaut des pools (512 unités ; garde-fou au-delà). */
 const CAPACITE = 512;
 
 interface PoolGLB { pool: Pool; }
@@ -178,6 +179,9 @@ export class UnitesGLBWorld {
     /** Rappel après chaque chargement — le consommateur relance son update
      *  (les unités apparaissent dès que leur modèle est prêt). */
     private onCharge: (() => void) | null = null,
+    /** Capacité des pools (défaut 512 unités ; les calques de STRUCTURES par
+     *  tuile — prairies — peuvent dépasser 512 instances sur grande carte). */
+    private capacite: number = CAPACITE,
   ) {}
 
   /** Préchauffe les modèles du catalogue (appelé à l'init du monde). */
@@ -265,7 +269,7 @@ export class UnitesGLBWorld {
             mat.color.copy(p.mat.color).multiply(new THREE.Color(accentDim));
             this.materiauxClones.push(mat);
           }
-          entry = { pool: new Pool(p.geo, mat, CAPACITE, this.group) };
+          entry = { pool: new Pool(p.geo, mat, this.capacite, this.group) };
           this.pools.set(cle, entry);
         }
         entry.pool.push(this.tmpMatrix, this.tmpColor.set(fogClair));
