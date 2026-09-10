@@ -115,3 +115,15 @@
   recuite dy −0.095 → **−0.103** (rebord prairie −0.016 = rebord plaine ; plateaux
   −0.032 vs −0.041, quasi égaux). dy plaine revient à −0.099.
 - Fichiers prairie/plaine régénérés et repromus.
+
+## Addendum 10 (08/09 — hauteur : la forêt est l'étalon)
+
+- Constat terrain (Erik) : 3 hauteurs visibles — prairie trop haute, plaine trop basse,
+  référence = la tuile forêt PROCÉDURALE (top à y=0 exactement).
+- Le rendu de profil des fichiers déployés (`captures/tuiles-profil.png`) montrait des
+  fichiers affleurants ±0.016 : les écarts venaient des CACHES edge Cloudflare qui servaient
+  des versions périmées DIFFÉRENTES par URL (chaque correctif dy ne propageait pas partout).
+- **Solution définitive : renommage v2** (URLs jamais mises en cache) —
+  `prairie_v2.glb` (dy -0.095), `plaine_v2.glb` (dy -0.182), `plaine_grenier_v2.glb`
+  (dy -0.182) : les trois rebords à 0.000 = niveau forêt. Anciens v1 retirés de
+  `public/modeles/`, specs et tests mis à jour. 191 tests verts, svelte-check 0 erreur.

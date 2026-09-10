@@ -121,7 +121,7 @@ describe('atelier — catalogue L0', () => {
     // unites3dSurchargeProprietaire (owner 'barbarien') — fiche catalogue 🔶.
     // ville_v1.glb, village_barbare_v1.glb et hutte_v1.glb (VILLE-TRIPO T2 +
     // 08/09) : visuels de STRUCTURES, hors catalogue unités.
-    const structures = ['barbare_v3.glb', 'ville_v1.glb', 'village_barbare_v1.glb', 'hutte_v1.glb', 'prairie_v1.glb', 'plaine_v1.glb', 'plaine_grenier_v1.glb'];
+    const structures = ['barbare_v3.glb', 'ville_v1.glb', 'village_barbare_v1.glb', 'hutte_v1.glb', 'prairie_v2.glb', 'plaine_v2.glb', 'plaine_grenier_v2.glb'];
     expect(exposes).toEqual(fichiers.filter((f) => !structures.includes(f)));
     expect(fichiers.length).toBe(29);
   });

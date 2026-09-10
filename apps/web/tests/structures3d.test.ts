@@ -112,18 +112,18 @@ describe('HUTTE .glb (asset Tripo, décision Erik 08/09)', () => {
 describe('TUILE prairie .glb (asset Tripo, décision Erik 08/09)', () => {
   it('la spec §structures.tuilePrairie3d pointe l’asset (épouse l’hexagone : échelle 1.0)', () => {
     expect(TUILE_PRAIRIE3D).not.toBeNull();
-    expect(TUILE_PRAIRIE3D).toMatchObject({ kind: 'glb', glb: 'prairie_v1.glb', echelle: 2.0 });
+    expect(TUILE_PRAIRIE3D).toMatchObject({ kind: 'glb', glb: 'prairie_v2.glb', echelle: 2.0 });
   });
 });
 
 describe('TUILE plaine .glb (asset Tripo, décision Erik 08/09)', () => {
   it('la spec §structures.tuilePlaine3d pointe la variante de BASE (bus central allumé, échelle 2.0)', () => {
     expect(TUILE_PLAINE3D).not.toBeNull();
-    expect(TUILE_PLAINE3D).toMatchObject({ kind: 'glb', glb: 'plaine_v1.glb', echelle: 2.0 });
+    expect(TUILE_PLAINE3D).toMatchObject({ kind: 'glb', glb: 'plaine_v2.glb', echelle: 2.0 });
   });
   it('la variante §structures.tuilePlaineGrenier3d (TOUS les bus allumés) pointe l’asset « plaine on »', () => {
     expect(TUILE_PLAINE_GRENIER3D).not.toBeNull();
-    expect(TUILE_PLAINE_GRENIER3D).toMatchObject({ kind: 'glb', glb: 'plaine_grenier_v1.glb', echelle: 2.0 });
+    expect(TUILE_PLAINE_GRENIER3D).toMatchObject({ kind: 'glb', glb: 'plaine_grenier_v2.glb', echelle: 2.0 });
   });
 });
 
