@@ -107,3 +107,11 @@
   plateau conservé en creux d'origine). Mesure par percentiles des faces supérieures
   (normales > 0.9) dans les deux fichiers.
 - Fichiers régénérés et repromus ; ni spec ni code changés.
+
+## Addendum 9 (08/09 — retour d'Erik, correction de l'addendum 8)
+
+- L'alignement sur 0 (rebord prairie) SUR-CORRIGEAIT : la plaine passait au-dessus.
+- **Repère correct = le niveau du rebord de la PLAINE (−0.016 en unités jeu)** : prairie
+  recuite dy −0.095 → **−0.103** (rebord prairie −0.016 = rebord plaine ; plateaux
+  −0.032 vs −0.041, quasi égaux). dy plaine revient à −0.099.
+- Fichiers prairie/plaine régénérés et repromus.
