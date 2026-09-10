@@ -23,7 +23,7 @@ const require = createRequire(import.meta.url);
 const sharp = require('sharp');
 
 const SOURCE = 'C:/Users/Erik/ZCodeProject/image_ref/plaine_on_tripo.glb';
-const SORTIE = 'C:/Users/Erik/ZCodeProject/fonderie/modeles/plaine_grenier_v1.glb';
+const SORTIE = 'C:/Users/Erik/ZCodeProject/fonderie/modeles/plaine_v1.glb';
 
 const S = {
   neonG: 130,           // seuil de vert pour un pixel « néon »
@@ -220,7 +220,7 @@ const glb = construireGLB({
     { data: jpegEmissif, mimeType: 'image/jpeg' },   // émissive masquée
   ],
   extensionsUtilisees: ['KHR_materials_emissive_strength'],
-  nom: 'plaine_grenier_v1',
+  nom: 'plaine_v1',
 });
 writeFileSync(SORTIE, glb);
 console.log(`${SORTIE} écrit : ${NT} tris, 2 matériaux, dy ${S.dy}, echelle ${E}`);

@@ -85,3 +85,16 @@
   ville possédant le grenier CONSTRUIT — dans une partie neuve, rien à voir tant qu'aucun
   grenier n'est bâti (comportement attendu, confirmé à Erik).
 - 190 tests verts, svelte-check 0 erreur.
+
+## Addendum 7 (08/09 — clarification d'Erik) : les DEUX variantes de plaine
+
+- **plaine_v1.glb** (base, bus central allumé + bus latéraux cuivre éteint — la version
+  fabriquée par `habiller-plaine-grenier.mjs`) : REMPLACE le substrat procédural sur
+  **TOUTES** les tuiles plaine. Spec §`structures.tuilePlaine3d` (echelle 2.0).
+- **plaine_grenier_v1.glb** (l'asset « plaine on » fourni par Erik, TOUS les bus allumés,
+  texture intacte + emissive 0.7 via `preparer-structure-tripo.mjs`) : posée à la place de
+  la base sur les plaines TRAVAILLÉES par une ville au grenier (R-66).
+  Spec §`structures.tuilePlaineGrenier3d` (echelle 2.0).
+- `clesTuilesGlb()` : prairies + plaines (toujours recouvertes) ; la variante grenier est
+  choisie dans le calque selon `workedTileOwner()` + `buildings.includes('grenier')`.
+- 191 tests verts, svelte-check 0 erreur.

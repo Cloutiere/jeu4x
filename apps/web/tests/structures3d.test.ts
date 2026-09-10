@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { RESOURCES, RESOURCE_UNKNOWN, BUILDINGS, tileKeyOf, makeState, getFilteredState } from '@game/rules';
 import type { Hex } from '@game/rules';
-import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D, TUILE_PLAINE_GRENIER3D } from '../src/lib/render3d/spec3d.js';
+import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D, TUILE_PLAINE3D, TUILE_PLAINE_GRENIER3D } from '../src/lib/render3d/spec3d.js';
 import {
   planifierStructures, palierDe, estCarteNeutre, peindrePicto, StructuresWorld, creerGuerrierHumain,
 } from '../src/lib/render3d/structures3d.js';
@@ -116,8 +116,12 @@ describe('TUILE prairie .glb (asset Tripo, décision Erik 08/09)', () => {
   });
 });
 
-describe('TUILE plaine grenier .glb (asset Tripo, décision Erik 08/09)', () => {
-  it('la spec §structures.tuilePlaineGrenier3d pointe l’asset (échelle 1.0, même gabarit que la prairie)', () => {
+describe('TUILE plaine .glb (asset Tripo, décision Erik 08/09)', () => {
+  it('la spec §structures.tuilePlaine3d pointe la variante de BASE (bus central allumé, échelle 2.0)', () => {
+    expect(TUILE_PLAINE3D).not.toBeNull();
+    expect(TUILE_PLAINE3D).toMatchObject({ kind: 'glb', glb: 'plaine_v1.glb', echelle: 2.0 });
+  });
+  it('la variante §structures.tuilePlaineGrenier3d (TOUS les bus allumés) pointe l’asset « plaine on »', () => {
     expect(TUILE_PLAINE_GRENIER3D).not.toBeNull();
     expect(TUILE_PLAINE_GRENIER3D).toMatchObject({ kind: 'glb', glb: 'plaine_grenier_v1.glb', echelle: 2.0 });
   });

@@ -921,6 +921,11 @@ export const TUILE_PRAIRIE3D: EntreeUnite3D | null =
  *  éteint (matériau `bus_cuivre`, zéro émissif). Posée sur les tuiles plaine
  *  TRAVAILLÉES par une ville possédant le grenier (R-66 : +2 nourriture).
  *  Absent = substrat procédural. */
+export const TUILE_PLAINE3D: EntreeUnite3D | null =
+  structuresBrut.tuilePlaine3d === undefined
+    ? null
+    : parseEntreeUnite3D('tuilePlaine3d', structuresBrut.tuilePlaine3d);
+
 export const TUILE_PLAINE_GRENIER3D: EntreeUnite3D | null =
   structuresBrut.tuilePlaineGrenier3d === undefined
     ? null
