@@ -119,7 +119,7 @@ describe('TUILE prairie .glb (asset Tripo, décision Erik 08/09)', () => {
 describe('TUILE plaine grenier .glb (asset Tripo, décision Erik 08/09)', () => {
   it('la spec §structures.tuilePlaineGrenier3d pointe l’asset (échelle 1.0, même gabarit que la prairie)', () => {
     expect(TUILE_PLAINE_GRENIER3D).not.toBeNull();
-    expect(TUILE_PLAINE_GRENIER3D).toMatchObject({ kind: 'glb', glb: 'plaine_grenier_v1.glb', echelle: 1.0 });
+    expect(TUILE_PLAINE_GRENIER3D).toMatchObject({ kind: 'glb', glb: 'plaine_grenier_v1.glb', echelle: 2.0 });
   });
 });
 

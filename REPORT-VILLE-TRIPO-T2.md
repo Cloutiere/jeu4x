@@ -64,3 +64,13 @@
   (R-66 : +2 nourriture sur plaine). Rendu par le même calque que les prairies (monde dédié,
   capacité 2048). dy -0.099 cuit (affleure le prisme, glyphes de rendement au-dessus).
 - **Spec** `visuel3d.json` §`structures.tuilePlaineGrenier3d`. 190 tests verts, svelte-check 0 erreur.
+
+## Addendum 5 (08/09 — retour d'Erik en ligne) : la tuile grenier REMPLACE le substrat
+
+- **Échelle corrigée 1.0 → 2.0** : l'asset fait la MOITIÉ de l'hexagone (le dy cuit -0.099
+  passe à -0.198 avec l'échelle d'instance — la surface affleure toujours).
+- **Masquage du substrat** : `TerrainWorld.update(tiles, recouvertes?)` — pour les tuiles
+  plaine sous grenier (helper partagé `clesPlaineGrenier()` dans GameCanvas), la face
+  supérieure procédurale et ses glyphes sont sautés ; **les parois restent** (pas de trou
+  dans le plateau).
+- 190 tests verts, svelte-check 0 erreur.

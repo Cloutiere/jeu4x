@@ -275,8 +275,11 @@ export class TerrainWorld {
   /**
    * Reconstruit toutes les instances depuis la liste de tuiles à dessiner.
    * L'inexploré n'arrive jamais ici (absent = invisible, §4.4). Coût mesuré.
+   * `recouvertes` : clés de tuiles dont le substrat est REMPLACÉ par un asset
+   * .glb (VILLE-TRIPO T2, plaine grenier) — face supérieure et glyphes
+   * masqués, parois conservées (le plateau ne se troue pas).
    */
-  update(tiles: TileDraw[]): void {
+  update(tiles: TileDraw[], recouvertes?: Set<string>): void {
     const t0 = performance.now();
     if (tiles.length > this.capacities) this.allocate(Math.ceil(tiles.length * 1.25));
     for (const p of [this.walls, this.busLit, this.busDim, this.cpuSocle, this.dieLit, this.dieDim, this.pins, this.ramSocle, this.stickLit, this.stickDim, ...this.tops.values()]) p.used = 0;
@@ -296,11 +299,15 @@ export class TerrainWorld {
       if (!spec) continue;
       const { x, z } = hexWorldPos({ q: t.q, r: t.r });
       const tint = t.fog === 'visible' ? white : dim;
+      const recouverte = recouvertes?.has(`${t.q},${t.r}`) === true;
 
-      // prisme : top à elev, parois de elev à BAS
-      pos.set(x, spec.elev, z); scale.set(1, 1, 1); q.identity();
-      m.compose(pos, q, scale);
-      this.tops.get(t.terrain)?.push(m, tint);
+      // prisme : top à elev, parois de elev à BAS — top sauté si la tuile est
+      // remplacée par un .glb (les parois restent : pas de trou dans le plateau)
+      if (!recouverte) {
+        pos.set(x, spec.elev, z); scale.set(1, 1, 1); q.identity();
+        m.compose(pos, q, scale);
+        this.tops.get(t.terrain)?.push(m, tint);
+      }
       pos.set(x, spec.elev, z);
       scale.set(1, spec.elev - BAS, 1);
       m.compose(pos, q, scale);
@@ -309,6 +316,7 @@ export class TerrainWorld {
       this.tmpColor.copy(cote).multiply(tint);
       this.walls.push(m, this.tmpColor);
 
+      if (recouverte) continue; // glyphes masqués avec le substrat
       if (!spec.glyphe) continue; // case de ville / cratère : structure, pas de glyphes
 
       // Cases explorées-masquées : glyphes tous PÂLES (le néon = rendement actif,
