@@ -1068,15 +1068,19 @@
    * gratuit, R-60). Sert à l'overlay de rendements pour choisir l'icône
    * or/science selon la conversion de la ville.
    */
-  /** Clés des tuiles plaine TRAVAILLÉES par une ville au grenier (R-66) —
+  /** Clés des tuiles dont le substrat est REMPLACÉ par un .glb : prairies
+   *  (toujours) + plaines TRAVAILLÉES par une ville au grenier (R-66) —
    *  partagé par le calque .glb (pose de l'asset) et le terrain (masquage du
    *  substrat remplacé). */
-  function clesPlaineGrenier(): Set<string> {
+  function clesTuilesGlb(): Set<string> {
     const out = new Set<string>();
-    if (!TUILE_PLAINE_GRENIER3D || !scene.state) return out;
+    if (!scene.state) return out;
+    const grenier = TUILE_PLAINE_GRENIER3D
+      ? workedTileOwner()
+      : null;
     for (const [key, tile] of Object.entries(scene.state.map)) {
-      if (tile.terrain !== 'plaine') continue;
-      if (workedTileOwner().get(key)?.buildings?.includes('grenier')) out.add(key);
+      if (tile.terrain === 'prairie' && TUILE_PRAIRIE3D) { out.add(key); continue; }
+      if (tile.terrain === 'plaine' && grenier?.get(key)?.buildings?.includes('grenier')) out.add(key);
     }
     return out;
   }
@@ -1385,10 +1389,11 @@
         allume: allumeDe(rendement, key),
       });
     }
-    // VILLE-TRIPO T2 : les plaines sous grenier ont leur substrat REMPLACÉ par
-    // l'asset .glb (le calque recouvrement pose la tuile ; le haut procédural
-    // et ses glyphes sont masqués, les parois restent).
-    terrain3d.update(tiles, clesPlaineGrenier());
+    // VILLE-TRIPO T2 : prairies ET plaines sous grenier ont leur substrat
+    // REMPLACÉ par l'asset .glb (le calque recouvrement pose la tuile ; le haut
+    // procédural et ses glyphes sont masqués, les parois restent).
+    const recouvertes = clesTuilesGlb();
+    terrain3d.update(tiles, recouvertes);
   }
 
   /** Construit les données de la couche STRUCTURES 3D (V2) depuis l'état
@@ -1510,14 +1515,14 @@
       const tuilePlaineGrenier = TUILE_PLAINE_GRENIER3D && TUILE_PLAINE_GRENIER3D.kind === 'glb' ? TUILE_PLAINE_GRENIER3D : null;
       const prairiesGlbEntrees: UniteGLBEntree[] = [];
       if (tuilePrairie || tuilePlaineGrenier) {
-        const plaineGrenier = clesPlaineGrenier();
+        const recouvertes = clesTuilesGlb();
         for (const [key, tile] of Object.entries(state.map)) {
           // l'état filtré ne contient QUE les cases explorées (inexploré absent)
           const [q, r] = key.split(',').map(Number);
           if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
           const fog = scene.visible.has(key) ? 'visible' as const : 'explored' as const;
           // grenier : la ville qui travaille cette plaine possède le bâtiment
-          const spec = tuilePlaineGrenier && plaineGrenier.has(key) ? tuilePlaineGrenier
+          const spec = tuilePlaineGrenier && recouvertes.has(key) && tile.terrain === 'plaine' ? tuilePlaineGrenier
             : tile.terrain === 'prairie' ? tuilePrairie : null;
           if (!spec) continue;
           prairiesGlbEntrees.push({

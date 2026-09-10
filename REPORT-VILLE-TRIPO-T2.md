@@ -74,3 +74,14 @@
   supérieure procédurale et ses glyphes sont sautés ; **les parois restent** (pas de trou
   dans le plateau).
 - 190 tests verts, svelte-check 0 erreur.
+
+## Addendum 6 (08/09 — retour d'Erik en ligne) : la prairie REMPLACE aussi le substrat
+
+- **Prairie : échelle 1.0 → 2.0** + masquage du substrat procédural sous les tuiles prairie
+  (haut + glyphes sautés, parois conservées) — même mécanique que la plaine grenier.
+- Helper généralisé `clesTuilesGlb()` : clés des tuiles remplacées (prairies + plaines sous
+  grenier), partagé terrain ↔ calque .glb.
+- **Note condition plaine grenier** : la tuile n'apparaît que sur une plaine TRAVAILLÉE par une
+  ville possédant le grenier CONSTRUIT — dans une partie neuve, rien à voir tant qu'aucun
+  grenier n'est bâti (comportement attendu, confirmé à Erik).
+- 190 tests verts, svelte-check 0 erreur.

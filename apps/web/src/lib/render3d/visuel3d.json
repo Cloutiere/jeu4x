@@ -742,9 +742,9 @@
       "rotation": 0
     },
     "tuilePrairie3d": {
-      "_comment": "Visuel 3D de la TUILE prairie (asset Tripo, decision d'Erik du 08/09) : recouvre le prisme procedural (echelle 1.0 = l'asset epouse deja l'hexagone 0.866x1.0 ; dy -0.095 cuit pour que sa surface affleure le haut du prisme, les glyphes de rendement restent visibles au-dessus). Couleurs d'ORIGINE, luminosite par texture aussi en emissiveMap (0.7). Absent = substrat procedural seul. echelle/rotation calibrables sans code.",
+      "_comment": "Visuel 3D de la TUILE prairie (asset Tripo, decision d'Erik du 08/09) : REMPLACE le substrat procedural — echelle 2.0 (l'asset fait la moitie de l'hexagone ; le dy cuit -0.095 passe a -0.19 avec l'echelle, la surface affleure) et masquage du haut procedural + glyphes sous les tuiles prairie (parois conservees). Couleurs d'ORIGINE, luminosite par texture aussi en emissiveMap (0.7). Absent = substrat procedural seul. echelle/rotation calibrables sans code.",
       "glb": "prairie_v1.glb",
-      "echelle": 1.0,
+      "echelle": 2.0,
       "rotation": 0
     },
     "tuilePlaineGrenier3d": {

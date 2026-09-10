@@ -112,7 +112,7 @@ describe('HUTTE .glb (asset Tripo, décision Erik 08/09)', () => {
 describe('TUILE prairie .glb (asset Tripo, décision Erik 08/09)', () => {
   it('la spec §structures.tuilePrairie3d pointe l’asset (épouse l’hexagone : échelle 1.0)', () => {
     expect(TUILE_PRAIRIE3D).not.toBeNull();
-    expect(TUILE_PRAIRIE3D).toMatchObject({ kind: 'glb', glb: 'prairie_v1.glb', echelle: 1.0 });
+    expect(TUILE_PRAIRIE3D).toMatchObject({ kind: 'glb', glb: 'prairie_v1.glb', echelle: 2.0 });
   });
 });
 
