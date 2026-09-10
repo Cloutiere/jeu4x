@@ -98,3 +98,12 @@
 - `clesTuilesGlb()` : prairies + plaines (toujours recouvertes) ; la variante grenier est
   choisie dans le calque selon `workedTileOwner()` + `buildings.includes('grenier')`.
 - 191 tests verts, svelte-check 0 erreur.
+
+## Addendum 8 (08/09 — retour d'Erik) : hauteur des tuiles alignée
+
+- Les REBORDS des deux modèles n'avaient pas la même hauteur cuite : prairie à 0.000,
+  plaine à −0.016 (plateau −0.041) — la plaine paraissait enfoncée.
+- **dy plaine recuit : −0.099 → −0.182** (rebord affleurant à 0, comme la prairie ;
+  plateau conservé en creux d'origine). Mesure par percentiles des faces supérieures
+  (normales > 0.9) dans les deux fichiers.
+- Fichiers régénérés et repromus ; ni spec ni code changés.

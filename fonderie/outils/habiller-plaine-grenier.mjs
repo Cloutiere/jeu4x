@@ -30,7 +30,7 @@ const S = {
   couverture: 0.22,     // fraction mini de pixels néon => triangle de bus
   bande: 0.045,         // demi-largeur d'attachement à une bande (espace tuile)
   echelle: 1.0,
-  dy: -0.099,           // affleure le haut du prisme (comme la prairie)
+  dy: -0.182,           // rebord de la tuile affleurant a 0 (aligne sur la prairie ; le plateau reste en creux d'origine)
   forceEmissive: 0.7,
   cuivre: 0xb87333,
   cuivreMetal: 0.6,
