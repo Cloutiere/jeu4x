@@ -7,19 +7,26 @@
 // Réécriture SANS re-encodage : le chunk binaire du GLB est recopié tel quel,
 // seul le JSON des matériaux est muté.
 //
-// Usage : node outils/preparer-structure-tripo.mjs <source.glb> <sortie.glb> [forceEmissive] [dy]
+// Usage : node outils/preparer-structure-tripo.mjs <source.glb> <sortie.glb> [forceEmissive] [dy] [rxDeg] [dz]
 //   ex. node outils/preparer-structure-tripo.mjs ../../image_ref/barbare_tripo_2.glb ../modeles/village_barbare_v1.glb 0.7
 //   dy : décalage vertical cuit dans le nœud (ex. -0.095 pour affleurer le haut d'un prisme de tuile).
+//   rxDeg : rotation corrective autour de X (degrés) cuite dans le nœud (ex. -32.4 pour
+//     redresser le plateau de la colline — asset livré pivoté, mesure addenda 21).
+//   dz : décalage horizontal Z cuit (ex. +0.148 pour recentrer l'empreinte après rotation X).
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
-const [source, sortie, forceArg, dyArg] = process.argv.slice(2);
-if (!source || !sortie) throw new Error('usage : preparer-structure-tripo.mjs <source.glb> <sortie.glb> [forceEmissive] [dy]');
+const [source, sortie, forceArg, dyArg, rxDegArg, dzArg] = process.argv.slice(2);
+if (!source || !sortie) throw new Error('usage : preparer-structure-tripo.mjs <source.glb> <sortie.glb> [forceEmissive] [dy] [rxDeg] [dz]');
 const FORCE = forceArg ? Number(forceArg) : 0.7;
 if (!Number.isFinite(FORCE) || FORCE < 0 || FORCE > 10) throw new Error(`force emissive invalide : ${forceArg}`);
 const DY = dyArg ? Number(dyArg) : 0;
 if (!Number.isFinite(DY)) throw new Error(`dy invalide : ${dyArg}`);
+const RX = rxDegArg ? Number(rxDegArg) : 0;
+if (!Number.isFinite(RX)) throw new Error(`rx invalide : ${rxDegArg}`);
+const DZ = dzArg ? Number(dzArg) : 0;
+if (!Number.isFinite(DZ)) throw new Error(`dz invalide : ${dzArg}`);
 
 // ---------- lecture GLB ----------
 const buf = readFileSync(new URL(source, import.meta.url));
@@ -46,12 +53,17 @@ for (const m of json.materials ?? []) {
 }
 if (traite === 0) throw new Error('aucun matériau texturé — rien à éclaircir');
 json.extensionsUsed = [...new Set([...(json.extensionsUsed ?? []), 'KHR_materials_emissive_strength'])];
-if (DY !== 0) {
-  // décalage vertical cuit dans le PREMIER nœud (aucun re-encodage des sommets)
+if (DY !== 0 || RX !== 0 || DZ !== 0) {
+  // Transform cuit dans le PREMIER nœud (aucun re-encodage des sommets) :
+  // glTF applique T * R (rotation d'abord, puis translation).
   const noeud = json.nodes?.[0];
-  if (!noeud) throw new Error('GLB sans nœud — dy impossible');
+  if (!noeud) throw new Error('GLB sans nœud — transform impossible');
   const t = noeud.translation ?? [0, 0, 0];
-  noeud.translation = [t[0], t[1] + DY, t[2]];
+  noeud.translation = [t[0], t[1] + DY, t[2] + DZ];
+  if (RX !== 0) {
+    const demi = (RX * Math.PI) / 360;
+    noeud.rotation = [Math.sin(demi), 0, 0, Math.cos(demi)];
+  }
 }
 json.asset = { ...json.asset, generator: 'fonderie/outils/preparer-structure-tripo.mjs (emissive auto)' };
 

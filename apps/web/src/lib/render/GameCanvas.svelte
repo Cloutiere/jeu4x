@@ -1391,7 +1391,17 @@
     // REMPLACÉ par l'asset .glb (le calque recouvrement pose la tuile ; le haut
     // procédural et ses glyphes sont masqués, les parois restent).
     const recouvertes = clesTuilesGlb();
-    terrain3d.update(tiles, recouvertes);
+    // Addenda 21 : l'asset .glb de la colline redressée et de la montagne est
+    // plus bas que l'élévation procédurale du terrain — les parois conservées
+    // montaient AU-DESSUS et leurs arêtes dépassaient (retour Erik 11/09).
+    // On raccourcit leur sommet juste sous l'asset posé dessus.
+    const parois = new Map<string, number>();
+    for (const cle of recouvertes) {
+      const terrain = scene.state?.map[cle]?.terrain;
+      if (terrain === 'colline') parois.set(cle, 0.0);
+      else if (terrain === 'montagne') parois.set(cle, 0.05);
+    }
+    terrain3d.update(tiles, recouvertes, parois);
   }
 
   /** Construit les données de la couche STRUCTURES 3D (V2) depuis l'état
@@ -1988,6 +1998,8 @@
         pickAt: (x: number, y: number) => { const h = hexSousEcran(x, y); return h ? `${h.q},${h.r}` : null; },
         centerOn: (q: number, r: number) => centerOnHex({ q, r }),
         camera: () => ({ x: camera.x, y: camera.y, scale: camera.scale }),
+        // Fonderie : accès lecture à la scène 3D (mesure des poses .glb réelles).
+        scene3d: () => stage3d?.scene ?? null,
         screenOf: (q: number, r: number) => {
           if (mode3dActif()) {
             const { x, z } = hexWorldPos({ q, r });

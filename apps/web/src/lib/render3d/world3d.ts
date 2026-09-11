@@ -277,9 +277,13 @@ export class TerrainWorld {
    * L'inexploré n'arrive jamais ici (absent = invisible, §4.4). Coût mesuré.
    * `recouvertes` : clés de tuiles dont le substrat est REMPLACÉ par un asset
    * .glb (VILLE-TRIPO T2, plaine grenier) — face supérieure et glyphes
-   * masqués, parois conservées (le plateau ne se troue pas).
+   * masqués, parois conservées (le plateau ne se trouve pas).
+   * `parois` : hauteur de RACCOURCI des parois conservées (clé « q,r ») —
+   * quand l'asset .glb est plus bas que l'élévation du terrain (colline
+   * redressée, montagne), les parois montaient au-dessus de l'asset et leurs
+   * arêtes dépassaient ; la valeur donne leur nouveau sommet (addenda 21).
    */
-  update(tiles: TileDraw[], recouvertes?: Set<string>): void {
+  update(tiles: TileDraw[], recouvertes?: Set<string>, parois?: Map<string, number>): void {
     const t0 = performance.now();
     if (tiles.length > this.capacities) this.allocate(Math.ceil(tiles.length * 1.25));
     for (const p of [this.walls, this.busLit, this.busDim, this.cpuSocle, this.dieLit, this.dieDim, this.pins, this.ramSocle, this.stickLit, this.stickDim, ...this.tops.values()]) p.used = 0;
@@ -300,16 +304,18 @@ export class TerrainWorld {
       const { x, z } = hexWorldPos({ q: t.q, r: t.r });
       const tint = t.fog === 'visible' ? white : dim;
       const recouverte = recouvertes?.has(`${t.q},${t.r}`) === true;
+      const paroi = parois?.get(`${t.q},${t.r}`) ?? spec.elev;
 
-      // prisme : top à elev, parois de elev à BAS — top sauté si la tuile est
-      // remplacée par un .glb (les parois restent : pas de trou dans le plateau)
+      // prisme : top à elev (ou raccourci via `parois`), parois de ce top à
+      // BAS — top sauté si la tuile est remplacée par un .glb (les parois
+      // restent : pas de trou dans le plateau)
       if (!recouverte) {
         pos.set(x, spec.elev, z); scale.set(1, 1, 1); q.identity();
         m.compose(pos, q, scale);
         this.tops.get(t.terrain)?.push(m, tint);
       }
-      pos.set(x, spec.elev, z);
-      scale.set(1, spec.elev - BAS, 1);
+      pos.set(x, paroi, z);
+      scale.set(1, paroi - BAS, 1);
       m.compose(pos, q, scale);
       let cote = this.cotes.get(t.terrain);
       if (!cote) { cote = new THREE.Color(spec.cote); this.cotes.set(t.terrain, cote); }

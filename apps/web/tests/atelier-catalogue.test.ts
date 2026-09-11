@@ -124,9 +124,9 @@ describe('atelier — catalogue L0', () => {
     // v1 ET v2 des tuiles servies en parallèle (bundles périmés en cache edge —
     // addendum 10) : les deux générations pointent le même contenu corrigé.
     const structures = ['barbare_v3.glb', 'ville_v1.glb', 'village_barbare_v1.glb', 'hutte_v1.glb',
-      'prairie_v1.glb', 'prairie_v2.glb', 'plaine_v1.glb', 'plaine_v2.glb', 'plaine_grenier_v1.glb', 'plaine_grenier_v2.glb', 'montagne_v1.glb', 'colline_v1.glb', 'colline_v2.glb'];
+      'prairie_v1.glb', 'prairie_v2.glb', 'plaine_v1.glb', 'plaine_v2.glb', 'plaine_grenier_v1.glb', 'plaine_grenier_v2.glb', 'montagne_v1.glb', 'colline_v1.glb', 'colline_v2.glb', 'colline_v3.glb'];
     expect(exposes).toEqual(fichiers.filter((f) => !structures.includes(f)));
-    expect(fichiers.length).toBe(35);
+    expect(fichiers.length).toBe(36);
   });
 
   it('les overlays (effets programmatiques) sont des fiches sans fichier', () => {

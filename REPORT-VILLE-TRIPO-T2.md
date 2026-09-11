@@ -198,3 +198,43 @@
   (même URL). **Renommage `colline_v2.glb`** (URL vierge) + `survol 0.05` : base à −0.25,
   décalage cette fois ÉVIDENT. v1 conservé en service (bundles périmés).
 - Spec/tests mis à jour (34 → 35 .glb servis).
+
+## Addendum 20 (11/09 — cause racine trouvée en local : ORIENTATION, pas hauteur)
+
+- Boucle locale imposée (wrangler 8787 + Vite 5174, partie solo) : mesure RÉELLE des
+  matrices d'instances via un hook dev `__game.scene3d()` (GameCanvas, bloc DEV) — la
+  base colline est exactement à **−0.25** et le rebord prairie à **0.000** : la POSE
+  était conforme au calcul, la hauteur n'était PAS la cause du jour visible.
+- Cause mesurée : **empreinte/orientation de l'asset**. Prairie au sol 1.72 (X) × 2.00
+  (Z), colline_v2 2.00 (X) × 1.61 (Z) : l'hexagone Tripo est **flat-top** sur une grille
+  **pointy-top** → trous triangulaires aux bords nord/sud, on voit le fond à travers.
+- **Correctif : `rotation: 30`** dans la spec §`structures.tuileColline3d` (levier déjà
+  supporté par `parseEntreeUnite3D`/`update()` — aucune re-cuisson, pas de renommage v3).
+- Validé visuellement en local (captures `fonderie/captures/colline-rotation30-*.png`) :
+  plus de jour, paroi orange jointive avec les voisines. Base inchangée (−0.25),
+  culmination inchangée (≈ 0.86). 194 tests verts, typecheck vert.
+
+## Addendum 21 (11/09 — retour d'Erik : « pas à plat » — cause : asset livré pivoté)
+
+- Mesure des normales de triangles : la face supérieure de `colline_tripo.glb` (source)
+  penche de **32.4° autour de X** (cluster dominant −30°/−35°, minimisation fine :
+  −32.4°, résiduel 0.026) — c'est une PLAQUE FINE (0.156 d'épaisseur) livrée PIVOTÉE,
+  pas un plateau horizontal comme l'image de référence `colline.jpg`.
+- **Cuisson `colline_v3.glb`** : rotation corrective −32.4° cuite en quaternion du nœud
+  + dy −0.473 (base monde −0.25 inchangée) + dz +0.148 (recentrage de l'empreinte après
+  rotation). Outil étendu : `preparer-structure-tripo.mjs <src> <out> [force] [dy] [rxDeg] [dz]`.
+- Le `rotation: 30` (addenda 20) reste : orientation flat-top de l'hexagone vs grille pointy-top.
+- Conséquence assumée : la plaque redressée culmine à ~0.06 au-dessus des voisines
+  (l'effet « colline qui culmine » de la v2 pivotée disparaît — la v2 culminait parce
+  qu'un de ses bords était en l'air). À valider par Erik sur captures locales.
+- 196 tests verts (36 .glb servis : colline v1/v2 conservés, v3 mappée), typecheck vert.
+
+## Addendum 22 (11/09 — retour d'Erik : arêtes qui dépassaient sur colline ET montagne)
+
+- Les parois procédurales conservées (substrat recouvert) montaient jusqu'à l'élévation
+  du TERRAIN (colline 0.3, montagne 0.62) — au-dessus des assets .glb posés dessus
+  (colline redressée : sommet 0.062) → leurs arêtes dépassaient tout autour.
+- **Correctif** : `World3D.update(tiles, recouvertes, parois?)` accepte un sommet de
+  paroi RACCOURCI par tuile ; GameCanvas fournit 0.0 (colline, juste sous le plateau
+  .glb) et 0.05 (montagne, juste au-dessus de sa base 0.021). Prairie/plaine inchangées
+  (leur .glb affleure l'élévation). Zéro gameplay (rendu pur), tests verts, typecheck vert.
