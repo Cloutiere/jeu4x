@@ -165,3 +165,8 @@
 
 - `rotation: 30` sur `tuileMontagne3d` — l'hexagone du modèle était à 30° de la grille
   (symétrie 60° de l'hexagone : +30 et −30 équivalents). Data-driven, sans code.
+
+## Addendum 15 (11/09 — retour d'Erik) : rotation exacte de la montagne
+
+- Mesure des sommets de contour : modèle à 15°+60k, grille à 30°+60k → **rotation 15**
+  (30 sur-rotait). Data-driven.

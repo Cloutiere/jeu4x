@@ -765,7 +765,7 @@
       "_comment": "Visuel 3D de la TUILE montagne (asset Tripo, decision d'Erik du 11/09) : REMPLACE le substrat procedural (haut+glyphes masques, parois conservees). echelle 2.0 ; dy -0.31 cuit : le terrain montagne est a elev 0.62, le dy ramene la BASE du modele au niveau 0 (le sommet des autres tuiles) — son propre sommet culmine donc plus haut (~0.63 au-dessus de sa base). Absent = substrat procedural.",
       "glb": "montagne_v1.glb",
       "echelle": 2.0,
-      "rotation": 30
+      "rotation": 15
     }
   }
 }
