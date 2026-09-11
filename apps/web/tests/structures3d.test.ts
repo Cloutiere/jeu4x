@@ -137,7 +137,7 @@ describe('TUILE montagne .glb (asset Tripo, décision Erik 11/09)', () => {
 describe('TUILE colline .glb (asset Tripo, décision Erik 11/09)', () => {
   it('la spec §structures.tuileColline3d pointe l’asset (base au niveau 0 via dy cuit, échelle 2.0)', () => {
     expect(TUILE_COLLINE3D).not.toBeNull();
-    expect(TUILE_COLLINE3D).toMatchObject({ kind: 'glb', glb: 'colline_v1.glb', echelle: 2.0 });
+    expect(TUILE_COLLINE3D).toMatchObject({ kind: 'glb', glb: 'colline_v2.glb', echelle: 2.0 });
   });
 });
 

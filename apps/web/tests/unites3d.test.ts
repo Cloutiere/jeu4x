@@ -95,6 +95,7 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
       ...(TUILE_PLAINE_GRENIER3D && TUILE_PLAINE_GRENIER3D.kind === 'glb' ? [TUILE_PLAINE_GRENIER3D.glb] : []),
       ...(TUILE_MONTAGNE3D && TUILE_MONTAGNE3D.kind === 'glb' ? [TUILE_MONTAGNE3D.glb] : []),
       ...(TUILE_COLLINE3D && TUILE_COLLINE3D.kind === 'glb' ? [TUILE_COLLINE3D.glb] : []),
+      ...(TUILE_COLLINE3D && TUILE_COLLINE3D.kind === 'glb' ? [TUILE_COLLINE3D.glb.replace('_v2', '_v1')] : []),
       // v1 des tuiles servies en parallèle des v2 (même contenu corrigé, caches edge)
       ...(TUILE_PRAIRIE3D && TUILE_PRAIRIE3D.kind === 'glb' ? [TUILE_PRAIRIE3D.glb.replace('_v2', '_v1')] : []),
       ...(TUILE_PLAINE3D && TUILE_PLAINE3D.kind === 'glb' ? [TUILE_PLAINE3D.glb.replace('_v2', '_v1')] : []),
@@ -103,7 +104,7 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
     // T4bis : barbare_v3 est branché via unites3dSurchargeProprietaire (owner
     // 'barbarien') — plus aucun orphelin, aucun fichier servi sans branchement.
     expect(mappes).toEqual(fichiers);
-    expect(fichiers.length).toBe(34);
+    expect(fichiers.length).toBe(35);
   });
 
   it('les types SANS entrée (civs uniques, GP, caravane…) gardent leur sprite 2D', () => {

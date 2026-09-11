@@ -191,3 +191,10 @@
 - La colline flottait (base au niveau du REBORD des autres, pas de leur plateau).
 - Recuite dy −0.3 (base à −0.3 sous l'élévation 0.3) + **survol 0.2** en spec : base finale
   ≈ −0.1, légèrement enfoncée comme les autres tuiles. Ajustable via `survol` sans re-cuisson.
+
+## Addendum 19 (11/09 — la colline ne bougeait pas)
+
+- Le décalage de 0.1 était trop subtil ET le fichier `colline_v1.glb` restait en cache
+  (même URL). **Renommage `colline_v2.glb`** (URL vierge) + `survol 0.05` : base à −0.25,
+  décalage cette fois ÉVIDENT. v1 conservé en service (bundles périmés).
+- Spec/tests mis à jour (34 → 35 .glb servis).
