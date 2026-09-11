@@ -7,13 +7,18 @@
 // cf. convention du handoff fonderie) :
 //   - bloom : UnrealBloomPass(0.55, 0.4, 0.62) — ÉTEINT par défaut dans le jeu
 //     (bascule en partie, décision Erik 4.1) ; activé ici pour l'atelier
-//   - tone mapping : AUCUN (défaut Three NoToneMapping), exposition 1.0 —
-//     l'ACESFilmic ×1.3 consigné en T1 n'était PAS celui du jeu (écart
-//     documenté dans REPORT-FONDERIE-T3.md ; le look change ici, voulu)
-//   - éclairage : Hemisphere(0x2c4a5a, 0x0a1420, 0.95) + Directional
-//     (0xe8fff6, 0.85, position -5,9,3) + PointLight néon (0x3dffce, 0.45,
-//     portée 18, decay 2, position 0,4,0) — aucune ombre portée
+//   - tone mapping : courbe data-driven §eclairage (candidat = ACES filmique,
+//     exposition 1.3 — noirs creusés, look Tripo ; rig actuel = aucun)
+//   - éclairage (§eclairage — valeurs COPIÉES du visuel3d.json, jamais importées) :
+//     Hemisphere(0x2c4a5a, 0x0a1420, 0.35) + Directional (0xe8fff6, 1.3,
+//     position -4,10,2) + PointLight néon (0x3dffce, 0.45, portée 18, decay 2,
+//     position 0,4,0) + IBL RoomEnvironment intensité 0.3 — aucune ombre portée
 //   - fond sombre : 0x070b18 (couleur exacte de la scène du jeu)
+//
+// MODE « A/B éclairage » (handoff ECLAIRAGE §M1) : le modèle sélectionné est
+// rendu DEUX FOIS, rig historique du jeu à gauche, rig candidat à droite,
+// MÊME caméra (split-screen scissor, bloom désactivé) — c'est sur ce comparatif
+// qu'Erik tranche.
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -22,9 +27,60 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const NEON = 0x3DFFCE;
 const FONDS = { sombre: 0x070b18, clair: 0xdde8ec };
+
+// Rigs copiés de visuel3d.json §eclairage (spec3d.ts fait foi). ACTUEL = rig
+// historique du jeu avant le chantier ECLAIRAGE (stage3d.ts d'origine).
+const RIG_ACTUEL = {
+  exposition: 1.0,
+  tone: 'none',
+  hemispherique: { intensite: 0.95, ciel: 0x2c4a5a, sol: 0x0a1420 },
+  directionnelle: { intensite: 0.85, couleur: 0xe8fff6, position: [-5, 9, 3] },
+  haloNeon: { intensite: 0.45, portee: 18, decay: 2 },
+  ibl: { intensite: 0 },
+};
+const RIG_CANDIDAT = {
+  exposition: 1.3,
+  tone: 'aces',
+  hemispherique: { intensite: 0.35, ciel: 0x2c4a5a, sol: 0x0a1420 },
+  directionnelle: { intensite: 1.3, couleur: 0xe8fff6, position: [-4, 10, 2] },
+  haloNeon: { intensite: 0.45, portee: 18, decay: 2 },
+  ibl: { intensite: 0.3 },
+};
+
+// Courbe de sortie d'un rig → constante Three (AUCUNE = rig historique)
+function toneMappingDe(rig) {
+  return rig.tone === 'aces' ? THREE.ACESFilmicToneMapping
+    : rig.tone === 'linear' ? THREE.LinearToneMapping
+    : THREE.NoToneMapping;
+}
+
+// Rig « copié, jamais importé » : construit les lumières d'une scène depuis un
+// rig (mêmes conventions que stage3d.ts dans le jeu).
+function construireEclairage(sc, rig) {
+  const hemi = new THREE.HemisphereLight(rig.hemispherique.ciel, rig.hemispherique.sol, rig.hemispherique.intensite);
+  sc.add(hemi);
+  const cle = new THREE.DirectionalLight(rig.directionnelle.couleur, rig.directionnelle.intensite);
+  cle.position.set(...rig.directionnelle.position);
+  sc.add(cle);
+  const halo = new THREE.PointLight(NEON, rig.haloNeon.intensite, rig.haloNeon.portee, rig.haloNeon.decay);
+  halo.position.set(0, 4, 0);
+  sc.add(halo);
+  if (rig.ibl.intensite > 0) {
+    // un seul bake PMREM pour le renderer (texture partagée entre scènes)
+    if (!construireEclairage.env) {
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      construireEclairage.env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      pmrem.dispose();
+    }
+    sc.environment = construireEclairage.env;
+    sc.environmentIntensity = rig.ibl.intensite;
+  }
+  return { hemi, cle, halo };
+}
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(FONDS.sombre);
@@ -35,18 +91,12 @@ camera.position.set(2.6, 2.2, 3.4);
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.toneMapping = THREE.NoToneMapping; // le jeu n'en pose AUCUN (cf. en-tête)
-renderer.toneMappingExposure = 1.0;
+renderer.toneMapping = toneMappingDe(RIG_CANDIDAT); // courbe du rig candidat (cf. en-tête)
+renderer.toneMappingExposure = RIG_CANDIDAT.exposition;
 document.getElementById('scene').appendChild(renderer.domElement);
 
-// Éclairage = valeurs du jeu (stage3d.ts — cf. en-tête), aucune ombre portée
-scene.add(new THREE.HemisphereLight(0x2c4a5a, 0x0a1420, 0.95));
-const cle = new THREE.DirectionalLight(0xe8fff6, 0.85);
-cle.position.set(-5, 9, 3);
-scene.add(cle);
-const halo = new THREE.PointLight(0x3dffce, 0.45, 18, 2);
-halo.position.set(0, 4, 0);
-scene.add(halo);
+// Éclairage = rig candidat (visuel3d.json §eclairage — cf. en-tête), aucune ombre portée
+const lumieresScene = construireEclairage(scene, RIG_CANDIDAT);
 
 // Bloom (réglages du jeu : 0.55 / 0.4 / 0.62 — stage3d.ts, cf. en-tête)
 const compositeur = new EffectComposer(renderer);
@@ -103,6 +153,8 @@ function cadrerUnion() {
 }
 function chargerGLB(url, nom) {
   chargeur.load(url, (gltf) => {
+    desactiverABRig();
+    $('b-abrig').classList.remove('actif');
     nettoyer();
     racines = [gltf.scene];
     scene.add(gltf.scene);
@@ -118,6 +170,7 @@ function chargerGLB(url, nom) {
 function activerABVille(on) {
   modeAB = on;
   if (!on) { chargerGLB(`modeles/${selection}`, selection); return; }
+  desactiverABRig();
   Promise.all([
     chargeur.loadAsync('modeles/ville_v1_A.glb'),
     chargeur.loadAsync('modeles/ville_v1_B.glb'),
@@ -148,6 +201,7 @@ function activerABVille(on) {
 function activerAB(on) {
   modeAB = on;
   if (!on) { chargerGLB(`modeles/${selection}`, selection); return; }
+  desactiverABRig();
   Promise.all([
     chargeur.loadAsync('modeles/chevalier.glb'),
     chargeur.loadAsync(`modeles/${selection}`),
@@ -172,6 +226,76 @@ function activerAB(on) {
 }
 
 let stats = { nom: '—', tris: 0, materiaux: 0, primitives: 0 };
+
+// ---------- MODE A/B ÉCLAIRAGE (handoff ECLAIRAGE §M1) ----------
+// Le modèle sélectionné est rendu deux fois : rig ACTUEL (historique du jeu)
+// à gauche, rig CANDIDAT à droite, MÊME caméra. Split-screen scissor, bloom
+// désactivé (le composer ne scisse pas ; le jugement porte sur la lumière).
+let abRig = null; // { sceneA, sceneB, objetA, objetB, aspectAvant }
+const legende = document.createElement('div');
+legende.id = 'legende-abrig';
+legende.style.cssText =
+  'position:fixed;top:10px;left:0;right:0;display:none;justify-content:center;gap:2rem;' +
+  'pointer-events:none;font:600 13px system-ui;color:#dfe6ee;text-shadow:0 1px 3px #000;z-index:10';
+legende.innerHTML = '<span>◀ RIG ACTUEL (historique)</span><span style="color:#3DFFCE">RIG CANDIDAT (§eclairage) ▶</span>';
+document.body.appendChild(legende);
+
+function desactiverABRig() {
+  if (!abRig) return;
+  camera.aspect = abRig.aspectAvant;
+  camera.updateProjectionMatrix();
+  abRig.sceneA.remove(abRig.objetA);
+  abRig.sceneB.remove(abRig.objetB);
+  abRig = null;
+  legende.style.display = 'none';
+}
+
+function activerABRig() {
+  const nom = selection;
+  if (!nom) return;
+  chargeur.load(`modeles/${nom}`, (gltf) => {
+    desactiverABRig();
+    const objetA = gltf.scene.clone(true);
+    const objetB = gltf.scene.clone(true);
+    const sceneA = new THREE.Scene();
+    const sceneB = new THREE.Scene();
+    sceneA.background = new THREE.Color(FONDS.sombre);
+    sceneB.background = new THREE.Color(FONDS.sombre);
+    construireEclairage(sceneA, RIG_ACTUEL);
+    const lumieresB = construireEclairage(sceneB, RIG_CANDIDAT);
+    sceneA.add(objetA);
+    sceneB.add(objetB);
+    abRig = { sceneA, sceneB, objetA, objetB, lumieresB, aspectAvant: camera.aspect };
+    camera.aspect = (innerWidth / 2) / innerHeight;
+    camera.updateProjectionMatrix();
+    cadrerUnionAB();
+    legende.style.display = 'flex';
+    stats = { nom: `A/B éclairage : ${nom}`, tris: 0, materiaux: 0, primitives: 0 };
+    let tris = 0, primitives = 0;
+    const materiaux = new Set();
+    abRig.objetA.traverse((n) => {
+      if (n.isMesh || n.isLine) {
+        if (n.isMesh) tris += (n.geometry.index ? n.geometry.index.count : n.geometry.attributes.position.count) / 3;
+        (Array.isArray(n.material) ? n.material : [n.material]).forEach(m => materiaux.add(m.uuid));
+      }
+      if (n.isMesh || n.isLine || n.isPoints) primitives++;
+    });
+    stats = { nom: `A/B éclairage : ${nom}`, tris: Math.round(tris), materiaux: materiaux.size, primitives };
+    majStats();
+    appliquerTeinte(teinte);
+  }, undefined, (err) => {
+    document.getElementById('stats').innerHTML = `<b>ERREUR A/B éclairage</b><br>${err.message || err}`;
+  });
+}
+
+function cadrerUnionAB() {
+  if (!abRig) return;
+  const boite = new THREE.Box3().setFromObject(abRig.objetA);
+  const taille = boite.getSize(new THREE.Vector3()), centre = boite.getCenter(new THREE.Vector3());
+  controls.target.copy(centre);
+  const d = Math.max(taille.x, taille.y, taille.z) * 1.7;
+  camera.position.set(centre.x + d * 0.75, centre.y + d * 0.45, centre.z - d * 0.95);
+}
 function compterStats() {
   // comptage honnête : glTF loader crée des LineSegments pour les primitives
   // mode 1 (arêtes néon) — elles comptent 0 triangle ; seuls les meshes comptent.
@@ -209,8 +333,14 @@ const TEINTES = {
   j7: 0xFF3D3D, // rouge — RÉSERVÉ AUX BARBARES (jamais pour un joueur)
 };
 let teinte = 'neutre';
+// tous les objets affichés (mode normal, modes A/B d'assets, A/B éclairage)
+function tousObjets() {
+  const out = [...racines];
+  if (abRig) out.push(abRig.objetA, abRig.objetB);
+  return out;
+}
 function appliquerTeinte(cle) {
-  for (const r of racines) r.traverse((n) => {
+  for (const r of tousObjets()) r.traverse((n) => {
     if (n.isMesh && n.material && n.material.name === 'accent_joueur') {
       // la teinte MULTIPLIE la couleur de base du glb (qui peut porter un facteur
       // de compensation > 1, comme le corps v1) au lieu de l'écraser
@@ -225,7 +355,7 @@ const $ = (id) => document.getElementById(id);
 const boutonsEtat = {
   'b-bloom': { actif: true, f: (v) => (bloom.enabled = v) },
   'b-fond': { actif: false, f: (v) => scene.background.set(v ? FONDS.clair : FONDS.sombre) },
-  'b-wire': { actif: false, f: (v) => racines.forEach(r => r.traverse(n => { if (n.isMesh) n.material.wireframe = v; })) },
+  'b-wire': { actif: false, f: (v) => tousObjets().forEach(r => r.traverse(n => { if (n.isMesh) n.material.wireframe = v; })) },
   'b-grille': { actif: false, f: (v) => (grille.visible = v) },
   'b-rotation': { actif: false, f: (v) => (controls.autoRotate = v) },
 };
@@ -267,6 +397,19 @@ $('b-abville').addEventListener('click', () => {
   $('b-abville').classList.toggle('actif', on);
 });
 
+// Bouton A/B éclairage : rig ACTUEL à gauche, CANDIDAT à droite, même caméra
+$('b-abrig').addEventListener('click', () => {
+  $('b-ab').classList.remove('actif');
+  $('b-abville').classList.remove('actif');
+  const on = !$('b-abrig').classList.contains('actif');
+  $('b-abrig').classList.toggle('actif', on);
+  if (on) activerABRig();
+  else {
+    desactiverABRig();
+    chargerGLB(`modeles/${selection}`, selection);
+  }
+});
+
 // Liste des .glb du dossier modeles/ (servie par serveur.mjs) + glisser-déposer
 async function listerModeles() {
   try {
@@ -305,7 +448,7 @@ addEventListener('drop', (e) => {
 });
 
 addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
+  camera.aspect = abRig ? (innerWidth / 2) / innerHeight : innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   compositeur.setSize(innerWidth, innerHeight);
@@ -314,7 +457,26 @@ addEventListener('resize', () => {
 const renduBrut = location.search.includes('brut'); // ?brut = sans post-traitement (diagnostic)
 renderer.setAnimationLoop(() => {
   controls.update();
-  if (renduBrut) renderer.render(scene, camera);
+  if (abRig) {
+    // split-screen scissor : rig ACTUEL à gauche, CANDIDAT à droite (bloom off).
+    // La courbe de tone mapping est un état renderer : on la bascule par moitié
+    // (les programmes Three sont mis en cache par variante — pas de recompile).
+    const demi = Math.floor(innerWidth / 2);
+    renderer.setScissorTest(true);
+    renderer.toneMapping = toneMappingDe(RIG_ACTUEL);
+    renderer.setViewport(0, 0, demi, innerHeight);
+    renderer.setScissor(0, 0, demi, innerHeight);
+    renderer.toneMappingExposure = RIG_ACTUEL.exposition;
+    renderer.render(abRig.sceneA, camera);
+    renderer.toneMapping = toneMappingDe(RIG_CANDIDAT);
+    renderer.setViewport(demi, 0, innerWidth - demi, innerHeight);
+    renderer.setScissor(demi, 0, innerWidth - demi, innerHeight);
+    renderer.toneMappingExposure = RIG_CANDIDAT.exposition;
+    renderer.render(abRig.sceneB, camera);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, innerWidth, innerHeight);
+    renderer.toneMappingExposure = RIG_CANDIDAT.exposition;
+  } else if (renduBrut) renderer.render(scene, camera);
   else compositeur.render();
 });
 
@@ -325,6 +487,28 @@ window.__fonderie = {
   THREE,
   modeAB: () => modeAB,
   racines: () => racines.length,
+  rigs: () => ({ actuel: RIG_ACTUEL, candidat: RIG_CANDIDAT }),
+  // calibrage live du rig candidat (A/B éclairage) :
+  // __fonderie.rigCandidat({ ibl: 0.3, dir: 1.3, hemi: 0.35, expo: 1.3, tone: 'aces' })
+  rigCandidat: (v = {}) => {
+    if (v.ibl !== undefined) RIG_CANDIDAT.ibl.intensite = v.ibl;
+    if (v.dir !== undefined) RIG_CANDIDAT.directionnelle.intensite = v.dir;
+    if (v.hemi !== undefined) RIG_CANDIDAT.hemispherique.intensite = v.hemi;
+    if (v.expo !== undefined) RIG_CANDIDAT.exposition = v.expo;
+    if (v.tone !== undefined) RIG_CANDIDAT.tone = v.tone;
+    // répercute sur les lumières VIVANTES (mode normal + scène B du A/B)
+    for (const l of [lumieresScene, ...(abRig ? [abRig.lumieresB] : [])]) {
+      if (!l) continue;
+      l.hemi.intensity = RIG_CANDIDAT.hemispherique.intensite;
+      l.cle.intensity = RIG_CANDIDAT.directionnelle.intensite;
+      l.halo.intensity = RIG_CANDIDAT.haloNeon.intensite;
+    }
+    scene.environmentIntensity = RIG_CANDIDAT.ibl.intensite;
+    if (abRig) abRig.sceneB.environmentIntensity = RIG_CANDIDAT.ibl.intensite;
+    renderer.toneMapping = toneMappingDe(RIG_CANDIDAT);
+    renderer.toneMappingExposure = RIG_CANDIDAT.exposition;
+    return RIG_CANDIDAT;
+  },
   meshes: () => { const r = []; racines.forEach(x => x.traverse(n => r.push(n.type + (n.isMesh ? ':' + n.material.name : '')))); return r; },
   mats: () => { const r = []; racines.forEach(x => x.traverse(n => { if (n.isMesh && !r.some(m => m.uuid === n.material.uuid)) r.push({ uuid: n.material.uuid, nom: n.material.name, emissive: n.material.emissive && [n.material.emissive.r, n.material.emissive.g, n.material.emissive.b], intensite: n.material.emissiveIntensity, couleur: n.material.color && [n.material.color.r, n.material.color.g, n.material.color.b], opacite: n.material.opacity, type: n.material.type }); })); return r; },
 };

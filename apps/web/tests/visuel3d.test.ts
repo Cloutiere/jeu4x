@@ -4,7 +4,7 @@
  * terrains du moteur, calibrage 68f6f5a, cohérence des glyphes.
  */
 import { describe, expect, it } from 'vitest';
-import { TERRAINS3D, NEON, BAS, LONG_BUS, MATERIAU_DEFAUT, voiesBus, empreintesCpu, validerUniteGuerrier } from '../src/lib/render3d/spec3d.js';
+import { TERRAINS3D, NEON, BAS, LONG_BUS, MATERIAU_DEFAUT, voiesBus, empreintesCpu, validerUniteGuerrier, ECLAIRAGE, validerEclairage } from '../src/lib/render3d/spec3d.js';
 import visuelBrut from '../src/lib/render3d/visuel3d.json';
 
 describe('visuel3d — spec data-driven', () => {
@@ -58,6 +58,61 @@ describe('visuel3d — spec data-driven', () => {
     expect(voiesBus(2)).toEqual([-0.25, 0.25]);
     // quincunx écarté à ±0.30 (calibrage 68f6f5a)
     expect(empreintesCpu(5)).toContainEqual([-0.3, -0.3]);
+  });
+});
+
+describe('rig d\u2019éclairage — §eclairage (handoff ECLAIRAGE)', () => {
+  it('charge le rig candidat du JSON (ACES, ambiant baissé, clé remontée, IBL, néon conservé)', () => {
+    expect(ECLAIRAGE.exposition).toBe(1.3);
+    expect(ECLAIRAGE.toneMapping).toBe('aces');
+    expect(ECLAIRAGE.hemispherique.intensite).toBeLessThan(0.95);
+    expect(ECLAIRAGE.hemispherique.ciel).toBe(0x2c4a5a);
+    expect(ECLAIRAGE.directionnelle.intensite).toBeGreaterThan(0.85);
+    expect(ECLAIRAGE.directionnelle.position).toEqual([-4, 10, 2]);
+    // accent néon conservé (langage du jeu) — même intensité que l'historique
+    expect(ECLAIRAGE.haloNeon.intensite).toBe(0.45);
+    expect(ECLAIRAGE.ibl.intensite).toBeGreaterThan(0);
+  });
+
+  it('section absente = rig HISTORIQUE (valeurs de référence du rig historique)', () => {
+    // le contrat « absent = historique » est porté par spec3d.ts au chargement ;
+    // on le vérifie via les valeurs historiques codées :
+    expect(validerEclairage({
+      exposition: 1,
+      toneMapping: 'none',
+      hemispherique: { intensite: 0.95, ciel: '#2C4A5A', sol: '#0A1420' },
+      directionnelle: { intensite: 0.85, couleur: '#E8FFF6', position: [-5, 9, 3] },
+      haloNeon: { intensite: 0.45, portee: 18, decay: 2 },
+      ibl: { intensite: 0 },
+    })).toEqual({
+      exposition: 1,
+      toneMapping: 'none',
+      hemispherique: { intensite: 0.95, ciel: 0x2c4a5a, sol: 0x0a1420 },
+      directionnelle: { intensite: 0.85, couleur: 0xe8fff6, position: [-5, 9, 3] },
+      haloNeon: { intensite: 0.45, portee: 18, decay: 2 },
+      ibl: { intensite: 0 },
+    });
+  });
+
+  it('refuse les entrées invalides avec une erreur explicite', () => {
+    const base = {
+      exposition: 1.3,
+      toneMapping: 'aces',
+      hemispherique: { intensite: 0.6, ciel: '#2C4A5A', sol: '#0A1420' },
+      directionnelle: { intensite: 1.6, couleur: '#E8FFF6', position: [-4, 10, 2] },
+      haloNeon: { intensite: 0.45, portee: 18, decay: 2 },
+      ibl: { intensite: 0.4 },
+    };
+    expect(() => validerEclairage({ ...base, exposition: 0 })).toThrow(/exposition/);
+    expect(() => validerEclairage({ ...base, exposition: 99 })).toThrow(/exposition/);
+    expect(() => validerEclairage({ ...base, hemispherique: { ...base.hemispherique, ciel: 'mint' } }))
+      .toThrow(/couleur invalide/);
+    expect(() => validerEclairage({ ...base, directionnelle: { ...base.directionnelle, position: [1, 2] } }))
+      .toThrow(/vecteur/);
+    expect(() => validerEclairage({ ...base, haloNeon: { ...base.haloNeon, portee: -3 } }))
+      .toThrow(/négative/);
+    expect(() => validerEclairage({ ...base, ibl: {} })).toThrow(/ibl\.intensite/);
+    expect(() => validerEclairage({ ...base, toneMapping: 'filmique' })).toThrow(/toneMapping/);
   });
 });
 

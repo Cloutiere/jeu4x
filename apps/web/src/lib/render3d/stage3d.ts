@@ -7,7 +7,10 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Camera3D } from './camera3d.js';
+// Rig d'éclairage data-driven (§eclairage de visuel3d.json — handoff ECLAIRAGE).
+import { ECLAIRAGE, NEON } from './spec3d.js';
 
 export class Stage3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -24,14 +27,32 @@ export class Stage3D {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     // Comptage par FRAME (le composer multi-passe écraserait info.render sinon).
     this.renderer.info.autoReset = false;
+    // Exposition + courbe de sortie data-driven (§eclairage). 'none' = rig
+    // historique exact ; 'linear' = exposition seule ; 'aces' = courbe filmique
+    // (noirs creusés, look Tripo des assets externes).
+    this.renderer.toneMapping =
+      ECLAIRAGE.toneMapping === 'aces' ? THREE.ACESFilmicToneMapping
+      : ECLAIRAGE.toneMapping === 'linear' ? THREE.LinearToneMapping
+      : THREE.NoToneMapping;
+    this.renderer.toneMappingExposure = ECLAIRAGE.exposition;
     this.scene.background = new THREE.Color(0x070b18);
-    this.scene.add(new THREE.HemisphereLight(0x2c4a5a, 0x0a1420, 0.95));
-    const dir = new THREE.DirectionalLight(0xe8fff6, 0.85);
-    dir.position.set(-5, 9, 3);
+    const ecl = ECLAIRAGE;
+    this.scene.add(new THREE.HemisphereLight(ecl.hemispherique.ciel, ecl.hemispherique.sol, ecl.hemispherique.intensite));
+    const dir = new THREE.DirectionalLight(ecl.directionnelle.couleur, ecl.directionnelle.intensite);
+    dir.position.set(...ecl.directionnelle.position);
     this.scene.add(dir);
-    const halo = new THREE.PointLight(0x3dffce, 0.45, 18, 2);
+    const halo = new THREE.PointLight(NEON, ecl.haloNeon.intensite, ecl.haloNeon.portee, ecl.haloNeon.decay);
     halo.position.set(0, 4, 0);
     this.scene.add(halo);
+    // IBL légère (RoomEnvironment) : relumine les faces hors lumière. Coût :
+    // un bake PMREM ponctuel à la construction, puis un échantillonnage env
+    // par fragment — chiffré au bench avant/après (handoff ECLAIRAGE §M4).
+    if (ecl.ibl.intensite > 0) {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      this.scene.environmentIntensity = ecl.ibl.intensite;
+      pmrem.dispose();
+    }
   }
 
   setBloom(on: boolean): void {

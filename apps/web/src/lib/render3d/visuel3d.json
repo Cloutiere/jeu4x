@@ -9,6 +9,29 @@
     "colline": 0.3,
     "montagne": 0.62
   },
+  "eclairage": {
+    "$comment": "Rig d'éclairage du rendu 3D (handoff ECLAIRAGE, 11/09) — calibrable SANS code. exposition : toneMappingExposure du renderer (LinearToneMapping — pas de courbe, juste l'exposition). hemispherique : lumière ambiante (la BAISSER resserre le contraste). directionnelle : lumière clé (position = vecteur monde, une direction plus marquée redonne du modelé). haloNeon : PointLight d'accent néon (langage du jeu — conservé). ibl.intensite : lumière d'environnement RoomEnvironment (0 = éteinte ; TOUJOURS avec la courbe ACES, sinon elle lave tout —  seul levier avec un coût GPU — benché). Section absente = rig historique (hemi 0.95, dir 0.85, exposition 1, IBL off). Valeurs candidat calibrées sur ville/chevalier_v3/prairie_v2 — à trancher à l'œil par Erik.",
+    "exposition": 1.3,
+    "toneMapping": "aces",
+    "hemispherique": {
+      "intensite": 0.35,
+      "ciel": "#2C4A5A",
+      "sol": "#0A1420"
+    },
+    "directionnelle": {
+      "intensite": 1.3,
+      "couleur": "#E8FFF6",
+      "position": [-4, 10, 2]
+    },
+    "haloNeon": {
+      "intensite": 0.45,
+      "portee": 18,
+      "decay": 2
+    },
+    "ibl": {
+      "intensite": 0.3
+    }
+  },
   "materiauDefaut": {
     "emissive": 0.45,
     "roughness": 0.6,

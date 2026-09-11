@@ -59,11 +59,6 @@ export const MATERIAU_DEFAUT: Readonly<{ emissive: number; roughness: number; me
 export const NEON = parseInt(visuel.neon.slice(1), 16);
 export const NEON_CSS = visuel.neon;
 
-/** Dessous commun de tous les prismes (unités monde, hex de rayon 1). */
-export const BAS = visuel.bas;
-/** Longueur d'une voie de bus (unités monde). */
-export const LONG_BUS = visuel.longBus;
-
 // ---------------------------------------------------------------------------
 // Validation / conversion du JSON (erreurs explicites si la spec est corrompue)
 // ---------------------------------------------------------------------------
@@ -92,6 +87,7 @@ function glyphe(v: unknown, ctx: string): SpecGlyphe | null {
   if (actifs < 0 || actifs > total) throw new Error(`visuel3d.json : actifs hors [0, total] pour ${ctx}`);
   return { famille: g.famille as Famille, total, actifs };
 }
+
 
 const elevations = visuel.elevations as Record<string, unknown>;
 
@@ -962,6 +958,89 @@ export const STRUCTURES3D: SpecStructures = {
   uniteGuerrier: UNITE_GUERRIER3D,
   uniteArcher: UNITE_ARCHER3D,
 };
+
+// ---------------------------------------------------------------------------
+// Rig d'éclairage (handoff ECLAIRAGE, 11/09) — §eclairage du JSON, appliqué
+// par stage3d.ts (le jeu) et COPIÉ dans fonderie/viewer.js (convention
+// « copié, jamais importé »). Section absente = rig HISTORIQUE exact
+// (rétrocompatibilité sans surprise : le rendu ne change pas d'un pixel).
+// ---------------------------------------------------------------------------
+
+/** Spec du rig d'éclairage. Angles/positions en unités monde Three.js. */
+export interface SpecEclairage {
+  /** toneMappingExposure du renderer. */
+  exposition: number;
+  /** Courbe de sortie : 'none' (rig historique), 'linear' (exposition seule), 'aces' (filmique — noirs creusés, look Tripo). */
+  toneMapping: 'none' | 'linear' | 'aces';
+  hemispherique: { intensite: number; ciel: number; sol: number };
+  directionnelle: { intensite: number; couleur: number; position: [number, number, number] };
+  /** PointLight d'accent néon (langage du jeu — conservé). */
+  haloNeon: { intensite: number; portee: number; decay: number };
+  /** Lumière d'environnement RoomEnvironment (0 = éteinte). */
+  ibl: { intensite: number };
+}
+
+/** Rig historique du jeu (stage3d.ts avant le chantier ECLAIRAGE). */
+const ECLAIRAGE_HISTORIQUE: SpecEclairage = {
+  exposition: 1,
+  toneMapping: 'none',
+  hemispherique: { intensite: 0.95, ciel: 0x2c4a5a, sol: 0x0a1420 },
+  directionnelle: { intensite: 0.85, couleur: 0xe8fff6, position: [-5, 9, 3] },
+  haloNeon: { intensite: 0.45, portee: 18, decay: 2 },
+  ibl: { intensite: 0 },
+};
+
+const TONE_MAPPINGS: ReadonlySet<string> = new Set(['none', 'linear', 'aces']);
+
+/** Valide §eclairage (exporté : les tests du chargeur exigent une erreur
+ *  CLAIRE sur toute entrée invalide — pas de fallback silencieux). */
+export function validerEclairage(brut: unknown): SpecEclairage {
+  const e = objet(brut, 'eclairage');
+  const hemiBrut = objet(e.hemispherique, 'eclairage.hemispherique');
+  const dirBrut = objet(e.directionnelle, 'eclairage.directionnelle');
+  const haloBrut = objet(e.haloNeon, 'eclairage.haloNeon');
+  const iblBrut = objet(e.ibl, 'eclairage.ibl');
+  const pos = dirBrut.position;
+  if (!Array.isArray(pos) || pos.length !== 3 || pos.some((n) => typeof n !== 'number' || !Number.isFinite(n))) {
+    throw new Error('visuel3d.json : eclairage.directionnelle.position doit être un vecteur [x, y, z]');
+  }
+  const exposition = nombre(e.exposition, 'eclairage.exposition');
+  if (exposition <= 0 || exposition > 8) throw new Error('visuel3d.json : eclairage.exposition hors ]0, 8]');
+  if (typeof e.toneMapping !== 'string' || !TONE_MAPPINGS.has(e.toneMapping)) {
+    throw new Error(`visuel3d.json : eclairage.toneMapping invalide (${JSON.stringify(e.toneMapping)} — attendu none|linear|aces)`);
+  }
+  return {
+    exposition,
+    toneMapping: e.toneMapping as SpecEclairage['toneMapping'],
+    hemispherique: {
+      intensite: positifOuNul(hemiBrut.intensite, 'eclairage.hemispherique.intensite'),
+      ciel: couleur(hemiBrut.ciel, 'eclairage.hemispherique.ciel'),
+      sol: couleur(hemiBrut.sol, 'eclairage.hemispherique.sol'),
+    },
+    directionnelle: {
+      intensite: positifOuNul(dirBrut.intensite, 'eclairage.directionnelle.intensite'),
+      couleur: couleur(dirBrut.couleur, 'eclairage.directionnelle.couleur'),
+      position: [pos[0] as number, pos[1] as number, pos[2] as number],
+    },
+    haloNeon: {
+      intensite: positifOuNul(haloBrut.intensite, 'eclairage.haloNeon.intensite'),
+      portee: positifOuNul(haloBrut.portee, 'eclairage.haloNeon.portee'),
+      decay: positifOuNul(haloBrut.decay, 'eclairage.haloNeon.decay'),
+    },
+    ibl: { intensite: positifOuNul(iblBrut.intensite, 'eclairage.ibl.intensite') },
+  };
+}
+
+/** Rig d'éclairage effectif : §eclairage du JSON, rig historique si absent. */
+export const ECLAIRAGE: SpecEclairage =
+  (visuel as Record<string, unknown>).eclairage === undefined
+    ? ECLAIRAGE_HISTORIQUE
+    : validerEclairage((visuel as Record<string, unknown>).eclairage);
+
+/** Dessous commun de tous les prismes (unités monde, hex de rayon 1). */
+export const BAS = visuel.bas;
+/** Longueur d'une voie de bus (unités monde). */
+export const LONG_BUS = visuel.longBus;
 
 // ---------------------------------------------------------------------------
 // Placements de glyphes (coordonnées locales, hex de rayon 1) — portés du
