@@ -160,3 +160,8 @@
 - **Spec** `visuel3d.json` §`structures.tuileMontagne3d` (echelle 2.0) ; substrat procédural
   masqué (haut + glyphes, parois conservées) via `clesTuilesGlb()` ; rendu par le calque
   .glb des tuiles. 193 tests verts, svelte-check 0 erreur.
+
+## Addendum 14 (11/09 — retour d'Erik) : montagne orientée
+
+- `rotation: 30` sur `tuileMontagne3d` — l'hexagone du modèle était à 30° de la grille
+  (symétrie 60° de l'hexagone : +30 et −30 équivalents). Data-driven, sans code.
