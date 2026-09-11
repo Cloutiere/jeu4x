@@ -170,3 +170,8 @@
 
 - Mesure des sommets de contour : modèle à 15°+60k, grille à 30°+60k → **rotation 15**
   (30 sur-rotait). Data-driven.
+
+## Addendum 16 (11/09) : signe de la rotation
+
+- rotY(θ) du jeu déplace les angles en −θ : modèle 15° → viser 30° donne **rotation −15**
+  (+15 et +30 plaçaient les sommets à 0° puis −15°, jamais sur la grille).
