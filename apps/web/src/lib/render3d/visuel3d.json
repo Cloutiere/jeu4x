@@ -769,10 +769,10 @@
     },
     "tuileColline3d": {
       "_comment": "Visuel 3D de la TUILE colline (asset Tripo, decision d'Erik du 11/09) : REMPLACE le substrat procedural (haut+glyphes masques, parois conservees). echelle 2.0 ; dy -0.15 cuit : le terrain colline est a elev 0.3, dy -0.3 cuit (base a -0.3 sous l'elev 0.3) + survol 0.2 : la base se cale legerement SOUS le plateau des autres tuiles (miroir de la prairie) — ajustable via survol sans re-cuisson. Absent = substrat procedural.",
-      "glb": "colline_v1.glb",
+      "glb": "colline_v2.glb",
       "echelle": 2.0,
       "rotation": 0,
-      "survol": 0.2
+      "survol": 0.05
     }
   }
 }
