@@ -44,7 +44,7 @@
   // Fonderie T3 — calque des unités à modèle .glb (chargement en cache,
   // teinte joueur par propriétaire, instancing ; cf. unitesglb.ts).
   import { ChargeurModelesGLB, UnitesGLBWorld } from '../render3d/unitesglb.js';
-  import { MODELES_UNITES3D, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D, TUILE_PLAINE3D, TUILE_PLAINE_GRENIER3D } from '../render3d/spec3d.js';
+  import { MODELES_UNITES3D, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D, TUILE_PLAINE3D, TUILE_PLAINE_GRENIER3D, TUILE_MONTAGNE3D } from '../render3d/spec3d.js';
   // VILLE-TRIPO T2 — entrée .glb d'une ville (même format que le catalogue unités).
   import type { UniteGLBEntree } from '../render3d/unites3d.js';
   // TRAVAIL-VILLE-3D — contours en vraie 3D : cadres des cases travaillées +
@@ -1077,6 +1077,7 @@
     for (const [key, tile] of Object.entries(scene.state.map)) {
       if (tile.terrain === 'prairie' && TUILE_PRAIRIE3D) out.add(key);
       else if (tile.terrain === 'plaine' && TUILE_PLAINE3D) out.add(key);
+      else if (tile.terrain === 'montagne' && TUILE_MONTAGNE3D) out.add(key);
     }
     return out;
   }
@@ -1510,8 +1511,9 @@
       const tuilePrairie = TUILE_PRAIRIE3D && TUILE_PRAIRIE3D.kind === 'glb' ? TUILE_PRAIRIE3D : null;
       const tuilePlaine = TUILE_PLAINE3D && TUILE_PLAINE3D.kind === 'glb' ? TUILE_PLAINE3D : null;
       const tuilePlaineGrenier = TUILE_PLAINE_GRENIER3D && TUILE_PLAINE_GRENIER3D.kind === 'glb' ? TUILE_PLAINE_GRENIER3D : null;
+      const tuileMontagne = TUILE_MONTAGNE3D && TUILE_MONTAGNE3D.kind === 'glb' ? TUILE_MONTAGNE3D : null;
       const prairiesGlbEntrees: UniteGLBEntree[] = [];
-      if (tuilePrairie || tuilePlaine || tuilePlaineGrenier) {
+      if (tuilePrairie || tuilePlaine || tuilePlaineGrenier || tuileMontagne) {
         // plaine sous grenier : la ville qui travaille cette case possède le bâtiment
         const travaillePar = TUILE_PLAINE_GRENIER3D ? workedTileOwner() : null;
         for (const [key, tile] of Object.entries(state.map)) {
@@ -1522,6 +1524,7 @@
           const spec = tile.terrain === 'prairie' ? tuilePrairie
             : tile.terrain === 'plaine'
               ? (travaillePar?.get(key)?.buildings?.includes('grenier') ? tuilePlaineGrenier : tuilePlaine)
+            : tile.terrain === 'montagne' ? tuileMontagne
             : null;
           if (!spec) continue;
           prairiesGlbEntrees.push({
@@ -1934,7 +1937,7 @@
       }
       // TUILE prairie .glb (recouvrement, sans teinte) — capacité 2048.
       // (+ variante plaine grenier, cf. TUILE_PLAINE_GRENIER3D.)
-      const tuilesGlbSpecs = [TUILE_PRAIRIE3D, TUILE_PLAINE3D, TUILE_PLAINE_GRENIER3D]
+      const tuilesGlbSpecs = [TUILE_PRAIRIE3D, TUILE_PLAINE3D, TUILE_PLAINE_GRENIER3D, TUILE_MONTAGNE3D]
         .filter((e): e is Extract<typeof e, { kind: 'glb' }> => e !== null && e.kind === 'glb');
       const tuilesGlbFichiers = tuilesGlbSpecs.map((e) => e.glb);
       if (tuilesGlbFichiers.length > 0) {

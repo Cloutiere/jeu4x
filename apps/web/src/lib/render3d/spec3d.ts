@@ -931,6 +931,15 @@ export const TUILE_PLAINE_GRENIER3D: EntreeUnite3D | null =
     ? null
     : parseEntreeUnite3D('tuilePlaineGrenier3d', structuresBrut.tuilePlaineGrenier3d);
 
+/** Visuel 3D de la TUILE montagne (asset Tripo, décision d'Erik du 11/09) :
+ *  remplace le substrat procédural ; dy -0.31 cuit pour que sa BASE se pose au
+ *  niveau 0 (le sommet des autres tuiles — le terrain `montagne` est à
+ *  elev 0.62), son propre sommet culminant plus haut. Absent = substrat. */
+export const TUILE_MONTAGNE3D: EntreeUnite3D | null =
+  structuresBrut.tuileMontagne3d === undefined
+    ? null
+    : parseEntreeUnite3D('tuileMontagne3d', structuresBrut.tuileMontagne3d);
+
 export const STRUCTURES3D: SpecStructures = {
   slot: SLOT3D,
   formes: FORMES3D,

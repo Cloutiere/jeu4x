@@ -149,3 +149,14 @@
   ~0.12 plus bas que celui de la prairie (profils internes différents des deux modèles).
 - **survol 0.12** posé sur `tuilePlaine3d` et `tuilePlaineGrenier3d` — calibrage EN DIRECT
   sans re-cuisson des fichiers (champ data-driven existant). Erik ajuste la valeur à l'œil.
+
+## Addendum 13 (11/09 — demande d'Erik) : TUILE montagne en .glb
+
+- **Asset** `image_ref/montagne_tripo.glb` (4 684 tris, 1 matériau, 0,998 × 0,314 × 0,998) →
+  **`assets-src/modeles/montagne_v1.glb`** + `public/modeles/`.
+- **Pose demandée** : base de la montagne au niveau 0 (= le sommet des autres tuiles), son
+  propre sommet culminant plus haut. dy −0.31 cuit (le terrain `montagne` est à elev 0.62 :
+  0.62 + (0 − 0.31) × 2 = 0). Couleurs d'origine, emissive 0.7.
+- **Spec** `visuel3d.json` §`structures.tuileMontagne3d` (echelle 2.0) ; substrat procédural
+  masqué (haut + glyphes, parois conservées) via `clesTuilesGlb()` ; rendu par le calque
+  .glb des tuiles. 193 tests verts, svelte-check 0 erreur.
