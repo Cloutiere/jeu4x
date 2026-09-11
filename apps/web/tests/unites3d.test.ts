@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { tileKeyOf } from '@game/rules';
 import type { GameState } from '@game/rules';
-import { MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D, TUILE_PLAINE3D, TUILE_PLAINE_GRENIER3D, TUILE_MONTAGNE3D, TERRAINS3D, gabaritUnite3D, entreeUnite3D, entreeUnite3DDe, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
+import { MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D, TUILE_PLAINE3D, TUILE_PLAINE_GRENIER3D, TUILE_MONTAGNE3D, TUILE_COLLINE3D, TERRAINS3D, gabaritUnite3D, entreeUnite3D, entreeUnite3DDe, parseEntreeUnite3D } from '../src/lib/render3d/spec3d.js';
 import { planifierStructures } from '../src/lib/render3d/structures3d.js';
 import type { EntiteStructure, EntreeStructures } from '../src/lib/render3d/structures3d.js';
 import { aModele3D, unitesStructures, unitesGLBStructures } from '../src/lib/render3d/unites3d.js';
@@ -94,6 +94,7 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
       ...(TUILE_PLAINE3D && TUILE_PLAINE3D.kind === 'glb' ? [TUILE_PLAINE3D.glb] : []),
       ...(TUILE_PLAINE_GRENIER3D && TUILE_PLAINE_GRENIER3D.kind === 'glb' ? [TUILE_PLAINE_GRENIER3D.glb] : []),
       ...(TUILE_MONTAGNE3D && TUILE_MONTAGNE3D.kind === 'glb' ? [TUILE_MONTAGNE3D.glb] : []),
+      ...(TUILE_COLLINE3D && TUILE_COLLINE3D.kind === 'glb' ? [TUILE_COLLINE3D.glb] : []),
       // v1 des tuiles servies en parallèle des v2 (même contenu corrigé, caches edge)
       ...(TUILE_PRAIRIE3D && TUILE_PRAIRIE3D.kind === 'glb' ? [TUILE_PRAIRIE3D.glb.replace('_v2', '_v1')] : []),
       ...(TUILE_PLAINE3D && TUILE_PLAINE3D.kind === 'glb' ? [TUILE_PLAINE3D.glb.replace('_v2', '_v1')] : []),
@@ -102,7 +103,7 @@ describe('catalogue data-driven type → modèle 3D (visuel3d.json, fonderie T3)
     // T4bis : barbare_v3 est branché via unites3dSurchargeProprietaire (owner
     // 'barbarien') — plus aucun orphelin, aucun fichier servi sans branchement.
     expect(mappes).toEqual(fichiers);
-    expect(fichiers.length).toBe(33);
+    expect(fichiers.length).toBe(34);
   });
 
   it('les types SANS entrée (civs uniques, GP, caravane…) gardent leur sprite 2D', () => {

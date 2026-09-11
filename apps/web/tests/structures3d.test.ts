@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { RESOURCES, RESOURCE_UNKNOWN, BUILDINGS, tileKeyOf, makeState, getFilteredState } from '@game/rules';
 import type { Hex } from '@game/rules';
-import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D, TUILE_PLAINE3D, TUILE_PLAINE_GRENIER3D, TUILE_MONTAGNE3D } from '../src/lib/render3d/spec3d.js';
+import { STRUCTURES3D, TERRAINS3D, categorieDeBatiment, VILLE3D, VILLAGE_BARBARE3D, HUTTE_TRIPO3D, TUILE_PRAIRIE3D, TUILE_PLAINE3D, TUILE_PLAINE_GRENIER3D, TUILE_MONTAGNE3D, TUILE_COLLINE3D } from '../src/lib/render3d/spec3d.js';
 import {
   planifierStructures, palierDe, estCarteNeutre, peindrePicto, StructuresWorld, creerGuerrierHumain,
 } from '../src/lib/render3d/structures3d.js';
@@ -131,6 +131,13 @@ describe('TUILE montagne .glb (asset Tripo, décision Erik 11/09)', () => {
   it('la spec §structures.tuileMontagne3d pointe l’asset (base au niveau 0 via dy cuit, échelle 2.0)', () => {
     expect(TUILE_MONTAGNE3D).not.toBeNull();
     expect(TUILE_MONTAGNE3D).toMatchObject({ kind: 'glb', glb: 'montagne_v1.glb', echelle: 2.0 });
+  });
+});
+
+describe('TUILE colline .glb (asset Tripo, décision Erik 11/09)', () => {
+  it('la spec §structures.tuileColline3d pointe l’asset (base au niveau 0 via dy cuit, échelle 2.0)', () => {
+    expect(TUILE_COLLINE3D).not.toBeNull();
+    expect(TUILE_COLLINE3D).toMatchObject({ kind: 'glb', glb: 'colline_v1.glb', echelle: 2.0 });
   });
 });
 

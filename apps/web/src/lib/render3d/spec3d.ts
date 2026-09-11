@@ -940,6 +940,15 @@ export const TUILE_MONTAGNE3D: EntreeUnite3D | null =
     ? null
     : parseEntreeUnite3D('tuileMontagne3d', structuresBrut.tuileMontagne3d);
 
+/** Visuel 3D de la TUILE colline (asset Tripo, décision d'Erik du 11/09) :
+ *  remplace le substrat procédural ; dy -0.15 cuit pour que sa BASE se pose au
+ *  niveau 0 (le terrain `colline` est à elev 0.3), son sommet culminant plus
+ *  haut. Absent = substrat. */
+export const TUILE_COLLINE3D: EntreeUnite3D | null =
+  structuresBrut.tuileColline3d === undefined
+    ? null
+    : parseEntreeUnite3D('tuileColline3d', structuresBrut.tuileColline3d);
+
 export const STRUCTURES3D: SpecStructures = {
   slot: SLOT3D,
   formes: FORMES3D,

@@ -175,3 +175,13 @@
 
 - rotY(θ) du jeu déplace les angles en −θ : modèle 15° → viser 30° donne **rotation −15**
   (+15 et +30 plaçaient les sommets à 0° puis −15°, jamais sur la grille).
+
+## Addendum 17 (11/09 — demande d'Erik) : TUILE colline en .glb
+
+- **Asset** `image_ref/colline_tripo.glb` (4 242 tris, empreinte 1,0 × 0,81, hauteur 0,557) →
+  **`assets-src/modeles/colline_v1.glb`** + `public/modeles/`.
+- **Géométrie mesurée meilleure que la montagne** : contour quasi régulier et centré
+  (rayons 0,44-0,50, sans les bosses à 0,534).
+- **Pose** : base au niveau 0 (dy −0.15 cuit, terrain colline à elev 0.3), sommet culminant
+  plus haut. Couleurs d'origine, emissive 0.7. Spec §`structures.tuileColline3d` (echelle 2.0).
+- Substrat masqué via `clesTuilesGlb()`. 194 tests verts, svelte-check 0 erreur.
