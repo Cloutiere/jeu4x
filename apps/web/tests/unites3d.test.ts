@@ -344,6 +344,29 @@ describe('calque .glb — fonderie T3 (assemblage + garde-fous)', () => {
     expect(() => parserModeleGLB(scene as never)).toThrow(/aucune géométrie/);
   });
 
+  it('parserModeleGLB APPLIQUE la translation du nœud glTF (dy cuit des tuiles — VILLE-TRIPO)', () => {
+    // Les outils fonderie cuisent le dy d'affleurement dans la TRANSLATION du
+    // nœud ; l'instancing posant ses propres matrices, ce transform serait
+    // perdu (tuile posée SUR le sol au lieu d'enfoncée). Régression verrouillée.
+    const geo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+    const mat = new THREE.MeshStandardMaterial({ name: 'corps_tripo' });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(0, -0.095, 0);
+    const scene = new THREE.Group();
+    scene.add(mesh);
+    const modele = parserModeleGLB(scene);
+    expect(modele.parties).toHaveLength(1);
+    const pos = modele.parties[0]!.geo.attributes.position;
+    let minY = Infinity, maxY = -Infinity;
+    for (let i = 1; i < pos.count; i++) { /* itère y */ break; }
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    }
+    expect(minY).toBeCloseTo(-0.195, 5);  // -0.095 - 0.1
+    expect(maxY).toBeCloseTo(0.005, 5);   // -0.095 + 0.1
+  });
+
   it('teinte joueur MULTIPLICATIVE : facteur de luminance du glb conservé, J1 ≠ J2, néon intact (T4/M2)', () => {
     // Piège knight (rapport HABILLAGE-TRIPO #7) : le glb cuit un facteur 6.6
     // dans accent_joueur.color — un color.set(teinte) l'écraserait et le

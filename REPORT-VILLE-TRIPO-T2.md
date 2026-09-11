@@ -127,3 +127,18 @@
   `prairie_v2.glb` (dy -0.095), `plaine_v2.glb` (dy -0.182), `plaine_grenier_v2.glb`
   (dy -0.182) : les trois rebords à 0.000 = niveau forêt. Anciens v1 retirés de
   `public/modeles/`, specs et tests mis à jour. 191 tests verts, svelte-check 0 erreur.
+
+## Addendum 11 (11/09 — cause racine des hauteurs fausses trouvée)
+
+- **Le parseur du jeu (`parserModeleGLB`) ignorait les transformations des nœuds glTF** :
+  le dy d'affleurement cuit par `preparer-structure-tripo.mjs` (translation du nœud) était
+  perdu à l'instancing → tuile posée SUR le sol (base au niveau du haut de la forêt).
+  La plaine (habiller-plaine-grenier) cuit son dy DANS LES SOMMETS — d'où les deux
+  comportements divergents observés.
+- **Correctif** : `parserModeleGLB` applique désormais `matrixWorld` aux géométries
+  (mesh + lignes) dont le transform n'est pas l'identité — toute la classe de bug éliminée
+  pour les futurs assets. Les 23 unités (nœuds identités) : aucun impact.
+- Test de régression ajouté (translation de nœud répercutée dans la géométrie parsée).
+- **État des hauteurs attendu en jeu** : prairie rim 0.000, plaine rim 0.000,
+  plaine grenier rim 0.000, forêt procédurale 0.000 — tout affleure.
+- 192 tests verts, svelte-check 0 erreur.

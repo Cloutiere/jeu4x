@@ -46,6 +46,12 @@ const NOM_ACCENT = 'accent_joueur';
  * claire si le fichier ne contient AUCUNE géométrie — pas de fallback muet.
  */
 export function parserModeleGLB(scene: THREE.Object3D): ModeleGLB {
+  // Les transformations des NŒUDS glTF (translation cuite par les outils
+  // fonderie — ex. dy d'affleurement des tuiles) doivent se retrouver dans la
+  // géométrie : l'instancing pose des matrices propres par instance, le
+  // transform du mesh source serait sinon PERDU (tuile posée SUR le sol).
+  scene.updateMatrixWorld?.(true);
+  const identite = new THREE.Matrix4();
   const brutes: Array<{ geo: THREE.BufferGeometry; mat: THREE.MeshStandardMaterial; accent: boolean }> = [];
   const geosLignes: THREE.BufferGeometry[] = [];
   let matLignes: THREE.LineBasicMaterial | null = null;
@@ -55,11 +61,19 @@ export function parserModeleGLB(scene: THREE.Object3D): ModeleGLB {
       const mat = mesh.material as THREE.MeshStandardMaterial;
       if (Array.isArray(mat)) throw new Error('unitesglb : matériau multi-passes non supporté dans un .glb de la fonderie');
       if (!mat.name) throw new Error('unitesglb : primitive .glb sans matériau nommé (la fonderie nomme tous ses matériaux)');
-      brutes.push({ geo: mesh.geometry, mat, accent: mat.name === NOM_ACCENT });
+      let geo = mesh.geometry;
+      if (!mesh.matrixWorld.equals(identite)) {
+        geo = geo.clone().applyMatrix4(mesh.matrixWorld);
+      }
+      brutes.push({ geo, mat, accent: mat.name === NOM_ACCENT });
     }
     const ligne = n as unknown as { isLineSegments?: boolean; isLine?: boolean; geometry: THREE.BufferGeometry; material: THREE.Material };
     if ((ligne.isLineSegments || ligne.isLine) && !mesh.isMesh) {
-      geosLignes.push(ligne.geometry as THREE.BufferGeometry);
+      let geo = ligne.geometry as THREE.BufferGeometry;
+      if (!n.matrixWorld.equals(identite)) {
+        geo = geo.clone().applyMatrix4(n.matrixWorld);
+      }
+      geosLignes.push(geo);
       matLignes = ligne.material as THREE.LineBasicMaterial;
     }
   });
