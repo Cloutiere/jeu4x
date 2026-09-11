@@ -751,13 +751,15 @@
       "_comment": "Visuel 3D de la TUILE plaine de BASE (asset Tripo, decision d'Erik du 08/09) : bus de donnees CENTRAL allume, 2 bus de chaque cote en cuivre eteint. REMPLACE le substrat procedural sur TOUTES les tuiles plaine (haut+glyphes masques, parois conservees) : echelle 2.0 = couvre l'hexagone (l'asset fait la moitie ; le dy cuit -0.099 passe a -0.198 avec l'echelle, la surface affleure). Absent = substrat procedural.",
       "glb": "plaine_v2.glb",
       "echelle": 2.0,
-      "rotation": 0
+      "rotation": 0,
+      "survol": 0.12
     },
     "tuilePlaineGrenier3d": {
       "_comment": "Variante SOUS GRENIER (R-66 : +2 nourriture sur plaine ; decision d'Erik du 08/09) : TOUS les bus allumes (l'asset 'plaine on' fourni par Erik, texture intacte + emissive 0.7). Posee sur les tuiles plaine TRAVAILLEES par une ville possedant le grenier, a la place de tuilePlaine3d. Absent = tuilePlaine3d partout.",
       "glb": "plaine_grenier_v2.glb",
       "echelle": 2.0,
-      "rotation": 0
+      "rotation": 0,
+      "survol": 0.12
     }
   }
 }

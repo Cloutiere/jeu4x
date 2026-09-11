@@ -142,3 +142,10 @@
 - **État des hauteurs attendu en jeu** : prairie rim 0.000, plaine rim 0.000,
   plaine grenier rim 0.000, forêt procédurale 0.000 — tout affleure.
 - 192 tests verts, svelte-check 0 erreur.
+
+## Addendum 12 (11/09 — calage fin d'Erik) : plateau de la plaine relevé
+
+- Prairie et forêt alignées (addendum 11). Reste : le PLATEAU utile de la plaine est
+  ~0.12 plus bas que celui de la prairie (profils internes différents des deux modèles).
+- **survol 0.12** posé sur `tuilePlaine3d` et `tuilePlaineGrenier3d` — calibrage EN DIRECT
+  sans re-cuisson des fichiers (champ data-driven existant). Erik ajuste la valeur à l'œil.
