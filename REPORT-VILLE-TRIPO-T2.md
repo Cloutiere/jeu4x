@@ -185,3 +185,9 @@
 - **Pose** : base au niveau 0 (dy −0.15 cuit, terrain colline à elev 0.3), sommet culminant
   plus haut. Couleurs d'origine, emissive 0.7. Spec §`structures.tuileColline3d` (echelle 2.0).
 - Substrat masqué via `clesTuilesGlb()`. 194 tests verts, svelte-check 0 erreur.
+
+## Addendum 18 (11/09 — retour d'Erik) : colline recalée
+
+- La colline flottait (base au niveau du REBORD des autres, pas de leur plateau).
+- Recuite dy −0.3 (base à −0.3 sous l'élévation 0.3) + **survol 0.2** en spec : base finale
+  ≈ −0.1, légèrement enfoncée comme les autres tuiles. Ajustable via `survol` sans re-cuisson.
