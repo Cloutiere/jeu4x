@@ -5,6 +5,23 @@ Chaque idée sera formalisée normalement (RULES.md / DESIGN.md) au moment de so
 
 ---
 
+## REPRISE 3D (mise en sommeil le 11/09 — pivot vers 2D/règles/visuel 2D/menus)
+
+Le 3D n'est pas abandonné : il est **derrière le drapeau unique `rendu3d: false`** (`apps/web/src/lib/config.ts`). Reprendre = passer le drapeau à `true` (tout le comportement historique est intact, verrouillé par tests), puis enchaîner ce qui attend :
+
+**Chantiers en attente :**
+- **RELECTURE-3D** — la résolution de fin de tour visible à vitesse normale (mouvements, attaques, conséquences) — impératif pédagogique de l'asynchrone (issue du calibrage bloc 4.5) ;
+- **Tuiles forêt/désert/eau** en assets externes (T5 : prairie, plaine ± grenier, montagne, colline livrées — il manque ces trois terrains) ;
+- **Distinction capitale** (couronne discernable, contraste du corps — polissage assets) ;
+- **V3 — visuel** : renommage thématique nanotech fait, polissages restants (variante substrats, pulses, LOD glyphes, bloom).
+
+**État des outils à la reprise :**
+- **Rig d'éclairage** ACES/exposition/IBL data-driven dans `visuel3d.json` §`eclairage` (ECLAIRAGE, validé 11/09 — réajustement = une ligne de JSON) ;
+- **Pipeline d'assets .glb** : fonderie (`fonderie/`, visualiseur autonome + mode A/B éclairage) + promotion + mapping data-driven `visuel3d.json` (22 unités, ville, huttes, tuiles) ; **cache edge Cloudflare** : renommer les fichiers (v1→v2…) si reprise, sinon les vieux bundles réclament les vieilles URL ;
+- **Teintes joueur J1-J6** démontrées en fonderie, mapping joueur→teinte à trancher ;
+- **Leçon du domaine colline** : validation locale avec captures AVANT tout commit (fin des itérations en prod) ;
+- **Premier chantier si nécessaire** : élimination du code Three.js du bundle quand le drapeau est à false (tree-shaking/lazy-load) — ne pas l'anticiper, c'est accepté en l'état aujourd'hui.
+
 ## Idée 1 — Identité visuelle procédurale des armées et villes
 
 ### Concept d'origine (Erik)

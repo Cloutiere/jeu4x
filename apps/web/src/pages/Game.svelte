@@ -24,6 +24,7 @@
   import { rightClickAction, annulationOrdre, unitsWithoutOrders, myEngineId } from '../lib/render/interaction.js';
   import type { ClickAction } from '../lib/render/interaction.js';
   import { unexecutedOrders } from '../lib/feedback.js';
+  import { config, rendu3dAutorise, bascule3dAutorisee } from '../lib/config.js';
   import GameCanvas from '../lib/render/GameCanvas.svelte';
   import UnitPanel from '../components/UnitPanel.svelte';
   import CityPanel from '../components/CityPanel.svelte';
@@ -363,8 +364,14 @@
   // sous les entités) → 0.
   // Chantier V1 (L3) : rendu 3D du terrain (option B hybride) — flag de repli
   // DÉFAUT DÉSACTIVÉ (rendu 2D conservé jusqu'à l'acceptation visuelle d'Erik).
-  let rendu3d = $state(typeof localStorage !== 'undefined' && localStorage.getItem('rendu3d') === '1');
+  // Pivot du 11/09 : le 3D est mis de côté derrière le DRAPEAU UNIQUE
+  // `config.rendu3d` (lib/config.ts) — à false : bouton non rendu, préférence
+  // locale ignorée (le jeu force le 2D), bascule inerte. À true : historique.
+  let rendu3d = $state(
+    typeof localStorage !== 'undefined' && rendu3dAutorise(localStorage.getItem('rendu3d')),
+  );
   function basculerRendu3d(): void {
+    if (!bascule3dAutorisee()) return;
     rendu3d = !rendu3d;
     localStorage.setItem('rendu3d', rendu3d ? '1' : '0');
   }
@@ -599,14 +606,16 @@
     >
       Rendements{yieldMode === 1 ? ' ✓' : yieldMode === 2 ? ' (seuls)' : ''}
     </button>
-    <button
-      type="button"
-      class:active-toggle={rendu3d}
-      title="Rendu 3D du terrain (chantier V1 — le rendu 2D reste disponible : ce bouton est un flag de repli)"
-      onclick={basculerRendu3d}
-    >
-      3D
-    </button>
+    {#if config.rendu3d}
+      <button
+        type="button"
+        class:active-toggle={rendu3d}
+        title="Rendu 3D du terrain (chantier V1 — le rendu 2D reste disponible : ce bouton est un flag de repli)"
+        onclick={basculerRendu3d}
+      >
+        3D
+      </button>
+    {/if}
     {#if devMode}<a href={`#/debug/${code}`}>Debug</a>{/if}
   </header>
 

@@ -2,7 +2,18 @@
 
 **Tenue par le pilot, mise à jour à chaque acceptation de phase.** Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md).
 
-**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **928 tests verts** · `schemaVersion` **18** · budget Cloudflare tenu (~5 $/mois).
+**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **1024 tests verts** · `schemaVersion` **19** · budget Cloudflare tenu (~5 $/mois).
+
+---
+
+## 🔄 Pivot du 11/09 — le 3D est mis de côté (reprisable)
+
+**Décision d'Erik** : le projet pivote vers **la jouabilité 2D, les règles, le visuel 2D et les menus**. Tout le travail 3D (chantiers V1/V2/UNITES-3D/FONDERIE/T5/ECLAIRAGE/RELECTURE-3D) est **mis de côté, pas supprimé** : le code reste dans le dépôt, documenté pour une reprise éventuelle, mais **inaccessible en production**.
+
+- **Drapeau unique** : `rendu3d: false` dans `apps/web/src/lib/config.ts` — le bouton « 3D » n'est plus rendu, la préférence locale (localStorage) est ignorée, la bascule 2D↔3D est inerte. Le jeu est 2D en toutes circonstances. À `true` : tout le comportement 3D historique est intact (verrouillé par tests `apps/web/tests/rendu3d-flag.test.ts`).
+- **Reste accessible** : le rendu 2D (seul chemin de production), les outils d'atelier `#/lab3d`, `#/atelier`, `#/progen` (outils de reprise d'Erik, sans lien depuis l'UI de jeu) et la fonderie (`fonderie/`, hors app).
+- **Accepté en l'état** : le code Three.js reste dans le bundle même inutilisé ; le labo/atelier restent joignables par URL en prod.
+- **État à la reprise** : voir BACKLOG.md, entrée « REPRISE 3D (mise en sommeil le 11/09) ».
 
 ---
 
@@ -36,9 +47,12 @@
 8. **CENTREVILLE** ✅ — socle garanti 1N/1P/1C sur tout terrain, tranche démographique au-dessus (livré 06/09) ;
 9. **CALIBRAGE-CANON** ✅ — calibrage canon 06/09 appliqué (rapports d'Erik) : rush industriel ×4, sac de ville 25 %, GP or = Explorateur/Industriel, Confucius 2 GP **hors escalade**, Templiers toujours Vétérane, Égypte = **tirage seedé** sans choix (UI/protocole nettoyés), Zoulous = Aqueduc passif (seuils ÷2), artefacts 4-5 / distance 8 / indice 15 % (livré 06/09, `REPORT-CALIBRAGE-CANON.md`) ;
 
-**928 tests verts** · `schemaVersion` 18 · CI et prod saines.
+**1024 tests verts** · `schemaVersion` 19 · CI et prod saines. **Les chantiers 3D ci-dessus (V1, V2, UNITES-3D, INTERACTION-3D, T5, ECLAIRAGE…) sont mis de côté depuis le 11/09** (voir « Pivot du 11/09 »).
 
 ## 📋 File d'attente
+
+- **NOUVEAUX AXES (pivot du 11/09) — à cadrer par Erik** : jouabilité 2D, règles, visuel 2D, menus (prochains handoffs, Erik les cadrera) ;
+- **REPRISE 3D (mise en sommeil le 11/09)** : voir BACKLOG.md — RELECTURE-3D, tuiles forêt/désert/eau, distinction capitale, V3 visuel, état des outils ;
 
 - **V3 — Renommage thématique** : libellés FR nanotech (ids code inchangés) ;
 - **Espionnage avancé** (BACKLOG idée 5) : infiltration, XP, points d'espionnage, menu de renseignement, fenêtre d'annulation — rapport de recherche 4X commandé par Erik ;

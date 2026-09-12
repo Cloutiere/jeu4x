@@ -66,6 +66,19 @@ Erik exprime souvent ses idées en vrac ou en documents de recherche. Ton travai
 
 ## 4. État actuel (tenu à jour — la vue synthétique est dans PROJET.md, cette section porte le détail de la file)
 
+> ### ⚠️ PIVOT du 11/09 — la file ci-dessous est réécrite
+>
+> **Décision d'Erik** : pivot vers **la jouabilité 2D, les règles, le visuel 2D et les menus**. Tous les chantiers 3D (V1/V1-bis, V2/V2-bis, UNITES-3D, INTERACTION-3D, DEPLACEMENT planifié *partiellement 3D*, FONDERIE-3D/T3/T4/T4bis, T5, ECLAIRAGE, RELECTURE-3D) passent **en sommeil** : code conservé, accès coupé en production derrière le **drapeau unique `rendu3d: false`** (`apps/web/src/lib/config.ts` — voir « Pivot du 11/09 » dans PROJET.md).
+>
+> **Nouvelle file (post-pivot) :**
+> 1. **Jouabilité 2D** — à cadrer par Erik (prochain handoff) ;
+> 2. **Règles** — à cadrer par Erik (prochain handoff) ;
+> 3. **Visuel 2D** — à cadrer par Erik (prochain handoff) ;
+> 4. **Menus** — à cadrer par Erik (prochain handoff) ;
+> 5. **REPRISE 3D (mise en sommeil)** — conditions et état des outils : BACKLOG.md, entrée « REPRISE 3D (mise en sommeil le 11/09) ».
+>
+> L'historique 3D détaillé ci-dessous est conservé tel quel — les agents de reprise y trouveront les états livrés, les 🔶 et les listes « reste à vérifier en ligne par Erik ».
+
 **Phases complétées** : 0 (moteur pur déterministe), 1 (réseau DO/WS/OAuth), 2 (absorbée), 3 (rendu PixiJS), 4 (**partie 1v1 en ligne réelle**), 5 (durcissement + CI/CD GitHub Actions), 5.5 (police visuel), 6 (économie des terrains), 6b (génération procédurale **miroir 1v1** + labo `#/progen`), 6c (affinage : côte/océan, archipel par défaut, outil d'inspection), 7a (46 techs, recherche, Premier découvrir, obsolescence), 7b (refonte menu de ville, R-88..R-90), 7c (22 ressources data-driven), 7d (barbares & huttes), 7e (arbre complet, R-59 réelle, R-112 Colon 2 pop), 7f (culture : GP, jalons, Nations Unies, **victoire culturelle**), 7g (naval & espionnage : transport, soutien, vol de GP), 7h (gouvernements & Anarchie, GP restants, **victoire scientifique**, merveilles tractables), 7i (**alignement du moteur de ville** : consommation de nourriture, seuils non linéaires, fondation pop 2 par ère, citoyens intérieurs, destruction de ressource). **Tests : 556 verts.** `schemaVersion` : 12.
 
 **Infra en place** : prod [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) ; OAuth Google/Discord réels (secrets posés) ; CI/CD GitHub Actions (repo [Cloutiere/jeu4x](https://github.com/Cloutiere/jeu4x), secret `CLOUDFLARE_API_TOKEN`) ; wrangler loggé sur le compte d'Erik.
