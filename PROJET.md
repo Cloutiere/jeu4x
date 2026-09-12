@@ -2,7 +2,7 @@
 
 **Tenue par le pilot, mise à jour à chaque acceptation de phase.** Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md).
 
-**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **1024 tests verts** · `schemaVersion` **19** · budget Cloudflare tenu (~5 $/mois).
+**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **1036 tests verts** · `schemaVersion` **19** · budget Cloudflare tenu (~5 $/mois).
 
 ---
 
@@ -53,7 +53,7 @@
 
 **Chapitre actuel (post-pivot du 11/09) : jouabilité 2D, règles, visuel 2D, menus.**
 
-- **FLECHE-MOUVEMENT** (prêt : `HANDOFF-FLECHE-MOUVEMENT.md`) — flèche de déplacement vivante : survol = chemin sous le curseur, clic = arrivée, persistance entre tours tant que le mouvement vit ;
+- **FLECHE-MOUVEMENT** ✅ — livré et accepté le 12/09 (commit `5fbd6ba`, `docs/historique/rapports/REPORT-FLECHE-MOUVEMENT.md`) : survol = anneau sur la tuile visée ; **clic droit maintenu = préview multi-tours style Civ 7** (flèche + pointes par case + badges de tours, relâcher = confirmer) ; à la confirmation l'unité s'affiche à sa case d'arrêt de la prochaine résolution, flèche persistante avec badges tant que le mouvement vit ; aperçu = prochaine résolution seulement (moteur intact, `previewPrograms` conservé) ; 🔶 calibrage à l'œil : badges, pointes, anneau ;
 - Irritants de jouabilité + règles : liste en cours par Erik (à affiner en tranches) ;
 - Menus : chantier à cadrer sur papier ;
 - Visuel 2D : sessions d'atelier (sprites, lisibilité) ;
