@@ -24,7 +24,7 @@
   import { HEX_SIZE, hexesInRect, mapBounds, screenToHex } from './hexView.js';
   import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
   import type { Point } from './arrows.js';
-  import { arretProchaineResolution, clickAction, creeCacheChemins, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable } from './interaction.js';
+  import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, creeCacheChemins, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable } from './interaction.js';
   import type { ClickAction } from './interaction.js';
   // Chantier V1 (L3) — couche hybride : terrain Three.js + sprites PixiJS
   // projetés (option B du spike), derrière un flag de repli (défaut : 2D).
@@ -385,6 +385,12 @@
     // structures 3D remplacent huttes/villages (sprites base/accent cachés ;
     // les infos UI — pop, barre de production, PV — restent projetées).
     const structures3dActives = mode3dActif();
+    // ARRIVEE-ENNEMIE : une unité dont l'arrêt de la prochaine résolution
+    // porte un ennemi visible n'est PAS affichée optimistement sur sa
+    // destination (elle masquerait l'ennemi) — le sprite réel reste à sa
+    // position moteur, le fantôme translucide (rebuildOverlay) montre
+    // l'arrivée décalée au bord de l'hexagone.
+    const arrivees = arriveesEnnemies();
     const seenUnits = new Set<string>();
     for (const unit of Object.values(state.units)) {
       // 7g · R-117 : une unité EMBARQUÉE n'est pas rendue (elle est dans le
@@ -411,7 +417,7 @@
       // (position optimiste — comme si le déplacement avait eu lieu) ; sans
       // ordre, elle reste sur sa case moteur. Pendant le playback, l'inter-
       // polation prime (bloc « playback.active » du tick).
-      const posee = positionAfficheeDe(unit) ?? unit;
+      const posee = arrivees.has(unit.id) ? unit : (positionAfficheeDe(unit) ?? unit);
       const p = hexToPixel(posee, HEX_SIZE);
       const anim = playback.moveOf(unit.id);
       if (anim) {
@@ -994,6 +1000,45 @@
           win.circle(0, 0, 7).fill({ color: 0xffe082 });
           win.position.set(pos.x, pos.y - HEX_SIZE * 0.42);
           overlayLayer.addChild(win);
+        }
+      }
+    }
+    // ARRIVEE-ENNEMIE (M2/M3) : par tuile d'arrivée à ennemi visible —
+    // FANTÔME unique (première unité détectée : jamais d'empilement de
+    // fantômes, langage « pile ×N » de DEPLACEMENT-PLANIFIÉ), badge ×N si
+    // ≥ 2 unités programmées y arrivent, anneau ROUGE sur la tuile (survol
+    // et ordre posé, chemin gelé compris — scenePreviews couvre les deux).
+    {
+      const det = arriveesEnnemies();
+      const parTuile = new Map<string, { hex: Hex; dirX: number; dirY: number; pile: number; unitId: string }>();
+      for (const d of det.values()) {
+        const key = tileKeyOf(d.hex);
+        const deja = parTuile.get(key);
+        if (deja) {
+          deja.pile = Math.max(deja.pile, d.pile);
+        } else {
+          parTuile.set(key, { ...d });
+        }
+      }
+      for (const d of parTuile.values()) {
+        const pos = hexToPixel(d.hex, HEX_SIZE);
+        // Anneau rouge : la destination est occupée par un ennemi visible.
+        const anneau = new Graphics();
+        anneau.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 4, color: COULEUR_ARRIVEE_ENNEMIE, alpha: 0.9 });
+        anneau.poly(hexLocalPoints(HEX_SIZE - 12)).stroke({ width: 1.5, color: 0x2b2620, alpha: 0.5 });
+        poser3d(anneau, pos.x, pos.y);
+        overlayLayer.addChild(anneau);
+        // Fantôme translucide réduit, décalé vers le bord d'arrivée — posé
+        // SOUS le sprite ennemi (entitiesLayer est au-dessus de l'overlay).
+        dessinerFantomeArrivee(overlayLayer, d.unitId, d.hex, d.dirX, d.dirY);
+        if (d.pile >= 2) {
+          const badge = new Text({
+            text: `×${d.pile}`,
+            style: { fontFamily: 'sans-serif', fontSize: 15, fill: 0xffffff, fontWeight: 'bold', stroke: { color: 0x1d242b, width: 3 } },
+          });
+          badge.anchor.set(0.5);
+          poser3d(badge, pos.x + HEX_SIZE * 0.3, pos.y - HEX_SIZE * 0.42);
+          overlayLayer.addChild(badge);
         }
       }
     }
@@ -1761,6 +1806,86 @@
   // -------------------------------------------------------------------------
   const COULEUR_SURVOL = 0xffe082; // ambre clair (la flèche d'ordre = 0xf0c419 plein)
   const ALPHA_SURVOL = 0.55;
+  // -------------------------------------------------------------------------
+  // ARRIVEE-ENNEMIE (décisions d'Erik du 12/09) — arrivée programmée sur une
+  // tuile à unité ennemie VISIBLE : l'ennemi reste en grandeur normale à sa
+  // place ; l'unité programmée s'affiche en FANTÔME translucide, plus petite,
+  // décalée vers le bord de l'hexagone d'où elle arrive (cohérent avec la
+  // flèche) ; l'anneau de la tuile d'arrivée passe au ROUGE (survol ET ordre
+  // posé, chemin gelé compris). Aperçu d'arrivée uniquement — JAMAIS une
+  // promesse de résultat de combat (résolution simultanée, modèle Diplomacy).
+  // 🔶 calibrage à l'œil par Erik : les 4 constantes ci-dessous.
+  // -------------------------------------------------------------------------
+  const FANTOME_ALPHA = 0.7; // transparence du fantôme (retour Erik 12/09 : moins transparent que 0.5)
+  const FANTOME_RATIO = 0.7; // taille du fantôme (fraction du sprite normal 0.5)
+  const FANTOME_DECAL = 0.42; // décalage vers le bord d'arrivée (fraction de HEX_SIZE)
+  const COULEUR_ARRIVEE_ENNEMIE = 0xe53935; // anneau rouge = destination occupée
+
+  /** Détections dérivées de l'aperçu DÉJÀ calculé (scenePreviews — aucun
+   *  nouveau BFS, exigence bench M4.3) : pour chaque unité amie programmée
+   *  dont l'ARRÊT de la prochaine résolution porte un ennemi visible, la case
+   *  d'arrivée, la direction d'arrivée, le compteur de pile ×N et l'unité
+   *  (pour le sprite du fantôme). Recalculée par rebuild (état change), O(1)
+   *  par aperçu — jamais par frame. */
+  function arriveesEnnemies(): Map<string, { hex: Hex; dirX: number; dirY: number; pile: number; unitId: string }> {
+    const out = new Map<string, { hex: Hex; dirX: number; dirY: number; pile: number; unitId: string }>();
+    const state = scene.state;
+    if (!state || !scene.myId) return out;
+    const mpDe = (id: string): number => {
+      const u = state.units[id];
+      return u ? unitType(u.type).movement : 1;
+    };
+    const piles = arriveesPartagees(scenePreviews, mpDe);
+    for (const p of scenePreviews) {
+      if (p.path.length === 0) continue;
+      const unit = state.units[p.unitId];
+      if (!unit || unit.owner !== scene.myId) continue;
+      const arret = arretProchaineResolution(p.path, mpDe(p.unitId));
+      if (!arret) continue;
+      const origine = p.path.length > 1 ? p.path[p.path.length - 2]! : { q: unit.q, r: unit.r };
+      const det = arriveeSurEnnemi(state, scene.visible, arret, origine, scene.myId);
+      if (det) {
+        out.set(p.unitId, {
+          hex: arret,
+          dirX: det.dirX,
+          dirY: det.dirY,
+          pile: piles.get(tileKeyOf(arret)) ?? 1,
+          unitId: p.unitId,
+        });
+      }
+    }
+    return out;
+  }
+
+  /** Fantôme translucide d'une unité programmée arrivant sur un ennemi :
+   *  copie base+accent du sprite, alpha et taille réduits (constantes 🔶),
+   *  décalée vers le bord d'arrivée, posée SOUS le sprite ennemi (l'overlay
+   *  est sous `entitiesLayer`) et estampillée `poser3d` (reprojection 3D). */
+  function dessinerFantomeArrivee(parent: Container, unitId: string, hex: Hex, dirX: number, dirY: number): void {
+    const unit = scene.state?.units[unitId];
+    if (!textures || !unit) return;
+    const tex =
+      unit.owner === BARBARIAN_ID
+        ? (textures.units[`barbare_${unit.type}`] ?? textures.units[unit.type])
+        : textures.units[unit.type];
+    if (!tex) return;
+    const fantome = new Container();
+    const base = new Sprite(tex.base);
+    base.anchor.set(0.5, 1);
+    base.scale.set(0.5 * FANTOME_RATIO);
+    const accent = new Sprite(tex.accent);
+    accent.anchor.set(0.5, 1);
+    accent.scale.set(0.5 * FANTOME_RATIO);
+    accent.tint = playerColor(unit.owner);
+    fantome.addChild(base, accent);
+    fantome.alpha = FANTOME_ALPHA;
+    const c = hexToPixel(hex, HEX_SIZE);
+    // Décalage vers le bord D'OÙ l'unité arrive (côté origine — cohérent avec
+    // la flèche qui y mène) : direction origine→arrivée INVERSÉE.
+    poser3d(fantome, c.x - dirX * FANTOME_DECAL * HEX_SIZE, c.y - dirY * FANTOME_DECAL * HEX_SIZE + 6);
+    parent.addChild(fantome);
+  }
+
   let hoverHex: Hex | null = null; // dernière case survolée (re-calcul au changement d'état/UI)
   let hoverPath: Hex[] | null = null;
   let hoverUnitId: string | null = null;
@@ -1830,9 +1955,23 @@
     const cont = new Container();
     // Encadré de la TUILE VISÉE : « un clic droit ici = destination » (seul
     // indicateur du survol simple — la flèche est réservée au maintien).
+    // ARRIVEE-ENNEMIE : la tuile visée porte un ennemi visible → anneau ROUGE
+    // (survol comme ordre posé, décision d'Erik du 12/09).
+    const stateSurvol = scene.state;
     const cible = hoverPath[hoverPath.length - 1]!;
+    const ennemiVise =
+      stateSurvol && scene.myId
+        ? arriveeSurEnnemi(
+            stateSurvol,
+            scene.visible,
+            cible,
+            hoverPath.length > 1 ? hoverPath[hoverPath.length - 2]! : unit,
+            scene.myId,
+          )
+        : null;
+    const couleurCible = ennemiVise ? COULEUR_ARRIVEE_ENNEMIE : COULEUR_SURVOL;
     const anneau = new Graphics();
-    anneau.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 3, color: COULEUR_SURVOL, alpha: 0.9 });
+    anneau.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 3, color: couleurCible, alpha: 0.9 });
     anneau.poly(hexLocalPoints(HEX_SIZE - 12)).stroke({ width: 1.5, color: 0x2b2620, alpha: 0.5 });
     anneau.position.copyFrom(hexToPixel(cible, HEX_SIZE));
     cont.addChild(anneau);
@@ -1935,6 +2074,14 @@
     // règle de priorité au survol.
     if (scenePreviews.some((p) => p.disputed && p.destination && p.destination.q === hex.q && p.destination.r === hex.r)) {
       lines.push('⚔ Case disputée : la première unité programmée obtiendra la case — les autres s\'arrêteront sur la dernière case libre avant (R-159).');
+    }
+    // ARRIVEE-ENNEMIE : nommer l'incertitude — aperçu d'arrivée, JAMAIS une
+    // promesse de résultat de combat (résolution simultanée, modèle Diplomacy).
+    for (const d of arriveesEnnemies().values()) {
+      if (d.hex.q === hex.q && d.hex.r === hex.r) {
+        lines.push('Arrivée sur ennemi : aperçu seulement — l\'ennemi peut avoir bougé (résolution simultanée).');
+        break;
+      }
     }
     return lines;
   }

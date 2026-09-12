@@ -8,7 +8,7 @@ import { makeState, tileKey } from '@game/rules';
 import type { GameState, Hex } from '@game/rules';
 import type { GameView } from '../src/lib/gameClient.js';
 import type { UiState } from '../src/lib/render/ui.js';
-import { arretProchaineResolution, clickAction, jalonsDeTours, ordersEditable, passableKnown, pathTo, rightClickAction } from '../src/lib/render/interaction.js';
+import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, jalonsDeTours, ordersEditable, passableKnown, pathTo, rightClickAction } from '../src/lib/render/interaction.js';
 
 function viewOf(state: GameState, over: Partial<GameView> = {}): GameView {
   return {
@@ -312,5 +312,66 @@ describe('arretProchaineResolution (aperçu = prochaine résolution seulement)',
   it('cas limites : chemin vide = null, mp clampé à 1 minimum', () => {
     expect(arretProchaineResolution([], 2)).toBeNull();
     expect(arretProchaineResolution(chemin, 0)).toEqual({ q: 1, r: 0 });
+  });
+});
+
+describe('arriveeSurEnnemi (ARRIVEE-ENNEMIE M1 — décision Erik 12/09)', () => {
+  const state = makeBattleState(); // u3 guerrier p2 en (0,1), visible ?
+  const visible = new Set(['0,0', '0,1', '1,0']);
+  const visibleSansEnnemi = new Set(['0,0', '1,0']);
+
+  it('ennemi visible sur la case d\'arrivée : détecté + direction d\'arrivée (de l\'origine vers l\'arrivée)', () => {
+    const out = arriveeSurEnnemi(state, visible, { q: 0, r: 1 }, { q: 0, r: 0 }, 'p1');
+    expect(out).not.toBeNull();
+    expect(out!.ennemi).toEqual({ id: 'u3', owner: 'p2' });
+    // (0,0)→(0,1) en axial pointy-top : direction normalisée non nulle, unitaire.
+    const len = Math.hypot(out!.dirX, out!.dirY);
+    expect(len).toBeCloseTo(1, 5);
+  });
+
+  it('case d\'arrivée amie ou vide : null (rien de spécial)', () => {
+    expect(arriveeSurEnnemi(state, visible, { q: 1, r: 0 }, { q: 0, r: 0 }, 'p1')).toBeNull();
+  });
+
+  it('fog R-161 prime : case non visible → null, même si une entité y existe dans l\'état', () => {
+    expect(arriveeSurEnnemi(state, visibleSansEnnemi, { q: 0, r: 1 }, { q: 0, r: 0 }, 'p1')).toBeNull();
+  });
+
+  it('unité amie sur l\'arrivée : pas un ennemi (R-159 tronque, pas de fantôme ici)', () => {
+    expect(arriveeSurEnnemi(state, visible, { q: 0, r: 0 }, { q: 1, r: 0 }, 'p1')).toBeNull();
+  });
+
+  it('sans origine connue : ennemi détecté, décalage nul (fantôme centré)', () => {
+    const out = arriveeSurEnnemi(state, visible, { q: 0, r: 1 }, null, 'p1');
+    expect(out).not.toBeNull();
+    expect(out!.dirX).toBe(0);
+    expect(out!.dirY).toBe(0);
+  });
+});
+
+describe('arriveesPartagees (ARRIVEE-ENNEMIE M3 — pile ×N)', () => {
+  const previews = [
+    { unitId: 'a', path: [{ q: 5, r: 0 }], destination: { q: 5, r: 0 } },
+    { unitId: 'b', path: [{ q: 4, r: 0 }, { q: 5, r: 0 }], destination: { q: 5, r: 0 } },
+    { unitId: 'c', path: [{ q: 6, r: 0 }], destination: { q: 6, r: 0 } },
+  ] as never[];
+
+  it('compte les unités programmées par case d\'ARRÊT (selon les PM), pas par destination finale', () => {
+    // a et c : 1 PM → arrêt = destination ; b : 1 PM → arrêt = première case (4,0).
+    const counts = arriveesPartagees(previews, () => 1);
+    expect(counts.get('5,0')).toBe(1);
+    expect(counts.get('4,0')).toBe(1);
+    expect(counts.get('6,0')).toBe(1);
+  });
+
+  it('deux unités avec assez de PM s\'empilent sur la même case d\'arrêt → ×2', () => {
+    const counts = arriveesPartagees(previews, (id) => (id === 'b' ? 2 : 1));
+    expect(counts.get('5,0')).toBe(2);
+    expect(counts.get('6,0')).toBe(1);
+  });
+
+  it('chemin vide : pas compté', () => {
+    const counts = arriveesPartagees([{ unitId: 'z', path: [], destination: null } as never], () => 1);
+    expect(counts.size).toBe(0);
   });
 });

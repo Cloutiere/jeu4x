@@ -5,10 +5,11 @@
  * l'état filtré autorise (entités présentes = visibles ; cases connues =
  * présentes dans `state.map`). La validation métier reste côté serveur.
  */
-import { hexDistance, neighbors, TERRAINS, tileKeyOf, unitType, workRadiusOf, canEnterTerrain, isCoastalCityHex, cargoCapacityOf } from '@game/rules';
+import { hexDistance, hexToPixel, neighbors, TERRAINS, tileKeyOf, unitType, workRadiusOf, canEnterTerrain, isCoastalCityHex, cargoCapacityOf } from '@game/rules';
 import type { Hex } from '@game/rules';
 import type { CityId, GameState, UnitId } from '@game/shared';
 import type { GameView } from '../gameClient.js';
+import type { ProgramPreview } from '@game/rules';
 import type { UiState } from './ui.js';
 
 export type ClickAction =
@@ -379,6 +380,76 @@ export function annulationOrdre(
   );
   const draft = ui.draft && ui.draft.unitId === unitId ? null : ui.draft;
   return { ordreExistant, draft };
+}
+
+/**
+ * ARRIVEE-ENNEMIE (M1, décisions d'Erik du 12/09) — détection PURE d'une
+ * arrivée programmée sur une case occupée par une unité ENNEMIE VISIBLE.
+ * Entrée : la case d'ARRÊT de la prochaine résolution (`arretProchaineResolution`),
+ * la case d'où l'unité arrive (avant-dernière étape du chemin, ou sa position
+ * moteur pour un chemin d'une case), l'état FILTRÉ et l'ensemble des cases
+ * visibles. Sortie : l'ennemi présent + la direction d'arrivée (vecteur unitaire
+ * px moteur, du bord d'où vient l'unité — le fantôme se décale de ce côté).
+ *
+ * Fog (R-161 prime) : une case non visible ne révèle RIEN — retour null même
+ * si une entité existait (l'état filtré ne diffuse de toute façon les ennemis
+ * que sur les cases visibles ; le garde est explicite par propreté).
+ */
+export function arriveeSurEnnemi(
+  state: GameState,
+  visible: Set<string>,
+  arret: Hex,
+  origine: Hex | null,
+  myId: string | null,
+): { ennemi: { id: UnitId; owner: string }; dirX: number; dirY: number } | null {
+  if (!visible.has(tileKeyOf(arret))) return null;
+  let ennemi: { id: UnitId; owner: string } | null = null;
+  for (const u of Object.values(state.units)) {
+    if (u.aboard) continue;
+    if (u.q === arret.q && u.r === arret.r && u.owner !== myId) {
+      ennemi = { id: u.id, owner: u.owner };
+      break;
+    }
+  }
+  if (!ennemi) return null;
+  // Direction d'arrivée : de la case précédente vers l'arrivée (normalisée) ;
+  // sans origine connue, pas de décalage (0, 0 — fantôme centré).
+  let dirX = 0;
+  let dirY = 0;
+  if (origine && (origine.q !== arret.q || origine.r !== arret.r)) {
+    const a = hexToPixel(origine, 1);
+    const b = hexToPixel(arret, 1);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 0) {
+      dirX = dx / len;
+      dirY = dy / len;
+    }
+  }
+  return { ennemi, dirX, dirY };
+}
+
+/**
+ * ARRIVEE-ENNEMIE (M3) — compteur de « pile » par case d'arrêt : combine les
+ * aperçus (`previewPrograms`) par case d'ARRÊT de la prochaine résolution.
+ * Retourne une carte clé "q,r" → nombre d'unités programmées y arrivant (≥ 2
+ * = badge ×N, un seul fantôme dessiné — langage « pile ×N » de
+ * DEPLACEMENT-PLANIFIÉ, jamais d'empilement de fantômes). Pur, testé.
+ */
+export function arriveesPartagees(
+  previews: ProgramPreview[],
+  mpDe: (unitId: UnitId) => number,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const p of previews) {
+    if (p.path.length === 0) continue;
+    const arret = arretProchaineResolution(p.path, mpDe(p.unitId));
+    if (!arret) continue;
+    const key = tileKeyOf(arret);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /**
