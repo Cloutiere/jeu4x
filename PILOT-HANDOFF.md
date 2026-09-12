@@ -136,7 +136,7 @@ Erik exprime souvent ses idées en vrac ou en documents de recherche. Ton travai
 
 ## 7. Ta première action probable
 
-1. **7o est livrée et vérifiée le 07/09** (796 tests, prod saine, `85f845a`) — reste la vérification en ligne par Erik (liste §4 du rapport). **Tout le contenu « Civilization Revolution » est désormais en jeu** : 4 victoires, 16 civs, GP/merveilles/artefacts, trésorerie, nucléaire, espionnage de base.
-2. Recueillir ses votes de calibrage (§4 : 🔶 7o — artefacts ; 🔶 7n ; 🔶 7l ; 🔶 7i) et les consigner.
-3. **Chantier V1 — Rendu 3D : le handoff est exécuté jusqu'à l'arrêt L0** (REPORT-CHANTIER-V1-3D-L0.md) : banc `#/lab3d` livré, deux architectures mesurées et prouvées, recommandation **Option B hybride**. **Prochaine action : présentation à Erik** (ouvrir `#/lab3d` — client-side pur — et les captures `dev-logs/captures-v1-3d/`), recueillir son choix d'architecture + les 🔶 du rapport (bloom, élévations, tilt, fog dim, LOD glyphes) ; **alors seulement** lancer L1-L4 du handoff.
-4. Puis V2 (vectorisation) → V3 (renommage) → Espionnage avancé (doc de recherche 4X attendu).
+1. **Le pivot du 11/09 est consommé** : le 3D est mis de côté (drapeau `rendu3d: false` dans `apps/web/src/lib/config.ts` — ne PAS le réactiver ; état de reprise documenté dans BACKLOG.md « REPRISE 3D »). Le chapitre actuel : **jouabilité 2D, règles, visuel 2D, menus**.
+2. **Premier chantier du chapitre : HANDOFF-FLECHE-MOUVEMENT.md** (à la racine, prêt à lancer) — la flèche de déplacement vivante : survol = flèche de chemin sous le curseur, clic = tuile d'arrivée (re-ciblage, priorité conservée R-159), flèche persistante entre tours tant que le mouvement vit (interrompu/achevé = disparition/troncature, miroir du moteur). Défauts déjà posés dans le handoff, Erik tranche le style à l'œil.
+3. Ensuite : Erik fournira sa liste d'irritants de jouabilité + règles (à affiner en tranches), le visuel 2D passera par des sessions d'atelier, et les **menus** sont un chantier nouveau à cadrer sur papier (cadrage à faire avec Erik avant handoff).
+4. Rappels du chapitre 3D clos : leçon « validation locale avec captures AVANT tout commit » ; la fonderie reste l'outil d'assets d'Erik (mode peintre = le standard, voir FONDERIE.md) ; ne jamais itérer en prod.

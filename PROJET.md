@@ -51,6 +51,17 @@
 
 ## 📋 File d'attente
 
+**Chapitre actuel (post-pivot du 11/09) : jouabilité 2D, règles, visuel 2D, menus.**
+
+- **FLECHE-MOUVEMENT** (prêt : `HANDOFF-FLECHE-MOUVEMENT.md`) — flèche de déplacement vivante : survol = chemin sous le curseur, clic = arrivée, persistance entre tours tant que le mouvement vit ;
+- Irritants de jouabilité + règles : liste en cours par Erik (à affiner en tranches) ;
+- Menus : chantier à cadrer sur papier ;
+- Visuel 2D : sessions d'atelier (sprites, lisibilité) ;
+- **3D en sommeil** (voir BACKLOG.md « REPRISE 3D ») : RELECTURE-3D, tuiles forêt/désert/eau, distinction capitale, V3 visuel ;
+- Espionnage avancé (BACKLOG idée 5) : toujours en DERNIER, rapport de recherche 4X attendu.
+
+
+
 - **NOUVEAUX AXES (pivot du 11/09) — à cadrer par Erik** : jouabilité 2D, règles, visuel 2D, menus (prochains handoffs, Erik les cadrera) ;
 - **REPRISE 3D (mise en sommeil le 11/09)** : voir BACKLOG.md — RELECTURE-3D, tuiles forêt/désert/eau, distinction capitale, V3 visuel, état des outils ;
 
