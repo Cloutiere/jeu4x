@@ -94,12 +94,11 @@ export function ordersEditable(view: GameView): boolean {
 }
 
 /**
- * Décision de clic PURE (clic GAUCHE — schéma d'Erik du 08/09) : le clic
- * gauche SÉLECTIONNE UNIQUEMENT (unité/ville, re-clic = désélection,
- * worked tiles d'une ville sélectionnée R-60). Il ne trace PLUS de chemin et
- * ne programme PLUS d'attaque directe — la programmation (déplacement comme
- * attaque-par-entrée, combat d'entrée R-42 sur le dernier pas) passe par le
- * CLIC DROIT (`rightClickAction`).
+ * Décision de clic PURE (clic GAUCHE — schéma d'Erik du 08/09, réaffirmé le
+ * 12/09) : le clic gauche SÉLECTIONNE UNIQUEMENT (unité/ville, re-clic =
+ * désélection, worked tiles d'une ville sélectionnée R-60). La programmation
+ * (déplacement, préview multi-tours au clic maintenu, attaque-par-entrée
+ * R-42) passe par le CLIC DROIT (`rightClickAction`).
  */
 export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction {
   const state = view.state;
@@ -172,6 +171,10 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
   if (aloneCity) return { kind: 'selectCity', cityId: aloneCity.id };
 
   // 3. Vide (connu ou brouillard) : déselection.
+  //    (RAFFINEMENT-MOUVEMENT, décision d'Erik du 12/09 : la programmation
+  //    redevient l'apanage du CLIC DROIT — destination, clic maintenu pour la
+  //    préview multi-tours, relâcher = confirmer. L'essai FLECHE-MOUVEMENT du
+  //    matin « clic gauche = tuile d'arrivée » est retiré.)
   return { kind: 'deselect' };
 }
 
@@ -273,6 +276,66 @@ export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
     }
   }
   return null;
+}
+
+/**
+ * RAFFINEMENT-MOUVEMENT (décisions d'Erik du 12/09, v2) — case d'ARRÊT de la
+ * PROCHAINE résolution le long d'un chemin programmé : l'aperçu à l'écran ne
+ * montre que ce qui se passera au prochain tour (l'unité s'affiche à cet
+ * arrêt, PAS à la destination finale des tours subséquents — la flèche, elle,
+ * montre le chemin complet). `mp` = PM de l'unité (1 case = 1 PM). Pur, testé.
+ */
+export function arretProchaineResolution(path: Hex[], mp: number): Hex | null {
+  if (path.length === 0) return null;
+  const idx = Math.min(Math.max(mp, 1), path.length) - 1;
+  return path[idx] ?? null;
+}
+
+/**
+ * RAFFINEMENT-MOUVEMENT (décision d'Erik du 12/09, style Civ 7) — jalons de
+ * tours le long d'un chemin : avec `mpParTour` cases parcourues par tour
+ * (coût moteur actuel : 1 PM par case), la case où se termine le mouvement
+ * du tour N porte le badge N — (1) = arrivée au tour 1, (2) = tour 2… Pur,
+ * testé. Un chemin plus court qu'un tour ne porte aucun badge.
+ */
+export function jalonsDeTours(path: Hex[], mpParTour: number): Array<{ hex: Hex; tour: number }> {
+  if (mpParTour <= 0 || path.length === 0) return [];
+  const jalons: Array<{ hex: Hex; tour: number }> = [];
+  for (let i = mpParTour - 1; i < path.length; i += mpParTour) {
+    jalons.push({ hex: path[i]!, tour: jalons.length + 1 });
+  }
+  // Multi-tours : la case d'ARRIVée porte aussi son badge (miroir Civ 7 — le
+  // (2) de la capture d'Erik est sur la destination). Un chemin plus court
+  // qu'un tour reste sans badge (redondant avec la pointe d'arrivée).
+  if (path.length > mpParTour) {
+    const dernier = path[path.length - 1]!;
+    const dejaBadge = jalons[jalons.length - 1]!.hex.q === dernier.q && jalons[jalons.length - 1]!.hex.r === dernier.r;
+    if (!dejaBadge) jalons.push({ hex: dernier, tour: jalons.length + 1 });
+  }
+  return jalons;
+}
+
+/**
+ * FLECHE-MOUVEMENT (M1.3) — cache de pathfinding pour la flèche de survol :
+ * le BFS (`pathTo`) n'est relancé que quand la case SOUS LE CURSEUR change —
+ * une entrée par (unité, case cible), purgé à chaque nouvelle vue serveur
+ * (l'état — unités, fog — a changé). Pur : testable et benché.
+ */
+export function creeCacheChemins(): {
+  chemin(state: GameState, from: Hex, cible: Hex): Hex[] | null;
+  purge(): void;
+  taille(): number;
+} {
+  const cache = new Map<string, Hex[] | null>();
+  return {
+    chemin(state, from, cible) {
+      const key = `${from.q},${from.r}|${cible.q},${cible.r}`;
+      if (!cache.has(key)) cache.set(key, pathTo(state, from, cible));
+      return cache.get(key)!;
+    },
+    purge: () => cache.clear(),
+    taille: () => cache.size,
+  };
 }
 
 /**

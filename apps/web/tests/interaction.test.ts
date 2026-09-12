@@ -8,7 +8,7 @@ import { makeState, tileKey } from '@game/rules';
 import type { GameState, Hex } from '@game/rules';
 import type { GameView } from '../src/lib/gameClient.js';
 import type { UiState } from '../src/lib/render/ui.js';
-import { clickAction, ordersEditable, passableKnown, pathTo, rightClickAction } from '../src/lib/render/interaction.js';
+import { arretProchaineResolution, clickAction, jalonsDeTours, ordersEditable, passableKnown, pathTo, rightClickAction } from '../src/lib/render/interaction.js';
 
 function viewOf(state: GameState, over: Partial<GameView> = {}): GameView {
   return {
@@ -88,11 +88,51 @@ describe('clickAction (L3)', () => {
     expect(clickAction(view, ui, { q: 0, r: 0 })).toEqual({ kind: 'deselect' });
   });
 
-  it('CORRECTIFS-SELECTION : une case inconnue (brouillard) clic-gauchée → désélection, jamais inventée', () => {
+  it('RAFFINEMENT-MOUVEMENT (12/09) : la programmation redevient l\'apanage du clic droit — clic gauche sur case vide = désélection', () => {
+    const view = viewOf(makeBattleState());
+    // Case vide adjacente : le clic gauche NE programme PLUS (essai du 11/09 retiré).
+    expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 1, r: 1 })).toEqual({ kind: 'deselect' });
+    // Le clic droit, lui, programme toujours (u2 → case vide adjacente).
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u2' }), { q: 2, r: 0 })).toEqual({
+      kind: 'moveDraft',
+      path: [{ q: 2, r: 0 }],
+      unitId: 'u2',
+    });
+  });
+
+  it('RAFFINEMENT-MOUVEMENT : une case inconnue ADJACENTE au clic droit = tuile d\'arrivée (1 pas dans l\'inconnu, R-161)', () => {
     const state = makeBattleState();
     delete (state.map as Record<string, unknown>)[tileKey(-1, 1)]; // voisine de u1 mais hors état filtré
     const view = viewOf(state);
-    expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: -1, r: 1 }).kind).toBe('deselect');
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: -1, r: 1 })).toEqual({
+      kind: 'moveDraft',
+      path: [{ q: -1, r: 1 }],
+      unitId: 'u1',
+    });
+  });
+
+  it('RAFFINEMENT-MOUVEMENT : une case inconnue INATTEIGNABLE (pas adjacente au connu) → désélection au gauche, annulation au droit, jamais inventée', () => {
+    const state = makeBattleState();
+    delete (state.map as Record<string, unknown>)[tileKey(6, 6)]; // loin de u1, hors état filtré
+    const view = viewOf(state);
+    expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 6, r: 6 }).kind).toBe('deselect');
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 6, r: 6 }).kind).toBe('cancelOrder');
+  });
+
+  it('jalonsDeTours (préview multi-tours) : un badge par tour de PM, style Civ 7', () => {
+    const chemin = [1, 2, 3, 4, 5].map((q) => ({ q, r: 0 }));
+    // Guerrier 1 PM : un badge par case — (1) sur (1,0), (2) sur (2,0)…
+    expect(jalonsDeTours(chemin, 1)).toEqual(chemin.map((hex, i) => ({ hex, tour: i + 1 })));
+    // Unité 2 PM : (1) sur la 2e case, (2) sur la 4e, (3) sur l'arrivée.
+    expect(jalonsDeTours(chemin, 2)).toEqual([
+      { hex: { q: 2, r: 0 }, tour: 1 },
+      { hex: { q: 4, r: 0 }, tour: 2 },
+      { hex: { q: 5, r: 0 }, tour: 3 },
+    ]);
+    // Chemin plus court qu'un tour : aucun badge.
+    expect(jalonsDeTours([{ q: 1, r: 0 }], 2)).toEqual([]);
+    expect(jalonsDeTours([], 1)).toEqual([]);
+    expect(jalonsDeTours(chemin, 0)).toEqual([]);
   });
 
   it('ordres verrouillés : la sélection reste possible, aucun ordre programmable (verrou)', () => {
@@ -254,5 +294,23 @@ describe('pathTo · limite fog (R-161/D6, DEPLACEMENT-PLANIFIE)', () => {
   it('destination inconnue non adjacente au connu : inatteignable (jamais traversé l\'inconnu)', () => {
     const path = pathTo(fogState(), { q: 0, r: 0 }, { q: 4, r: 0 });
     expect(path).toBeNull();
+  });
+});
+
+describe('arretProchaineResolution (aperçu = prochaine résolution seulement)', () => {
+  const chemin = [1, 2, 3, 4].map((q) => ({ q, r: 0 }));
+
+  it('unité 1 PM : arrêt sur la case 1 — jamais la destination finale (Erik 12/09 v2)', () => {
+    expect(arretProchaineResolution(chemin, 1)).toEqual({ q: 1, r: 0 });
+  });
+
+  it('unité 2 PM : arrêt sur la case 2 ; chemin épuisé = destination finale', () => {
+    expect(arretProchaineResolution(chemin, 2)).toEqual({ q: 2, r: 0 });
+    expect(arretProchaineResolution(chemin, 9)).toEqual({ q: 4, r: 0 });
+  });
+
+  it('cas limites : chemin vide = null, mp clampé à 1 minimum', () => {
+    expect(arretProchaineResolution([], 2)).toBeNull();
+    expect(arretProchaineResolution(chemin, 0)).toEqual({ q: 1, r: 0 });
   });
 });

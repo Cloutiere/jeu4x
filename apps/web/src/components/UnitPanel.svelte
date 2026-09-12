@@ -334,9 +334,9 @@
       {#if currentOrder}<p class="order">Ordre : {orderLabel(currentOrder)}</p>{/if}
 
       {#if draftHere}
-        <p class="hint">Clic droit sur une case : destination du déplacement (chemin complet soumis) · Clic droit hors case valide : annulation.</p>
+        <p class="hint">Clic droit sur une case : destination du déplacement (chemin complet soumis) · Clic droit MAINTENU : préview multi-tours, relâcher sur la case = confirmer · Clic droit hors case valide : annulation.</p>
       {:else if editable}
-        <p class="hint">Clic gauche : sélectionner (re-clic : désélectionner) · Clic droit : destination du déplacement de l'unité sélectionnée.</p>
+        <p class="hint">Clic gauche : sélectionner (re-clic : désélectionner) · Clic droit : destination de l'unité sélectionnée — la tuile visée s'entoure au survol, maintenez le clic droit pour la préview multi-tours (1)(2) et relâchez pour confirmer.</p>
       {/if}
       <div class="btns">
         <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'Hold', unitId: unit.id })}>

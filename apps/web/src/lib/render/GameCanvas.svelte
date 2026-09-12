@@ -24,7 +24,7 @@
   import { HEX_SIZE, hexesInRect, mapBounds, screenToHex } from './hexView.js';
   import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
   import type { Point } from './arrows.js';
-  import { clickAction, effectiveWorkedTiles, myEngineId } from './interaction.js';
+  import { arretProchaineResolution, clickAction, creeCacheChemins, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable } from './interaction.js';
   import type { ClickAction } from './interaction.js';
   // Chantier V1 (L3) — couche hybride : terrain Three.js + sprites PixiJS
   // projetés (option B du spike), derrière un flag de repli (défaut : 2D).
@@ -247,6 +247,9 @@
     scene.state = v.state;
     scene.myId = myEngineId(v);
     scene.orders = v.orders;
+    // FLECHE-MOUVEMENT : le pathfinding de survol est caché PAR VUE — un
+    // nouvel état (unités déplacées, fog évolué) purge le cache.
+    hoverCache.purge();
     // CORRECTIFS-SELECTION : l'aperçu est calculé à chaque vue poussée — il
     // alimente la ligne de cheminement ET la position optimiste des unités.
     scenePreviews = scene.myId ? previewPrograms(v.state!, { [scene.myId]: v.orders }) : [];
@@ -270,6 +273,14 @@
   function onNewUi(u: UiState): void {
     scene.ui = u;
     overlayDirty = true;
+    // FLECHE-MOUVEMENT : changement de sélection → la flèche de survol
+    // reflète immédiatement la nouvelle unité (ou disparaît), sans attendre
+    // un mouvement du curseur.
+    if (hoverHex) {
+      const hex = hoverHex;
+      hoverHex = null;
+      recalculerSurvol(hex);
+    }
   }
 
   function maybeCenter(): void {
@@ -758,6 +769,7 @@
   /** Surcouche : sélection, brouillon de chemin, ordres soumis, possessions. */
   function rebuildOverlay(): void {
     overlayLayer.removeChildren().forEach((child) => child.destroy({ children: true }));
+    hoverG = null; // détruit avec la couche — redessiné en fin de rebuild
     if (!scene.state) return;
 
     // Phase 6b (labo #/progen) : heatmap de fertilité, dessinée en FOND de
@@ -939,7 +951,7 @@
       if (mode3dActif()) {
         chemins3d.push(...chemin3dDe(origin, p.path, p.final ? 0x8ce99a : 0xf0c419, 0.9));
       } else {
-        drawArrow(hexToPixel(origin, HEX_SIZE), p.path, p.final ? 0x8ce99a : 0xf0c419, 0.9, false);
+        drawArrow(hexToPixel(origin, HEX_SIZE), p.path, p.final ? 0x8ce99a : 0xf0c419, 0.9, false, true);
       }
       if (p.final === 'foundCity' && p.destination) {
         // R-158 (D5) : marqueur de l'action finale — fondation à l'arrivée.
@@ -997,10 +1009,30 @@
           if (mode3dActif()) {
             chemins3d.push(...chemin3dDe(unit, frozenPath, 0xf0c419, 0.4));
           } else {
-            drawArrow(hexToPixel(unit, HEX_SIZE), frozenPath, 0xf0c419, 0.4, true);
+            drawArrow(hexToPixel(unit, HEX_SIZE), frozenPath, 0xf0c419, 0.4, true, true);
           }
         }
       }
+    }
+
+    // RAFFINEMENT-MOUVEMENT (décision d'Erik du 12/09) : badges ronds (1), (2)…
+    // des tours suivants SUR LA FLÈCHE POSÉE et sur son chemin gelé —
+    // projection PM par tour (1 case = 1 PM, miroir du moteur).
+    if (scene.myId) {
+      const jalonsC = new Container();
+      for (const p of scenePreviews) {
+        const unit = scene.state.units[p.unitId];
+        if (!unit || p.path.length === 0) continue;
+        for (const j of jalonsDeTours(p.path, unitType(unit.type).movement)) badgeTour(jalonsC, j.hex, j.tour, 0xf0c419);
+      }
+      for (const unit of Object.values(scene.state.units)) {
+        if (unit.owner !== scene.myId || solidUnits.has(unit.id)) continue;
+        if (unit.order && (unit.order.type === 'Move' || unit.order.type === 'MultiStep') && unit.order.path.length > 0) {
+          const reste = fogTruncate(unit.order.path, scene.myId);
+          for (const j of jalonsDeTours(reste, unitType(unit.type).movement)) badgeTour(jalonsC, j.hex, j.tour, 0xf0c419);
+        }
+      }
+      overlayLayer.addChild(jalonsC);
     }
 
     // Brouillon de chemin en construction (L3).
@@ -1040,6 +1072,10 @@
       gr.position.copyFrom(hexToPixel(selectedTile, HEX_SIZE));
       overlayLayer.addChild(gr);
     }
+
+    // FLECHE-MOUVEMENT : la flèche de survol redessinée AU-DESSUS de tout
+    // l'overlay (après destruction des enfants par ce rebuild).
+    dessinerSurvol();
   }
 
   function selectedTileOf(): Hex | null {
@@ -1155,7 +1191,7 @@
       contours.push({ points: contourHexTile(selection, HEX_SIZE, 8, elevSel), color: 0xffe082, largeur: 5, alpha: 1 });
       contours.push({ points: contourHexTile(selection, HEX_SIZE, 16, elevSel), color: 0x2b2620, largeur: 2, alpha: 0.6 });
     }
-    marqueurs3d.definir([...contours, ...chemins3d]);
+    marqueurs3d.definir([...contours, ...chemins3d, ...chemins3dHover]);
   }
 
   function hexLocalPoints(r: number): number[] {
@@ -1183,6 +1219,7 @@
     color: number,
     alpha: number,
     dashed: boolean,
+    pointesIntermediaires = false,
   ): void {
     const points: Point[] = [origin, ...path.map((h) => hexToPixel(h, HEX_SIZE))];
     const segs = segmentsOf(points);
@@ -1193,9 +1230,30 @@
     gr.stroke({ width: 6, color, alpha });
     // Pastille discrète à l'origine (départ lisible même sur un chemin court).
     gr.circle(points[0]!.x, points[0]!.y, 8).fill({ color, alpha });
+    // RAFFINEMENT-MOUVEMENT : petite pointe sur CHAQUE case traversée (sens
+    // de lecture du parcours tuile par tuile) + grande pointe d'arrivée.
+    if (pointesIntermediaires) {
+      for (let i = 1; i < points.length - 1; i++) {
+        gr.poly(arrowHeadPoints(points[i - 1]!, points[i]!, 16).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
+      }
+    }
     gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
     (gr as Suivable).__suivi3d = { points, width: 6, color, alpha, dashed, tete: true, pastille: true };
     overlayLayer.addChild(gr);
+  }
+
+  /** RAFFINEMENT-MOUVEMENT — badge rond de tour (style Civ 7) : petit cercle
+   *  numéroté posé au centre d'une case étape. Estampillé `poser3d` pour
+   *  suivre la reprojection 3D comme les autres surcouches. */
+  function badgeTour(parent: Container, hex: Hex, tour: number, color: number): void {
+    const pos = hexToPixel(hex, HEX_SIZE);
+    const g = new Graphics();
+    g.circle(0, 0, 11).fill({ color: 0x1d242b, alpha: 0.85 }).stroke({ width: 2.5, color });
+    const t = new Text({ text: String(tour), style: { fontFamily: 'sans-serif', fontSize: 13, fill: 0xffe08a, fontWeight: 'bold', stroke: { color: 0x1d242b, width: 2 } } });
+    t.anchor.set(0.5);
+    g.addChild(t);
+    poser3d(g, pos.x, pos.y);
+    parent.addChild(g);
   }
 
   /** CORRECTIFS-SELECTION : chemin en POLYLINE 3D ouverte posée sur le relief
@@ -1637,6 +1695,17 @@
   }
 
   function onPointerDown(e: PointerEvent): void {
+    // RAFFINEMENT-MOUVEMENT : clic droit ENFONCÉ = début de la préview
+    // multi-tours (style Civ 7). La décision (confirmer/annuler) se prend au
+    // relâchement (onPointerUp) — le `contextmenu` qui suit est neutralisé.
+    if (e.button === 2) {
+      if (app && !playback.active && scene.view && ordersEditable(scene.view)) {
+        droitMaintenu = true;
+        droitTraite = false;
+        survolALa(canvasPos(e));
+      }
+      return;
+    }
     if (e.button !== 0) return;
     pointer = canvasPos(e);
     dragging = false;
@@ -1655,22 +1724,166 @@
   let scenePreviews: ProgramPreview[] = [];
 
   /**
-   * CORRECTIFS-SELECTION : position AFFICHÉE d'une unité — la DESTINATION de
-   * son chemin programmé (l'unité « occupe » déjà sa case d'arrivée pendant
-   * la phase d'ordres), ou null si elle reste sur sa case moteur. Unités du
-   * joueur seulement (l'aperçu n'existe pas pour les autres).
+   * CORRECTIFS-SELECTION : position AFFICHÉE d'une unité programmée —
+   * RAFFINEMENT-MOUVEMENT (décisions d'Erik du 12/09 v2) : l'aperçu montre
+   * UNIQUEMENT ce qui se passera à la PROCHAINE résolution — l'unité s'affiche
+   * sur sa case d'ARRÊT du prochain tour (ses PM le long du chemin), PAS à la
+   * destination finale des tours subséquents. La flèche, elle, demeure
+   * dessinée jusqu'à l'arrivée finale avec ses badges de tours. Un ordre
+   * tenable en un tour reste affiché à sa destination (inchangé).
    */
-  function positionAfficheeDe(unit: { id: string; owner: string }): Hex | null {
+  function positionAfficheeDe(unit: { id: string; owner: string; type?: string }): Hex | null {
     if (!scene.state || !scene.myId || unit.owner !== scene.myId) return null;
     const p = scenePreviews.find((pv) => pv.unitId === unit.id);
     if (!p || p.path.length === 0) return null;
-    return p.destination;
+    const type = unit.type ?? scene.state.units[unit.id]?.type;
+    const mp = type ? unitType(type).movement : 1;
+    return arretProchaineResolution(p.path, mp) ?? p.destination;
   }
 
   /** CORRECTIFS-SELECTION : lignes de cheminement 3D (calque Three, posées
    *  sur le relief SOUS les unités) — remplies par rebuildOverlay, consommées
    *  par mettreAJourMarqueurs3d. */
   let chemins3d: ContourDef[] = [];
+
+  // -------------------------------------------------------------------------
+  // FLECHE-MOUVEMENT / RAFFINEMENT-MOUVEMENT (décisions d'Erik des 11-12/09)
+  // Survol (unité amie sélectionnée) : AUCUNE flèche — seule la TUILE VISÉE
+  // s'entoure (« un clic droit ici = destination »).
+  // CLIC DROIT rapide sur la tuile = ordre posé (flèche jusqu'à l'arrivée
+  // finale, badges de tours) ; CLIC DROIT MAINTENU = préview live multi-tours
+  // (flèche pointillée + pointes par case + badges (1),(2)… — PM par tour,
+  // 1 case = 1 PM, style Civ 7), le RELÂCHEMENT SUR UNE CASE confirme
+  // l'ordre, ailleurs il annule (sémantique `rightClickAction` inchangée).
+  // L'aperçu de position (positionAfficheeDe) ne montre que la PROCHAINE
+  // résolution (case d'arrêt selon les PM), jamais les tours subséquents.
+  // Zéro programmation au survol.
+  // -------------------------------------------------------------------------
+  const COULEUR_SURVOL = 0xffe082; // ambre clair (la flèche d'ordre = 0xf0c419 plein)
+  const ALPHA_SURVOL = 0.55;
+  let hoverHex: Hex | null = null; // dernière case survolée (re-calcul au changement d'état/UI)
+  let hoverPath: Hex[] | null = null;
+  let hoverUnitId: string | null = null;
+  let hoverG: Container | null = null; // 2D uniquement (en 3D : chemins3dHover)
+  let chemins3dHover: ContourDef[] = [];
+  // Clic droit MAINTENU (préview multi-tours) ; `droitTraite` = le
+  // relâchement a déjà tranché (confirmé/annulé) — le `contextmenu` qui suit
+  // (souris réelle) ne doit pas retraiter le même clic.
+  let droitMaintenu = false;
+  let droitTraite = false;
+  // Perf (M1.3) : le BFS n'est pas relancé à chaque pixel — cache pur
+  // (`creeCacheChemins`, une entrée par unité×case cible), purgé à chaque
+  // nouvelle vue serveur.
+  const hoverCache = creeCacheChemins();
+
+  /** Efface la flèche de survol (2D + 3D). */
+  function effacerSurvol(): void {
+    hoverHex = null;
+    hoverPath = null;
+    hoverUnitId = null;
+    chemins3dHover = [];
+    if (hoverG) {
+      hoverG.destroy();
+      hoverG = null;
+    }
+    if (mode3dActif()) mettreAJourMarqueurs3d();
+  }
+
+  /** Recalcule le chemin de survol pour la case `hex` (déjà changée). */
+  function recalculerSurvol(hex: Hex): void {
+    hoverPath = null;
+    hoverUnitId = null;
+    chemins3dHover = [];
+    const state = scene.state;
+    const editable = !!state && !!scene.view && ordersEditable(scene.view) && !playback.active;
+    const selectedId = scene.ui.selectedUnitId;
+    const unit = editable && selectedId ? state!.units[selectedId] : undefined;
+    if (unit && unit.owner === scene.myId) {
+      const path = hoverCache.chemin(state!, unit, hex); // unit = position moteur (Hex structurel)
+      // Destination déjà programmée pour cette unité : la flèche d'ordre
+      // solide la montre — pas de doublon pointillé par-dessus.
+      const posee = scenePreviews.find((pv) => pv.unitId === unit.id);
+      const dejaAffichee =
+        !!posee && !!path && posee.path.length === path.length && posee.path.every((h, i) => h.q === path[i]!.q && h.r === path[i]!.r);
+      if (path && path.length > 0 && !dejaAffichee) {
+        hoverPath = path;
+        hoverUnitId = unit.id;
+        if (mode3dActif()) chemins3dHover = chemin3dDe(unit, path, COULEUR_SURVOL, ALPHA_SURVOL);
+      }
+    }
+    if (mode3dActif()) mettreAJourMarqueurs3d();
+    else dessinerSurvol();
+  }
+
+  /** Survol : dessin 2D — RAFFINEMENT-MOUVEMENT v2 (Erik 12/09) : au simple
+   *  survol, AUCUNE flèche — seule la tuile visée reste ENTOURÉE. La flèche
+   *  (pointillée, pointes par case, badges de tours) n'apparaît que pendant
+   *  le CLIC DROIT MAINTENU ; le relâchement confirme l'ordre. */
+  function dessinerSurvol(): void {
+    if (hoverG) {
+      hoverG.destroy();
+      hoverG = null;
+    }
+    if (!hoverPath || !hoverUnitId || mode3dActif()) return;
+    const unit = scene.state?.units[hoverUnitId];
+    if (!unit) return;
+    const cont = new Container();
+    // Encadré de la TUILE VISÉE : « un clic droit ici = destination » (seul
+    // indicateur du survol simple — la flèche est réservée au maintien).
+    const cible = hoverPath[hoverPath.length - 1]!;
+    const anneau = new Graphics();
+    anneau.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 3, color: COULEUR_SURVOL, alpha: 0.9 });
+    anneau.poly(hexLocalPoints(HEX_SIZE - 12)).stroke({ width: 1.5, color: 0x2b2620, alpha: 0.5 });
+    anneau.position.copyFrom(hexToPixel(cible, HEX_SIZE));
+    cont.addChild(anneau);
+    if (droitMaintenu) {
+      const points: Point[] = [hexToPixel(unit, HEX_SIZE), ...hoverPath.map((h) => hexToPixel(h, HEX_SIZE))];
+      const segs = segmentsOf(points);
+      if (segs.length > 0) {
+        const gr = new Graphics();
+        for (const [a, b] of segs.flatMap(([a, b]) => dashSegments(a, b))) gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
+        gr.stroke({ width: 4, color: COULEUR_SURVOL, alpha: ALPHA_SURVOL });
+        // Petite pointe sur chaque case traversée + grande pointe d'arrivée.
+        for (let i = 1; i < points.length - 1; i++) {
+          gr.poly(arrowHeadPoints(points[i - 1]!, points[i]!, 16).flatMap((p) => [p.x, p.y])).fill({ color: COULEUR_SURVOL, alpha: Math.min(1, ALPHA_SURVOL + 0.1) });
+        }
+        const [lastFrom, lastTo] = segs[segs.length - 1]!;
+        gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color: COULEUR_SURVOL, alpha: Math.min(1, ALPHA_SURVOL + 0.1) });
+        cont.addChild(gr);
+      }
+      // Préview multi-tours : badges (1), (2)…
+      for (const j of jalonsDeTours(hoverPath, unitType(unit.type).movement)) badgeTour(cont, j.hex, j.tour, COULEUR_SURVOL);
+    }
+    hoverG = cont;
+    overlayLayer.addChild(cont);
+  }
+
+  /** Survol : recalcul à une position canvas donnée (pointermove ou
+   *  début/maintien du clic droit). */
+  function survolALa(p: { x: number; y: number }): void {
+    const hex = hexSousEcran(p.x, p.y);
+    if (!hex) {
+      if (hoverHex) effacerSurvol();
+      return;
+    }
+    if (hoverHex && hoverHex.q === hex.q && hoverHex.r === hex.r) {
+      // Même case : le seul changement possible est l'état maintenu.
+      if (hoverG || (hoverPath && droitMaintenu)) dessinerSurvol();
+      return;
+    }
+    hoverHex = hex;
+    recalculerSurvol(hex);
+  }
+
+  /** Survol : suivi du curseur (pointermove, hors drag/playback). */
+  function mettreAJourSurvol(e: PointerEvent): void {
+    if (!app) return;
+    if (dragging || playback.active) {
+      if (hoverHex) effacerSurvol();
+      return;
+    }
+    survolALa(canvasPos(e));
+  }
 
   /** R-161 (D6) : troncature fog d'un chemin gelé (affichage pointillé) —
    *  miroir de la troncature de previewPrograms ; explored vide (fixtures /
@@ -1750,10 +1963,18 @@
   function onPointerLeave(): void {
     tip = null;
     tipHex = null;
+    // FLECHE-MOUVEMENT : le curseur quitte la carte → plus de flèche de survol.
+    if (hoverHex) effacerSurvol();
+    // Le bouton droit relâché hors canvas ne confirmera jamais — préview coupée.
+    droitMaintenu = false;
   }
 
   function onPointerMove(e: PointerEvent): void {
     updateTip(e);
+    // FLECHE-MOUVEMENT : la flèche de survol suit le curseur même bouton
+    // levé (pointer n'est posé qu'au pressé — logique dédiée, avant le
+    // retour anticipé du pan).
+    mettreAJourSurvol(e);
     if (!pointer) return;
     const p = canvasPos(e);
     const dx = p.x - pointer.x;
@@ -1773,6 +1994,19 @@
   }
 
   function onPointerUp(e: PointerEvent): void {
+    // RAFFINEMENT-MOUVEMENT : relâchement du CLIC DROIT MAINTENU — la
+    // préview se tranche ici : case valide = ordre confirmé (`onRightClick`
+    // → moveDraft), ailleurs = annulation (sémantique `rightClickAction`).
+    // Le `contextmenu` qui suit sur souris réelle est neutralisé (droitTraite).
+    if (e.button === 2) {
+      if (!droitMaintenu) return;
+      droitMaintenu = false;
+      droitTraite = true;
+      if (playback.active || !scene.view) return;
+      const hex = hexSousEcran(canvasPos(e).x, canvasPos(e).y);
+      if (hex) onRightClick(hex);
+      return;
+    }
     // CORRECTIFS-SELECTION (bogue souris réelle) : un pointerup du BOUTON DROIT
     // ne doit PAS déclencher la décision de clic gauche (sélection/désélection)
     // — sinon il court avant le `contextmenu` et l'unité est désélectionnée
@@ -1811,6 +2045,14 @@
 
   function onContextMenu(e: MouseEvent): void {
     e.preventDefault();
+    // RAFFINEMENT-MOUVEMENT : si le relâchement du clic droit maintenu a déjà
+    // tranché (confirmé/annulé), ne pas retraiter le même clic. Un clic droit
+    // « synthétique » (tests GUI, hook dev) sans pointerdown passe ici comme
+    // avant — comportement historique préservé.
+    if (droitTraite) {
+      droitTraite = false;
+      return;
+    }
     if (playback.active) return;
     if (!scene.view) return onCancelDraft();
     const hex = hexSousEcran(canvasPos(e).x, canvasPos(e).y);
@@ -1820,6 +2062,8 @@
 
   function onKey(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
+      // RAFFINEMENT-MOUVEMENT : Échap coupe la préview du clic maintenu.
+      droitMaintenu = false;
       onCancelDraft();
       onAction({ kind: 'deselect' });
     } else if (e.key === 'Enter' && scene.ui.draft && scene.ui.draft.path.length > 0) {

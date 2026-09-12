@@ -358,3 +358,59 @@ describe('R-158..R-161 · déterminisme', () => {
     expect(a.events).toEqual(b.events);
   });
 });
+
+describe('FLECHE-MOUVEMENT · persistance de la flèche entre les tours (M3)', () => {
+  function solo(): GameState {
+    const state = makeState({ units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 }] });
+    exploreAll(state, 'p1', 8, 8);
+    return state;
+  }
+
+  const longChemin = [{ q: 1, r: 0 }, { q: 2, r: 0 }, { q: 3, r: 0 }];
+
+  it('mouvement INACHEVÉ (PM épuisés) : la flèche persiste — chemin gelé = chemin restant, montré par l\'aperçu du tour suivant', () => {
+    const state = solo();
+    unit(state, 'u1').mp = 2; // 2 pas sur 3 : il restera (3,0)
+    const orders: Record<string, Order[]> = { p1: [{ type: 'Move', unitId: 'u1', path: longChemin }] };
+    const { newState } = resolveTurn(state, orders, 1);
+    expect(unit(newState, 'u1')).toMatchObject({ q: 2, r: 0 });
+    // La flèche demeure : le chemin gelé contient le RESTE (miroir moteur, pas un état UI inventé).
+    const gelé = unit(newState, 'u1')!.order;
+    expect(gelé).toMatchObject({ path: [{ q: 3, r: 0 }] }); // forme de l'ordre source (Move), chemin restant
+    // L'aperçu du tour suivant (aucun nouvel ordre) montre ce chemin restant.
+    const previews = previewPrograms(newState, { p1: [] });
+    expect(previews.find((p) => p.unitId === 'u1')).toMatchObject({ path: [{ q: 3, r: 0 }], destination: { q: 3, r: 0 } });
+  });
+
+  it('mouvement ACHÉVÉ : la flèche disparaît — ordre consommé (unit.order null)', () => {
+    const state = solo();
+    unit(state, 'u1').mp = 3;
+    const orders: Record<string, Order[]> = { p1: [{ type: 'Move', unitId: 'u1', path: longChemin }] };
+    const { newState } = resolveTurn(state, orders, 1);
+    expect(unit(newState, 'u1')).toMatchObject({ q: 3, r: 0 });
+    expect(unit(newState, 'u1')!.order).toBeNull();
+    const previews = previewPrograms(newState, { p1: [] });
+    expect(previews.find((p) => p.unitId === 'u1')).toBeUndefined();
+  });
+
+  it('mouvement INTERROMPU (conflit de destination R-159, repli à 0) : pas de flèche fantôme — la position réelle fait foi', () => {
+    const state = makeState({
+      units: [
+        { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
+        { id: 'u2', type: 'guerrier', owner: 'p1', q: 2, r: 0 },
+      ],
+    });
+    exploreAll(state, 'p1', 8, 8);
+    const orders: Record<string, Order[]> = {
+      p1: [
+        { type: 'Move', unitId: 'u2', path: [{ q: 1, r: 1 }] }, // première programmée : gagne
+        { type: 'Move', unitId: 'u1', path: [{ q: 1, r: 1 }] }, // perdante : reste sur place
+      ],
+    };
+    const { newState } = resolveTurn(state, orders, 1);
+    expect(unit(newState, 'u1')).toMatchObject({ q: 0, r: 0 });
+    expect(unit(newState, 'u1')!.order).toBeNull(); // aucun chemin gelé résiduel
+    const previews = previewPrograms(newState, { p1: [] });
+    expect(previews.find((p) => p.unitId === 'u1')).toBeUndefined();
+  });
+});
