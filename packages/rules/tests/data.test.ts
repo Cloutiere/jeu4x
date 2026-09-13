@@ -151,8 +151,9 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
     expect(CULTURE.milestonesTarget).toBe(20); // jalons pour l'ONU / la victoire
   });
 
-  it('7f · R-113 : le Palais porte sa culture FLAT (1/tour, capitale) — Temple/Cathédrale par citoyen', () => {
-    expect(buildingTable['palais']!.culturePerTurn).toBe(1);
+  it('R-113 rév. (EXPANSION-CULTURELLE) : le Palais porte sa culture par citoyen PLAFONNÉE (min(pop,5)) — Temple/Cathédrale non plafonnés', () => {
+    expect(buildingTable['palais']!.culturePerCitizenCap).toEqual({ perCitizen: 1, cap: 5 });
+    expect('culturePerTurn' in buildingTable['palais']!).toBe(false);
     expect(buildingTable['temple']!.culturePerCitizen).toBe(1);
     expect(buildingTable['cathedrale']!.culturePerCitizen).toBe(2);
   });

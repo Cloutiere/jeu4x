@@ -133,12 +133,12 @@ describe('R-121 · Modificateurs économiques (avant/après, même seed)', () =>
     expect(communisme.cities['c1']!.production!.progress).toBeGreaterThan(despotisme.cities['c1']!.production!.progress);
   });
 
-  it('Communisme : culture des Temples/Cathédrales = 0 ; Monarchie : culture du Palais ×2 (R-113 amendée)', () => {
+  it('Communisme : culture des Temples/Cathédrales = 0 ; Monarchie : culture du Palais ×2 (R-113 rév. — part Palais min(pop,5))', () => {
     const city = { pop: 5, buildings: ['palais', 'temple'], capital: true, wonders: [] };
-    expect(cultureGains(city)).toBe(1 + 5); // Palais 1 + Temple 1×5
-    expect(cultureGains(city, 0, [], { zeroTempleCulture: true })).toBe(1); // Temples annulés
-    expect(cultureGains(city, 0, [], { palaceCultureMult: 2 })).toBe(2 + 5); // Palais ×2
-    expect(cultureGains(city, 0, [], { zeroTempleCulture: true, palaceCultureMult: 2 })).toBe(2);
+    expect(cultureGains(city)).toBe(5 + 5); // Palais min(5,5) + Temple 1×5
+    expect(cultureGains(city, 0, [], { zeroTempleCulture: true })).toBe(5); // Temples annulés, Palais conservé
+    expect(cultureGains(city, 0, [], { palaceCultureMult: 2 })).toBe(10 + 5); // Palais ×2 SEUL
+    expect(cultureGains(city, 0, [], { zeroTempleCulture: true, palaceCultureMult: 2 })).toBe(10);
   });
 
   it('Magna Carta : Tribunal = +1 culture/tour (ville hôte, R-125)', () => {
@@ -360,6 +360,7 @@ describe('R-124 · Victoire scientifique (Vaisseau spatial)', () => {
       buildings: ['vaisseau_propulsion'],
       conversion: 'gold',
       cultureStored: 0,
+      cultureCumulee: 0,
       wonders: [],
       gpAccumGold: 0,
       gpAccumScience: 0,
@@ -404,7 +405,7 @@ describe('Migration v11 → v12 (Phase 7h)', () => {
       cities: { c1: { id: 'c1', q: 0, r: 0, wonders: ['stonehenge'] } },
     };
     const out = migrateState(v11 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(19);
+    expect(out.schemaVersion).toBe(20);
     expect(out.players['p1']!.government).toBe('despotisme');
     expect(out.players['p1']!.anarchyUntil).toBeNull();
     expect(out.players['p1']!.greatPersonsByType).toEqual({});

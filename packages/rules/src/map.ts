@@ -463,6 +463,7 @@ export function createInitialState(
       buildings: ['palais'], // 7e : le Palais ne vit que dans la capitale
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
       cultureStored: 0, // 7f · R-113
+      cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: [], // 7f · R-115
       gpAccumGold: 0, // 7h · R-123
       gpAccumScience: 0,

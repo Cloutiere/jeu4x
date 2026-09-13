@@ -188,6 +188,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       buildings: spec.buildings ?? [],
       conversion: spec.conversion ?? CONVERSION_DEFAULT,
       cultureStored: 0, // 7f · R-113
+      cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: spec.wonders ?? [], // 7f · R-115
       gpAccumGold: 0, // 7h · R-123
       gpAccumScience: 0,

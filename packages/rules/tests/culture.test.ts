@@ -41,26 +41,26 @@ function capitalCity(buildings: string[] = []): GameState {
 }
 
 describe('R-113 · Rendement culturel (scalaire sur la démographie)', () => {
-  it('Palais 1/tour dans la capitale seule ; Temple +1/citoyen ; Cathédrale +2/citoyen (cultureGains)', () => {
-    // Capitale pop 1 avec Palais : 1 culture/tour.
+  it('Palais min(pop,5) dans la capitale seule (R-113 rév.) ; Temple +1/citoyen ; Cathédrale +2/citoyen (cultureGains)', () => {
+    // Capitale pop 1 avec Palais : 1 culture/tour (min(1, 5)).
     expect(cultureGains({ pop: 1, buildings: ['palais'], capital: true, wonders: [] })).toBe(1);
-    // Temple pop 4 : 1 (Palais) + 4 × 1 = 5.
-    expect(cultureGains({ pop: 4, buildings: ['palais', 'temple'], capital: true, wonders: [] })).toBe(5);
-    // Cathédrale pop 4 (remplace le Temple) : 1 + 4 × 2 = 9.
-    expect(cultureGains({ pop: 4, buildings: ['palais', 'cathedrale'], capital: true, wonders: [] })).toBe(9);
-    // Document d'Erik : 20 pop × Cathédrale = 40 🔶 (part Temple seule).
+    // Temple pop 4 : Palais 4 (min(4, 5)) + 4 × 1 = 8.
+    expect(cultureGains({ pop: 4, buildings: ['palais', 'temple'], capital: true, wonders: [] })).toBe(8);
+    // Cathédrale pop 4 (remplace le Temple) : 4 + 4 × 2 = 12.
+    expect(cultureGains({ pop: 4, buildings: ['palais', 'cathedrale'], capital: true, wonders: [] })).toBe(12);
+    // Document d'Erik : 20 pop × Cathédrale = 40 🔶 (part Temple seule — NON plafonnée).
     expect(cultureGains({ pop: 20, buildings: ['cathedrale'], capital: false, wonders: [] })).toBe(40);
     // Ville non-capitale sans bâtiment : 0.
     expect(cultureGains({ pop: 3, buildings: [], capital: false, wonders: [] })).toBe(0);
   });
 
   it('Stonehenge multiplie ×1,5 la part Temple/Cathédrale tant qu’il n’est pas obsolète (R-110)', () => {
-    // 4 pop × Temple = 4 × 1,5 = 6, + Palais 1 = 7.
-    expect(cultureGains({ pop: 4, buildings: ['palais', 'temple'], capital: true, wonders: ['stonehenge'] })).toBe(7);
-    // 3 pop × Cathédrale = 6 × 1,5 = 9, + Palais 1 = 10.
-    expect(cultureGains({ pop: 3, buildings: ['palais', 'cathedrale'], capital: true, wonders: ['stonehenge'] })).toBe(10);
+    // 4 pop × Temple = 4 × 1,5 = 6, + Palais 4 (min(4,5), non multiplié) = 10.
+    expect(cultureGains({ pop: 4, buildings: ['palais', 'temple'], capital: true, wonders: ['stonehenge'] })).toBe(10);
+    // 3 pop × Cathédrale = 6 × 1,5 = 9, + Palais 3 = 12.
+    expect(cultureGains({ pop: 3, buildings: ['palais', 'cathedrale'], capital: true, wonders: ['stonehenge'] })).toBe(12);
     // Obsolescence (Littératie débloquée) : le multiplicateur disparaît, le jalon reste.
-    expect(cultureGains({ pop: 4, buildings: ['palais', 'temple'], capital: true, wonders: ['stonehenge'] }, 0, ['litteratie'])).toBe(5);
+    expect(cultureGains({ pop: 4, buildings: ['palais', 'temple'], capital: true, wonders: ['stonehenge'] }, 0, ['litteratie'])).toBe(8);
     expect(isWonderObsolete('stonehenge', ['litteratie'])).toBe(true);
     expect(isWonderObsolete('stonehenge', [])).toBe(false);
   });
@@ -69,29 +69,29 @@ describe('R-113 · Rendement culturel (scalaire sur la démographie)', () => {
     const state = capitalCity(['temple']);
     state.firstBy = { religion: 'p1' }; // +1 Culture dans toutes les villes
     const { newState } = resolveTurn(state, {}, 1);
-    // 1 (Palais) + 4 × 1 (Temple) + 1 (Premier découvrir) = 6 accumulés.
-    expect(newState.cities['c1']!.cultureStored).toBe(6);
+    // 4 (Palais min(4,5)) + 4 × 1 (Temple) + 1 (Premier découvrir) = 9 accumulés.
+    expect(newState.cities['c1']!.cultureStored).toBe(9);
   });
 
   it('accumulation par ville : la culture s’ajoute chaque tour (cultureStored)', () => {
     let state = capitalCity(['temple']);
     state = resolveTurn(state, {}, 1).newState;
-    expect(state.cities['c1']!.cultureStored).toBe(5);
+    expect(state.cities['c1']!.cultureStored).toBe(8);
     state = resolveTurn(state, {}, 2).newState;
-    expect(state.cities['c1']!.cultureStored).toBe(10);
+    expect(state.cities['c1']!.cultureStored).toBe(16);
   });
 });
 
 describe('R-114 · Personnages illustres de culture (seuil T-27 croissant)', () => {
   it('7l · C5 : au seuil 150 (table canon) un GP apparaît, la jauge est soustraite, le compteur empire monte', () => {
     const state = capitalCity(['temple']);
-    state.cities['c1']!.cultureStored = 149; // 5/tour → franchit 150 ce tour
+    state.cities['c1']!.cultureStored = 149; // 8/tour → franchit 150 ce tour
     const { newState, events } = resolveTurn(state, {}, 1);
     const gp = Object.values(newState.units).find((u) => u.type === 'artiste_penseur');
     expect(gp).toBeDefined();
     expect(gp!.owner).toBe('p1');
     expect(gp!.q).toBe(0); // posé sur la case de la ville (libre)
-    expect(newState.cities['c1']!.cultureStored).toBe(4); // 149 + 5 − 150 (surplus conservé)
+    expect(newState.cities['c1']!.cultureStored).toBe(7); // 149 + 8 − 150 (surplus conservé)
     expect(newState.players['p1']!.greatPersonsObtained).toBe(1);
     expect(events.some((e) => e.type === 'GreatPersonSpawned' && e.unitType === 'artiste_penseur')).toBe(true);
   });
@@ -102,15 +102,15 @@ describe('R-114 · Personnages illustres de culture (seuil T-27 croissant)', () 
     expect(greatPersonThresholdFor(2)).toBe(417);
     expect(greatPersonThresholdFor(14)).toBe(4817); // 15e GP (ancre Erik)
     expect(greatPersonThresholdFor(19)).toBe(8067); // 20e GP (ancre Erik)
-    // Après 1 GP obtenu, une ville à 5 culture/tour : 261 + 5 = 266 < 267 ne
-    // suffit plus ; 262 + 5 = 267 franchit le nouveau seuil.
+    // Après 1 GP obtenu, une ville à 8 culture/tour : 258 + 8 = 266 < 267 ne
+    // suffit plus ; 259 + 8 = 267 franchit le nouveau seuil.
     const state = capitalCity(['temple']);
     state.players['p1']!.greatPersonsObtained = 1;
-    state.cities['c1']!.cultureStored = 261;
+    state.cities['c1']!.cultureStored = 258;
     const { newState } = resolveTurn(state, {}, 1);
     expect(newState.cities['c1']!.cultureStored).toBe(266); // pas de GP
     expect(Object.values(newState.units)).toHaveLength(0);
-    state.cities['c1']!.cultureStored = 262;
+    state.cities['c1']!.cultureStored = 259;
     const r2 = resolveTurn(state, {}, 1).newState;
     // Rotation (sans recherche, R-127) : compteur = 1 → index 1 = Bâtisseur.
     expect(Object.values(r2.units).some((u) => u.type === 'batisseur')).toBe(true); // 267 ≥ 267
@@ -302,6 +302,7 @@ describe('R-115 · Installation et jalons culturels', () => {
       buildings: [],
       conversion: 'gold',
       cultureStored: 0,
+      cultureCumulee: 0,
       wonders: [],
       gpAccumGold: 0,
       gpAccumScience: 0,
@@ -388,7 +389,7 @@ describe('7f · Effets des merveilles activées', () => {
     state.cities['c1']!.wonders = ['stonehenge'];
     state.players['p1']!.techsUnlocked = ['litteratie'];
     const { newState } = resolveTurn(state, {}, 1);
-    expect(newState.cities['c1']!.cultureStored).toBe(5); // 1 + 4 (sans ×1,5)
+    expect(newState.cities['c1']!.cultureStored).toBe(8); // 4 (Palais min(4,5)) + 4 (Temple, sans ×1,5)
     expect(newState.cities['c1']!.wonders).toEqual(['stonehenge']); // toujours là
   });
 });
@@ -411,7 +412,7 @@ describe('7f · Migration v9 → v10', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(19); // la chaîne continue (7m)
+    expect(out.schemaVersion).toBe(20); // la chaîne continue (EXPANSION-CULTURELLE)
     expect(out.cities['c1']!.cultureStored).toBe(0);
     expect(out.cities['c1']!.wonders).toEqual([]);
     expect(out.players['p1']!.cultureMilestones).toBe(0);
@@ -481,6 +482,7 @@ describe('7f · e2e : culture → GP → jalons → merveilles → ONU → victo
       buildings: [],
       conversion: 'gold',
       cultureStored: 0,
+      cultureCumulee: 0,
       wonders: ['colosse_de_rhodes'],
       gpAccumGold: 0,
       gpAccumScience: 0,

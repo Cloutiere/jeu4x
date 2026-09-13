@@ -44,13 +44,13 @@ describe('7k · M1/R-128 — obsolescence GLOBALE (doc : « dès qu’UNE civili
     });
     state.players['p2']!.techsUnlocked = ['litteratie'];
     const before = resolveTurn(structuredClone(state), {}, 42).newState.cities['c1']!.cultureStored;
-    // Sans l'obsolescence adverse, 2 pop × Temple 1 × 1,5 = 3 + Palais 1 = 4 ;
-    // avec l'obsolescence GLOBALE : 2 × 1 + 1 = 3.
-    expect(before).toBe(3);
+    // Sans l'obsolescence adverse, 2 pop × Temple 1 × 1,5 = 3 + Palais min(2,5) = 2 → 5 ;
+    // avec l'obsolescence GLOBALE : 2 × 1 + 2 = 4.
+    expect(before).toBe(4);
     // Contre-épreuve : sans la tech adverse, l'effet vit.
     const alive = structuredClone(state);
     alive.players['p2']!.techsUnlocked = [];
-    expect(resolveTurn(alive, {}, 42).newState.cities['c1']!.cultureStored).toBe(4);
+    expect(resolveTurn(alive, {}, 42).newState.cities['c1']!.cultureStored).toBe(5);
   });
 
   it('l’union des technologies (allKnownTechs) fait foi pour isWonderObsolete', () => {
@@ -222,9 +222,9 @@ describe('7k · M4/R-131 — merveille = jalon culturel (vérification)', () => 
 describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, tableau fait foi)', () => {
   it('Théâtre de Shakespeare : ×2 la Culture TOTALE de la cité (modèle Stonehenge généralisé)', () => {
     const city = { pop: 2, buildings: ['palais', 'temple'], capital: true, wonders: ['theatre_de_shakespeare'] };
-    // Sans Théâtre : Palais 1 + Temple 1×2 = 3 ; avec : round(3 × 2) = 6.
-    expect(cultureGains({ ...city, wonders: [] })).toBe(3);
-    expect(cultureGains(city)).toBe(6);
+    // Sans Théâtre : Palais min(2,5) + Temple 1×2 = 4 ; avec : round(4 × 2) = 8.
+    expect(cultureGains({ ...city, wonders: [] })).toBe(4);
+    expect(cultureGains(city)).toBe(8);
     expect(cityCultureMultOf(city.wonders, [])).toBe(2);
   });
 
@@ -404,10 +404,10 @@ describe('7k · R-132 — Grande Muraille (décision d’Erik du 04/09, validée
 describe('7k · R-133 (audit) — Magna Carta révisée : Tribunal +1 culture PAR CITOYEN (le doc tranche)', () => {
   it('+1 × population (révision du modèle 7h « à plat »)', () => {
     const city = { pop: 3, buildings: ['palais', 'tribunal'], capital: true, wonders: ['magna_carta'] };
-    // Palais 1 + Tribunal 1×3 = 4.
-    expect(cultureGains(city)).toBe(4);
+    // Palais min(3,5) + Tribunal 1×3 = 6.
+    expect(cultureGains(city)).toBe(6);
     const sans = { ...city, wonders: [] };
-    expect(cultureGains(sans)).toBe(1);
+    expect(cultureGains(sans)).toBe(3);
   });
 });
 

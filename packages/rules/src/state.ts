@@ -163,6 +163,14 @@ export interface City {
   conversion: 'gold' | 'science';
   /** 7f · R-113 : culture accumulée vers le prochain Personnage illustre. */
   cultureStored: number;
+  /** EXPANSION-CULTURELLE phase 1 (décision d'Erik du 13/09) : culture
+   *  CUMULÉE de la ville — additionne les mêmes gains que `cultureStored`
+   *  chaque tour mais n'est JAMAIS consommée (le canal GP consomme le sien ;
+   *  expansion culturelle et GP ne se volent pas de culture). Phase 1
+   *  VISUAL-ONLY : lu uniquement par le rendu des anneaux (`rayonCulturelDe`),
+   *  aucun consommateur gameplay. Gelée en Anarchie comme `cultureStored`
+   *  (R-122). Migration 20 : champ additif, backfill 0, idempotent. */
+  cultureCumulee: number;
   /** 7f · R-115 : merveilles hébergées — SURVIVENT à la capture (elles
    *  changent de propriétaire avec la ville, contrairement aux bâtiments). */
   wonders: string[];
@@ -369,7 +377,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 19;
+export const CURRENT_SCHEMA_VERSION = 20;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -868,6 +876,26 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       migrated[id] = { ...u, order: normalized };
     }
     return { ...state, units: migrated };
+  },
+  /**
+   * v19 → v20 : EXPANSION-CULTURELLE phase 1 (décisions d'Erik du 13/09).
+   * Champ ADDITIF par ville : `cultureCumulee: 0` (culture CUMULÉE — les
+   * parties migrées repartent de zéro : aucun enrichissement rétroactif des
+   * tours déjà joués, idempotent). Aucune autre transformation : le Palais
+   * révisé (R-113 rév.) et les seuils d'anneaux sont des DONNÉES/formules, pas
+   * des champs d'état ; l'expansion culturelle est visual-only (rendu 2D).
+   */
+  20: (state) => {
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      migrated[id] = {
+        ...c,
+        cultureCumulee: typeof c.cultureCumulee === 'number' ? c.cultureCumulee : 0,
+      };
+    }
+    return { ...state, cities: migrated };
   },
 };
 

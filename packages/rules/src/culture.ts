@@ -120,22 +120,59 @@ export function figureNameForTech(techId: string): string | null {
 export interface CultureCity {
   pop: number;
   buildings: string[];
-  /** Le Palais (culturePerTurn) ne vit que dans la capitale — champ
-   *  redondant avec buildings.includes('palais') mais explicite pour l'UI. */
+  /** Le Palais (culturePerCitizenCap — R-113 rév.) ne vit que dans la
+   *  capitale — champ redondant avec buildings.includes('palais') mais
+   *  explicite pour l'UI. */
   capital: boolean;
   /** Merveilles hébergées (R-115) — Stonehenge y multiplie les Temples. */
   wonders: string[];
 }
 
 /**
- * R-113 · Rendement culturel d'une ville : Σ `culturePerTurn` des bâtiments
- * (Palais 🔶 1, capitale uniquement) + Σ `culturePerCitizen` × pop (Temple 1,
- * Cathédrale 2 — remplace le Temple), la part `culturePerCitizen` étant
- * multipliée par la merveille Stonehenge (×1,5 🔶 tant qu'elle n'est pas
- * obsolète — R-110/R-128) + le bonus empire du Premier découvrir (perCity.culture,
- * R-109 : Religion/Imprimerie). Scalaire sur la démographie : 20 pop ×
- * Cathédrale = 40 🔶. Arrondi au plus proche de la part multipliée (R-88).
- * 7h · R-121 : Monarchie (Palais ×2), Communisme (Temples/Cathédrales = 0).
+ * EXPANSION-CULTURELLE phase 1 (T-nouveau, décision d'Erik du 13/09) ·
+ * `rayonCulturelDe` : nombre d'ANNEAUX culturels d'une ville, déclenché par sa
+ * culture CUMULÉE aux seuils **10 / 100 / 1 000 / 10 000** (table data-driven
+ * `culture.json` `cultureExpansionThresholds` — calibrage 🔶 ; source externe :
+ * CivFanatics « Culture expansion », les valeurs d'Erik restent maîtresses),
+ * plafond **5 anneaux** (`cultureExpansionMaxRings`, data-driven — lié seulement
+ * si la table dépasse le plafond). 0 au départ : la zone culturelle = les tuiles
+ * cultivées (worked tiles) uniquement, conforme à Erik.
+ *
+ * ⚠ PHASE 1 VISUAL-ONLY : la fonction n'est branchée QUE sur le rendu 2D des
+ * anneaux (GameCanvas) — AUCUN consommateur gameplay (pas de tuiles
+ * travaillables au-delà du rayon actuel, pas de pression/conversion/flip, le
+ * workRadius du Tribunal est intouché). Le vrai territoire (phase 2) se
+ * branchera sur cette même fonction.
+ *
+ * Pur et déterministe : `table` en paramètre (défaut : les données), aucun
+ * état de partie lu — testable hors Board (même philosophie que
+ * `greatPersonThresholdFor`).
+ */
+export function rayonCulturelDe(
+  cultureCumulee: number,
+  table: readonly number[] = CULTURE.cultureExpansionThresholds,
+  maxRings: number = CULTURE.cultureExpansionMaxRings,
+): number {
+  let anneaux = 0;
+  for (const seuil of table) {
+    if (cultureCumulee >= seuil) anneaux += 1;
+  }
+  return Math.min(anneaux, Math.max(0, maxRings));
+}
+
+/**
+ * R-113 · Rendement culturel d'une ville : Σ parts PALAIS `perCitizen ×
+ * min(pop, cap)` (R-113 RÉV. — EXPANSION-CULTURELLE, décision d'Erik du
+ * 13/09 : le Palais produit `min(pop, 5)` culture/tour, plafond data-driven
+ * `culturePerCitizenCap`, capitale uniquement) + Σ `culturePerCitizen` × pop
+ * (Temple 1, Cathédrale 2 — remplace le Temple, NON plafonnés), la part
+ * `culturePerCitizen` étant multipliée par la merveille Stonehenge (×1,5 🔶
+ * tant qu'elle n'est pas obsolète — R-110/R-128) + le bonus empire du Premier
+ * découvrir (perCity.culture, R-109 : Religion/Imprimerie). Scalaire sur la
+ * démographie : 20 pop × Cathédrale = 40 🔶. Arrondi au plus proche de la
+ * part multipliée (R-88).
+ * 7h · R-121 : Monarchie (part Palais ×2 — elle seul), Communisme
+ * (Temples/Cathédrales = 0 — le Palais reste).
  * 7k · R-133 (audit) : Magna Carta — Tribunal +1 culture PAR CITOYEN (le doc
  * d'Erik tranche ; révision du modèle 7h « à plat ») ; Théâtre de Shakespeare
  * (R-132) : ×2 la Culture TOTALE de la cité (après toutes les parts ci-dessus).
@@ -160,10 +197,17 @@ export function cultureGains(
   for (const id of city.buildings) {
     const b = BUILDINGS[id];
     if (!b) continue;
-    if (b.culturePerTurn) flat += b.culturePerTurn;
+    // R-113 rév. (EXPANSION-CULTURELLE) : la part PALAIS est plafonnée —
+    // `perCitizen × min(pop, cap)` (défaut : 1 × min(pop, 5)). Elle rejoint
+    // la part « Palais » (flat) : ×2 sous Monarchie, ni Stonehenge ni
+    // Communisme ne l'affectent.
+    if (b.culturePerCitizenCap) {
+      flat += b.culturePerCitizenCap.perCitizen * Math.min(city.pop, b.culturePerCitizenCap.cap);
+    }
     if (b.culturePerCitizen) perCitizen += b.culturePerCitizen;
   }
-  // 7h · R-121 : Monarchie double la culture du PALAIS (part culturePerTurn).
+  // 7h · R-121 : Monarchie double la culture du PALAIS (part Palais seule —
+  // les Temples/Cathédrales et le Tribunal n'en profitent pas).
   if (gov.palaceCultureMult) flat *= gov.palaceCultureMult;
   // 7k · R-133 (audit — révision 7h) · Magna Carta : Tribunal = +1 culture par
   // CITROYEN et par tour (ville hôte, tant que la merveille n'est pas obsolète).

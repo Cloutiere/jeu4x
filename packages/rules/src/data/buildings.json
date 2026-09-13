@@ -8,8 +8,11 @@
     "tech": null,
     "fixed": true,
     "cityDefenseBonus": 0.5,
-    "culturePerTurn": 1,
-    "effect": "Présent uniquement dans la capitale : +50 % de défense pour les unités en garnison, +1 Culture par tour (7f, R-113)"
+    "effect": "Présent uniquement dans la capitale : +50 % de défense pour les unités en garnison, +1 Culture par citoyen (plafonné aux 5 premiers citoyens) (R-113 rév.)",
+    "culturePerCitizenCap": {
+      "perCitizen": 1,
+      "cap": 5
+    }
   },
   "caserne": {
     "id": "caserne",

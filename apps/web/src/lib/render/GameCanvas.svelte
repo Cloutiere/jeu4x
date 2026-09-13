@@ -11,7 +11,7 @@
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS, workRadiusOf } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe } from '@game/rules';
   import type { GameState, Hex, ProgramPreview } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -830,22 +830,27 @@
       }
     }
 
-    // ZONE-CULTIVEE (style CivRev, décisions Erik 13/09) : autour des tuiles
-    // CULTIVÉES réelles (worked tiles effectifs + centre gratuit R-60) de
-    // chaque ville visible — liseré extérieur en accent joueur, remplissage
-    // dégradé vers l'intérieur (saturé sur le bord, invisible au centre des
-    // tuiles), référence CivRev d'Erik. Indication de contrôle, PAS une
-    // frontière (le territoire culturel n'existe pas dans le moteur — backlog).
-    // État EFFECTIF (miroir `effectiveWorkedTiles`) : la zone s'étend/se
-    // rétracte IMMÉDIATEMENT au clic worked tile, sans attendre la résolution.
-    // Calcul au rebuild overlay uniquement (jamais par frame — bench M3.3).
-    // 🔶 Calibrage à l'œil :
-    const ZONE_CULTIVEE = {
+    // EXPANSION-CULTURELLE phase 1 (décisions Erik 13/09, VISUAL-ONLY) :
+    // anneaux culturels — quand la culture CUMULÉE de la ville franchit les
+    // seuils 10/100/1 000/10 000 (rayonCulturelDe, plafond 5), une BANDE
+    // d'extension — le disque de rayon (travail + anneaux) MOINS la zone
+    // cultivée — s'affiche en accent joueur au calibrage ZONE_CULTIVEE
+    // (liseré + dégradé vers l'intérieur de la bande). Révision en session
+    // (décision Erik) : les tuiles cultivées ne portent QUE leurs hexagones
+    // intérieurs — AUCUN remplissage sur la zone cultivée (ni l'ancien
+    // dégradé ZONE_CULTIVEE, ni celui du disque) ; au démarrage (0 anneau) :
+    // hexagones seuls. État EFFECTIF (miroir `effectiveWorkedTiles`) : le
+    // trou de la bande suit le clic worked tile en temps réel. Zéro gameplay
+    // (aucune tuile travaillable en plus — workRadius intouché) ;
+    // chevauchement de deux zones hors périmètre : chaque ville dessine ses
+    // anneaux indépendamment, sans fusion. Recalcul au rebuild seulement.
+    // 🔶 Calibrage à l'œil (valeurs du calibrage ZONE-CULTIVEE du 13/09) :
+    const ANNEAUX_CULTURELS = {
       epaisseurLisere: 4, // liseré extérieur (trait net)
       alphaLisere: 0.95,
-      // Dégradé vers l'intérieur : couches concentriques du plus large (fond
-      // pâle) au plus étroit (proche du bord) — masquées hors de la zone.
-      // Calibrage Erik 13/09 : couleur plus opaque, plus loin vers l'intérieur.
+      // Dégradé vers l'intérieur de la bande : couches concentriques du plus
+      // large (fond pâle) au plus étroit (proche du bord), masquées hors de
+      // la bande (le trou de la zone cultivée ne reçoit rien).
       couchesDegrade: [
         { largeur: 60, alpha: 0.1 },
         { largeur: 40, alpha: 0.17 },
@@ -855,26 +860,68 @@
     if (!mode3dActif()) {
       for (const city of Object.values(scene.state.cities)) {
         if (!scene.explored.has(tileKeyOf(city))) continue;
+        const color = playerColor(city.owner);
+        const anneaux = rayonCulturelDe(city.cultureCumulee);
+        if (anneaux === 0) continue; // départ : hexagones des tuiles cultivées seuls
         const eff = scene.view ? effectiveWorkedTiles(scene.view, city) : { tiles: city.workedTiles };
-        const cases: Hex[] = [{ q: city.q, r: city.r }]; // centre toujours cultivé (R-60)
+        // Trou de la bande = la zone cultivée : centre toujours cultivé (R-60)
+        // + worked tiles effectifs explorés (l'hexagone marker vit à part,
+        // ci-dessous — même source).
+        const cultivees = new Set<string>([tileKeyOf(city)]);
         for (const key of eff.tiles) {
           if (!scene.explored.has(key)) continue;
           const [q, r] = key.split(',').map(Number);
           if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
-          cases.push({ q, r });
+          cultivees.add(`${q},${r}`);
         }
-        const boucles = contourUnion(cases, HEX_SIZE, (hex) => elevationDe(scene.state!.map[tileKeyOf(hex)]?.terrain));
+        const rayonCulturel = workRadiusOf(city.buildings) + anneaux;
+        const bande: Hex[] = [];
+        for (let dq = -rayonCulturel; dq <= rayonCulturel; dq++) {
+          for (let dr = Math.max(-rayonCulturel, -dq - rayonCulturel); dr <= Math.min(rayonCulturel, -dq + rayonCulturel); dr++) {
+            const hex = { q: city.q + dq, r: city.r + dr };
+            const key = tileKeyOf(hex);
+            if (!scene.explored.has(key) || cultivees.has(key)) continue; // fog : rien n'est inventé
+            bande.push(hex);
+          }
+        }
+        const boucles = contourUnion(bande, HEX_SIZE, (hex) => elevationDe(scene.state!.map[tileKeyOf(hex)]?.terrain));
         if (boucles.length === 0) continue;
-        const color = playerColor(city.owner);
-        // Masque = la zone elle-même : le dégradé (traits larges centrés sur
-        // le liseré) ne déborde PAS à l'extérieur, il s'estompe vers l'intérieur.
-        const masque = new Graphics();
-        for (const boucle of boucles) masque.poly(boucle.map((p) => ({ x: p.x, y: p.y }))).fill(0xffffff);
-        const trait = new Graphics();
-        for (const couche of ZONE_CULTIVEE.couchesDegrade) {
-          tracerBoucles(trait, boucles, { width: couche.largeur, color, alpha: couche.alpha, join: 'round' });
+        // Aire signée (shoelace) : le chaînage wall-follower longe toujours la
+        // région du même côté — les boucles EXTERIEURES de la bande et ses
+        // boucles de TROU (la zone cultivée) tournent en sens opposés, et la
+        // plus grande aire est nécessairement extérieure (un trou est contenu
+        // dans sa boucle).
+        const aireSignee = (boucle: Array<{ x: number; y: number }>): number => {
+          let a = 0;
+          for (let i = 0; i < boucle.length - 1; i++) {
+            a += boucle[i]!.x * boucle[i + 1]!.y - boucle[i + 1]!.x * boucle[i]!.y;
+          }
+          return a;
+        };
+        const aires = boucles.map(aireSignee);
+        let iExt = 0;
+        for (let i = 1; i < aires.length; i++) {
+          if (Math.abs(aires[i]!) > Math.abs(aires[iExt]!)) iExt = i;
         }
-        tracerBoucles(trait, boucles, { width: ZONE_CULTIVEE.epaisseurLisere, color, alpha: ZONE_CULTIVEE.alphaLisere, join: 'round' });
+        const sensExt = Math.sign(aires[iExt]!);
+        // Liseré + dégradé : boucles EXTERIEURES uniquement (décision Erik) —
+        // le contour qui longe la ville et les tuiles cultivées ne reçoit
+        // RIEN (ni ligne ni lavis) ; la seule ligne et le seul dégradé
+        // proviennent des limites des frontières culturelles. Le dégradé
+        // s'étend d'≤ 30 px vers l'intérieur (case ≥ 55 px) : il est éteint
+        // avant la rangée adjacente aux tuiles cultivées.
+        const exterieures = boucles.filter((_, i) => Math.sign(aires[i]!) === sensExt);
+        const trait = new Graphics();
+        for (const couche of ANNEAUX_CULTURELS.couchesDegrade) {
+          tracerBoucles(trait, exterieures, { width: couche.largeur, color, alpha: couche.alpha, join: 'round' });
+        }
+        tracerBoucles(trait, exterieures, { width: ANNEAUX_CULTURELS.epaisseurLisere, color, alpha: ANNEAUX_CULTURELS.alphaLisere, join: 'round' });
+        // Masque = la bande entière : toutes les boucles en UN SEUL
+        // remplissage (règle non-zéro — les trous sont déjà inversés par le
+        // chaînage) : le dégradé ne peint NI l'extérieur NI la zone cultivée.
+        const masque = new Graphics();
+        for (const boucle of boucles) masque.poly(boucle.map((p) => ({ x: p.x, y: p.y })));
+        masque.fill(0xffffff);
         const zone = new Container();
         zone.addChild(trait);
         zone.mask = masque;
@@ -882,10 +929,11 @@
       }
     }
 
-    // Cases travaillées (R-60) : marqueurs (remis à la demande d'Erik 13/09
-    // après calibrage de la zone — ils cohabitent avec elle). État EFFECTIF
-    // (miroir `effectiveWorkedTiles`) : apparaissent/disparaissent
-    // immédiatement au clic. En 3D, les contours vivent dans le calque Three.
+    // Cases travaillées (R-60) : marqueurs — depuis la révision en session
+    // (décision Erik : aucun remplissage sur la zone cultivée), ils sont la
+    // SEULE marque des tuiles cultivées sur la carte. État EFFECTIF (miroir
+    // `effectiveWorkedTiles`) : apparaissent/disparaissent immédiatement au
+    // clic. En 3D, les contours vivent dans le calque Three.
     if (!mode3dActif()) {
       for (const city of Object.values(scene.state.cities)) {
         if (!scene.explored.has(tileKeyOf(city))) continue;

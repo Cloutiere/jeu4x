@@ -130,8 +130,13 @@ export interface BuildingData {
   /** 7e · Culture par citoyen et par tour (Temple 1, Cathédrale 2) — INACTIF
    *  tant que le moteur culturel n'existe pas (7f), libellé visible. */
   culturePerCitizen?: number;
-  /** 7f · Culture FLAT par tour (Palais : 1 — capitale uniquement). */
-  culturePerTurn?: number;
+  /** EXPANSION-CULTURELLE (R-113 rév., décision d'Erik du 13/09) : culture
+   *  par citoyen PLAFONNÉE — `perCitizen × min(pop, cap)` par tour (Palais :
+   *  perCitizen 1, cap 5 — capitale uniquement). C'est la part « Palais » :
+   *  ×2 sous Monarchie, ni Stonehenge ni Communisme ne l'affectent (contrairement
+   *  à la part `culturePerCitizen` Temple/Cathédrale). Data-driven (calibrage
+   *  par édition du JSON). */
+  culturePerCitizenCap?: { perCitizen: number; cap: number };
   /** Phase 7b : libellé d'effet pour l'UI — absent pour les bâtiments à bonus
    *  de terrain (libellé dérivé). */
   effect?: string;
@@ -291,6 +296,16 @@ export interface CultureData {
   greatPersonCultureGap: { base: number; growth: number };
   /** Jalons culturels requis pour les Nations Unies (et la victoire). */
   milestonesTarget: number;
+  /** EXPANSION-CULTURELLE phase 1 (T-nouveau, décision d'Erik du 13/09) :
+   *  seuils de culture CUMULÉE d'une ville déclenchant l'extension d'un
+   *  anneau culturel (10 / 100 / 1 000 / 10 000 — calibrage 🔶 ; source
+   *  externe CivFanatics, les valeurs d'Erik restent maîtresses). Phase 1
+   *  VISUAL-ONLY : lu uniquement par `rayonCulturelDe` (rendu 2D), aucun
+   *  consommateur gameplay. */
+  cultureExpansionThresholds: number[];
+  /** EXPANSION-CULTURELLE phase 1 : plafond d'anneaux culturels (5 —
+   *  data-driven, lié seulement si la table dépasse ce plafond). */
+  cultureExpansionMaxRings: number;
   /** 7h · T-30 · Seuil de base des accumulateurs or/science/production des
    *  nouveaux GP (R-123) — ×2 par GP de CE TYPE obtenu. */
   greatPersonYieldThresholdBase: number;

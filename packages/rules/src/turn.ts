@@ -324,19 +324,20 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
         production: null,
         workedTiles: [],
         buildings: !ownerHasCity ? ['palais'] : [],
-        conversion: CONVERSION_DEFAULT,
-        cultureStored: 0,
-        wonders: [],
-        gpAccumGold: 0,
-        gpAccumScience: 0,
-        gpAccumProd: 0,
-        gpAccumFood: 0,
-        pendingSalvage: 0,
-        settledGreatPersons: [],
-        wasCaptured: false,
-      };
-      board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
-      board.pendingFill.add(cityId);
+      conversion: CONVERSION_DEFAULT,
+      cultureStored: 0,
+      cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
+      wonders: [],
+      gpAccumGold: 0,
+      gpAccumScience: 0,
+      gpAccumProd: 0,
+      gpAccumFood: 0,
+      pendingSalvage: 0,
+      settledGreatPersons: [],
+      wasCaptured: false,
+    };
+    board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
+    board.pendingFill.add(cityId);
       emit(board, {
         type: 'HutOpened',
         hutId: hut.id,
@@ -3032,6 +3033,7 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       buildings: !ownerHasCity ? ['palais'] : [], // 7e : le Palais ne vit que dans la capitale
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
       cultureStored: 0, // 7f · R-113
+      cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: [], // 7f · R-115
       gpAccumGold: 0, // 7h · R-123
       gpAccumScience: 0,
@@ -3561,12 +3563,19 @@ function processEconomy(board: Board): void {
     // 7h · R-121/R-122 : culture à zéro pendant l'Anarchie ; Monarchie (Palais
     // ×2) et Communisme (Temples/Cathédrales = 0) via les effets de régime ;
     // Magna Carta (Tribunal +1) via les merveilles (R-125).
-    city.cultureStored += anarchy
+    // EXPANSION-CULTURELLE phase 1 (M2, décision d'Erik du 13/09) : le CUMUL
+    // `cultureCumulee` additionne les MÊMES gains chaque tour mais n'est
+    // JAMAIS consommé — le canal GP consomme `cultureStored`, l'expansion
+    // culturelle lit le cumul (rayonCulturelDe) : les deux ne se volent rien.
+    // Gelé en Anarchie comme `cultureStored` (R-122 — même traitement).
+    const gainCulture = anarchy
       ? 0
       : Math.round(
           cultureGains(city, empireBonus.culture, allTechs, govEffects) * // M1/R-128 : union des techs
             settledGpMultiplier(city, 'artiste_penseur'),
         );
+    city.cultureStored += gainCulture;
+    city.cultureCumulee += gainCulture;
     // 7k · C1 (veto d'Erik du 04/09) : le Grand Humanitaire est produit comme
     // les autres GP — PAR LE CANAL CULTURE (R-114/R-127, ciblage technologique
     // et rotation des 6 classes). L'accumulateur `gpAccumFood` n'est plus

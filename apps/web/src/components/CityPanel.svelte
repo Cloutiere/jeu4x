@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, tileKeyOf, workRadiusOf, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, eraOfPlayer, civIdOf, activeTraitsOf } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, tileKeyOf, workRadiusOf, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, eraOfPlayer, civIdOf, activeTraitsOf, effectsFor } from '@game/rules';
   import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
   import { greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
@@ -172,11 +172,16 @@
   /** 7f · R-113/R-114 : culture par tour de la ville + jauge vers le GP
    *  (seuil T-27, ×2 à chaque GP obtenu par l'empire).
    *  7k · M1/R-128 : l'obsolescence des merveilles (Stonehenge, Magna Carta,
-   *  Théâtre) est évaluée sur l'UNION des techs de toutes les civilisations. */
+   *  Théâtre) est évaluée sur l'UNION des techs de toutes les civilisations.
+   *  EXPANSION-CULTURELLE (M1, cohérence UI) : les effets de RÉGIME
+   *  (Monarchie ×2 Palais, Communisme Temples = 0) sont passés comme au
+   *  moteur (effectsFor — source unique, miroir turn.ts) et la part Palais
+   *  révisée min(pop, cap) est reflétée d'office via cultureGains. */
   const culturePerTurn = $derived.by(() => {
     if (!city || !view.state || !engine) return 0;
     const empireBonus = empirePerCityBonus(view.state, engine);
-    return cultureGains(city, empireBonus.culture, allTechs);
+    const govEffects = effectsFor(view.state.players[city.owner]!);
+    return cultureGains(city, empireBonus.culture, allTechs, govEffects);
   });
   const gpThreshold = $derived.by(() => {
     if (!view.state || !engine) return 150; // 7l · C5 : 1er seuil de la table canon

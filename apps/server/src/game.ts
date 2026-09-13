@@ -537,6 +537,7 @@ export class GameDO {
                   id,
                   {
                     cultureStored: c.cultureStored,
+                    cultureCumulee: c.cultureCumulee, // EXPANSION-CULTURELLE : anneaux culturels (visual-only)
                     wonders: c.wonders,
                     production: c.production?.item.kind === 'wonder' ? c.production.item.id : null,
                   },
