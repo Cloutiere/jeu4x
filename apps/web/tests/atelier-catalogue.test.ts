@@ -87,10 +87,14 @@ describe('atelier — catalogue L0', () => {
     for (const id of Object.keys(ARTEFACTS.pool).filter((k) => !ARTEFACTS.pool[k]!.dlcOnly).sort()) {
       attends.push(`artefact_${id}`, `artefact_${id}_accent`);
     }
+    // Barbares (décision Erik 12/09) : rouge CUIT dans la base, AUCUN accent —
+    // village sans `_accent`, unités barbares cataloguées sans accent.
     attends.push(
       'ville_settlement', 'ville_settlement_accent',
       'ville_capitale', 'ville_capitale_accent',
-      'village_barbare', 'village_barbare_accent',
+      'village_barbare',
+      'unite_barbare_guerrier',
+      'unite_barbare_archer',
       'hutte', 'hutte_accent',
     );
     for (const stem of attends) {

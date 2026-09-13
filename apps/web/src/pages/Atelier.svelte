@@ -354,7 +354,7 @@
 
   // --- Sprites 2D : variantes d'accent joueur (teinte canvas) -----------------
   const ACCENTS: Array<{ nom: string; couleur: string; cle: string }> = [
-    { nom: 'Joueur 1', couleur: '#d64545', cle: 'p1' },
+    { nom: 'Joueur 1', couleur: '#e0a93f', cle: 'p1' },
     { nom: 'Joueur 2', couleur: '#3b6fd6', cle: 'p2' },
     { nom: 'Barbare', couleur: '#8a7a66', cle: 'barbarien' },
   ];

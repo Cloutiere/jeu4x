@@ -662,14 +662,17 @@ def unite_legion(db, da, w, h):
     db.rrect(scut, 10, fill=GRIS_ARMURE, outline=INK, width=3)
     db.rrect((cx - 76, ground - 130, cx - 28, ground - 52), 8, outline=OR, width=3)
     db.ellipse((cx - 58, ground - 104, cx - 46, ground - 92), fill=OR)
-# ------------------------------------------------- barbares (Phase 7d, R-95)
-# Accent dédié côté rendu : gris-brun (ni rouge ni bleu) — les calques accent
-# restent blancs conformément à la SPEC-ART (teinte appliquée au rendu).
+# ------------------------------------------------- barbares (décision Erik 12/09)
+# AUCUNE teinte d'accent pour les barbares : le rouge est CUIT dans la base
+# (convention Civ). Les calques accent de ces trois assets restent vides.
+
+ROUGE_BARBARE = "#B32222"     # tente/étoffes rouges des barbares
+ROUGE_BARBARE_CLAIR = "#C43A32"  # face éclairée (même hue, +lumière)
 
 
 def unite_barbare_guerrier(db, da, w, h):
     """256×320 : guerrier barbare — tunique de peaux, casque à cornes, massue
-    cloutée ; bande d'épaules + ceinture d'os = accent."""
+    cloutée ; bande d'épaules + ceinture ROUGES cuites (aucun accent)."""
     cx, ground = 128, 300
     shadow(db, cx, ground + 4, 52)
     # jambes trapues
@@ -677,14 +680,13 @@ def unite_barbare_guerrier(db, da, w, h):
     db.rrect((cx + 6, ground - 58, cx + 26, ground), 8, fill="#4E4438")
     db.rrect((cx - 30, ground - 8, cx - 2, ground + 2), 4, fill="#3E342A")
     db.rrect((cx + 2, ground - 8, cx + 30, ground + 2), 4, fill="#3E342A")
-    # tunique de peaux (brun fauve) — plus rugueuse que le guerrier régulier
+    # tunique de peaux TEINTE ROUGE — la majeure du sprite (décision Erik 12/09)
     db.poly([(cx - 36, ground - 132), (cx + 36, ground - 132), (cx + 42, ground - 54),
-             (cx - 42, ground - 54)], fill="#7A5C3A")
+             (cx - 42, ground - 54)], fill=ROUGE_BARBARE)
     db.poly([(cx - 36, ground - 132), (cx - 8, ground - 132), (cx - 20, ground - 54),
-             (cx - 42, ground - 54)], fill="#8A6F4A")
-    # ceinture d'os = accent
-    db.rrect((cx - 38, ground - 82, cx + 38, ground - 72), 3, fill="#5E4630")
-    da.rrect((cx - 34, ground - 80, cx + 34, ground - 74), 2, fill="#FFFFFF")
+             (cx - 42, ground - 54)], fill=ROUGE_BARBARE_CLAIR)
+    # ceinture rouge (cuite, plus d'accent)
+    db.rrect((cx - 38, ground - 82, cx + 38, ground - 72), 3, fill=ROUGE_BARBARE)
     # tête + casque à cornes
     db.ellipse((cx - 18, ground - 172, cx + 18, ground - 136), fill="#B99B7E")
     db.pieslice((cx - 20, ground - 178, cx + 20, ground - 142), 180, 360, fill="#6E655C")
@@ -696,31 +698,31 @@ def unite_barbare_guerrier(db, da, w, h):
     db.ellipse((cx + 42, ground - 224, cx + 74, ground - 190), fill="#6E655C")
     for x, y in [(50, 210), (60, 196), (46, 194)]:
         db.ellipse((cx + x - 3, ground - y - 3, cx + x + 3, ground - y + 3), fill="#4E4438")
-    # bras gauche + bande d'épaules = accent
+    # bras gauche + bande d'épaules rouge (cuite, plus d'accent)
     db.line([(cx - 26, ground - 118), (cx - 50, ground - 96)], fill="#7A5C3A", width=13)
-    da.poly([(cx - 34, ground - 132), (cx + 34, ground - 132), (cx + 30, ground - 118),
-             (cx - 30, ground - 118)], fill="#FFFFFF")
+    db.poly([(cx - 34, ground - 132), (cx + 34, ground - 132), (cx + 30, ground - 118),
+             (cx - 30, ground - 118)], fill=ROUGE_BARBARE)
 
 
 def unite_barbare_archer(db, da, w, h):
-    """256×320 : archer barbare — plumes, arc de chasse ; coiffe + carquois = accent."""
+    """256×320 : archer barbare — plumes, arc de chasse ; coiffe + carquois
+    ROUGES cuits (aucun accent)."""
     cx, ground = 120, 300
     shadow(db, cx, ground + 4, 46)
     db.rrect((cx - 20, ground - 60, cx - 4, ground), 7, fill="#4E4438")
     db.rrect((cx + 4, ground - 60, cx + 20, ground), 7, fill="#4E4438")
-    # tunique de peaux courte
+    # tunique de peaux courte TEINTE ROUGE — la majeure du sprite
     db.poly([(cx - 28, ground - 122), (cx + 28, ground - 122), (cx + 34, ground - 58),
-             (cx - 34, ground - 58)], fill="#7A5C3A")
+             (cx - 34, ground - 58)], fill=ROUGE_BARBARE)
     db.poly([(cx - 28, ground - 122), (cx - 8, ground - 122), (cx - 18, ground - 58),
-             (cx - 34, ground - 58)], fill="#8A6F4A")
+             (cx - 34, ground - 58)], fill=ROUGE_BARBARE_CLAIR)
     db.rrect((cx - 32, ground - 76, cx + 32, ground - 68), 3, fill="#5E4630")
-    # tête + coiffe à plumes = accent
+    # tête + coiffe à plumes ROUGE (cuite, plus d'accent)
     db.ellipse((cx - 16, ground - 158, cx + 16, ground - 126), fill="#B99B7E")
     hood = [(cx - 20, ground - 156), (cx - 18, ground - 186), (cx + 2, ground - 196),
             (cx + 20, ground - 184), (cx + 20, ground - 168), (cx + 6, ground - 176),
             (cx - 6, ground - 172), (cx - 12, ground - 156)]
-    db.poly(hood, fill="#6E655C")
-    da.poly(hood, fill="#FFFFFF")
+    db.poly(hood, fill=ROUGE_BARBARE)
     for dx, dy in ((-10, -6), (2, -10), (14, -4)):
         db.line([(cx + dx, ground - 176 + dy), (cx + dx, ground - 196 + dy)],
                 fill="#C8B08A", width=4)
@@ -732,21 +734,19 @@ def unite_barbare_archer(db, da, w, h):
             fill=SABLE, width=2)
     # bras tirant la corde
     db.line([(cx + 20, ground - 112), (cx + 6, ground - 140)], fill="#7A5C3A", width=12)
-    # carquois = accent
+    # carquois ROUGE (cuit, plus d'accent)
     quiver = (cx + 28, ground - 158, cx + 52, ground - 100)
-    db.rrect(quiver, 6, fill="#7E6A48", outline=INK, width=2)
-    da.rrect(quiver, 6, fill="#FFFFFF")
+    db.rrect(quiver, 6, fill=ROUGE_BARBARE, outline=INK, width=2)
 
 
 def village_barbare(db, da, w, h):
-    """224×256 : camp barbare — tente de peaux + feu de camp + pavois ;
-    toit de la tente = accent (gris-brun au rendu)."""
+    """224×256 : camp barbare — tente de peaux ROUGE (cuite, aucun accent)
+    + feu de camp + pavois ; se distingue nettement de la hutte dorée."""
     shadow(db, 112, 210, 80)
-    # tente principale (peaux tendues sur piquets)
-    db.poly([(112, 84), (44, 210), (180, 210)], fill="#8A6F4A")
-    db.poly([(112, 84), (44, 210), (112, 210)], fill="#9C7F5A")
+    # tente principale rouge (peaux teintées tendues sur piquets)
+    db.poly([(112, 84), (44, 210), (180, 210)], fill=ROUGE_BARBARE)
+    db.poly([(112, 84), (44, 210), (112, 210)], fill=ROUGE_BARBARE_CLAIR)
     db.poly([(112, 84), (44, 210), (180, 210)], outline=INK, width=2.5)
-    da.poly([(112, 84), (44, 210), (112, 210)], fill="#FFFFFF")
     # ouverture sombre
     db.poly([(100, 160), (124, 160), (132, 210), (92, 210)], fill="#3E342A")
     # piquets

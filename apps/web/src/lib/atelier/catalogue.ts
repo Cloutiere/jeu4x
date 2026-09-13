@@ -206,7 +206,10 @@ function sprites2d(): AssetAtelier[] {
   }
   out.push(spriteAsset('ville_settlement', 'Ville (settlement)', `${SRC_GENERATEUR('render_entity')} — textures.ts (cities.settlement)`, true));
   out.push(spriteAsset('ville_capitale', 'Ville (capitale)', `${SRC_GENERATEUR('render_entity')} — textures.ts (cities.capital)`, true));
-  out.push(spriteAsset('village_barbare', 'Village barbare (sprite 2D)', `${SRC_GENERATEUR('render_entity')} — textures.ts (villageBarbare)`, true));
+  // rouge CUIT dans la base (décision Erik 12/09) — aucune variante d'accent
+  out.push(spriteAsset('village_barbare', 'Village barbare (sprite 2D)', `${SRC_GENERATEUR('render_entity')} (rouge cuit) — textures.ts (villageBarbare)`, false));
+  out.push(spriteAsset('unite_barbare_guerrier', 'Guerrier barbare (sprite 2D)', `${SRC_GENERATEUR('render_entity')} (rouge cuit) — textures.ts (units, barbare_guerrier)`, false));
+  out.push(spriteAsset('unite_barbare_archer', 'Archer barbare (sprite 2D)', `${SRC_GENERATEUR('render_entity')} (rouge cuit) — textures.ts (units, barbare_archer)`, false));
   out.push(spriteAsset('hutte', 'Hutte bonus (sprite 2D)', `${SRC_GENERATEUR('render_entity')} — textures.ts (hutte)`, true));
   for (const id of Object.keys(BUILDINGS)) {
     out.push(spriteAsset(`batiment_${id}`, `Bâtiment ${BUILDINGS[id]!.name}`, `${SRC_GENERATEUR('render_entity')} — textures.ts (hutte/unites : modules ville 2D)`, true));
