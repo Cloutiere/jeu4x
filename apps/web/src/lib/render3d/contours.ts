@@ -56,6 +56,34 @@ export function contourRegion(
       tuiles.push({ q: centre.q + dq, r: centre.r + dr });
     }
   }
+  return contourDUneRegion(tuiles, (hex) => dansRayonTravail(centre, hex, rayon), size, elevationDe);
+}
+
+/**
+ * ZONE-CULTIVEE (style CivRev, décisions Erik 13/09) : contour EXTÉRIEUR de
+ * l'UNION des cases passées (les worked tiles effectives d'une ville) —
+ * générique pour toute forme, contiguë ou non : une case détachée produit sa
+ * propre boucle, un trou intérieur produit une boucle inversée. Le 3D n'y
+ * fait PAS appel (comportement 3D inchangé — §5 du handoff).
+ */
+export function contourUnion(
+  cases: Hex[],
+  size: number,
+  elevationDe: (hex: Hex) => number,
+): PointContour[][] {
+  const membres = new Set(cases.map((h) => `${h.q},${h.r}`));
+  return contourDUneRegion(cases, (hex) => membres.has(`${hex.q},${hex.r}`), size, elevationDe);
+}
+
+/** Corps commun (purement géométrique) : collecte les arêtes des tuiles
+ *  `tuiles` dont le voisin en face n'appartient PAS à `dansRegion`, puis les
+ *  chaîne en boucle(s) fermée(s) par suivi de bord (wall-follower). */
+function contourDUneRegion(
+  tuiles: Hex[],
+  dansRegion: (hex: Hex) => boolean,
+  size: number,
+  elevationDe: (hex: Hex) => number,
+): PointContour[][] {
   // Arêtes de frontière : pour chaque tuile, les 6 arêtes (sommet i → i+1)
   // dont le voisin en face n'appartient PAS à la région. Le voisin en face de
   // l'arête i (sommets aux angles 30+60i et 30+60(i+1)) est le voisin axial
@@ -86,10 +114,11 @@ export function contourRegion(
     for (let i = 0; i < 6; i++) {
       const [dq, dr] = VOISIN_PAR_ARRETE[i]!;
       const voisin = { q: tuile.q + dq, r: tuile.r + dr };
-      // Frontière GÉOMÉTRIQUE : le voisin est-il dans le rayon théorique ?
-      // (pas « dans la carte » — sinon, rayon entièrement exploré, aucune
-      // arête n'est frontière et le contour disparaît.)
-      if (dansRayonTravail(centre, voisin, rayon)) continue;
+      // Frontière GÉOMÉTRIQUE : le voisin est-il dans la région ?
+      // (pour contourRegion : dans le rayon théorique — pas « dans la carte »,
+      // sinon, rayon entièrement exploré, aucune arête n'est frontière et le
+      // contour disparaît.)
+      if (dansRegion(voisin)) continue;
       const [x1, y1] = sommets[i]!;
       const [x2, y2] = sommets[(i + 1) % 6]!;
       const arete: Arete = { a: { x: x1, y: y1, elev }, b: { x: x2, y: y2, elev } };

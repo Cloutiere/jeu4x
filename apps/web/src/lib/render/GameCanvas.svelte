@@ -49,7 +49,7 @@
   import type { UniteGLBEntree } from '../render3d/unites3d.js';
   // TRAVAIL-VILLE-3D — contours en vraie 3D : cadres des cases travaillées +
   // rayon de cultivation, posés sur le relief (géométrie pure dans contours.ts).
-  import { contourHexTile, contourRegion } from '../render3d/contours.js';
+  import { contourHexTile, contourRegion, contourUnion } from '../render3d/contours.js';
   import type { PointContour } from '../render3d/contours.js';
   import { Marqueurs3D } from '../render3d/marqueurs3d.js';
   import type { ContourDef } from '../render3d/marqueurs3d.js';
@@ -830,13 +830,62 @@
       }
     }
 
-    // Cases travaillées (R-60, Phase 6) : cadre de la couleur du propriétaire
-    // sur chaque case travaillée. TRAVAIL-VILLE-3D (M2) : l'état affiché est
-    // EFFECTIF (miroir `effectiveWorkedTiles` de la file d'ordres) — le
-    // marqueur apparaît/disparaît IMMÉDIATEMENT au clic, sans « +/− » (les
-    // ordres restent soumis au serveur et validés comme avant). En 3D, les
-    // contours vivent dans le calque Three (`marqueurs3d`, posés sur le
-    // relief) — le tracé Pixi projeté est réservé au mode 2D.
+    // ZONE-CULTIVEE (style CivRev, décisions Erik 13/09) : autour des tuiles
+    // CULTIVÉES réelles (worked tiles effectifs + centre gratuit R-60) de
+    // chaque ville visible — liseré extérieur en accent joueur, remplissage
+    // dégradé vers l'intérieur (saturé sur le bord, invisible au centre des
+    // tuiles), référence CivRev d'Erik. Indication de contrôle, PAS une
+    // frontière (le territoire culturel n'existe pas dans le moteur — backlog).
+    // État EFFECTIF (miroir `effectiveWorkedTiles`) : la zone s'étend/se
+    // rétracte IMMÉDIATEMENT au clic worked tile, sans attendre la résolution.
+    // Calcul au rebuild overlay uniquement (jamais par frame — bench M3.3).
+    // 🔶 Calibrage à l'œil :
+    const ZONE_CULTIVEE = {
+      epaisseurLisere: 4, // liseré extérieur (trait net)
+      alphaLisere: 0.95,
+      // Dégradé vers l'intérieur : couches concentriques du plus large (fond
+      // pâle) au plus étroit (proche du bord) — masquées hors de la zone.
+      // Calibrage Erik 13/09 : couleur plus opaque, plus loin vers l'intérieur.
+      couchesDegrade: [
+        { largeur: 60, alpha: 0.1 },
+        { largeur: 40, alpha: 0.17 },
+        { largeur: 22, alpha: 0.28 },
+      ],
+    };
+    if (!mode3dActif()) {
+      for (const city of Object.values(scene.state.cities)) {
+        if (!scene.explored.has(tileKeyOf(city))) continue;
+        const eff = scene.view ? effectiveWorkedTiles(scene.view, city) : { tiles: city.workedTiles };
+        const cases: Hex[] = [{ q: city.q, r: city.r }]; // centre toujours cultivé (R-60)
+        for (const key of eff.tiles) {
+          if (!scene.explored.has(key)) continue;
+          const [q, r] = key.split(',').map(Number);
+          if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+          cases.push({ q, r });
+        }
+        const boucles = contourUnion(cases, HEX_SIZE, (hex) => elevationDe(scene.state!.map[tileKeyOf(hex)]?.terrain));
+        if (boucles.length === 0) continue;
+        const color = playerColor(city.owner);
+        // Masque = la zone elle-même : le dégradé (traits larges centrés sur
+        // le liseré) ne déborde PAS à l'extérieur, il s'estompe vers l'intérieur.
+        const masque = new Graphics();
+        for (const boucle of boucles) masque.poly(boucle.map((p) => ({ x: p.x, y: p.y }))).fill(0xffffff);
+        const trait = new Graphics();
+        for (const couche of ZONE_CULTIVEE.couchesDegrade) {
+          tracerBoucles(trait, boucles, { width: couche.largeur, color, alpha: couche.alpha, join: 'round' });
+        }
+        tracerBoucles(trait, boucles, { width: ZONE_CULTIVEE.epaisseurLisere, color, alpha: ZONE_CULTIVEE.alphaLisere, join: 'round' });
+        const zone = new Container();
+        zone.addChild(trait);
+        zone.mask = masque;
+        overlayLayer.addChild(masque, zone);
+      }
+    }
+
+    // Cases travaillées (R-60) : marqueurs (remis à la demande d'Erik 13/09
+    // après calibrage de la zone — ils cohabitent avec elle). État EFFECTIF
+    // (miroir `effectiveWorkedTiles`) : apparaissent/disparaissent
+    // immédiatement au clic. En 3D, les contours vivent dans le calque Three.
     if (!mode3dActif()) {
       for (const city of Object.values(scene.state.cities)) {
         if (!scene.explored.has(tileKeyOf(city))) continue;
@@ -852,17 +901,24 @@
           overlayLayer.addChild(gr);
         }
       }
-      // Rayon de cultivation (TRAVAIL-VILLE-3D · M3) : contour EXTÉRIEUR des
-      // cases de la ville sélectionnée (rayon data-driven — workRadiusOf),
-      // couleur joueur, ligne seule (aucune teinte de tuile), en 2D.
+      // Rayon de cultivation (TRAVAIL-VILLE-3D · M3 → ZONE-CULTIVEE) : la
+      // coloration du rayon a DISPARU de la vue normale — reste un liseré
+      // POINTILLÉ très discret (sans remplissage), ville sélectionnée
+      // seulement : pédagogique (« ce que je peux encore cultiver ») et
+      // réutilisable par le futur menu de ville. Géométrie inchangée
+      // (contours.ts) ; le 3D garde son trait plein (§5 du handoff).
       const cult = bouclesCultivation();
       if (cult) {
         const gr = new Graphics();
         for (const boucle of cult.boucles) {
-          gr.moveTo(boucle[0]!.x, boucle[0]!.y);
-          for (const p of boucle.slice(1)) gr.lineTo(p.x, p.y);
+          const pts: Point[] = boucle.map((p) => ({ x: p.x, y: p.y }));
+          for (let i = 0; i < pts.length - 1; i++) {
+            for (const [a, b] of dashSegments(pts[i]!, pts[i + 1]!)) {
+              gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
+            }
+          }
         }
-        gr.stroke({ width: 4, color: cult.color, alpha: 0.9 });
+        gr.stroke({ width: 2.5, color: cult.color, alpha: 0.55 });
         overlayLayer.addChild(gr);
       }
     }
@@ -1178,6 +1234,19 @@
   function originOfDraft(unitId: string): { x: number; y: number } | null {
     const unit = scene.state?.units[unitId];
     return unit ? hexToPixel(unit, HEX_SIZE) : null;
+  }
+
+  /** Trace des boucles fermées du contour (PointContour) en polyline. */
+  function tracerBoucles(
+    gr: Graphics,
+    boucles: PointContour[][],
+    style: { width: number; color: number; alpha: number; join: 'round' | 'miter' | 'bevel' },
+  ): void {
+    for (const boucle of boucles) {
+      gr.moveTo(boucle[0]!.x, boucle[0]!.y);
+      for (const p of boucle.slice(1)) gr.lineTo(p.x, p.y);
+    }
+    gr.stroke(style);
   }
 
   /** Rayon de cultivation de la ville sélectionnée (TRAVAIL-VILLE-3D · M3) :
