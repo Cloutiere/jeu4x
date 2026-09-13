@@ -21,7 +21,7 @@ import type { TerrainId } from '@game/rules';
 
 /** Couleurs d'accent joueurs — SPEC-ART §3.3/§4 (extensible à 8). */
 export const PLAYER_COLORS: Record<string, number> = {
-  p1: 0xe0a93f, // doré (décision Erik 12/09 : le rouge est réservé aux barbares)
+  p1: 0x3dffce, // menthe néon (décision Erik 13/09 : le rouge est réservé aux barbares)
   p2: 0x3b6fd6, // bleu vif
   // R-95 (Phase 7d) : accent dédié des barbares — gris-brun, ni rouge ni bleu.
   // Sans effet depuis le 12/09 : les sprites barbares ont leur rouge CUIT dans
