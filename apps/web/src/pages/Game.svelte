@@ -102,7 +102,7 @@
     desert: 1,
     eau: 2,
     ocean: 2,
-    ville: 1,
+    ville: 0, // ALIGNEMENT-CROISSANCE : la case de ville ne rapporte rien
   };
 
   // Rejouer tout événement fraîchement ajouté au journal (dédoublonné par seq
@@ -446,12 +446,12 @@
     let gpt = 0;
     for (const c of Object.values(v.state.cities)) {
       if (c.owner !== id) continue;
-      // Miroir exact du moteur (cityEconomyInputs) : socle garanti du centre
-      // = 1 C (R-66 rév. 06/09) + tranche démographique AU-DESSUS du socle
-      // (R-60bis — 0 sous pop 7) + 1 C par citoyen intérieur.
+      // Miroir exact du moteur (cityEconomyInputs) : la case de ville rapporte
+      // 0 (ALIGNEMENT-CROISSANCE — socle R-66 abrogé) + tranche démographique
+      // (R-60bis — 0 sous pop 7) + 1 C par citoyen intérieur Vendeur+.
       const tier = interiorCitizenFor(c.pop);
       const interior = Math.max(0, c.pop - c.workedTiles.length);
-      let commerce = 1 + tier.commerce * (1 + interior);
+      let commerce = tier.commerce * (1 + interior);
       for (const key of c.workedTiles) {
         const y = v.state.map[key];
         if (!y) continue;

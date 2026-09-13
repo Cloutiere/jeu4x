@@ -587,22 +587,22 @@ describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () 
   });
 
   it('R-90 (révisée 7b) : conversion binaire par ville — or par défaut, science sur choix', () => {
-    // R-66 (rév. 06/09) : socle garanti du centre = 1 C (tranche 0 sous pop 7)
-    // + la mer travaillée (0/0/2) → 3 C au total.
+    // ALIGNEMENT-CROISSANCE : la case de ville rapporte 0 (socle abrogé)
+    // + la mer travaillée (0/0/2) → 2 C au total.
     const state = makeState({
       terrainOverrides: { '0,1': 'eau' },
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, workedTiles: ['0,1'] }],
     });
     const r = resolveTurn(state, {}, 1);
     expect(r.newState.players['p1']!.scienceStored).toBe(0);
-    expect(r.newState.players['p1']!.treasury).toBe(3);
+    expect(r.newState.players['p1']!.treasury).toBe(2);
     // conversion science (amende R-61 : plus de curseur, choix par ville)
     const state2 = makeState({
       terrainOverrides: { '0,1': 'eau' },
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, conversion: 'science', workedTiles: ['0,1'] }],
     });
     const r2 = resolveTurn(state2, {}, 1);
-    expect(r2.newState.players['p1']!.scienceStored).toBe(3);
+    expect(r2.newState.players['p1']!.scienceStored).toBe(2);
     expect(r2.newState.players['p1']!.treasury).toBe(0);
   });
 });
@@ -616,7 +616,7 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
 
   it('R-62 : production complétée → l’unité apparaît sur la case de ville', () => {
     const { newState, events } = resolveTurn(cityState(), {}, 1);
-    // production du tour = 1 (case ville 1 + prairie 0) → 9 + 1 = 10 ≥ coût 10
+    // production du tour = 1 (centre 0 + intérieur Ouvrier) → 9 + 1 = 10 ≥ coût 10
     const produced = events.find((e) => e.type === 'UnitProduced');
     expect(produced).toBeDefined();
     expect(unitAt(newState, 0, 0)?.type).toBe('guerrier');
@@ -638,20 +638,21 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     const state = cityState();
     state.cities['c1']!.production = { item: { kind: 'unit', id: 'colon' }, progress: 5 };
     const { newState } = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'guerrier' } }] }, 1);
-    // 7i · D4 · R-60bis : le citoyen intérieur produit +1 P → production 2/tour
-    expect(cityAt(newState, 0, 0)!.production).toEqual({ item: { kind: 'unit', id: 'guerrier' }, progress: 7 });
+    // 7i · D4 · R-60bis : le citoyen intérieur produit +1 P (centre 0 — A3)
+    // → production 1/tour
+    expect(cityAt(newState, 0, 0)!.production).toEqual({ item: { kind: 'unit', id: 'guerrier' }, progress: 6 });
   });
 
-  it('R-63 (rév. 7l · C4) : croissance au seuil de la table LINÉAIRE 10 × n — surplus = récolte − population', () => {
+  it('R-63 (rév. 13/09) : croissance au seuil de la table LINÉAIRE 10 × pop — surplus = récolte (aucune consommation)', () => {
     const state = makeState({
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, foodStored: 8, workedTiles: ['0,1'] }],
     });
     const { newState, events } = resolveTurn(state, {}, 1);
-    // récolte = 1 (centre — POLISSAGE-1 C1) + 2 (prairie) = 3 ; surplus = 3 − 1 citoyen = 2
-    // → réserve 10 = seuil vers pop 2 (7l · C4 : 10 × n, ici 10 × 1) → croissance.
+    // récolte = 0 (centre 0/0/0) + 2 (prairie) = 2 ; aucune consommation → surplus 2
+    // → réserve 10 = seuil vers pop 2 (10 × pop actuelle, ici 10 × 1) → croissance.
     const city = cityAt(newState, 0, 0)!;
     expect(city.pop).toBe(2);
-    expect(city.foodStored).toBe(0); // 10 − 10, seuil suivant (20) non atteint
+    expect(city.foodStored).toBe(0); // 10 − 10, seuil suivant (20 = 10 × 2) non atteint
     expect(events.some((e) => e.type === 'PopulationGrew' && e.pop === 2)).toBe(true);
     // R-60 : +1 pop = +1 citoyen auto-assigné
     expect(city.workedTiles.length).toBe(2);
@@ -663,7 +664,7 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
-    // récolte 1 (centre — POLISSAGE-1 C1), surplus = 1 − 1 = 0 → réserve 2 < seuil 10 (C4)
+    // récolte 0 (centre 0/0/0, aucune consommation) → réserve 2 < seuil 10 (10 × 1)
     expect(city.pop).toBe(1);
     expect(city.foodStored).toBe(2);
   });

@@ -28,7 +28,9 @@ const H = 40;
 const MIN_RUNS = 60; // handoff : 50+ seeds
 
 describe('Phase 6b · Propriétés du générateur procédural (fast-check, 60+ seeds)', () => {
-  it('R-101..R-105 : toute graine uint32 produit une carte valide, symétrique, connectée et équitable', () => {
+  // timeout porté à 30 s (ALIGNEMENT-CROISSANCE 13/09) : 60+ seeds dépassent
+  // le défaut de 5 s quand la suite tourne en parallèle — échec flaky observé.
+  it('R-101..R-105 : toute graine uint32 produit une carte valide, symétrique, connectée et équitable', { timeout: 30_000 }, () => {
     const property = fc.property(fc.uint32Array({ minLength: 1, maxLength: 1 }), (seeds) => {
       const seed = seeds[0]!;
       const { map, report } = generateProceduralMap(seed);

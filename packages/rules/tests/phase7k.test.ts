@@ -121,9 +121,9 @@ describe('7k · M2/R-129 — exclusivité mondiale (doc : « qu’une seule fois
     expect(result.newState.players['p1']!.cultureMilestones).toBe(0);
     expect(result.newState.cities['c2']!.wonders).toEqual([]);
     // C8/C7 : le perdant récupère l'ENTIÈRETÉ de ses marteaux — progress 50
-    // + production du tour (2, pop 1 : centre 1 + case ville adjacente 1) —
+    // + production du tour (1, pop 1 : centre 0 — A3 + 1 intérieur Ouvrier) —
     // en réserve PERMANENTE.
-    expect(result.newState.cities['c2']!.pendingSalvage).toBe(52);
+    expect(result.newState.cities['c2']!.pendingSalvage).toBe(51);
     expect(result.events.some((e) => e.type === 'HammerSalvage' && e.outcome === 'available')).toBe(true);
   });
 
@@ -249,12 +249,13 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
       cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 1, workedTiles: ['3,2'], wonders: ['compagnie_des_indes'] }],
     });
     const out = resolveTurn(state, {}, 42).newState;
-    // Centre pop 1 = socle 1 C (R-66 rév. 06/09, tranche Ouvrier 0) ;
-    // océan 2 C (+1 Cie des Indes) = 4 or/tour ; sans la merveille : 1 + 2 = 3 or.
-    expect(out.players['p1']!.treasury).toBe(4);
+    // Centre pop 1 = 0 C (ALIGNEMENT-CROISSANCE — socle abrogé, tranche
+    // Ouvrier 0) ; océan 2 C (+1 Cie des Indes) = 3 or/tour ;
+    // sans la merveille : 2 or.
+    expect(out.players['p1']!.treasury).toBe(3);
     const sans = structuredClone(state);
     sans.cities['c1']!.wonders = [];
-    expect(resolveTurn(sans, {}, 42).newState.players['p1']!.treasury).toBe(3);
+    expect(resolveTurn(sans, {}, 42).newState.players['p1']!.treasury).toBe(2);
   });
 
   it('Atelier de Léonard : met à niveau gratuitement les unités obsolètes (R-111 — guerrier → legion), EMPIRE du propriétaire', () => {
@@ -274,17 +275,17 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
   });
 
   it('7l · C10 · Foire de Troyes : ×2 la part OR de la cité ; cumul Internet MULTIPLICATIF ×4', () => {
-    // Cité à 2 commerces (case de désert travaillée + socle du centre,
-    // R-66 rév. 06/09) en conversion or : 2 or → 4 or.
+    // Cité à 1 commerce (case de désert travaillée ; centre 0 — A3) en
+    // conversion or : 1 or → 2 or.
     const state = makeState({
       terrainOverrides: { '2,1': 'desert' },
       cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 1, workedTiles: ['2,1'], wonders: ['foire_de_troyes'] }],
     });
-    expect(resolveTurn(state, {}, 42).newState.players['p1']!.treasury).toBe(4);
+    expect(resolveTurn(state, {}, 42).newState.players['p1']!.treasury).toBe(2);
     // Cumul Troyes + Internet : MULTIPLICATIF ×4 (7l · C10 — remplace MAX).
     const both = structuredClone(state);
     both.cities['c1']!.wonders = ['foire_de_troyes', 'internet'];
-    expect(resolveTurn(both, {}, 42).newState.players['p1']!.treasury).toBe(8);
+    expect(resolveTurn(both, {}, 42).newState.players['p1']!.treasury).toBe(4);
     expect(cityGoldMultOf(['foire_de_troyes'], [])).toBe(2);
   });
 
@@ -298,7 +299,7 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
     });
     state.cities['c1']!.wonders = ['internet'];
     const out = resolveTurn(state, {}, 42).newState;
-    expect(out.players['p1']!.treasury).toBe(8); // 2 villes × 2 C (socle+désert) ×2 (empire)
+    expect(out.players['p1']!.treasury).toBe(4); // 2 villes × 1 C (désert ; centre 0 — A3) ×2 (empire)
   });
 
   it('Complexe militaro-industriel : −20 % le coût de production des unités MILITAIRES (Colon exclu — production seule, 7l)', () => {
@@ -306,13 +307,14 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
       cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 3, wonders: ['complexe_militaro_industriel'] }],
     });
     state.cities['c1']!.workedTiles = ['2,1', '1,2', '3,2'];
-    state.cities['c1']!.production = { item: { kind: 'unit', id: 'guerrier' }, progress: 7 };
+    state.cities['c1']!.production = { item: { kind: 'unit', id: 'guerrier' }, progress: 8 };
     const result = resolveTurn(state, {}, 42);
-    // Coût guerrier 10 → 8 (round(10 × 0,8)) : 7 + ≥1 marteau = 8 → produit.
+    // Coût guerrier 10 → 8 (round(10 × 0,8)) : 8 + 0 marteau résiduel (3
+    // tuiles travaillées → 0 intérieur, centre 0 — A3) = 8 → produit.
     expect(result.events.some((e) => e.type === 'UnitProduced' && e.unitType === 'guerrier')).toBe(true);
     // Le Colon (pacifique) n'est PAS réduit : coût 20 plein.
     const colon = structuredClone(state);
-    colon.cities['c1']!.production = { item: { kind: 'unit', id: 'colon' }, progress: 18 }; // 18+1 = 19 < 20 : pas acheve (aucune remise Colon)
+    colon.cities['c1']!.production = { item: { kind: 'unit', id: 'colon' }, progress: 19 }; // 19 + 0 = 19 < 20 : pas acheve (aucune remise Colon)
     expect(resolveTurn(colon, {}, 42).events.some((e) => e.type === 'UnitProduced')).toBe(false);
   });
 

@@ -132,14 +132,15 @@ describe('7m · R-143 — Actions d\'espionnage', () => {
     const state = spyState();
     state.players['p2']!.treasury = 200;
     state.players['p1']!.treasury = 10;
-    // Infiltration préalable (tour 1) puis action (tour 2). R-66 (rév. 06/09) :
-    // socle 1 C/tour → p2 vaut 201 au moment du vol ; 50 % = round(100,5) = 101.
+    // Infiltration préalable (tour 1) puis action (tour 2). ALIGNEMENT-
+    // CROISSANCE : la case de ville ne rapporte plus → p2 vaut 200 au moment
+    // du vol ; 50 % = 100.
     const t1 = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'espion1', path: [{ q: 0, r: 0 }] }] }, 1).newState;
     const { newState, events } = resolveTurn(t1, spyAction('stealGold'), 1);
-    expect(newState.players['p2']!.treasury).toBe(101); // 201 − 101 (+ socle du tour)
-    expect(newState.players['p1']!.treasury).toBe(111); // 10 + 101
+    expect(newState.players['p2']!.treasury).toBe(100); // 200 − 100
+    expect(newState.players['p1']!.treasury).toBe(110); // 10 + 100
     const stolen = events.find((e) => e.type === 'GoldStolen');
-    expect(stolen && stolen.type === 'GoldStolen' ? stolen.amount : null).toBe(101);
+    expect(stolen && stolen.type === 'GoldStolen' ? stolen.amount : null).toBe(100);
     expect(newState.units['espion1']).toBeUndefined(); // consommé
     expect(events.some((e) => e.type === 'SpyAction' && e.action === 'stealGold' && e.outcome === 'success')).toBe(true);
   });
@@ -216,7 +217,7 @@ describe('7m · R-143 — Actions d\'espionnage', () => {
     }
     // Le coût est débité AU LANCEMENT, succès comme échec (non remboursé 🔶).
     expect(newState.players['p1']!.treasury).toBe(100 - destroyBuildingGoldOf(BUILDINGS['temple']!.cost));
-    expect(newState.players['p2']!.treasury).toBe(2); // socle 1 C × 2 tours (R-66 rév.)
+    expect(newState.players['p2']!.treasury).toBe(0); // centre 0 C (A3 — ALIGNEMENT-CROISSANCE)
     expect(newState.units['espion1']).toBeUndefined(); // hostile exécutée → consommé (échec compris)
   });
 
@@ -324,7 +325,7 @@ describe('7m · R-143 — Actions d\'espionnage', () => {
     const { newState, events } = resolveTurn(state, spyAction('stealGold'), 1);
     expect(events.some((e) => e.type === 'SpyAction' && e.outcome === 'failed')).toBe(true);
     expect(newState.units['espion1']).toBeDefined();
-    expect(newState.players['p2']!.treasury).toBe(1); // socle 1 C (R-66 rév. 06/09)
+    expect(newState.players['p2']!.treasury).toBe(0); // centre 0 C (A3 — ALIGNEMENT-CROISSANCE)
   });
 });
 
@@ -439,7 +440,7 @@ describe('7m · Fog — notifications de la victime', () => {
     const { newState, events } = resolveTurn(t1, spyAction('stealGold'), 1);
     // La victime reçoit l'événement (touchée : sa ville, sa trésorerie).
     const victimEvents = filterEventsForPlayer(newState, 'p2', events);
-    expect(victimEvents.some((e) => e.type === 'GoldStolen' && e.amount === 101)).toBe(true);
+    expect(victimEvents.some((e) => e.type === 'GoldStolen' && e.amount === 100)).toBe(true);
     // Le voleur aussi.
     const thiefEvents = filterEventsForPlayer(newState, 'p1', events);
     expect(thiefEvents.some((e) => e.type === 'GoldStolen')).toBe(true);

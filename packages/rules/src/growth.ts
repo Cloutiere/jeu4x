@@ -2,13 +2,18 @@
  * 7i · Croissance démographique & citoyens intérieurs — RULES.md R-63 (rév.)
  * / R-60bis / R-64 (rév.), données growth.json (calibrage sans code).
  *
- * Alignement Civ Revolution (doc d'Erik « Moteur Ville Civilization
- * Revolution », divergences D1-D5) :
- *  - D1 : chaque citoyen CONSOMME 1 nourriture/tour ; seul le surplus
- *    (récolte − population) alimente la réserve `foodStored` ;
- *  - D2 : seuils de croissance NON LINÉAIRES (table `growthThresholds`,
- *    indexée par population CIBLE — courbe exponentielle 🔶 5 × 1,25^(n−2)) ;
+ * ALIGNEMENT-CROISSANCE (partie réelle d'Erik du 13/09 — valeurs faites foi) :
+ *  - AUCUN citoyen ne consomme de nourriture : le surplus alimentaire = la
+ *    nourriture produite, point (la consommation 7i D1 est abrogée) ;
+ *  - seuils de croissance LINÉAIRES 10 × population ACTUELLE (table
+ *    `growthThresholds` indexée par la population actuelle : « 2 »: 20,
+ *    « 3 »: 30, …, « 31 »: 310 ; ancres Erik : 2→3 = 20, 3→4 = 30) ;
  *    plafond absolu `populationCap` = 31 ;
+ *  - la CASE DE VILLE ne rapporte RIEN (0/0/0 — terrain.json, le socle
+ *    CENTREVILLE R-66 rév. 06/09 est abrogé).
+ *
+ * Historique 7i (partiellement abrogé) :
+ *  - D2 : seuils NON LINÉAIRES (courbe exponentielle 🔶 5 × 1,25^(n−2)) ;
  *  - D3 : population initiale d'une ville fondée selon l'ÈRE de l'empire
  *    (ère = la plus avancée des technologies débloquées) ;
  *  - D4 : les citoyens non affectés au terrain deviennent ouvriers
@@ -24,13 +29,11 @@ import type { TechEra } from './types.js';
 export interface GrowthData {
   populationCap: number;
   founderPopByEra: Record<TechEra, number>;
-  /** Seuil de nourriture cumulée pour ATTEINDRE la population clé (cible). */
+  /** Seuil de nourriture cumulée pour passer de la population clé à la
+   *  suivante : seuil(pop) = 10 × pop (ALIGNEMENT-CROISSANCE, Erik 13/09). */
   growthThresholds: Record<string, number>;
   /** Tranches démographiques des citoyens intérieurs (D4 — R-60bis). */
   interiorCitizens: Array<{ minPop: number; maxPop: number; label: string; production: number; commerce: number }>;
-  /** R-66 (rév. 06/09) : socle garanti du centre-ville — plancher par
-   *  ressource (1N/1P/1C 🔶) appliqué SUR les rendements calculés. */
-  cityCenter: { floor: { food: number; production: number; commerce: number } };
 }
 
 export const GROWTH: GrowthData = growthJson as unknown as GrowthData;
@@ -78,16 +81,34 @@ export function populationCap(): number {
 
 /**
  * D2 · Seuil de croissance pour passer de `pop` à `pop + 1` — table
- * `growthThresholds` indexée par la population CIBLE, modulée par la
- * réduction de seuil (Aqueduc, R-63). `null` au plafond (31) : plus de
- * croissance, jamais.
+ * `growthThresholds` indexée par la population ACTUELLE (seuil = 10 × pop,
+ * ALIGNEMENT-CROISSANCE), modulée par la réduction de seuil (Aqueduc, R-63).
+ * `null` au plafond (31) : plus de croissance, jamais.
  */
 export function growthThresholdFor(pop: number, reduction = 0): number | null {
   const target = pop + 1;
   if (target > GROWTH.populationCap) return null;
-  const base = GROWTH.growthThresholds[String(target)];
+  const base = GROWTH.growthThresholds[String(pop)];
   if (base === undefined) return null;
   return Math.max(1, Math.round(base * (1 - reduction)));
+}
+
+/**
+ * ALIGNEMENT-CROISSANCE (M3) · Helper PUR pour l'UI (CityPanel, futur
+ * MENU-VILLE) : nombre de tours avant croissance au rythme `surplusPerTurn`
+ * (surplus = nourriture produite — aucune consommation). `null` au plafond
+ * ou sans surplus ; 0 si le seuil est déjà atteint.
+ */
+export function toursAvantCroissance(
+  pop: number,
+  foodStored: number,
+  surplusPerTurn: number,
+  reduction = 0,
+): number | null {
+  const threshold = growthThresholdFor(pop, reduction);
+  if (threshold === null || surplusPerTurn <= 0) return null;
+  if (foodStored >= threshold) return 0;
+  return Math.ceil((threshold - foodStored) / surplusPerTurn);
 }
 
 /**

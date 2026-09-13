@@ -1,13 +1,17 @@
 /**
  * Phase 7i — Alignement du moteur de ville sur Civ Revolution
- * (doc d'Erik « Moteur Ville Civilization Revolution », HANDOFF-PHASE7I).
+ * (doc d'Erik « Moteur Ville Civilization Revolution », HANDOFF-PHASE7I),
+ * RÉVISÉ par ALIGNEMENT-CROISSANCE (partie réelle d'Erik du 13/09 — valeurs
+ * faites foi) :
  *
- * D1 · R-63 (rév.) : la nourriture se CONSOMME (surplus = récolte − pop).
- * D2 · R-63 (rév.) : seuils de croissance NON LINÉAIRES (growth.json), cap 31.
+ * A1 · R-63 (rév. 13/09) : AUCUN citoyen ne consomme de nourriture —
+ *      surplus = nourriture produite (la consommation 7i D1 est abrogée).
+ * A2 · R-63 (rév. 13/09) : seuils LINÉAIRES 10 × population ACTUELLE
+ *      (ancres Erik : 2→3 = 20, 3→4 = 30), cap 31.
+ * A3 · R-66 abrogé : la CASE DE VILLE rapporte 0/0/0.
  * D3 · R-64 (rév.) : villes fondées à pop 2/3/4/5 selon l'ÈRE de l'empire.
  * D4 · R-60bis    : citoyens intérieurs au centre-ville (table par tranche).
  * D5 · R-64 (rév.) : fonder sur une ressource la DÉTRUIT (ResourceDestroyed).
- * + R-66 (rév.)   : centre-ville min 1 P, commerce par tranche.
  */
 import { describe, expect, it } from 'vitest';
 import { makeState, cityAt } from '../src/fixtures.js';
@@ -22,8 +26,8 @@ import {
 } from '../src/growth.js';
 import { tileYield, autoAssignWorkedTiles } from '../src/economy.js';
 
-describe('D1 · R-63 (rév.) — la nourriture se consomme', () => {
-  it('surplus = récolte − population : une ville pop 3 sans surplus ne grandit plus', () => {
+describe('A1 · R-63 (rév. 13/09) — aucun citoyen ne consomme de nourriture', () => {
+  it('surplus = nourriture produite : la réserve gagne TOUTE la récolte', () => {
     // anneau 1 en plaine (1 N) : récolte = 1 (centre — POLISSAGE-1 C1) + 5 × 1 = 6 → surplus faible
     const state = makeState({
       width: 8,
@@ -41,12 +45,13 @@ describe('D1 · R-63 (rév.) — la nourriture se consomme', () => {
     });
     const { newState } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
-    // récolte 1 (centre — POLISSAGE-1 C1) + 5 plaines = 6 ; consommation 5 → surplus +1
-    expect(city.foodStored).toBe(1);
+    // récolte = 5 plaines × 1 N ; la case de ville rapporte 0 (A3) et RIEN
+    // n'est consommé (A1) → la réserve gagne la récolte entière
+    expect(city.foodStored).toBe(5);
     expect(city.pop).toBe(5); // pas de croissance
   });
 
-  it('déficit : la réserve se vide, à 0 la croissance s’arrête — PAS de famine (interprétation 🔶)', () => {
+  it('une ville sans récolte ne perd RIEN de sa réserve — personne ne meurt', () => {
     const state = makeState({
       width: 8,
       height: 8,
@@ -58,22 +63,43 @@ describe('D1 · R-63 (rév.) — la nourriture se consomme', () => {
     });
     const { newState, events } = resolveTurn(state, {}, 1);
     const city = cityAt(newState, 0, 0)!;
-    // récolte 2 (centre) ; consommation 8 → déficit −6 : réserve vidée, personne ne meurt
-    expect(city.foodStored).toBe(0);
+    // récolte 0 (désert + centre 0/0/0) ; aucune consommation → la réserve
+    // reste intacte, la croissance s'arrête faute de surplus, personne ne meurt
+    expect(city.foodStored).toBe(3);
     expect(city.pop).toBe(8);
     expect(events.some((e) => e.type === 'UnitDestroyed')).toBe(false);
   });
 });
 
-describe('D2 · R-63 (rév.) — seuils non linéaires (growth.json) et cap 31', () => {
-  it('la table est exponentielle : seuils croissants, très bas au début', () => {
+describe('A2 · R-63 (rév. 13/09) — seuils 10 × population ACTUELLE, cap 31', () => {
+  it('ancres Erik : 2→3 = 20, 3→4 = 30 ; table LINÉAIRE 10 × pop actuelle', () => {
     const t = (n: number) => growthThresholdFor(n)!;
-    expect(t(1)).toBe(GROWTH.growthThresholds['2']);
-    expect(t(1)).toBeLessThan(t(2));
-    expect(t(2)).toBeLessThan(t(5));
-    expect(t(5)).toBeLessThan(t(10));
-    expect(t(10)).toBeLessThan(t(20));
-    expect(t(20)).toBeLessThan(t(30));
+    expect(t(2)).toBe(20);
+    expect(t(3)).toBe(30);
+    expect(t(2)).toBe(GROWTH.growthThresholds['2']);
+    expect(t(1)).toBe(10);
+    expect(t(5)).toBe(50);
+    expect(t(10)).toBe(100);
+    expect(t(30)).toBe(300);
+  });
+
+  it('croissance 2→3 exige 20 nourriture — 10 tours à +2/tour (vérifié en jeu par Erik)', () => {
+    const base = {
+      width: 8,
+      height: 8,
+      terrainOverrides: {
+        '1,0': 'desert' as const, '0,1': 'desert' as const, '-1,0': 'desert' as const,
+        '0,-1': 'desert' as const, '1,-1': 'desert' as const, '-1,1': 'desert' as const,
+      },
+    };
+    // 19 stockés : seuil 20 non atteint
+    const r19 = resolveTurn(makeState({ ...base, cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 19, workedTiles: [] }] }), {}, 1);
+    expect(cityAt(r19.newState, 0, 0)!.pop).toBe(2);
+    expect(cityAt(r19.newState, 0, 0)!.foodStored).toBe(19);
+    // 20 stockés : seuil atteint → pop 3 (jauge soustraite du seuil)
+    const r20 = resolveTurn(makeState({ ...base, cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, foodStored: 20, workedTiles: [] }] }), {}, 1);
+    expect(cityAt(r20.newState, 0, 0)!.pop).toBe(3);
+    expect(cityAt(r20.newState, 0, 0)!.foodStored).toBe(0);
   });
 
   it('plafond absolu : population 31 — croissance bloquée au-delà', () => {
@@ -141,11 +167,11 @@ describe('D4 · R-60bis — citoyens intérieurs (tranches démographiques)', ()
     });
     const { newState } = resolveTurn(state, {}, 1);
     // aucune case assignée (pas de re-remplissage hors pendingFill) →
-    // 7 citoyens intérieurs : commerce = 1 (socle R-66 rév.) + 1 (tranche
-    // 7-12) + 7 × 1 (intérieurs) — R-66 (rév. 06/09)
+    // 7 citoyens intérieurs : commerce = 0 (centre 0/0/0 — A3) + 1 (tranche
+    // 7-12) + 7 × 1 (intérieurs)
     const city = cityAt(newState, 0, 0)!;
     expect(city.workedTiles).toHaveLength(0);
-    expect(newState.players['p1']!.treasury).toBe(9);
+    expect(newState.players['p1']!.treasury).toBe(8);
   });
 
   it('Tribunal : les citoyens intérieurs redeviennent travailleurs de terrain (priorité extérieure)', () => {
@@ -207,8 +233,8 @@ describe('D5 · R-64 (rév.) — fonder sur une ressource la DÉTRUIT', () => {
   });
 });
 
-describe('R-66 (rév.) — centre-ville : min 1 Production, commerce par tranche', () => {
-  it('le centre garantit 1 marteau même entouré de déserts ; commerce de tranche à pop ≤ 6 = 0', () => {
+describe('A3 · La ville fraîchement fondée ne produit que par ses citoyens (R-60/R-60bis)', () => {
+  it('entourée de déserts : production = 0 (centre) + intérieurs ; commerce de tranche à pop ≤ 6 = 0', () => {
     const state = makeState({
       width: 8,
       height: 8,
@@ -219,10 +245,9 @@ describe('R-66 (rév.) — centre-ville : min 1 Production, commerce par tranche
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: [] }],
     });
     const { newState } = resolveTurn(state, {}, 1);
-    // production = 1 (centre, socle R-66 rév.) + 2 × 1 (2 intérieurs Ouvriers)
-    // → la ville produit des marteaux malgré le désert ; commerce = socle 1 C
-    // + tranche 0 (pop ≤ 6) — R-66 (rév. 06/09)
-    expect(newState.players['p1']!.treasury).toBe(1);
+    // production = 0 (centre 0/0/0 — A3) + 2 × 1 (2 intérieurs Ouvriers) ;
+    // commerce = 0 (centre) + tranche 0 (pop ≤ 6) → trésorerie 0
+    expect(newState.players['p1']!.treasury).toBe(0);
     // la file progresse : preuve de production du centre
     const s2 = makeState({
       width: 8,
@@ -234,7 +259,7 @@ describe('R-66 (rév.) — centre-ville : min 1 Production, commerce par tranche
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: [], production: { item: { kind: 'unit', id: 'guerrier' }, progress: 9 } }],
     });
     const r2 = resolveTurn(s2, {}, 1);
-    expect(r2.events.some((e) => e.type === 'UnitProduced')).toBe(true); // 9 + 1 ≥ 10
+    expect(r2.events.some((e) => e.type === 'UnitProduced')).toBe(true); // 9 + 1 (intérieur Ouvrier) ≥ 10
   });
 });
 
@@ -246,12 +271,15 @@ describe('7i · La pompe à colons (doc §Impact Économique)', () => {
       cities: [
         {
           id: 'c1', owner: 'p1', q: 5, r: 5, capital: true, pop: 2,
-          workedTiles: ['5,4', '4,5'],
+          // centre 0/0/0 (A3) : les marteaux viennent de la forêt travaillée
+          workedTiles: ['4,5', '5,4'],
           production: { item: { kind: 'unit', id: 'colon' }, progress: 19 },
         },
       ],
     });
     state.players['p1']!.government = 'republique'; // R-121 : coût pop 1
+    state.map['5,4'] = { terrain: 'foret', resource: null }; // 0/2/0
+    state.map['4,5'] = { terrain: 'prairie', resource: null }; // 2/0/0
     let s = state;
     // Tour 1 : le colon est produit → pop 2 − 1 = 1.
     const r1 = resolveTurn(s, {}, 42);
@@ -259,7 +287,7 @@ describe('7i · La pompe à colons (doc §Impact Économique)', () => {
     expect(r1.events.some((e) => e.type === 'UnitProduced' && e.unitType === 'colon')).toBe(true);
     expect(Object.values(s.cities)[0]!.pop).toBe(1);
     // Tours suivants : surplus alimentaire → pop 2 retrouvée en ≤ 5 tours
-    // (POLISSAGE-1 C1 : centre 1 N → récolte 3, surplus 2, seuil 10).
+    // (récolte d'1 prairie = 2 N, aucune consommation — seuil 1→2 = 10).
     let tours = 0;
     while (Object.values(s.cities)[0]!.pop < 2 && tours < 7) {
       s = resolveTurn(s, {}, 42).newState;
@@ -270,11 +298,11 @@ describe('7i · La pompe à colons (doc §Impact Économique)', () => {
   });
 });
 
-describe('R-66 (rév. 06/09) — socle garanti 1N / 1P / 1C du centre-ville', () => {
+describe('A3 · ALIGNEMENT-CROISSANCE — la case de ville rapporte 0/0/0 (socle R-66 abrogé)', () => {
   // Terrains fondables (passables, hors cratère — R-64/C15).
   const FONDABLES = ['prairie', 'plaine', 'foret', 'colline', 'desert'] as const;
 
-  it('multi-terrains : fondé sur N\'IMPORTE QUEL terrain, le centre produit ≥ 1N / 1P / 1C', () => {
+  it('multi-terrains : N\'IMPORTE QUEL terrain fondé, la case de ville rapporte 0 N / 0 P / 0 C', () => {
     for (const terrain of FONDABLES) {
       const state = makeState({
         width: 8,
@@ -286,17 +314,16 @@ describe('R-66 (rév. 06/09) — socle garanti 1N / 1P / 1C du centre-ville', ()
         },
         cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: [] }],
       });
-      // La fondation transforme la case en terrain `ville` (R-64) ; le socle
-      // R-66 (rév.) garantit le plancher 1/1/1 par ressource (tileYield —
-      // source unique moteur/UI/3D).
+      // La fondation transforme la case en terrain `ville` (R-64) ; elle ne
+      // rapporte RIEN (tileYield — source unique moteur/UI).
       const y = tileYield(state.map, [], '0,0')!;
-      expect(y.food, `nourriture sur ${terrain}`).toBeGreaterThanOrEqual(1);
-      expect(y.production, `production sur ${terrain}`).toBeGreaterThanOrEqual(1);
-      expect(y.commerce, `commerce sur ${terrain}`).toBeGreaterThanOrEqual(1);
+      expect(y.food, `nourriture sur ${terrain}`).toBe(0);
+      expect(y.production, `production sur ${terrain}`).toBe(0);
+      expect(y.commerce, `commerce sur ${terrain}`).toBe(0);
     }
   });
 
-  it('centre sur désert, pop 1 : commerce du socle = 1 dès la fondation (tranche R-60bis = 0)', () => {
+  it('centre sur désert, pop 1 : aucune recette — trésorerie 0', () => {
     const state = makeState({
       width: 8,
       height: 8,
@@ -307,11 +334,11 @@ describe('R-66 (rév. 06/09) — socle garanti 1N / 1P / 1C du centre-ville', ()
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: [] }],
     });
     const { newState } = resolveTurn(state, {}, 1);
-    // Socle 1 C (conversion Or par défaut) ; la tranche démographique ajoute 0.
-    expect(newState.players['p1']!.treasury).toBe(1);
+    // centre 0 C ; la tranche démographique ajoute 0 à pop 1.
+    expect(newState.players['p1']!.treasury).toBe(0);
   });
 
-  it('la tranche démographique s\'ajoute AU-DESSUS du socle : pop 7 → 1 C (socle) + 1 C (Vendeur)', () => {
+  it('la tranche démographique s\'ajoute par-dessus le zéro : pop 7 → 1 C (Vendeur)', () => {
     const state = makeState({
       width: 10,
       height: 10,
@@ -332,21 +359,22 @@ describe('R-66 (rév. 06/09) — socle garanti 1N / 1P / 1C du centre-ville', ()
     });
     const { newState } = resolveTurn(state, {}, 1);
     // 7 travailleurs (rayon 2 — Tribunal) → 0 intérieur ;
-    // commerce du centre = socle 1 C + tranche Vendeur 1 C = 2 → trésorerie 2.
-    expect(newState.players['p1']!.treasury).toBe(2);
+    // commerce du centre = 0 (A3) + tranche Vendeur 1 C = 1 → trésorerie 1.
+    expect(newState.players['p1']!.treasury).toBe(1);
   });
 
-  it('le socle est un PLANCHER, pas un plafond : Égypte (désert, ère Antique) dépasse le socle', () => {
+  it('les traits de civ sur les TERRAINS normaux sont intacts : Égypte (désert) garde son bonus', () => {
     // Trait Égypte Antique : +1 N / +1 C sur chaque case de DÉSERT (R-146) —
-    // le plancher du centre ne plafonne pas les rendements.
+    // l'abrogation du socle ne touche pas les rendements des autres terrains.
     const desert = { '0,0': { terrain: 'desert' as const } };
     const y = tileYield(desert, [], '0,0', [], [], undefined, { civId: 'egypte', era: 'ancienne' })!;
-    expect(y.food).toBe(1); // 0 (désert) + 1 (trait) — jamais raboté vers le socle
+    expect(y.food).toBe(1); // 0 (désert) + 1 (trait)
     expect(y.commerce).toBe(2); // 1 (désert) + 1 (trait)
-    // Le centre (terrain ville) donne 1 N (POLISSAGE-1 C1) : pile le socle —
-    // le plancher reste en garantie (cas futurs type cratère), il ne plafonne rien.
-    const centre = tileYield({ '0,0': { terrain: 'ville' as const } }, [], '0,0')!;
-    expect(centre.food).toBe(1);
+    // La case de ville, elle, rapporte 0 même avec un trait de civ.
+    const centre = tileYield({ '0,0': { terrain: 'ville' as const } }, [], '0,0', [], [], undefined, { civId: 'egypte', era: 'ancienne' })!;
+    expect(centre.food).toBe(0);
+    expect(centre.production).toBe(0);
+    expect(centre.commerce).toBe(0);
   });
 
   it('non-régression D5 : fonder sur une ressource la détruit toujours (ResourceDestroyed)', () => {
@@ -359,11 +387,11 @@ describe('R-66 (rév. 06/09) — socle garanti 1N / 1P / 1C du centre-ville', ()
     const { newState, events } = resolveTurn(state, { p1: [{ type: 'FoundCity', unitId: 'u1' }] }, 1);
     expect(newState.map['5,5']).toEqual({ terrain: 'ville', resource: null });
     expect(events.some((e) => e.type === 'ResourceDestroyed' && e.resource === 'fer')).toBe(true);
-    // …et le centre fraîchement fondé respecte le socle 1/1/1.
+    // …et le centre fraîchement fondé ne rapporte RIEN (A3).
     const y = tileYield(newState.map, [], '5,5')!;
-    expect(y.food).toBeGreaterThanOrEqual(1);
-    expect(y.production).toBeGreaterThanOrEqual(1);
-    expect(y.commerce).toBeGreaterThanOrEqual(1);
+    expect(y.food).toBe(0);
+    expect(y.production).toBe(0);
+    expect(y.commerce).toBe(0);
   });
 
   it('bot/assignation non perturbés : l\'auto-assignation R-60 ne déplace jamais le citoyen du centre', () => {

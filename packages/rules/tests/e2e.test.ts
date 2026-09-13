@@ -91,10 +91,9 @@ describe('Campagne multi-tours (critère 2)', () => {
     expect(allEvents.some((e) => e.type === 'Captured' && e.outcome === 'destroyed')).toBe(true);
     expect(allEvents.some((e) => e.type === 'BootyGold' && e.player === 'p2' && e.amount === 10)).toBe(true);
     expect(state.units['u5']).toBeUndefined();
-    // T-12 : butin 10. R-66 (rév. 06/09) : socle garanti du centre = 1 C/tour
-    // (la tranche R-60bis ajoute 0 sous pop 7) — c2 verse 1 or par tour
-    // résolu (t1→t3) en plus du butin.
-    expect(state.players['p2']!.treasury).toBe(13);
+    // T-12 : butin 10. ALIGNEMENT-CROISSANCE : la case de ville rapporte 0
+    // (socle R-66 abrogé) — c2 ne verse plus rien en plus du butin.
+    expect(state.players['p2']!.treasury).toBe(10);
 
     // Tour 4 : le guerrier p1 se met en marche (chemin multi-tours).
     step({ p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }] }] }, 14);
@@ -211,25 +210,25 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     };
 
     // Tour 1 : fondation. 7i · D3 : pop 2 → 2 citoyens auto-assignés
-    // (plaines 1 N) ; réserve = SURPLUS = (1+1+1) récolte − 2 citoyens = 1
-    // (7i · D1 · R-63 rév. ; POLISSAGE-1 C1 : centre-ville 1 N au lieu de 2).
+    // (plaines 1 N) ; ALIGNEMENT-CROISSANCE : aucune consommation, la case de
+    // ville rapporte 0 → réserve = récolte des 2 plaines = 2.
     step({ p1: [{ type: 'FoundCity', unitId: 'u1' }] });
     const cityId = Object.keys(state.cities)[0]!;
     expect(state.cities[cityId]!.pop).toBe(2);
     expect(state.cities[cityId]!.workedTiles.length).toBe(2);
-    expect(state.cities[cityId]!.foodStored).toBe(1);
+    expect(state.cities[cityId]!.foodStored).toBe(2);
 
-    // Tours 2-20 : surplus 1/tour → réserve 20 = seuil vers pop 3
-    // (7l · C4 : seuil linéaire 10 × n — 10 × 2) → croissance au tour 20.
-    for (let t = 0; t < 19; t++) step({});
+    // Tours 2-11 : surplus 2/tour → réserve 20 = seuil vers pop 3
+    // (10 × pop actuelle : 10 × 2) → croissance pile au 10e tour de la boucle.
+    for (let t = 0; t < 10; t++) step({});
     expect(state.cities[cityId]!.pop).toBe(3);
     expect(allEvents.some((e) => e.type === 'PopulationGrew')).toBe(true);
     expect(state.cities[cityId]!.workedTiles.length).toBe(3); // +1 citoyen auto-assigné (R-60)
 
-    // Tour 11 : ville pleine (pop 3, 3 citoyens) → on désassigne d'abord
+    // Ville pleine (pop 3, 3 citoyens) → on désassigne d'abord
     // (règle d'Erik : pas d'échange automatique) + Grenier en file.
-    // Le citoyen intérieur (7i · R-60bis) produit : 1 (centre) + 1 (intérieur)
-    // → floor(2 × 1,5) = 3 marteaux/tour (bonus pop R-63).
+    // Le citoyen intérieur (7i · R-60bis) produit : 0 (centre — A3) +
+    // 1 (intérieur) → floor(1 × 1,5) = 1 marteau/tour (bonus pop R-63).
     step({
       p1: [
         { type: 'SetWorkedTile', cityId, tile: null },
@@ -237,16 +236,17 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
       ],
     });
     expect(state.cities[cityId]!.workedTiles).toHaveLength(2);
-    expect(state.cities[cityId]!.production!.progress).toBe(3); // production du tour : centre 1 + intérieur 1 (R-60bis) × bonus pop
+    expect(state.cities[cityId]!.production!.progress).toBe(1); // production du tour : centre 0 (A3) + intérieur 1 (R-60bis) × bonus pop
 
     // Tour 5 : le citoyen libéré est assigné à la plaine (5,6).
     step({ p1: [{ type: 'SetWorkedTile', cityId, tile: '5,6' }] });
     expect(state.cities[cityId]!.workedTiles).toContain('5,6');
 
     // Le Grenier s'achève quand la progression atteint son coût (R-62/R-66) :
-    // on amène la file au bord (la progression est conservée tour à tour).
-    state.cities[cityId]!.production!.progress = 39;
-    step({}); // 39 + production du tour → complété (coût exact 7e : 40)
+    // 3 tuiles travaillées → 0 intérieur → 0 marteau résiduel (A3) : on amène
+    // la file au coût exact (la progression est conservée tour à tour).
+    state.cities[cityId]!.production!.progress = 40;
+    step({}); // complété (coût exact 7e : 40)
     // 7e : la ville fondée est capitale → le Palais y est posé par le moteur.
     expect(state.cities[cityId]!.buildings).toEqual(['grenier', 'palais']); // 7l : bâtiments triés (invariant déterministe R-81)
     expect(allEvents.some((e) => e.type === 'BuildingCompleted' && e.building === 'grenier')).toBe(true);
@@ -260,25 +260,23 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
     // Grenier atteint pile le seuil de la table)
     state.cities[cityId]!.foodStored = 0;
     state.cities[cityId]!.pop = 4;
-    // 7i · D1 : la réserve reçoit le SURPLUS (récolte − population) ;
-    // centre 1 N (POLISSAGE-1 C1).
-    const expectedFood =
-      1 + tiles.reduce((acc, key) => acc + tileYield(state.map, ['grenier'], key)!.food, 0) -
-      state.cities[cityId]!.pop;
+    // 7i · D1 ABROGÉ (ALIGNEMENT-CROISSANCE) : la réserve reçoit TOUTE la
+    // récolte (aucune consommation, centre 0/0/0 — A3).
+    const expectedFood = tiles.reduce((acc, key) => acc + tileYield(state.map, ['grenier'], key)!.food, 0);
     step({});
     expect(state.cities[cityId]!.foodStored).toBe(expectedFood);
     expect(expectedFood).toBeGreaterThan(
-      1 + tiles.reduce((a, k) => a + tileYield(state.map, [], k)!.food, 0) - state.cities[cityId]!.pop,
+      tiles.reduce((a, k) => a + tileYield(state.map, [], k)!.food, 0),
     ); // le bonus du Grenier se sent vraiment
 
     // 7i : stock et population recadrés pour garder le scénario déterministe
-    // (la consommation D1 + la table de croissance feraient pousser la ville
-    // pendant les tours suivants).
+    // (le surplus + la table de croissance feraient pousser la ville pendant
+    // les tours suivants).
     state.cities[cityId]!.foodStored = 0;
     state.cities[cityId]!.pop = 3;
-    // Tribunal en file (40 🔶), achevé au tour suivant.
-    state.cities[cityId]!.production = { item: { kind: 'building', id: 'tribunal' }, progress: 79 };
-    step({}); // 79 + production du tour → complété (coût exact 7e : 80)
+    // Tribunal en file (40 🔶) — 0 marteau résiduel (A3), coût exact 7e : 80.
+    state.cities[cityId]!.production = { item: { kind: 'building', id: 'tribunal' }, progress: 80 };
+    step({}); // complété
     expect(state.cities[cityId]!.buildings).toEqual(['grenier', 'palais', 'tribunal']); // 7l : tri déterministe
 
     // Rayon 2 (T-08b + Tribunal) : la montagne (3,5) — distance 2 — devient

@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, tileKeyOf, workRadiusOf, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, eraOfPlayer, civIdOf, activeTraitsOf, effectsFor } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, tileKeyOf, workRadiusOf, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, toursAvantCroissance, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, eraOfPlayer, civIdOf, activeTraitsOf, effectsFor } from '@game/rules';
   import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
   import { greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
@@ -100,8 +100,9 @@
     return t;
   });
 
-  /** 7i · D1 : surplus alimentaire = récolte − population (cœur pédagogique). */
-  const foodSurplus = $derived(yields && city ? yields.food - city.pop : 0);
+  /** ALIGNEMENT-CROISSANCE (13/09) : AUCUN citoyen ne consomme — le surplus
+   *  alimentaire = la nourriture produite. */
+  const foodSurplus = $derived(yields ? yields.food : 0);
 
 
   /** R-90/R-88 : répartition or/science selon la conversion de la ville (source unique moteur).
@@ -133,7 +134,7 @@
   /** Production par tour de la ville (miroir Phase C : raw × Usine × (1 + 0,25×(pop−1)), R-63 🔶 + 7e + citoyens intérieurs 7i). */
   const prodPerTurn = $derived.by(() => {
     if (!city || !view.state) return 0;
-    let raw = centerYields(city.pop, city.workedTiles.length).production; // case de ville (socle 1 P — R-66 rév.) + intérieurs
+    let raw = centerYields(city.pop, city.workedTiles.length).production; // case de ville (0 — A3) + intérieurs
     for (const key of city.workedTiles) {
       const y = tileYield(view.state.map, city.buildings, key, view.state?.players[city.owner]?.techsUnlocked ?? [], city.wonders, allTechs);
       if (y) raw += y.production;
@@ -148,8 +149,9 @@
       : null,
   );
 
-  /** 7i · D1/D2 · R-63 (rév.) : jauge de croissance — surplus alimentaire vs
-   *  seuil de la table growth.json (population cible, 🔶) ; plafond 31. */
+  /** R-63 (rév. 13/09) : jauge de croissance — surplus alimentaire (aucune
+   *  consommation) vs seuil de la table growth.json (10 × pop actuelle) ;
+   *  plafond 31. */
   const atPopulationCap = $derived(!!city && city.pop >= populationCap());
   const growthThreshold = $derived.by(() => {
     if (!city) return 0;
@@ -160,11 +162,19 @@
   const growthRatio = $derived(
     city && growthThreshold > 0 ? Math.max(0, Math.min(1, city.foodStored / growthThreshold)) : 0,
   );
+  /** Helper PUR du moteur (growth.ts — réutilisable par le futur MENU-VILLE) :
+   *  tours avant croissance au rythme du surplus courant. */
   const growthEta = $derived(
-    city && foodSurplus > 0 && growthThreshold > 0 && city.foodStored < growthThreshold
-      ? Math.ceil((growthThreshold - city.foodStored) / foodSurplus)
+    city && growthThreshold > 0 && city.foodStored < growthThreshold
+      ? toursAvantCroissance(city.pop, city.foodStored, foodSurplus, growthReductionUi())
       : null,
   );
+  function growthReductionUi(): number {
+    if (!city) return 0;
+    let reduction = 0;
+    for (const b of city.buildings) reduction = Math.max(reduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
+    return reduction;
+  }
 
   /** R-60 : rayon de travail courant (Tribunal → 2). */
   const workRadius = $derived(city ? workRadiusOf(city.buildings) : 1);
@@ -361,10 +371,9 @@
     (e.currentTarget as HTMLElement | null)?.style.setProperty('display', 'none');
   }
 
-  /** R-66 (rév. 06/09) : rendement du CENTRE-VILLE — via tileYield (source
-   *  unique moteur : le socle garanti 1N/1P/1C y est appliqué en plancher
-   *  pour le terrain `ville`) + tranche démographique au-dessus du socle et
-   *  citoyens intérieurs (R-60bis). */
+  /** ALIGNEMENT-CROISSANCE : rendement du CENTRE-VILLE — via tileYield
+   *  (source unique moteur : la case de ville rapporte 0/0/0, socle R-66
+   *  abrogé) + tranche démographique et citoyens intérieurs (R-60bis). */
   function centerYields(pop: number, workedCount: number): { food: number; production: number; commerce: number } {
     const tier = interiorCitizenFor(pop);
     const interior = interiorCountOf(pop, workedCount);
@@ -372,7 +381,7 @@
     const civ = p && p.civId !== 'neutre' ? { civId: p.civId, era: p.era } : undefined;
     const base = city && view.state
       ? tileYield(view.state.map, city.buildings, tileKeyOf(city), p?.techsUnlocked ?? [], city.wonders, allTechs, civ)!
-      : { food: 2, production: 1, commerce: 1 };
+      : { food: 0, production: 0, commerce: 0 };
     return {
       food: base.food,
       production: base.production + interior * tier.production,
@@ -453,19 +462,19 @@
         {/if}
       </div>
       {#if hasPending}<p class="hint pending-note">▲ valeurs projetées (réassignation en attente)</p>{/if}
-      <p class="hint center-floor" title="R-66 (rév.) : la case de ville produit au minimum 1 N, 1 P et 1 C, quel que soit le terrain (socle garanti) — le commerce de tranche démographique (R-60bis) s'ajoute au-dessus.">Centre-ville : socle garanti 1 N / 1 P / 1 C — quel que soit le terrain</p>
+      <p class="hint center-floor" title="ALIGNEMENT-CROISSANCE : la case de ville ne produit RIEN (0 N / 0 P / 0 C) — la ville vit par ses citoyens (travaillés ou intérieurs, R-60/R-60bis).">Case de ville : aucun rendement — la ville vit par ses citoyens</p>
       {#if mine}
-        <!-- 7i · D1 · R-63 (rév.) : la consommation de nourriture, cœur pédagogique -->
+        <!-- R-63 (rév. 13/09) : aucune consommation — le surplus = la récolte -->
         <p
           class="food-line"
           class:deficit={foodSurplus < 0}
-          title="R-63 (rév.) : chaque citoyen consomme 1 nourriture par tour — seul le surplus alimente la réserve de croissance"
+          title="R-63 (rév. 13/09) : les citoyens ne consomment AUCUNE nourriture — toute la récolte alimente la réserve de croissance"
         >
-          Nourriture : {shown.food} récoltée − {city.pop} citoyen{city.pop > 1 ? 's' : ''} =
-          <strong>{foodSurplus > 0 ? '+' : ''}{foodSurplus}</strong> /tour
-          {#if foodSurplus < 0}<span class="warn"> (déficit — croissance à l'arrêt)</span>{/if}
+          Nourriture : <strong>{foodSurplus > 0 ? '+' : ''}{foodSurplus}</strong> /tour
+          (aucune consommation)
+          {#if foodSurplus <= 0}<span class="warn"> (aucun surplus — croissance à l'arrêt)</span>{/if}
         </p>
-        <div class="gauge" title="Croissance (7i · D2) : surplus vs seuil de la table growth.json (population cible {city.pop + 1})">
+        <div class="gauge" title="Croissance (R-63 rév. 13/09) : surplus vs seuil de la table growth.json (10 × population actuelle : {city.pop} → {10 * city.pop})">
           <span class="lab"><img src="/art/icone_nourriture.png" alt="" onerror={hideImg} /> {city.foodStored} / {growthThreshold}</span>
           <div class="bar"><div class="fill growth-fill" style:width={`${growthRatio * 100}%`}></div></div>
           <span class="eta">{atPopulationCap ? 'Plafond (31)' : growthEta !== null ? `${growthEta} tour${growthEta > 1 ? 's' : ''}` : foodSurplus <= 0 ? '—' : ''}</span>

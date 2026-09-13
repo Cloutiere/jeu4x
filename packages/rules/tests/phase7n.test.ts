@@ -449,9 +449,9 @@ describe('7n · R-149 · Traits — économie, croissance, combat, huttes', () =
     const before = state.players['p1']!.scienceProgress;
     void before;
     const out = resolveTurn(state, {}, 1).newState;
-    // Désert (0/0/1) + socle du centre (1 C, R-66 rév. 06/09) convertis
-    // science → 2 + 3 (Temple) = 5 fioles ce tour.
-    expect(out.players['p1']!.scienceProgress['alphabet']).toBe(5);
+    // Désert (0/0/1 ; centre 0 — ALIGNEMENT-CROISSANCE) converti science
+    // → 1 + 3 (Temple) = 4 fioles ce tour.
+    expect(out.players['p1']!.scienceProgress['alphabet']).toBe(4);
   });
 
   it('or de départ et empireGoldMult (Aztèques/Zoulous/Espagne Industrielle) : +50 % or', () => {
@@ -462,7 +462,7 @@ describe('7n · R-149 · Traits — économie, croissance, combat, huttes', () =
     state.players['p1']!.civId = 'zoulous';
     state.players['p1']!.era = 'industrielle';
     const out = resolveTurn(state, {}, 1).newState;
-    expect(out.players['p1']!.treasury).toBe(3); // 2 C (désert + socle) → 2 or ×1,5 → round = 3
+    expect(out.players['p1']!.treasury).toBe(2); // 1 C (désert ; centre 0 — A3) → 1 or ×1,5 → round = 2
   });
 
   it('coutUniteMoitie / coutBuildingMoitie / coutMerveilleMoitie (Inde, Allemagne, Chine, Rome)', () => {
@@ -620,9 +620,9 @@ describe('7n · Migration v16 → v17 (R-145/R-147/R-149 — additive, idempoten
 // ---------------------------------------------------------------------------
 
 describe('7n · R-146 (rév. Calibrage) · Zoulous — Aqueduc passif : seuils ÷ 2', () => {
-  /** Ville pop 2, anneau 1 en désert (0 N) : récolte 1 N (centre — POLISSAGE-1 C1),
-   *  consommation 2 → surplus −1 ; réserve 11 compense le déficit du tour pour
-   *  que la croissance ne dépende que du seuil et de la réserve. */
+  /** Ville pop 2, anneau 1 en désert (0 N) : récolte 0 (centre 0/0/0 — A3,
+   *  aucune consommation) ; la croissance ne dépend que du seuil et de la
+   *  réserve. */
   function growthState(): GameState {
     const state = makeState({
       width: 8,
@@ -642,8 +642,8 @@ describe('7n · R-146 (rév. Calibrage) · Zoulous — Aqueduc passif : seuils �
     state.players['p1']!.era = 'medievale'; // trait actif dès l'ère Médiévale
     const { newState } = resolveTurn(state, {}, 1);
     const city = newState.cities['c1']!;
-    expect(city.pop).toBe(3); // seuil 10 atteint : 10×n → 5×n
-    expect(city.foodStored).toBe(0);
+    expect(city.pop).toBe(3); // seuil 10 atteint : 10×n → 5×n (réserve 11 → 1)
+    expect(city.foodStored).toBe(1);
   });
 
   it('Zoulou Antique (trait inactif) : seuil canon 20 — pas de croissance à 10', () => {
@@ -652,15 +652,15 @@ describe('7n · R-146 (rév. Calibrage) · Zoulous — Aqueduc passif : seuils �
     const { newState } = resolveTurn(state, {}, 1);
     const city = newState.cities['c1']!;
     expect(city.pop).toBe(2); // seuil 20 non atteint
-    expect(city.foodStored).toBe(10);
+    expect(city.foodStored).toBe(11);
   });
 
   it('ni multiplicateur de nourriture ni de vitesse : la RÉCOLTE est inchangée', () => {
     const state = growthState();
     state.players['p1']!.era = 'medievale';
     const { newState } = resolveTurn(state, {}, 1);
-    // 10 − 10 (seuil) + 0 (surplus) = 0 : rien ne s'ajoute ni ne se multiplie.
-    expect(newState.cities['c1']!.foodStored).toBe(0);
+    // 11 − 10 (seuil) + 0 (surplus) = 1 : rien ne s'ajoute ni ne se multiplie.
+    expect(newState.cities['c1']!.foodStored).toBe(1);
   });
 });
 

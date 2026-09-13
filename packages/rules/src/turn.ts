@@ -3324,10 +3324,9 @@ function cityEconomyInputs(board: Board, city: City, allTechs: readonly string[]
 
   // Rendements : centre-ville automatique et gratuit + Σ cases travaillées
   // (base §2 + bonus bâtiments R-66 + bonus ressource si accès, R-93).
-  // R-66 (rév. 06/09) : le centre passe par tileYield (source unique) — le
-  // socle garanti 1N/1P/1C y est appliqué en plancher par ressource, et le
-  // commerce de tranche R-60bis s'ajoute AU-DESSUS du socle (résout le
-  // calibrage 7i : 1 C dès la fondation, la tranche s'empile ensuite).
+  // ALIGNEMENT-CROISSANCE : le centre passe par tileYield (source unique) et
+  // rapporte 0/0/0 (le socle R-66 rév. 06/09 est ABROGÉ) — le commerce de
+  // tranche R-60bis s'ajoute par-dessus ce zéro.
   const center = tileYield(
     board.st.map,
     city.buildings,
@@ -3512,12 +3511,11 @@ function processEconomy(board: Board): void {
       },
     });
 
-    // 7i · D1 · R-63 (rév.) : chaque citoyen CONSOMME 1 nourriture par tour —
-    // seul le SURPLUS (récolte − population) alimente la réserve. En déficit
-    // la réserve se vide et, à 0, la croissance s'arrête — PAS de famine ni
-    // de décès (interprétation 🔶 documentée : le doc ne couvre pas la famine).
-    // D2 · seuils NON LINÉAIRES (table growth.json, indexée par la population
-    // CIBLE — courbe exponentielle 🔶) ; plafond absolu 31 (croissance
+    // ALIGNEMENT-CROISSANCE (partie réelle d'Erik du 13/09 — valeurs faites
+    // foi) : AUCUN citoyen ne consomme de nourriture — le SURPLUS alimentaire
+    // = la nourriture produite, point (la consommation 7i D1 est abrogée).
+    // D2 · seuils LINÉAIRES 10 × population ACTUELLE (table growth.json,
+    // indexée par la population actuelle) ; plafond absolu 31 (croissance
     // bloquée au-delà). Aqueduc : seuil réduit d'un tiers (data-driven).
     let growthReduction = 0;
     for (const b of city.buildings) {
@@ -3533,10 +3531,10 @@ function processEconomy(board: Board): void {
     // 7j · R-126 · Settle · Humanitaire : +50 % du taux de croissance (le
     // SURPLUS alimentaire est multiplié, additif 🔶, arrondi au plus proche) ;
     // un déficit n'est PAS amplifié.
-    // 7j · R-123 complétée · surplus alimentaire (récolte − population) —
-    // alimente aussi l'accumulateur de croissance du Grand Humanitaire
-    // (crédité plus bas, surplus > 0 uniquement 🔶).
-    const foodSurplus = food - city.pop;
+    // 7j · R-123 complétée · surplus alimentaire = nourriture produite (aucune
+    // consommation — ALIGNEMENT-CROISSANCE) — alimentait aussi l'accumulateur
+    // de croissance du Grand Humanitaire (canal GP unifié 7k · C1, dormant).
+    const foodSurplus = food;
     // 7j · R-126 · Settle · Humanitaire : +50 % du taux de croissance (le
     // SURPLUS alimentaire est multiplié, additif 🔶, arrondi au plus proche) ;
     // un déficit n'est PAS amplifié.

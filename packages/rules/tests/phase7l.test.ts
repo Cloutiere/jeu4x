@@ -111,13 +111,14 @@ describe('7l · Bloc 0 · C9 — Cie des Indes : toutes les cases d\'eau, CÔTE 
 
 describe('7l · R-134 · trésorerie d\'empire', () => {
   it('la trésorerie grossit des villes focus Or (conversion R-90 créditée en fin de tour)', () => {
-    // Centre pop 1 = socle 1 C (R-66 (rév. 06/09), tranche Ouvrier 0) ; désert travaillé = 1 C → 2 or/tour.
+    // Centre pop 1 = 0 C (ALIGNEMENT-CROISSANCE — socle abrogé, tranche
+    // Ouvrier 0) ; désert travaillé = 1 C → 1 or/tour.
     const state = makeState({
       terrainOverrides: { '1,0': 'desert' },
       cities: [{ owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: ['1,0'] }],
     });
     const out = resolveTurn(state, {}, 1).newState;
-    expect(out.players['p1']!.treasury).toBe(2);
+    expect(out.players['p1']!.treasury).toBe(1);
   });
 
   it('zéro entretien (test négatif) : bâtiments, unités et population ne coûtent RIEN', () => {
@@ -132,8 +133,8 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
     // Toutes les cases travaillées sont des prairies (0 commerce) : AUCUN or
     // généré — et aucun entretien ne vient le rendre négatif.
     const out = resolveTurn(state, {}, 1).newState;
-    // Aucun entretien ; le socle du centre (1 C → ×2 Marché) est le seul or.
-    expect(out.players['p1']!.treasury).toBe(2);
+    // Aucun entretien ; centre 0 C (A3) et prairies 0 C → AUCUN or.
+    expect(out.players['p1']!.treasury).toBe(0);
   });
 
   it('Gemmes versent +2 or/tour DIRECTS à la trésorerie (canon — canal corrigé D3 de 7c)', () => {
@@ -142,7 +143,7 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
     });
     state.map['1,0'] = { terrain: 'montagne', resource: 'gemmes' }; // +2 or direct, 0 commerce
     const out = resolveTurn(state, {}, 1).newState;
-    expect(out.players['p1']!.treasury).toBe(3); // +2 or directs + socle 1 C
+    expect(out.players['p1']!.treasury).toBe(2); // +2 or directs (centre 0 C — A3)
   });
 
   it('Or (ressource) exige Monnaie (revealedByTech) et verse +3 or/tour directs', () => {
@@ -150,10 +151,10 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
       cities: [{ owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: ['1,0'] }],
     });
     state.map['1,0'] = { terrain: 'montagne', resource: 'or' };
-    expect(resolveTurn(state, {}, 1).newState.players['p1']!.treasury).toBe(1); // Monnaie manque — socle 1 C seulement
+    expect(resolveTurn(state, {}, 1).newState.players['p1']!.treasury).toBe(0); // Monnaie manque — rien (centre 0 C, A3)
     const withCurrency = structuredClone(state);
     withCurrency.players['p1']!.techsUnlocked = ['monnaie'];
-    expect(resolveTurn(withCurrency, {}, 1).newState.players['p1']!.treasury).toBe(4); // +3 directs + socle
+    expect(resolveTurn(withCurrency, {}, 1).newState.players['p1']!.treasury).toBe(3); // +3 directs (centre 0 C — A3)
   });
 
   it('capture de ville = SAC : part canon 0,25 de la trésorerie du perdant (CityCaptured.plunder — Calibrage §2)', () => {
@@ -168,8 +169,8 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
     const result = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 4 }] }] }, 1);
     const captured = result.events.find((e) => e.type === 'CityCaptured');
     expect(captured).toMatchObject({ type: 'CityCaptured', cityId: 'c2', toOwner: 'p1', plunder: 25 });
-    // p1 : butin 25 + socle des DEUX villes (c1 + c2 capturée) = 27.
-    expect(result.newState.players['p1']!.treasury).toBe(27);
+    // p1 : butin 25 seulement (les cases de ville ne rapportent plus — A3).
+    expect(result.newState.players['p1']!.treasury).toBe(25);
     expect(result.newState.players['p2']!.treasury).toBe(75);
   });
 
@@ -177,7 +178,7 @@ describe('7l · R-134 · trésorerie d\'empire', () => {
     const state = capitalState();
     state.players['p1']!.treasury = 10_000;
     const out = resolveTurn(state, {}, 1).newState;
-    expect(out.players['p1']!.treasury).toBe(10_001); // + socle 1 C ; aucun intérêt (aucun trait)
+    expect(out.players['p1']!.treasury).toBe(10_000); // aucun intérêt (aucun trait), centre 0 C (A3)
     expect(treasuryInterestOf(out.players['p1']!)).toBe(0);
   });
 
@@ -285,7 +286,7 @@ describe('7l · R-135 · exécution du RushBuy (moteur)', () => {
     state.players['p1']!.treasury = 25;
     state.cities['c1']!.production = { item: { kind: 'unit', id: 'guerrier' }, progress: 0 };
     const result = resolveTurn(state, { p1: [{ type: 'RushBuy', cityId: 'c1' }] }, 1);
-    expect(result.newState.players['p1']!.treasury).toBe(6); // 25 − 20 + socle 1 C
+    expect(result.newState.players['p1']!.treasury).toBe(5); // 25 − 20 (centre 0 C — A3)
     expect(result.newState.cities['c1']!.production).toBeNull();
     expect(result.newState.units['u1']?.type).toBe('guerrier');
     expect(result.events.some((e) => e.type === 'RushBuy' && e.cost === 20)).toBe(true);
@@ -297,7 +298,7 @@ describe('7l · R-135 · exécution du RushBuy (moteur)', () => {
     state.players['p1']!.treasury = 19;
     state.cities['c1']!.production = { item: { kind: 'unit', id: 'guerrier' }, progress: 0 };
     const result = resolveTurn(state, { p1: [{ type: 'RushBuy', cityId: 'c1' }] }, 1);
-    expect(result.newState.players['p1']!.treasury).toBe(20); // ignoré à 19 < 20, puis socle +1
+    expect(result.newState.players['p1']!.treasury).toBe(19); // ignoré à 19 < 20 (centre 0 C — A3)
     expect(result.newState.cities['c1']!.production).toMatchObject({ item: { id: 'guerrier' } });
     expect(Object.keys(result.newState.units)).toHaveLength(0);
   });
@@ -312,7 +313,7 @@ describe('7l · R-135 · exécution du RushBuy (moteur)', () => {
     ];
     const result = resolveTurn(state, { p1: orders }, 1);
     expect(result.events.filter((e) => e.type === 'RushBuy')).toHaveLength(1);
-    expect(result.newState.players['p1']!.treasury).toBe(81); // un seul débit de 20 + socle 1 C
+    expect(result.newState.players['p1']!.treasury).toBe(80); // un seul débit de 20 (centre 0 C — A3)
   });
 
   it('Bâtiment rushé : ajout immédiat (remplacement R-111 applicable)', () => {
@@ -326,8 +327,9 @@ describe('7l · R-135 · exécution du RushBuy (moteur)', () => {
     const result = resolveTurn(state, { p1: [{ type: 'RushBuy', cityId: 'c1' }] }, 1);
     expect(result.newState.cities['c1']!.buildings).toContain('banque');
     expect(result.newState.cities['c1']!.buildings).not.toContain('marche'); // remplacée (R-111)
-    // 400 − (120 × 3) + socle 1 C ×4 (la Banque complétée remplace le Marché).
-    expect(result.newState.players['p1']!.treasury).toBe(44);
+    // 400 − (120 × 3) ; la Banque complétée remplace le Marché sur un
+    // commerce nul (centre 0 C — A3) : aucun or généré.
+    expect(result.newState.players['p1']!.treasury).toBe(40);
   });
 
   it('une ville fondée ce tour peut acheter immédiatement au tour suivant (aucune restriction)', () => {
@@ -347,15 +349,15 @@ describe('7l · R-135 · exécution du RushBuy (moteur)', () => {
     const result = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'wonder', id: 'nations_unies' } }] }, 1);
     expect(result.newState.cities['c1']!.production!.item).toEqual({ kind: 'wonder', id: 'nations_unies' });
     // Réinitialisés à 0, puis la production du tour s'ajoute (pop 1 sans case :
-    // centre 1 + citoyen intérieur 1 = 2 — R-60bis).
-    expect(result.newState.cities['c1']!.production!.progress).toBe(2);
-    // Les autres basculements conservent la progression (R-62) : 40 + 2 = 42
+    // centre 0 — A3 + citoyen intérieur 1 = 1 — R-60bis).
+    expect(result.newState.cities['c1']!.production!.progress).toBe(1);
+    // Les autres basculements conservent la progression (R-62) : 40 + 1 = 41
     // (Mine de fer 80 — la file ne complète pas ce tour).
     const keep = capitalState();
     keep.players['p1']!.techsUnlocked = ['chemin_de_fer'];
     keep.cities['c1']!.production = { item: { kind: 'wonder', id: 'stonehenge' }, progress: 40 };
     const r2 = resolveTurn(keep, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'building', id: 'mine_de_fer' } }] }, 1);
-    expect(r2.newState.cities['c1']!.production!.progress).toBe(42); // conservés + production du tour
+    expect(r2.newState.cities['c1']!.production!.progress).toBe(41); // conservés + production du tour
   });
 
   it('interaction C7/R-135 : un projet payé depuis la réserve ne consomme PAS la trésorerie', () => {
@@ -364,7 +366,7 @@ describe('7l · R-135 · exécution du RushBuy (moteur)', () => {
     state.cities['c1']!.pendingSalvage = 200; // réserve permanente
     const result = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'building', id: 'temple' } }] }, 1);
     expect(result.newState.cities['c1']!.buildings).toContain('temple'); // payé en MARTEAUX
-    expect(result.newState.players['p1']!.treasury).toBe(1); // or intact (hors socle 1 C)
+    expect(result.newState.players['p1']!.treasury).toBe(0); // or intact (centre 0 C — A3)
   });
 });
 
@@ -486,12 +488,12 @@ describe('7l · R-137 · Banque mondiale (condition dynamique, jamais débitée)
 
   it('gelée si on repasse SOUS 20 000 pendant le chantier (progression conservée)', () => {
     const state = capitalState();
-    state.players['p1']!.treasury = 19_998; // repasse dessous (19_998 + socle 1 C = 19_999 < 20 000)
+    state.players['p1']!.treasury = 19_998; // repasse dessous (19_998 < 20 000)
     state.players['p1']!.techsUnlocked = ['vol_spatial'];
     state.cities['c1']!.production = { item: { kind: 'wonder', id: 'banque_mondiale' }, progress: 400 };
     const out = resolveTurn(state, {}, 1).newState;
     expect(out.cities['c1']!.production!.progress).toBe(400); // gelée (pas de production ajoutée)
-    expect(out.players['p1']!.treasury).toBe(19_999); // socle R-66 (rév. 06/09)
+    expect(out.players['p1']!.treasury).toBe(19_998); // centre 0 C (A3)
     expect(out.winner).toBeNull();
   });
 
@@ -502,7 +504,7 @@ describe('7l · R-137 · Banque mondiale (condition dynamique, jamais débitée)
     state.cities['c1']!.production = { item: { kind: 'wonder', id: 'banque_mondiale' }, progress: 499 };
     const result = resolveTurn(state, {}, 1);
     expect(result.newState.cities['c1']!.wonders).toEqual(['banque_mondiale']);
-    expect(result.newState.players['p1']!.treasury).toBe(20_001); // CONDITION, pas un prix (+ socle 1 C)
+    expect(result.newState.players['p1']!.treasury).toBe(20_000); // CONDITION, pas un prix
     expect(result.newState.winner).toBe('p1');
     expect(result.events.some((e) => e.type === 'Victory' && e.reason === 'economique' && e.winner === 'p1')).toBe(true);
   });
@@ -514,7 +516,7 @@ describe('7l · R-137 · Banque mondiale (condition dynamique, jamais débitée)
     state.cities['c1']!.production = { item: { kind: 'wonder', id: 'banque_mondiale' }, progress: 0 };
     const result = resolveTurn(state, { p1: [{ type: 'RushBuy', cityId: 'c1' }] }, 1);
     expect(result.events.some((e) => e.type === 'RushBuy')).toBe(false);
-    expect(result.newState.players['p1']!.treasury).toBe(25_001); // + socle 1 C
+    expect(result.newState.players['p1']!.treasury).toBe(25_000); // or intact (centre 0 C — A3)
     expect(result.newState.cities['c1']!.wonders).toEqual([]);
   });
 });
@@ -553,7 +555,7 @@ describe('7l · Bloc 5 · injection d\'or de l\'Explorateur (R-126, données eco
     expect(explorerGoldInjectionForEra('industrielle')).toBe(200);
     expect(explorerGoldInjectionForEra('moderne')).toBe(400);
     const result = resolveTurn(explorerState([], 'ancienne'), { p1: [{ type: 'GreatPersonAction', unitId: 'gp1', action: 'consume', cityId: 'c1' }] }, 1);
-    expect(result.newState.players['p1']!.treasury).toBe(51); // 50 + socle 1 C
+    expect(result.newState.players['p1']!.treasury).toBe(50); // 50 (centre 0 C — A3)
     expect(result.newState.units['gp1']).toBeUndefined(); // le GP disparaît
     const consumed = result.events.find((e) => e.type === 'GreatPersonConsumed');
     expect(consumed).toMatchObject({ type: 'GreatPersonConsumed', unitType: 'explorateur' });
@@ -561,7 +563,7 @@ describe('7l · Bloc 5 · injection d\'or de l\'Explorateur (R-126, données eco
 
   it('ère Moderne : +400 or', () => {
     const result = resolveTurn(explorerState(['vol_spatial'], 'moderne'), { p1: [{ type: 'GreatPersonAction', unitId: 'gp1', action: 'consume', cityId: 'c1' }] }, 1);
-    expect(result.newState.players['p1']!.treasury).toBe(401); // 400 + socle 1 C
+    expect(result.newState.players['p1']!.treasury).toBe(400); // 400 (centre 0 C — A3)
   });
 });
 

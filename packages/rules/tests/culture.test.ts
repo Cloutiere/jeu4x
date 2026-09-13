@@ -370,8 +370,8 @@ describe('7f · Effets des merveilles activées', () => {
   it('Colosse de Rhodes : commerce de la ville ×2 AVANT conversion (or ou science)', () => {
     const withColosse = capitalCity();
     withColosse.cities['c1']!.wonders = ['colosse_de_rhodes'];
-    // R-66 (rév. 06/09) : le centre apporte son socle 1 C (tranche 0 sous
-    // pop 7) — une case désert travaillée (0/0/1) complète le commerce.
+    // ALIGNEMENT-CROISSANCE : la case de ville rapporte 0 (socle abrogé) —
+    // une case désert travaillée (0/0/1) porte tout le commerce.
     withColosse.map['0,1'] = { terrain: 'desert', resource: null };
     withColosse.cities['c1']!.workedTiles = ['0,1', '1,0', '0,2', '1,2'];
     const rWith = resolveTurn(withColosse, {}, 1).newState;
@@ -379,9 +379,9 @@ describe('7f · Effets des merveilles activées', () => {
     without.map['0,1'] = { terrain: 'desert', resource: null };
     without.cities['c1']!.workedTiles = ['0,1', '1,0', '0,2', '1,2'];
     const rWithout = resolveTurn(without, {}, 1).newState;
-    // 2 commerces (socle + désert) — doublés à 4 or (conversion or par défaut).
-    expect(rWith.players['p1']!.treasury).toBe(4);
-    expect(rWithout.players['p1']!.treasury).toBe(2);
+    // 1 commerce (désert) — doublé à 2 or (conversion or par défaut).
+    expect(rWith.players['p1']!.treasury).toBe(2);
+    expect(rWithout.players['p1']!.treasury).toBe(1);
   });
 
   it('Stonehenge obsolète (Littératie) : effet retiré du moteur mais jalon conservé', () => {
