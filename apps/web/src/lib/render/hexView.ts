@@ -81,6 +81,70 @@ export function screenToHex(
   return pixelToHex(worldX, worldY, size);
 }
 
+// ---------------------------------------------------------------------------
+// MENU-VILLE (retour d'Erik du 13/09 v2) — pose de la VUE VILLE : un ZOOM
+// À PLAT (aucune inclinaison) centré sur la ville, calculé pour que TOUTES
+// les tuiles cultivables (rayon de travail — 6 cases, 18 avec Tribunal)
+// tiennent à l'écran dans l'espace libre à gauche du panneau de ville. Le
+// picking passe par la transform INVERSE (pur, testé : une tuile cliquée en
+// vue ville est la même tuile qu'à plat).
+// ---------------------------------------------------------------------------
+
+/** Largeur réservée à droite pour le panneau de ville flottant (px). 🔶 */
+export const VUE_VILLE_PANNEAU_L = 470;
+
+/** Pose écran du conteneur monde en vue ville (miroir de la Camera 2D). */
+export interface PoseVueVille {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+/**
+ * Pose cible centrée sur une ville : son centre monde `(cityX, cityY)` arrive
+ * au centre de la zone LIBRE (vw − panneau de ville), avec l'échelle la plus
+ * grande qui fait tenir TOUT le rayon `rayon` (marge `marge`) — bornée aux
+ * zooms de la carte (ZOOM_MIN/ZOOM_MAX).
+ */
+export function poseVueVillePour(
+  cityX: number,
+  cityY: number,
+  vw: number,
+  vh: number,
+  size: number,
+  rayon = 1,
+  panelW = VUE_VILLE_PANNEAU_L,
+): PoseVueVille {
+  const libreW = Math.max(320, vw - panelW);
+  // 🔶 Retour d'Erik : zoom renforcé, mais les tuiles du rayon ENTIÈRES
+  // (révisé : rien de coupé en haut/en bas). Demi-étendue monde du disque de
+  // rayon `rayon` (pointy-top) : largeur √3·size·(rayon + 0,35), hauteur
+  // size·(1,5·rayon + 1) — étendue des centres + demi-hexagone complet.
+  const marge = 12;
+  const demiLarg = Math.sqrt(3) * size * (rayon + 0.35);
+  const demiHaut = size * (1.5 * rayon + 1);
+  const scale = Math.min(
+    ZOOM_MAX,
+    Math.max(ZOOM_MIN, Math.min((libreW / 2 - marge) / demiLarg, (vh / 2 - marge) / demiHaut)),
+  );
+  return {
+    x: libreW / 2 - cityX * scale,
+    y: vh / 2 - cityY * scale,
+    scale,
+  };
+}
+
+/** Point monde sous un point écran, transform inverse de la vue ville. */
+export function mondeSousEcranVueVille(sx: number, sy: number, pose: PoseVueVille): { x: number; y: number } {
+  return { x: (sx - pose.x) / pose.scale, y: (sy - pose.y) / pose.scale };
+}
+
+/** Case sous un point écran en vue ville (transform inverse, puis hex). */
+export function hexSousEcranVueVille(sx: number, sy: number, pose: PoseVueVille, size: number): Hex {
+  const w = mondeSousEcranVueVille(sx, sy, pose);
+  return pixelToHex(w.x, w.y, size);
+}
+
 /** Centre monde d'une case. */
 export function hexCenter(hex: Hex, size: number): { x: number; y: number } {
   return hexToPixel(hex, size);

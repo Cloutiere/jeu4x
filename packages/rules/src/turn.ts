@@ -77,6 +77,7 @@ import {
 } from './culture.js';
 import type { YieldGreatPersonType } from './culture.js';
 import { effectsFor, isInAnarchy, landCombatBonus, populationCostOf } from './governments.js';
+import { prochainNomVille } from './noms.js'; // MENU-VILLE : noms VilleN (compteur par joueur)
 // 7i · R-63 rév. (D1/D2), R-60bis (D4), R-64 rév. (D3) — croissance CivRev.
 import {
   GROWTH,
@@ -335,6 +336,7 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
       pendingSalvage: 0,
       settledGreatPersons: [],
       wasCaptured: false,
+      name: prochainNomVille(board.st.cities, opener.owner, civIdOf(player)), // MENU-VILLE
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
     board.pendingFill.add(cityId);
@@ -3020,6 +3022,8 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     // l'événement le documente désormais dans le journal).
     const destroyedResource = tile.resource ?? null;
     const cityId = nextId(board.st.cities, 'c');
+    // MENU-VILLE : nom « VilleN » (compteur par joueur) ou table de la civ.
+    const name = prochainNomVille(board.st.cities, unit.owner, civIdOf(board.st.players[unit.owner]));
     board.st.cities[cityId] = {
       id: cityId,
       q: hex.q,
@@ -3042,6 +3046,7 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       pendingSalvage: 0, // 7k · R-130 (M3)
       settledGreatPersons: [], // 7j · R-126
       wasCaptured: false, // 7n · R-149
+      name,
     };
     board.st.map[tileKeyOf(hex)] = { terrain: 'ville', resource: null };
     delete board.st.units[unit.id];

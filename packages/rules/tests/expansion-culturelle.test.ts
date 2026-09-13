@@ -167,7 +167,7 @@ describe('M2 · rayonCulturelDe — seuils 10/100/1 000/10 000, plafond 5 (data-
 
 describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)', () => {
   it('CURRENT_SCHEMA_VERSION = 20 ; backfill 0 idempotent, valeurs existantes conservées', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(20);
+    expect(CURRENT_SCHEMA_VERSION).toBe(21); // MENU-VILLE : noms des villes
     const v19 = {
       schemaVersion: 19,
       turn: 7,
@@ -189,7 +189,7 @@ describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v19 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(20);
+    expect(out.schemaVersion).toBe(21);
     expect(out.cities['c1']!.cultureCumulee).toBe(0); // backfill neutre (pas d'enrichissement rétroactif)
     expect(out.cities['c1']!.cultureStored).toBe(12); // inchangé
     // Idempotent : un état déjà migré repasse sans variation.
@@ -206,7 +206,7 @@ describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)
     v19.schemaVersion = 19;
     delete (v19.cities as Record<string, Record<string, unknown>>)['c1']!.cultureCumulee;
     const migrated = migrateState(v19) as unknown as GameState;
-    expect(migrated.schemaVersion).toBe(20);
+    expect(migrated.schemaVersion).toBe(21);
     expect(migrated.cities['c1']!.cultureCumulee).toBe(0); // backfill neutre
     const out = resolveTurn(migrated, {}, 8).newState;
     expect(out.cities['c1']!.cultureCumulee).toBe(2); // Palais pop 2 révisé : 2/tour

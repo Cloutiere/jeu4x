@@ -35,3 +35,14 @@ export function createUiState(): UiStore {
 export function selectNothing(ui: UiStore): void {
   ui.set({ selectedUnitId: null, selectedCityId: null, draft: null });
 }
+
+/**
+ * MENU-VILLE (décisions d'Erik du 13/09) — état de VUE VILLE : l'id de la
+ * ville affichée en vue inclinée, ou null (vue de carte normale). Store
+ * CLIENT uniquement — jamais dans l'état du GameDO.
+ */
+export type VueVilleStore = Writable<CityId | null>;
+
+export function createVueVille(): VueVilleStore {
+  return writable<CityId | null>(null);
+}

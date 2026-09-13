@@ -18,7 +18,7 @@
   import { civName, civLeader } from '../lib/labels.js';
   import { createGameClient } from '../lib/gameClient.js';
   import type { GameClient, GameView } from '../lib/gameClient.js';
-  import { createUiState, selectNothing } from '../lib/render/ui.js';
+  import { createUiState, selectNothing, createVueVille } from '../lib/render/ui.js';
   import type { UiStore } from '../lib/render/ui.js';
   import { Playback } from '../lib/render/playback.js';
   import { rightClickAction, annulationOrdre, unitsWithoutOrders, myEngineId } from '../lib/render/interaction.js';
@@ -28,6 +28,7 @@
   import GameCanvas from '../lib/render/GameCanvas.svelte';
   import UnitPanel from '../components/UnitPanel.svelte';
   import CityPanel from '../components/CityPanel.svelte';
+  import CityView from '../components/CityView.svelte';
   import ResearchPanel from '../components/ResearchPanel.svelte';
   import Journal from '../components/Journal.svelte';
   import GovernmentPanel from '../components/GovernmentPanel.svelte';
@@ -82,6 +83,24 @@
   const error = client.error;
   const ui: UiStore = createUiState();
   onDestroy(() => selectNothing(ui));
+
+  // ---------------------------------------------------------------------
+  // MENU-VILLE (décisions d'Erik du 13/09) — état de VUE VILLE (client
+  // uniquement, jamais dans l'état du GameDO). Double-clic sur une ville =
+  // zoom incliné + tuiles + menu dédié (CityView) ; tous les menus actuels
+  // disparaissent et les actions de carte sont inaccessibles. Sortie :
+  // bouton fermer, Échap ou double-clic hors de la ville — retour animé.
+  // ---------------------------------------------------------------------
+  const vueVille = createVueVille();
+  onDestroy(() => vueVille.set(null));
+  function entrerVueVille(cityId: string): void {
+    selectNothing(ui); // plus aucune sélection unité/ville pendant la vue
+    vueVille.set(cityId);
+  }
+  function sortirVueVille(): void {
+    vueVille.set(null);
+  }
+  const vueVilleActive = $derived($vueVille !== null);
 
   // Lien vers le mode reveal (#/debug) — jamais dans un build de production.
   const devMode = import.meta.env.DEV;
@@ -546,6 +565,7 @@
   <header class="bar">
     <a href="#/lobby">← Lobby</a>
     <strong>Partie {code}</strong>
+    {#if !vueVilleActive}
     <span>Tour <strong>{$view.turn}</strong></span>
     <span class="chip" class:resolving={$view.phase === 'resolving'}>{$view.phase === 'resolving' ? 'Résolution…' : 'Ordres'}</span>
     {#if $view.state}
@@ -617,6 +637,8 @@
       </button>
     {/if}
     {#if devMode}<a href={`#/debug/${code}`}>Debug</a>{/if}
+    {/if}
+    {#if vueVilleActive}<span class="chip">Vue ville — Échap ou double-clic hors de la ville pour sortir</span>{/if}
   </header>
 
   {#if $view.status === 'waiting'}
@@ -641,7 +663,16 @@
           onCancelDraft={cancelDraft}
           onReady={(api) => (canvasApi = api)}
           onPlaybackActive={(a) => (playbackActive = a)}
+          vueVilleId={$vueVille}
+          onEnterVueVille={entrerVueVille}
+          onExitVueVille={sortirVueVille}
         />
+        {#if vueVilleActive && $view.state}
+          <!-- MENU-VILLE : le menu dédié de la vue ville (les autres menus
+               disparaissent — CityPanel de la carte du monde reste en l'état
+               hors vue ville). -->
+          <CityView view={$view} {client} cityId={$vueVille!} onClose={sortirVueVille} />
+        {/if}
         {#if showIdleDialog}
           <div class="victory idle-dialog">
             {#if idleUnits.length > 0}
@@ -762,6 +793,10 @@
         {/if}
       </div>
 
+      <!-- MENU-VILLE : pendant la vue ville, la colonne de droite disparaît
+           ENTIÈREMENT (retour d'Erik : aucun panneau vide) — la carte prend
+           toute la largeur et le panneau de ville flottant EST l'interface. -->
+      {#if !vueVilleActive}
       <aside class="side">
         {#if myName}<p class="me">Vous jouez : <strong>{myName}</strong></p>{/if}
         <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onCancelOrder={handleCancelOrder} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onArmNuke={armNuke} onCancelNuke={cancelNuke} />
@@ -789,6 +824,7 @@
           <pre>{JSON.stringify($view.state, null, 2)}</pre>
         </details>
       </aside>
+      {/if}
     </div>
   {/if}
 

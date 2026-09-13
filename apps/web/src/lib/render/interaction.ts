@@ -185,6 +185,38 @@ export function myEngineId(view: GameView): string | null {
 }
 
 /**
+ * MENU-VILLE (décisions d'Erik du 13/09) — décision de clic PURE en VUE VILLE :
+ * le clic sur une tuile du rayon de travail (workRadiusOf — 6 cases, 18 avec
+ * Tribunal) assigne/désassigne un citoyen (même file d'ordres SetWorkedTile
+ * que le simple clic hors vue, même validation locale — miroir de la règle 1
+ * de `clickAction`). Toute autre case : aucun effet (les actions de carte sont
+ * inaccessibles pendant la vue ville ; la sortie passe par fermer/Échap/
+ * double-clic hors de la ville).
+ */
+export function clickActionVueVille(view: GameView, cityId: CityId, hex: Hex): ClickAction {
+  const state = view.state;
+  const city = state?.cities[cityId] ?? null;
+  if (!state || !city || !ordersEditable(view)) return { kind: 'none' };
+  const key = tileKeyOf(hex);
+  if (hex.q === city.q && hex.r === city.r) return { kind: 'none' };
+  const dist = hexDistance(city, hex);
+  if (dist < 1 || dist > workRadiusOf(city.buildings)) return { kind: 'none' };
+  // État EFFECTIF (ordres SetWorkedTile en attente appliqués) — miroir du
+  // prédicat de clic hors vue : re-clic sur une case assignée = désassignation.
+  const effective = effectiveWorkedTiles(view, city);
+  if (effective.tiles.includes(key)) return { kind: 'setWorkedTile', cityId: city.id, tile: null };
+  const workable = !!state.map[key] && !!TERRAINS[state.map[key].terrain]?.yields;
+  const free =
+    workable &&
+    !unitAtHex(state, hex) &&
+    !Object.values(state.cities).some((c) => c.q === hex.q && c.r === hex.r) &&
+    !Object.values(state.cities).some((c) => c.id !== city.id && c.workedTiles.includes(key)) &&
+    effective.tiles.length < city.pop;
+  if (free) return { kind: 'setWorkedTile', cityId: city.id, tile: key };
+  return { kind: 'none' };
+}
+
+/**
  * INTERACTION-3D · R-60 : état EFFECTIF des cases travaillées d'une ville —
  * les ordres SetWorkedTile en attente (file, un par clic) sont appliqués en
  * miroir exact du moteur (`applySetWorkedTile`) : `null` retire le dernier

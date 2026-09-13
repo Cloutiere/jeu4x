@@ -196,6 +196,12 @@ export interface City {
    *  au moins une fois (jamais réinitialisé) — +X % commerce pour le
    *  propriétaire doté du trait. Migration 17 (additif, false). */
   wasCaptured: boolean;
+  /** MENU-VILLE (décisions d'Erik du 13/09) : nom affiché de la ville —
+   *  « VilleN » (compteur PAR JOUEUR) à la fondation, table data-driven
+   *  `NOMS_PAR_CIVILISATION` en réserve (vide = fallback VilleN). Optionnel :
+   *  les états/fixtures anciens n'en portent pas (l'UI retombe sur l'id) ;
+   *  migration 21 backfill « VilleN » déterministe. */
+  name?: string;
 }
 
 export interface Vision {
@@ -377,7 +383,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 20;
+export const CURRENT_SCHEMA_VERSION = 21;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -894,6 +900,29 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
         ...c,
         cultureCumulee: typeof c.cultureCumulee === 'number' ? c.cultureCumulee : 0,
       };
+    }
+    return { ...state, cities: migrated };
+  },
+  /**
+   * v20 → v21 : MENU-VILLE (décisions d'Erik du 13/09) — noms des villes.
+   * Champ ADDITIF par ville : `name` — backfill « VilleN » DÉTERMINISTE,
+   * compteur PAR JOUEUR (les villes de chaque propriétaire, par id croissant,
+   * reçoivent Ville1, Ville2…) ; « Ville1 » d'Erik et « Ville1 » du bot
+   * coexistent. Une ville portant déjà un nom est intacte (idempotent).
+   */
+  21: (state) => {
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    const compteurs: Record<string, number> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      if (typeof c.name === 'string' && c.name.length > 0) {
+        migrated[id] = c;
+        continue;
+      }
+      const owner = String(c.owner ?? '?');
+      compteurs[owner] = (compteurs[owner] ?? 0) + 1;
+      migrated[id] = { ...c, name: `Ville${compteurs[owner]}` };
     }
     return { ...state, cities: migrated };
   },

@@ -245,8 +245,8 @@ describe('R-158 · migration schemaVersion 18 → 19', () => {
       path: [{ q: 1, r: 0 }],
     };
     const migrated = migrateState(v18);
-    expect(migrated.schemaVersion).toBe(20); // la chaîne continue (EXPANSION-CULTURELLE)
-    expect(CURRENT_SCHEMA_VERSION).toBe(20);
+    expect(migrated.schemaVersion).toBe(21); // la chaîne continue (EXPANSION-CULTURELLE)
+    expect(CURRENT_SCHEMA_VERSION).toBe(21); // MENU-VILLE : noms des villes
     const order = migrated.units['u1']!.order;
     expect(order?.type).toBe('MultiStep');
     if (order?.type === 'MultiStep') {

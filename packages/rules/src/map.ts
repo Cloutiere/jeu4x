@@ -45,6 +45,7 @@ import {
   CIVILIZATIONS,
 } from './civilizations.js';
 import { greatPersonClassFor } from './culture.js';
+import { prochainNomVille } from './noms.js'; // MENU-VILLE : noms VilleN (compteur par joueur)
 import { createRng } from './rng.js';
 
 /** Graine dédiée du tirage de la Merveille Antique de l'Égypte (XOR avec le
@@ -472,6 +473,7 @@ export function createInitialState(
       pendingSalvage: 0, // 7k · R-130 (M3)
       settledGreatPersons: [], // 7j · R-126
       wasCaptured: false, // 7n · R-149 (trait Mongol commerceCaptures)
+      name: prochainNomVille(cities, spawn.id, civSetup[spawn.id]?.civId), // MENU-VILLE
     };
     // La case de capitale devient une case de ville (RULES.md §2).
     mapRecord[tileKeyOf(spawn.capital)] = { terrain: 'ville', resource: null };

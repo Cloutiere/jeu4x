@@ -21,10 +21,11 @@
   import { Camera } from './camera.js';
   import { loadTextures, playerColor } from './textures.js';
   import type { GameTextures } from './textures.js';
-  import { HEX_SIZE, hexesInRect, mapBounds, screenToHex } from './hexView.js';
+  import { HEX_SIZE, hexesInRect, mapBounds, screenToHex, poseVueVillePour, hexSousEcranVueVille } from './hexView.js';
+  import type { PoseVueVille } from './hexView.js';
   import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
   import type { Point } from './arrows.js';
-  import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, creeCacheChemins, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable } from './interaction.js';
+  import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable } from './interaction.js';
   import type { ClickAction } from './interaction.js';
   // Chantier V1 (L3) — couche hybride : terrain Three.js + sprites PixiJS
   // projetés (option B du spike), derrière un flag de repli (défaut : 2D).
@@ -82,6 +83,12 @@
     /** Chantier V1 (L3) : terrain en vraie 3D (option B hybride) — flag de
      *  repli, DÉFAUT FAUX (rendu 2D conservé jusqu'à l'acceptation d'Erik). */
     mode3d?: boolean;
+    /** MENU-VILLE : id de la ville affichée en vue inclinée (null = carte). */
+    vueVilleId?: string | null;
+    /** MENU-VILLE : double-clic sur une ville du joueur → entrée en vue ville. */
+    onEnterVueVille?(cityId: string): void;
+    /** MENU-VILLE : sortie demandée par le canvas (Échap / double-clic hors ville). */
+    onExitVueVille?(): void;
   }
 
   let {
@@ -99,6 +106,9 @@
     fertilityHeatmap = null,
     spawnGuarantee = null,
     mode3d = false,
+    vueVilleId = null,
+    onEnterVueVille,
+    onExitVueVille,
   }: Props = $props();
 
   // La bascule de l'overlay de rendements reconstruit la surcouche ; le
@@ -181,6 +191,75 @@
   let resizeObserver: ResizeObserver | null = null;
   let rafId = 0;
   let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+
+  // ---------------------------------------------------------------------
+  // MENU-VILLE — vue ville (retour d'Erik du 13/09 v2 : ZOOM À PLAT)
+  // Le conteneur monde est zoomé sur la ville, à l'échelle qui fait tenir
+  // TOUTES les tuiles cultivables (6/18) dans l'espace libre à gauche du
+  // panneau de ville. Entrée/sortie ANIMÉES ; pendant la vue, la pose est
+  // statique (aucun recalcul par frame) et le picking passe par la
+  // transform inverse (jamais les maths écran brutes).
+  // ---------------------------------------------------------------------
+  let vuePose: PoseVueVille | null = null;
+  let vueAnim: { from: PoseVueVille; to: PoseVueVille; t: number; entree: boolean } | null = null;
+  /** Durée des animations d'entrée/sortie (ms). 🔶 calibrage à l'œil. */
+  const VUE_VILLE_DUREE = 450;
+
+  const vueVilleActif = (): boolean => vuePose !== null || vueAnim !== null;
+
+  const easeInOut = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+  function interpolePose(a: PoseVueVille, b: PoseVueVille, t: number): PoseVueVille {
+    return {
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t,
+      scale: a.scale + (b.scale - a.scale) * t,
+    };
+  }
+
+  /** Pose courante du conteneur monde (vue ville animée ou statique, sinon caméra). */
+  function poseVueCourante(): PoseVueVille {
+    if (vueAnim) return interpolePose(vueAnim.from, vueAnim.to, easeInOut(vueAnim.t));
+    if (vuePose) return vuePose;
+    return { x: camera.x, y: camera.y, scale: camera.scale };
+  }
+
+  function appliquerPoseVue(p: PoseVueVille): void {
+    world.scale.set(p.scale);
+    world.position.set(p.x, p.y);
+  }
+
+  // La bascule du store `vueVilleId` (page) pilote l'animation d'entrée/sortie.
+  /** Pose CIBLE de la vue ville pour la ville courante et les dimensions
+   *  ACTUELLES du canvas (recalculée au redimensionnement — la ville doit
+   *  rester centrée dans l'espace libre, retour d'Erik du 13/09). */
+  function poseVueVilleCible(): PoseVueVille | null {
+    if (!vueVilleId || !scene.state) return null;
+    const city = scene.state.cities[vueVilleId];
+    if (!city) return null;
+    const p = hexToPixel(city, HEX_SIZE);
+    return poseVueVillePour(p.x, p.y, vw, vh, HEX_SIZE, workRadiusOf(city.buildings));
+  }
+
+  $effect(() => {
+    void vueVilleId;
+    if (!app) return;
+    if (vueVilleId) {
+      const to = poseVueVilleCible();
+      if (!to) return;
+      const from = poseVueCourante();
+      vueAnim = { from, to, t: 0, entree: true };
+      if (hoverHex) effacerSurvol();
+      tilesDirty = true; // le rect de culling suit la pose de vue ville
+      entitiesDirty = true; // MENU-VILLE : les unités se masquent
+    } else if (vuePose !== null || (vueAnim?.entree ?? false)) {
+      const from = poseVueCourante();
+      vuePose = null;
+      vueAnim = { from, to: { x: camera.x, y: camera.y, scale: camera.scale }, t: 0, entree: false };
+      tilesDirty = true;
+      entitiesDirty = true; // MENU-VILLE : les unités réapparaissent
+    }
+  });
 
   // --- Chantier V1 (L3) : couche 3D hybride (terrain Three.js en fond, les
   // entités/surcouche PixiJS restent projetées par la caméra 3D partagée). ---
@@ -308,7 +387,18 @@
   function rebuildTiles(): void {
     if (!app || !textures || !scene.state) return;
     const { mapWidth, mapHeight, map } = scene.state;
-    const rect = camera.worldRect(vw, vh);
+    // Rect de culling : caméra 2D normale, ou transform inverse de la pose de
+    // vue ville (MENU-VILLE — zoom à plat).
+    const pose = poseVueCourante();
+    const rect =
+      vueVilleActif()
+        ? {
+            x: -pose.x / pose.scale,
+            y: -pose.y / pose.scale,
+            w: vw / pose.scale,
+            h: vh / pose.scale,
+          }
+        : camera.worldRect(vw, vh);
     rect.x -= HEX_SIZE * 1.5;
     rect.y -= HEX_SIZE * 1.5;
     rect.w += HEX_SIZE * 3;
@@ -392,6 +482,10 @@
     // l'arrivée décalée au bord de l'hexagone.
     const arrivees = arriveesEnnemies();
     const seenUnits = new Set<string>();
+    // MENU-VILLE (retour d'Erik) : en vue ville, les UNITÉS disparaissent —
+    // concentration sur la gestion de la ville ; elles reviennent en vue carte.
+    // (Villes, huttes et villages restent des entités de carte.)
+    for (const [, c] of unitSprites) c.visible = !vueVilleActif();
     for (const unit of Object.values(state.units)) {
       // 7g · R-117 : une unité EMBARQUÉE n'est pas rendue (elle est dans le
       // navire — visible via le panneau du transport, indicateur de charge).
@@ -971,13 +1065,79 @@
       }
     }
 
+    // MENU-VILLE (retour d'Erik) : contour de la ZONE CULTIVABLE — le rayon
+    // entier (6/18 cases + centre) ceinturé d'un trait ACCENT JOUEUR comme en
+    // vue monde, légèrement plus épais, avec les pointillés sombres par-dessus
+    // (style ZONE-CULTIVEE). Géométrie pure (contourUnion — contours.ts).
+    if (vueVilleId && scene.state) {
+      const cityVue = scene.state.cities[vueVilleId];
+      if (cityVue && scene.explored.has(tileKeyOf(cityVue))) {
+        const rayon = workRadiusOf(cityVue.buildings);
+        const couleurVue = playerColor(cityVue.owner);
+        const tuilesRayon: Hex[] = [];
+        for (let dq = -rayon; dq <= rayon; dq++) {
+          for (let dr = Math.max(-rayon, -dq - rayon); dr <= Math.min(rayon, -dq + rayon); dr++) {
+            const hex = { q: cityVue.q + dq, r: cityVue.r + dr };
+            if (!scene.explored.has(tileKeyOf(hex))) continue; // fog : rien n'est inventé
+            tuilesRayon.push(hex);
+            const key = tileKeyOf(hex);
+            if (hex.q === cityVue.q && hex.r === cityVue.r) continue; // case de ville : pas de remplissage
+            const effVue = scene.view ? effectiveWorkedTiles(scene.view, cityVue) : { tiles: cityVue.workedTiles };
+            const cultiveesVue = new Set(effVue.tiles);
+            const gr = new Graphics();
+            gr.poly(hexLocalPoints(HEX_SIZE - 4)).fill({ color: couleurVue, alpha: cultiveesVue.has(key) ? 0.08 : 0.16 });
+            gr.position.copyFrom(hexToPixel(hex, HEX_SIZE));
+            overlayLayer.addChild(gr);
+          }
+        }
+        const boucles = contourUnion(tuilesRayon, HEX_SIZE, (hex) => elevationDe(scene.state!.map[tileKeyOf(hex)]?.terrain));
+        const contour = new Graphics();
+        for (const boucle of boucles) {
+          contour.moveTo(boucle[0]!.x, boucle[0]!.y);
+          for (const p of boucle.slice(1)) contour.lineTo(p.x, p.y);
+        }
+        // Liseré accent joueur (plus épais qu'en vue monde : 5 px)…
+        contour.stroke({ width: 5, color: couleurVue, alpha: 0.95, join: 'round' });
+        // …et pointillés sombres par-dessus (style vue monde, épaissi : 3 px).
+        for (const boucle of boucles) {
+          const pts: Point[] = boucle.map((p) => ({ x: p.x, y: p.y }));
+          for (let i = 0; i < pts.length - 1; i++) {
+            for (const [a, b] of dashSegments(pts[i]!, pts[i + 1]!)) {
+              contour.moveTo(a.x, a.y).lineTo(b.x, b.y);
+            }
+          }
+        }
+        contour.stroke({ width: 3, color: 0x1d242b, alpha: 0.8 });
+        overlayLayer.addChild(contour);
+      }
+    }
+
     // Overlay des rendements (Phase 6 L3, masquable) : sur chaque case
     // explorée à rendements, une ligne par ressource non nulle — icône
     // (nourriture / production / commerce) + valeur générée. Phase 7b (R-90) :
     // les cases TRAVAILLÉES par une ville (et la case de ville elle-même)
     // affichent or/science selon la conversion de cette ville au lieu du
     // commerce ; les cases non travaillées gardent le commerce (potentiel).
-    if (showYields) {
+    // MENU-VILLE (retour d'Erik) : en vue ville SANS le bouton Rendements, les
+    // icônes de rendement ne s'affichent QUE sur les tuiles cultivables par la
+    // ville affichée (son rayon de travail) — rien sur les tuiles extérieures.
+    let limiteRendements: Set<string> | null = null;
+    if (vueVilleId && !showYields && scene.state) {
+      const cityVue = scene.state.cities[vueVilleId];
+      if (cityVue && scene.explored.has(tileKeyOf(cityVue))) {
+        limiteRendements = new Set();
+        const rayon = workRadiusOf(cityVue.buildings);
+        for (let dq = -rayon; dq <= rayon; dq++) {
+          for (let dr = Math.max(-rayon, -dq - rayon); dr <= Math.min(rayon, -dq + rayon); dr++) {
+            limiteRendements.add(tileKeyOf({ q: cityVue.q + dq, r: cityVue.r + dr }));
+          }
+        }
+      }
+    }
+
+    // MENU-VILLE : les rendements sont affichés AUTOMATIQUEMENT en vue ville
+    // (icônes de rendement sur tout le rayon cultivable, même hors assignation).
+    if (showYields || vueVilleId) {
       const workedBy = workedTileOwner();
       // R-93 : le bonus de la ressource identifiée et accessible au joueur
       // s'ajoute aux rendements du terrain dans l'affichage, comme dans
@@ -986,6 +1146,7 @@
       const viewerTechs = scene.myId ? (scene.state.players[scene.myId]?.techsUnlocked ?? []) : [];
       for (const [key, tile] of Object.entries(scene.state.map)) {
         if (!scene.explored.has(key)) continue;
+        if (limiteRendements && !limiteRendements.has(key)) continue; // vue ville : rayon seul
         const base = TERRAINS[tile.terrain]?.yields;
         if (!base) continue;
         let y = base;
@@ -1054,7 +1215,11 @@
     // `overlayLayer` — l'ordre de dessin fait le reste.
     const solidUnits = new Set<string>();
     chemins3d = [];
-    for (const p of scenePreviews) {
+    // MENU-VILLE : en vue ville, aucune surcouche de guerre (flèches, croix
+    // d'attaque, cases disputées, fantômes, chemins gelés, badges) — les
+    // unités sont masquées, on se concentre sur la ville.
+    const vueActif = vueVilleActif();
+    if (!vueActif) for (const p of scenePreviews) {
       const origin = scene.state.units[p.unitId];
       if (!origin || p.path.length === 0) continue;
       solidUnits.add(p.unitId);
@@ -1074,7 +1239,7 @@
         overlayLayer.addChild(found);
       }
     }
-    for (const order of scene.orders) {
+    if (!vueActif) for (const order of scene.orders) {
       if (order.type === 'Attack') {
         const gr = new Graphics();
         drawCross(gr, 18, 0xd64545);
@@ -1083,7 +1248,7 @@
       }
     }
     // Cases DISPUTÉES (R-160/D1) : surlignage rouge + point de la gagnante.
-    {
+    if (!vueActif) {
       const groups = new Map<string, { q: number; r: number; disputed: boolean; winner: boolean }>();
       for (const p of scenePreviews) {
         if (!p.destination || !p.disputed) continue;
@@ -1112,7 +1277,7 @@
     // fantômes, langage « pile ×N » de DEPLACEMENT-PLANIFIÉ), badge ×N si
     // ≥ 2 unités programmées y arrivent, anneau ROUGE sur la tuile (survol
     // et ordre posé, chemin gelé compris — scenePreviews couvre les deux).
-    {
+    if (!vueActif) {
       const det = arriveesEnnemies();
       const parTuile = new Map<string, { hex: Hex; dirX: number; dirY: number; pile: number; unitId: string }>();
       for (const d of det.values()) {
@@ -1150,6 +1315,7 @@
     // résolution — variante atténuée/pointillée (état déjà modélisé par
     // unit.order côté panneau). Masqué si un ordre actif remplace l'unité.
     for (const unit of Object.values(scene.state.units)) {
+      if (vueActif) break; // MENU-VILLE : pas de chemins gelés en vue ville
       if (unit.owner !== scene.myId) continue;
       if (solidUnits.has(unit.id)) continue;
       if (unit.order && (unit.order.type === 'Move' || unit.order.type === 'MultiStep') && unit.order.path.length > 0) {
@@ -1167,7 +1333,7 @@
     // RAFFINEMENT-MOUVEMENT (décision d'Erik du 12/09) : badges ronds (1), (2)…
     // des tours suivants SUR LA FLÈCHE POSÉE et sur son chemin gelé —
     // projection PM par tour (1 case = 1 PM, miroir du moteur).
-    if (scene.myId) {
+    if (scene.myId && !vueActif) {
       const jalonsC = new Container();
       for (const p of scenePreviews) {
         const unit = scene.state.units[p.unitId];
@@ -1185,7 +1351,7 @@
     }
 
     // Brouillon de chemin en construction (L3).
-    if (scene.ui.draft && scene.ui.draft.path.length > 0) {
+    if (scene.ui.draft && scene.ui.draft.path.length > 0 && !vueActif) {
       const draft = scene.ui.draft;
       const gr = new Graphics();
       const origin = originOfDraft(draft.unitId);
@@ -1214,7 +1380,7 @@
     // dans le calque Three (marqueurs3d, posé sur le relief) — l'anneau Pixi
     // projeté resterait à plat.
     const selectedTile: Hex | null = selectedTileOf();
-    if (selectedTile && !mode3dActif()) {
+    if (selectedTile && !mode3dActif() && !vueActif) {
       const gr = new Graphics();
       gr.poly(hexLocalPoints(HEX_SIZE - 8)).stroke({ width: 5, color: 0xffe082 });
       gr.poly(hexLocalPoints(HEX_SIZE - 16)).stroke({ width: 2, color: 0x2b2620, alpha: 0.6 });
@@ -1553,12 +1719,29 @@
       // suivent le même cycle de invalidation que l'overlay (état + UI).
       if (mode3dActif()) mettreAJourMarqueurs3d();
     }
-    if (cameraChanged) {
+    // MENU-VILLE : progression de l'animation d'entrée/sortie de la vue ville.
+    // Hors animation, la pose est statique (posée une seule fois à la fin de
+    // l'entrée — aucun recalcul par frame).
+    if (vueAnim) {
+      vueAnim.t = Math.min(1, vueAnim.t + dt / VUE_VILLE_DUREE);
+      appliquerPoseVue(poseVueCourante());
+      if (vueAnim.t >= 1) {
+        if (vueAnim.entree) {
+          vuePose = vueAnim.to;
+        } else {
+          vuePose = null;
+          cameraChanged = true; // rend la main à la caméra 2D normale
+        }
+        vueAnim = null;
+      }
+    } else if (cameraChanged && !vuePose) {
       if (!mode3dActif()) {
         world.position.set(camera.x, camera.y);
         world.scale.set(camera.scale);
       }
       cameraChanged = false;
+    } else if (cameraChanged && vuePose) {
+      cameraChanged = false; // la pose de vue ville prime pendant la vue
     }
     if (playback.active) {
       // Repositionner les unités animées chaque frame (après les rebuilds :
@@ -1772,10 +1955,14 @@
     }
   }
 
-  /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping linéaire. */
+  /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping
+   *  linéaire ; VUE VILLE : transform inverse de la pose (zoom à plat). */
   function hexSousEcran(x: number, y: number): Hex | null {
     if (mode3dActif()) {
       return pickHex3D(x, y, vw, vh, stage3d!.cam, (hex) => scene.state?.map[tileKeyOf(hex)]?.terrain ?? null);
+    }
+    if (vueVilleActif()) {
+      return hexSousEcranVueVille(x, y, poseVueCourante(), HEX_SIZE);
     }
     return screenToHex(x, y, camera, HEX_SIZE);
   }
@@ -1857,6 +2044,9 @@
   }
 
   function onPointerDown(e: PointerEvent): void {
+    // MENU-VILLE : en vue ville, aucune action de carte (pas de préview
+    // clic droit, pas de pan) — le clic gauche seul assigne les tuiles.
+    if (vueVilleActif()) return;
     // RAFFINEMENT-MOUVEMENT : clic droit ENFONCÉ = début de la préview
     // multi-tours (style Civ 7). La décision (confirmer/annuler) se prend au
     // relâchement (onPointerUp) — le `contextmenu` qui suit est neutralisé.
@@ -2235,6 +2425,12 @@
 
   function onPointerMove(e: PointerEvent): void {
     updateTip(e);
+    // MENU-VILLE : en vue ville, ni flèche de survol ni pan — le curseur ne
+    // fait que lire le tooltip.
+    if (vueVilleActif()) {
+      pointer = null;
+      return;
+    }
     // FLECHE-MOUVEMENT : la flèche de survol suit le curseur même bouton
     // levé (pointer n'est posé qu'au pressé — logique dédiée, avant le
     // retour anticipé du pan).
@@ -2288,6 +2484,15 @@
       return;
     }
     if (!scene.view) return;
+    // MENU-VILLE : en vue ville, le clic gauche n'assigne/désassigne que les
+    // tuiles du rayon de travail (clickActionVueVille — pur). Toute autre
+    // case : aucun effet (actions de carte inaccessibles).
+    if (vueVilleActif()) {
+      if (!vueVilleId) return;
+      const hexVue = hexSousEcran(p.x, p.y);
+      if (hexVue) onAction(clickActionVueVille(scene.view, vueVilleId, hexVue));
+      return;
+    }
     const hex = hexSousEcran(p.x, p.y);
     if (!hex) return;
     onAction(clickAction(scene.view, scene.ui, hex));
@@ -2295,6 +2500,9 @@
 
   function onWheel(e: WheelEvent): void {
     e.preventDefault();
+    // MENU-VILLE : le zoom molette est suspendu pendant la vue ville (la pose
+    // est statique — l'échelle est celle de la vue).
+    if (vueVilleActif()) return;
     const p = canvasPos(e);
     const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
     const changed = mode3dActif()
@@ -2309,6 +2517,8 @@
 
   function onContextMenu(e: MouseEvent): void {
     e.preventDefault();
+    // MENU-VILLE : pas d'annulation d'ordre au clic droit pendant la vue ville.
+    if (vueVilleActif()) return;
     // RAFFINEMENT-MOUVEMENT : si le relâchement du clic droit maintenu a déjà
     // tranché (confirmé/annulé), ne pas retraiter le même clic. Un clic droit
     // « synthétique » (tests GUI, hook dev) sans pointerdown passe ici comme
@@ -2324,8 +2534,43 @@
     onRightClick(hex);
   }
 
+  /**
+   * MENU-VILLE — DOUBLE-CLIC (décisions d'Erik du 13/09) : sur une ville du
+   * joueur → entrée en vue ville (zoom incliné + tuiles + menu dédié) ; en
+   * vue ville, hors de la ville affichée → sortie. Le SIMPLE clic garde sa
+   * sémantique inchangée (sélection / worked tiles) — le double-clic se
+   * superpose sans conflit : les deux simples clics d'un double-clic sur une
+   * ville sélectionnent puis désélectionnent, l'entrée en vue l'emporte à la
+   * fin du geste.
+   */
+  function dblClickAtCanvas(p: { x: number; y: number }): void {
+    if (playback.active || !scene.state) return;
+    const hex = hexSousEcran(p.x, p.y);
+    if (!hex) return;
+    if (vueVilleActif()) {
+      const ville = vueVilleId ? scene.state.cities[vueVilleId] : null;
+      if (ville && (hex.q !== ville.q || hex.r !== ville.r)) onExitVueVille?.();
+      return;
+    }
+    for (const city of Object.values(scene.state.cities)) {
+      if (city.q === hex.q && city.r === hex.r && city.owner === scene.myId) {
+        onEnterVueVille?.(city.id);
+        return;
+      }
+    }
+  }
+
+  function onDblClick(e: MouseEvent): void {
+    dblClickAtCanvas(canvasPos(e));
+  }
+
   function onKey(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
+      // MENU-VILLE : Échap sort d'abord de la vue ville (voie de sortie 2).
+      if (vueVilleActif()) {
+        onExitVueVille?.();
+        return;
+      }
       // RAFFINEMENT-MOUVEMENT : Échap coupe la préview du clic maintenu.
       droitMaintenu = false;
       onCancelDraft();
@@ -2493,6 +2738,7 @@
     });
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('contextmenu', onContextMenu);
+    canvas.addEventListener('dblclick', onDblClick);
     window.addEventListener('keydown', onKey);
 
     // 7n · Hook de TEST (dev uniquement) : pilotage déterministe de la
@@ -2508,6 +2754,10 @@
         camera: () => ({ x: camera.x, y: camera.y, scale: camera.scale }),
         // Fonderie : accès lecture à la scène 3D (mesure des poses .glb réelles).
         scene3d: () => stage3d?.scene ?? null,
+        // VUE VILLE : état + pose courante (vérifications GUI automatisées).
+        vueVille: () => ({ id: vueVilleId, actif: vueVilleActif(), pose: poseVueCourante() }),
+        // MENU-VILLE : miroir du double-clic (entrée/sortie de vue ville).
+        doubleClickAt: (x: number, y: number) => dblClickAtCanvas({ x, y }),
         screenOf: (q: number, r: number) => {
           if (mode3dActif()) {
             const { x, z } = hexWorldPos({ q, r });
@@ -2518,7 +2768,9 @@
             return p ? { x: p.x, y: p.y } : null;
           }
           const w = hexToPixel({ q, r }, HEX_SIZE);
-          return { x: w.x * camera.scale + camera.x, y: w.y * camera.scale + camera.y };
+          // MENU-VILLE : la pose courante (vue ville comprise — zoom à plat).
+          const pose = poseVueCourante();
+          return { x: w.x * pose.scale + pose.x, y: w.y * pose.scale + pose.y };
         },
         // V2 : statistiques de la couche structures 3D (vérifications GUI/e2e) —
         // détail par pool (unités 3D visibles ? cf. unites3d). Fonderie T3 :
@@ -2541,6 +2793,19 @@
       camera.clamp(bounds, vw, vh);
       cameraChanged = true;
       tilesDirty = true;
+      // MENU-VILLE : la pose de vue ville suit les nouvelles dimensions —
+      // la ville reste centrée dans l'espace libre, tout le rayon tient.
+      if (vueVilleActif()) {
+        const cible = poseVueVilleCible();
+        if (cible) {
+          if (vueAnim) vueAnim.to = cible;
+          else {
+            vuePose = cible;
+            appliquerPoseVue(cible);
+          }
+        }
+        cameraChanged = false; // la pose de vue ville prime pendant la vue
+      }
     });
     resizeObserver.observe(host);
 
@@ -2579,11 +2844,12 @@
       centerOn(hex: Hex): void {
         centerOnHex(hex);
       },
-      /** Coordonnées PAGE du centre d'une case (caméra courante) — debug/tests. */
+      /** Coordonnées PAGE du centre d'une case (caméra ou vue ville) — debug/tests. */
       hexToPage(hex: Hex): { x: number; y: number } | null {
         const p = hexToPixel(hex, HEX_SIZE);
+        const pose = poseVueCourante();
         const rect = host.getBoundingClientRect();
-        return { x: rect.x + p.x * camera.scale + camera.x, y: rect.y + p.y * camera.scale + camera.y };
+        return { x: rect.x + p.x * pose.scale + pose.x, y: rect.y + p.y * pose.scale + pose.y };
       },
       exportPng(): string | null {
         if (!app) return null;
@@ -2691,6 +2957,7 @@
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('contextmenu', onContextMenu);
+      canvas.removeEventListener('dblclick', onDblClick);
       window.removeEventListener('keydown', onKey);
       app.destroy(true, { children: true, texture: true, textureSource: true });
       app = null;

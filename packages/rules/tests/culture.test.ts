@@ -412,7 +412,7 @@ describe('7f · Migration v9 → v10', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(20); // la chaîne continue (EXPANSION-CULTURELLE)
+    expect(out.schemaVersion).toBe(21); // la chaîne continue (MENU-VILLE : noms des villes)
     expect(out.cities['c1']!.cultureStored).toBe(0);
     expect(out.cities['c1']!.wonders).toEqual([]);
     expect(out.players['p1']!.cultureMilestones).toBe(0);

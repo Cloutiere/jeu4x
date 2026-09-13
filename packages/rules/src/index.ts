@@ -26,6 +26,8 @@ export * from './espionnage.js';
 export * from './civilizations.js';
 /** 7o — Artefacts / reliques (R-151..R-156, artefacts.json). */
 export * from './artefacts.js';
+/** MENU-VILLE — noms des villes fondées (compteur par joueur, table en réserve). */
+export * from './noms.js';
 export * from './barbares.js';
 export * from './map.js';
 export * from './fog.js';
