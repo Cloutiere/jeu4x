@@ -77,6 +77,7 @@ import {
 } from './culture.js';
 import { effectsFor, isInAnarchy, landCombatBonus, populationCostOf } from './governments.js';
 import { prochainNomVille } from './noms.js'; // MENU-VILLE : noms VilleN (compteur par joueur)
+import { applyCapitalStartBonuses } from './civStartBonus.js'; // CIV-CAPITALE-FONDEE
 // 7i · R-63 rév. (D1/D2), R-60bis (D4), R-64 rév. (D3) — croissance CivRev.
 import {
   GROWTH,
@@ -3028,6 +3029,13 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     delete board.st.units[unit.id];
     board.pendingFill.add(cityId); // les citoyens initiaux sont auto-assignés en Phase C
     emit(board, { type: 'CityFounded', cityId, owner: unit.owner, at: hex, capital: !ownerHasCity, byUnitId: unit.id });
+    // CIV-CAPITALE-FONDEE : une capitale FONDÉE reçoit les mêmes bonus
+    // capital-dépendants que les capitales préfabriquées du setup (R-150 ×
+    // R-64) — bâtiments gratuits, merveille Égypte (RNG seedé dédié, le RNG de
+    // résolution n'est pas consommé), GP Amérique. Miroir map.ts §setup.
+    applyCapitalStartBonuses(board.st, unit.owner, board.st.cities[cityId]!, {
+      emit: (event) => emit(board, event),
+    });
     if (destroyedResource) {
       emit(board, { type: 'ResourceDestroyed', resource: destroyedResource, at: hex, cityId, owner: unit.owner });
     }

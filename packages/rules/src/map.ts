@@ -33,24 +33,16 @@ import {
   eraOfTechCount,
   civStartTechs,
   civStartGovernment,
-  civStartBuildings,
   civStartGold,
-  civStartsFreeGp,
   civStartRevealRadius,
   civVeteranUnitsOf,
   civUnitStatBonusOf,
   uniqueReplacing,
-  civStartsAncientWonder,
   civDataOf,
-  CIVILIZATIONS,
 } from './civilizations.js';
-import { greatPersonRotationClass } from './culture.js';
 import { prochainNomVille } from './noms.js'; // MENU-VILLE : noms VilleN (compteur par joueur)
 import { createRng } from './rng.js';
-
-/** Graine dédiée du tirage de la Merveille Antique de l'Égypte (XOR avec le
- *  seed de génération — miroir ARTEFACT_SEED_SALT, R-151). */
-const EGYPT_WONDER_SEED_SALT = 0x2a7f3b91;
+import { EGYPT_WONDER_SEED_SALT, applyCapitalStartBonuses } from './civStartBonus.js';
 
 export interface MapPlayerSpawn {
   id: PlayerId;
@@ -595,55 +587,12 @@ export function createInitialState(
     // 3. Bâtiments gratuits dans la capitale (France Cathédrale, Grèce
     //    Tribunal) — posés directement, prérequis R-111 non exigés au setup.
     const capital = Object.values(state.cities).find((c) => c.owner === spawn.id && c.capital);
-    if (capital) {
-      for (const b of civStartBuildings(civId)) {
-        if (!capital.buildings.includes(b)) capital.buildings.push(b);
-      }
-      capital.buildings.sort();
-      // 4. Merveille Antique de l'Égypte — TIRAGE SEEDÉ, SANS choix du joueur
-      //    (calibrage canon, Erik 06/09) : une merveille parmi les 6 Merveilles
-      //    Antiques (`egypteWonderChoices`, données), construite gratuitement
-      //    dans la capitale à la fondation.
-      if (civStartsAncientWonder(civId)) {
-        const choices = CIVILIZATIONS.params.egypteWonderChoices;
-        const pick = choices.length > 0 ? choices[egyptWonderRng.nextInt(choices.length)] : undefined;
-        if (pick && !capital.wonders.includes(pick)) capital.wonders.push(pick);
-      }
-    }
+    // 3/4/6. Bâtiments gratuits, Merveille Antique Égypte (tirage seedé partagé
+    //    — ordre des spawns), GP Amérique : SOURCE UNIQUE avec la FONDATION
+    //    (civStartBonus — CIV-CAPITALE-FONDEE), garde `includes` = idempotent.
+    if (capital) applyCapitalStartBonuses(state, spawn.id, capital, { egyptRng: egyptWonderRng });
     // 5. Or de départ (Aztèques — 🔶 +25, params).
     player.treasury += civStartGold(civId);
-    // 6. Personnage illustre gratuit (Amérique) — posé sur la capitale (sinon
-    //    adjacente libre), classe déterministe R-127 (rotation index 0) 🔶.
-    if (civStartsFreeGp(civId) && capital) {
-      const gpType = greatPersonRotationClass(0); // R-127 abrogée (D2) : rotation pure, index 0
-      const stats = unitType(gpType);
-      const anchor = { q: capital.q, r: capital.r };
-      const occupied = Object.values(state.units).some((u) => u.q === anchor.q && u.r === anchor.r);
-      const spot = !occupied ? anchor : hexesWithinRadius(anchor, 1).find((h) => {
-        const t = mapRecord[tileKeyOf(h)];
-        if (!t || !TERRAINS[t.terrain]!.passable) return false;
-        return !Object.values(state.units).some((u) => u.q === h.q && u.r === h.r);
-      });
-      if (spot) {
-        const gpId = `u${(Object.keys(state.units).length + 1)}`;
-        state.units[gpId] = {
-          id: gpId,
-          type: gpType,
-          owner: spawn.id,
-          q: spot.q,
-          r: spot.r,
-          hp: stats.hpMax,
-          mp: stats.movement,
-          veteran: false,
-          isArmy: false,
-          order: null,
-          detainedBy: null,
-          fortified: false,
-          aboard: null,
-          cargo: null,
-        };
-      }
-    }
     // 7. Révélation de carte (Russie) — rayon params autour du départ
     //    (capitale, sinon site du Colon) ajouté à `explored` (pas `visible`).
     const revealRadius = civStartRevealRadius({ civId, era: 'ancienne' });

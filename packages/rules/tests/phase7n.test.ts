@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeState } from '../src/fixtures.js';
 import { resolveTurn } from '../src/turn.js';
-import type { GameState, Order } from '../src/state.js';
+import type { GameState, Order, PlayerId } from '../src/state.js';
 import { MIGRATIONS, CURRENT_SCHEMA_VERSION, migrateState } from '../src/state.js';
 import {
   CIVILIZATIONS,
@@ -681,5 +681,91 @@ describe('7n · R-147 (rév. Calibrage) · Les techs GRATUITES comptent dans le 
     // Les 5 techs sont comptées (la gratuite INCLUSE — canon) → ère Médiévale.
     expect(t2.events.some((e) => e.type === 'EraChanged' && e.player === 'p1' && e.era === 'medievale')).toBe(true);
     expect(t2.newState.players['p1']!.era).toBe('medievale');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CIV-CAPITALE-FONDEE · R-64/R-150 · Les bonus capital-dépendants s'appliquent
+// AUSSI quand la capitale est FONDÉE au Colon (pas seulement les capitales
+// préfabriquées de la carte) — constat d'Erik du 14/09 : la Grèce qui fonde
+// n'avait pas son Tribunal.
+// ---------------------------------------------------------------------------
+
+describe('CIV-CAPITALE-FONDEE · Bonus capital-dépendants appliqués à la FONDATION (R-64 × R-150)', () => {
+  /** État vierge (aucune ville) avec un colon à (3,0) et la civ donnée. */
+  const foundingState = (civId: string, owner: PlayerId = 'p1'): GameState => {
+    const state = makeState({});
+    state.players[owner]!.civId = civId;
+    state.units['settler'] = {
+      id: 'settler', type: 'colon', owner, q: 3, r: 0, hp: 3, mp: 2,
+      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
+    };
+    return state;
+  };
+  const found = (civId: string, owner: PlayerId = 'p1') =>
+    resolveTurn(foundingState(civId, owner), { [owner]: [{ type: 'FoundCity', unitId: 'settler' }] }, 1);
+  const foundedCity = (out: GameState) => Object.values(out.cities).find((c) => c.capital && c.owner !== undefined && c.q === 3 && c.r === 0)!;
+
+  it('Grèce fonde sa capitale → Tribunal offert (prérequis R-111 non exigés)', () => {
+    const { newState, events } = found('grece');
+    const capital = foundedCity(newState);
+    expect(capital.buildings).toContain('tribunal');
+    // Journal pédagogique : le bâtiment offert est annoncé (BuildingCompleted).
+    expect(events).toContainEqual(expect.objectContaining({ type: 'BuildingCompleted', cityId: capital.id, building: 'tribunal' }));
+  });
+
+  it('France fonde sa capitale → Cathédrale offerte', () => {
+    const { newState } = found('france');
+    expect(foundedCity(newState).buildings).toContain('cathedrale');
+  });
+
+  it('Égypte fonde sa capitale → UNE Merveille Antique tirée au RNG seedé ; même seed = même merveille', () => {
+    const a = found('egypte');
+    const capitalA = foundedCity(a.newState);
+    expect(capitalA.wonders).toHaveLength(1);
+    expect(CIVILIZATIONS.params.egypteWonderChoices).toContain(capitalA.wonders[0]);
+    const b = found('egypte');
+    expect(foundedCity(b.newState).wonders).toEqual(capitalA.wonders); // déterminisme (salt setup)
+    expect(a.events).toContainEqual(expect.objectContaining({ type: 'WonderCompleted', cityId: capitalA.id, wonder: capitalA.wonders[0] }));
+  });
+
+  it('Amérique fonde sa capitale → GP gratuit posé (classe déterministe, rotation index 0)', () => {
+    const { newState, events } = found('amerique');
+    const capital = foundedCity(newState);
+    const gps = Object.values(newState.units).filter((u) => u.owner === 'p1' && UNIT_TYPES[u.type]!.greatPerson);
+    expect(gps).toHaveLength(1);
+    // Même seed → même classe que le setup (rotation pure, index 0).
+    const setupGp = createInitialState(loadBuiltinMapSync('pedagogique-40'), 1234, { p1: { civId: 'egypte' }, p2: { civId: 'amerique' } });
+    const setupGpType = Object.values(setupGp.units).find((u) => u.owner === 'p2' && UNIT_TYPES[u.type]!.greatPerson)!.type;
+    expect(gps[0]!.type).toBe(setupGpType);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'GreatPersonSpawned', cityId: capital.id, owner: 'p1' }));
+  });
+
+  it('civ NEUTRE : la fondation n\'offre rien (au-delà du Palais)', () => {
+    const { newState } = found(NEUTRAL_CIV);
+    const capital = foundedCity(newState);
+    expect(capital.buildings).toEqual(['palais']);
+    expect(capital.wonders).toEqual([]);
+  });
+
+  it('INVARIANT anti-double application : une capitale DÉJÀ possédée → la nouvelle ville n\'est pas capitale et ne reçoit rien', () => {
+    const state = foundingState('grece');
+    state.cities['c1'] = {
+      id: 'c1', q: 0, r: 0, owner: 'p1', pop: 2, capital: true, foodStored: 0, production: null,
+      workedTiles: [], buildings: ['palais', 'tribunal'], conversion: 'gold', cultureCumulee: 0,
+      wonders: [], pendingSalvage: 0, settledGreatPersons: [], wasCaptured: false, name: 'Ville1',
+    };
+    const { newState } = resolveTurn(state, { p1: [{ type: 'FoundCity', unitId: 'settler' }] }, 1);
+    const founded = Object.values(newState.cities).find((c) => c.q === 3 && c.r === 0)!;
+    expect(founded.capital).toBe(false);
+    expect(founded.buildings).not.toContain('tribunal');
+    expect(founded.wonders).toEqual([]);
+    // La capitale préfabriquée garde exactement UN Tribunal (garde `includes`).
+    expect(newState.cities['c1']!.buildings.filter((b) => b === 'tribunal')).toHaveLength(1);
+  });
+
+  it('le BOT (choix de civ seedé) est couvert par le même chemin : p2 Grec fonde → Tribunal', () => {
+    const { newState } = found('grece', 'p2');
+    expect(foundedCity(newState).buildings).toContain('tribunal');
   });
 });
