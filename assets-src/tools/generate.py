@@ -431,14 +431,44 @@ def tile_montagne(d, img, w, h, cx):
 
 def tile_desert(d, img, w, h, cx):
     d.poly(hex_points(cx, h / 2, w, h), fill=DESERT_1)
-    # dunes (crêtes douces)
-    d.ellipse((20, 110, 150, 200), fill=DESERT_2)
-    d.ellipse((110, 160, 220, 240), fill="#D8C48C")
-    for x, y in [(60, 130), (150, 190), (105, 215)]:
-        d.arc((x - 34, y - 8, x + 34, y + 8), 195, 345, fill="#B89B60", width=2.6)
-    # cactus discret (flat board-game)
-    d.rrect((160, 120, 170, 158), 4, fill="#6E9C4A")
-    d.rrect((150, 128, 180, 138), 4, fill="#6E9C4A")
+    # dunes lissées : crête éclairée, versant ombré en voile doux
+    def dune(pts, crete, sombre):
+        d.smooth_poly(pts + [(224, 256), (0, 256)], fill=DESERT_2)
+        d.smooth_line(crete, "#E8D9A8", 3)
+        def lee(dd):
+            dd.smooth_poly([pts[-1], (224, 256), pts[0],
+                            (pts[0][0] + 20, pts[0][1] + 24),
+                            (112, 236), (pts[-1][0] - 24, pts[-1][1] + 20)],
+                           fill=sombre)
+        soft_clip(img, lee)
+    dune([(0, 176), (36, 148), (84, 138), (140, 156), (224, 186)],
+         [(0, 176), (36, 148), (84, 138), (140, 156), (224, 186)],
+         (140, 112, 60, 40))
+    dune([(0, 226), (56, 204), (128, 202), (196, 218), (224, 234)],
+         [(0, 226), (56, 204), (128, 202), (196, 218), (224, 234)],
+         (140, 112, 60, 46))
+    # sable soufflé par le vent
+    def vent(dd):
+        for sx, sy, s in [(40, 110, 1.2), (110, 90, 1.0), (170, 120, 1.1),
+                          (72, 168, 1.0), (150, 176, 0.9), (100, 236, 1.0)]:
+            dd.smooth_line([(sx, sy), (sx + 12 * s, sy - 3 * s),
+                            (sx + 24 * s, sy - 2 * s)], (232, 217, 168, 170),
+                           2.4)
+    soft_clip(img, vent)
+    radial(img, 70, 80, 48, (255, 244, 200), 30)
+    radial(img, 176, 214, 46, (120, 90, 50), 28)
+    # cactus à deux bras + fleur
+    d.rrect((158, 116, 170, 162), 5, fill="#6E9C4A")
+    d.rrect((150, 124, 178, 136), 5, fill="#6E9C4A")
+    d.rrect((148, 106, 158, 130), 4, fill="#6E9C4A")
+    d.rrect((170, 118, 180, 140), 4, fill="#6E9C4A")
+    d.ellipse((150, 100, 156, 106), fill="#E8A0C0")
+    # ossements blanchis
+    for bx, by, ang in [(58, 208, -0.5), (66, 212, 0.4)]:
+        ex, ey = bx + 16 * math.cos(ang), by + 16 * math.sin(ang)
+        d.line([(bx - 8 * math.cos(ang), by - 8 * math.sin(ang)),
+                (ex, ey)], fill="#E4DCC8", width=3)
+    d.ellipse((50, 200, 60, 210), fill="#E4DCC8")
     light_from_topleft(img, w, h, cx, 20)
 
 
@@ -778,37 +808,55 @@ def ville_settlement(db, da, w, h):
 
 
 def ville_capitale(db, da, w, h):
-    """224×256 : muraille crénelée + donjon + grand drapeau (accent)."""
+    """224×256 : muraille crénelée + donjon + grand drapeau (accent :
+    toit du donjon, toits des tours, drapeau)."""
     shadow(db, 112, 212, 88)
-    # muraille
-    wall = [(30, 212), (30, 158), (194, 158), (194, 212)]
-    db.poly(wall, fill="#B0A390")
-    db.poly([(30, 212), (30, 158), (112, 158), (112, 212)], fill="#C2B6A2")
-    # créneaux
-    for x in range(30, 195, 24):
-        db.rrect((x, 146, x + 14, 160), 2, fill="#B0A390")
-    for x in (30, 90, 150):
-        db.rrect((x, 146, x + 14, 160), 2, fill="#C2B6A2")
-        break
-    # porte
+    # esplanade de terre devant la porte
+    db.ellipse((58, 196, 166, 220), fill=SOL_CHEMIN)
+    # muraille, coins adoucis, pan éclairé à gauche
+    db.smooth_poly([(30, 212), (30, 158), (194, 158), (194, 212)],
+                   fill="#B0A390")
+    db.smooth_poly([(30, 212), (30, 158), (112, 158), (112, 212)],
+                   fill="#C2B6A2")
+    # assises de pierres (lignes horizontales + joints décalés)
+    for yy in (172, 186, 200):
+        db.line([(32, yy), (110, yy)], fill="#B4A894", width=1.6)
+        db.line([(114, yy), (192, yy)], fill="#A49884", width=1.6)
+    for xx, yy in ((58, 165), (84, 179), (66, 193), (140, 165), (166, 179),
+                   (150, 193), (176, 200)):
+        db.line([(xx, yy), (xx, yy + 10)], fill="#AFA390", width=1.4)
+    # créneaux réguliers sur tout le pourtour
+    for x in range(30, 194, 24):
+        col = "#C2B6A2" if x < 112 else "#B0A390"
+        db.rrect((x, 146, x + 14, 160), 2, fill=col)
+    # porte en arc, pierre appareillée, bois clouté
     db.pieslice((88, 168, 136, 216), 180, 360, fill="#5E4E3A")
     db.rrect((88, 192, 136, 212), 2, fill="#5E4E3A")
-    # donjon
+    for vx in (100, 112, 124):
+        db.line([(vx, 176), (vx, 210)], fill="#4A3C2C", width=2.4)
+    db.ellipse((106, 190, 112, 196), fill="#8A6F4A")
+    # donjon avec fenêtres géminées
     db.rrect((92, 92, 132, 160), 3, fill="#C2B6A2")
+    db.line([(92, 108), (132, 108)], fill="#B4A894", width=1.6)
+    db.line([(92, 130), (132, 130)], fill="#B4A894", width=1.6)
+    db.rrect((100, 114, 108, 124), 1.5, fill="#5E4E3A")
+    db.rrect((116, 114, 124, 124), 1.5, fill="#5E4E3A")
+    db.rrect((104, 138, 120, 152), 2, fill="#5E4E3A")
     db.poly([(86, 96), (112, 62), (138, 96)], fill="#8E8272")
     da.poly([(86, 96), (112, 62), (138, 96)], fill="#FFFFFF")
-    db.rrect((104, 120, 120, 140), 2, fill="#5E4E3A")
-    # tours d'angle
+    # tours d'angle avec fenêtres
     for x in (26, 178):
         db.rrect((x, 120, x + 22, 160), 3, fill="#B0A390")
+        db.rrect((x + 7, 134, x + 15, 144), 1.5, fill="#5E4E3A")
         db.pieslice((x - 2, 102, x + 24, 128), 180, 360, fill="#8E8272")
         da.pieslice((x - 2, 102, x + 24, 128), 180, 360, fill="#FFFFFF")
-    # grand drapeau (accent)
+    # grand drapeau (accent) + oriflamme au vent
     db.line([(112, 62), (112, 18)], fill=BOIS, width=4)
     flag = [(114, 20), (162, 32), (114, 48)]
     db.poly(flag, fill="#8E8A80", outline=INK, width=0)
     da.poly(flag, fill="#FFFFFF")
     db.ellipse((109, 12, 115, 18), fill=OR)
+    db.line([(114, 34), (138, 30)], fill="#8E8A80", width=2.5)
 
 
 # ---------------------------------------------------------------- bâtiments (Phase 6, R-66)
@@ -1170,24 +1218,42 @@ def village_barbare(db, da, w, h):
     db.rrect((28, 142, 52, 172), 3, fill="#6E655C", outline=INK, width=2)
 
 
-def hutte(db, da, w, h):
+def hutte(db, da, w, h, img=None):
     """224×256 : hutte bonus — cabane de branchages au toit doré (accent) ;
     ouverte par la première unité qui entre sur sa case (R-98)."""
-    shadow(db, 112, 210, 66)
-    # murs de pisé / branchages
-    db.rrect((70, 146, 154, 210), 4, fill="#9C8A6A", outline=INK, width=2.5)
-    db.line([(76, 162), (148, 162)], fill="#8A7A5A", width=2)
-    db.line([(76, 186), (148, 186)], fill="#8A7A5A", width=2)
-    # toit de chaume = accent (doré au rendu)
-    roof = [(58, 150), (112, 96), (166, 150)]
+    shadow(db, 112, 212, 66)
+    # murs de branchage arrondis, lattes verticales
+    db.smooth_poly([(70, 210), (68, 148), (112, 142), (156, 148), (154, 210)],
+                   fill="#9C8A6A")
+    db.smooth_poly([(70, 210), (68, 148), (112, 142), (118, 146), (110, 210)],
+                   fill="#AC9A78")
+    for vx in (80, 92, 104, 128, 140):
+        db.line([(vx, 150), (vx, 208)], fill="#8A7A5A", width=2)
+    # toit de chaume débordant = accent (doré au rendu)
+    roof = [(56, 152), (112, 92), (168, 152), (156, 158), (112, 112),
+            (68, 158)]
     db.poly(roof, fill="#A3835A", outline=INK, width=2.5)
     da.poly(roof, fill="#FFFFFF")
-    # porte + lueur du trésor
-    db.rrect((100, 172, 124, 210), 3, fill="#5E4630")
-    db.ellipse((106, 184, 118, 196), fill=OR)
-    # herbes folles au pied
-    db.line([(58, 210), (52, 198)], fill=FORET_2, width=3)
-    db.line([(166, 210), (172, 198)], fill=FORET_2, width=3)
+    # stries de paillis sur le toit
+    for rx, lean in [(84, -12), (112, 0), (140, 12)]:
+        db.line([(rx, 148), (rx + lean, 116)], fill="#8A6F4A", width=2.4)
+    # faîte du toit
+    db.smooth_line([(92, 104), (112, 96), (132, 104)], "#C4A472", 3)
+    # porte ouverte + lueur du trésor qui déborde sur le sol
+    db.rrect((100, 170, 124, 210), 3, fill="#5E4630")
+    db.rrect((104, 176, 120, 208), 2, fill="#3E342A")
+    db.ellipse((106, 182, 118, 194), fill=OR)
+    db.poly([(104, 200), (120, 200), (124, 210), (100, 210)],
+            fill=(217, 169, 63, 120))
+    # pierres et herbes folles au pied
+    db.ellipse((60, 204, 74, 212), fill="#8F8A80")
+    db.ellipse((150, 204, 164, 212), fill="#8F8A80")
+    db.line([(56, 212), (50, 200)], fill=FORET_2, width=3)
+    db.line([(168, 212), (174, 200)], fill=FORET_2, width=3)
+    db.line([(64, 214), (60, 206)], fill="#6E9C4A", width=2.4)
+    if img is not None:
+        radial(img, 112, 196, 26, (255, 224, 130), 70)   # halo du trésor
+        radial(img, 130, 110, 22, (255, 244, 200), 40)   # chaume éclairé
 
 
 
