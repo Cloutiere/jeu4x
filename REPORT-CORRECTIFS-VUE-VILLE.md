@@ -2,6 +2,11 @@
 
 **Mission exécutée (M1+M2), zéro gameplay, zéro 3D.** Correctifs validés en solo au navigateur AVANT tout commit (règle établie), à plusieurs tailles de viewport. **Pas de commit** (sur demande explicite d'Erik).
 
+## ⚠️ Bilan après revalidation d'Erik (14/09, en production)
+
+- **M2 — restauration des unités : ✅ RÉSOLU** (confirmé par Erik sur son Chrome).
+- **M1 — zoom de la vue ville : ❌ NON RÉSOLU** selon Erik. Les deux défauts corrigés ici (marge des sommets, dimensions périmées) étaient réels et reproduits, mais ils ne couvrent pas le symptôme complet qu'Erik observe (« zoom trop fort, tuiles du rayon hors cadre ») — probablement une autre dimension de son environnement à identifier. **Erik reprend cette problématique en main.** À ne pas considérer comme fermé : toute nouvelle session sur ce sujet doit repartir de ses observations (taille de fenêtre, DPR/zoom navigateur, ville concernée).
+
 ## État final
 
 - **Tests : 1 119 verts** (rules 791 — dont 12 nouveaux tests de contrat de cadrage dans `menu-ville.test.ts` ; web 253 — même fichier enrichi ; server 75).
