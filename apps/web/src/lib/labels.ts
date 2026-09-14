@@ -73,9 +73,7 @@ const GP_CLASS_LABELS: Record<string, string> = {
  *  (journal « GP de [canal] ») — la source ne fait plus de doute. */
 const GP_CANAL_LABELS: Record<string, string> = {
   culture: 'culture',
-  science: 'science',
   or: 'or',
-  production: 'production',
   combat: 'combat',
   artefact: 'artefact',
 };

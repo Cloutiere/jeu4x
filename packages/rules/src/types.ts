@@ -306,11 +306,8 @@ export interface CultureData {
   /** EXPANSION-CULTURELLE phase 1 : plafond d'anneaux culturels (5 —
    *  data-driven, lié seulement si la table dépasse ce plafond). */
   cultureExpansionMaxRings: number;
-  /** 7h · T-30 · Seuil de base des accumulateurs or/science/production des
-   *  nouveaux GP (R-123) — ×2 par GP de CE TYPE obtenu. */
-  greatPersonYieldThresholdBase: number;
-  /** 7h · T-30 · Croissance du seuil par GP obtenu du même type (R-123). */
-  greatPersonYieldThresholdGrowth: number;
+  // RETRAIT-GP-ACCUMULATEURS (décision d'Erik du 14/09) : les entrées T-30
+  // `greatPersonYieldThresholdBase`/`Growth` (R-123) sont SUPPRIMÉES.
   /** 7h · T-31 · Victoires de combat de l'empire pour engendrer un Leader (R-123). */
   leaderGpVictories: number;
 // 7l · C7 : `hammerSalvageWindow` (T-32) est ABROGÉ — la réserve de marteaux

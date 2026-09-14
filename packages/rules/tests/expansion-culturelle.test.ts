@@ -184,7 +184,7 @@ describe('CULTURE-FRONTIERES · frontierRadius — progression palier après pal
 
 describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)', () => {
   it('CURRENT_SCHEMA_VERSION = 20 ; backfill 0 idempotent, valeurs existantes conservées', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(22); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
+    expect(CURRENT_SCHEMA_VERSION).toBe(23); // RETRAIT-GP-ACCUMULATEURS : gpAccum* supprimés (migration 23)
     const v19 = {
       schemaVersion: 19,
       turn: 7,
@@ -197,7 +197,7 @@ describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)
         c1: {
           id: 'c1', q: 0, r: 0, owner: 'p1', pop: 2, capital: true, foodStored: 0, production: null,
           workedTiles: [], buildings: ['palais'], conversion: 'gold', cultureStored: 12, wonders: [],
-          gpAccumGold: 0, gpAccumScience: 0, gpAccumProd: 0, gpAccumFood: 0, pendingSalvage: 0,
+          pendingSalvage: 0,
           settledGreatPersons: [], wasCaptured: false,
         },
       },
@@ -206,7 +206,7 @@ describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v19 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(22);
+    expect(out.schemaVersion).toBe(23);
     expect(out.cities['c1']!.cultureCumulee).toBe(0); // backfill neutre (pas d'enrichissement rétroactif)
     expect((out.cities['c1'] as unknown as Record<string, unknown>)['cultureStored']).toBeUndefined(); // D5 : réservoir supprimé par la migration 22
     // Idempotent : un état déjà migré repasse sans variation.
@@ -223,7 +223,7 @@ describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)
     v19.schemaVersion = 19;
     delete (v19.cities as Record<string, Record<string, unknown>>)['c1']!.cultureCumulee;
     const migrated = migrateState(v19) as unknown as GameState;
-    expect(migrated.schemaVersion).toBe(22);
+    expect(migrated.schemaVersion).toBe(23);
     expect(migrated.cities['c1']!.cultureCumulee).toBe(0); // backfill neutre
     const out = resolveTurn(migrated, {}, 8).newState;
     expect(out.cities['c1']!.cultureCumulee).toBe(2); // Palais pop 2 révisé : 2/tour

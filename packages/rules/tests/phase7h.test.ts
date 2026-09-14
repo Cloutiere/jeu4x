@@ -18,7 +18,6 @@ import {
   leaderGpVictoriesNeeded,
   migrateState,
   resolveTurn,
-  yieldGpThresholdFor,
   wonderAttackBonusEmpireOf,
 } from '../src/index.js';
 import { makeState } from '../src/fixtures.js';
@@ -221,15 +220,11 @@ describe('R-122 · Transitions et Anarchie', () => {
     expect(isInAnarchy(player, 3)).toBe(false);
   });
 
-  it('e2e même seed : pendant l’Anarchie, or/science/marteaux/culture À ZÉRO, production gelée, GP gelés', () => {
+  it('e2e même seed : pendant l’Anarchie, or/science/marteaux/culture À ZÉRO, production gelée', () => {
     const setup = (anarchy: boolean) => {
       const s = productionState('republique');
       s.players['p1']!.techsUnlocked = ['code_des_lois', 'rites_funeraires'];
-      s.players['p1']!.greatPersonsByType = { batisseur: 0 };
       s.cities['c1']!.production = { item: { kind: 'building', id: 'temple' }, progress: 0 };
-      s.cities['c1']!.gpAccumProd = 19; // juste sous le seuil T-30
-      s.cities['c1']!.gpAccumScience = 19;
-      s.cities['c1']!.gpAccumGold = 19;
       s.cities['c1']!.cultureCumulee = 19; // juste sous l'accumulateur de culture (gel en anarchie vérifié sur le cumul)
       s.players['p1']!.anarchyUntil = anarchy ? s.turn + 1 : null; // anarchie PENDANT la résolution ?
       return s;
@@ -239,8 +234,6 @@ describe('R-122 · Transitions et Anarchie', () => {
     expect(anarchie.players['p1']!.treasury).toBe(0);
     expect(anarchie.cities['c1']!.production!.progress).toBe(0);
     expect(anarchie.cities['c1']!.cultureCumulee).toBe(19); // figé (gains nuls), pas remis à zéro
-    expect(anarchie.cities['c1']!.gpAccumProd).toBe(19); // gelés (gains nuls)
-    expect(anarchie.cities['c1']!.gpAccumGold).toBe(19);
     // Témoin (despotisme, pas d’anarchie) : tout progresse, aucun GP spawn.
     expect(temoin.players['p1']!.treasury).toBeGreaterThan(0);
     expect(temoin.cities['c1']!.production!.progress).toBeGreaterThan(0);
@@ -255,60 +248,47 @@ describe('R-122 · Transitions et Anarchie', () => {
   });
 });
 
-describe('R-123 · GP restants (Scientifique, Mogul, Ingénieur, Leader)', () => {
-  it('T-30 : seuil de base 20, ×2 par GP de CE type obtenu (escalade par type indépendante)', () => {
-    expect(yieldGpThresholdFor('savant', {})).toBe(20);
-    expect(yieldGpThresholdFor('savant', { savant: 1 })).toBe(40);
-    expect(yieldGpThresholdFor('explorateur', { explorateur: 2 })).toBe(80);
-    // L'escalade culturelle (T-27, table canon 7l · C5) est indépendante des GP à rendement.
-    expect(greatPersonThresholdFor(0)).toBe(150) // 7l · C5 : table canon (T-30/T-31 inchangés);
-    expect(leaderGpVictoriesNeeded()).toBe(20); // T-31
+describe('R-123 · GP restants — RETRAIT-GP-ACCUMULATEURS (décision d\'Erik du 14/09)', () => {
+  it('T-31 : seuil Leader inchangé (20 victoires de combat)', () => {
+    expect(leaderGpVictoriesNeeded()).toBe(20);
+    // L'escalade culturelle (T-27, table canon 7l · C5) est inchangée.
+    expect(greatPersonThresholdFor(0)).toBe(150);
   });
 
-  it('spawn du Scientifique au seuil de son accumulateur, par ville (même seed)', () => {
+  it('GARDE-FOU : aucun GP ne sort d\'un accumulateur — forte science/or/production accumulée, aucun spawn R-123', () => {
+    // Les anciens tests posaient gpAccum* au seuil T-30 ; le champ n'existe
+    // plus et AUCUNE émission ne peut plus provenir d'un rendement, quelle
+    // que soit la production/science/or/nourriture de la ville.
     const s = productionState();
-    s.cities['c1']!.gpAccumScience = 20;
+    s.players['p1']!.techsUnlocked = ['code_des_lois', 'rites_funeraires', 'monarchie'];
     const result = resolveTurn(s, {}, 42);
-    const spawned = result.events.find((e) => e.type === 'GreatPersonSpawned');
-    expect(spawned).toBeDefined();
-    if (spawned?.type !== 'GreatPersonSpawned') return;
-    expect(spawned.unitType).toBe('savant');
-    // 7k · C2 (veto d'Erik du 04/09, révision R-126) : un GP d'ACCUMULATEUR
-    // (canal science) ne compte PAS de jalon culturel.
-    expect(result.newState.players['p1']!.cultureMilestones).toBe(0);
-    expect(result.newState.players['p1']!.greatPersonsByType['savant']).toBe(1);
-    expect(Object.values(result.newState.units).some((u) => u.type === 'savant')).toBe(true);
+    const emitted = result.events.filter((e): e is Extract<typeof e, { type: 'GreatPersonSpawned' }> => e.type === 'GreatPersonSpawned');
+    expect(emitted).toHaveLength(0); // forte économie, un seul tour : rien ne sort
+    // Les champs gpAccum* sont absents de l'état (migration 23).
+    for (const city of Object.values(result.newState.cities)) {
+      expect('gpAccumGold' in city).toBe(false);
+      expect('gpAccumScience' in city).toBe(false);
+      expect('gpAccumProd' in city).toBe(false);
+      expect('gpAccumFood' in city).toBe(false);
+    }
   });
 
-  it('spawn du Mogul (or) et de l’Ingénieur (production) — ordre déterministe culture → science → or → production', () => {
-    const s = productionState();
-    s.cities['c1']!.gpAccumGold = 20;
-    s.cities['c1']!.gpAccumProd = 20;
-    const result = resolveTurn(s, {}, 42);
-    const spawned = result.events.filter((e) => e.type === 'GreatPersonSpawned');
-    expect(spawned).toHaveLength(1); // au plus un GP par ville et par tour
-    if (spawned[0]?.type !== 'GreatPersonSpawned') return;
-    expect(spawned[0]!.unitType).toBe('explorateur'); // l’or passe avant la production
-  });
-
-  it('un GP au seuil exact re-substrait le seuil (le surplus est conservé, miroir R-63)', () => {
-    const s = productionState();
-    s.cities['c1']!.gpAccumScience = 25;
-    const out = resolveTurn(s, {}, 42).newState;
-    expect(out.cities['c1']!.gpAccumScience).toBe(5);
-  });
-
-  it('7k · C2 (rév. R-126) : un GP d’accumulateur n’accorde AUCUN jalon — ni à l’obtention ni au settle', () => {
-    const s = productionState();
-    s.cities['c1']!.gpAccumScience = 20;
-    const first = resolveTurn(s, {}, 42).newState;
-    const mileAtObtain = first.players['p1']!.cultureMilestones;
-    expect(mileAtObtain).toBe(0); // 7k · C2 : pas de jalon hors canal culture
-    const gp = Object.values(first.units).find((u) => u.type === 'savant')!;
-    const second = resolveTurn(first, { p1: [{ type: 'InstallPerson', unitId: gp.id, cityId: 'c1' }] }, 42);
-    expect(second.events.some((e) => e.type === 'InstallPerson')).toBe(true);
-    expect(second.newState.players['p1']!.cultureMilestones).toBe(mileAtObtain); // pas de re-compte
-    expect(Object.values(second.newState.cities).some((c) => c.settledGreatPersons.includes('savant'))).toBe(true);
+  it('GARDE-FOU global : 100 tours de simulation — les seuls canaux observables sont culture/or (paliers)/combat/artefact', () => {
+    let s = productionState();
+    s.players['p1']!.techsUnlocked = ['code_des_lois', 'rites_funeraires', 'monarchie'];
+    const canaux: string[] = [];
+    for (let tour = 0; tour < 100 && s.winner === null; tour++) {
+      const result = resolveTurn(s, {}, 42 + tour);
+      for (const e of result.events) {
+        if (e.type === 'GreatPersonSpawned') canaux.push(e.canal ?? '?');
+      }
+      s = result.newState;
+    }
+    const ADMIS = new Set(['culture', 'or', 'combat', 'artefact']);
+    for (const c of canaux) expect(ADMIS.has(c)).toBe(true); // jamais 'science' ni 'production'
+    // La partie a bien tourné (économie forte — les canaux restants peuvent
+    // ou non émettre selon le seed ; l'invariant est l'ABSENCE de rendement).
+    expect(s.turn).toBeGreaterThan(90);
   });
 
   it('Leader : spawn sur la capitale à T-31 victoires de combat de l’empire', () => {
@@ -318,13 +298,14 @@ describe('R-123 · GP restants (Scientifique, Mogul, Ingénieur, Leader)', () =>
     const spawned = result.events.find((e) => e.type === 'GreatPersonSpawned');
     if (spawned?.type !== 'GreatPersonSpawned') throw new Error('Leader attendu');
     expect(spawned.unitType).toBe('leader');
+    expect(spawned.canal).toBe('combat');
     expect(spawned.at).toEqual({ q: 2, r: 2 }); // case de la capitale
     expect(result.newState.players['p1']!.greatPersonsByType['leader']).toBe(1);
   });
 
   it('Pas de second Leader : le seuil T-31 est FIXE (interprétation documentée)', () => {
-    // T-31 n'a pas d'escalade ×2 (contrairement aux accumulateurs T-30) : le
-    // moteur garde le spawn unique via `(greatPersonsByType.leader ?? 0) > 0`.
+    // T-31 n'a pas d'escalade : le moteur garde le spawn unique via
+    // `(greatPersonsByType.leader ?? 0) > 0`.
     expect(leaderGpVictoriesNeeded()).toBe(20);
   });
 
@@ -361,9 +342,7 @@ describe('R-124 · Victoire scientifique (Vaisseau spatial)', () => {
       conversion: 'gold',
       cultureCumulee: 0,
       wonders: [],
-      gpAccumGold: 0,
-      gpAccumScience: 0,
-      gpAccumProd: 0, gpAccumFood: 0, pendingSalvage: 0, settledGreatPersons: [], wasCaptured: false,
+      pendingSalvage: 0, settledGreatPersons: [], wasCaptured: false,
     };
     const result = resolveTurn(s, {}, 42);
     expect(result.events.some((e) => e.type === 'Launch' && e.player === 'p1')).toBe(true);
@@ -404,7 +383,7 @@ describe('Migration v11 → v12 (Phase 7h)', () => {
       cities: { c1: { id: 'c1', q: 0, r: 0, wonders: ['stonehenge'] } },
     };
     const out = migrateState(v11 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(22);
+    expect(out.schemaVersion).toBe(23);
     expect(out.players['p1']!.government).toBe('despotisme');
     expect(out.players['p1']!.anarchyUntil).toBeNull();
     expect(out.players['p1']!.greatPersonsByType).toEqual({});
@@ -412,12 +391,53 @@ describe('Migration v11 → v12 (Phase 7h)', () => {
     expect(out.players['p1']!.techsUnlockedThisTurn).toEqual([]);
     expect(out.players['p1']!.techsUnlocked).toEqual(['code_des_lois']); // contenu conservé
     expect(out.players['p2']!.treasury).toBe(3);
-    expect(out.cities['c1']!.gpAccumGold).toBe(0);
-    expect(out.cities['c1']!.gpAccumScience).toBe(0);
-    expect(out.cities['c1']!.gpAccumProd).toBe(0);
+    // RETRAIT-GP-ACCUMULATEURS (migration 23) : les accumulateurs sont retirés
+    // par la chaîne complète (v12 les ajoute, v23 les supprime).
+    expect('gpAccumGold' in out.cities['c1']!).toBe(false);
+    expect('gpAccumScience' in out.cities['c1']!).toBe(false);
+    expect('gpAccumProd' in out.cities['c1']!).toBe(false);
     expect(out.cities['c1']!.wonders).toEqual(['stonehenge']);
     // Idempotent.
     expect(migrateState(out as unknown as Record<string, unknown>)).toEqual(out);
+  });
+});
+
+describe('RETRAIT-GP-ACCUMULATEURS · Migration v22 → v23', () => {
+  it('retire gpAccumGold/Science/Prod/Food de chaque ville (valeurs dormantes comprises), idempotent', () => {
+    const v22 = {
+      schemaVersion: 22,
+      turn: 8,
+      players: { p1: { id: 'p1' } },
+      units: {},
+      cities: {
+        c1: { id: 'c1', q: 0, r: 0, owner: 'p1', gpAccumGold: 12, gpAccumScience: 34, gpAccumProd: 56, gpAccumFood: 78 },
+        c2: { id: 'c2', q: 2, r: 0, owner: 'p2' }, // champs déjà absents (idempotence)
+      },
+    };
+    const out = migrateState(v22 as unknown as Record<string, unknown>) as unknown as GameState;
+    expect(out.schemaVersion).toBe(23);
+    for (const c of ['c1', 'c2'] as const) {
+      expect('gpAccumGold' in out.cities[c]!).toBe(false);
+      expect('gpAccumScience' in out.cities[c]!).toBe(false);
+      expect('gpAccumProd' in out.cities[c]!).toBe(false);
+      expect('gpAccumFood' in out.cities[c]!).toBe(false);
+    }
+    expect(out.cities['c1']!.owner).toBe('p1'); // le reste de la ville est intact
+    // Idempotent.
+    expect(migrateState(structuredClone(out) as unknown as Record<string, unknown>)).toEqual(out);
+    // Reprise : un état v22 réaliste (makeState + accumulateurs) migre et se
+    // résout sans erreur.
+    const asV22 = makeState({}) as unknown as Record<string, unknown>;
+    asV22.schemaVersion = 22;
+    for (const c of Object.values(asV22.cities as Record<string, Record<string, unknown>>)) {
+      c.gpAccumGold = 9;
+      c.gpAccumScience = 9;
+      c.gpAccumProd = 9;
+      c.gpAccumFood = 9;
+    }
+    const repris = migrateState(asV22) as unknown as GameState;
+    expect(repris.schemaVersion).toBe(23);
+    expect(() => resolveTurn(repris, {}, 42)).not.toThrow();
   });
 });
 

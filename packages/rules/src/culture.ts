@@ -471,32 +471,14 @@ export function wondersOwnedBy(
 }
 
 // ---------------------------------------------------------------------------
-// 7h · R-123 — GP restants (Scientifique/Mogul/Ingénieur/Leader)
+// 7h · R-123 — GP restants (Leader — T-31)
 // ---------------------------------------------------------------------------
 
-/** 7j · GP à rendement (accumulateurs par ville — R-123 complétée) : Grand
- *  Savant (science), Grand Explorateur / Industriel (or), Grand Bâtisseur
- *  (production). Le Grand Humanitaire (croissance — surplus alimentaire) suit
- *  le MÊME modèle (accumulateur `city.gpAccumFood`, même seuil T-30 🔶) ;
- *  Leader conserve son canal victoires (T-31). */
-export const YIELD_GP_TYPES = ['savant', 'explorateur', 'batisseur'] as const;
-export type YieldGreatPersonType = (typeof YIELD_GP_TYPES)[number];
-
-/**
- * R-123 · T-30 · Seuil d'un accumulateur de GP à rendement : base 🔶 20
- * (culture.json), ×2 par GP de CE TYPE déjà obtenu par l'empire
- * (`player.greatPersonsByType[type]`). Le Leader (T-31) a un seuil FIXE
- * (victoires de combat — interprétation documentée : pas de croissance).
- */
-export function yieldGpThresholdFor(
-  type: YieldGreatPersonType | 'humanitaire',
-  greatPersonsByType: Record<string, number>,
-): number {
-  void type;
-  const base = CULTURE.greatPersonYieldThresholdBase ?? 20;
-  const growth = CULTURE.greatPersonYieldThresholdGrowth ?? 2;
-  return base * Math.pow(growth, Math.max(0, greatPersonsByType[type] ?? 0));
-}
+// RETRAIT-GP-ACCUMULATEURS (décision d'Erik du 14/09) : les GP à rendement
+// (accumulateurs par ville, seuils T-30 — R-123 complétée) sont ABROGÉS.
+// `YIELD_GP_TYPES`, `YieldGreatPersonType` et `yieldGpThresholdFor` sont
+// SUPPRIMÉS ; aucun GP ne peut plus sortir d'un rendement (science/or/
+// production/nourriture). Leader conserve son canal victoires (T-31).
 
 /** R-123 · T-31 · Seuil de victoires de combat pour le GP Leader. */
 export function leaderGpVictoriesNeeded(): number {

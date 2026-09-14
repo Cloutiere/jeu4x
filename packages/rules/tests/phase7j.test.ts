@@ -75,12 +75,13 @@ describe('7j · D1 — fusion Artiste / Penseur (R-114 révisée)', () => {
 });
 
 describe('7k · C1 — Grand Humanitaire produit PAR LE CANAL CULTURE (veto d’Erik du 04/09, révision R-123/R-126)', () => {
-  it('l’accumulateur gpAccumFood est DORMANT : plus aucun GP n’en sort (compat saves)', () => {
+  it('GARDE-FOU RETRAIT-GP-ACCUMULATEURS : l’accumulateur gpAccumFood est SUPPRIMÉ (migration 23) — aucun GP de nourriture', () => {
     const state = gpState();
-    state.cities['c1']!.gpAccumFood = 20; // ancien seuil T-30 — plus jamais lu
+    // Le champ n'existe plus : l'ancien test « dormant » devient un garde-fou
+    // d'ABSENCE — aucune émission, aucun champ.
     const result = resolveTurn(state, {}, 42);
     expect(result.events.some((e) => e.type === 'GreatPersonSpawned')).toBe(false);
-    expect(result.newState.cities['c1']!.gpAccumFood).toBe(20); // inchangé (dormant)
+    expect('gpAccumFood' in result.newState.cities['c1']!).toBe(false);
   });
 
   it('GP-CULTURE-EVENEMENTS · D2 : la tech en cours N’INFLUENCE PLUS la classe (R-127 abrogée) — jalon = palier (D6)', () => {
@@ -102,12 +103,11 @@ describe('7k · C1 — Grand Humanitaire produit PAR LE CANAL CULTURE (veto d’
     expect(jalon.reason).toBe('cultureLevel');
   });
 
-  it('un déficit alimentaire ne touche plus aucun accumulateur (champ dormant, interprétation 7k)', () => {
+  it('un déficit alimentaire ne touche aucun accumulateur (champ supprimé — migration 23)', () => {
     const state = gpState();
-    state.cities['c1']!.gpAccumFood = 5;
     state.cities['c1']!.pop = 30; // déficit massif (cap 31, R-63)
     const out = resolveTurn(state, {}, 42).newState;
-    expect(out.cities['c1']!.gpAccumFood).toBe(5); // inchangé — dormant
+    expect('gpAccumFood' in out.cities['c1']!).toBe(false);
   });
 });
 
@@ -384,7 +384,7 @@ describe('7j · Migration v12 → v13 (fusion `penseur`, renommages D2, champs S
     };
     const out = migrateState(v12 as unknown as Record<string, unknown>) as unknown as GameState;
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(22); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
+    expect(CURRENT_SCHEMA_VERSION).toBe(23); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
  // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
     expect(out.units['u1']!.type).toBe('artiste_penseur'); // fusion D1
     expect(out.units['u2']!.type).toBe('artiste_penseur');
@@ -395,7 +395,8 @@ describe('7j · Migration v12 → v13 (fusion `penseur`, renommages D2, champs S
     expect(byType['explorateur']).toBe(3); // mogul renommé
     expect(byType['leader']).toBe(1);
     expect(byType['penseur']).toBeUndefined();
-    expect(out.cities['c1']!.gpAccumFood).toBe(0); // additif
+    // gpAccumFood (additif v13) est ensuite RETIRÉ par la migration 23.
+    expect('gpAccumFood' in out.cities['c1']!).toBe(false);
     expect(out.cities['c1']!.settledGreatPersons).toEqual([]); // additif
     // Idempotent.
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);

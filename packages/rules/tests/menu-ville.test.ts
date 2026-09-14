@@ -13,7 +13,7 @@ function villePartielle(id: string, owner: string, name?: string): City {
   return {
     id, q: 0, r: 0, owner, pop: 1, capital: false, foodStored: 0, production: null,
     workedTiles: [], buildings: [], conversion: 'gold', cultureCumulee: 0,
-    wonders: [], gpAccumGold: 0, gpAccumScience: 0, gpAccumProd: 0, gpAccumFood: 0,
+    wonders: [],
     pendingSalvage: 0, settledGreatPersons: [], wasCaptured: false,
     ...(name !== undefined ? { name } : {}),
   };
@@ -79,7 +79,7 @@ describe('fondation (R-64) — la ville fondée porte son nom VilleN', () => {
 
 describe('Migration schemaVersion 20 → 21 (champ additif City.name)', () => {
   it('CURRENT_SCHEMA_VERSION = 21 ; MIGRATIONS[21] existe ; backfill VilleN déterministe PAR JOUEUR (id de ville croissant)', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(22);
+    expect(CURRENT_SCHEMA_VERSION).toBe(23);
     expect(typeof MIGRATIONS[21]).toBe('function');
     const base = makeState({
       cities: [
@@ -92,7 +92,7 @@ describe('Migration schemaVersion 20 → 21 (champ additif City.name)', () => {
     v20.schemaVersion = 20;
     for (const c of Object.values(v20.cities as Record<string, Record<string, unknown>>)) delete c.name;
     const out = migrateState(v20) as unknown as GameState;
-    expect(out.schemaVersion).toBe(22);
+    expect(out.schemaVersion).toBe(23);
     expect(out.cities['c2']!.name).toBe('Ville1'); // p1 d'abord (aucune autre ville p1)
     expect(out.cities['c1']!.name).toBe('Ville1'); // compteur PAR JOUEUR — c2 de p1 n'a pas d'effet
     expect(out.cities['c3']!.name).toBe('Ville2'); // id croissant dans p2

@@ -22,8 +22,11 @@ export type DestructionCause = 'combat' | 'collision' | 'capture' | 'sunk' | 'mi
  * R-109 étendu — D5.1) ne passent PAS par GreatPersonSpawned : ils sont
  * portés par l'événement `FirstDiscovered` (champ `greatPerson`), dont le
  * libellé journal mentionne la source. Zéro effet moteur — informatif.
+ * RETRAIT-GP-ACCUMULATEURS (décision d'Erik du 14/09) : les canaux
+ * 'science' et 'production' (R-123) sont SUPPRIMÉS — plus aucun GP d'
+ * accumulateur de rendement ; le type est resserré pour le garantir.
  */
-export type GpCanal = 'culture' | 'science' | 'or' | 'production' | 'combat' | 'artefact';
+export type GpCanal = 'culture' | 'or' | 'combat' | 'artefact';
 
 /** R-98 · Récompense structurée d'une hutte ouverte (contenu de HutOpened).
  *  7o · R-155 : `artefact_indice` — le nombre d'artefacts restants, ou la

@@ -190,10 +190,6 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       conversion: spec.conversion ?? CONVERSION_DEFAULT,
       cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: spec.wonders ?? [], // 7f · R-115
-      gpAccumGold: 0, // 7h · R-123
-      gpAccumScience: 0,
-      gpAccumProd: 0,
-      gpAccumFood: 0, // 7j (7k · C1 : DORMANT — canal Humanitaire = culture)
       pendingSalvage: 0, // 7k · R-130 (M3)
       settledGreatPersons: spec.settledGreatPersons ?? [], // 7j · R-126
       wasCaptured: false, // 7n · R-149 (trait Mongol commerceCaptures)

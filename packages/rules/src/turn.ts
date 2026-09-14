@@ -71,13 +71,10 @@ import {
   wonderAttackBonusEmpireOf,
   wonderBlocksEnemyAttacks,
   wondersOwnedBy,
-  yieldGpThresholdFor,
   cityGoldMultOf,
   empireGoldMultOf,
   militaryCostMultOf,
-  YIELD_GP_TYPES,
 } from './culture.js';
-import type { YieldGreatPersonType } from './culture.js';
 import { effectsFor, isInAnarchy, landCombatBonus, populationCostOf } from './governments.js';
 import { prochainNomVille } from './noms.js'; // MENU-VILLE : noms VilleN (compteur par joueur)
 // 7i · R-63 rév. (D1/D2), R-60bis (D4), R-64 rév. (D3) — croissance CivRev.
@@ -330,10 +327,6 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
       conversion: CONVERSION_DEFAULT,
       cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: [],
-      gpAccumGold: 0,
-      gpAccumScience: 0,
-      gpAccumProd: 0,
-      gpAccumFood: 0,
       pendingSalvage: 0,
       settledGreatPersons: [],
       wasCaptured: false,
@@ -3014,10 +3007,6 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
       cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: [], // 7f · R-115
-      gpAccumGold: 0, // 7h · R-123
-      gpAccumScience: 0,
-      gpAccumProd: 0,
-      gpAccumFood: 0, // 7j (7k · C1 : DORMANT — le canal Humanitaire est la culture)
       pendingSalvage: 0, // 7k · R-130 (M3)
       settledGreatPersons: [], // 7j · R-126
       wasCaptured: false, // 7n · R-149
@@ -3532,12 +3521,9 @@ function processEconomy(board: Board): void {
     // 7f · R-113 : rendement culturel de la ville (scalaire sur la démographie :
     // Palais + Temples/Cathédrales × pop, Stonehenge ×1,5) + bonus empire
     // perCity.culture (R-109) — accumulation PAR VILLE.
-    // 7h · R-123 : accumulateurs de GP à rendement par ville (or/science/
-    // production) — les mêmes gains que ceux crédités en Phase C, vers le
-    // seuil T-30. Gelés en Anarchie (gains déjà à zéro ci-dessus).
-    city.gpAccumGold += gains.gold + empireBonus.gold;
-    city.gpAccumScience += gains.science + empireBonus.science;
-    city.gpAccumProd += production;
+    // RETRAIT-GP-ACCUMULATEURS (décision d'Erik du 14/09) : les accumulateurs
+    // R-123 (`gpAccum*`, seuil T-30) sont SUPPRIMÉS — aucun GP ne sort d'un
+    // rendement (science/or/production/nourriture).
     // 7h · R-121/R-122 : culture à zéro pendant l'Anarchie ; Monarchie (Palais
     // ×2) et Communisme (Temples/Cathédrales = 0) via les effets de régime ;
     // Magna Carta (Tribunal +1) via les merveilles (R-125).
@@ -3555,29 +3541,11 @@ function processEconomy(board: Board): void {
             settledGpMultiplier(city, 'artiste_penseur'),
         );
     city.cultureCumulee += gainCulture;
-    // 7f/7h · R-123 : seuils des GP À RENDEMENT (accumulateurs T-30) — au plus
-    // UN GP par ville et par tour (ordre déterministe : science → or →
-    // production). Posé sur la case de la ville, sinon case adjacente libre
-    // (perdu si aucune). GP gelés en Anarchie (R-122).
-    // GP-CULTURE-EVENEMENTS (D6) : le canal CULTURE n'est plus un canal PAR
-    // VILLE à jauge soustraite — il est traité PAR PALIER de culture de
-    // civilisation (Σ empire), APRÈS la boucle des villes.
-    if (!anarchy) {
-      // 7n · R-149 (trait `gpFrequents` — Grèce Médiévale, Rome Industrielle) :
-      // seuils d'obtention des GP ×0,75 🔶 (accumulateurs T-30 — la même valeur
-      // effective est soustraite).
-      const gpMult = civGpThresholdMultOf(player);
-      if (city.gpAccumScience >= Math.round(yieldGpThresholdFor('savant', player.greatPersonsByType) * gpMult)) {
-        city.gpAccumScience -= Math.round(yieldGpThresholdFor('savant', player.greatPersonsByType) * gpMult);
-        spawnGreatPerson(board, city, 'savant', 'science');
-      } else if (city.gpAccumGold >= Math.round(yieldGpThresholdFor('explorateur', player.greatPersonsByType) * gpMult)) {
-        city.gpAccumGold -= Math.round(yieldGpThresholdFor('explorateur', player.greatPersonsByType) * gpMult);
-        spawnGreatPerson(board, city, 'explorateur', 'or');
-      } else if (city.gpAccumProd >= Math.round(yieldGpThresholdFor('batisseur', player.greatPersonsByType) * gpMult)) {
-        city.gpAccumProd -= Math.round(yieldGpThresholdFor('batisseur', player.greatPersonsByType) * gpMult);
-        spawnGreatPerson(board, city, 'batisseur', 'production');
-      }
-    }
+    // RETRAIT-GP-ACCUMULATEURS (décision d'Erik du 14/09) : le bloc d'émission
+    // des GP à rendement (R-123 — science → or → production, seuils T-30) est
+    // SUPPRIMÉ. Le canal CULTURE reste traité PAR PALIER de culture de
+    // civilisation (Σ empire), APRÈS la boucle des villes (GP-CULTURE-
+    // EVENEMENTS · D6) ; Leader (T-31) et paliers d'or (R-136) inchangés.
 
     // R-62/R-66 : un seul item, progression conservée ; unité posée sur la
     // case de ville (si libre), bâtiment ajouté à la ville (permanent).

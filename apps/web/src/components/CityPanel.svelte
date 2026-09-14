@@ -8,7 +8,7 @@
    * SetConversion (action immédiate). R-88 : la Bibliothèque modifie la
    * conversion (libellés issus de conversionGains, source unique moteur/UI).
    */
-  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, tileKeyOf, workRadiusOf, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, yieldGpThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, toursAvantCroissance, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, eraOfPlayer, civIdOf, activeTraitsOf, effectsFor } from '@game/rules';
+  import { unitType, UNIT_TYPES, BUILDINGS, WONDERS, TECHS, tileYield, tileKeyOf, workRadiusOf, conversionGains, RESOURCES, RESOURCE_UNKNOWN, CULTURE, cultureGains, greatPersonThresholdFor, wonderProductionIssue, empirePerCityBonus, neighbors, isWaterTerrain, growthThresholdFor, toursAvantCroissance, interiorCitizenFor, interiorCountOf, populationCap, allKnownTechs, cityGoldMultOf, empireGoldMultOf, isWonderObsolete, rushBuyCostOf, isRushForbidden, productionItemCostOf, eraOfPlayer, civIdOf, activeTraitsOf, effectsFor } from '@game/rules';
   import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
   import { greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
@@ -194,26 +194,10 @@
     return cultureGains(city, empireBonus.culture, allTechs, govEffects);
   });
   /**
-   * 7h · R-123 : jauges des GP à rendement (or / science / production) —
-   * accumulateurs par ville, seuil T-30 (×2 par GP du même type obtenu).
-   * Au plus un GP par ville et par tour (culture prioritaire — R-123).
-   * 7k · C1 (veto d'Erik du 04/09) : le Grand Humanitaire est produit PAR LE
-   * CANAL CULTURE — plus de jauge gpAccumFood (champ dormant en état).
+   * RETRAIT-GP-ACCUMULATEURS (décision d'Erik du 14/09) : les jauges des GP
+   * à rendement (R-123 — accumulateurs `gpAccum*`, seuil T-30) sont
+   * SUPPRIMÉES. La jauge restante est celle du canal CULTURE (paliers T-27).
    */
-  const YIELD_GAUGES: Array<{ key: 'gpAccumGold' | 'gpAccumScience' | 'gpAccumProd'; type: 'explorateur' | 'savant' | 'batisseur'; label: string; icon: string }> = [
-    { key: 'gpAccumScience', type: 'savant', label: 'Grand Savant', icon: '/art/icone_science.png' },
-    { key: 'gpAccumGold', type: 'explorateur', label: 'Grand Explorateur', icon: '/art/icone_or.png' },
-    { key: 'gpAccumProd', type: 'batisseur', label: 'Grand Bâtisseur', icon: '/art/icone_production.png' },
-  ];
-  const gpYieldGauges = $derived.by(() => {
-    if (!city || !view.state || !engine) return [];
-    const byType = view.state.players[engine]?.greatPersonsByType ?? {};
-    return YIELD_GAUGES.map((g) => {
-      const threshold = yieldGpThresholdFor(g.type, byType);
-      const stored = city[g.key] ?? 0;
-      return { ...g, threshold, stored, ratio: Math.max(0, Math.min(1, stored / threshold)) };
-    });
-  });
 
   /**
    * Réassignations en attente (retour immédiat) : les ordres SetWorkedTile
@@ -493,13 +477,6 @@
           <div class="bar"><div class="fill culture-fill" style:width={`${cultureRatio * 100}%`}></div></div>
           <span class="eta">{culturePerTurn} culture/tour (cette ville)</span>
         </div>
-        {#each gpYieldGauges as g (g.type)}
-          <div class="gauge" title="{g.label} (R-123 complétée) : accumulateur de la ville — seuil T-30 (×2 par GP de la même classe obtenu)">
-            <span class="lab"><img src={g.icon} alt="" onerror={hideImg} /> {g.stored} / {g.threshold}</span>
-            <div class="bar"><div class="fill gp-fill" style:width={`${g.ratio * 100}%`}></div></div>
-            <span class="eta">{g.label}</span>
-          </div>
-        {/each}
         {#if city.settledGreatPersons.length > 0}
           <p class="settled-gps" title="7j · R-126 : GP INSTALLÉS — multiplicateurs permanents de rendement de cette cité">
             GP installés :
@@ -707,7 +684,6 @@
   .fill { height: 100%; background: #f0c419; }
   .growth-fill { background: #81c784; }
   .culture-fill { background: #ba68c8; }
-  .gp-fill { background: #b39ddb; }
   .wonder { padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid #b8863c; background: #3c3222; font-size: 0.8rem; color: #ffd54f; }
   .wonder.obsolete { opacity: 0.55; border-style: dashed; color: #a89880; }
   .salvage { margin: 0.2rem 0; color: #ffe082; font-size: 0.84rem; font-weight: 600; }

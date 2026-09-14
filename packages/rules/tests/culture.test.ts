@@ -123,18 +123,15 @@ describe('CULTURE-FRONTIERES (M2) · canal d\'origine des GP — source explicit
     expect(e.canal).toBe('culture');
   });
 
-  it('accumulateurs T-30 : science → "science", or → "or", production → "production"', () => {
-    for (const [accum, canal] of [
-      ['gpAccumScience', 'science'],
-      ['gpAccumGold', 'or'],
-      ['gpAccumProd', 'production'],
-    ] as const) {
-      const state = capitalCity();
-      state.cities['c1']![accum] = 20; // seuil T-30 de base (aucun GP du type déjà obtenu)
-      const { events } = resolveTurn(state, {}, 1);
-      const e = events.find((ev) => ev.type === 'GreatPersonSpawned');
-      if (e?.type !== 'GreatPersonSpawned') throw new Error(`GP attendu (${accum})`);
-      expect(e.canal).toBe(canal);
+  it('GARDE-FOU RETRAIT-GP-ACCUMULATEURS : les canaux science/production n’existent plus', () => {
+    // Les accumulateurs R-123 sont abrogés : aucun rendement, même très fort,
+    // ne peut plus produire un GP en un tour.
+    const state = capitalCity();
+    const { events } = resolveTurn(state, {}, 1);
+    for (const ev of events) {
+      if (ev.type === 'GreatPersonSpawned') {
+        expect(['science', 'production']).not.toContain(ev.canal);
+      }
     }
   });
 
@@ -372,9 +369,7 @@ describe('R-115 · Installation et jalons culturels', () => {
       conversion: 'gold',
       cultureCumulee: 0,
       wonders: [],
-      gpAccumGold: 0,
-      gpAccumScience: 0,
-      gpAccumProd: 0, gpAccumFood: 0, pendingSalvage: 0, settledGreatPersons: [], wasCaptured: false,
+      pendingSalvage: 0, settledGreatPersons: [], wasCaptured: false,
     };
     const r2 = resolveTurn(
       other,
@@ -480,7 +475,7 @@ describe('7f · Migration v9 → v10', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(22); // la chaîne continue (GP-CULTURE-EVENEMENTS)
+    expect(out.schemaVersion).toBe(23); // la chaîne continue (RETRAIT-GP-ACCUMULATEURS)
     expect((out.cities['c1'] as unknown as Record<string, unknown>)['cultureStored']).toBeUndefined(); // D5 : retiré de l'état
     expect(out.cities['c1']!.cultureCumulee).toBe(0);
     expect(out.cities['c1']!.wonders).toEqual([]);
@@ -552,9 +547,7 @@ describe('7f · e2e : culture → GP → jalons → merveilles → ONU → victo
       conversion: 'gold',
       cultureCumulee: 0,
       wonders: ['colosse_de_rhodes'],
-      gpAccumGold: 0,
-      gpAccumScience: 0,
-      gpAccumProd: 0, gpAccumFood: 0, pendingSalvage: 0, settledGreatPersons: [], wasCaptured: false,
+      pendingSalvage: 0, settledGreatPersons: [], wasCaptured: false,
     };
     state.units['uInv'] = {
       id: 'uInv',

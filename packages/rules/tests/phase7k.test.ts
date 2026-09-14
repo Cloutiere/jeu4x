@@ -442,8 +442,8 @@ describe('7k · Bloc 0 — C3 (veto d’Erik du 04/09) : un seul GP d’un même
   });
 });
 
-describe('7k · Migration v13 → v14 (R-130 — champ additif pendingSalvage, gpAccumFood dormant)', () => {
-  it('ajoute pendingSalvage: 0, préserve gpAccumFood (compat saves), idempotent', () => {
+describe('7k · Migration v13 → v14 (R-130 — champ additif pendingSalvage ; gpAccumFood retiré plus tard en v23)', () => {
+  it('ajoute pendingSalvage: 0 à l’étape v14 ; la chaîne complète retire gpAccumFood (v23), idempotent', () => {
     const v13 = {
       schemaVersion: 13,
       players: { p1: { id: 'p1' } },
@@ -453,7 +453,9 @@ describe('7k · Migration v13 → v14 (R-130 — champ additif pendingSalvage, g
     const out = migrateState(v13 as unknown as Record<string, unknown>) as unknown as GameState;
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(out.cities['c1']!.pendingSalvage).toBe(0); // additif
-    expect(out.cities['c1']!.gpAccumFood).toBe(7); // conservé DORMANT (C1)
+    // RETRAIT-GP-ACCUMULATEURS : la valeur dormante v13 est RETIRÉE par la
+    // migration v23 (fin de chaîne) — les champs gpAccum* ne subsistent pas.
+    expect('gpAccumFood' in out.cities['c1']!).toBe(false);
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
     expect(twice).toEqual(out);
   });

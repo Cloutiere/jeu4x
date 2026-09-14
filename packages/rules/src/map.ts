@@ -466,10 +466,6 @@ export function createInitialState(
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
       cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: [], // 7f · R-115
-      gpAccumGold: 0, // 7h · R-123
-      gpAccumScience: 0,
-      gpAccumProd: 0,
-      gpAccumFood: 0, // 7j (7k · C1 : DORMANT — canal Humanitaire = culture)
       pendingSalvage: 0, // 7k · R-130 (M3)
       settledGreatPersons: [], // 7j · R-126
       wasCaptured: false, // 7n · R-149 (trait Mongol commerceCaptures)

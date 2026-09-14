@@ -169,15 +169,11 @@ export interface City {
   /** 7f · R-115 : merveilles hébergées — SURVIVENT à la capture (elles
    *  changent de propriétaire avec la ville, contrairement aux bâtiments). */
   wonders: string[];
-  /** 7h · R-123 : accumulateurs de GP à rendement (or/science/production) —
-   *  gains de Phase C accumulés vers le seuil T-30. */
-  gpAccumGold: number;
-  gpAccumScience: number;
-  gpAccumProd: number;
-  /** 7j · R-123 complétée · accumulateur de CROISSANCE (surplus alimentaire) —
-   *  7k · C1 (veto d'Erik du 04/09) : le canal Humanitaire est le CANAL CULTURE
-   *  (R-114/R-127) — ce champ est DORMANT (compat saves, jamais crédité ni lu). */
-  gpAccumFood: number;
+  /** RETRAIT-GP-ACCUMULATEURS (décision d'Erik du 14/09) : les accumulateurs
+   *  de rendement `gpAccum*` (R-123 — 7h/7j) sont SUPPRIMÉS (migration 23).
+   *  Aucun GP ne provient d'un rendement : les canaux restants sont culture
+   *  (T-27), technologies, merveilles, artefacts, Leader (T-31) et paliers
+   *  d'or (R-136). */
   /** 7k · R-130 · M3 · Récupération de marteaux : marteaux investis dans une
    *  merveille complétée par un rival, en attente de réaffectation (un
    *  SetProduction de la fenêtre démarre le nouveau projet à cette valeur ;
@@ -390,7 +386,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 22;
+export const CURRENT_SCHEMA_VERSION = 23;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -962,6 +958,28 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       };
     }
     return { ...state, cities: migratedCities, players: migratedPlayers };
+  },
+  /**
+   * RETRAIT-GP-ACCUMULATEURS · v22 → v23 (décision d'Erik du 14/09) —
+   * SUPPRESSION des accumulateurs de rendement R-123 : champs `gpAccumGold`,
+   * `gpAccumScience`, `gpAccumProd` et `gpAccumFood` (ce dernier DORMANT depuis
+   * 7k · C1) retirés de CHAQUE ville. Aucun GP ne peut plus sortir d'un
+   * rendement (science/or/production/nourriture) — les canaux restants :
+   * culture (T-27), technologies, merveilles, artefacts, Leader (T-31) et
+   * paliers d'or (R-136). Idempotent (champ absent = rien à retirer).
+   */
+  23: (state) => {
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedCities: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const { gpAccumGold: _g, gpAccumScience: _s, gpAccumProd: _p, gpAccumFood: _f, ...rest } = cities[id]!;
+      void _g;
+      void _s;
+      void _p;
+      void _f;
+      migratedCities[id] = rest;
+    }
+    return { ...state, cities: migratedCities };
   },
 };
 
