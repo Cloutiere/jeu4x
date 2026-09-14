@@ -165,6 +165,30 @@ export function previewPrograms(
 }
 
 /**
+ * COLON-FONDATION (M1) : l'unité portée par cet aperçu « fonde à la fin du
+ * chemin » — l'ordre courant (Move n'y figure JAMAIS ; composite MultiStep
+ * R-158, chemin gelé compris) porte une action finale `foundCity` vivante.
+ * Dérivée de l'aperçu existant (aucun recalcul) : l'aperçu naît des ordres
+ * brouillons ET des chemins gelés, et disparaît avec eux — annulation
+ * (ordre purgé) comme consommation (résolution R-158 : action exécutée,
+ * tombée dans le fog ou insuffisance de PM) font tomber le prédicat à faux
+ * sans aucun état UI dédié (miroir du moteur).
+ */
+export function fondeAFinDuChemin(preview: ProgramPreview): boolean {
+  return preview.final === 'foundCity';
+}
+
+/** COLON-FONDATION (M1) : ids des unités AMIES qui fondent à la fin de leur
+ *  chemin — alimente l'état visuel « en train de fonder » du rendu 2D. */
+export function fondateursDe(previews: ProgramPreview[], owner: PlayerId): Set<UnitId> {
+  const out = new Set<UnitId>();
+  for (const p of previews) {
+    if (p.owner === owner && fondeAFinDuChemin(p)) out.add(p.unitId);
+  }
+  return out;
+}
+
+/**
  * R-160 (D1) : clés "q,r" des cases disputées (destination revendiquée par
  * ≥ 2 unités AMIES) — surlignage UI.
  */

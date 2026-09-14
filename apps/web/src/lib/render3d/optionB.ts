@@ -74,6 +74,7 @@ function texturesDeSecours(): GameTextures {
     villageBarbare: entite,
     hutte: entite,
     artefacts: {},
+    colonFondation: null,
     yieldIcons: { food: null, production: null, commerce: null, gold: null, science: null },
     resources: {},
     px: Texture.WHITE,

@@ -125,3 +125,35 @@ describe('upsertOrderPreservingPriority (R-159 · D3)', () => {
     expect(out.map((o) => ('unitId' in o ? o.unitId : null))).toEqual(['u1', 'u2', 'u3']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// COLON-FONDATION — orderOwnerErreur : le composite MultiStep (R-158) exige la
+// même possession d'unité que Move. Régression : la case manquante rejetait
+// tout ordre composite en « ordre inconnu » (bouton « 1. Déplacer → 2. Fonder »
+// muet depuis DEPLACEMENT-PLANIFIE — découvert à la validation GUI de
+// COLON-FONDATION, dont l'état visuel est adossé à cet ordre).
+// ---------------------------------------------------------------------------
+import { orderOwnerErreur } from '../src/game.js';
+
+describe('orderOwnerErreur · MultiStep (correctif COLON-FONDATION)', () => {
+  const units = { u1: { owner: 'p1' }, u2: { owner: 'p2' } };
+  const cities = { c1: { owner: 'p1' } };
+
+  it('MultiStep sur une unité possédée → accepté (null)', () => {
+    expect(
+      orderOwnerErreur(units, cities, 'p1', { type: 'MultiStep', unitId: 'u1', path: [{ q: 1, r: 0 }], final: 'foundCity' }),
+    ).toBeNull();
+  });
+
+  it('MultiStep sur une unité ENNEMIE → rejeté (possession, pas la forme)', () => {
+    expect(
+      orderOwnerErreur(units, cities, 'p1', { type: 'MultiStep', unitId: 'u2', path: [{ q: 1, r: 0 }], final: 'foundCity' }),
+    ).not.toBeNull();
+  });
+
+  it('Move/FoundCity inchangés (miroir exact de l\'ancien comportement)', () => {
+    expect(orderOwnerErreur(units, cities, 'p1', { type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] })).toBeNull();
+    expect(orderOwnerErreur(units, cities, 'p1', { type: 'FoundCity', unitId: 'u1' })).toBeNull();
+    expect(orderOwnerErreur(units, cities, 'p1', { type: 'FoundCity', unitId: 'u2' })).not.toBeNull();
+  });
+});

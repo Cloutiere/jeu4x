@@ -11,7 +11,7 @@
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, fondeAFinDuChemin, fondateursDe, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe } from '@game/rules';
   import type { GameState, Hex, ProgramPreview } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -25,6 +25,7 @@
   import type { PoseVueVille } from './hexView.js';
   import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
   import type { Point } from './arrows.js';
+  import { BADGE_FONDATION, etatFondationColon } from './fondation.js';
   import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable } from './interaction.js';
   import type { ClickAction } from './interaction.js';
   // Chantier V1 (L3) — couche hybride : terrain Three.js + sprites PixiJS
@@ -481,6 +482,11 @@
     // position moteur, le fantôme translucide (rebuildOverlay) montre
     // l'arrivée décalée au bord de l'hexagone.
     const arrivees = arriveesEnnemies();
+    // COLON-FONDATION (M1) : dérivation de l'aperçu DÉJÀ calculé
+    // (scenePreviews — ordre posé et chemin gelé compris), jamais recalculée
+    // par frame. Annulation comme consommation font tomber l'aperçu, donc
+    // l'état visuel, sans aucune purge dédiée (miroir du moteur).
+    const fondateurs = scene.myId ? fondateursDe(scenePreviews, scene.myId) : new Set<string>();
     const seenUnits = new Set<string>();
     // MENU-VILLE (retour d'Erik) : en vue ville, les UNITÉS disparaissent —
     // concentration sur la gestion de la ville ; elles reviennent en vue carte.
@@ -503,10 +509,28 @@
       // modèle 3D est le rendu) mais le conteneur projeté reste — barre de PV,
       // fortification, cargo, badge espion suivent. Sans modèle : sprite 2D.
       const en3d = structures3dActives && aModele3D(unit.type, unit.owner);
+      // COLON-FONDATION (M2) : état « en train de fonder » — décision pure
+      // (fondation.ts) alimentée par l'aperçu DÉJÀ calculé (scenePreviews —
+      // ordre posé et chemin gelé compris), jamais recalculée par frame.
+      // Annulation comme consommation font tomber l'aperçu, donc l'état
+      // visuel, sans aucune purge dédiée (miroir du moteur).
+      const fondation = etatFondationColon({
+        type: unit.type,
+        unitId: unit.id,
+        fondateurs,
+        artPresent: !!textures.colonFondation,
+        modele3d: en3d,
+      });
       const baseU = c.getChildByLabel('base');
       const accentU = c.getChildByLabel('accent');
-      if (baseU) baseU.visible = !en3d;
-      if (accentU) accentU.visible = !en3d;
+      if (baseU) baseU.visible = !en3d && !fondation.art;
+      if (accentU) accentU.visible = !en3d && !fondation.art;
+      const fondBase = c.getChildByLabel('fondBase') as Sprite | null;
+      const fondAccent = c.getChildByLabel('fondAccent') as Sprite | null;
+      if (fondBase) fondBase.visible = fondation.art;
+      if (fondAccent) fondAccent.visible = fondation.art;
+      const fondBadge = c.getChildByLabel('fondBadge');
+      if (fondBadge) fondBadge.visible = fondation.badge;
       // CORRECTIFS-SELECTION : l'unité programmée est affichée À SA DESTINATION
       // (position optimiste — comme si le déplacement avait eu lieu) ; sans
       // ordre, elle reste sur sa case moteur. Pendant le playback, l'inter-
@@ -738,6 +762,38 @@
     spyBadge.circle(-30, -150, 3).fill({ color: 0x1b1b22 });
     spyBadge.visible = false;
     c.addChild(spyBadge);
+    // COLON-FONDATION (M2) : état « en train de fonder » — slot data-driven
+    // `colonFondation` du catalogue unités (art d'Erik : unite_colonFondation
+    // [+_accent].png dans public/art/ ; s'affiche sans changement de code dès
+    // que le PNG arrive), accent teinté joueur comme le sprite de base.
+    // Tant que l'art est absent : badge provisoire (constantes 🔶) au-dessus
+    // du Colon — marqueur de fondation lisible, sans effet sur le picking.
+    if (type === 'colon' && textures!.colonFondation) {
+      const fondBase = new Sprite(textures!.colonFondation.base);
+      fondBase.label = 'fondBase';
+      fondBase.anchor.set(0.5, 1);
+      fondBase.scale.set(0.5);
+      fondBase.y = 10;
+      fondBase.visible = false;
+      const fondAccent = new Sprite(textures!.colonFondation.accent);
+      fondAccent.label = 'fondAccent';
+      fondAccent.anchor.set(0.5, 1);
+      fondAccent.scale.set(0.5);
+      fondAccent.y = 10;
+      fondAccent.tint = color;
+      fondAccent.visible = false;
+      c.addChild(fondBase, fondAccent);
+    }
+    const fondBadge = new Graphics();
+    fondBadge.label = 'fondBadge';
+    // Losange ambre (langage des marqueurs d'ordre) sur tige : « fondation » —
+    // constantes 🔶 dans fondation.ts (module pur testé).
+    const BF = BADGE_FONDATION;
+    fondBadge.poly(BF.losange.flat()).fill({ color: BF.remplissage }).stroke({ width: 2.5, color: BF.contour });
+    fondBadge.moveTo(BF.tige.de[0], BF.tige.de[1]).lineTo(BF.tige.vers[0], BF.tige.vers[1]).stroke({ width: 3, color: BF.contour });
+    fondBadge.circle(BF.tige.point[0], BF.tige.point[1], BF.tige.rayon).fill({ color: BF.point }).stroke({ width: 1.5, color: BF.contour });
+    fondBadge.visible = false;
+    c.addChild(fondBadge);
     c.label = unitId;
     return c;
   }
@@ -1228,7 +1284,7 @@
       } else {
         drawArrow(hexToPixel(origin, HEX_SIZE), p.path, p.final ? 0x8ce99a : 0xf0c419, 0.9, false, true);
       }
-      if (p.final === 'foundCity' && p.destination) {
+      if (fondeAFinDuChemin(p) && p.destination) {
         // R-158 (D5) : marqueur de l'action finale — fondation à l'arrivée.
         const found = new Text({
           text: '⌂',

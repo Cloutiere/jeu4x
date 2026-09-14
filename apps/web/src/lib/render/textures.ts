@@ -52,6 +52,12 @@ export interface GameTextures {
   hutte: EntityTexture;
   /** 7o · R-153 : sprites des artefacts (clé = id du pool artefacts.json). */
   artefacts: Record<string, EntityTexture>;
+  /** COLON-FONDATION : état « en train de fonder » du Colon (clé
+   *  `colonFondation` du catalogue unités) — null tant qu'Erik n'a pas
+   *  fourni l'art (unite_colonFondation.png absent), le rendu affiche alors
+   *  le badge provisoire. Dès que le PNG arrive, il s'affiche sans
+   *  changement de code. */
+  colonFondation: EntityTexture | null;
   /** Icônes de rendement pour l'overlay N/P/C (null si asset absent). */
   yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null; gold: Texture | null; science: Texture | null };
   /** R-91 : sprites des ressources (clé = id de resources.json, null si asset absent). */
@@ -613,6 +619,9 @@ export function createTextures(renderer: Renderer): GameTextures {
     villageBarbare: bakeEntityOnce(buildVillageBarbareGraphics()),
     hutte: bakeEntityOnce(buildHutGraphics()),
     // 7o · R-153 : artefacts (placeholders — assets réels via generate.py).
+    // COLON-FONDATION : le fallback placeholder est volontairement ABSENT —
+    // l'absence du PNG est l'état « badge provisoire » du rendu.
+    colonFondation: null,
     artefacts: Object.fromEntries(
       ARTEFACT_IDS.map((id) => [id, bakeEntityOnce(buildArtefactGraphics(id))]),
     ) as Record<string, EntityTexture>,
@@ -698,7 +707,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const resourceIds = [...Object.keys(RESOURCES).sort(), RESOURCE_UNKNOWN];
   // Phase 7d (R-95) : variantes barbares (accent gris-brun au rendu).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, units, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
+  const [tiles, units, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     Promise.all(
       UNIT_IDS.filter((id) => fallback.units[id]).map((id) =>
@@ -715,6 +724,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     entityOrFallback('village_barbare', fallback.villageBarbare),
     entityOrFallback('hutte', fallback.hutte),
     Promise.all(ARTEFACT_IDS.map((id) => entityOrFallback(`artefact_${id}`, fallback.artefacts[id]!).then((t) => [id, t] as const))),
+    optionalEntity('unite_colonFondation'),
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
@@ -738,6 +748,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     villageBarbare,
     hutte,
     artefacts: Object.fromEntries(artefactTextures) as Record<string, EntityTexture>,
+    colonFondation,
     yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon, gold: goldIcon, science: scienceIcon },
     resources: Object.fromEntries(resourceIcons),
     px: fallback.px,
@@ -748,6 +759,25 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
 async function optionalIcon(name: string): Promise<Texture | null> {
   try {
     return (await Assets.load(`/art/${name}.png`)) as Texture;
+  } catch {
+    return null;
+  }
+}
+
+/** COLON-FONDATION : entité optionnelle — null si le PNG de base est absent
+ *  (même mécanique que les « PNG absents » de l'atelier, en plus strict :
+ *  ici l'ABSENCE est un état signifiant — badge provisoire au rendu).
+ *  L'accent retombe sur la base (teinté joueur au rendu) s'il est absent. */
+async function optionalEntity(name: string): Promise<EntityTexture | null> {
+  try {
+    const base = (await Assets.load(`/art/${name}.png`)) as Texture;
+    let accent: Texture;
+    try {
+      accent = (await Assets.load(`/art/${name}_accent.png`)) as Texture;
+    } catch {
+      accent = base;
+    }
+    return { base, accent };
   } catch {
     return null;
   }

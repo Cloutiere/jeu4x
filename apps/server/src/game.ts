@@ -257,6 +257,67 @@ export function orderShapeError(order: unknown): string | null {
   }
 }
 
+/**
+ * Possession des sujets d'un ordre (miroir pur de `orderOwnerError`, exporté
+ * pour tests). COLON-FONDATION : le composite `MultiStep` (R-158) exige la
+ * même possession d'unité que `Move` — la case manquante rejetait tout ordre
+ * composite en « ordre inconnu », rendant muet depuis DEPLACEMENT-PLANIFIE
+ * le bouton « 1. Déplacer → 2. Fonder » (et avec lui l'état visuel
+ * « en train de fonder » de ce chantier, adossé à cet ordre).
+ */
+export function orderOwnerErreur(
+  units: Record<string, { owner: string }>,
+  cities: Record<string, { owner: string }>,
+  engineId: EnginePlayerId,
+  order: Order,
+): string | null {
+  const ownsUnit = (id: UnitId) => units[id]?.owner === engineId;
+  switch (order.type) {
+    case 'Move':
+    case 'Attack':
+    case 'FoundCity':
+    case 'Hold':
+    case 'Fortify':
+    case 'MultiStep':
+      return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
+    case 'FormArmy':
+      return order.members.every(ownsUnit) ? null : 'une des unités est inconnue ou non possédée';
+    case 'SetProduction':
+    case 'SetWorkedTile':
+      return cities[order.cityId]?.owner === engineId ? null : `ville ${order.cityId} inconnue ou non possédée`;
+    case 'InstallPerson':
+      // 7f · R-115 : l'unité ET la ville doivent appartenir au joueur.
+      return ownsUnit(order.unitId) && cities[order.cityId]?.owner === engineId
+        ? null
+        : 'unité ou ville inconnue, ou non possédée';
+    case 'GreatPersonAction':
+      // 7j · R-126 : l'unité ET la ville (cible de l'effet) appartiennent au
+      // joueur ; l'effet Consume actif est re-vérifié par le moteur.
+      return ownsUnit(order.unitId) && cities[order.cityId]?.owner === engineId
+        ? null
+        : 'unité ou ville inconnue, ou non possédée';
+    case 'RushBuy':
+      // 7l · R-135 : la ville (dont on achète la production) doit appartenir
+      // au joueur ; l'éligibilité de l'item et la trésorerie sont re-vérifiées
+      // par le moteur à la résolution.
+      return cities[order.cityId]?.owner === engineId ? null : `ville ${order.cityId} inconnue ou non possédée`;
+    case 'SpyMission':
+      // 7g · R-119 : seule l'unité doit appartenir au joueur (la ville cible
+      // est ENNEMIE par construction — re-validé par le moteur).
+      return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
+    case 'Launch':
+      // 7m · R-139 : seule l'unité (ICBM) doit appartenir au joueur (la cible
+      // est une case ennemie ou neutre — visibilité re-vérifiée par le moteur).
+      return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
+    case 'SpyAction':
+      // 7m · R-143 : seule l'unité (Espion) doit appartenir au joueur (la
+      // ville cible est ENNEMIE par construction — re-validé par le moteur).
+      return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
+    default:
+      return 'ordre inconnu';
+  }
+}
+
 export class GameDO {
   private readonly state: DurableObjectState;
   private readonly env: Env;
@@ -1072,52 +1133,7 @@ export class GameDO {
   }
 
   private orderOwnerError(engineId: EnginePlayerId, order: Order): string | null {
-    const units = this.game?.units ?? {};
-    const cities = this.game?.cities ?? {};
-    const ownsUnit = (id: UnitId) => units[id]?.owner === engineId;
-    switch (order.type) {
-      case 'Move':
-      case 'Attack':
-      case 'FoundCity':
-      case 'Hold':
-      case 'Fortify':
-        return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
-      case 'FormArmy':
-        return order.members.every(ownsUnit) ? null : 'une des unités est inconnue ou non possédée';
-      case 'SetProduction':
-      case 'SetWorkedTile':
-        return cities[order.cityId]?.owner === engineId ? null : `ville ${order.cityId} inconnue ou non possédée`;
-      case 'InstallPerson':
-        // 7f · R-115 : l'unité ET la ville doivent appartenir au joueur.
-        return ownsUnit(order.unitId) && cities[order.cityId]?.owner === engineId
-          ? null
-          : 'unité ou ville inconnue, ou non possédée';
-      case 'GreatPersonAction':
-        // 7j · R-126 : l'unité ET la ville (cible de l'effet) appartiennent au
-        // joueur ; l'effet Consume actif est re-vérifié par le moteur.
-        return ownsUnit(order.unitId) && cities[order.cityId]?.owner === engineId
-          ? null
-          : 'unité ou ville inconnue, ou non possédée';
-      case 'RushBuy':
-        // 7l · R-135 : la ville (dont on achète la production) doit appartenir
-        // au joueur ; l'éligibilité de l'item et la trésorerie sont re-vérifiées
-        // par le moteur à la résolution.
-        return cities[order.cityId]?.owner === engineId ? null : `ville ${order.cityId} inconnue ou non possédée`;
-      case 'SpyMission':
-        // 7g · R-119 : seule l'unité doit appartenir au joueur (la ville cible
-        // est ENNEMIE par construction — re-validé par le moteur).
-        return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
-      case 'Launch':
-        // 7m · R-139 : seule l'unité (ICBM) doit appartenir au joueur (la cible
-        // est une case ennemie ou neutre — visibilité re-vérifiée par le moteur).
-        return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
-      case 'SpyAction':
-        // 7m · R-143 : seule l'unité (Espion) doit appartenir au joueur (la
-        // ville cible est ENNEMIE par construction — re-validé par le moteur).
-        return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
-      default:
-        return 'ordre inconnu';
-    }
+    return orderOwnerErreur(this.game?.units ?? {}, this.game?.cities ?? {}, engineId, order);
   }
 
   private async handleCancel(ws: WebSocket, playerId: PlayerId, unitId?: UnitId, cityId?: CityId): Promise<void> {

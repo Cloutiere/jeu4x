@@ -204,6 +204,9 @@ function sprites2d(): AssetAtelier[] {
   for (const [id, u] of Object.entries(UNIT_TYPES)) {
     out.push(spriteAsset(`unite_${id}`, `Unité ${u.name}`, `${SRC_GENERATEUR('render_entity')} — textures.ts (units)`, true));
   }
+  // COLON-FONDATION : état « en train de fonder » du Colon (art d'Erik en
+  // attente — PNG optionnel, badge provisoire au rendu tant qu'il manque).
+  out.push(spriteAsset('unite_colonFondation', 'Colon « en train de fonder » (état, R-158)', `${SRC_GENERATEUR('render_entity')} — textures.ts (colonFondation)`, true));
   out.push(spriteAsset('ville_settlement', 'Ville (settlement)', `${SRC_GENERATEUR('render_entity')} — textures.ts (cities.settlement)`, true));
   out.push(spriteAsset('ville_capitale', 'Ville (capitale)', `${SRC_GENERATEUR('render_entity')} — textures.ts (cities.capital)`, true));
   // rouge CUIT dans la base (décision Erik 12/09) — aucune variante d'accent
