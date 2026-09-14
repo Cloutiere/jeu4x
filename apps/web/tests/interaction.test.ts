@@ -8,7 +8,7 @@ import { makeState, tileKey } from '@game/rules';
 import type { GameState, Hex } from '@game/rules';
 import type { GameView } from '../src/lib/gameClient.js';
 import type { UiState } from '../src/lib/render/ui.js';
-import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, jalonsDeTours, ordersEditable, passableKnown, pathTo, rightClickAction } from '../src/lib/render/interaction.js';
+import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, effectiveWorkedTiles, jalonsDeTours, ordersEditable, passableKnown, pathTo, rightClickAction } from '../src/lib/render/interaction.js';
 
 function viewOf(state: GameState, over: Partial<GameView> = {}): GameView {
   return {
@@ -242,10 +242,28 @@ describe('clickAction (L3)', () => {
 
     expect(clickAction(view2, ui, { q: 1, r: 2 })).toEqual({ kind: 'none' });
 
-    // Case déjà travaillée à l'état effectif : désassignation.
+    // Case déjà travaillée à l'état effectif : DÉSÉLECTION EXACTE — l'ordre
+    // porte CETTE case (R-60 rév. WORKED-TILE-EXACT, plus de tile:null).
+    expect(clickAction(view, ui, { q: 1, r: 1 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: '1,1' });
+  });
 
-    expect(clickAction(view, ui, { q: 1, r: 1 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: null });
-
+  it('R-60 rév. WORKED-TILE-EXACT : 3 tuiles travaillées A/B/C — cliquer B libère B, pas la dernière assignée', () => {
+    const state = makeState({
+      width: 8,
+      height: 8,
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 5 }],
+      cities: [{ id: 'c1', owner: 'p1', q: 2, r: 1, pop: 3, capital: true, workedTiles: ['1,1', '2,2', '3,1'] }],
+    });
+    const ui = uiOf({ selectedCityId: 'c1' });
+    // clic direct sur la tuile du milieu : l'ordre porte CETTE case
+    expect(clickAction(viewOf(state), ui, { q: 2, r: 2 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: '2,2' });
+    // miroir effectif : B sort, A et C restent
+    const avecOrdre = viewOf(state, { orders: [{ type: 'SetWorkedTile', cityId: 'c1', tile: '2,2' }] });
+    const eff = effectiveWorkedTiles(avecOrdre, state.cities['c1']!);
+    expect(eff.tiles).toEqual(['1,1', '3,1']);
+    expect(eff.unassigns).toEqual(['2,2']);
+    // la place effectivement libérée permet une ré-affectation immédiate
+    expect(clickAction(avecOrdre, ui, { q: 1, r: 2 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: '1,2' });
   });
 
 

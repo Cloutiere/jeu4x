@@ -89,7 +89,7 @@ Une unité qui survit à un combat où elle inflige le coup fatal devient vété
 | `Hold` | — | Ne rien faire (l'unité reste « stationnaire »). |
 | `Fortify` | — | **R-33** (ajouté le 30/08) : fortification permanente — voir ci-dessous. |
 | `SetProduction` | ville, item | File de production à un élément, remplaçable (progression conservée). Items : unités **et bâtiments** (R-66). |
-| `SetWorkedTile` | ville, case | **R-60** (30/08) : assigne un citoyen à la case (dans le rayon de travail, libre) ; désassigner = cibler `null` ou une autre case déjà travaillée par la même ville (échange). |
+| `SetWorkedTile` | ville, case | **R-60** (rév. 14/09 WORKED-TILE-EXACT) : case libre = assigne un citoyen ; case DÉJÀ TRAVAILLÉE par la même ville = DÉSÉLECTION EXACTE de cette case (l'ancien « échange » est abrogé) ; `null` = désassignation déterministe du dernier assigné. |
 
 **R-33 · Fortification.** L'ordre `Fortify` place l'unité en position fortifiée **permanente** :
 - bonus défensif `T-17` tant que l'unité est fortifiée (multiplie `S_def`, §7.4) ;
@@ -294,7 +294,8 @@ Base documentaire : la spécification d'Erik [`Artefacts Dans Civilization Revol
 - La **case du centre-ville** est exploitée automatiquement et gratuitement : ses rendements s'ajoutent toujours, sans citoyen.
 - Chaque point de population = **1 citoyen** = **1 case supplémentaire travaillée**, choisie parmi les cases environnantes dans le rayon de travail `T-08b` (**rayon 1 = 6 cases** ; le **Tribunal** (R-66) porte le rayon à **2 = 18 cases**).
 - **Montagne et Mer sont travaillables** bien qu'infranchissables pour les unités.
-- **Assignation** : automatique à la fondation/à la croissance (meilleure case libre par priorité nourriture > production > commerce, tie-break déterministe R-81), **re-assignable manuellement** via le nouvel ordre `SetWorkedTile` (ville, case) — dans le rayon, libre (non travaillée par une autre ville).
+- **Assignation** : automatique à la fondation/à la croissance (meilleure case libre par priorité nourriture > production > commerce, tie-break déterministe R-81), **re-assignable manuellement** via l'ordre `SetWorkedTile` (ville, case) — dans le rayon, libre (non travaillée par une autre ville).
+- **Désélection EXACTE (rév. 14/09 — WORKED-TILE-EXACT, décision d'Erik)** : cibler une case **déjà travaillée par la même ville** fait sortir **CETTE case précise** des terrains cultivés — le citoyen libéré redevient un **ouvrier intérieur** (R-60bis, tranche de commerce intérieure appliquée automatiquement) disponible pour réaffectation. L'ancienne clause « échange » (permutation automatique vers la case ciblée, 30/08) est **ABROGÉE** : la ré-affectation vers une nouvelle tuile est un **second ordre explicite** (clic sur une tuile libre du rayon). `tile: null` conserve la désassignation déterministe du dernier assigné. La même sémantique exacte s'applique à l'état effectif (file d'ordres/aperçu) et à la vue ville (MENU-VILLE `clickActionVueVille` — source unique).
 - La ville affiche ses rendements cumulés (nourriture, production, commerce) — visibles dans le menu de ville et sous forme d'indicateurs sur la carte (affichage masquable).
 
 **R-60bis · Citoyens intérieurs (7i — D4, doc « Moteur Ville Civilization Revolution »).** Quand la population dépasse les cases exploitables (avant Tribunal, saturation, ou désassignation manuelle), les citoyens non affectés au terrain deviennent **ouvriers intérieurs** au **centre-ville** avec un rendement **par tranche démographique** (table data-driven `growth.json` — calibrage sans code, libellés CivRev) :

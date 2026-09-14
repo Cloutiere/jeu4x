@@ -107,11 +107,12 @@ describe('clickActionVueVille — tuiles cliquables (même file d\'ordres SetWor
     });
   }
 
-  it('clic sur une tuile libre du rayon = assignation ; re-clic sur une tuile assignée = désassignation', () => {
+  it('clic sur une tuile libre du rayon = assignation ; re-clic sur une tuile assignée = DÉSÉLECTION EXACTE de CETTE tuile', () => {
     const view = viewOf(etatVille());
     expect(hexDistance({ q: 0, r: 0 }, { q: 0, r: 1 })).toBeLessThanOrEqual(1);
     expect(clickActionVueVille(view, 'c1', { q: 0, r: 1 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: tileKey(0, 1) });
-    expect(clickActionVueVille(view, 'c1', { q: 1, r: 0 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: null });
+    // R-60 rév. WORKED-TILE-EXACT : l'ordre porte CETTE case (plus de tile:null)
+    expect(clickActionVueVille(view, 'c1', { q: 1, r: 0 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: tileKey(1, 0) });
   });
 
   it('hors du rayon de travail, sur la case de ville, ou sur une case occupée : aucun effet', () => {

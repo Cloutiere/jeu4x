@@ -863,6 +863,66 @@ describe('R-80/R-82 · déterminisme et pureté de resolveTurn', () => {
   });
 });
 
+describe('Phase C · R-60 rév. WORKED-TILE-EXACT · désélection exacte de la tuile cliquée', () => {
+  /** Ville pop 3, trois tuiles travaillées A/B/C (prairies par défaut). */
+  function threeTiles(): GameState {
+    return makeState({
+      cities: [{ id: 'c1', owner: 'p1', q: 1, r: 1, capital: true, pop: 3, workedTiles: ['0,1', '1,0', '2,1'] }],
+    });
+  }
+
+  it('cibler la tuile du MILIEU libère CETTE tuile, pas la dernière assignée', () => {
+    const { newState } = resolveTurn(threeTiles(), { p1: [{ type: 'SetWorkedTile', cityId: 'c1', tile: '1,0' }] }, 1);
+    expect(cityAt(newState, 1, 1)!.workedTiles).toEqual(['0,1', '2,1']);
+  });
+
+  it('la clause « échange » est ABROGÉE : cibler une tuile travaillée ne réaffecte pas dessus', () => {
+    // ancien contrat : cibler une case déjà travaillée = échange avec la
+    // dernière assignée ; nouveau contrat : retrait exact, pas de permutation.
+    const { newState } = resolveTurn(threeTiles(), { p1: [{ type: 'SetWorkedTile', cityId: 'c1', tile: '1,0' }] }, 1);
+    expect(cityAt(newState, 1, 1)!.workedTiles).not.toContain('1,0');
+    expect(cityAt(newState, 1, 1)!.workedTiles).toHaveLength(2); // un citoyen libéré, PAS déplacé
+  });
+
+  it('le citoyen libéré redevient intérieur (tranche commerce) puis est réaffectable par un second ordre explicite', () => {
+    // désélection de B + ré-affectation sur une tuile libre du rayon, MÊME tour (file d'ordres)
+    const { newState } = resolveTurn(
+      threeTiles(),
+      {
+        p1: [
+          { type: 'SetWorkedTile', cityId: 'c1', tile: '1,0' },
+          { type: 'SetWorkedTile', cityId: 'c1', tile: '2,0' },
+        ],
+      },
+      1,
+    );
+    expect(cityAt(newState, 1, 1)!.workedTiles).toEqual(['0,1', '2,1', '2,0']);
+  });
+
+  it('ville pleine SANS désélection : cibler une tuile libre reste ignoré (inchangé)', () => {
+    const { newState } = resolveTurn(threeTiles(), { p1: [{ type: 'SetWorkedTile', cityId: 'c1', tile: '2,0' }] }, 1);
+    expect(cityAt(newState, 1, 1)!.workedTiles).toEqual(['0,1', '1,0', '2,1']);
+  });
+
+  it('tile null : la désassignation déterministe (dernier assigné) est inchangée', () => {
+    const { newState } = resolveTurn(threeTiles(), { p1: [{ type: 'SetWorkedTile', cityId: 'c1', tile: null }] }, 1);
+    expect(cityAt(newState, 1, 1)!.workedTiles).toEqual(['0,1', '1,0']);
+  });
+
+  it('les AUTORITÉS sont intactes : un ordre sur une tuile travaillée par une AUTRE ville reste refusé', () => {
+    const state = makeState({
+      cities: [
+        { id: 'c1', owner: 'p1', q: 1, r: 1, capital: true, pop: 3, workedTiles: ['0,1', '1,0', '2,1'] },
+        { id: 'c2', owner: 'p2', q: 5, r: 0, pop: 1, workedTiles: ['4,0'] },
+      ],
+    });
+    // c2 est hors de portée : le retrait de '4,0' via c1 est impossible (pas dans le rayon)
+    const { newState } = resolveTurn(state, { p1: [{ type: 'SetWorkedTile', cityId: 'c1', tile: '4,0' }] }, 1);
+    expect(cityAt(newState, 1, 1)!.workedTiles).toEqual(['0,1', '1,0', '2,1']);
+    expect(cityAt(newState, 5, 0)!.workedTiles).toEqual(['4,0']);
+  });
+});
+
 /** Distance hexagonale locale pour les assertions. */
 function hexDist(a: { q: number; r: number }, b: { q: number; r: number }): number {
   const dq = a.q - b.q;

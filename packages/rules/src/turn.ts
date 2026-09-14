@@ -1940,12 +1940,15 @@ function produceUnitFromReserve(board: Board, city: City, unitTypeId: string, al
 }
 
 /**
- * R-60 · SetWorkedTile — assignation manuelle d'un citoyen (ordre Phase 6).
- * Validations : ville possédée, case null (désassignation) ou dans le rayon
+ * R-60 rév. WORKED-TILE-EXACT · SetWorkedTile — assignation/désélection
+ * manuelle d'un citoyen (ordre Phase 6). Validations : ville possédée, case
+ * null (désassignation du dernier assigné, déterministe) ou dans le rayon
  * de travail (bâtiments compris), travaillable, pas une case de ville, pas
- * travaillée par une AUTRE ville, et un citoyen disponible. Ville pleine :
- * l'ordre est ignoré — désassigner d'abord (règle d'Erik : pas d'échange
- * automatique).
+ * travaillée par une AUTRE ville. Cibler une case DÉJÀ TRAVAILLÉE par la
+ * même ville = DÉSÉLECTION EXACTE de cette case (le citoyen redevient
+ * intérieur R-60bis) — l'ancien « échange » automatique est abrogé ; la
+ * ré-affectation vers une nouvelle tuile est un second ordre explicite.
+ * Ville pleine : cibler une case libre est ignoré — désélectionner d'abord.
  */
 function applySetWorkedTile(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
   const orders: Array<Extract<Order, { type: 'SetWorkedTile' }>> = [];
@@ -1971,8 +1974,14 @@ function applySetWorkedTile(board: Board, ordersByPlayer: Record<PlayerId, Order
     const cityHex = { q: city.q, r: city.r };
     if (!tileWorkable(board.st.map, order.tile)) continue;
     if (hexDistance(cityHex, hex) > workRadiusOf(city.buildings)) continue;
+    if (city.workedTiles.includes(order.tile)) {
+      // Déjà travaillée par cette ville : DÉSÉLECTION EXACTE (R-60 rév.) —
+      // CETTE case précise sort des terrains cultivés, pas la dernière assignée.
+      // (AVANT le test takenByOthers, qui inclut les cases de la ville elle-même.)
+      city.workedTiles.splice(city.workedTiles.indexOf(order.tile), 1);
+      continue;
+    }
     if (takenByOthers.has(order.tile)) continue; // travaillée par une autre ville (ou ville elle-même)
-    if (city.workedTiles.includes(order.tile)) continue; // déjà travaillée par cette ville : no-op
     if (city.workedTiles.length < city.pop) {
       city.workedTiles.push(order.tile);
       takenByOthers.add(order.tile);

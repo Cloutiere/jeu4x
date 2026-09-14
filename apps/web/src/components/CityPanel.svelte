@@ -14,7 +14,7 @@
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
-  import { myEngineId, ordersEditable } from '../lib/render/interaction.js';
+  import { effectiveWorkedTiles, myEngineId, ordersEditable } from '../lib/render/interaction.js';
   import type { UiState } from '../lib/render/ui.js';
 
   function isSetProduction(o: Order): o is Extract<Order, { type: 'SetProduction' }> {
@@ -200,32 +200,16 @@
    */
 
   /**
-   * Réassignations en attente (retour immédiat) : les ordres SetWorkedTile
-   * soumis pour cette ville, appliqués en miroir de ce que fera le moteur —
-   * assignation (case libre ET citoyen disponible) ou désassignation (le
-   * dernier citoyen de la liste est retiré). Ville pleine : l'assignation
-   * est ignorée (désassigner d'abord — règle d'Erik).
+   * Réassignations en attente (retour immédiat) : SOURCE UNIQUE — le miroir
+   * `effectiveWorkedTiles` (interaction.ts), même sémantique exacte que le
+   * moteur (R-60 rév. WORKED-TILE-EXACT) : case déjà travaillée = retrait de
+   * CETTE case, `null` = dernier assigné, case libre = assignation.
    */
   const pending = $derived.by(() => {
     if (!city || !view.state) return { assigns: [] as string[], unassigns: 0, effective: 0, toAssign: 0, tiles: [] as string[] };
-    const orders = view.orders.filter(
-      (o): o is Extract<Order, { type: 'SetWorkedTile' }> => o.type === 'SetWorkedTile' && o.cityId === city.id,
-    );
-    const tiles = [...city.workedTiles];
-    const assigns: string[] = [];
-    let unassigns = 0;
-    for (const o of orders) {
-      if (o.tile === null) {
-        unassigns += 1;
-        tiles.pop(); // même règle que le moteur : le dernier assigné part
-      } else if (!tiles.includes(o.tile) && tiles.length < city.pop) {
-        tiles.push(o.tile);
-        assigns.push(o.tile);
-      }
-      // case déjà travaillée par la ville, ou ville pleine : ignoré (miroir moteur)
-    }
-    const effective = Math.min(city.pop, tiles.length);
-    return { assigns, unassigns, effective, toAssign: city.pop - effective, tiles };
+    const eff = effectiveWorkedTiles(view, city);
+    const effective = Math.min(city.pop, eff.tiles.length);
+    return { assigns: eff.assigns, unassigns: eff.unassigns.length, effective, toAssign: city.pop - effective, tiles: eff.tiles };
   });
   const hasPending = $derived(pending.unassigns > 0 || pending.assigns.length > 0);
   /** 7i · D4 · R-60bis : citoyens intérieurs — tranche et rendement courants. */
@@ -500,8 +484,8 @@
                 class="tile"
                 class:pending={pending.assigns.includes(key)}
                 disabled={!editable}
-                title={pending.assigns.includes(key) ? `Assignation en attente — annuler (${key})` : `Désassigner (${key})${resourceLabel(key) ? ` — ${resourceLabel(key)}` : ''}`}
-                onclick={() => client.submitOrder({ type: 'SetWorkedTile', cityId: city.id, tile: null })}
+                title={pending.assigns.includes(key) ? `Assignation en attente — annuler (${key})` : `Désassigner CETTE case (${key}) — R-60 rév. WORKED-TILE-EXACT${resourceLabel(key) ? ` — ${resourceLabel(key)}` : ''}`}
+                onclick={() => client.submitOrder({ type: 'SetWorkedTile', cityId: city.id, tile: key })}
               >({key})</button>
             {/each}
             {#if pending.toAssign > 0}

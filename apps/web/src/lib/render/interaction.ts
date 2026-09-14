@@ -143,7 +143,9 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
       if (!unit && !city) {
         const effective = effectiveWorkedTiles(view, selCity);
         if (effective.tiles.includes(key)) {
-          return { kind: 'setWorkedTile', cityId: selCity.id, tile: null };
+          // R-60 rév. WORKED-TILE-EXACT : CETTE tuile précise sort des
+          // terrains cultivés (l'ordre porte la case, plus tile:null).
+          return { kind: 'setWorkedTile', cityId: selCity.id, tile: key };
         }
         const dist = hexDistance(selCity, hex);
         const workable = !!state.map[key] && !!TERRAINS[state.map[key].terrain]?.yields;
@@ -202,9 +204,10 @@ export function clickActionVueVille(view: GameView, cityId: CityId, hex: Hex): C
   const dist = hexDistance(city, hex);
   if (dist < 1 || dist > workRadiusOf(city.buildings)) return { kind: 'none' };
   // État EFFECTIF (ordres SetWorkedTile en attente appliqués) — miroir du
-  // prédicat de clic hors vue : re-clic sur une case assignée = désassignation.
+  // prédicat de clic hors vue : re-clic sur une case assignée = DÉSÉLECTION
+  // EXACTE de CETTE case (R-60 rév., l'ordre porte la case, plus tile:null).
   const effective = effectiveWorkedTiles(view, city);
-  if (effective.tiles.includes(key)) return { kind: 'setWorkedTile', cityId: city.id, tile: null };
+  if (effective.tiles.includes(key)) return { kind: 'setWorkedTile', cityId: city.id, tile: key };
   const workable = !!state.map[key] && !!TERRAINS[state.map[key].terrain]?.yields;
   const free =
     workable &&
@@ -217,13 +220,15 @@ export function clickActionVueVille(view: GameView, cityId: CityId, hex: Hex): C
 }
 
 /**
- * INTERACTION-3D · R-60 : état EFFECTIF des cases travaillées d'une ville —
- * les ordres SetWorkedTile en attente (file, un par clic) sont appliqués en
- * miroir exact du moteur (`applySetWorkedTile`) : `null` retire le dernier
- * assigné (pop), une case valide ajoute un citoyen (push, si la ville n'est
- * pas pleine à l'état effectif). Sert au prédicat de clic ET aux marqueurs
- * d'attente 2D/3D. Plus `assigns` (cases gagnées) et `unassigns` (cases
- * libérées) pour l'affichage des anneaux pointillés.
+ * INTERACTION-3D · R-60 rév. WORKED-TILE-EXACT : état EFFECTIF des cases
+ * travaillées d'une ville — les ordres SetWorkedTile en attente (file, un
+ * par clic) sont appliqués en miroir exact du moteur (`applySetWorkedTile`) :
+ * `null` retire le dernier assigné (pop, déterministe), une case DÉJÀ
+ * TRAVAILLÉE retire CETTE case précise (désélection exacte — l'ancien
+ * « échange » est abrogé), une case valide et libre ajoute un citoyen (push,
+ * si la ville n'est pas pleine à l'état effectif). Sert au prédicat de clic
+ * ET aux marqueurs d'attente 2D/3D. Plus `assigns` (cases gagnées) et
+ * `unassigns` (cases libérées) pour l'affichage des anneaux pointillés.
  */
 export function effectiveWorkedTiles(
   view: GameView,
@@ -232,16 +237,30 @@ export function effectiveWorkedTiles(
   const tiles = [...city.workedTiles];
   const assigns: string[] = [];
   const unassigns: string[] = [];
+  // Miroir du `takenByOthers` STALE du moteur (calculé au début de la
+  // résolution) : une tuile qui figurait DANS les terrains cultivés au départ
+  // puis retirée par un ordre de cette même file ne peut pas être re-pushée
+  // par un ordre ultérieur (le moteur l'ignore — case « déjà prise » à ses
+  // yeux) ; une tuile assignée PUIS retirée dans la file, si, (elle n'était
+  // pas dans takenByOthers).
+  const initialOwn = new Set(city.workedTiles);
+  const retireesInitiales = new Set<string>();
   for (const order of view.orders) {
     if (order.type !== 'SetWorkedTile' || order.cityId !== city.id) continue;
     if (order.tile === null) {
       const removed = tiles.pop();
       if (removed) unassigns.push(removed);
-    } else if (!tiles.includes(order.tile) && tiles.length < city.pop) {
+    } else if (tiles.includes(order.tile)) {
+      // Déjà travaillée par cette ville : désélection EXACTE de cette case
+      // (miroir du moteur — pas de permutation, pas de ré-affectation).
+      tiles.splice(tiles.indexOf(order.tile), 1);
+      unassigns.push(order.tile);
+      if (initialOwn.has(order.tile)) retireesInitiales.add(order.tile);
+    } else if (tiles.length < city.pop && !retireesInitiales.has(order.tile)) {
       tiles.push(order.tile);
       assigns.push(order.tile);
     }
-    // case déjà travaillée par la ville, ou ville pleine : ignoré (miroir moteur)
+    // ville pleine, case hors rayon ou non travaillable : ignoré (miroir moteur)
   }
   return { tiles, assigns, unassigns };
 }
