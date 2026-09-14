@@ -21,7 +21,7 @@ import { CURRENT_SCHEMA_VERSION, migrateState } from '../src/state.js';
 import type { GameState } from '../src/state.js';
 import { makeState } from '../src/fixtures.js';
 import { BUILDINGS, CULTURE } from '../src/data.js';
-import { cultureGains, rayonCulturelDe } from '../src/culture.js';
+import { cultureGains, rayonCulturelDe, frontierRadius } from '../src/culture.js';
 import { workRadiusOf } from '../src/economy.js';
 
 /** Capitale p1 pop 4 avec 4 citoyens assignés (prairies) — le Palais est posé
@@ -158,6 +158,27 @@ describe('M2 · rayonCulturelDe — seuils 10/100/1 000/10 000, plafond 5 (data-
     // actuel (M2.3 du handoff : tileWorkable/worked tiles intouchés).
     expect(workRadiusOf(['palais', 'tribunal'])).toBe(2);
     expect(rayonCulturelDe(1_000_000)).toBe(4); // n'y change rien
+  });
+});
+
+describe('CULTURE-FRONTIERES · frontierRadius — progression palier après palier (révision Erik 14/09)', () => {
+  it('palier 0/1/2/3 : le 1er palier ne pousse PAS la frontière, chaque palier suivant +1', () => {
+    expect(frontierRadius(1, 0)).toBe(1); // palier 0 : pas de frontière dessinée (rendu), rayon = zone de travail
+    expect(frontierRadius(1, 1)).toBe(1); // palier 1 : frontière = zone cultivée seule, jamais rayon 2
+    expect(frontierRadius(1, 2)).toBe(2); // palier 2 : bande à 1 case au-delà
+    expect(frontierRadius(1, 3)).toBe(3);
+    expect(frontierRadius(1, 5)).toBe(5); // plafond 5 anneaux
+  });
+
+  it('Tribunal (rayon 2) au palier 1 : frontière à rayon 2 = sa zone, pas plus', () => {
+    expect(workRadiusOf(['palais', 'tribunal'])).toBe(2);
+    expect(frontierRadius(2, 1)).toBe(2);
+    expect(frontierRadius(2, 2)).toBe(3);
+  });
+
+  it('palier 0 négatif / entrées défensives', () => {
+    expect(frontierRadius(2, -1)).toBe(2);
+    expect(frontierRadius(0, 1)).toBe(0);
   });
 });
 

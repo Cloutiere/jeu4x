@@ -200,6 +200,24 @@ export function rayonCulturelDe(
 }
 
 /**
+ * CULTURE-FRONTIERES (révision du 14/09 — décision d'Erik) · `frontierRadius` :
+ * rayon de la FRONTIÈRE culturelle dessinée pour une ville, à partir des
+ * PALIERS franchis (`rayonCulturelDe`) et de son rayon de travail. La
+ * progression est PALIER APRÈS PALIER :
+ *  - palier 0 : pas de frontière (les tuiles cultivées portent leurs
+ *    hexagones seuls) ;
+ *  - palier 1 : le liseré entoure la ZONE CULTIVÉE seule — frontière à
+ *    `workRadius`, jamais au-delà ;
+ *  - palier 2 et plus : la bande d'extension pousse la frontière d'UNE case
+ *    par palier supplémentaire (`workRadius + paliers − 1`).
+ * Le décalage d'un palier (le 1er palier n'ajoute RIEN au-delà de la zone
+ * cultivée) est centralisé ICI, pas dans le dessin. Pur, testé hors Board.
+ */
+export function frontierRadius(workRadius: number, paliers: number): number {
+  return workRadius + Math.max(0, paliers - 1);
+}
+
+/**
  * GP-CULTURE-EVENEMENTS · D1 (décision d'Erik du 13/09) · Culture de la
  * CIVILISATION : somme des `city.cultureCumulee` du joueur. Le canal GP lit ce
  * CUMUL EMPIRE contre la table T-27 (`greatPersonThresholdFor`, indexée par le

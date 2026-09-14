@@ -106,6 +106,55 @@ describe('R-114 · Personnages illustres de culture (seuil T-27 croissant)', () 
     expect(jalonIdx).toBeGreaterThanOrEqual(0);
     expect(gpIdx).toBeGreaterThanOrEqual(0);
     expect(jalonIdx).toBeLessThan(gpIdx);
+    // CULTURE-FRONTIERES (M2, 14/09) : la source du GP est explicite.
+    const spawned = events.find((e) => e.type === 'GreatPersonSpawned');
+    if (spawned?.type !== 'GreatPersonSpawned') throw new Error('GP attendu');
+    expect(spawned.canal).toBe('culture');
+  });
+});
+
+describe('CULTURE-FRONTIERES (M2) · canal d\'origine des GP — source explicite dans GreatPersonSpawned', () => {
+  it('canal culture : palier T-27 franchi → canal "culture"', () => {
+    const state = capitalCity(['temple']);
+    state.cities['c1']!.cultureCumulee = 149;
+    const { events } = resolveTurn(state, {}, 1);
+    const e = events.find((ev) => ev.type === 'GreatPersonSpawned');
+    if (e?.type !== 'GreatPersonSpawned') throw new Error('GP attendu');
+    expect(e.canal).toBe('culture');
+  });
+
+  it('accumulateurs T-30 : science → "science", or → "or", production → "production"', () => {
+    for (const [accum, canal] of [
+      ['gpAccumScience', 'science'],
+      ['gpAccumGold', 'or'],
+      ['gpAccumProd', 'production'],
+    ] as const) {
+      const state = capitalCity();
+      state.cities['c1']![accum] = 20; // seuil T-30 de base (aucun GP du type déjà obtenu)
+      const { events } = resolveTurn(state, {}, 1);
+      const e = events.find((ev) => ev.type === 'GreatPersonSpawned');
+      if (e?.type !== 'GreatPersonSpawned') throw new Error(`GP attendu (${accum})`);
+      expect(e.canal).toBe(canal);
+    }
+  });
+
+  it('canal combat : 20 victoires (T-31) → Grand Leader, canal "combat"', () => {
+    const state = capitalCity();
+    state.players['p1']!.combatVictories = 20;
+    const { events } = resolveTurn(state, {}, 1);
+    const e = events.find((ev) => ev.type === 'GreatPersonSpawned');
+    if (e?.type !== 'GreatPersonSpawned') throw new Error('GP attendu');
+    expect(e.canal).toBe('combat');
+  });
+
+  it('canal or : palier économique 500 (R-136) → canal "or"', () => {
+    const state = capitalCity();
+    state.players['p1']!.treasury = 500;
+    state.players['p1']!.economyMilestonesClaimed = 0;
+    const { events } = resolveTurn(state, {}, 1);
+    const e = events.find((ev) => ev.type === 'GreatPersonSpawned');
+    if (e?.type !== 'GreatPersonSpawned') throw new Error('GP attendu');
+    expect(e.canal).toBe('or');
   });
 
   it('7l · C5 : le seuil suit la TABLE CANON (150 → 267 → 417 — écarts +117, +150, +183)', () => {

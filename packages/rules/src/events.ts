@@ -15,6 +15,16 @@ import type { TechEra } from './types.js';
  *  l'élimination SANS COMBAT d'un espion hors ville (R-142). */
 export type DestructionCause = 'combat' | 'collision' | 'capture' | 'sunk' | 'mission' | 'nuke';
 
+/**
+ * CULTURE-FRONTIERES (M2 — décision d'Erik du 14/09) · Canal d'ORIGINE d'un
+ * GP (`GreatPersonSpawned.canal`) : la source est rendue explicite dans le
+ * journal (« GP de [canal] »). Les GP de TECHNOLOGIE (Premier découvrir,
+ * R-109 étendu — D5.1) ne passent PAS par GreatPersonSpawned : ils sont
+ * portés par l'événement `FirstDiscovered` (champ `greatPerson`), dont le
+ * libellé journal mentionne la source. Zéro effet moteur — informatif.
+ */
+export type GpCanal = 'culture' | 'science' | 'or' | 'production' | 'combat' | 'artefact';
+
 /** R-98 · Récompense structurée d'une hutte ouverte (contenu de HutOpened).
  *  7o · R-155 : `artefact_indice` — le nombre d'artefacts restants, ou la
  *  position d'un artefact (case révélée à l'ouvreur). */
@@ -145,9 +155,13 @@ export type GameEvent =
       unitIds?: UnitId[];
       unitType?: string;
     }
-  /** 7f · R-114 : Personnage illustre de culture engendré par une ville (seuil
-   *  T-27 franchi) — unité pacifique Artiste/Penseur. */
-  | { seq: number; type: 'GreatPersonSpawned'; unitId: UnitId; unitType: string; cityId: CityId; owner: PlayerId; at: Hex }
+  /** 7f · R-114 (rév.) : Personnage illustre engendré — les canaux multiples
+   *  (culture T-27, accumulateurs T-30, combat T-31, or R-136, artefacts)
+   *  émettent tous cet événement. CULTURE-FRONTIERES (M2 — décision d'Erik
+   *  du 14/09) : `canal` porte la SOURCE du GP, rendue explicite dans le
+   *  journal (« GP de [canal] ») — le joueur ne doit plus douter. Champ
+   *  optionnel (aucune migration ; absent sur les événements antérieurs). */
+  | { seq: number; type: 'GreatPersonSpawned'; unitId: UnitId; unitType: string; cityId: CityId; owner: PlayerId; at: Hex; canal?: GpCanal }
   /** 7f · R-115 : un GP s'installe définitivement dans une ville amie (+1 jalon). */
   | { seq: number; type: 'InstallPerson'; unitId: UnitId; unitType: string; cityId: CityId; owner: PlayerId; at: Hex }
   /** 7j · R-126 : un GP est CONSOMMÉ (Consume) — effet massif immédiat selon

@@ -69,6 +69,17 @@ const GP_CLASS_LABELS: Record<string, string> = {
   leader: 'Grand Leader',
 };
 
+/** CULTURE-FRONTIERES (M2, 14/09) · Libellés fr du canal d'origine d'un GP
+ *  (journal « GP de [canal] ») — la source ne fait plus de doute. */
+const GP_CANAL_LABELS: Record<string, string> = {
+  culture: 'culture',
+  science: 'science',
+  or: 'or',
+  production: 'production',
+  combat: 'combat',
+  artefact: 'artefact',
+};
+
 /** 7m · R-143 · Libellés fr des actions d'espionnage (menu de ville). */
 export const SPY_ACTION_LABELS: Record<string, string> = {
   stealGold: 'Voler de l\'or',
@@ -233,7 +244,11 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
     case 'TechResearched':
       return `Technologie complétée : ${event.tech} — déblocages disponibles !`;
     case 'FirstDiscovered':
-      return `Premier découvrir (${event.tech}) : ${event.label}`;
+      // CULTURE-FRONTIERES (M2, 14/09) : un GP du Premier découvrir est
+      // explicitement libellé « GP de technologie » (source explicite).
+      return event.greatPerson
+        ? `Premier découvrir (${event.tech}) : ${event.label} — ${greatPersonLabel(event.greatPerson)} rejoint votre empire ! (GP de technologie)`
+        : `Premier découvrir (${event.tech}) : ${event.label}`;
     case 'PopulationGrew':
       return `${event.cityId} grandit — population ${event.pop}`;
     case 'PopulationConsumed':
@@ -256,7 +271,8 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
       return `Artefact « ${event.name} » activé par ${nameOf(event.byPlayer)} — ${artefactEffectLabel(event.effect, event)}`;
     case 'GreatPersonSpawned':
       // GP-CULTURE-EVENEMENTS (D1/D5) : plus de jauge par ville — le canal GP lit le cumul EMPIRE.
-      return `${greatPersonLabel(event.unitType)} apparaît dans ${event.cityId} (${nameOf(event.owner)})`;
+      // CULTURE-FRONTIERES (M2, 14/09) : la source est explicite (« GP de [canal] »).
+      return `${greatPersonLabel(event.unitType)} apparaît dans ${event.cityId} (${nameOf(event.owner)})${event.canal ? ` — GP de ${GP_CANAL_LABELS[event.canal] ?? event.canal}` : ''}`;
     case 'InstallPerson':
       return `${greatPersonLabel(event.unitType)} s'installe dans ${event.cityId} — ${settleEffectLabel(event.unitType)}`;
     case 'GreatPersonConsumed':
@@ -311,10 +327,6 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
       return `GP ENLEVÉ ! ${greatPersonLabel(event.gpType)} transféré de ${nameOf(event.victim)} à ${nameOf(event.thief)} (${event.cityId})`;
     case 'SpyBuildingDestroyed':
       return `SABOTAGE ! ${event.building} détruit dans ${event.cityId} par un espion de ${nameOf(event.thief)}`;
-    case 'FirstDiscovered':
-      return event.greatPerson
-        ? `${event.label} (${nameOf(event.player)}) : ${greatPersonLabel(event.greatPerson)} rejoint votre empire !`
-        : `Premier découvrir : ${event.label} (${nameOf(event.player)})`;
     case 'Victory': {
       const motifs: Record<string, string> = {
         domination: 'domination (capitale capturée)',

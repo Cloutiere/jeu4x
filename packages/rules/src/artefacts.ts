@@ -428,7 +428,7 @@ function applyActivation(ctx: ArtefactActivationContext, entity: Artefact, unit:
         // Exemption d'escalade (calibrage canon) : AUCUN incrément de
         // greatPersonsObtained / greatPersonsByType ici.
         ids.push(unitId);
-        ctx.emit({ type: 'GreatPersonSpawned', unitId, unitType: cls, cityId: anchor.cityId, owner: unit.owner, at: anchor.hex });
+        ctx.emit({ type: 'GreatPersonSpawned', unitId, unitType: cls, cityId: anchor.cityId, owner: unit.owner, at: anchor.hex, canal: 'artefact' });
       }
       payload.unitIds = ids;
       break;

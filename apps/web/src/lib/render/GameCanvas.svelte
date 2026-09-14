@@ -11,7 +11,7 @@
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, fondeAFinDuChemin, fondateursDe, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, fondeAFinDuChemin, fondateursDe, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius } from '@game/rules';
   import type { GameState, Hex, ProgramPreview } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -993,27 +993,28 @@
       }
     }
 
-    // EXPANSION-CULTURELLE phase 1 (décisions Erik 13/09, VISUAL-ONLY) :
-    // anneaux culturels — quand la culture CUMULÉE de la ville franchit les
-    // seuils 10/100/1 000/10 000 (rayonCulturelDe, plafond 5), une BANDE
-    // d'extension — le disque de rayon (travail + anneaux) MOINS la zone
-    // cultivée — s'affiche en accent joueur au calibrage ZONE_CULTIVEE
-    // (liseré + dégradé vers l'intérieur de la bande). Révision en session
-    // (décision Erik) : les tuiles cultivées ne portent QUE leurs hexagones
-    // intérieurs — AUCUN remplissage sur la zone cultivée (ni l'ancien
-    // dégradé ZONE_CULTIVEE, ni celui du disque) ; au démarrage (0 anneau) :
-    // hexagones seuls. État EFFECTIF (miroir `effectiveWorkedTiles`) : le
-    // trou de la bande suit le clic worked tile en temps réel. Zéro gameplay
-    // (aucune tuile travaillable en plus — workRadius intouché) ;
-    // chevauchement de deux zones hors périmètre : chaque ville dessine ses
-    // anneaux indépendamment, sans fusion. Recalcul au rebuild seulement.
+    // EXPANSION-CULTURELLE phase 1 (décisions Erik, VISUAL-ONLY) — RÉVISION
+    // CULTURE-FRONTIERES (14/09) : la frontière progresse PALIER APRÈS PALIER.
+    // Palier 0 (cumul < 10) : rien (hexagones des tuiles cultivées seuls).
+    // Palier 1 (10 ≤ cumul < 100) : le LISERÉ accent joueur entoure la ZONE
+    // CULTIVÉE seule — PAS de bande au-delà (frontière à rayon 1, jamais 2).
+    // Palier 2 et plus : la bande d'extension s'ajoute — disque de rayon
+    // frontierRadius(workRadius, paliers) = workRadius + (paliers − 1) MOINS
+    // la zone cultivée — liseré + dégradé sur la frontière extérieure seule.
+    // Le décalage d'un palier vit dans `frontierRadius` (packages/rules,
+    // testée), pas dans le dessin. État EFFECTIF (miroir
+    // `effectiveWorkedTiles`) : le contour suit le clic worked tile en temps
+    // réel. Zéro gameplay (workRadius intouché) ; chevauchement de deux zones
+    // hors périmètre : chaque ville dessine ses anneaux indépendamment.
+    // Recalcul au rebuild seulement.
     // 🔶 Calibrage à l'œil (valeurs du calibrage ZONE-CULTIVEE du 13/09) :
     const ANNEAUX_CULTURELS = {
       epaisseurLisere: 4, // liseré extérieur (trait net)
       alphaLisere: 0.95,
-      // Dégradé vers l'intérieur de la bande : couches concentriques du plus
-      // large (fond pâle) au plus étroit (proche du bord), masquées hors de
-      // la bande (le trou de la zone cultivée ne reçoit rien).
+      // Dégradé vers l'intérieur de la bande (palier 2+) : couches
+      // concentriques du plus large (fond pâle) au plus étroit (proche du
+      // bord), masquées hors de la bande (le trou de la zone cultivée ne
+      // reçoit rien).
       couchesDegrade: [
         { largeur: 60, alpha: 0.1 },
         { largeur: 40, alpha: 0.17 },
@@ -1024,12 +1025,11 @@
       for (const city of Object.values(scene.state.cities)) {
         if (!scene.explored.has(tileKeyOf(city))) continue;
         const color = playerColor(city.owner);
-        const anneaux = rayonCulturelDe(city.cultureCumulee);
-        if (anneaux === 0) continue; // départ : hexagones des tuiles cultivées seuls
+        const paliers = rayonCulturelDe(city.cultureCumulee);
+        if (paliers === 0) continue; // palier 0 : hexagones des tuiles cultivées seuls
         const eff = scene.view ? effectiveWorkedTiles(scene.view, city) : { tiles: city.workedTiles };
-        // Trou de la bande = la zone cultivée : centre toujours cultivé (R-60)
-        // + worked tiles effectifs explorés (l'hexagone marker vit à part,
-        // ci-dessous — même source).
+        // Zone cultivée (centre toujours cultivé, R-60, + worked tiles
+        // effectifs explorés — l'hexagone marker vit à part, même source).
         const cultivees = new Set<string>([tileKeyOf(city)]);
         for (const key of eff.tiles) {
           if (!scene.explored.has(key)) continue;
@@ -1037,14 +1037,27 @@
           if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
           cultivees.add(`${q},${r}`);
         }
-        const rayonCulturel = workRadiusOf(city.buildings) + anneaux;
+        // Palier 1 : la bande SE CONFOND avec la zone cultivée (frontière =
+        // contour de la zone, liseré seul — aucun remplissage, la zone
+        // cultivée ne reçoit que ses hexagones). Palier 2+ : bande =
+        // disque(frontierRadius) MOINS zone cultivée. Le décalage
+        // (paliers − 1) est centralisé dans frontierRadius (règles).
         const bande: Hex[] = [];
-        for (let dq = -rayonCulturel; dq <= rayonCulturel; dq++) {
-          for (let dr = Math.max(-rayonCulturel, -dq - rayonCulturel); dr <= Math.min(rayonCulturel, -dq + rayonCulturel); dr++) {
-            const hex = { q: city.q + dq, r: city.r + dr };
-            const key = tileKeyOf(hex);
-            if (!scene.explored.has(key) || cultivees.has(key)) continue; // fog : rien n'est inventé
-            bande.push(hex);
+        if (paliers === 1) {
+          for (const key of cultivees) {
+            const [q, r] = key.split(',').map(Number);
+            if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
+            bande.push({ q, r });
+          }
+        } else {
+          const rayonCulturel = frontierRadius(workRadiusOf(city.buildings), paliers);
+          for (let dq = -rayonCulturel; dq <= rayonCulturel; dq++) {
+            for (let dr = Math.max(-rayonCulturel, -dq - rayonCulturel); dr <= Math.min(rayonCulturel, -dq + rayonCulturel); dr++) {
+              const hex = { q: city.q + dq, r: city.r + dr };
+              const key = tileKeyOf(hex);
+              if (!scene.explored.has(key) || cultivees.has(key)) continue; // fog : rien n'est inventé
+              bande.push(hex);
+            }
           }
         }
         const boucles = contourUnion(bande, HEX_SIZE, (hex) => elevationDe(scene.state!.map[tileKeyOf(hex)]?.terrain));
@@ -1067,28 +1080,34 @@
           if (Math.abs(aires[i]!) > Math.abs(aires[iExt]!)) iExt = i;
         }
         const sensExt = Math.sign(aires[iExt]!);
-        // Liseré + dégradé : boucles EXTERIEURES uniquement (décision Erik) —
-        // le contour qui longe la ville et les tuiles cultivées ne reçoit
-        // RIEN (ni ligne ni lavis) ; la seule ligne et le seul dégradé
-        // proviennent des limites des frontières culturelles. Le dégradé
-        // s'étend d'≤ 30 px vers l'intérieur (case ≥ 55 px) : il est éteint
-        // avant la rangée adjacente aux tuiles cultivées.
         const exterieures = boucles.filter((_, i) => Math.sign(aires[i]!) === sensExt);
         const trait = new Graphics();
-        for (const couche of ANNEAUX_CULTURELS.couchesDegrade) {
-          tracerBoucles(trait, exterieures, { width: couche.largeur, color, alpha: couche.alpha, join: 'round' });
+        if (paliers === 1) {
+          // Palier 1 : LISERÉ SEUL sur la frontière extérieure de la zone
+          // cultivée (le contour qui longe un trou éventuel ne reçoit rien —
+          // cohérent avec la règle « la zone cultivée ne reçoit rien »).
+          tracerBoucles(trait, exterieures, { width: ANNEAUX_CULTURELS.epaisseurLisere, color, alpha: ANNEAUX_CULTURELS.alphaLisere, join: 'round' });
+          overlayLayer.addChild(trait);
+        } else {
+          // Palier 2+ : liseré + dégradé — boucles EXTERIEURES uniquement
+          // (décision Erik) ; le dégradé s'étend d'≤ 30 px vers l'intérieur
+          // (case ≥ 55 px) : éteint avant la rangée adjacente aux tuiles
+          // cultivées.
+          for (const couche of ANNEAUX_CULTURELS.couchesDegrade) {
+            tracerBoucles(trait, exterieures, { width: couche.largeur, color, alpha: couche.alpha, join: 'round' });
+          }
+          tracerBoucles(trait, exterieures, { width: ANNEAUX_CULTURELS.epaisseurLisere, color, alpha: ANNEAUX_CULTURELS.alphaLisere, join: 'round' });
+          // Masque = la bande entière : toutes les boucles en UN SEUL
+          // remplissage (règle non-zéro — les trous sont déjà inversés par le
+          // chaînage) : le dégradé ne peint NI l'extérieur NI la zone cultivée.
+          const masque = new Graphics();
+          for (const boucle of boucles) masque.poly(boucle.map((p) => ({ x: p.x, y: p.y })));
+          masque.fill(0xffffff);
+          const zone = new Container();
+          zone.addChild(trait);
+          zone.mask = masque;
+          overlayLayer.addChild(masque, zone);
         }
-        tracerBoucles(trait, exterieures, { width: ANNEAUX_CULTURELS.epaisseurLisere, color, alpha: ANNEAUX_CULTURELS.alphaLisere, join: 'round' });
-        // Masque = la bande entière : toutes les boucles en UN SEUL
-        // remplissage (règle non-zéro — les trous sont déjà inversés par le
-        // chaînage) : le dégradé ne peint NI l'extérieur NI la zone cultivée.
-        const masque = new Graphics();
-        for (const boucle of boucles) masque.poly(boucle.map((p) => ({ x: p.x, y: p.y })));
-        masque.fill(0xffffff);
-        const zone = new Container();
-        zone.addChild(trait);
-        zone.mask = masque;
-        overlayLayer.addChild(masque, zone);
       }
     }
 

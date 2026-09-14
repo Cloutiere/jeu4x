@@ -48,7 +48,7 @@ import {
   SETTLER_BOOTY_GOLD,
   VILLAGE_DESTRUCTION_GOLD,
 } from './constants.js';
-import type { DestructionCause, GameEvent, HutReward } from './events.js';
+import type { DestructionCause, GameEvent, GpCanal, HutReward } from './events.js';
 import { creditScience } from './research.js';
 import { conversionGains, CONVERSION_DEFAULT, goldMultOf, scienceMultOf } from './conversion.js';
 import { WONDERS, TECHS, canSetProduction, buildingCostDiscount, isUnitObsolete, unitReplacementFor } from './techs.js';
@@ -2866,8 +2866,11 @@ function processVillages(board: Board): void {
  * toute obtention de GP, mais les GP n'ÉMETTENT PLUS AUCUN jalon (R-126
  * abrogée — le compteur des 20 ne progresse que par paliers T-27, reason
  * 'cultureLevel', et merveilles R-115/R-131).
+ * CULTURE-FRONTIERES (M2 — décision d'Erik du 14/09) : `canal` porte la
+ * SOURCE du GP (culture/science/or/production/combat) — émise telle quelle
+ * dans GreatPersonSpawned, le journal l'affiche (« GP de [canal] »).
  */
-function spawnGreatPerson(board: Board, city: City, gpType: string): void {
+function spawnGreatPerson(board: Board, city: City, gpType: string, canal: GpCanal): void {
   const player = board.st.players[city.owner]!;
   const gpStats = unitType(gpType);
   const cityHex = { q: city.q, r: city.r };
@@ -2901,6 +2904,7 @@ function spawnGreatPerson(board: Board, city: City, gpType: string): void {
     cityId: city.id,
     owner: city.owner,
     at: spot,
+    canal,
   });
 }
 
@@ -2948,7 +2952,7 @@ function checkLeaderGreatPerson(board: Board): void {
       .filter((c) => c.owner === playerId)
       .sort((a, b) => compareCityIds(a.id, b.id))
       .find((c) => c.capital);
-    if (city) spawnGreatPerson(board, city, 'leader');
+    if (city) spawnGreatPerson(board, city, 'leader', 'combat');
   }
 }
 
@@ -3565,13 +3569,13 @@ function processEconomy(board: Board): void {
       const gpMult = civGpThresholdMultOf(player);
       if (city.gpAccumScience >= Math.round(yieldGpThresholdFor('savant', player.greatPersonsByType) * gpMult)) {
         city.gpAccumScience -= Math.round(yieldGpThresholdFor('savant', player.greatPersonsByType) * gpMult);
-        spawnGreatPerson(board, city, 'savant');
+        spawnGreatPerson(board, city, 'savant', 'science');
       } else if (city.gpAccumGold >= Math.round(yieldGpThresholdFor('explorateur', player.greatPersonsByType) * gpMult)) {
         city.gpAccumGold -= Math.round(yieldGpThresholdFor('explorateur', player.greatPersonsByType) * gpMult);
-        spawnGreatPerson(board, city, 'explorateur');
+        spawnGreatPerson(board, city, 'explorateur', 'or');
       } else if (city.gpAccumProd >= Math.round(yieldGpThresholdFor('batisseur', player.greatPersonsByType) * gpMult)) {
         city.gpAccumProd -= Math.round(yieldGpThresholdFor('batisseur', player.greatPersonsByType) * gpMult);
-        spawnGreatPerson(board, city, 'batisseur');
+        spawnGreatPerson(board, city, 'batisseur', 'production');
       }
     }
 
@@ -3695,7 +3699,7 @@ function processEconomy(board: Board): void {
       const bestCity = villeLaPlusCultivee(board.st.cities, playerId);
       if (bestCity) {
         const cls = greatPersonClassTire(rng, player.greatPersonsByType, player.greatPersonsObtained);
-        spawnGreatPerson(board, board.st.cities[bestCity]!, cls);
+        spawnGreatPerson(board, board.st.cities[bestCity]!, cls, 'culture');
       }
     }
   }
@@ -3864,7 +3868,7 @@ function applyEconomyMilestone(
       const goldGpIndex = ECONOMY.milestones
         .slice(0, idx)
         .filter((m) => m.reward === 'greatPerson').length;
-      if (capital) spawnGreatPerson(board, capital, goldMilestoneGpClass(goldGpIndex));
+      if (capital) spawnGreatPerson(board, capital, goldMilestoneGpClass(goldGpIndex), 'or');
       break;
     }
     case 'granary':
