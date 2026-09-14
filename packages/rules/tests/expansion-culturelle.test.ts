@@ -92,36 +92,32 @@ describe('M1 · R-113 rév. — le Palais révisé : min(pop, cap) culture par t
     state.cities['c1']!.pop = 2;
     state.cities['c1']!.workedTiles = ['1,0', '0,1'];
     const out = resolveTurn(state, {}, 1).newState;
-    expect(out.cities['c1']!.cultureStored).toBe(2);
+    expect(out.cities['c1']!.cultureCumulee).toBe(2);
   });
 });
 
-describe('M2 · city.cultureCumulee — compteur cumulatif JAMAIS consommé', () => {
-  it('chaque tour additionne les MÊMES gains que cultureStored', () => {
+describe('M2 · city.cultureCumulee — compteur cumulatif JAMAIS consommé (GP-CULTURE-EVENEMENTS · D1/D5)', () => {
+  it('chaque tour additionne les mêmes gains au cumul (plus aucun réservoir — D5)', () => {
     let state = capitalCity();
     state = resolveTurn(state, {}, 1).newState;
-    expect(state.cities['c1']!.cultureStored).toBe(4); // Palais pop 4 : 4/tour
-    expect(state.cities['c1']!.cultureCumulee).toBe(4);
+    expect(state.cities['c1']!.cultureCumulee).toBe(4); // Palais pop 4 : 4/tour
     state = resolveTurn(state, {}, 2).newState;
-    expect(state.cities['c1']!.cultureStored).toBe(8);
     expect(state.cities['c1']!.cultureCumulee).toBe(8);
   });
 
-  it('le canal GP consomme cultureStored mais JAMAIS cultureCumulee (l’expansion et les GP ne se volent rien)', () => {
+  it('le canal GP lit le cumul EMPIRE contre les paliers T-27, JAMAIS soustrait (D1)', () => {
     const state = capitalCity();
-    state.cities['c1']!.cultureStored = 149; // franchit 150 ce tour (gain 4)
+    state.cities['c1']!.cultureCumulee = 149; // franchit 150 ce tour (gain 4)
     const { newState } = resolveTurn(state, {}, 1);
-    expect(Object.values(newState.units).some((u) => u.type === 'artiste_penseur')).toBe(true);
-    expect(newState.cities['c1']!.cultureStored).toBe(3); // 149 + 4 − 150 (jauge soustraite)
-    expect(newState.cities['c1']!.cultureCumulee).toBe(4); // cumul intégral conservé
+    expect(newState.players['p1']!.culturePaliers).toBe(1); // palier franchi (D6)
+    expect(newState.cities['c1']!.cultureCumulee).toBe(153); // 149 + 4 — cumul intégral conservé
   });
 
-  it('Anarchie (R-122) : l’accumulation S’ARRÊTE — même traitement que cultureStored', () => {
+  it('Anarchie (R-122) : l’accumulation S’ARRÊTE', () => {
     const anarchie = capitalCity();
     anarchie.players['p1']!.anarchyUntil = anarchie.turn + 1;
     const out = resolveTurn(anarchie, {}, 42).newState;
-    expect(out.cities['c1']!.cultureStored).toBe(0); // gelé (gains nuls)
-    expect(out.cities['c1']!.cultureCumulee).toBe(0); // gelé pareil
+    expect(out.cities['c1']!.cultureCumulee).toBe(0); // gelé (gains nuls)
     const temoin = resolveTurn(capitalCity(), {}, 42).newState;
     expect(temoin.cities['c1']!.cultureCumulee).toBeGreaterThan(0);
   });
@@ -167,7 +163,7 @@ describe('M2 · rayonCulturelDe — seuils 10/100/1 000/10 000, plafond 5 (data-
 
 describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)', () => {
   it('CURRENT_SCHEMA_VERSION = 20 ; backfill 0 idempotent, valeurs existantes conservées', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(21); // MENU-VILLE : noms des villes
+    expect(CURRENT_SCHEMA_VERSION).toBe(22); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
     const v19 = {
       schemaVersion: 19,
       turn: 7,
@@ -189,9 +185,9 @@ describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v19 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(21);
+    expect(out.schemaVersion).toBe(22);
     expect(out.cities['c1']!.cultureCumulee).toBe(0); // backfill neutre (pas d'enrichissement rétroactif)
-    expect(out.cities['c1']!.cultureStored).toBe(12); // inchangé
+    expect((out.cities['c1'] as unknown as Record<string, unknown>)['cultureStored']).toBeUndefined(); // D5 : réservoir supprimé par la migration 22
     // Idempotent : un état déjà migré repasse sans variation.
     expect(migrateState(structuredClone(out) as unknown as Record<string, unknown>)).toEqual(out);
   });
@@ -206,7 +202,7 @@ describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)
     v19.schemaVersion = 19;
     delete (v19.cities as Record<string, Record<string, unknown>>)['c1']!.cultureCumulee;
     const migrated = migrateState(v19) as unknown as GameState;
-    expect(migrated.schemaVersion).toBe(21);
+    expect(migrated.schemaVersion).toBe(22);
     expect(migrated.cities['c1']!.cultureCumulee).toBe(0); // backfill neutre
     const out = resolveTurn(migrated, {}, 8).newState;
     expect(out.cities['c1']!.cultureCumulee).toBe(2); // Palais pop 2 révisé : 2/tour

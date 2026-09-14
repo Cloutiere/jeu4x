@@ -55,14 +55,16 @@ import { WONDERS, TECHS, canSetProduction, buildingCostDiscount, isUnitObsolete,
 import type { WonderData } from './types.js';
 import {
   cultureGains,
+  cultureEmpireOf,
+  villeLaPlusCultivee,
   greatPersonThresholdFor,
+  greatPersonClassTire,
+  GP_CULTURE_SEED_SALT,
   isWonderObsolete,
-  greatPersonClassFor,
   goldMilestoneGpClass,
   settledGpMultiplier,
   settledGpCostFactor,
   settledGreatPersonsOfCities,
-  installedGreatPersonsOf,
   isGreatPersonType,
   leaderGpVictoriesNeeded,
   wonderProductionIssue,
@@ -326,7 +328,6 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
         workedTiles: [],
         buildings: !ownerHasCity ? ['palais'] : [],
       conversion: CONVERSION_DEFAULT,
-      cultureStored: 0,
       cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: [],
       gpAccumGold: 0,
@@ -2212,11 +2213,10 @@ function applyGreatPersonConsume(board: Board, unit: Unit, city: City): string |
 /**
  * 7g · R-119 : SpyMission — vol de GP installé (tranche 7g). Un Espion
  * ADJACENT (distance ≤ 1) à une ville ennemie VISIBLE vole un GP installé si
- * la victime en possède au moins un (jalons − merveilles contrôlées > 0,
- * R-115) : −1 jalon à la victime, +1 jalon au voleur (le GP est réputé
- * installé d'office dans l'empire voleur — aucun `greatPersonsObtained` ne
- * varie : l'escalade T-27 est inchangée, décision d'Erik) ; l'Espion est
- * consommé. Échec (rien à voler / conditions non remplies) : l'Espion SURVIT
+ * la victime en possède au moins un (settledGreatPersons non vide) : le GP
+ * le plus récemment installé change de camp (AUCUN jalon échangé — GP-CULTURE-
+ * EVENEMENTS · D7, décision d'Erik du 13/09 : R-126 abrogée, l'espion vole le
+ * GP et ses rendements, pas un point de victoire) ; l'Espion est consommé. Échec (rien à voler / conditions non remplies) : l'Espion SURVIT
  * (interprétation 🔶 documentée). Détection : reportée 7h.
  */
 function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
@@ -2236,8 +2236,7 @@ function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     const city = board.st.cities[order.cityId];
     if (!unit || !city) continue; // déjà consommé (ordre antérieur du lot) / ville disparue
     if (city.owner === unit.owner) continue; // ville AMIE : pas de mission
-    const victim = board.st.players[city.owner];
-    if (!victim) continue; // (aucune ville barbare — garde-fou)
+    if (!board.st.players[city.owner]) continue; // aucune ville barbare — garde-fou
     const visible = computeVisibleTiles(board.st, unit.owner).has(tileKeyOf(city));
     const adjacent = hexDistance(unit, city) <= 1;
     // 7j · D4.3 : seuls les GP INSTALLÉS (settledGreatPersons) peuvent être
@@ -2270,11 +2269,13 @@ function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       cityId: city.id,
       at: { q: city.q, r: city.r },
     });
-    // 7j · D4.3 : le GP volé est RETIRÉ de la liste d'installation de la ville
-    // cible (le plus récemment installé — déterministe) et réputé installé
-    // d'office dans la capitale du voleur (sinon première ville — R-81) : le
-    // bonus Settle change de camp, l'escalade T-27/T-30 est inchangée
-    // (décision d'Erik, R-119).
+    // 7j · D4.3 (rév. GP-CULTURE-EVENEMENTS · D7 — décision d'Erik du 13/09) :
+    // le GP volé est RETIRÉ de la liste d'installation de la ville cible (le
+    // plus récemment installé — déterministe) et réputé installé d'office dans
+    // la capitale du voleur (sinon première ville — R-81) : le bonus Settle
+    // change de camp. AUCUN jalon n'est échangé (R-126 abrogée) : l'espion
+    // vole le GP et ses rendements, pas un point de victoire — la suspension
+    // ONU « jalons redescendus par vol » (R-116) disparaît par la même occasion.
     const stolen = board.st.cities[city.id]?.settledGreatPersons.pop();
     if (stolen) {
       const thiefCities = Object.values(board.st.cities)
@@ -2282,23 +2283,6 @@ function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]
         .sort((a, b) => Number(b.capital) - Number(a.capital) || compareCityIds(a.id, b.id));
       thiefCities[0]?.settledGreatPersons.push(stolen);
     }
-    victim.cultureMilestones -= 1;
-    emit(board, {
-      type: 'CultureMilestone',
-      player: city.owner,
-      delta: -1,
-      total: victim.cultureMilestones,
-      reason: 'gpStolen',
-    });
-    const thief = board.st.players[unit.owner]!;
-    thief.cultureMilestones += 1;
-    emit(board, {
-      type: 'CultureMilestone',
-      player: unit.owner,
-      delta: 1,
-      total: thief.cultureMilestones,
-      reason: 'gpStolen',
-    });
     kill(board, unit, 'mission', null); // l'Espion est consommé par sa mission
   }
 }
@@ -2874,35 +2858,23 @@ function processVillages(board: Board): void {
 }
 
 /**
- * 7f/7h · R-114/R-123 (rév. 7j · R-126) : engendre un Personnage illustre de
- * la classe donnée sur la case de la ville (sinon première case adjacente
- * libre — perdu si aucune, interprétation R-114). Escalades : compteur PAR
- * TYPE (T-30) et `greatPersonsObtained` (T-27) pour TOUTE classe — « le seuil
- * augmente à chaque nouveau personnage » 🔶 (inchangé 7k).
- * 7k · C2 (veto d'Erik du 04/09, révision R-126) : `countsAsMilestone` — seuls
- * les GP issus du CANAL CULTURE comptent immédiatement comme Jalon culturel
- * (reason 'obtain') ; un GP d'accumulateur (T-30), du canal combat (T-31) ou
- * du Premier découvrir n'en compte PAS. Les merveilles continuent de compter
- * (R-131).
+ * 7f/7h · R-114/R-123 (rév. GP-CULTURE-EVENEMENTS · D7 — décision d'Erik du
+ * 13/09) : engendre un Personnage illustre de la classe donnée sur la case de
+ * la ville (sinon première case adjacente libre — perdu si aucune,
+ * interprétation R-114). Escalades : compteurs PAR TYPE (T-30) et
+ * `greatPersonsObtained` pour TOUTE classe — l'escalade reste alimentée par
+ * toute obtention de GP, mais les GP n'ÉMETTENT PLUS AUCUN jalon (R-126
+ * abrogée — le compteur des 20 ne progresse que par paliers T-27, reason
+ * 'cultureLevel', et merveilles R-115/R-131).
  */
-function spawnGreatPerson(board: Board, city: City, gpType: string, countsAsMilestone: boolean): void {
+function spawnGreatPerson(board: Board, city: City, gpType: string): void {
   const player = board.st.players[city.owner]!;
   const gpStats = unitType(gpType);
   const cityHex = { q: city.q, r: city.r };
   const spot = occupiedByUnit(board, cityHex) ? (freeSpawnTiles(board.st, cityHex, 1)[0] ?? null) : cityHex;
   if (gpStats.greatPerson) {
     player.greatPersonsByType[gpType] = (player.greatPersonsByType[gpType] ?? 0) + 1;
-    player.greatPersonsObtained += 1; // R-114 : seuil T-27 — toutes classes
-    if (countsAsMilestone) {
-      player.cultureMilestones += 1; // 7k · C2 : canal CULTURE seulement
-      emit(board, {
-        type: 'CultureMilestone',
-        player: city.owner,
-        delta: 1,
-        total: player.cultureMilestones,
-        reason: 'obtain',
-      });
-    }
+    player.greatPersonsObtained += 1; // escalade T-30 — sans effet sur les jalons (D7)
   }
   if (!spot) return; // aucune case libre : le GP est perdu (interprétation documentée)
   const gpId = nextId(board.st.units, 'u');
@@ -2976,7 +2948,7 @@ function checkLeaderGreatPerson(board: Board): void {
       .filter((c) => c.owner === playerId)
       .sort((a, b) => compareCityIds(a.id, b.id))
       .find((c) => c.capital);
-    if (city) spawnGreatPerson(board, city, 'leader', false); // C2 : pas de jalon
+    if (city) spawnGreatPerson(board, city, 'leader');
   }
 }
 
@@ -3036,7 +3008,6 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
       workedTiles: [],
       buildings: !ownerHasCity ? ['palais'] : [], // 7e : le Palais ne vit que dans la capitale
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
-      cultureStored: 0, // 7f · R-113
       cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: [], // 7f · R-115
       gpAccumGold: 0, // 7h · R-123
@@ -3567,46 +3538,40 @@ function processEconomy(board: Board): void {
     // ×2) et Communisme (Temples/Cathédrales = 0) via les effets de régime ;
     // Magna Carta (Tribunal +1) via les merveilles (R-125).
     // EXPANSION-CULTURELLE phase 1 (M2, décision d'Erik du 13/09) : le CUMUL
-    // `cultureCumulee` additionne les MÊMES gains chaque tour mais n'est
-    // JAMAIS consommé — le canal GP consomme `cultureStored`, l'expansion
-    // culturelle lit le cumul (rayonCulturelDe) : les deux ne se volent rien.
-    // Gelé en Anarchie comme `cultureStored` (R-122 — même traitement).
+    // `cultureCumulee` additionne les MÊMES gains chaque tour, JAMAIS consommé
+    // — GP-CULTURE-EVENEMENTS (D1/D5, décision d'Erik du 13/09) : le réservoir
+    // consommé `cultureStored` est SUPPRIMÉ ; le canal GP lit le CUMUL EMPIRE
+    // (Σ `cultureCumulee`) contre les paliers T-27 (processCulturePaliers, en
+    // fin de processEconomy) ; l'expansion culturelle lit le même cumul
+    // (rayonCulturelDe). Gelé en Anarchie (R-122).
     const gainCulture = anarchy
       ? 0
       : Math.round(
           cultureGains(city, empireBonus.culture, allTechs, govEffects) * // M1/R-128 : union des techs
             settledGpMultiplier(city, 'artiste_penseur'),
         );
-    city.cultureStored += gainCulture;
     city.cultureCumulee += gainCulture;
-    // 7k · C1 (veto d'Erik du 04/09) : le Grand Humanitaire est produit comme
-    // les autres GP — PAR LE CANAL CULTURE (R-114/R-127, ciblage technologique
-    // et rotation des 6 classes). L'accumulateur `gpAccumFood` n'est plus
-    // crédité ni lu (champ conservé DORMANT — compat saves).
-    // 7f/7h · R-114/R-123 : seuils de GP — au plus UN GP par ville et par tour
-    // (toutes classes confondues), ordre déterministe : culture → science → or
-    // → production. Le surplus est conservé (miroir R-63). Posé sur la case de
-    // la ville, sinon case adjacente libre (perdu si aucune). GP gelés en
-    // Anarchie (R-122). 7k · C2 : le jalon n'est compté que pour le canal
-    // culture (`countsAsMilestone`).
+    // 7f/7h · R-123 : seuils des GP À RENDEMENT (accumulateurs T-30) — au plus
+    // UN GP par ville et par tour (ordre déterministe : science → or →
+    // production). Posé sur la case de la ville, sinon case adjacente libre
+    // (perdu si aucune). GP gelés en Anarchie (R-122).
+    // GP-CULTURE-EVENEMENTS (D6) : le canal CULTURE n'est plus un canal PAR
+    // VILLE à jauge soustraite — il est traité PAR PALIER de culture de
+    // civilisation (Σ empire), APRÈS la boucle des villes.
     if (!anarchy) {
       // 7n · R-149 (trait `gpFrequents` — Grèce Médiévale, Rome Industrielle) :
-      // seuils d'obtention des GP ×0,75 🔶 (canal culture T-27 ET accumulateurs
-      // T-30 — la jauge soustraite utilise la MÊME valeur effective).
+      // seuils d'obtention des GP ×0,75 🔶 (accumulateurs T-30 — la même valeur
+      // effective est soustraite).
       const gpMult = civGpThresholdMultOf(player);
-      const gpThreshold = Math.round(greatPersonThresholdFor(player.greatPersonsObtained) * gpMult);
-      if (city.cultureStored >= gpThreshold) {
-        city.cultureStored -= gpThreshold;
-        spawnGreatPerson(board, city, greatPersonClassFor(player.researching, player.greatPersonsObtained), true);
-      } else if (city.gpAccumScience >= Math.round(yieldGpThresholdFor('savant', player.greatPersonsByType) * gpMult)) {
+      if (city.gpAccumScience >= Math.round(yieldGpThresholdFor('savant', player.greatPersonsByType) * gpMult)) {
         city.gpAccumScience -= Math.round(yieldGpThresholdFor('savant', player.greatPersonsByType) * gpMult);
-        spawnGreatPerson(board, city, 'savant', false);
+        spawnGreatPerson(board, city, 'savant');
       } else if (city.gpAccumGold >= Math.round(yieldGpThresholdFor('explorateur', player.greatPersonsByType) * gpMult)) {
         city.gpAccumGold -= Math.round(yieldGpThresholdFor('explorateur', player.greatPersonsByType) * gpMult);
-        spawnGreatPerson(board, city, 'explorateur', false);
+        spawnGreatPerson(board, city, 'explorateur');
       } else if (city.gpAccumProd >= Math.round(yieldGpThresholdFor('batisseur', player.greatPersonsByType) * gpMult)) {
         city.gpAccumProd -= Math.round(yieldGpThresholdFor('batisseur', player.greatPersonsByType) * gpMult);
-        spawnGreatPerson(board, city, 'batisseur', false);
+        spawnGreatPerson(board, city, 'batisseur');
       }
     }
 
@@ -3695,6 +3660,42 @@ function processEconomy(board: Board): void {
         }
       } else {
         city.production = null; // item inconnu : file purgée
+      }
+    }
+  }
+
+  // GP-CULTURE-EVENEMENTS · D6 (décision d'Erik du 13/09) : résolution des
+  // PALIERS T-27 de culture de civilisation — APRÈS la boucle des villes (le
+  // cumul empire de CE tour est complet), par joueur en ordre déterministe
+  // (R-81). Chaque palier franchi = DEUX conséquences ATOMIQUES, dans cet
+  // ordre : (a) +1 jalon culturel (reason 'cultureLevel') PUIS (b) 1 GP —
+  // classe tirée (D2, RNG seedé dédié), posé dans la ville la plus cultivée
+  // (D3). La culture n'est JAMAIS soustraite (D1) et plusieurs paliers peuvent
+  // être franchis dans la même résolution. Gelés en Anarchie (R-122 — la
+  // culture du tour est à zéro).
+  for (const playerId of Object.keys(board.st.players) as PlayerId[]) {
+    const player = board.st.players[playerId]!;
+    const cumul = cultureEmpireOf(board.st.cities, playerId);
+    if (cumul <= 0) continue;
+    const gpMult = civGpThresholdMultOf(player);
+    // RNG seedé DÉDIÉ (D2) : dérivé du seed de partie, ne touche pas au RNG de
+    // Phase B — une résolution se rejoue à l'identique (miroir R-154).
+    const rng = createRng((board.st.rngSeed ^ GP_CULTURE_SEED_SALT) >>> 0);
+    while (cumul >= Math.round(greatPersonThresholdFor(player.culturePaliers) * gpMult)) {
+      player.culturePaliers += 1;
+      player.cultureMilestones += 1; // D6(a) : le palier EST l'événement
+      emit(board, {
+        type: 'CultureMilestone',
+        player: playerId,
+        delta: 1,
+        total: player.cultureMilestones,
+        reason: 'cultureLevel',
+      });
+      // D6(b) : le GP suit le jalon, dans la ville la plus cultivée (D3).
+      const bestCity = villeLaPlusCultivee(board.st.cities, playerId);
+      if (bestCity) {
+        const cls = greatPersonClassTire(rng, player.greatPersonsByType, player.greatPersonsObtained);
+        spawnGreatPerson(board, board.st.cities[bestCity]!, cls);
       }
     }
   }
@@ -3863,7 +3864,7 @@ function applyEconomyMilestone(
       const goldGpIndex = ECONOMY.milestones
         .slice(0, idx)
         .filter((m) => m.reward === 'greatPerson').length;
-      if (capital) spawnGreatPerson(board, capital, goldMilestoneGpClass(goldGpIndex), false);
+      if (capital) spawnGreatPerson(board, capital, goldMilestoneGpClass(goldGpIndex));
       break;
     }
     case 'granary':

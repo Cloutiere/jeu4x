@@ -138,6 +138,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       scienceStored: 0,
       cultureMilestones: 0, // 7f · R-115
       greatPersonsObtained: 0, // 7f · R-114
+      culturePaliers: 0, // GP-CULTURE-EVENEMENTS · D1/D4 : paliers T-27 franchis
       government: 'despotisme', // 7h · R-121
       anarchyUntil: null, // 7h · R-122
       greatPersonsByType: {}, // 7h · R-123
@@ -187,7 +188,6 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       workedTiles: spec.workedTiles ?? [],
       buildings: spec.buildings ?? [],
       conversion: spec.conversion ?? CONVERSION_DEFAULT,
-      cultureStored: 0, // 7f · R-113
       cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: spec.wonders ?? [], // 7f · R-115
       gpAccumGold: 0, // 7h · R-123

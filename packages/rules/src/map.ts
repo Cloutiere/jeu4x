@@ -44,7 +44,7 @@ import {
   civDataOf,
   CIVILIZATIONS,
 } from './civilizations.js';
-import { greatPersonClassFor } from './culture.js';
+import { greatPersonRotationClass } from './culture.js';
 import { prochainNomVille } from './noms.js'; // MENU-VILLE : noms VilleN (compteur par joueur)
 import { createRng } from './rng.js';
 
@@ -430,6 +430,7 @@ export function createInitialState(
       scienceStored: 0,
       cultureMilestones: 0, // 7f · R-115
       greatPersonsObtained: 0, // 7f · R-114
+      culturePaliers: 0, // GP-CULTURE-EVENEMENTS · D1/D4 : paliers T-27 franchis
       government: 'despotisme', // 7h · R-121
       anarchyUntil: null, // 7h · R-122
       greatPersonsByType: {}, // 7h · R-123
@@ -463,7 +464,6 @@ export function createInitialState(
       workedTiles: [],
       buildings: ['palais'], // 7e : le Palais ne vit que dans la capitale
       conversion: CONVERSION_DEFAULT, // R-90 : défaut Or
-      cultureStored: 0, // 7f · R-113
       cultureCumulee: 0, // EXPANSION-CULTURELLE phase 1 : cumul jamais consommé
       wonders: [], // 7f · R-115
       gpAccumGold: 0, // 7h · R-123
@@ -619,7 +619,7 @@ export function createInitialState(
     // 6. Personnage illustre gratuit (Amérique) — posé sur la capitale (sinon
     //    adjacente libre), classe déterministe R-127 (rotation index 0) 🔶.
     if (civStartsFreeGp(civId) && capital) {
-      const gpType = greatPersonClassFor(player.researching, player.greatPersonsObtained);
+      const gpType = greatPersonRotationClass(0); // R-127 abrogée (D2) : rotation pure, index 0
       const stats = unitType(gpType);
       const anchor = { q: capital.q, r: capital.r };
       const occupied = Object.values(state.units).some((u) => u.q === anchor.q && u.r === anchor.r);

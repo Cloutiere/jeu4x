@@ -482,8 +482,9 @@
     return { treasury: player.treasury, gpt, next: nextEconomyMilestone(player.economyMilestonesClaimed ?? 0) };
   });
 
-  // 7f · R-115/R-116 : jalons culturels du joueur (GP installés + merveilles
-  // contrôlées) — le détail est DÉRIVÉ de l'état (source unique moteur).
+  // GP-CULTURE-EVENEMENTS · D6/D7 (décisions d'Erik du 13/09) : jalons
+  // culturels = PALIERS T-27 de culture de civilisation + MERVEILLES
+  // contrôlées — les GP n'y touchent JAMAIS (R-126 abrogée).
   const MILESTONES_TARGET = CULTURE.milestonesTarget;
   const myCulture = $derived.by(() => {
     const v = $view;
@@ -491,13 +492,12 @@
     const p = id && v.state ? v.state.players[id] : null;
     const ownCities = id && v.state ? Object.values(v.state.cities).filter((c) => c.owner === id) : [];
     const wonderCount = ownCities.reduce((acc, c) => acc + c.wonders.length, 0);
-    // 7j · R-126 : les GP INSTALLÉS sont listés explicitement (settledGreatPersons).
-    const installed = ownCities.reduce((acc, c) => acc + c.settledGreatPersons.length, 0);
+    const paliers = p?.culturePaliers ?? 0;
     const milestones = p?.cultureMilestones ?? 0;
-    return { milestones, wonderCount, installed };
+    return { milestones, wonderCount, paliers };
   });
   const milestonesDetail = $derived(
-    `Jalons culturels (7k · C2 : les GP issus du canal culture comptent à l’obtention, les merveilles contrôlées comptent chacune 1 — les GP d’accumulateurs, du combat et du Premier découvrir ne comptent pas) — ${myCulture.installed} GP installé(s) + ${myCulture.wonderCount} merveille(s) contrôlée(s) — ${MILESTONES_TARGET} requis pour les Nations Unies (R-126 rév./R-131/R-116)`,
+    `Jalons culturels (GP-CULTURE-EVENEMENTS · D6/D7 : chaque palier de culture de civilisation franchi compte +1, chaque merveille contrôlée compte +1 — les GP n’y comptent PLUS, R-126 abrogée) — ${myCulture.paliers} palier(s) de culture + ${myCulture.wonderCount} merveille(s) contrôlée(s) — ${MILESTONES_TARGET} requis pour les Nations Unies (R-116/R-131)`,
   );
   const myResearch = $derived.by(() => {
     const v = $view;

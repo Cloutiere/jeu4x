@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyFirstToDiscover,
   CURRENT_SCHEMA_VERSION,
-  greatPersonClassFor,
+  greatPersonRotationClass,
   migrateState,
   resolveTurn,
   settledGpCostFactor,
@@ -46,14 +46,20 @@ function addUnit(state: GameState, id: string, type: string, q: number, r: numbe
 }
 
 describe('7j · D1 — fusion Artiste / Penseur (R-114 révisée)', () => {
-  it('le canal culture engendre directement la classe fusionnée artiste_penseur', () => {
+  it('GP-CULTURE-EVENEMENTS · D6 : le palier T-27 engendre un GP (classe TIRÉE — D2) — la fusion D1 reste en données', () => {
     const state = gpState();
-    state.cities['c1']!.cultureStored = 150; // 7l · C5 : seuil T-27 table canon (1er GP = 150)
+    state.cities['c1']!.cultureCumulee = 150; // 1er palier T-27 = 150 (table canon)
     const result = resolveTurn(state, {}, 42);
     const spawned = result.events.find((e) => e.type === 'GreatPersonSpawned');
     if (spawned?.type !== 'GreatPersonSpawned') throw new Error('GP attendu');
-    expect(spawned.unitType).toBe('artiste_penseur'); // doc : « Grand Artiste / Penseur »
-    expect(result.newState.units[spawned.unitId]!.type).toBe('artiste_penseur');
+    // La classe est un TIRAGE seedé (D2) — on vérifie la reproductibilité du
+    // tirage en rejouant la même résolution (même état, même graine).
+    const replay = resolveTurn(structuredClone(state), {}, 42);
+    const replayed = replay.events.find((e) => e.type === 'GreatPersonSpawned');
+    if (replayed?.type !== 'GreatPersonSpawned') throw new Error('GP attendu au rejou');
+    expect(spawned.unitType).toBe(replayed.unitType);
+    expect(GP_CLASSES).toContain(spawned.unitType); // classe canonique (artiste_penseur incluse)
+    expect(result.newState.units[spawned.unitId]!.type).toBe(spawned.unitType);
   });
 
   it('les 6 classes canoniques sont déclarées dans l’ordre du tableau du doc', () => {
@@ -77,16 +83,23 @@ describe('7k · C1 — Grand Humanitaire produit PAR LE CANAL CULTURE (veto d’
     expect(result.newState.cities['c1']!.gpAccumFood).toBe(20); // inchangé (dormant)
   });
 
-  it('le canal CULTURE engendre l’Humanitaire via le ciblage technologique (R-127 : Thomas Becket / Féodalité)', () => {
+  it('GP-CULTURE-EVENEMENTS · D2 : la tech en cours N’INFLUENCE PLUS la classe (R-127 abrogée) — jalon = palier (D6)', () => {
     const state = gpState();
-    state.cities['c1']!.cultureStored = 150; // seuil T-27 (7l · C5 : table canon)
-    state.players['p1']!.researching = 'feudalite'; // figure humanitaire (figures.json)
+    state.cities['c1']!.cultureCumulee = 150; // seuil du 1er palier T-27
+    state.players['p1']!.researching = 'feudalite'; // ANCIEN ciblage humanitaire — ignoré désormais
     const result = resolveTurn(state, {}, 42);
     const spawned = result.events.find((e) => e.type === 'GreatPersonSpawned');
     if (spawned?.type !== 'GreatPersonSpawned') throw new Error('GP attendu');
-    expect(spawned.unitType).toBe('humanitaire');
-    // 7k · C2 : le canal culture compte le jalon À L'OBTENTION.
+    // La classe du tirage est reproductible, indépendante de `researching`.
+    const sansRecherche = resolveTurn((() => { const s = structuredClone(state); s.players['p1']!.researching = null; return s; })(), {}, 42);
+    const autre = sansRecherche.events.find((e) => e.type === 'GreatPersonSpawned');
+    if (autre?.type !== 'GreatPersonSpawned') throw new Error('GP attendu');
+    expect(spawned.unitType).toBe(autre.unitType); // même graine ⇒ même classe, tech ou pas
+    // D6(a) : le jalon vient du PALIER (reason 'cultureLevel'), pas de l'obtention.
     expect(result.newState.players['p1']!.cultureMilestones).toBe(1);
+    const jalon = result.events.find((e) => e.type === 'CultureMilestone');
+    if (jalon?.type !== 'CultureMilestone') throw new Error('jalon attendu');
+    expect(jalon.reason).toBe('cultureLevel');
   });
 
   it('un déficit alimentaire ne touche plus aucun accumulateur (champ dormant, interprétation 7k)', () => {
@@ -301,7 +314,7 @@ describe('7j · D4.3 — espionnage et nouveaux états (R-119 révisée)', () =>
     expect(result.newState.units['uSpy']).toBeDefined(); // échec : l'espion survit
   });
 
-  it('un GP INSTALLÉ volé : retiré de la ville cible, réinstallé dans la capitale du voleur', () => {
+  it('GP-CULTURE-EVENEMENTS · D7 : un GP INSTALLÉ volé change de camp SANS échange de jalons', () => {
     const state = gpState();
     state.cities['c2'] = { ...state.cities['c1']!, id: 'c2', q: 4, r: 2, capital: true, owner: 'p2', buildings: [] };
     state.cities['c2']!.settledGreatPersons = ['savant'];
@@ -315,8 +328,9 @@ describe('7j · D4.3 — espionnage et nouveaux états (R-119 révisée)', () =>
     expect(result.events.some((e) => e.type === 'GreatPersonStolen')).toBe(true);
     expect(result.newState.cities['c2']!.settledGreatPersons).toEqual([]);
     expect(result.newState.cities['c1']!.settledGreatPersons).toEqual(['savant']); // capitale voleur
-    expect(result.newState.players['p2']!.cultureMilestones).toBe(0);
-    expect(result.newState.players['p1']!.cultureMilestones).toBe(1);
+    // D7 : AUCUN jalon n'est échangé — p2 garde son compteur, p1 n'en gagne pas.
+    expect(result.newState.players['p2']!.cultureMilestones).toBe(1);
+    expect(result.newState.players['p1']!.cultureMilestones).toBe(0);
   });
 });
 
@@ -350,7 +364,6 @@ describe('7j · D5.1 — Premier découvrir accorde un GP (R-109 étendu)', () =
     expect(figureClassForTech('feudalite')).toBe('humanitaire');
     expect(figureClassForTech('chemin_de_fer')).toBe('humanitaire');
     expect(figureClassForTech('combustion')).toBe('explorateur');
-    expect(greatPersonClassFor('machine_a_vapeur', 0)).toBe('batisseur');
   });
 });
 
@@ -371,8 +384,8 @@ describe('7j · Migration v12 → v13 (fusion `penseur`, renommages D2, champs S
     };
     const out = migrateState(v12 as unknown as Record<string, unknown>) as unknown as GameState;
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(21); // MENU-VILLE : noms des villes
- // 7l : trésorerie + paliers
+    expect(CURRENT_SCHEMA_VERSION).toBe(22); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
+ // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
     expect(out.units['u1']!.type).toBe('artiste_penseur'); // fusion D1
     expect(out.units['u2']!.type).toBe('artiste_penseur');
     expect(out.units['u3']!.type).toBe('savant'); // D2

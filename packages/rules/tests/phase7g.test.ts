@@ -383,7 +383,7 @@ describe('Phase 7g · R-117 — transport', () => {
 // ---------------------------------------------------------------------------
 
 describe('Phase 7g · R-119 — espionnage', () => {
-  it('vol de GP installé : −1 jalon à la victime, +1 au voleur, espion consommé, escalade T-27 inchangée', () => {
+  it('GP-CULTURE-EVENEMENTS · D7 : vol de GP installé — AUCUN jalon échangé (R-126 abrogée), espion consommé', () => {
     const state = coastalState({
       units: [{ id: 'u1', type: 'espion', owner: 'p1', q: H(0, 2).q, r: H(0, 2).r }],
       cities: [{ id: 'c2', owner: 'p2', q: H(1, 2).q, r: H(1, 2).r, capital: true }],
@@ -398,17 +398,18 @@ describe('Phase 7g · R-119 — espionnage', () => {
       1,
     );
     expect(eventsOf(result.events, 'GreatPersonStolen')).toHaveLength(1);
-    expect(state ? result.newState.players['p2']!.cultureMilestones : -1).toBe(2);
-    expect(result.newState.players['p1']!.cultureMilestones).toBe(1);
+    // D7 : le vol prend le GP et ses rendements, PAS un point de victoire.
+    expect(result.newState.players['p2']!.cultureMilestones).toBe(3);
+    expect(result.newState.players['p1']!.cultureMilestones).toBe(0);
     // Décision d'Erik : l'escalade est INCHANGÉE des deux côtés.
     expect(result.newState.players['p2']!.greatPersonsObtained).toBe(5);
     expect(result.newState.players['p1']!.greatPersonsObtained).toBe(0);
+    // Le GP a changé de camp (installé d'office dans la capitale du voleur).
+    expect(result.newState.cities['c2']!.settledGreatPersons).toEqual(['artiste_penseur', 'savant']);
     // L'espion est consommé par sa mission.
     expect(result.newState.units['u1']).toBeUndefined();
-    const reasons = eventsOf(result.events, 'CultureMilestone').map(
-      (e) => (e as Extract<GameEvent, { type: 'CultureMilestone' }>).reason,
-    );
-    expect(reasons).toEqual(['gpStolen', 'gpStolen']);
+    // D7 : AUCUN événement CultureMilestone émis par le vol.
+    expect(eventsOf(result.events, 'CultureMilestone')).toHaveLength(0);
   });
 
   it('échec : rien à voler (merveilles seulement) ou ville trop loin — l’espion SURVIT', () => {
@@ -441,7 +442,7 @@ describe('Phase 7g · R-119 — espionnage', () => {
     expect(result.newState.units['u2']).toBeDefined();
   });
 
-  it('interaction R-116 : le vol fait retomber sous 20 jalons → chantier de l’ONU SUSPENDU', () => {
+  it('GP-CULTURE-EVENEMENTS · D7 : le vol ne fait plus retomber les jalons → chantier de l’ONU NON suspendu', () => {
     const state = coastalState({
       units: [{ id: 'u1', type: 'espion', owner: 'p1', q: H(0, 2).q, r: H(0, 2).r }],
       cities: [
@@ -460,12 +461,12 @@ describe('Phase 7g · R-119 — espionnage', () => {
       { p1: [{ type: 'SpyMission', unitId: 'u1', cityId: 'c2', mission: 'stealGreatPerson' }] },
       1,
     );
-    // 19 jalons : la progression est gelée (marteaux conservés), l'espion a volé.
-    expect(result.newState.players['p2']!.cultureMilestones).toBe(19);
-    expect(result.newState.cities['c2']!.production).toEqual({
-      item: { kind: 'wonder', id: 'nations_unies' },
-      progress: 250,
-    });
+    // D7 : les jalons de p2 restent à 20 — la suspension R-116 par vol de GP
+    // a disparu avec R-126 (elle ne peut plus être déclenchée que par la perte
+    // d'une merveille) ; le chantier progresse normalement.
+    expect(result.newState.players['p2']!.cultureMilestones).toBe(20);
+    expect(result.newState.cities['c2']!.settledGreatPersons).toEqual([]);
+    expect(eventsOf(result.events, 'GreatPersonStolen')).toHaveLength(1);
   });
 });
 
@@ -481,9 +482,9 @@ describe('Phase 7g · Migration v10 → v11', () => {
     });
     const raw = { ...structuredClone(v10), schemaVersion: 10 } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(21);
+    expect(out.schemaVersion).toBe(22);
     expect(out.units['u1']).toMatchObject({ aboard: null, cargo: null });
-    expect(CURRENT_SCHEMA_VERSION).toBe(21); // MENU-VILLE : noms des villes
+    expect(CURRENT_SCHEMA_VERSION).toBe(22); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
     expect(twice).toEqual(out);
   });
@@ -534,8 +535,9 @@ describe('Phase 7g · e2e naval + espionnage', () => {
     expect(getUnit(state, 'u1').aboard).toBe('u2');
     expect(getUnit(state, 'u2')).toMatchObject({ q: H(0, 4).q, r: H(0, 4).r });
     expect(getUnit(state, 'u1')).toMatchObject({ q: H(0, 4).q, r: H(0, 4).r });
-    expect(state.players['p2']!.cultureMilestones).toBe(1);
-    expect(state.players['p1']!.cultureMilestones).toBe(1);
+    // D7 : le vol n'échange plus de jalons (R-126 abrogée) — compteurs intacts.
+    expect(state.players['p2']!.cultureMilestones).toBe(2);
+    expect(state.players['p1']!.cultureMilestones).toBe(0);
     expect(getUnit(state, 'u5').hp).toBe(1); // déplacé → aucun soin
 
     // Tour 2 — débarquement sur la rive sud ; u5 regagne la capitale (sans soin).

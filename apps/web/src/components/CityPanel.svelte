@@ -193,12 +193,6 @@
     const govEffects = effectsFor(view.state.players[city.owner]!);
     return cultureGains(city, empireBonus.culture, allTechs, govEffects);
   });
-  const gpThreshold = $derived.by(() => {
-    if (!view.state || !engine) return 150; // 7l · C5 : 1er seuil de la table canon
-    return greatPersonThresholdFor(view.state.players[engine]?.greatPersonsObtained ?? 0);
-  });
-  const cultureRatio = $derived(city ? Math.max(0, Math.min(1, city.cultureStored / gpThreshold)) : 0);
-
   /**
    * 7h · R-123 : jauges des GP à rendement (or / science / production) —
    * accumulateurs par ville, seuil T-30 (×2 par GP du même type obtenu).
@@ -262,6 +256,21 @@
    * Refonte 7b : sections Unités / Bâtiments, débloqués d'abord (maquette §4.2).
    */
   const engine = $derived(myEngineId(view));
+  // GP-CULTURE-EVENEMENTS (D1, décision d'Erik du 13/09) : la jauge est celle
+  // de la CIVILISATION — cumul EMPIRE (Σ des city.cultureCumulee, jamais
+  // soustrait) vers le PROCHAIN palier T-27 (index = player.culturePaliers).
+  const culturePaliers = $derived(view.state && engine ? view.state.players[engine]?.culturePaliers ?? 0 : 0);
+  const cultureEmpire = $derived.by(() => {
+    if (!view.state || !engine) return 0;
+    let total = 0;
+    for (const c of Object.values(view.state.cities)) {
+      if (c.owner === engine) total += c.cultureCumulee;
+    }
+    return total;
+  });
+  const gpThreshold = $derived(greatPersonThresholdFor(culturePaliers));
+  const cultureRatio = $derived(Math.max(0, Math.min(1, cultureEmpire / gpThreshold)));
+
   const techsUnlocked = $derived(
     view.state && engine ? view.state.players[engine]?.techsUnlocked ?? [] : ([] as string[]),
   );
@@ -479,10 +488,10 @@
           <div class="bar"><div class="fill growth-fill" style:width={`${growthRatio * 100}%`}></div></div>
           <span class="eta">{atPopulationCap ? 'Plafond (31)' : growthEta !== null ? `${growthEta} tour${growthEta > 1 ? 's' : ''}` : foodSurplus <= 0 ? '—' : ''}</span>
         </div>
-        <div class="gauge" title="Culture (R-113) : +Palais / +Temples·Cathédrales × population — Personnage illustre au seuil (T-27, ×2 par GP obtenu)">
-          <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> {city.cultureStored} / {gpThreshold}</span>
+        <div class="gauge" title="Culture de la CIVILISATION (GP-CULTURE-EVENEMENTS · D1/D6, 13/09) : cumul EMPIRE des cultures de villes (jamais soustrait) — chaque palier T-27 franchi = +1 événement culturel ET 1 Grand Personnage (ville la plus cultivée)">
+          <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> Palier {culturePaliers + 1} : {cultureEmpire} / {gpThreshold}</span>
           <div class="bar"><div class="fill culture-fill" style:width={`${cultureRatio * 100}%`}></div></div>
-          <span class="eta">{culturePerTurn} culture/tour</span>
+          <span class="eta">{culturePerTurn} culture/tour (cette ville)</span>
         </div>
         {#each gpYieldGauges as g (g.type)}
           <div class="gauge" title="{g.label} (R-123 complétée) : accumulateur de la ville — seuil T-30 (×2 par GP de la même classe obtenu)">

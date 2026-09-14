@@ -593,7 +593,7 @@ describe('7n · Migration v16 → v17 (R-145/R-147/R-149 — additive, idempoten
       cities: Record<string, { wasCaptured: boolean }>;
       schemaVersion: number;
     };
-    expect(once.schemaVersion).toBe(21);
+    expect(once.schemaVersion).toBe(22);
     expect(once.players['p1']!.civId).toBe('neutre');
     expect(once.players['p1']!.era).toBe('medievale'); // 5 techs au compage (T-36)
     expect(once.players['p2']!.era).toBe('ancienne');
@@ -604,7 +604,7 @@ describe('7n · Migration v16 → v17 (R-145/R-147/R-149 — additive, idempoten
   });
 
   it('la civ adverse est PUBLIQUE dans l\'état filtré (canon) ; CURRENT_SCHEMA_VERSION = 17', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(21); // la chaîne continue (MENU-VILLE)
+    expect(CURRENT_SCHEMA_VERSION).toBe(22); // la chaîne continue (GP-CULTURE-EVENEMENTS)
     const s = makeState({});
     s.players['p1']!.civId = 'chine';
     s.players['p2']!.civId = 'zoulous';

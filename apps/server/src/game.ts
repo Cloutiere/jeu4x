@@ -522,8 +522,9 @@ export class GameDO {
                   id,
                   {
                     cultureMilestones: p.cultureMilestones,
+                    culturePaliers: p.culturePaliers, // GP-CULTURE-EVENEMENTS : paliers T-27 franchis
                     greatPersonsObtained: p.greatPersonsObtained,
-                    seuilGpCourant: greatPersonThresholdFor(p.greatPersonsObtained),
+                    seuilProchainPalier: greatPersonThresholdFor(p.culturePaliers),
                   },
                 ];
               }),
@@ -536,8 +537,7 @@ export class GameDO {
                 return [
                   id,
                   {
-                    cultureStored: c.cultureStored,
-                    cultureCumulee: c.cultureCumulee, // EXPANSION-CULTURELLE : anneaux culturels (visual-only)
+                    cultureCumulee: c.cultureCumulee, // anneaux culturels (visual-only) + paliers T-27 (D1)
                     wonders: c.wonders,
                     production: c.production?.item.kind === 'wonder' ? c.production.item.id : null,
                   },

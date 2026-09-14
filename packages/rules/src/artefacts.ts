@@ -25,7 +25,7 @@ import type { SeededRng } from './rng.js';
 import type { LoadedMap, MapPlayerSpawn } from './map.js';
 import type { MapArtefact } from './map.js';
 import { TECHS, WONDERS, isUnitObsolete } from './techs.js';
-import { greatPersonClassFor } from './culture.js';
+import { greatPersonRotationClass } from './culture.js';
 import { civHutGoldMultOf, uniqueReplacing } from './civilizations.js';
 import { freeSpawnTiles } from './barbares.js';
 
@@ -404,7 +404,7 @@ function applyActivation(ctx: ArtefactActivationContext, entity: Artefact, unit:
       const ids: string[] = [];
       const baseIndex = player.greatPersonsObtained;
       for (let i = 0; i < ARTEFACTS.params.confuciusGpCount; i++) {
-        const cls = greatPersonClassFor(null, baseIndex + i);
+        const cls = greatPersonRotationClass(baseIndex + i); // R-127 abrogée (D2) : rotation pure
         const anchor = firstCityAnchorOf(st, unit.owner);
         if (!anchor) break; // aucune case : GP perdu (miroir R-114 🔶)
         const stats = unitType(cls);

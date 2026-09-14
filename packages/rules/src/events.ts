@@ -153,15 +153,18 @@ export type GameEvent =
   /** 7j · R-126 : un GP est CONSOMMÉ (Consume) — effet massif immédiat selon
    *  la classe, le GP disparaît ; `effect` décrit l'effet appliqué (UI). */
   | { seq: number; type: 'GreatPersonConsumed'; unitId: UnitId; unitType: string; player: PlayerId; cityId: CityId | null; effect: string }
-  /** 7f · R-115/R-116 : variation des jalons culturels (GP installés,
-   *  merveilles construites/capturées/perdues) — `total` = compteur résultant. */
+  /** GP-CULTURE-EVENEMENTS (rév. D6/D7 — décision d'Erik du 13/09) :
+   *  variation des jalons culturels — PALIERS T-27 de culture de civilisation
+   *  ('cultureLevel'), merveilles construites/capturées/perdues et pénalité
+   *  ICBM (R-140) — les GP n'émettent PLUS rien ('install'/'obtain'/
+   *  'gpStolen' supprimés). `total` = compteur résultant. */
   | {
       seq: number;
       type: 'CultureMilestone';
       player: PlayerId;
       delta: number;
       total: number;
-      reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'gpStolen' | 'obtain' | 'nuke';
+      reason: 'cultureLevel' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'nuke';
     }
   /** 7f · R-116 : merveille achevée dans une ville (jalon, effet, ONU → victoire). */
   | { seq: number; type: 'WonderCompleted'; cityId: CityId; owner: PlayerId; wonder: string; at: Hex }

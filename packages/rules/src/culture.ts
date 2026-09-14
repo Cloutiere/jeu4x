@@ -17,7 +17,9 @@
 import { BUILDINGS, CULTURE, FIGURES, unitType } from './data.js';
 import { TECHS, WONDERS } from './techs.js';
 import type { FigureEntry } from './types.js';
+import { compareCityIds } from './state.js';
 import type { CityId, PlayerId } from './state.js';
+import type { SeededRng } from './rng.js';
 
 /**
  * 7j · R-114 (rév. D1/D2) · Les SIX classes canoniques de GP (doc d'Erik,
@@ -42,13 +44,24 @@ export const GREAT_PERSON_TYPES = GP_CLASSES;
 export type GreatPersonType = GreatPersonClass;
 
 /**
- * R-114 · T-27 RÉV. 7l · C5 · Seuil de culture du canal culture pour
- * engendrer un GP — TABLE CANON d'Erik (`culture.json`
- * `greatPersonCultureThresholds`, indexée par le nombre de GP DÉJÀ obtenus
- * par l'empire) : 1er GP à 150, écart croissant d'environ +33,33 par GP
- * (ancres : 150, 267, 417, 600, 817, 1067, 1350, 1667, 2017, 2400, 15e =
- * 4817, 20e = 8067). Remplace le « 20 ×2 » de 7f. Au-delà de la table
- * (64 entrées), la formule (écart initial 117, +33,33 par pas) extrapole.
+ * GP-CULTURE-EVENEMENTS · D2 · Sel du RNG seedé DÉDIÉ au tirage de classe des
+ * GP de palier (`createRng(st.rngSeed ^ GP_CULTURE_SEED_SALT)`, miroir
+ * artefacts R-154) : dérivé du seed de partie, JAMAIS `Math.random` (R-80),
+ * n'avance pas le RNG de Phase B — résolution rejouable à l'identique.
+ */
+export const GP_CULTURE_SEED_SALT = 0x6743c17e;
+
+/**
+ * 7j · R-114 · GP-CULTURE-EVENEMENTS (rév. D1/D4 — décision d'Erik du 13/09)
+ * · T-27 RÉV. · Seuil de culture de la CIVILISATION (cumul EMPIRE — Σ des
+ * `city.cultureCumulee`, jamais soustraite) pour franchir le PROCHAIN palier :
+ * TABLE CANON d'Erik (`culture.json` `greatPersonCultureThresholds`) indexée
+ * par le nombre de PALIERS DÉJÀ FRANCHIS (`player.culturePaliers`) : 1er
+ * palier à 150, écart croissant d'environ +33,33 (ancres : 150, 267, 417, 600,
+ * 817, 1067, 1350, 1667, 2017, 2400, 15e = 4817, 20e = 8067). Seuls les
+ * paliers de culture font avancer l'index (D4 — les GP d'autres voies ne le
+ * décalent jamais). Au-delà de la table (64 entrées), la formule (écart
+ * initial 117, +33,33 par pas) extrapole.
  */
 export function greatPersonThresholdFor(greatPersonsObtained: number): number {
   const table = CULTURE.greatPersonCultureThresholds;
@@ -63,18 +76,44 @@ export function greatPersonThresholdFor(greatPersonsObtained: number): number {
 }
 
 /**
- * 7j · R-127 🔶 (D5.2) · Ciblage technologique de l'identité : la classe du GP
- * engendré par le canal CULTURE est celle de la figure rattachée à la tech EN
- * COURS DE RECHERCHE du joueur (figures.json) ; sans figure associée, rotation
- * déterministe sur l'ordre canonique des 6 classes (index = compteur
- * d'obtention). Aucun RNG (R-80) — pondération déterministe par défaut du
- * handoff 7j (l'alternative tirage seedé R-80 reste possible, non retenue).
+ * 7j · R-127 · GP-CULTURE-EVENEMENTS (rév. D2 — décision d'Erik du 13/09 :
+ * ciblage technologique ABROGÉ) · Rotation de repli sur l'ordre canonique des
+ * 6 classes (index = compteur d'obtention). Sert de repli DÉTERMINISTE quand
+ * le pool de figures est épuisé (voir `greatPersonClassTire`), et de classe
+ * pour les octrois hors canal culture (Amérique, Confucius T-43) qui restent
+ * en rotation pure — aucune influence de la tech en cours.
  */
-export function greatPersonClassFor(researching: string | null, greatPersonsObtained: number): GreatPersonClass {
-  const targeted = figureClassForTech(researching);
-  if (targeted) return targeted;
-  const index = ((greatPersonsObtained % GP_CLASSES.length) + GP_CLASSES.length) % GP_CLASSES.length;
-  return GP_CLASSES[index]!;
+export function greatPersonRotationClass(index: number): GreatPersonClass {
+  const i = ((index % GP_CLASSES.length) + GP_CLASSES.length) % GP_CLASSES.length;
+  return GP_CLASSES[i]!;
+}
+
+/**
+ * GP-CULTURE-EVENEMENTS · D2 (décision d'Erik du 13/09, remplace le ciblage
+ * technologique R-127) · Classe du GP du canal CULTURE : TIRAGE UNIFORME SEEDÉ
+ * parmi les Personnages encore disponibles de la partie — chaque figure nommée
+ * (`figures.json`) ne sort qu'UNE fois : les figures disponibles d'une classe
+ * sont `figures.length − greatPersonsByType[classe]` (un GP obtenu d'une
+ * classe consomme une figure, tous canaux confondus). Le tirage pioche un
+ * créneau de figure (pool aplati, classes dans l'ordre canonique R-81 — la
+ * classe du créneau l'emporte). Repli DÉTERMINISTE documenté pool épuisé :
+ * rotation R-80 sur les classes (index = `greatPersonsObtained`).
+ * Pur : le RNG seedé dédié est dérivé par l'appelant (`createRng(seed ^ sel)`,
+ * miroir artefacts R-154) — jamais `Math.random`.
+ */
+export function greatPersonClassTire(
+  rng: SeededRng,
+  greatPersonsByType: Record<string, number>,
+  greatPersonsObtained: number,
+): GreatPersonClass {
+  const pool: GreatPersonClass[] = [];
+  for (const cls of GP_CLASSES) {
+    const total = FIGURES.classes[cls]?.figures.length ?? 0;
+    const dispo = Math.max(0, total - (greatPersonsByType[cls] ?? 0));
+    for (let i = 0; i < dispo; i++) pool.push(cls);
+  }
+  if (pool.length === 0) return greatPersonRotationClass(greatPersonsObtained);
+  return pool[rng.nextInt(pool.length)]!;
 }
 
 /** 7j · R-126 · Classe de la figure rattachée à une tech (null si aucune). */
@@ -158,6 +197,43 @@ export function rayonCulturelDe(
     if (cultureCumulee >= seuil) anneaux += 1;
   }
   return Math.min(anneaux, Math.max(0, maxRings));
+}
+
+/**
+ * GP-CULTURE-EVENEMENTS · D1 (décision d'Erik du 13/09) · Culture de la
+ * CIVILISATION : somme des `city.cultureCumulee` du joueur. Le canal GP lit ce
+ * CUMUL EMPIRE contre la table T-27 (`greatPersonThresholdFor`, indexée par le
+ * nombre de paliers déjà franchis — `player.culturePaliers`) ; la culture
+ * n'est JAMAIS soustraite (pas de remise à zéro de jauge). Pur, tri R-81.
+ */
+export function cultureEmpireOf(
+  cities: Record<CityId, { owner: PlayerId; cultureCumulee: number }>,
+  playerId: PlayerId,
+): number {
+  let total = 0;
+  for (const id of Object.keys(cities).sort()) {
+    const c = cities[id]!;
+    if (c.owner === playerId) total += c.cultureCumulee;
+  }
+  return total;
+}
+
+/**
+ * GP-CULTURE-EVENEMENTS · D3 (décision d'Erik du 13/09) · Ville du joueur à la
+ * plus HAUTE culture cumulée — lieu d'apparition du GP de palier ; tie-break
+ * cityId croissant (R-81, déterministe). null si le joueur n'a aucune ville.
+ */
+export function villeLaPlusCultivee(
+  cities: Record<CityId, { owner: PlayerId; cultureCumulee: number }>,
+  playerId: PlayerId,
+): CityId | null {
+  let best: CityId | null = null;
+  for (const id of Object.keys(cities).sort(compareCityIds)) {
+    const c = cities[id]!;
+    if (c.owner !== playerId) continue;
+    if (best === null || c.cultureCumulee > cities[best]!.cultureCumulee) best = id;
+  }
+  return best;
 }
 
 /**
@@ -308,14 +384,11 @@ export function wonderProductionIssue(wonderId: string, ctx: WonderProductionCon
   return null;
 }
 
-/** 7j · R-126 · Compte les GP installés dérivables : jalons − merveilles contrôlées
- *  (le détail UI « GP installés / merveilles » est dérivé de l'état, source
- *  unique). 7j : les jalons sont comptés À L'OBTENTION (doc : « chaque GP
- *  obtenu compte comme un Jalon Culturel ») — pour le VOL (R-119), la liste
- *  réelle des installés fait foi : voir `settledGreatPersonsOfCities`. */
-export function installedGreatPersonsOf(cultureMilestones: number, wonderCount: number): number {
-  return Math.max(0, cultureMilestones - wonderCount);
-}
+/** GP-CULTURE-EVENEMENTS · R-126 ABROGÉE (D7 — décision d'Erik du 13/09) :
+ *  les GP (obtention, installation, consommation, vol) n'ont AUCUN lien avec
+ *  `cultureMilestones` — le compteur ne progresse que par paliers T-27
+ *  (reason 'cultureLevel') et merveilles (R-115/R-131). L'ancien helper dérivé
+ *  « GP installés = jalons − merveilles » n'a plus de sens : SUPPRIMÉ. */
 
 /** 7j · R-126 · Nombre de GP INSTALLÉS d'un joueur : Σ des listes
  *  `city.settledGreatPersons` (source unique — les GP « en attente de choix »

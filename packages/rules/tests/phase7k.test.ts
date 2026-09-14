@@ -43,14 +43,14 @@ describe('7k · M1/R-128 — obsolescence GLOBALE (doc : « dès qu’UNE civili
       cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 2, buildings: ['palais', 'temple'], wonders: ['stonehenge'] }],
     });
     state.players['p2']!.techsUnlocked = ['litteratie'];
-    const before = resolveTurn(structuredClone(state), {}, 42).newState.cities['c1']!.cultureStored;
+    const before = resolveTurn(structuredClone(state), {}, 42).newState.cities['c1']!.cultureCumulee;
     // Sans l'obsolescence adverse, 2 pop × Temple 1 × 1,5 = 3 + Palais min(2,5) = 2 → 5 ;
     // avec l'obsolescence GLOBALE : 2 × 1 + 2 = 4.
     expect(before).toBe(4);
     // Contre-épreuve : sans la tech adverse, l'effet vit.
     const alive = structuredClone(state);
     alive.players['p2']!.techsUnlocked = [];
-    expect(resolveTurn(alive, {}, 42).newState.cities['c1']!.cultureStored).toBe(5);
+    expect(resolveTurn(alive, {}, 42).newState.cities['c1']!.cultureCumulee).toBe(5);
   });
 
   it('l’union des technologies (allKnownTechs) fait foi pour isWonderObsolete', () => {
@@ -70,7 +70,7 @@ describe('7k · M1/R-128 — obsolescence GLOBALE (doc : « dès qu’UNE civili
     state.players['p2']!.techsUnlocked = ['litteratie']; // Stonehenge obsolète GLOBALEMENT
     const out = resolveTurn(state, {}, 42).newState;
     expect(out.players['p1']!.cultureMilestones).toBe(1); // jalon conservé (R-131)
-    expect(out.cities['c1']!.cultureStored).toBeGreaterThan(0); // la culture de la cité continue (Palais)
+    expect(out.cities['c1']!.cultureCumulee).toBeGreaterThan(0); // la culture de la cité continue (Palais)
   });
 
   it('Grande Muraille : le helper pur évalue l’obsolescence sur l’union (tech adverse = protection levée)', () => {

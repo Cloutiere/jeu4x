@@ -161,15 +161,10 @@ export interface City {
   /** R-90 (Phase 7b) : conversion du commerce — 'gold' | 'science' (défaut or,
    *  réinitialisé à la capture). Amende R-61 : plus de curseur global. */
   conversion: 'gold' | 'science';
-  /** 7f · R-113 : culture accumulée vers le prochain Personnage illustre. */
-  cultureStored: number;
-  /** EXPANSION-CULTURELLE phase 1 (décision d'Erik du 13/09) : culture
-   *  CUMULÉE de la ville — additionne les mêmes gains que `cultureStored`
-   *  chaque tour mais n'est JAMAIS consommée (le canal GP consomme le sien ;
-   *  expansion culturelle et GP ne se volent pas de culture). Phase 1
-   *  VISUAL-ONLY : lu uniquement par le rendu des anneaux (`rayonCulturelDe`),
-   *  aucun consommateur gameplay. Gelée en Anarchie comme `cultureStored`
-   *  (R-122). Migration 20 : champ additif, backfill 0, idempotent. */
+  /** GP-CULTURE-EVENEMENTS · D5 (décision d'Erik du 13/09 : « rien n'est là
+   *  pour durer ») : l'ancien réservoir consommé `cultureStored` est SUPPRIMÉ
+   *  de l'état (migration 22) — le canal GP lit le cumul EMPIRE
+   *  `cultureCumulee` contre les paliers T-27, jamais soustrait (D1). */
   cultureCumulee: number;
   /** 7f · R-115 : merveilles hébergées — SURVIVENT à la capture (elles
    *  changent de propriétaire avec la ville, contrairement aux bâtiments). */
@@ -291,10 +286,22 @@ export interface Player {
   techsUnlocked: string[];
   /** R-85 : science accumulée sans choix de tech — versée au premier choix. */
   scienceStored: number;
-  /** 7f · R-115 : jalons culturels (GP installés + merveilles contrôlées). */
+  /** GP-CULTURE-EVENEMENTS (rév. D6/D7 — décision d'Erik du 13/09) : jalons
+   *  culturels — PALIERS T-27 de culture de civilisation (reason
+   *  'cultureLevel') + MERVEILLES (R-115/R-131) uniquement ; les GP n'y
+   *  touchent plus jamais (R-126 abrogée). */
   cultureMilestones: number;
-  /** 7f · R-114 : GP de culture obtenus (le seuil T-27 double à chaque obtention). */
+  /** 7f · R-114 : GP de culture obtenus — tous canaux (escalade des compteurs
+   *  T-30 ; NE décale PAS le prochain palier culturel — D4). */
   greatPersonsObtained: number;
+  /** GP-CULTURE-EVENEMENTS · D1/D4 (décision d'Erik du 13/09) : paliers T-27
+   *  DÉJÀ FRANCHIS par la culture de la civilisation (Σ des
+   *  `city.cultureCumulee`) — index dans la table `culture.json`
+   *  `greatPersonCultureThresholds`. Chaque palier franchi = +1 jalon
+   *  (reason 'cultureLevel') ET 1 GP (D6) ; avancé par la culture SEULEMENT
+   *  (les GP d'autres voies ne le décalent jamais — D4). Migration 22
+   *  (additif, 0). */
+  culturePaliers: number;
   /** 7h · R-121 : régime politique actif (governments.json — défaut despotisme). */
   government: string;
   /** 7h · R-122 : tour JUSQU'AUQUEL l'Anarchie s'applique (tour + T-29) —
@@ -383,7 +390,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 21;
+export const CURRENT_SCHEMA_VERSION = 22;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -925,6 +932,36 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       migrated[id] = { ...c, name: `Ville${compteurs[owner]}` };
     }
     return { ...state, cities: migrated };
+  },
+  /**
+   * GP-CULTURE-EVENEMENTS · v21 → v22 (décisions d'Erik du 13/09 — D1/D5/D6)
+   * : (a) SUPPRESSION du réservoir consommé `city.cultureStored` (le canal GP
+   * lit le cumul EMPIRE `cultureCumulee` contre les paliers T-27, jamais
+   * soustraits) ; (b) champ ADDITIF par joueur `culturePaliers: 0` (paliers
+   * T-27 déjà franchis — index dans la table canon). Les parties en cours
+   * reprennent avec 0 palier franchi : le prochain palier est le premier
+   * (150) — perte de progression GP assumée (les réservoirs des états v21 ne
+   * sont pas convertibles : décisions D1 « jamais soustraite » + D5 « rien
+   * n'est là pour durer »). Idempotent (champ absent = rien à retirer).
+   */
+  22: (state) => {
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedCities: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const { cultureStored: _drop, ...rest } = cities[id]!;
+      void _drop;
+      migratedCities[id] = rest;
+    }
+    const players = (state.players ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedPlayers: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(players).sort()) {
+      const p = players[id]!;
+      migratedPlayers[id] = {
+        ...p,
+        culturePaliers: typeof p.culturePaliers === 'number' ? p.culturePaliers : 0,
+      };
+    }
+    return { ...state, cities: migratedCities, players: migratedPlayers };
   },
 };
 

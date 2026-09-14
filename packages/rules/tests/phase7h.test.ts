@@ -230,7 +230,7 @@ describe('R-122 · Transitions et Anarchie', () => {
       s.cities['c1']!.gpAccumProd = 19; // juste sous le seuil T-30
       s.cities['c1']!.gpAccumScience = 19;
       s.cities['c1']!.gpAccumGold = 19;
-      s.cities['c1']!.cultureStored = 19; // juste sous le seuil T-27
+      s.cities['c1']!.cultureCumulee = 19; // juste sous l'accumulateur de culture (gel en anarchie vérifié sur le cumul)
       s.players['p1']!.anarchyUntil = anarchy ? s.turn + 1 : null; // anarchie PENDANT la résolution ?
       return s;
     };
@@ -238,13 +238,13 @@ describe('R-122 · Transitions et Anarchie', () => {
     const temoin = resolveTurn(setup(false), {}, 42).newState;
     expect(anarchie.players['p1']!.treasury).toBe(0);
     expect(anarchie.cities['c1']!.production!.progress).toBe(0);
-    expect(anarchie.cities['c1']!.cultureStored).toBe(19); // figé (gains nuls), pas remis à zéro
+    expect(anarchie.cities['c1']!.cultureCumulee).toBe(19); // figé (gains nuls), pas remis à zéro
     expect(anarchie.cities['c1']!.gpAccumProd).toBe(19); // gelés (gains nuls)
     expect(anarchie.cities['c1']!.gpAccumGold).toBe(19);
     // Témoin (despotisme, pas d’anarchie) : tout progresse, aucun GP spawn.
     expect(temoin.players['p1']!.treasury).toBeGreaterThan(0);
     expect(temoin.cities['c1']!.production!.progress).toBeGreaterThan(0);
-    expect(temoin.cities['c1']!.cultureStored).toBeGreaterThan(0);
+    expect(temoin.cities['c1']!.cultureCumulee).toBeGreaterThan(0);
   });
 
   it('e2e : après l’Anarchie (tour suivant), les rendements reprennent', () => {
@@ -359,7 +359,6 @@ describe('R-124 · Victoire scientifique (Vaisseau spatial)', () => {
       workedTiles: [],
       buildings: ['vaisseau_propulsion'],
       conversion: 'gold',
-      cultureStored: 0,
       cultureCumulee: 0,
       wonders: [],
       gpAccumGold: 0,
@@ -405,7 +404,7 @@ describe('Migration v11 → v12 (Phase 7h)', () => {
       cities: { c1: { id: 'c1', q: 0, r: 0, wonders: ['stonehenge'] } },
     };
     const out = migrateState(v11 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(21);
+    expect(out.schemaVersion).toBe(22);
     expect(out.players['p1']!.government).toBe('despotisme');
     expect(out.players['p1']!.anarchyUntil).toBeNull();
     expect(out.players['p1']!.greatPersonsByType).toEqual({});
@@ -452,7 +451,7 @@ describe('Scénario e2e L4-1 (handoff) — chaîne complète des gouvernements',
     const monarchy = productionState('monarchie');
     const afterMonarchy = resolveTurn(monarchy, {}, 42).newState;
     const republicWitness = resolveTurn(productionState('republique'), {}, 42).newState;
-    expect(afterMonarchy.cities['c1']!.cultureStored).toBe(republicWitness.cities['c1']!.cultureStored * 2);
+    expect(afterMonarchy.cities['c1']!.cultureCumulee).toBe(republicWitness.cities['c1']!.cultureCumulee * 2);
 
     // 4. Fondamentalisme : bibliothèque nulle (couvert ci-dessus) — le régime
     // est adopté puis le bonus terrestre mesuré via landCombatBonus.

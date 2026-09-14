@@ -123,22 +123,19 @@ export function settleEffectLabel(unitTypeId: string): string {
   }
 }
 
-/** 7f · Raison d'une variation de jalons culturels (7g : + gpStolen, R-119 ;
- *  7m : + nuke — pénalité culturelle d'une détonation, R-140). */
-function milestoneReasonLabel(reason: 'install' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'gpStolen' | 'obtain' | 'nuke'): string {
+/** GP-CULTURE-EVENEMENTS (rév. D6/D7 — 13/09) : raison d'une variation de
+ *  jalons culturels — paliers de culture + merveilles + pénalité ICBM (R-140)
+ *  ; les GP n'émettent plus rien (R-126 abrogée). */
+function milestoneReasonLabel(reason: 'cultureLevel' | 'wonderBuilt' | 'wonderCaptured' | 'wonderLost' | 'nuke'): string {
   switch (reason) {
-    case 'obtain':
-      return 'personnage obtenu (7j)'; // R-126 : jalon à l'obtention
-    case 'install':
-      return 'personnage installé';
+    case 'cultureLevel':
+      return 'palier de culture franchi';
     case 'wonderBuilt':
       return 'merveille construite';
     case 'wonderCaptured':
       return 'merveille capturée';
     case 'wonderLost':
       return 'merveille perdue';
-    case 'gpStolen':
-      return 'personnage volé par un espion';
     case 'nuke':
       return 'frappe nucléaire (pénalité — R-140)';
   }
@@ -258,7 +255,8 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
     case 'ArtifactActivated':
       return `Artefact « ${event.name} » activé par ${nameOf(event.byPlayer)} — ${artefactEffectLabel(event.effect, event)}`;
     case 'GreatPersonSpawned':
-      return `${greatPersonLabel(event.unitType)} apparaît dans ${event.cityId} (${nameOf(event.owner)}) — jauge remise à zéro`;
+      // GP-CULTURE-EVENEMENTS (D1/D5) : plus de jauge par ville — le canal GP lit le cumul EMPIRE.
+      return `${greatPersonLabel(event.unitType)} apparaît dans ${event.cityId} (${nameOf(event.owner)})`;
     case 'InstallPerson':
       return `${greatPersonLabel(event.unitType)} s'installe dans ${event.cityId} — ${settleEffectLabel(event.unitType)}`;
     case 'GreatPersonConsumed':

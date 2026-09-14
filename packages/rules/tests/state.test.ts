@@ -17,7 +17,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
   it('la version courante est exportée avec la chaîne de migrations (v12 depuis les gouvernements, Phase 7h)', () => {
     const state = makeState();
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(21); // MENU-VILLE : noms des villes (champ additif City.name)
+    expect(CURRENT_SCHEMA_VERSION).toBe(22); // GP-CULTURE-EVENEMENTS : cultureStored supprimé + culturePaliers (D1/D5)
     expect(MIGRATIONS).toBeTypeOf('object');
     expect(typeof MIGRATIONS[2]).toBe('function');
     expect(typeof MIGRATIONS[3]).toBe('function');
@@ -45,7 +45,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v8 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(21); // la chaîne se poursuit jusqu'à la version courante (7m)
+    expect(out.schemaVersion).toBe(22); // la chaîne se poursuit jusqu'à la version courante (7m)
     expect(out.firstBy).toEqual({});
     expect((out.cities as Record<string, { capital: boolean; buildings: string[] }>)['cap']!.buildings).toEqual(['palais']);
     expect((out.cities as Record<string, { capital: boolean; buildings: string[] }>)['ville']!.buildings).toEqual(['grenier']);
@@ -76,18 +76,20 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(21);
-    expect(out.cities['cap']!.cultureStored).toBe(0);
+    expect(out.schemaVersion).toBe(22);
+    expect((out.cities['cap'] as unknown as Record<string, unknown>)['cultureStored']).toBeUndefined(); // D5 : réservoir supprimé (migration 22)
+    expect(out.cities['cap']!.cultureCumulee).toBe(0);
     expect(out.cities['cap']!.wonders).toEqual([]);
     expect(out.players['p1']!.cultureMilestones).toBe(0);
     expect(out.players['p1']!.greatPersonsObtained).toBe(0);
+    expect(out.players['p1']!.culturePaliers).toBe(0); // D1/D4 : paliers T-27
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
     expect(twice).toEqual(out);
   });
 
   it('migrateState rejette une version inconnue ou futuriste', () => {
     expect(() => migrateState({ schemaVersion: 0 })).toThrow();
-    expect(() => migrateState({ schemaVersion: 22 })).toThrow(); // 21 est la version courante (EXPANSION-CULTURELLE)
+    expect(() => migrateState({ schemaVersion: 23 })).toThrow(); // 22 est la version courante (GP-CULTURE-EVENEMENTS)
     expect(() => migrateState({})).toThrow();
   });
 
@@ -106,7 +108,7 @@ describe('L2 · GameState versionné (DESIGN.md §3.8)', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v7 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(21); // chaîne complète 7d → … → 7l → 7m
+    expect(out.schemaVersion).toBe(22); // chaîne complète 7d → … → 7o → GP-CULTURE-EVENEMENTS
     expect(out.villages).toEqual([]);
     expect(out.huts).toEqual([]);
     expect(out.mapId).toBeNull();
