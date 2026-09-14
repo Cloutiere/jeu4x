@@ -239,7 +239,20 @@
     const city = scene.state.cities[vueVilleId];
     if (!city) return null;
     const p = hexToPixel(city, HEX_SIZE);
-    return poseVueVillePour(p.x, p.y, vw, vh, HEX_SIZE, workRadiusOf(city.buildings));
+    // CORRECTIFS-VUE-VILLE : dimensions LUES SUR LE DOM, jamais les dernières
+    // valeurs du ResizeObserver — l'échelle doit être calculée sur l'espace
+    // réellement disponible (le masquage de la colonne de droite et le
+    // redimensionnement de la fenêtre doivent se voir immédiatement, même si
+    // l'observateur n'a pas encore délivré — piége viewport PILOT-HANDOFF §5).
+    const w = Math.max(1, host?.clientWidth || vw);
+    const h = Math.max(1, host?.clientHeight || vh);
+    if (w !== vw || h !== vh) {
+      vw = w;
+      vh = h;
+      app?.renderer.resize(w, h);
+      stage3d?.resize(w, h);
+    }
+    return poseVueVillePour(p.x, p.y, w, h, HEX_SIZE, workRadiusOf(city.buildings));
   }
 
   $effect(() => {
@@ -1783,10 +1796,21 @@
       appliquerPoseVue(poseVueCourante());
       if (vueAnim.t >= 1) {
         if (vueAnim.entree) {
-          vuePose = vueAnim.to;
+          // CORRECTIFS-VUE-VILLE : la pose cible a pu être calculée sur des
+          // dimensions transitoires (colonne pas encore masquée, redim pendant
+          // l'anim) — on recale la pose FINALE sur les dimensions actuelles.
+          vuePose = poseVueVilleCible() ?? vueAnim.to;
+          appliquerPoseVue(vuePose);
         } else {
           vuePose = null;
           cameraChanged = true; // rend la main à la caméra 2D normale
+          // CORRECTIFS-VUE-VILLE (retour d'Erik) : le rebuild des entités et
+          // de la surcouche a tourné PENDANT l'animation de sortie —
+          // vueVilleActif() y était encore vrai, donc les unités (et toute la
+          // surcouche de guerre) sont restées MASQUÉES après le retour carte.
+          // On ré-invalide : le rebuild rejoué à la pose finale repeuple.
+          entitiesDirty = true;
+          overlayDirty = true;
         }
         vueAnim = null;
       }
@@ -2812,6 +2836,10 @@
         scene3d: () => stage3d?.scene ?? null,
         // VUE VILLE : état + pose courante (vérifications GUI automatisées).
         vueVille: () => ({ id: vueVilleId, actif: vueVilleActif(), pose: poseVueCourante() }),
+        // CORRECTIFS-VUE-VILLE : visibilité des sprites d'unités — le cycle
+        // entrée → sortie de vue ville doit TOUJOURS les restaurer
+        // (vérifications GUI des 3 chemins de sortie).
+        unites: () => ({ total: unitSprites.size, visibles: [...unitSprites.values()].filter((c) => c.visible).length }),
         // MENU-VILLE : miroir du double-clic (entrée/sortie de vue ville).
         doubleClickAt: (x: number, y: number) => dblClickAtCanvas({ x, y }),
         screenOf: (q: number, r: number) => {

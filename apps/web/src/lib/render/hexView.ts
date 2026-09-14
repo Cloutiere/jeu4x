@@ -116,12 +116,16 @@ export function poseVueVillePour(
   panelW = VUE_VILLE_PANNEAU_L,
 ): PoseVueVille {
   const libreW = Math.max(320, vw - panelW);
-  // 🔶 Retour d'Erik : zoom renforcé, mais les tuiles du rayon ENTIÈRES
-  // (révisé : rien de coupé en haut/en bas). Demi-étendue monde du disque de
-  // rayon `rayon` (pointy-top) : largeur √3·size·(rayon + 0,35), hauteur
-  // size·(1,5·rayon + 1) — étendue des centres + demi-hexagone complet.
+  // 🔶 CORRECTIFS-VUE-VILLE (retour d'Erik, 14/09) : les tuiles du rayon
+  // ENTIÈRES (sommets compris — RIEN de coupé, quelle que soit la fenêtre).
+  // Étendue demi-monde du disque de rayon `rayon` (pointy-top) : centres sur
+  // ±√3·size·rayon en largeur et ±1,5·size·rayon en hauteur, PLUS l'hexagone
+  // complet (demi-largeur √3/2·size, demi-hauteur size). L'ancienne marge
+  // horizontale (rayon + 0,35) sous-estimait la vraie demi-largeur : les
+  // tuiles extrêmes gauche/droite étaient coupées dès que la largeur bornait
+  // le zoom (reproduit à 1536×864 — coupe ~8 px par côté).
   const marge = 12;
-  const demiLarg = Math.sqrt(3) * size * (rayon + 0.35);
+  const demiLarg = Math.sqrt(3) * size * (rayon + 0.5);
   const demiHaut = size * (1.5 * rayon + 1);
   const scale = Math.min(
     ZOOM_MAX,

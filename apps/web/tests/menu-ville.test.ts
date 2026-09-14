@@ -133,3 +133,53 @@ describe('clickActionVueVille — tuiles cliquables (même file d\'ordres SetWor
     expect(clickActionVueVille(view, 'c1', { q: 0, r: 1 })).toEqual({ kind: 'none' });
   });
 });
+
+describe('CORRECTIFS-VUE-VILLE — contrat de cadrage à TOUTES les tailles de viewport', () => {
+  const TOL = 0.5; // demi-pixel
+  /** Viewports réels (Erik : Chrome 100 % — l'outil d'automatisation a un viewport différent). */
+  const VIEWPORTS: Array<[number, number]> = [
+    [1280, 720],
+    [1536, 864],
+    [1832, 1078],
+    [2560, 1440],
+    [1100, 700], // fenêtre étroite : la LARGEUR borne le zoom (l'ancienne marge coupait ici)
+    [900, 650],
+  ];
+
+  /** Sommets d'un hexagone pointy-top centré sur (sx, sy) à l'écran. */
+  function sommets(sx: number, sy: number, scale: number): Array<[number, number]> {
+    const pts: Array<[number, number]> = [];
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 180) * (60 * i - 30); // sommet en haut (pointy-top)
+      pts.push([sx + Math.cos(a) * HEX_SIZE * scale, sy + Math.sin(a) * HEX_SIZE * scale]);
+    }
+    return pts;
+  }
+
+  for (const [vw, vh] of VIEWPORTS) {
+    for (const rayon of [1, 2] as const) {
+      it(`viewport ${vw}×${vh}, rayon ${rayon} : chaque tuile, sommets compris, tient dans l'espace libre ; ville centrée`, () => {
+        const pose = poseVueVillePour(0, 0, vw, vh, HEX_SIZE, rayon);
+        const libreD = Math.max(320, vw - VUE_VILLE_PANNEAU_L);
+        // Ville au centre de l'espace libre (retour d'Erik : suivi du redimensionnement).
+        expect(pose.x).toBeCloseTo(libreD / 2, 6);
+        expect(pose.y).toBeCloseTo(vh / 2, 6);
+        // TOUTES les tuiles du rayon, ENTIÈRES (6 sommets projetés), dans l'espace libre.
+        for (let dq = -rayon; dq <= rayon; dq++) {
+          for (let dr = Math.max(-rayon, -dq - rayon); dr <= Math.min(rayon, -dq + rayon); dr++) {
+            const wx = (dq + dr / 2) * Math.sqrt(3) * HEX_SIZE;
+            const wy = dr * 1.5 * HEX_SIZE;
+            const sx = wx * pose.scale + pose.x;
+            const sy = wy * pose.scale + pose.y;
+            for (const [vx, vy] of sommets(sx, sy, pose.scale)) {
+              expect(vx, `sommet x hors cadre (${vx}) — viewport ${vw}×${vh} rayon ${rayon}`).toBeGreaterThanOrEqual(-TOL);
+              expect(vx, `sommet x hors cadre (${vx}) — viewport ${vw}×${vh} rayon ${rayon}`).toBeLessThanOrEqual(libreD + TOL);
+              expect(vy, `sommet y hors cadre (${vy}) — viewport ${vw}×${vh} rayon ${rayon}`).toBeGreaterThanOrEqual(-TOL);
+              expect(vy, `sommet y hors cadre (${vy}) — viewport ${vw}×${vh} rayon ${rayon}`).toBeLessThanOrEqual(vh + TOL);
+            }
+          }
+        }
+      });
+    }
+  }
+});
