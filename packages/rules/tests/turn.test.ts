@@ -899,6 +899,22 @@ describe('Phase C · R-60 rév. WORKED-TILE-EXACT · désélection exacte de la 
     expect(cityAt(newState, 1, 1)!.workedTiles).toEqual(['0,1', '2,1', '2,0']);
   });
 
+  it('retour sur la MÊME tuile : désélection puis ré-affectation de CETTE tuile = aucun changement net', () => {
+    // retour d'Erik : cliquer B (libère B), puis re-cliquer B doit la remettre en culture
+    const { newState } = resolveTurn(
+      threeTiles(),
+      {
+        p1: [
+          { type: 'SetWorkedTile', cityId: 'c1', tile: '1,0' },
+          { type: 'SetWorkedTile', cityId: 'c1', tile: '1,0' },
+        ],
+      },
+      1,
+    );
+    // la tuile est remise en culture (re-pushée en fin de liste)
+    expect(cityAt(newState, 1, 1)!.workedTiles).toEqual(['0,1', '2,1', '1,0']);
+  });
+
   it('ville pleine SANS désélection : cibler une tuile libre reste ignoré (inchangé)', () => {
     const { newState } = resolveTurn(threeTiles(), { p1: [{ type: 'SetWorkedTile', cityId: 'c1', tile: '2,0' }] }, 1);
     expect(cityAt(newState, 1, 1)!.workedTiles).toEqual(['0,1', '1,0', '2,1']);

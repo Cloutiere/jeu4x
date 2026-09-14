@@ -237,14 +237,6 @@ export function effectiveWorkedTiles(
   const tiles = [...city.workedTiles];
   const assigns: string[] = [];
   const unassigns: string[] = [];
-  // Miroir du `takenByOthers` STALE du moteur (calculé au début de la
-  // résolution) : une tuile qui figurait DANS les terrains cultivés au départ
-  // puis retirée par un ordre de cette même file ne peut pas être re-pushée
-  // par un ordre ultérieur (le moteur l'ignore — case « déjà prise » à ses
-  // yeux) ; une tuile assignée PUIS retirée dans la file, si, (elle n'était
-  // pas dans takenByOthers).
-  const initialOwn = new Set(city.workedTiles);
-  const retireesInitiales = new Set<string>();
   for (const order of view.orders) {
     if (order.type !== 'SetWorkedTile' || order.cityId !== city.id) continue;
     if (order.tile === null) {
@@ -253,10 +245,11 @@ export function effectiveWorkedTiles(
     } else if (tiles.includes(order.tile)) {
       // Déjà travaillée par cette ville : désélection EXACTE de cette case
       // (miroir du moteur — pas de permutation, pas de ré-affectation).
+      // La case est libérée pour la suite de la file : un ordre ultérieur
+      // (re-clic sur la même tuile) peut la remettre en culture.
       tiles.splice(tiles.indexOf(order.tile), 1);
       unassigns.push(order.tile);
-      if (initialOwn.has(order.tile)) retireesInitiales.add(order.tile);
-    } else if (tiles.length < city.pop && !retireesInitiales.has(order.tile)) {
+    } else if (tiles.length < city.pop) {
       tiles.push(order.tile);
       assigns.push(order.tile);
     }

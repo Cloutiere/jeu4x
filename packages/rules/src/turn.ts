@@ -1978,7 +1978,10 @@ function applySetWorkedTile(board: Board, ordersByPlayer: Record<PlayerId, Order
       // Déjà travaillée par cette ville : DÉSÉLECTION EXACTE (R-60 rév.) —
       // CETTE case précise sort des terrains cultivés, pas la dernière assignée.
       // (AVANT le test takenByOthers, qui inclut les cases de la ville elle-même.)
+      // La case est LIBÉRÉE pour la suite de la file : un ordre ultérieur
+      // (re-clic sur la même tuile, ou une autre ville) peut la reprendre.
       city.workedTiles.splice(city.workedTiles.indexOf(order.tile), 1);
+      takenByOthers.delete(order.tile);
       continue;
     }
     if (takenByOthers.has(order.tile)) continue; // travaillée par une autre ville (ou ville elle-même)

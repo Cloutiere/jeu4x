@@ -264,6 +264,16 @@ describe('clickAction (L3)', () => {
     expect(eff.unassigns).toEqual(['2,2']);
     // la place effectivement libérée permet une ré-affectation immédiate
     expect(clickAction(avecOrdre, ui, { q: 1, r: 2 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: '1,2' });
+    // re-clic sur la MÊME tuile libérée : l'ordre porte à nouveau CETTE case (miroir : remise en culture)
+    expect(clickAction(avecOrdre, ui, { q: 2, r: 2 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: '2,2' });
+    const vaEtVient = viewOf(state, {
+      orders: [
+        { type: 'SetWorkedTile', cityId: 'c1', tile: '2,2' },
+        { type: 'SetWorkedTile', cityId: 'c1', tile: '2,2' },
+      ],
+    });
+    const eff2 = effectiveWorkedTiles(vaEtVient, state.cities['c1']!);
+    expect(eff2.tiles).toEqual(['1,1', '3,1', '2,2']); // net : aucun changement
   });
 
 
