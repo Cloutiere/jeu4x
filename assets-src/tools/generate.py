@@ -97,6 +97,46 @@ class D:
                                  fill=fill, outline=outline,
                                  width=int(width * SS) if width else 0)
 
+    def rect(self, box, fill=None):
+        self.d.rectangle([c * SS for c in box], fill=fill)
+
+    def smooth_poly(self, pts, fill=None, outline=None, width=0, steps=14):
+        """Polygone lissé : chaîne Catmull-Rom passant par `pts`."""
+        self.poly(bezier(pts, steps), fill=fill, outline=outline,
+                  width=int(width * SS) if width else 0)
+
+    def smooth_line(self, pts, fill, width, steps=14):
+        self.line(bezier(pts, steps), fill, width)
+
+    def taper(self, pts, w0, w1, fill, steps=16):
+        """Membre fuselé : ligne lissée dont l'épaisseur passe de w0 à w1."""
+        b = bezier(pts, steps)
+        n = len(b)
+        for i in range(n - 1):
+            t = i / (n - 1)
+            self.line([b[i], b[i + 1]], fill,
+                      w0 + (w1 - w0) * t)
+
+
+def bezier(pts, steps=14):
+    """Catmull-Rom passant par les points de contrôle (au moins 2 points)."""
+    if len(pts) < 3:
+        return list(pts)
+    p = [pts[0]] + list(pts) + [pts[-1]]
+    out = []
+    for i in range(len(p) - 3):
+        p0, p1, p2, p3 = p[i], p[i + 1], p[i + 2], p[i + 3]
+        for k in range(steps):
+            t = k / steps
+            t2, t3 = t * t, t * t * t
+            f = lambda a, b, c, e: 0.5 * ((2 * b) + (-a + c) * t
+                                          + (2 * a - 5 * b + 4 * c - e) * t2
+                                          + (-a + 3 * b - 3 * c + e) * t3)
+            out.append((f(p0[0], p1[0], p2[0], p3[0]),
+                        f(p0[1], p1[1], p2[1], p3[1])))
+    out.append(pts[-1])
+    return out
+
 
 def new_canvas(w, h):
     return Image.new("RGBA", (int(w * SS), int(h * SS)), (0, 0, 0, 0))
@@ -152,6 +192,17 @@ def soft(img, fn):
     img.alpha_composite(lay)
 
 
+def soft_clip(img, fn):
+    """Comme soft, mais le calque est borné aux pixels déjà peints de img
+    (modelés/dégradés sans baver sur le fond transparent)."""
+    lay = new_canvas(img.width / SS, img.height / SS)
+    fn(D(lay))
+    from PIL import ImageChops
+    r, g, b, a = lay.split()
+    a = ImageChops.multiply(a, img.getchannel("A"))
+    img.alpha_composite(Image.merge("RGBA", (r, g, b, a)))
+
+
 def light_from_topleft(img, w, h, cx, strength=28):
     """Ombrage générique : lumière haut-gauche (§3.4)."""
     def paint(d):
@@ -177,55 +228,164 @@ def flower(d, x, y, color):
 
 def tile_prairie(d, img, w, h, cx):
     d.poly(hex_points(cx, h / 2, w, h), fill=PRAIRIE_1)
+    # prés en taches, bords adoucis au modelé radial
     d.ellipse((20, 60, 110, 150), fill=PRAIRIE_2)
     d.ellipse((120, 140, 210, 230), fill=PRAIRIE_2)
     d.ellipse((100, 30, 200, 110), fill=PRAIRIE_3)
-    for x, y in [(52, 170), (70, 185), (150, 120), (168, 132), (104, 200), (128, 90)]:
-        tuft(d, x, y, "#6E9440", 1.1)
-    for x, y in [(84, 96), (140, 178), (60, 130), (176, 90)]:
-        flower(d, x, y, "#E8E4D0")
+    # bandes de fauche courbes, fondues (semi-transparentes)
+    def fauche(dd):
+        for pts in [[(24, 178), (70, 152), (126, 160), (172, 144)],
+                    [(56, 224), (110, 196), (164, 208)]]:
+            dd.smooth_line(pts, (207, 224, 154, 110), 7)
+    soft_clip(img, fauche)
+    radial(img, 66, 76, 42, (255, 255, 255), 24)
+    radial(img, 172, 204, 44, (20, 20, 30), 26)
+    # touffes variées : deux verts + épis
+    for x, y, s, c in [(52, 170, 1.2, "#6E9440"), (74, 188, 0.9, "#7DA24A"),
+                       (150, 120, 1.1, "#6E9440"), (172, 134, 0.8, "#7DA24A"),
+                       (104, 202, 1.0, "#6E9440"), (128, 88, 1.3, "#5F8A38"),
+                       (44, 118, 0.8, "#7DA24A"), (186, 178, 1.0, "#5F8A38")]:
+        tuft(d, x, y, c, s)
+        if s >= 1.1:
+            d.ellipse((x - 1.4, y - 11 * s - 2, x + 1.4, y - 11 * s + 1),
+                      fill="#8FB35A")
+    # fleurs en grappes : 3 pétales blancs + cœur doré
+    for fx, fy in [(84, 96), (140, 178), (60, 130), (176, 90)]:
+        for ox, oy in [(-4, 1), (4, 0), (0, -4)]:
+            d.ellipse((fx + ox - 2, fy + oy - 2, fx + ox + 2, fy + oy + 2),
+                      fill="#E8E4D0")
+        d.ellipse((fx - 1.2, fy - 1.2, fx + 1.2, fy + 1.2), fill=OR)
     light_from_topleft(img, w, h, cx, 22)
 
 
 def tile_plaine(d, img, w, h, cx):
     d.poly(hex_points(cx, h / 2, w, h), fill=PLAINE_1)
+    # terres sèches en taches, bords fondus au modelé
     d.ellipse((30, 80, 140, 190), fill=PLAINE_2)
     d.ellipse((130, 40, 215, 120), fill="#CBBF76")
+    radial(img, 76, 130, 44, (255, 240, 190), 26)
+    radial(img, 170, 210, 44, (30, 24, 12), 28)
+    # terres dénudées : plaques ocre fondues (identité sèche de la plaine)
+    def nue(dd):
+        for bx, by, rx, ry in [(60, 150, 26, 14), (158, 172, 30, 15),
+                               (120, 92, 18, 10)]:
+            dd.ellipse((bx - rx, by - ry, bx + rx, by + ry),
+                       fill=(200, 168, 94, 90))
+    soft_clip(img, nue)
+    # chaumes courbés : petits brins groupés autour des touffes sèches
+    def chaume(dd):
+        for gx, gy, s in [(60, 150, 1.0), (110, 90, 1.0), (160, 170, 1.0),
+                          (90, 190, 0.9), (180, 120, 1.0)]:
+            for ox, lean in [(-6, 0.8), (0, 1.0), (6, 1.2)]:
+                dd.smooth_line([(gx + ox, gy), (gx + ox + 6 * s * lean,
+                                                gy - 5 * s),
+                                (gx + ox + 10 * s * lean, gy - 9 * s)],
+                               (150, 132, 70, 190), 2.2)
+    soft_clip(img, chaume)
+    # touffes sèches en éventail
     for x, y in [(60, 150), (110, 90), (160, 170), (90, 190), (180, 120)]:
-        tuft(d, x, y, "#96863E", 1.0)
+        tuft(d, x, y, "#8A7A34", 1.1)
+    # cailloux clairs
+    for sx, sy, sr in [(84, 130, 4), (150, 200, 3.5), (44, 180, 3)]:
+        d.ellipse((sx - sr, sy - sr * 0.7, sx + sr, sy + sr * 0.7),
+                  fill="#C2B280")
+        d.ellipse((sx - sr * 0.5, sy - sr * 0.5, sx + sr * 0.1, sy),
+                  fill="#D8CC9A")
     light_from_topleft(img, w, h, cx, 18)
 
 
 def tile_foret(d, img, w, h, cx):
     d.poly(hex_points(cx, h / 2, w, h), fill=FORET_1)
+    # clairières du sous-bois, bords fondus
     d.ellipse((30, 90, 200, 230), fill="#5C8A42")
+    d.ellipse((96, 36, 190, 108), fill="#63934A")
+    radial(img, 64, 90, 44, (255, 255, 210), 22)
+    radial(img, 168, 212, 46, (10, 26, 8), 30)
 
-    def tree(x, y, s, foliage):
-        d.rrect((x - 3 * s, y - 8 * s, x + 3 * s, y + 4 * s), 1.5, fill=BOIS)
-        d.ellipse((x - 16 * s, y - 34 * s, x + 16 * s, y - 2 * s), fill=foliage)
-        d.ellipse((x - 16 * s, y - 34 * s, x + 2 * s, y - 18 * s),
-                  fill="#82B060")
+    # ombres portées au sol (calque composité, sinon ImageDraw remplace l'alpha)
+    trees = [
+        # rangée de fond : petits, sombres
+        (26, 92, 0.55, "#446A30", "#557C3A"),
+        (46, 118, 0.62, "#446A30", "#557C3A"),
+        (96, 60, 0.52, "#446A30", "#557C3A"),
+        (122, 88, 0.66, "#4A7434", "#5B863E"),
+        (178, 104, 0.58, "#446A30", "#557C3A"),
+        (204, 142, 0.6, "#446A30", "#557C3A"),
+        # sujets principaux
+        (70, 176, 1.15, FORET_2, "#82B060"),
+        (124, 152, 1.0, "#639744", "#75A952"),
+        (150, 196, 1.35, FORET_2, "#82B060"),
+        (98, 108, 0.8, "#639744", "#75A952"),
+        (176, 140, 0.9, "#7DAA56", "#8FBC6A"),
+        (206, 190, 0.85, FORET_2, "#82B060"),
+        (58, 230, 0.85, "#7DAA56", "#8FBC6A"),
+    ]
 
-    tree(70, 170, 1.15, FORET_2)
-    tree(135, 195, 1.35, FORET_2)
-    tree(160, 120, 0.95, "#7DAA56")
-    tree(95, 105, 0.85, "#639744")
+    def ombres(dd):
+        for x, y, s, _f, _l in trees:
+            dd.ellipse((x - 12 * s, y - 1 * s, x + 16 * s, y + 5 * s),
+                       fill=(15, 25, 10, 60))
+    soft_clip(img, ombres)
+
+    def tree(x, y, s, foliage, lit):
+        d.rrect((x - 2.6 * s, y - 8 * s, x + 2.6 * s, y + 3 * s), 1.5,
+                fill=BOIS)
+        d.rrect((x - 2.6 * s, y - 8 * s, x - 0.4 * s, y + 3 * s), 1.5,
+                fill=BOIS_CLAIR)
+        # houppier : masses superposées, ombre à droite, lumière en haut-gauche
+        d.ellipse((x - 16 * s, y - 30 * s, x + 15 * s, y - 1 * s), fill=foliage)
+        d.ellipse((x - 15 * s, y - 34 * s, x + 16 * s, y - 14 * s), fill=foliage)
+        d.ellipse((x + 1 * s, y - 26 * s, x + 15 * s, y - 4 * s),
+                  fill="#4E7236")
+        d.ellipse((x - 14 * s, y - 34 * s, x + 2 * s, y - 18 * s), fill=lit)
+        d.ellipse((x - 9 * s, y - 31 * s, x - 1 * s, y - 23 * s), fill=lit)
+
+    for x, y, s, foliage, lit in trees:
+        tree(x, y, s, foliage, lit)
+    # fougères au sol
+    for fx, fy in [(48, 216), (126, 232), (188, 222)]:
+        d.line([(fx, fy), (fx - 5, fy - 9)], fill="#5E8A40", width=2)
+        d.line([(fx, fy), (fx, fy - 11)], fill="#6E9C4A", width=2)
+        d.line([(fx, fy), (fx + 5, fy - 9)], fill="#5E8A40", width=2)
     light_from_topleft(img, w, h, cx, 20)
 
 
 def tile_colline(d, img, w, h, cx):
     d.poly(hex_points(cx, h / 2, w, h), fill=COLLINE_1)
-    # pente principale, sommet arrondi
-    d.poly([(0, h), (0, 150), (55, 92), (100, 70), (150, 74), (200, 110),
-            (cx + w / 2, 170), (cx + w / 2, h)], fill=COLLINE_2)
-    d.pieslice((62, 44, 150, 122), 180, 360, fill="#9C8158")
-    # lignes de niveau
-    for dy, col in [(0, "#7A6240"), (16, "#7A6240"), (32, "#7A6240")]:
-        d.arc((30 + dy * 2, 96 + dy, 190 - dy, 230 + dy), 200, 340, fill=col, width=2)
-    d.line([(cx - w / 2 + 6, 150), (40, 142), (80, 118), (120, 104)],
-           fill="#A5925E", width=2)
-    tuft(d, 60, 200, "#77873E", 1.0)
-    tuft(d, 170, 195, "#77873E", 1.0)
+    # dos de colline bas : crête arrondie à mi-tuile, jamais de pic
+    crest = [(0, 196), (0, 172), (36, 152), (74, 138), (112, 134),
+             (150, 140), (184, 154), (224, 172), (224, 256), (0, 256)]
+    d.smooth_poly(crest, fill=COLLINE_2)
+    # flanc éclairé côté lumière (bande claire sous la crête)
+    def flanc(dd):
+        dd.smooth_poly([(0, 172), (36, 152), (74, 138), (112, 134),
+                        (150, 140), (184, 154), (224, 172), (224, 190),
+                        (170, 172), (110, 156), (48, 166), (0, 190)],
+                       fill=(180, 158, 108, 110))
+    soft_clip(img, flanc)
+    radial(img, 112, 140, 52, (255, 244, 200), 26)
+    # courbes de niveau douces qui suivent la crête
+    for dy in (30, 56):
+        d.smooth_line([(0, 172 + dy), (36, 152 + dy * 0.8), (74, 138 + dy * 0.7),
+                       (112, 134 + dy * 0.65), (150, 140 + dy * 0.7),
+                       (184, 154 + dy * 0.8), (224, 172 + dy * 0.8)],
+                      "#7E6540", 2)
+    # deuxième bosse basse à droite, devant
+    d.smooth_poly([(120, 256), (138, 222), (168, 208), (198, 220),
+                   (216, 244), (216, 256)], fill="#8A7248")
+    d.smooth_line([(138, 222), (168, 208), (198, 220)], "#9C8158", 2.4)
+    # buissons et herbes sur les pentes
+    for bx, by, s in [(64, 176, 1.0), (146, 186, 0.9)]:
+        d.ellipse((bx - 9 * s, by - 6 * s, bx + 9 * s, by + 4 * s),
+                  fill="#77873E")
+        d.ellipse((bx - 6 * s, by - 5 * s, bx + 2 * s, by + 1 * s),
+                  fill="#8A9A4C")
+    for x, y in [(40, 150), (96, 158), (170, 200), (60, 216), (196, 232),
+                 (130, 168)]:
+        tuft(d, x, y, "#6E7C34", 0.9)
+    for fx, fy in [(84, 196), (156, 214)]:
+        d.ellipse((fx - 2, fy - 2, fx + 2, fy + 2), fill="#D8D2B4")
+    radial(img, 60, 236, 40, (20, 20, 30), 22)
     light_from_topleft(img, w, h, cx, 16)
 
 
@@ -301,10 +461,16 @@ def tile_ville_sol(d, img, w, h, cx):
 
 
 def render_entity(name, w, h, painter):
-    """Dessine base + accent (calque blanc aligné au pixel) en un seul passage."""
+    """Dessine base + accent (calque blanc aligné au pixel) en un seul passage.
+    Les painters qui acceptent un 5e paramètre reçoivent l'image de base
+    (pour les modelés vgrad/radial bornés aux pixels peints)."""
+    import inspect
     base = new_canvas(w, h)
     accent = new_canvas(w, h)
-    painter(D(base), D(accent), w, h)
+    args = [D(base), D(accent), w, h]
+    if len(inspect.signature(painter).parameters) >= 5:
+        args.append(base)
+    painter(*args)
     downscale(base, w, h).save(EXPORTS / f"{name}.png")
     white = Image.new("RGBA", accent.size, (255, 255, 255, 255))
     accent.paste(white, (0, 0), accent.getchannel("A"))
@@ -315,98 +481,228 @@ def shadow(d, cx, y, rx, ry=7):
     d.ellipse((cx - rx, y - ry, cx + rx, y + ry), fill=(0, 0, 0, 60))
 
 
-def unite_guerrier(db, da, w, h):
-    """256×320, massue + bouclier (bouclier = accent), posture trapue."""
-    cx, ground = 128, 300
-    shadow(db, cx, ground + 4, 52)
-    # jambes trapues
-    db.rrect((cx - 26, ground - 58, cx - 6, ground), 8, fill="#5E4E3A")
-    db.rrect((cx + 6, ground - 58, cx + 26, ground), 8, fill="#5E4E3A")
-    db.rrect((cx - 30, ground - 8, cx - 2, ground + 2), 4, fill="#3E342A")
-    db.rrect((cx + 2, ground - 8, cx + 30, ground + 2), 4, fill="#3E342A")
-    # tunique
-    db.poly([(cx - 34, ground - 130), (cx + 34, ground - 130), (cx + 40, ground - 55),
-             (cx - 40, ground - 55)], fill=GRIS_NEUTRE)
-    db.poly([(cx - 34, ground - 130), (cx - 10, ground - 130), (cx - 22, ground - 55),
-             (cx - 40, ground - 55)], fill="#CBC7BE")
-    # ceinture
-    db.rrect((cx - 38, ground - 80, cx + 38, ground - 70), 3, fill="#6B5230")
-    # tête + casque
-    db.ellipse((cx - 18, ground - 172, cx + 18, ground - 136), fill="#B99B7E")
-    db.pieslice((cx - 20, ground - 178, cx + 20, ground - 142), 180, 360,
-                fill=GRIS_ARMURE)
-    db.rrect((cx - 20, ground - 162, cx + 20, ground - 156), 2, fill="#7E7E86")
-    # bras droit levé (massue)
-    db.line([(cx + 26, ground - 118), (cx + 52, ground - 158)], fill=GRIS_NEUTRE, width=13)
-    db.line([(cx + 48, ground - 158), (cx + 56, ground - 196)], fill=BOIS, width=12)
-    db.ellipse((cx + 42, ground - 222, cx + 74, ground - 190), fill=BOIS)
-    db.ellipse((cx + 46, ground - 218, cx + 64, ground - 200), fill=BOIS_CLAIR)
-    for x, y in [(50, 200), (58, 188), (46, 186)]:
-        db.ellipse((cx + x - 3, ground - y - 3, cx + x + 3, ground - y + 3),
-                   fill="#5E4630")
+def vgrad(img, box, color, alpha_top, alpha_bot, steps=20):
+    """Voile dégradé vertical dans `box` (x0, y0, x1, y1), borné aux pixels
+    peints : couleur unie, alpha fondu de alpha_top (haut) à alpha_bot (bas)."""
+    x0, y0, x1, y1 = box
+    def paint(d):
+        hh = (y1 - y0) / steps
+        for i in range(steps):
+            a = alpha_top + (alpha_bot - alpha_top) * (i + 0.5) / steps
+            d.rect((x0, y0 + i * hh, x1, y0 + (i + 1) * hh),
+                   fill=color + (int(a),))
+    soft_clip(img, paint)
+
+
+def radial(img, cx, cy, r, color, alpha, steps=9, power=1.4):
+    """Modelé radial doux, borné aux pixels peints : lumière (blanc) ou
+    ombre (noir) en disque concentrique fondu."""
+    def paint(d):
+        for i in range(steps):
+            t = i / steps
+            rr = r * (1 - t)
+            a = alpha * (1 - t) ** power
+            d.ellipse((cx - rr, cy - rr, cx + rr, cy + rr),
+                      fill=color + (int(a),))
+    soft_clip(img, paint)
+
+
+def unit_shading(img, cx, top, bottom, strength=34):
+    """Ombrage d'unité : lumière haut-gauche, ombre bas-droite, en voiles
+    doux bornés au volume de l'unité (colonnes cx±46, de top à bottom)."""
+    vgrad(img, (cx - 60, top, cx + 8, bottom), (255, 255, 255),
+          strength, 0, steps=16)
+    vgrad(img, (cx - 8, top, cx + 60, bottom), (20, 20, 30),
+          0, strength, steps=16)
+
+
+def unite_guerrier(db, da, w, h, img=None):
+    """256×320 — référence de style « board-game enrichi » : silhouettes
+    lissées (Catmull-Rom), membres fuselés, modelés dégradés et ombrage
+    radial, toujours à plat (pas de 3D). Massue + bouclier ; le bouclier
+    seul porte le calque accent (blanc, teinte joueur/barbare à la volée)."""
+    cx, g = 128, 300
+    shadow(db, cx, g + 4, 54)
+    CUIR, CUIR_SOMBRE = "#5E4E3A", "#3E342A"
+
+    # jambes fuselées + bottes + rotules
+    for sx in (-1, 1):
+        hx = cx + sx * 16
+        db.taper([(hx, g - 62), (hx + sx * 3, g - 34), (hx + sx * 2, g - 8)],
+                 22, 15, CUIR)
+        db.rrect((hx - 15, g - 10, hx + 15, g + 2), 4, fill=CUIR_SOMBRE)
+        db.ellipse((hx - 8, g - 44, hx + 8, g - 32), fill="#6B5A44")
+
+    # tunique évasée (pan éclairé à gauche) + franges d'ourlet
+    db.smooth_poly([(cx - 30, g - 132), (cx + 30, g - 132),
+                    (cx + 42, g - 92), (cx + 38, g - 52),
+                    (cx - 38, g - 52), (cx - 42, g - 92)],
+                   fill=GRIS_NEUTRE)
+    db.smooth_poly([(cx - 30, g - 132), (cx - 6, g - 132),
+                    (cx - 18, g - 52), (cx - 38, g - 52), (cx - 42, g - 92)],
+                   fill="#CBC7BE")
+    for fx in (-28, -9, 9, 28):
+        db.poly([(cx + fx - 6, g - 52), (cx + fx + 6, g - 52),
+                 (cx + fx, g - 42)], fill="#7A766C")
+    # bandoulière cuir + ceinture cloutée
+    db.smooth_line([(cx - 22, g - 126), (cx + 6, g - 98), (cx + 30, g - 66)],
+                   "#6B5230", 7)
+    db.rrect((cx - 39, g - 82, cx + 39, g - 70), 3, fill="#6B5230")
+    for fx in (-30, -14, 14, 30):
+        db.ellipse((cx + fx - 1.6, g - 79, cx + fx + 1.6, g - 73), fill="#4A3A22")
+    db.rrect((cx - 8, g - 84, cx + 8, g - 68), 3, fill=OR,
+             outline=OR_SOMBRE, width=1.5)
+
+    # tête + casque à nasal
+    db.ellipse((cx - 17, g - 170, cx + 17, g - 136), fill="#B99B7E")
+    # traits du visage : yeux enfoncés sous un front dur, nez, bouche serrée
+    for ex in (-7, 7):
+        db.ellipse((cx + ex - 2.2, g - 151, cx + ex + 2.2, g - 147), fill=INK)
+        db.line([(cx + ex - 3.4, g - 154), (cx + ex + 3.4, g - 152.5)],
+                fill="#6E563E", width=2.6)
+    db.line([(cx, g - 151), (cx - 1, g - 144)], fill="#9A7E62", width=2.6)
+    db.smooth_line([(cx - 5, g - 138), (cx, g - 139), (cx + 5, g - 138)],
+                   "#5E4632", 2.4)
+    db.pieslice((cx - 19, g - 176, cx + 19, g - 142), 180, 360, fill=GRIS_ARMURE)
+    db.rrect((cx - 19, g - 160, cx + 19, g - 154), 2, fill="#7E7E86")
+    db.rrect((cx - 3, g - 160, cx + 3, g - 146), 2, fill=GRIS_ARMURE)
+
+    # bras droit levé vers la massue
+    db.taper([(cx + 24, g - 118), (cx + 40, g - 140), (cx + 50, g - 156)],
+             16, 12, GRIS_NEUTRE)
+    db.ellipse((cx + 42, g - 168, cx + 58, g - 152), fill="#B99B7E")
+    # massue : manche fuselé, tête nodale lissée, pointes, reflet
+    db.taper([(cx + 50, g - 154), (cx + 55, g - 176), (cx + 58, g - 194)],
+             9, 6, BOIS)
+    db.smooth_poly([(cx + 42, g - 214), (cx + 56, g - 228), (cx + 74, g - 220),
+                    (cx + 78, g - 202), (cx + 64, g - 188), (cx + 46, g - 198)],
+                   fill=BOIS)
+    db.smooth_poly([(cx + 42, g - 214), (cx + 56, g - 228), (cx + 66, g - 222),
+                    (cx + 54, g - 206), (cx + 46, g - 198)], fill=BOIS_CLAIR)
+    for tx, ty, ax, ay in [(cx + 44, g - 222, -8, -4), (cx + 78, g - 212, 9, 0),
+                           (cx + 62, g - 184, 2, 9), (cx + 40, g - 202, -9, 2)]:
+        db.poly([(tx - 4, ty - 3), (tx + 4, ty + 3), (tx + ax, ty + ay)],
+                fill="#5E4630")
+
     # bras gauche (bouclier)
-    db.line([(cx - 26, ground - 118), (cx - 50, ground - 96)], fill=GRIS_NEUTRE, width=13)
-    # bouclier = accent
-    shield_box = (cx - 92, ground - 132, cx - 12, ground - 52)
-    db.ellipse(shield_box, fill=GRIS_ARMURE, outline=INK, width=3)
-    db.ellipse((cx - 68, ground - 108, cx - 36, ground - 76), fill="#7E7E86")
-    da.ellipse(shield_box, fill="#FFFFFF")
-    da.ellipse((cx - 68, ground - 108, cx - 36, ground - 76), fill="#E0E0E0")
+    db.taper([(cx - 24, g - 118), (cx - 40, g - 106), (cx - 52, g - 94)],
+             16, 12, GRIS_NEUTRE)
+
+    # bouclier = accent : bord, anneau interne, umbo central
+    sb = (cx - 94, g - 136, cx - 14, g - 56)
+    db.ellipse(sb, fill=GRIS_ARMURE, outline=INK, width=3)
+    db.ellipse((cx - 78, g - 120, cx - 30, g - 72), outline="#7E7E86", width=3)
+    db.ellipse((cx - 66, g - 108, cx - 42, g - 84), fill="#7E7E86")
+    da.ellipse(sb, fill="#FFFFFF")
+    da.ellipse((cx - 78, g - 120, cx - 30, g - 72), outline="#E0E0E0", width=3)
+    da.ellipse((cx - 66, g - 108, cx - 42, g - 84), fill="#E0E0E0")
+
+    # ---- modelés (voiles doux bornés aux pixels peints de la base)
+    if img is not None:
+        radial(img, cx - 8, g - 162, 16, (255, 255, 255), 70)   # casque
+        radial(img, cx + 2, g - 102, 26, (255, 255, 255), 38)   # torse
+        radial(img, cx + 30, g - 68, 24, (20, 20, 30), 44)      # flanc ombre
+        radial(img, cx + 60, g - 212, 16, (255, 255, 255), 60)  # tête de massue
+        radial(img, cx - 62, g - 104, 26, (255, 255, 255), 60)  # bouclier lumière
+        radial(img, cx - 32, g - 66, 24, (20, 20, 30), 40)      # bouclier ombre
+        unit_shading(img, cx, g - 176, g - 40, strength=18)
 
 
-def unite_colon(db, da, w, h):
-    """256×320, charrette + bâton (capuche + sac = accent), silhouette distincte."""
-    cx, ground = 112, 300
-    shadow(db, cx - 8, ground + 4, 46)
-    shadow(db, 186, ground + 6, 40)
-    # ---- personnage (pousse la charrette, légèrement penché vers la droite)
-    db.rrect((cx - 20, ground - 52, cx - 2, ground), 7, fill="#4E4438")
-    db.rrect((cx + 4, ground - 52, cx + 20, ground), 7, fill="#4E4438")
-    # robe longue
-    db.poly([(cx - 28, ground - 140), (cx + 26, ground - 140), (cx + 34, ground - 50),
-             (cx - 36, ground - 50)], fill="#8E8A80")
-    db.poly([(cx - 28, ground - 140), (cx - 6, ground - 140), (cx - 16, ground - 50),
-             (cx - 36, ground - 50)], fill="#A5A199")
+def unite_colon(db, da, w, h, img=None):
+    """256×320, charrette + bâton (capuche + sac + baril = accent), silhouette
+    distincte. Même style enrichi que le guerrier : courbes lissées, membres
+    fuselés, modelés doux bornés aux pixels peints."""
+    cx, g = 112, 300
+    shadow(db, cx - 8, g + 4, 46)
+    shadow(db, 186, g + 6, 40)
+    CUIR_SOMBRE = "#3E342A"
+
+    # ---- personnage (pousse la charrette, penché vers la droite)
+    # jambes sous la robe + bottes
+    for sx in (-1, 1):
+        lx = cx + sx * 12
+        db.taper([(lx, g - 56), (lx + sx * 2, g - 30), (lx + sx * 1, g - 10)],
+                 16, 13, "#4E4438")
+        db.rrect((lx - 12, g - 12, lx + 12, g + 2), 4, fill=CUIR_SOMBRE)
+    # robe longue évasée (pan éclairé à gauche, plis courbes à droite)
+    db.smooth_poly([(cx - 28, g - 140), (cx + 26, g - 140),
+                    (cx + 40, g - 92), (cx + 36, g - 48),
+                    (cx - 38, g - 48), (cx - 42, g - 95)],
+                   fill="#8E8A80")
+    db.smooth_poly([(cx - 28, g - 140), (cx - 4, g - 140),
+                    (cx - 16, g - 48), (cx - 38, g - 48), (cx - 42, g - 95)],
+                   fill="#A5A199")
+    for px, py in [(10, -132), (20, -128), (28, -118)]:
+        db.smooth_line([(cx + px, g + py), (cx + px + 6, g + py + 34),
+                        (cx + px + 4, g - 56)], "#7A766C", 2.4)
     # tête + capuche (accent)
-    db.ellipse((cx - 14, ground - 176, cx + 14, ground - 148), fill="#B99B7E")
-    hood = [(cx - 20, ground - 156), (cx - 18, ground - 186), (cx + 2, ground - 196),
-            (cx + 20, ground - 184), (cx + 20, ground - 168), (cx + 6, ground - 176),
-            (cx - 6, ground - 172), (cx - 12, ground - 156)]
-    db.poly(hood, fill="#6E6A62")
-    da.poly(hood, fill="#FFFFFF")
-    # bras poussant
-    db.line([(cx + 18, ground - 122), (cx + 48, ground - 104)], fill="#8E8A80", width=12)
-    # bâton de pèlerin
-    db.line([(cx - 34, ground - 190), (cx - 40, ground - 4)], fill=BOIS, width=5)
-    db.ellipse((cx - 40, ground - 196, cx - 30, ground - 186), fill=BOIS_CLAIR)
-    # sac à l'épaule (accent)
-    sack = [(cx - 30, ground - 134), (cx - 8, ground - 128), (cx - 12, ground - 100),
-            (cx - 34, ground - 106)]
-    db.poly(sack, fill="#9C7A4E")
-    db.line([(cx - 22, ground - 132), (cx - 4, ground - 146)], fill="#6B5230", width=4)
-    da.poly(sack, fill="#FFFFFF")
+    db.ellipse((cx - 14, g - 176, cx + 14, g - 148), fill="#B99B7E")
+    # traits calmes : yeux, nez, bouche neutre
+    for ex in (-6, 6):
+        db.ellipse((cx + ex - 1.8, g - 164, cx + ex + 1.8, g - 160.4), fill=INK)
+    db.line([(cx, g - 164), (cx - 1, g - 158)], fill="#9A7E62", width=2.2)
+    db.line([(cx - 4, g - 154), (cx + 4, g - 154)], fill="#7A5E48", width=2.2)
+    hood = [(cx - 20, g - 156), (cx - 18, g - 186), (cx + 2, g - 196),
+            (cx + 20, g - 184), (cx + 20, g - 168), (cx + 6, g - 176),
+            (cx - 6, g - 172), (cx - 12, g - 156)]
+    db.smooth_poly(hood, fill="#6E6A62")
+    da.smooth_poly(hood, fill="#FFFFFF")
+    # bras poussant + main
+    db.taper([(cx + 18, g - 122), (cx + 34, g - 114), (cx + 48, g - 106)],
+             14, 11, "#8E8A80")
+    db.ellipse((cx + 42, g - 112, cx + 56, g - 98), fill="#B99B7E")
+    # bâton de pèlerin (fuselé, nœud de bois)
+    db.taper([(cx - 34, g - 188), (cx - 38, g - 100), (cx - 40, g - 6)],
+             6, 4.5, BOIS)
+    db.ellipse((cx - 40, g - 196, cx - 30, g - 186), fill=BOIS_CLAIR)
+    db.ellipse((cx - 39, g - 118, cx - 33, g - 112), fill="#5E4630")
+    # sac à l'épaule (accent), lissé + rabat
+    sack = [(cx - 30, g - 134), (cx - 8, g - 128), (cx - 12, g - 100),
+            (cx - 34, g - 106)]
+    db.smooth_poly(sack, fill="#9C7A4E")
+    db.smooth_poly([(cx - 30, g - 134), (cx - 8, g - 128), (cx - 14, g - 118),
+                    (cx - 30, g - 122)], fill="#8A6F4A")
+    db.smooth_line([(cx - 22, g - 132), (cx - 4, g - 146)], "#6B5230", 4)
+    da.smooth_poly(sack, fill="#FFFFFF")
     # ---- charrette
-    ax, ay = 186, ground - 46
-    db.poly([(ax - 52, ay - 30), (ax + 48, ay - 30), (ax + 56, ay - 8),
-             (ax - 58, ay - 8)], fill=BOIS)
-    db.poly([(ax - 52, ay - 30), (ax - 20, ay - 30), (ax - 26, ay - 8),
-             (ax - 58, ay - 8)], fill=BOIS_CLAIR)
+    ax, ay = 186, g - 46
+    db.smooth_poly([(ax - 52, ay - 30), (ax + 48, ay - 30),
+                    (ax + 56, ay - 8), (ax - 58, ay - 8)], fill=BOIS)
+    db.smooth_poly([(ax - 52, ay - 30), (ax - 20, ay - 30),
+                    (ax - 26, ay - 8), (ax - 58, ay - 8)], fill=BOIS_CLAIR)
+    for sx in (-20, 12):
+        db.line([(ax + sx, ay - 30), (ax + sx - 4, ay - 8)], fill="#5E4630",
+                width=2)
     db.line([(ax - 58, ay - 4), (ax + 56, ay - 4)], fill="#5E4630", width=3)
     # manche vers le personnage
-    db.line([(ax - 58, ay - 16), (cx + 34, ground - 100)], fill=BOIS, width=7)
-    # roue
+    db.taper([(cx + 48, g - 104), (ax - 58, ay - 16)], 8, 6, BOIS)
+    # roue : jante, rayons, moyeu
     db.ellipse((ax + 6, ay - 6, ax + 46, ay + 34), fill="#5E4630")
-    db.ellipse((ax + 14, ay + 2, ax + 38, ay + 26), fill="#8A6F4A")
-    db.line([(ax + 26, ay + 14), (ax + 26, ay - 2)], fill="#5E4630", width=3)
-    db.line([(ax + 26, ay + 14), (ax + 42, ay + 14)], fill="#5E4630", width=3)
-    db.line([(ax + 26, ay + 14), (ax + 10, ay + 14)], fill="#5E4630", width=3)
-    db.line([(ax + 26, ay + 14), (ax + 26, ay + 30)], fill="#5E4630", width=3)
-    # fût/baril dans la charrette (accent)
+    db.ellipse((ax + 12, ay, ax + 40, ay + 28), fill="#8A6F4A")
+    hub_x, hub_y = ax + 26, ay + 14
+    for dx, dy in [(0, -14), (0, 14), (-14, 0), (14, 0),
+                   (-10, -10), (10, 10), (-10, 10), (10, -10)]:
+        db.line([(hub_x, hub_y), (hub_x + dx, hub_y + dy)],
+                fill="#5E4630", width=2.4)
+    db.ellipse((hub_x - 4, hub_y - 4, hub_x + 4, hub_y + 4), fill="#3E342A")
+    # fût/baril dans la charrette (accent) : douves, cercles, staves
     baril = (ax - 34, ay - 62, ax + 10, ay - 28)
     db.rrect(baril, 6, fill="#7E6A48")
+    for sx in (-22, -10, 2):
+        db.line([(ax + sx, ay - 60), (ax + sx, ay - 30)], fill="#6A5A3E",
+                width=1.6)
     db.rrect((ax - 34, ay - 56, ax + 10, ay - 50), 2, fill="#5E4630")
     db.rrect((ax - 34, ay - 42, ax + 10, ay - 36), 2, fill="#5E4630")
     da.rrect(baril, 6, fill="#FFFFFF")
+
+    # ---- modelés (voiles doux bornés aux pixels peints de la base)
+    if img is not None:
+        radial(img, cx - 4, g - 186, 14, (255, 255, 255), 55)   # capuche
+        radial(img, cx - 16, g - 116, 22, (255, 255, 255), 24)  # robe claire
+        radial(img, cx + 30, g - 70, 24, (20, 20, 30), 40)      # robe ombre
+        radial(img, ax - 12, ay - 45, 13, (255, 255, 255), 26)  # baril
+        radial(img, ax + 34, ay + 12, 16, (20, 20, 30), 30)     # roue ombre
+        unit_shading(img, cx, g - 196, g - 40, strength=16)
 
 
 def hut(db, da, x, y, s, wall, roof_col, accent=True, y_top=0):
