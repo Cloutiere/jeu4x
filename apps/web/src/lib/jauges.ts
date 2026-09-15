@@ -38,6 +38,17 @@ export function jaugeProduction(progress: number, cost: number): number {
 }
 
 /**
+ * Concept d'Erik (15/09, plaquette Nourriture étendue) — ETA d'une jauge :
+ * tours restants avant le seuil au rythme courant (ceil, le tour en cours
+ * compte). Rythme nul ou négatif → null (croissance à l'arrêt — libellé
+ * honnête). Déjà au seuil ou au-delà → 0.
+ */
+export function toursAvantSeuil(actuel: number, seuil: number, parTour: number): number | null {
+  if (parTour <= 0) return null;
+  return Math.max(0, Math.ceil((seuil - actuel) / parTour));
+}
+
+/**
  * Frontière culturelle D'UNE VILLE (retour d'Erik du 15/09) — progression de
  * sa culture CUMULÉE vers le PROCHAIN ANNEAU (R-162 : seuils 10/100/1 000/
  * 10 000, plafond 5 anneaux — `rayonCulturelDe`). La barre du PALIER T-27

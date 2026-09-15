@@ -31,7 +31,7 @@
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, effectiveWorkedTiles } from '../lib/render/interaction.js';
   import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
-  import { jaugeCroissance, jaugeFrontiereCulturelle, jaugeProduction } from '../lib/jauges.js';
+  import { jaugeCroissance, jaugeFrontiereCulturelle, jaugeProduction, toursAvantSeuil } from '../lib/jauges.js';
 
   interface Props {
     view: GameView;
@@ -118,9 +118,6 @@
   }
   function itemName(item: ProductionItem): string {
     return item.kind === 'unit' ? unitType(item.id).name : (BUILDINGS[item.id]?.name ?? item.id);
-  }
-  function itemIcon(item: ProductionItem): string {
-    return item.kind === 'unit' ? '/art/icone_production.png' : '/art/icone_production.png';
   }
   const prodRatio = $derived(
     city && city.production && prodItem ? jaugeProduction(city.production.progress, itemCost(prodItem)) : 0,
@@ -209,6 +206,9 @@
     const govEffects = effectsFor(view.state.players[city.owner]!);
     return cultureGains(city, empireBonus.culture, allTechs, govEffects);
   });
+  const frontiereEta = $derived(
+    city && frontiere.prochainSeuil !== null ? toursAvantSeuil(city.cultureCumulee, frontiere.prochainSeuil, culturePerTurn) : null,
+  );
 
   // ---- 5. Or total de la civilisation (trésorerie R-134) ------------------
   const treasury = $derived(
@@ -356,20 +356,31 @@
       </section>
 
       <!-- Culture (retour d'Erik du 15/09) : progression de la FRONTIÈRE
-           culturelle de CETTE ville (R-162) — un anneau par seuil franchi
-           (10/100/1 000/10 000), plafond 5. La barre du palier T-27
-           (civilisation) est dans le menu d'empire (Gouvernement). -->
+           culturelle de CETTE ville (R-162), même concept visuel que la
+           nourriture — taux, ETA du prochain anneau, avancement/total. -->
       <section class="block cult">
         <h2>Frontière culturelle de la ville</h2>
+        <p class="big">
+          <img src="/art/icone_culture.png" alt="" onerror={hideImg} />
+          {culturePerTurn > 0 ? '+' : ''}{culturePerTurn} culture /tour
+        </p>
+        <p class="eta">
+          {#if frontiere.plafond}
+            Tous les anneaux culturels sont acquis ({frontiere.anneaux})
+          {:else if frontiereEta !== null}
+            Prochain anneau dans <strong>{frontiereEta} tour{frontiereEta > 1 ? 's' : ''}</strong>
+          {:else}
+            Prochain anneau — culture à l'arrêt
+          {/if}
+        </p>
         <div class="gauge" title="Frontière culturelle (R-162) : la culture CUMULÉE de cette ville franchit les seuils 10 / 100 / 1 000 / 10 000 — chaque seuil = +1 anneau (liseré autour de la zone cultivée au 1er, bande d'extension d'une case par anneau ensuite), plafond 5 anneaux. Visual-only (phase 1).">
           {#if frontiere.plafond}
-            <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> Anneaux : {frontiere.anneaux} (plafond)</span>
+            <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> {city.cultureCumulee} (plafond)</span>
           {:else}
-            <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> Anneau {frontiere.anneaux + 1} : {city.cultureCumulee} / {frontiere.prochainSeuil}</span>
+            <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> {city.cultureCumulee} / {frontiere.prochainSeuil}</span>
           {/if}
           <div class="bar"><div class="fill culture-fill" style:width={`${frontiere.ratio * 100}%`}></div></div>
         </div>
-        <p class="eta">{frontiere.anneaux} anneau{frontiere.anneaux > 1 ? 'x' : ''} culturel{frontiere.anneaux > 1 ? 's' : ''}{frontiere.plafond ? '' : ` — prochain seuil ${frontiere.prochainSeuil}`} · {culturePerTurn} culture/tour (cette ville)</p>
       </section>
 
       <!-- 3. Production -->
@@ -380,12 +391,18 @@
           {prodPerTurn} marteaux /tour
         </p>
         {#if city.production && prodItem}
-          <p class="item">
-            <img src={itemIcon(prodItem)} alt="" onerror={hideImg} />
-            <strong>{itemName(prodItem)}</strong> — {city.production.progress}/{itemCost(prodItem)}
-            {#if prodEta !== null}· {prodEta} tour{prodEta > 1 ? 's' : ''}{/if}
+          <p class="eta">
+            {#if prodEta !== null}
+              {itemName(prodItem)} dans <strong>{prodEta} tour{prodEta > 1 ? 's' : ''}</strong>
+            {:else}
+              {itemName(prodItem)} — aucun marteau/tour, chantier à l'arrêt
+            {/if}
           </p>
-          <div class="bar"><div class="fill" style:width={`${prodRatio * 100}%`}></div></div>
+          <!-- Concept d'Erik : logo + avancement / total -->
+          <div class="gauge">
+            <span class="lab"><img src="/art/icone_production.png" alt="" onerror={hideImg} /> {city.production.progress} / {itemCost(prodItem)}</span>
+            <div class="bar"><div class="fill" style:width={`${prodRatio * 100}%`}></div></div>
+          </div>
         {:else}
           <p class="eta">Aucune production en file.</p>
         {/if}

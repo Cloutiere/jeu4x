@@ -59,6 +59,15 @@ Partie solo **BKZEYM** (FusionA vs bot, créée via `dev-logs/scripts/fusion-men
 
 **Tests v2 : 1 155 verts** (web 268 — +3 `jaugeFrontiereCulturelle` : progression inter-seuils, miroir `rayonCulturelDe`, plafond). Typecheck 4/4. Captures `dev-logs/captures-fusion-menu-ville/06-vue-ville-une-colonne-frontiere.png` (une colonne + « Anneau 1 : 8/10 ») et `07-menu-empire-palier-t27.png` (palier 8/150 au menu Gouvernement). Validation solo BKZEYM avant commit (règle établie).
 
+## Révision v3 — retours d'Erik du 15/09 (après compréhension validée avec lui)
+
+**Concept visuel de la plaquette Nourriture étendu à Culture et Production** — chaque plaquette = 3 éléments dans le même ordre :
+1. **logo + production/tour** (Nourriture +X/tour · Culture +N culture/tour · Production N marteaux/tour) ;
+2. **prochain seuil en X tours** (population · anneau culturel · item en file — ETA via la nouvelle jauge pure `toursAvantSeuil`, ceil du reste au rythme courant, null → libellé honnête « à l'arrêt ») ;
+3. **logo + avancement / total** avec la barre (réserve/seuil · cumul/anneau · marteaux/coût).
+
+Sciences & or reste tel quel (validé avec Erik). Capture `08-concept-trois-lignes.png` (Vue1 pop 3 : +4/tour → 8 tours → 0/30 ; +3 culture/tour → 29 tours → 13/100 ; 3 marteaux/tour → Guerrier dans 3 tours → 2/10). **Tests : 1 157 verts** (web 272 — +2 `toursAvantSeuil`). Typecheck 4/4, zéro gameplay.
+
 ## Arbitrages 🔶 (à l'œil par Erik)
 
 - Placement : jauge nourriture SOUS la ligne « Prochaine population », culture en bloc distinct à droite de Nourriture, conversion en bouton pleine largeur sous les chiffres or/science, RushBuy sous la carte Production.

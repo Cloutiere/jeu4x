@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { jaugeCroissance, jaugeCulture, jaugeFrontiereCulturelle, jaugeProduction } from '../src/lib/jauges.js';
+import { jaugeCroissance, jaugeCulture, jaugeFrontiereCulturelle, jaugeProduction, toursAvantSeuil } from '../src/lib/jauges.js';
 import { CULTURE, greatPersonThresholdFor, makeState, tileKey } from '@game/rules';
 import type { GameState } from '@game/rules';
 import type { GameView } from '../src/lib/gameClient.js';
@@ -115,6 +115,21 @@ describe('jaugeFrontiereCulturelle — barre frontière culturelle D\'UNE VILLE 
     expect(p.plafond).toBe(true);
     expect(p.prochainSeuil).toBeNull();
     expect(p.ratio).toBe(1);
+  });
+});
+
+describe('toursAvantSeuil — ETA du concept d\'Erik (taux → prochain seuil en X tours)', () => {
+  it('ceil du reste au rythme courant ; 0 si déjà au seuil', () => {
+    expect(toursAvantSeuil(8, 10, 2)).toBe(1);
+    expect(toursAvantSeuil(16, 20, 2)).toBe(2);
+    expect(toursAvantSeuil(30, 40, 3)).toBe(4); // ceil(10/3)
+    expect(toursAvantSeuil(20, 20, 2)).toBe(0);
+    expect(toursAvantSeuil(25, 20, 2)).toBe(0);
+  });
+
+  it('rythme nul ou négatif → null (croissance à l\'arrêt, libellé honnête)', () => {
+    expect(toursAvantSeuil(8, 10, 0)).toBeNull();
+    expect(toursAvantSeuil(8, 10, -1)).toBeNull();
   });
 });
 
