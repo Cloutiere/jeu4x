@@ -2438,116 +2438,147 @@ def res_encens(db, da=None, w=64, h=64, img=None):
 
 
 def res_epices(db, da=None, w=64, h=64, img=None):
-    """Épices : deux pots de verre (paprika, curcuma) à couvercle de
-    tissu noué, reflets sur le verre, étiquettes."""
-    for x, fill, poudre, lid in ((10, "#C24545", "#8A2F2A", "#6B5230"),
-                                 (34, "#D9A93F", "#A87A24", "#5E4E3A")):
-        # pot de verre : épaules arrondies, panse pleine
-        pot = [(x + 2, 30), (x, 38), (x, 52), (x + 4, 58), (x + 16, 58),
-               (x + 20, 52), (x + 20, 38), (x + 18, 30)]
-        db.smooth_poly(pot, fill=fill)
-        db.smooth_line(pot + [pot[0]], fill=INK, width=2)
-        # ligne de poudre sous le goulot
-        db.smooth_line([(x + 2, 32), (x + 10, 34), (x + 18, 32)],
-                       fill=poudre, width=3)
-        # reflet vertical sur le verre
-        db.line([(x + 4, 36), (x + 4, 54)], fill=(255, 255, 255, 130), width=2.4)
-        # couvercle de tissu noué (dôme + cordelette)
-        db.smooth_poly([(x + 1, 24), (x + 5, 15), (x + 15, 15), (x + 19, 24),
-                        (x + 10, 27)],
-                       fill=lid)
-        db.smooth_line([(x + 1, 24), (x + 5, 15), (x + 15, 15), (x + 19, 24),
-                        (x + 10, 27), (x + 1, 24)],
-                       fill=INK, width=1.6)
-        db.smooth_line([(x + 1, 23), (x + 10, 26), (x + 19, 23)],
-                       fill=INK, width=1.4)
-        # étiquette
-        db.rrect((x + 6, 40, x + 14, 48), 2, fill="#F2F0E8", outline=INK, width=1.2)
-    # modelés : lumière sur le haut des pots
+    """Épices : mortier de bois et pilon, monticules de paprika et de
+    curcuma débordant, poudre répandue et bâtons de cannelle."""
+    # nappes de poudre répandue sous le mortier
+    db.ellipse((4, 54, 26, 62), fill="#D9A93F")
+    db.ellipse((40, 56, 62, 63), fill="#C24545")
+    # mortier : cuve lissée sur pied, bois chaud
+    cuve = [(10, 36), (12, 28), (52, 28), (54, 36), (48, 46), (38, 50),
+            (26, 50), (16, 46)]
+    db.smooth_poly(cuve, fill="#8A5A34")
+    db.smooth_line(cuve + [cuve[0]], fill=INK, width=2)
+    # pied du mortier
+    db.rrect((22, 50, 42, 58), 3, fill="#6B5230", outline=INK, width=1.8)
+    # monticules de poudre au-dessus du bord
+    db.smooth_poly([(14, 28), (20, 22), (28, 26), (24, 30), (16, 31)],
+                   fill="#D9A93F")
+    db.smooth_poly([(26, 28), (34, 21), (44, 24), (50, 28), (38, 30), (30, 30)],
+                   fill="#C24545")
+    # pilon appuyé, tête plongeant dans la cuve
+    db.taper([(50, 8), (44, 18), (38, 26)], 4.5, 3, "#A87A24")
+    db.ellipse((34, 24, 42, 32), fill="#C8A176", outline=INK, width=1.5)
+    # bâtons de cannelle croisés au sol
+    db.rrect((36, 56, 56, 60), 2, fill="#8A5A34", outline=INK, width=1.2)
+    db.rrect((42, 58, 58, 62), 2, fill="#A87A24", outline=INK, width=1.2)
+    # anis étoilé
+    db.ellipse((12, 52, 20, 60), fill="#6B5230", outline=INK, width=1.2)
+    db.ellipse((15, 55, 17, 57), fill="#F2F0E8")
+    # modelés : lumière sur le bord de la cuve
     if img is not None:
-        vgrad(img, (10, 15, 54, 30), (255, 255, 255), 26, 0, steps=10)
+        vgrad(img, (10, 26, 54, 38), (255, 255, 255), 26, 0, steps=10)
+        vgrad(img, (14, 40, 50, 50), (20, 20, 30), 0, 24, steps=8)
 
 
 def res_fer(db, da=None, w=64, h=64, img=None):
-    """Fer : minerai métallique — blocs anguleux gris acier à facettes
-    brillantes et traces de rouille, éclats détachés, ombre portée."""
-    db.ellipse((6, 50, 58, 60), fill=(0, 0, 0, 45))
-    b1 = [(8, 44), (13, 31), (27, 26), (38, 32), (40, 45), (28, 54), (13, 52)]
-    db.poly(b1, fill="#6E6E78", outline=INK, width=2)
-    b2 = [(36, 46), (40, 35), (52, 30), (59, 40), (55, 51), (42, 53)]
-    db.poly(b2, fill="#5E5E68", outline=INK, width=2)
-    b3 = [(20, 28), (31, 22), (40, 27), (37, 36), (25, 37)]
-    db.poly(b3, fill="#787884", outline=INK, width=1.8)
-    # facettes métalliques
-    db.poly([(13, 31), (27, 26), (23, 35), (15, 37)], fill="#9A9AA2")
-    db.poly([(40, 35), (52, 30), (50, 40), (43, 41)], fill="#8A8A94")
-    db.poly([(31, 22), (40, 27), (34, 30), (27, 29)], fill="#A8A8B2")
-    # traces de rouille
-    db.ellipse((30, 42, 38, 49), fill="#8A5A34")
-    db.ellipse((46, 44, 52, 49), fill="#7A4E2C")
-    # éclats brillants
-    db.line([(15, 33), (21, 30)], fill="#DADAE2", width=1.6)
-    db.line([(43, 34), (49, 33)], fill="#C8C8D2", width=1.4)
-    # morceaux détachés
-    db.ellipse((9, 52, 15, 57), fill="#6E6E78", outline=INK, width=1.2)
-    db.ellipse((51, 51, 57, 56), fill="#5E5E68", outline=INK, width=1.2)
+    """Fer : enclume de forgeron sur billot — bec, corps d'acier, table
+    polie brillante, base de bois, étincelle."""
+    # billot de souche
+    db.rrect((18, 50, 46, 62), 3, fill="#6B5230", outline=INK, width=2)
+    db.line([(18, 55), (46, 55)], fill="#8A6A40", width=1.4)
+    # enclume : pied évasé, taille fine, corps massif, bec à gauche
+    corps = [(12, 26), (52, 26), (56, 32), (50, 36), (40, 36), (38, 44),
+             (44, 50), (26, 50), (32, 44), (30, 36), (20, 36), (14, 38),
+             (6, 32)]
+    db.smooth_poly(corps, fill="#4A4A52", steps=6)
+    db.smooth_line(corps + [corps[0]], fill=INK, width=2)
+    # table supérieure polie (bande claire)
+    db.rrect((10, 24, 54, 29), 2, fill="#8A8A94", outline=INK, width=1.5)
+    db.line([(12, 26), (30, 26)], fill="#C8C8D2", width=1.4)
+    # reflets sur le corps
+    db.line([(16, 30), (26, 30)], fill="#6E6E78", width=2)
+    db.line([(42, 40), (36, 40)], fill="#6E6E78", width=2)
+    # étincelle de frappe au-dessus du bec
+    db.line([(14, 14), (14, 20)], fill="#F7C948", width=1.6)
+    db.line([(11, 17), (17, 17)], fill="#F7C948", width=1.6)
+    db.line([(12, 15), (16, 19)], fill="#E8843C", width=1.2)
+    db.line([(16, 15), (12, 19)], fill="#E8843C", width=1.2)
+    # modelés : lumière sur la table, ombre sous le corps
     if img is not None:
-        vgrad(img, (8, 22, 40, 44), (255, 255, 255), 24, 0, steps=10)
-        radial(img, 17, 32, 10, (255, 255, 255), 28, steps=5)
+        vgrad(img, (8, 24, 56, 36), (255, 255, 255), 30, 0, steps=10)
+        vgrad(img, (20, 40, 46, 50), (20, 20, 30), 0, 26, steps=8)
 
 
 def res_gemmes(db, da=None, w=64, h=64, img=None):
-    """Gemmes : deux tailles brillantes (cyan, améthyste) — couronne à
-    facettes, pavillon pointu, étincelles en croix, modelés clairs."""
-    for x, fill, clair, sombre in ((5, "#58B6C9", "#A8DEE8", "#3A8A9C"),
-                                   (33, "#9C6FD6", "#CBADEF", "#7A4FB4")):
-        # silhouette : table, couronne, pavillon en pointe
-        gem = [(x, 22), (x + 6, 14), (x + 18, 14), (x + 24, 22),
-               (x + 12, 52)]
-        db.poly(gem, fill=fill, outline=INK, width=2)
-        # table (face supérieure claire)
-        db.poly([(x + 6, 14), (x + 18, 14), (x + 15, 22), (x + 9, 22)],
-                fill=clair, outline=INK, width=1.2)
-        # facettes de la couronne
-        db.poly([(x, 22), (x + 9, 22), (x + 12, 30)], fill=clair)
-        db.poly([(x + 24, 22), (x + 15, 22), (x + 12, 30)], fill=sombre)
-        # facettes du pavillon
-        db.poly([(x + 12, 30), (x + 9, 22), (x + 6, 34)], fill=fill)
-        db.poly([(x + 12, 30), (x + 15, 22), (x + 18, 34)], fill=sombre)
-        # étincelles en croix
-        db.line([(x + 9, 8), (x + 9, 12)], fill="#FFFFFF", width=1.4)
-        db.line([(x + 7, 10), (x + 11, 10)], fill="#FFFFFF", width=1.4)
-    # petit cabochon au premier plan
-    db.ellipse((26, 44, 40, 58), fill="#58B6C9", outline=INK, width=1.8)
-    db.ellipse((29, 47, 34, 52), fill="#A8DEE8")
+    """Gemmes : géode — bloc rocheux ouvert d'où poussent des cristaux
+    prisme (améthyste, cyan), pointes brillantes, éclats."""
+    # socle rocheux
+    roche = [(8, 54), (10, 44), (20, 40), (36, 40), (50, 44), (56, 52),
+             (52, 60), (14, 60)]
+    db.smooth_poly(roche, fill="#4A4A52", steps=6)
+    db.smooth_line(roche + [roche[0]], fill=INK, width=2)
+    db.poly([(14, 46), (26, 42), (24, 50)], fill="#5E5E68")
+    # grand cristal améthyste central
+    def cristal(cx, base, sommet, w, fill, clair):
+        x0, y0 = base
+        x1, y1 = sommet
+        dx, dy = x1 - x0, y1 - y0
+        n = (-dy, dx)
+        ln = math.hypot(*n) or 1
+        nx, ny = n[0] / ln, n[1] / ln
+        pts = [(x0 + nx * w, y0 + ny * w), (x1 + nx * w * 0.5, y1 + ny * w * 0.5),
+               (x1, y1), (x1 - nx * w * 0.5, y1 - ny * w * 0.5),
+               (x0 - nx * w, y0 - ny * w)]
+        db.poly(pts, fill=fill, outline=INK, width=1.8)
+        db.line([(x0, y0), (x1, y1)], fill=clair, width=1.4)
+        db.line([(x1 - nx * w * 0.5, y1 - ny * w * 0.5),
+                 (x1 - nx * w * 0.2, y1 - ny * w * 0.2 - 3)],
+                fill="#FFFFFF", width=1.4)
+    cristal(30, (30, 44), (26, 8), 6, "#9C6FD6", "#CBADEF")
+    cristal(40, (38, 44), (46, 14), 4.5, "#58B6C9", "#A8DEE8")
+    cristal(22, (22, 46), (14, 22), 3.5, "#58B6C9", "#A8DEE8")
+    cristal(46, (44, 46), (54, 30), 2.5, "#CBADEF", "#FFFFFF")
+    # éclat en croix au-dessus du grand cristal
+    db.line([(26, 2), (26, 6)], fill="#FFFFFF", width=1.3)
+    db.line([(24, 4), (28, 4)], fill="#FFFFFF", width=1.3)
+    # modelés : lumière sur le socle
     if img is not None:
-        radial(img, 11, 18, 9, (255, 255, 255), 40, steps=6)
-        radial(img, 39, 18, 9, (255, 255, 255), 40, steps=6)
+        vgrad(img, (8, 40, 56, 50), (255, 255, 255), 22, 0, steps=8)
 
 
 def res_gibier(db, da=None, w=64, h=64, img=None):
-    """Gibier : cuissot pendue par une corde — viande lissée persillée,
-    os à moelle à double pommeau, modelés dégradés."""
-    # corde de suspension
-    db.smooth_line([(32, 0), (33, 6), (32, 12)], fill="#8A6A40", width=1.8)
-    # os : tige + double pommeau
-    db.rrect((40, 8, 48, 32), 4, fill="#F2F0E8", outline=INK, width=2)
-    db.ellipse((34, 2, 45, 13), fill="#F2F0E8", outline=INK, width=2)
-    db.ellipse((43, 2, 54, 13), fill="#F2F0E8", outline=INK, width=2)
-    # cuissot : masse musculeuse lissée, gros bout vers le bas
-    viande = [(30, 20), (38, 22), (42, 28), (44, 38), (40, 48), (30, 54),
-              (18, 52), (12, 42), (13, 30), (20, 22)]
-    db.smooth_poly(viande, fill="#8A4A34")
-    db.smooth_line(viande + [viande[0]], fill=INK, width=2)
-    # persillage + partie claire
-    db.smooth_poly([(20, 30), (30, 28), (34, 36), (28, 44), (19, 41)],
-                   fill="#A86046")
-    db.smooth_line([(24, 26), (30, 32), (28, 40)], fill="#B87A5E", width=1.6)
-    db.smooth_line([(18, 34), (24, 38)], fill="#B87A5E", width=1.4)
-    # modelés : lumière sur le haut de la viande, ombre au bas
+    """Gibier : cerf debout de profil — corps allongé, cou dressé, tête
+    à museau clair, bois ramifiés (taper), modelés dégradés."""
+    BRUN, CLAIR = "#8A5A34", "#C8A176"
+    # bois de cerf : deux branches ramifiées, dans le cadre
+    for pts, tines in (
+        ([(44, 9), (41, 4), (37, 1)], [(42, 3), (46, 1)]),
+        ([(47, 9), (50, 4), (55, 2)], [(49, 4), (48, 1)]),
+    ):
+        db.taper(pts, 3, 0.8, "#D9C04A")
+        db.taper(tines, 2.2, 0.6, "#D9C04A")
+    # oreille derrière les bois
+    db.smooth_poly([(40, 10), (35, 6), (40, 14)], fill=BRUN)
+    # cou dressé
+    db.smooth_poly([(34, 30), (38, 18), (42, 11), (50, 12), (48, 22), (44, 32)],
+                   fill=BRUN)
+    db.smooth_line([(34, 30), (38, 18), (42, 11), (50, 12), (48, 22), (44, 32),
+                    (34, 30)],
+                   fill=INK, width=1.8)
+    # tête : crâne + museau clair
+    db.ellipse((40, 8, 54, 18), fill=BRUN, outline=INK, width=1.8)
+    db.smooth_poly([(50, 9), (58, 11), (58, 15), (50, 17)], fill=CLAIR)
+    db.ellipse((56, 11.5, 58.5, 14.5), fill=INK)
+    db.ellipse((46, 11, 48.5, 13.5), fill=INK)
+    # pattes fines (taper) + sabots
+    for (x0, y0, x1, y1) in ((18, 44, 16, 60), (24, 46, 24, 62),
+                             (36, 46, 38, 62), (42, 44, 44, 60)):
+        db.taper([(x0, y0), (x1, y1)], 4, 2, BRUN)
+        db.rrect((x1 - 2.5, y1 - 2, x1 + 2.5, y1 + 2), 1.5, fill="#3A3A40")
+    # corps allongé
+    corps = [(8, 34), (10, 28), (20, 24), (32, 24), (42, 28), (45, 36),
+             (41, 44), (30, 47), (18, 45), (9, 40)]
+    db.smooth_poly(corps, fill=BRUN)
+    db.smooth_line(corps + [corps[0]], fill=INK, width=2)
+    # ventre clair + queue
+    db.smooth_poly([(14, 40), (22, 45), (34, 45), (41, 41), (37, 39),
+                    (26, 42), (17, 38)],
+                   fill=CLAIR)
+    db.smooth_poly([(9, 33), (5, 29), (8, 36)], fill=CLAIR)
+    # modelés : dos éclairé, ombre au flanc
     if img is not None:
-        vgrad(img, (12, 20, 44, 40), (255, 255, 255), 28, 0, steps=12)
-        vgrad(img, (14, 42, 44, 54), (20, 20, 30), 0, 26, steps=8)
+        vgrad(img, (8, 22, 46, 34), (255, 255, 255), 26, 0, steps=12)
+        vgrad(img, (10, 38, 46, 47), (20, 20, 30), 0, 24, steps=8)
 
 
 def res_or(d):
