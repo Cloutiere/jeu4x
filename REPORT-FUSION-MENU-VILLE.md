@@ -51,6 +51,14 @@ Partie solo **BKZEYM** (FusionA vs bot, créée via `dev-logs/scripts/fusion-men
 4. **04-conversion-basquee-science.png** — après clic ⇄ : « Convertit le commerce en : Science », chiffres permutés **2 sciences · 0 or/tour** (miroir exact du moteur) ;
 5. **05-retour-carte.png** — sortie Fermer : carte à plat, UI de carte intacte, aucun panneau de ville.
 
+## Révision v2 — retours d'Erik du 15/09
+
+1. **Plaquettes empilées sur UNE colonne** (retour d'Erik : plus de 2 colonnes × 2 lignes) — nourriture, frontière culturelle, production, sciences & or se suivent verticalement (`.grid` 1 colonne).
+2. **La barre de culture de la VILLE ne montre PLUS le palier T-27** (civilisation) : elle montre la progression de la **FRONTIÈRE CULTURELLE de la ville** (R-162) — culture cumulée de la ville vers le **prochain anneau** (seuils 10/100/1 000/10 000, plafond 5 anneaux, `rayonCulturelDe`/`frontierRadius` — sources moteur). Nouvelle jauge pure `jaugeFrontiereCulturelle` (jauges.ts) : anneaux courants, prochain seuil, ratio entre seuils consécutifs, plafond honnête. Libellé : « Anneau N : X / seuil » + « N anneau(s) — prochain seuil S · C culture/tour (cette ville) ».
+3. **La barre du PALIER T-27 migre au menu d'empire** (GovernmentPanel, section « Culture de la civilisation » sous la liste des régimes) : cumul EMPIRE / `greatPersonThresholdFor(paliers)` — inchangé sémantiquement (GP-CULTURE-EVENEMENTS D1).
+
+**Tests v2 : 1 155 verts** (web 268 — +3 `jaugeFrontiereCulturelle` : progression inter-seuils, miroir `rayonCulturelDe`, plafond). Typecheck 4/4. Captures `dev-logs/captures-fusion-menu-ville/06-vue-ville-une-colonne-frontiere.png` (une colonne + « Anneau 1 : 8/10 ») et `07-menu-empire-palier-t27.png` (palier 8/150 au menu Gouvernement). Validation solo BKZEYM avant commit (règle établie).
+
 ## Arbitrages 🔶 (à l'œil par Erik)
 
 - Placement : jauge nourriture SOUS la ligne « Prochaine population », culture en bloc distinct à droite de Nourriture, conversion en bouton pleine largeur sous les chiffres or/science, RushBuy sous la carte Production.

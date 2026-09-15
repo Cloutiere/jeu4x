@@ -15,7 +15,9 @@
    *     garde-fous affichés comme dans CityPanel).
    * FUSION-MENU-VILLE (décisions d'Erik du 14/09) : CityPanel est SUPPRIMÉ
    * (clic simple = sélection muette) — ses bons éléments migrent ICI : jauge
-   * de culture (palier T-27 empire), contrôle de conversion R-90 INTERACTIF
+   * de FRONTIÈRE CULTURELLE de la ville (R-162 — le palier T-27 de la
+   * civilisation vit au menu d'empire, retour d'Erik du 15/09), contrôle de
+   * conversion R-90 INTERACTIF
    * (portage obligatoire — seul point de réglage), flux RushBuy (R-135),
    * réserve de marteaux (R-130), GP installés, tooltip ALIGNEMENT. Les chips
    * citoyens ne se portent PAS (la carte et la vue ville font le travail).
@@ -29,7 +31,7 @@
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, effectiveWorkedTiles } from '../lib/render/interaction.js';
   import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
-  import { jaugeCroissance, jaugeCulture, jaugeProduction } from '../lib/jauges.js';
+  import { jaugeCroissance, jaugeFrontiereCulturelle, jaugeProduction } from '../lib/jauges.js';
 
   interface Props {
     view: GameView;
@@ -196,19 +198,11 @@
     return total;
   });
 
-  // ---- Culture (portage de la jauge CityPanel) — cumul EMPIRE vers le
-  // prochain palier T-27 (GP-CULTURE-EVENEMENTS : Σ cultureCumulee, jamais
-  // soustrait) + culture/tour de CETTE ville (R-113).
-  const culturePaliers = $derived(view.state && engine ? view.state.players[engine]?.culturePaliers ?? 0 : 0);
-  const cultureEmpire = $derived.by(() => {
-    if (!view.state || !engine) return 0;
-    let total = 0;
-    for (const c of Object.values(view.state.cities)) {
-      if (c.owner === engine) total += c.cultureCumulee;
-    }
-    return total;
-  });
-  const culture = $derived(jaugeCulture(cultureEmpire, culturePaliers));
+  // ---- Culture (retour d'Erik du 15/09) — la barre de la ville montre la
+  // progression de sa frontière CULTURELLE (R-162 : anneaux aux seuils
+  // 10/100/1 000/10 000, plafond 5). Le PALIER T-27 (civilisation) a quitté
+  // la vue ville : il vit dans le menu d'empire (GovernmentPanel).
+  const frontiere = $derived(city ? jaugeFrontiereCulturelle(city.cultureCumulee) : { anneaux: 0, prochainSeuil: null as number | null, ratio: 0, plafond: false });
   const culturePerTurn = $derived.by(() => {
     if (!city || !view.state || !engine) return 0;
     const empireBonus = empirePerCityBonus(view.state, engine);
@@ -361,15 +355,21 @@
         <p class="hint center-floor" title="ALIGNEMENT-CROISSANCE : la case de ville ne produit RIEN (0 N / 0 P / 0 C) — la ville vit par ses citoyens (travaillés ou intérieurs, R-60/R-60bis).">Case de ville : aucun rendement — la ville vit par ses citoyens</p>
       </section>
 
-      <!-- Culture (portage de la jauge CityPanel) : progression EMPIRE vers le
-           prochain palier T-27 + culture/tour de cette ville (R-113). -->
+      <!-- Culture (retour d'Erik du 15/09) : progression de la FRONTIÈRE
+           culturelle de CETTE ville (R-162) — un anneau par seuil franchi
+           (10/100/1 000/10 000), plafond 5. La barre du palier T-27
+           (civilisation) est dans le menu d'empire (Gouvernement). -->
       <section class="block cult">
-        <h2>Culture de la civilisation</h2>
-        <div class="gauge" title="Culture de la CIVILISATION (GP-CULTURE-EVENEMENTS · D1/D6) : cumul EMPIRE des cultures de villes (jamais soustrait) — chaque palier T-27 franchi = +1 événement culturel ET 1 Grand Personnage (ville la plus cultivée)">
-          <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> Palier {culturePaliers + 1} : {cultureEmpire} / {culture.seuil}</span>
-          <div class="bar"><div class="fill culture-fill" style:width={`${culture.ratio * 100}%`}></div></div>
+        <h2>Frontière culturelle de la ville</h2>
+        <div class="gauge" title="Frontière culturelle (R-162) : la culture CUMULÉE de cette ville franchit les seuils 10 / 100 / 1 000 / 10 000 — chaque seuil = +1 anneau (liseré autour de la zone cultivée au 1er, bande d'extension d'une case par anneau ensuite), plafond 5 anneaux. Visual-only (phase 1).">
+          {#if frontiere.plafond}
+            <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> Anneaux : {frontiere.anneaux} (plafond)</span>
+          {:else}
+            <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> Anneau {frontiere.anneaux + 1} : {city.cultureCumulee} / {frontiere.prochainSeuil}</span>
+          {/if}
+          <div class="bar"><div class="fill culture-fill" style:width={`${frontiere.ratio * 100}%`}></div></div>
         </div>
-        <p class="eta">{culturePerTurn} culture/tour (cette ville)</p>
+        <p class="eta">{frontiere.anneaux} anneau{frontiere.anneaux > 1 ? 'x' : ''} culturel{frontiere.anneaux > 1 ? 's' : ''}{frontiere.plafond ? '' : ` — prochain seuil ${frontiere.prochainSeuil}`} · {culturePerTurn} culture/tour (cette ville)</p>
       </section>
 
       <!-- 3. Production -->
@@ -537,7 +537,9 @@
   .sub { color: #9aa7b2; font-size: 0.8rem; }
   .close { padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; cursor: pointer; }
   h2 { margin: 0 0 0.25rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa7b2; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  /* Retour d'Erik du 15/09 : les plaquettes s'empilent UNE par ligne
+     (nourriture, frontière culturelle, production, sciences & or). */
+  .grid { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
   .block { border: 1px solid #2c353d; border-radius: 8px; padding: 0.5rem 0.6rem; background: #1d242b; }
   .bat, .choix { grid-column: 1 / -1; }
   .big { margin: 0.1rem 0; font-size: 1.02rem; font-weight: 700; display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }

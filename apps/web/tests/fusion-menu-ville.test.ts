@@ -8,8 +8,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { jaugeCroissance, jaugeCulture, jaugeProduction } from '../src/lib/jauges.js';
-import { greatPersonThresholdFor, makeState, tileKey } from '@game/rules';
+import { jaugeCroissance, jaugeCulture, jaugeFrontiereCulturelle, jaugeProduction } from '../src/lib/jauges.js';
+import { CULTURE, greatPersonThresholdFor, makeState, tileKey } from '@game/rules';
 import type { GameState } from '@game/rules';
 import type { GameView } from '../src/lib/gameClient.js';
 import { clickAction, clickActionVueVille } from '../src/lib/render/interaction.js';
@@ -84,6 +84,37 @@ describe('jaugeProduction — barre de la carte Production (marteaux / coût)', 
   it('état vide honnête : coût infini (aucun item) → jauge vide', () => {
     expect(jaugeProduction(10, Infinity)).toBe(0);
     expect(jaugeProduction(10, 0)).toBe(0);
+  });
+});
+
+describe('jaugeFrontiereCulturelle — barre frontière culturelle D\'UNE VILLE (R-162, retour d\'Erik du 15/09)', () => {
+  const TABLE = CULTURE.cultureExpansionThresholds; // 10 / 100 / 1 000 / 10 000
+
+  it('0 anneau au départ ; progression entre les seuils (10 → 100 → …)', () => {
+    const a = jaugeFrontiereCulturelle(0);
+    expect(a.anneaux).toBe(0);
+    expect(a.prochainSeuil).toBe(TABLE[0]);
+    expect(a.ratio).toBe(0);
+    // à mi-chemin du 1er anneau
+    expect(jaugeFrontiereCulturelle(TABLE[0]! / 2).ratio).toBeCloseTo(0.5, 6);
+    // 2e anneau : la progression repart du seuil précédent (10) vers 100
+    const b = jaugeFrontiereCulturelle((TABLE[0]! + TABLE[1]!) / 2);
+    expect(b.anneaux).toBe(1);
+    expect(b.prochainSeuil).toBe(TABLE[1]);
+    expect(b.ratio).toBeCloseTo(0.5, 6);
+  });
+
+  it('chaque seuil franchi = +1 anneau (miroir rayonCulturelDe)', () => {
+    expect(jaugeFrontiereCulturelle(TABLE[0]!).anneaux).toBe(1);
+    expect(jaugeFrontiereCulturelle(TABLE[3]!).anneaux).toBe(4);
+    expect(jaugeFrontiereCulturelle(TABLE[3]! * 2).anneaux).toBe(4);
+  });
+
+  it('plafond (5 anneaux, table épuisée) : jauge pleine, aucun prochain seuil', () => {
+    const p = jaugeFrontiereCulturelle(TABLE[TABLE.length - 1]! * 9);
+    expect(p.plafond).toBe(true);
+    expect(p.prochainSeuil).toBeNull();
+    expect(p.ratio).toBe(1);
   });
 });
 
