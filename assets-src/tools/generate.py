@@ -2189,14 +2189,43 @@ def res_aluminium(d):
     d.ellipse((x1 - 5, y1 - 8, x1 + 5, y1 + 8), fill="#3E3E50")
 
 
-def res_baleine(d):
-    """Baleine : corps arqué, queue, jet d'eau."""
-    d.ellipse((8, 30, 50, 52), fill="#5E8CB4", outline=INK, width=2)
-    d.poly([(46, 32), (60, 24), (58, 40), (50, 44)], fill="#5E8CB4", outline=INK, width=2)
-    d.ellipse((12, 34, 30, 44), fill="#7FA9CC")
-    d.ellipse((16, 38, 20, 42), fill=INK)
-    d.arc((26, 8, 40, 22), 200, 340, fill=EAU_2, width=3)
-    d.arc((30, 14, 42, 26), 200, 340, fill=EAU_2, width=2)
+def res_baleine(db, da=None, w=64, h=64, img=None):
+    """Baleine : grande baleinebleue occupant presque toute la tuile —
+    nettement plus grosse que le poisson (échelle relative lisible).
+    Silhouette lissée, ventre rayé de plis gular, modelés dégradés."""
+    # nageoire pectorale (derrière le corps)
+    pect = [(26, 38), (22, 48), (30, 46), (34, 40)]
+    db.smooth_poly(pect, fill="#4A78A0")
+    db.smooth_line(pect + [pect[0]], fill=INK, width=1.5)
+    # nageoire caudale (grande queue fourchue) — dessinée AVANT le corps
+    # pour que le corps recouvre l'attache (pas de couture)
+    queue = [(46, 28), (61, 12), (63, 17), (55, 28), (62, 41), (55, 45), (46, 36)]
+    db.smooth_poly(queue, fill="#4A78A0")
+    db.smooth_line(queue + [queue[0]], fill=INK, width=2)
+    # corps massif : dos arqué du museau à la queue
+    corps = [(3, 32), (4, 22), (14, 13), (30, 9), (44, 13), (53, 22),
+             (55, 30), (50, 39), (38, 46), (22, 48), (10, 44)]
+    db.smooth_poly(corps, fill="#5E8CB4")
+    db.smooth_line(corps + [corps[0]], fill=INK, width=2)
+    # ventre clair (plis gular)
+    db.smooth_poly([(5, 36), (14, 44), (28, 47), (40, 44), (48, 37), (46, 34),
+                    (34, 40), (18, 41), (9, 34)],
+                   fill="#A8C6DE", outline=None)
+    for i, y in enumerate((36, 39, 42)):
+        db.smooth_line([(6 + i, y), (40 + i * 2, y + 2 - i)],
+                       fill="#7FA9CC", width=1.4)
+    # bouche + œil + évent
+    db.smooth_line([(3, 34), (14, 40), (26, 42)], fill=INK, width=1.8)
+    db.ellipse((13, 24, 17, 28), fill=INK)
+    db.smooth_line([(22, 9), (20, 4)], fill=INK, width=1.6)
+    # jet d'eau : double panache vertical + gouttes
+    if img is not None:
+        vgrad(img, (3, 9, 53, 30), (255, 255, 255), 26, 0, steps=14)
+        radial(img, 18, 15, 10, (255, 255, 255), 30, steps=7)
+    db.smooth_line([(20, 9), (18, 4), (15, 1)], fill=EAU_2, width=2.4)
+    db.smooth_line([(22, 9), (25, 4), (27, 1)], fill=EAU_2, width=2.4)
+    db.ellipse((12, 0, 15, 3), fill=EAU_2)
+    db.ellipse((28, 0, 31, 3), fill=EAU_2)
 
 
 def res_betail(d):
@@ -2247,26 +2276,69 @@ def res_ble(d):
     d.rrect((24, 34, 40, 42), 3, fill="#B8892B", outline=INK, width=2)
 
 
-def res_boeufs(d):
-    """Bœufs : tête de taureaux avec cornes."""
-    d.ellipse((16, 16, 48, 52), fill="#8A5A34", outline=INK, width=2)
-    d.poly([(14, 20), (4, 8), (20, 12)], fill="#F2F0E8", outline=INK, width=2)
-    d.poly([(50, 20), (60, 8), (44, 12)], fill="#F2F0E8", outline=INK, width=2)
-    d.ellipse((24, 36, 40, 52), fill="#C8A176")
-    d.ellipse((28, 40, 31, 43), fill=INK)
-    d.ellipse((33, 40, 36, 43), fill=INK)
-    d.ellipse((30, 46, 34, 50), fill=INK)
+def res_boeufs(db, da=None, w=64, h=64, img=None):
+    """Bœufs : même vocabulaire que le bétail (vache blanche à taches de
+    profil) mais taureau — plus gros, cordré, cornes imposantes."""
+    BLANC, TACHE = "#F2F0E8", "#8A5A34"
+    # pattes épaisses + sabot
+    for x in (12, 24, 38, 48):
+        db.rrect((x, 44, x + 8, 62), 2.5, fill=BLANC, outline=INK, width=1.5)
+        db.rrect((x, 57, x + 8, 62), 2, fill="#4E4438", outline=None)
+    # queue avec touffe
+    db.smooth_line([(8, 26), (3, 38), (5, 50)], fill=INK, width=2)
+    db.ellipse((2, 48, 9, 56), fill=TACHE, outline=INK, width=1.2)
+    # corps massif + taches
+    db.ellipse((6, 18, 52, 50), fill=BLANC, outline=INK, width=2)
+    db.ellipse((14, 28, 28, 44), fill=TACHE)
+    db.ellipse((32, 22, 44, 34), fill=TACHE)
+    # cornes en croissant, de part et d'autre du haut du crâne
+    # (contour INK puis cœur doré, en taper fuselé)
+    for pts in ([(50, 13), (42, 8), (35, 9)], [(54, 13), (61, 8), (63, 12)]):
+        db.taper(pts, 6, 1.5, INK)
+        db.taper(pts, 4, 0.8, "#D9C04A")
+    # tête + museau rose
+    db.ellipse((40, 10, 62, 34), fill=BLANC, outline=INK, width=2)
+    db.ellipse((44, 12, 56, 22), fill=TACHE)
+    db.ellipse((50, 24, 64, 36), fill="#E3B8A0", outline=INK, width=1.5)
+    db.ellipse((57, 28, 61, 32), fill=INK)
+    db.ellipse((52, 20, 56, 24), fill=INK)
+    # oreille
+    db.ellipse((38, 8, 46, 16), fill=BLANC, outline=INK, width=1.5)
+    # modelés : dos éclairé, ventre ombré
+    if img is not None:
+        vgrad(img, (8, 18, 50, 34), (255, 255, 255), 26, 0, steps=12)
+        vgrad(img, (10, 36, 50, 50), (20, 20, 30), 0, 24, steps=10)
 
 
-def res_caoutchouc(d):
-    """Caoutchouc : pneu noir à jante claire."""
-    d.ellipse((8, 14, 56, 62), fill="#3A3A40", outline=INK, width=2)
-    d.ellipse((20, 26, 44, 50), fill="#8A8A92")
-    d.ellipse((27, 33, 37, 43), fill="#3A3A40")
-    for a in range(0, 360, 45):
-        d.line([(32 + 22 * math.cos(math.radians(a)), 38 + 22 * math.sin(math.radians(a))),
-                (32 + 26 * math.cos(math.radians(a)), 38 + 26 * math.sin(math.radians(a)))],
-               fill="#5A5A62", width=3)
+def res_caoutchouc(db, da=None, w=64, h=64, img=None):
+    """Caoutchouc : pneu de profil — bande de roulement crantée, flanc
+    modelé, jante à rayons, valve. Modelés dégradés doux."""
+    cx, cy = 32, 34
+    # gomme : gros anneau
+    db.ellipse((6, 8, 58, 60), fill="#3A3A40", outline=INK, width=2)
+    # crans de bande de roulement (autour du périmètre)
+    for a in range(0, 360, 20):
+        r0, r1 = 21, 25
+        x0, y0 = cx + r0 * math.cos(math.radians(a)), cy + r0 * math.sin(math.radians(a))
+        x1, y1 = cx + r1 * math.cos(math.radians(a)), cy + r1 * math.sin(math.radians(a))
+        db.line([(x0, y0), (x1, y1)], fill="#26262C", width=3)
+    # flanc : anneau médian
+    db.ellipse((14, 16, 50, 52), outline="#5A5A62", width=2)
+    # jante claire + moyeu
+    db.ellipse((19, 21, 45, 47), fill="#8A8A92", outline=INK, width=2)
+    db.ellipse((27, 29, 37, 39), fill="#3A3A40", outline=INK, width=1.5)
+    # rayons de jante
+    for a in range(0, 360, 60):
+        r0, r1 = 6, 11
+        x0, y0 = cx + r0 * math.cos(math.radians(a)), cy + r0 * math.sin(math.radians(a))
+        x1, y1 = cx + r1 * math.cos(math.radians(a)), cy + r1 * math.sin(math.radians(a))
+        db.line([(x0, y0), (x1, y1)], fill="#6E6E76", width=2.5)
+    # valve
+    db.rrect((49, 30, 55, 36), 2, fill="#8A8A92", outline=INK, width=1.2)
+    # modelés : reflet haut-gauche sur la gomme, ombre bas-droite
+    if img is not None:
+        radial(img, 20, 18, 14, (255, 255, 255), 34, steps=7)
+        vgrad(img, (30, 34, 58, 60), (20, 20, 30), 0, 30, steps=10)
 
 
 def res_charbon(d):
@@ -2368,13 +2440,33 @@ def res_petrole(d):
     d.ellipse((48, 44, 53, 49), fill="#4A4A52")
 
 
-def res_poisson(d):
-    """Poisson : corps bleu, nageoire, œil."""
-    d.ellipse((6, 24, 46, 48), fill="#7FA9CC", outline=INK, width=2)
-    d.poly([(42, 28), (58, 18), (58, 52), (42, 44)], fill="#7FA9CC", outline=INK, width=2)
-    d.ellipse((14, 30, 28, 40), fill="#A8C6DE")
-    d.ellipse((16, 33, 21, 38), fill=INK)
-    d.arc((20, 22, 34, 34), 200, 330, fill="#5E8CB4", width=2.4)
+def res_poisson(db, da=None, w=64, h=64, img=None):
+    """Poisson : petit poisson volant (moyenne ~55 % du gabarit) —
+    volontairement bien plus petit que la baleine pour une échelle
+    relative lisible sur la carte. Modelés dégradés doux."""
+    # corps ramassé
+    corps = [(14, 38), (16, 31), (24, 28), (33, 29), (39, 34),
+             (40, 40), (35, 46), (26, 48), (18, 46)]
+    db.smooth_poly(corps, fill="#7FA9CC")
+    db.smooth_line(corps + [corps[0]], fill=INK, width=2)
+    # nageoire pectorale (sur le corps, bas-gauche)
+    pect = [(26, 40), (23, 47), (30, 45), (33, 40)]
+    db.smooth_poly(pect, fill="#5E8CB4")
+    db.smooth_line(pect + [pect[0]], fill=INK, width=1.2)
+    # queue fourchue
+    queue = [(38, 34), (47, 28), (48, 32), (43, 38), (48, 46), (44, 49), (38, 42)]
+    db.smooth_poly(queue, fill="#5E8CB4")
+    db.smooth_line(queue + [queue[0]], fill=INK, width=2)
+    # nageoire dorsale
+    dors = [(22, 29), (27, 23), (33, 24), (35, 29)]
+    db.smooth_poly(dors, fill="#5E8CB4")
+    db.smooth_line(dors + [dors[0]], fill=INK, width=1.5)
+    # opercule + œil
+    db.smooth_line([(22, 32), (20, 40), (23, 46)], fill="#5E8CB4", width=1.4)
+    db.ellipse((17, 33, 21, 37), fill=INK)
+    db.ellipse((18, 34, 20, 35.5), fill="#FFFFFF")
+    if img is not None:
+        radial(img, 24, 33, 9, (255, 255, 255), 34, steps=6)
 
 
 def res_soie(d):
