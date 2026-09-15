@@ -6,9 +6,10 @@
  * ±HEX_SIZE) ; position/échelle/contraste à calibrer à l'œil par Erik.
  */
 export const BADGE_POPULATION = {
-  /** Centre du disque, dans le haut de l'hex de la ville (au-dessus du bâtiment). */
-  x: 0,
-  y: -36,
+  /** Centre du disque, en haut à DROITE de l'hex de la ville — décalé pour ne
+   * pas masquer l'asset du bâtiment (retour d'Erik 15/09). */
+  x: 22,
+  y: -32,
   rayon: 14,
   remplissage: 0x1b1b22,
   alpha: 0.85,

@@ -4,7 +4,7 @@ Exécution de `HANDOFF-MENU-VILLE-RETOUCHES.md` (constats d'Erik du 14/09). Zér
 
 ## Retouche 1 — Le badge de population est posé SUR la case de la ville
 
-- `apps/web/src/lib/render/badge-population.ts` (nouveau) : constantes 🔶 du badge (centre `x=0, y=-36`, rayon 14, remplissage sombre `0x1b1b22` α 0.85, **liseré clair** `0xe8e4d8` 2 px α 0.9 pour la lisibilité sur tous les terrains, police 18). L'ancienne position codée en dur `(52, -66)` — qui retombait sur la tuile NE — est supprimée.
+- `apps/web/src/lib/render/badge-population.ts` (nouveau) : constantes 🔶 du badge (centre `x=22, y=-32` — en haut à **droite** de l'hex pour ne pas masquer l'asset du bâtiment, retour d'Erik du 15/09 ; rayon 14, remplissage sombre `0x1b1b22` α 0.85, **liseré clair** `0xe8e4d8` 2 px α 0.9 pour la lisibilité sur tous les terrains, police 18). L'ancienne position codée en dur `(52, -66)` — qui retombait sur la tuile NE — est supprimée.
 - `GameCanvas.svelte` `buildCityContainer()` : disque + texte du badge posés via `BADGE_POPULATION` (coordonnées locales du conteneur ville, 0,0 = centre de l'hex).
 - La tuile voisine (NE) et son icône de rendement sont libérées. Position/échelle/contraste 🔶 à calibrer à l'œil : tout est dans le module, un seul endroit à retoucher.
 
@@ -28,6 +28,7 @@ Captures dans `dev-logs/captures-menu-ville-retouches/` :
 3. `03-bascule-conversion-science-temps-reel.png` — après clic sur le bouton ⇄ : icône devenue **sciences** immédiatement, sans quitter la vue.
 4. `04-retour-carte-commerce-icone.png` — retour carte, ville en conversion science : aucune icône (rendements masqués), badge en place.
 5. `05-vue-carte-rendements-commerce.png` — carte avec bouton Rendements ✓ : **toutes** les tuiles maritimes affichent l'icône **commerce** malgré la conversion science de la ville.
+6. `06-badge-decale-a-droite.png` — retour d'Erik du 15/09 : badge décalé en haut à droite de la case (`x=22, y=-32`), l'asset de la capitale est entièrement visible.
 
 Serveurs utilisés pour la validation : wrangler :8787 et vite :5175 (lancés pour la session, arrêtés après ; le vite préexistant sur :5174 n'a pas été touché).
 

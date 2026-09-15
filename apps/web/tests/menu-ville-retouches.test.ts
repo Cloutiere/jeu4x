@@ -30,10 +30,11 @@ describe('badge de population — posé sur la case de la ville', () => {
     }
   });
 
-  it('le badge n\'est plus décalé sur la tuile voisine (centré sur la case, pas de débord hors hex)', () => {
+  it('le badge reste sur la case de la ville (centre dans l\'hex, pas sur la tuile voisine)', () => {
     // Retour d'Erik : l'ancienne position (52, −66) tombait sur la tuile NE.
-    expect(BADGE_POPULATION.x).toBe(0);
-    expect(Math.abs(BADGE_POPULATION.y)).toBeLessThan(HEX_SIZE);
+    // Décalé à droite (retour d'Erik 15/09) mais toujours DANS l'hex de la ville.
+    const { x, y } = BADGE_POPULATION;
+    expect(dansHex(x, y)).toBe(true);
   });
 });
 
