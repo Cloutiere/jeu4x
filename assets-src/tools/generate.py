@@ -2437,41 +2437,117 @@ def res_encens(db, da=None, w=64, h=64, img=None):
         vgrad(img, (30, 30, 48, 48), (20, 20, 30), 0, 30, steps=10)
 
 
-def res_epices(d):
-    """Épices : deux pots (paprika, curcuma) avec bouchons."""
-    for x, fill, lid in [(10, "#C24545", "#6B5230"), (34, "#D9A93F", "#5E4E3A")]:
-        d.rrect((x, 24, x + 20, 58), 4, fill=fill, outline=INK, width=2)
-        d.rrect((x + 3, 16, x + 17, 26), 3, fill=lid, outline=INK, width=2)
-        d.line([(x + 4, 36), (x + 16, 36)], fill="#F2F0E8", width=2)
+def res_epices(db, da=None, w=64, h=64, img=None):
+    """Épices : deux pots de verre (paprika, curcuma) à couvercle de
+    tissu noué, reflets sur le verre, étiquettes."""
+    for x, fill, poudre, lid in ((10, "#C24545", "#8A2F2A", "#6B5230"),
+                                 (34, "#D9A93F", "#A87A24", "#5E4E3A")):
+        # pot de verre : épaules arrondies, panse pleine
+        pot = [(x + 2, 30), (x, 38), (x, 52), (x + 4, 58), (x + 16, 58),
+               (x + 20, 52), (x + 20, 38), (x + 18, 30)]
+        db.smooth_poly(pot, fill=fill)
+        db.smooth_line(pot + [pot[0]], fill=INK, width=2)
+        # ligne de poudre sous le goulot
+        db.smooth_line([(x + 2, 32), (x + 10, 34), (x + 18, 32)],
+                       fill=poudre, width=3)
+        # reflet vertical sur le verre
+        db.line([(x + 4, 36), (x + 4, 54)], fill=(255, 255, 255, 130), width=2.4)
+        # couvercle de tissu noué (dôme + cordelette)
+        db.smooth_poly([(x + 1, 24), (x + 5, 15), (x + 15, 15), (x + 19, 24),
+                        (x + 10, 27)],
+                       fill=lid)
+        db.smooth_line([(x + 1, 24), (x + 5, 15), (x + 15, 15), (x + 19, 24),
+                        (x + 10, 27), (x + 1, 24)],
+                       fill=INK, width=1.6)
+        db.smooth_line([(x + 1, 23), (x + 10, 26), (x + 19, 23)],
+                       fill=INK, width=1.4)
+        # étiquette
+        db.rrect((x + 6, 40, x + 14, 48), 2, fill="#F2F0E8", outline=INK, width=1.2)
+    # modelés : lumière sur le haut des pots
+    if img is not None:
+        vgrad(img, (10, 15, 54, 30), (255, 255, 255), 26, 0, steps=10)
 
 
-def res_fer(d):
-    """Fer : minerai gris métallique + éclat."""
-    for x, y, s in [(10, 34, 1.0), (30, 40, 0.85), (20, 20, 0.7)]:
-        pts = [(x, y + 15 * s), (x + 5 * s, y + 4 * s), (x + 15 * s, y),
-               (x + 22 * s, y + 8 * s), (x + 16 * s, y + 17 * s)]
-        d.poly(pts, fill="#6E6E78", outline=INK, width=2)
-        d.poly([(x + 5 * s, y + 4 * s), (x + 11 * s, y + 8 * s), (x + 5 * s, y + 12 * s)],
-               fill="#9A9AA2")
-    _shine(d, 26, 24, 2)
+def res_fer(db, da=None, w=64, h=64, img=None):
+    """Fer : minerai métallique — blocs anguleux gris acier à facettes
+    brillantes et traces de rouille, éclats détachés, ombre portée."""
+    db.ellipse((6, 50, 58, 60), fill=(0, 0, 0, 45))
+    b1 = [(8, 44), (13, 31), (27, 26), (38, 32), (40, 45), (28, 54), (13, 52)]
+    db.poly(b1, fill="#6E6E78", outline=INK, width=2)
+    b2 = [(36, 46), (40, 35), (52, 30), (59, 40), (55, 51), (42, 53)]
+    db.poly(b2, fill="#5E5E68", outline=INK, width=2)
+    b3 = [(20, 28), (31, 22), (40, 27), (37, 36), (25, 37)]
+    db.poly(b3, fill="#787884", outline=INK, width=1.8)
+    # facettes métalliques
+    db.poly([(13, 31), (27, 26), (23, 35), (15, 37)], fill="#9A9AA2")
+    db.poly([(40, 35), (52, 30), (50, 40), (43, 41)], fill="#8A8A94")
+    db.poly([(31, 22), (40, 27), (34, 30), (27, 29)], fill="#A8A8B2")
+    # traces de rouille
+    db.ellipse((30, 42, 38, 49), fill="#8A5A34")
+    db.ellipse((46, 44, 52, 49), fill="#7A4E2C")
+    # éclats brillants
+    db.line([(15, 33), (21, 30)], fill="#DADAE2", width=1.6)
+    db.line([(43, 34), (49, 33)], fill="#C8C8D2", width=1.4)
+    # morceaux détachés
+    db.ellipse((9, 52, 15, 57), fill="#6E6E78", outline=INK, width=1.2)
+    db.ellipse((51, 51, 57, 56), fill="#5E5E68", outline=INK, width=1.2)
+    if img is not None:
+        vgrad(img, (8, 22, 40, 44), (255, 255, 255), 24, 0, steps=10)
+        radial(img, 17, 32, 10, (255, 255, 255), 28, steps=5)
 
 
-def res_gemmes(d):
-    """Gemmes : deux pierres facettées (cyan, améthyste)."""
-    for x, fill, light in [(6, "#58B6C9", "#A8DEE8"), (34, "#9C6FD6", "#CBADEF")]:
-        d.poly([(x, 22), (x + 12, 12), (x + 24, 22), (x + 12, 52)],
-               fill=fill, outline=INK, width=2)
-        d.poly([(x, 22), (x + 12, 30), (x + 24, 22)], fill=light, outline=INK, width=1.2)
-        d.line([(x + 12, 12), (x + 12, 30)], fill=INK, width=1.2)
+def res_gemmes(db, da=None, w=64, h=64, img=None):
+    """Gemmes : deux tailles brillantes (cyan, améthyste) — couronne à
+    facettes, pavillon pointu, étincelles en croix, modelés clairs."""
+    for x, fill, clair, sombre in ((5, "#58B6C9", "#A8DEE8", "#3A8A9C"),
+                                   (33, "#9C6FD6", "#CBADEF", "#7A4FB4")):
+        # silhouette : table, couronne, pavillon en pointe
+        gem = [(x, 22), (x + 6, 14), (x + 18, 14), (x + 24, 22),
+               (x + 12, 52)]
+        db.poly(gem, fill=fill, outline=INK, width=2)
+        # table (face supérieure claire)
+        db.poly([(x + 6, 14), (x + 18, 14), (x + 15, 22), (x + 9, 22)],
+                fill=clair, outline=INK, width=1.2)
+        # facettes de la couronne
+        db.poly([(x, 22), (x + 9, 22), (x + 12, 30)], fill=clair)
+        db.poly([(x + 24, 22), (x + 15, 22), (x + 12, 30)], fill=sombre)
+        # facettes du pavillon
+        db.poly([(x + 12, 30), (x + 9, 22), (x + 6, 34)], fill=fill)
+        db.poly([(x + 12, 30), (x + 15, 22), (x + 18, 34)], fill=sombre)
+        # étincelles en croix
+        db.line([(x + 9, 8), (x + 9, 12)], fill="#FFFFFF", width=1.4)
+        db.line([(x + 7, 10), (x + 11, 10)], fill="#FFFFFF", width=1.4)
+    # petit cabochon au premier plan
+    db.ellipse((26, 44, 40, 58), fill="#58B6C9", outline=INK, width=1.8)
+    db.ellipse((29, 47, 34, 52), fill="#A8DEE8")
+    if img is not None:
+        radial(img, 11, 18, 9, (255, 255, 255), 40, steps=6)
+        radial(img, 39, 18, 9, (255, 255, 255), 40, steps=6)
 
 
-def res_gibier(d):
-    """Gibier : cuissot pendue (viande + os)."""
-    d.ellipse((16, 22, 50, 52), fill="#8A4A34", outline=INK, width=2)
-    d.ellipse((22, 30, 36, 44), fill="#A86046")
-    d.rrect((40, 8, 48, 30), 5, fill="#F2F0E8", outline=INK, width=2)
-    d.ellipse((36, 4, 46, 14), fill="#F2F0E8", outline=INK, width=2)
-    d.ellipse((42, 4, 52, 14), fill="#F2F0E8", outline=INK, width=2)
+def res_gibier(db, da=None, w=64, h=64, img=None):
+    """Gibier : cuissot pendue par une corde — viande lissée persillée,
+    os à moelle à double pommeau, modelés dégradés."""
+    # corde de suspension
+    db.smooth_line([(32, 0), (33, 6), (32, 12)], fill="#8A6A40", width=1.8)
+    # os : tige + double pommeau
+    db.rrect((40, 8, 48, 32), 4, fill="#F2F0E8", outline=INK, width=2)
+    db.ellipse((34, 2, 45, 13), fill="#F2F0E8", outline=INK, width=2)
+    db.ellipse((43, 2, 54, 13), fill="#F2F0E8", outline=INK, width=2)
+    # cuissot : masse musculeuse lissée, gros bout vers le bas
+    viande = [(30, 20), (38, 22), (42, 28), (44, 38), (40, 48), (30, 54),
+              (18, 52), (12, 42), (13, 30), (20, 22)]
+    db.smooth_poly(viande, fill="#8A4A34")
+    db.smooth_line(viande + [viande[0]], fill=INK, width=2)
+    # persillage + partie claire
+    db.smooth_poly([(20, 30), (30, 28), (34, 36), (28, 44), (19, 41)],
+                   fill="#A86046")
+    db.smooth_line([(24, 26), (30, 32), (28, 40)], fill="#B87A5E", width=1.6)
+    db.smooth_line([(18, 34), (24, 38)], fill="#B87A5E", width=1.4)
+    # modelés : lumière sur le haut de la viande, ombre au bas
+    if img is not None:
+        vgrad(img, (12, 20, 44, 40), (255, 255, 255), 28, 0, steps=12)
+        vgrad(img, (14, 42, 44, 54), (20, 20, 30), 0, 26, steps=8)
 
 
 def res_or(d):
