@@ -2875,11 +2875,11 @@ def res_inconnue(db, da=None, w=64, h=64, img=None):
     # éclats de la pierre (taille)
     db.poly([(24, 44), (30, 40), (28, 47)], fill="#B8B4AC")
     db.poly([(34, 14), (40, 11), (38, 17)], fill="#B8B4AC")
-    # « ? » doré : arc, fût, point
-    db.arc((25, 14, 39, 32), 130, 410, fill=OR, width=4.5)
-    db.line([(32, 28), (32, 36)], fill=OR, width=4.5)
-    db.ellipse((28, 39, 36, 47), fill=OR, outline="#8A641C", width=1.5)
-    db.ellipse((30, 41, 33, 44), fill="#F0D070")
+    # « ? » doré : crochet bien ouvert en bas-gauche, fût, point
+    db.arc((24, 12, 40, 32), 200, 440, fill=OR, width=5)
+    db.line([(33, 31), (31, 38)], fill=OR, width=5)
+    db.ellipse((27, 40, 35, 48), fill=OR, outline="#8A641C", width=1.5)
+    db.ellipse((29.5, 42.5, 32.5, 45.5), fill="#F0D070")
     # lueur du « ? »
     if img is not None:
         radial(img, 32, 26, 14, (255, 220, 120), 60, steps=7)
