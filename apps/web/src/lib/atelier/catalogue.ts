@@ -242,6 +242,22 @@ function dirigeants(): AssetAtelier[] {
       sorte: 'sprite',
       sprite: 'dirigeant_napoleon',
     },
+    {
+      id: 'dirigeant_alexandre',
+      categorie: 'dirigeants',
+      nom: 'Alexandre le Grand (Grèce) — portrait 256×256, diadème et cuirasse au soleil de Vergine',
+      source: `${SRC_GENERATEUR('dirigeant_alexandre')} (rendu sans calque accent)`,
+      sorte: 'sprite',
+      sprite: 'dirigeant_alexandre',
+    },
+    {
+      id: 'dirigeant_cleopatre',
+      categorie: 'dirigeants',
+      nom: 'Cléopâtre (Égypte) — portrait 256×256, diadème au uraeus et collier usekh',
+      source: `${SRC_GENERATEUR('dirigeant_cleopatre')} (rendu sans calque accent)`,
+      sorte: 'sprite',
+      sprite: 'dirigeant_cleopatre',
+    },
   ];
 }
 

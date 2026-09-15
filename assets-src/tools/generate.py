@@ -3748,6 +3748,398 @@ def dirigeant_napoleon(db, da=None, w=256, h=256, img=None):
     soft(img, deco)
 
 
+CHEVEUX_ALEX = "#D9C08F"        # blond doré (retour Erik : plus blond que gris)
+CHEVEUX_ALEX_OMBRE = "#B09765"
+CHEVEUX_ALEX_CLAIR = "#F0E1B2"
+SOURCIL_ALEX = "#A8905E"
+OR_CUIRASSE = "#C79E4E"
+OR_CUIRASSE_CLAIR = "#E2BE6E"
+OR_CUIRASSE_SOMBRE = "#96702F"
+ROUGE_CAP = "#8E3036"           # pteryges / cape bordeaux
+ROUGE_CAP_SOMBRE = "#6C242A"
+ARGENT_BRAS = "#BCC1CB"
+ARGENT_BRAS_SOMBRE = "#8E939E"
+
+
+def soleil_vergina(d, cx, cy, r_out, r_in, fill, outline):
+    """Étoile à 12 rayons (soleil d'Argead) — médaillon de cuirasse."""
+    pts = []
+    for i in range(24):
+        ang = math.pi * i / 12
+        r = r_out if i % 2 == 0 else r_in
+        pts.append((cx + r * math.cos(ang), cy - r * math.sin(ang)))
+    d.poly(pts, fill=fill, outline=outline)
+
+
+def dirigeant_alexandre(db, da=None, w=256, h=256, img=None):
+    """Portrait Alexandre le Grand (Grèce) 256×256, fond transparent, style
+    facetté du jeu (référence Erik suivie de près) : visage jeune déterminé
+    3/4 gauche, cheveux ondulés blond cendré, diadème doré double, cuirasse
+    dorée anatomique au soleil de Vergine, pteryges bordeaux à l'épaule,
+    brassard d'argent, cape rouge."""
+    assert img is not None, "dirigeant_alexandre requiert l'image de base (modelés soft)"
+
+    # ---------------------------------------------------------- buste
+    def buste(d):
+        d.poly([(28, 256), (22, 214), (38, 188), (62, 172), (94, 162),
+                (128, 158), (162, 162), (194, 172), (218, 188), (234, 214),
+                (228, 256)], fill=OR_CUIRASSE)
+        d.poly([(28, 256), (22, 214), (38, 188), (62, 172), (94, 162),
+                (120, 159), (112, 256)], fill=OR_CUIRASSE_CLAIR)
+        d.poly([(228, 256), (234, 214), (218, 188), (194, 172), (166, 162),
+                (152, 164), (166, 256)], fill=OR_CUIRASSE_SOMBRE)
+        # modelé anatomique : clavicules, sillon pectoral, abdos sculptés
+        d.smooth_line([(92, 184), (114, 192), (128, 194)], fill=OR_CUIRASSE_SOMBRE, width=2.2)
+        d.smooth_line([(164, 184), (142, 192), (128, 194)], fill=OR_CUIRASSE_SOMBRE, width=2.2)
+        d.smooth_line([(128, 198), (128, 254)], fill=OR_CUIRASSE_SOMBRE, width=2.2)
+        d.smooth_line([(104, 214), (124, 216)], fill=OR_CUIRASSE_SOMBRE, width=1.8)
+        d.smooth_line([(132, 216), (152, 214)], fill=OR_CUIRASSE_SOMBRE, width=1.8)
+        d.smooth_line([(104, 234), (124, 236)], fill=OR_CUIRASSE_SOMBRE, width=1.8)
+        d.smooth_line([(132, 236), (152, 234)], fill=OR_CUIRASSE_SOMBRE, width=1.8)
+        # reflet lumière gauche sur les pectoraux
+        d.smooth_poly([(96, 194), (118, 200), (116, 214), (98, 208)], fill=OR_CUIRASSE_CLAIR)
+        # col rouge sous l'encolure de cuirasse
+        d.poly([(104, 156), (152, 156), (158, 172), (100, 172)], fill=ROUGE_CAP_SOMBRE)
+        d.line([(104, 166), (152, 166)], fill=ROUGE_CAP, width=2.4)
+
+    def epaulettes(d):
+        # sangles dorées à clou rond, posées sur le haut des épaules
+        for sx, sy in ((78, 182), (180, 184)):
+            d.smooth_poly([(sx - 18, sy - 12), (sx + 18, sy - 10), (sx + 16, sy + 8),
+                           (sx - 16, sy + 6)], fill=OR_CUIRASSE_CLAIR,
+                          outline=OR_CUIRASSE_SOMBRE, width=1.2)
+            d.ellipse([sx - 4, sy - 4, sx + 4, sy + 4], fill=OR_TEMP,
+                      outline=OR_CUIRASSE_SOMBRE, width=1.0)
+
+    def soleil(d):
+        soleil_vergina(d, 128, 216, 20, 8, OR_CUIRASSE_CLAIR, OR_CUIRASSE_SOMBRE)
+        d.ellipse([124, 212, 132, 220], fill=OR_TEMP,
+                  outline=OR_CUIRASSE_SOMBRE, width=0.8)
+
+    def pteryges(d):
+        # épaule/bras droit (bord droit de l'image) : lanières de cuir bordeaux
+        # à bordure dorée, cape drapée derrière
+        d.smooth_poly([(178, 172), (214, 184), (234, 206), (242, 234),
+                       (240, 256), (216, 256), (204, 224), (188, 196)],
+                      fill=ROUGE_CAP_SOMBRE)
+        d.smooth_poly([(180, 176), (210, 186), (226, 208), (232, 232),
+                       (224, 232), (212, 208), (192, 192)], fill=ROUGE_CAP)
+        for i, (x0, y0, x1) in enumerate(((184, 204, 200), (194, 212, 210),
+                                          (204, 220, 220), (214, 230, 230))):
+            ln = 46 - (i % 2) * 8
+            d.poly([(x0, y0), (x0 + 9, y0 + 3), (x1 + 2, y0 + ln),
+                    (x1 - 7, y0 + ln - 3)], fill=ROUGE_CAP)
+            d.poly([(x0 + 1, y0 + ln - 8), (x1 + 1, y0 + ln - 5),
+                    (x1 - 2, y0 + ln), (x1 - 7, y0 + ln - 3)], fill=OR_CUIRASSE)
+        # visage de cape à gauche, dans l'ombre
+        d.poly([(28, 256), (22, 214), (34, 192), (48, 180), (56, 256)],
+               fill=ROUGE_CAP_SOMBRE)
+
+    def bras(d):
+        # bras droit du dirigeant (bord droit) : peau + brassard d'argent
+        d.smooth_poly([(200, 208), (220, 218), (230, 238), (234, 256),
+                       (208, 256), (202, 234), (192, 218)], fill=PEAU_OMBRE)
+        d.smooth_poly([(203, 212), (216, 224), (223, 244), (214, 252),
+                       (206, 234), (196, 220)], fill=PEAU)
+        d.poly([(196, 224), (226, 233), (224, 250), (194, 241)],
+               fill=ARGENT_BRAS)
+        d.poly([(196, 224), (226, 233), (225, 238), (195, 229)],
+               fill="#D8DCE2")
+        d.line([(195, 241), (224, 250)], fill=ARGENT_BRAS_SOMBRE, width=1.6)
+
+    def tete(d):
+        d.poly([(112, 138), (142, 138), (146, 168), (108, 168)], fill=PEAU_OMBRE)
+        # ovale 3/4 gauche, grand (gros plan buste)
+        d.smooth_poly([(126, 60), (146, 66), (158, 86), (159, 110),
+                       (152, 130), (140, 144), (126, 147), (112, 143),
+                       (101, 129), (95, 109), (96, 87), (107, 68)], fill=PEAU)
+        d.poly([(126, 60), (146, 66), (158, 86), (151, 106), (128, 100),
+                (106, 86), (107, 68)], fill=PEAU_CLAIR)
+        d.poly([(159, 110), (152, 130), (140, 144), (126, 147), (135, 124),
+                (149, 110)], fill=PEAU_OMBRE)
+        # oreille droite
+        d.ellipse([150, 106, 160, 122], fill=PEAU, outline=PEAU_FAUCE, width=1.0)
+        d.line([(153, 110), (155, 117)], fill=PEAU_FAUCE, width=1.2)
+        # sourcils froncés (déterminé)
+        d.smooth_line([(103, 99), (111, 95), (121, 96)], fill=SOURCIL_ALEX, width=3.4)
+        d.smooth_line([(128, 96), (139, 94), (148, 97)], fill=SOURCIL_ALEX, width=3.4)
+        # yeux bleu-vert
+        for ex, ey in ((111, 101), (137, 100)):
+            d.ellipse([ex - 7, ey - 5.5, ex + 7, ey + 5.5], fill="#F4F1EA")
+            d.ellipse([ex - 3, ey - 3.4, ex + 3, ey + 3.4], fill="#4E7E8C")
+            d.ellipse([ex - 1.3, ey - 1.6, ex + 1.3, ey + 1.6], fill=INK)
+            d.line([(ex - 7, ey - 5.5), (ex + 7, ey - 5.5)], fill=PEAU_FAUCE, width=1.2)
+        # nez (3/4 : arête décalée à gauche)
+        d.smooth_line([(128, 100), (123, 118), (119, 124)], fill=PEAU_FAUCE, width=2.2)
+        d.poly([(119, 124), (130, 122), (133, 126), (124, 129)], fill=PEAU_OMBRE)
+        # bouche ferme
+        d.line([(114, 135), (135, 134)], fill="#9A5F42", width=2.6)
+        d.line([(114, 135), (110, 133)], fill=PEAU_FAUCE, width=1.2)
+        d.line([(135, 134), (139, 132)], fill=PEAU_FAUCE, width=1.2)
+        d.poly([(119, 140), (133, 140), (126, 146)], fill=PEAU_OMBRE)
+
+    def cheveux(d):
+        # masse ondulée blond cendré : base moulante + couronne de boucles
+        # (ellipses à facettes) sur la silhouette et les joues
+        d.smooth_poly([(92, 96), (92, 72), (104, 54), (126, 46), (148, 50),
+                       (162, 64), (168, 84), (168, 108), (164, 128),
+                       (156, 142), (148, 150), (142, 142), (150, 128),
+                       (156, 110), (156, 90), (150, 72), (136, 60),
+                       (122, 58), (108, 66), (100, 82)],
+                      fill=CHEVEUX_ALEX)
+        # ailes balayées depuis la raie centrale, front dégagé
+        d.smooth_poly([(124, 50), (110, 58), (102, 72), (100, 88), (104, 96),
+                       (109, 84), (116, 70), (124, 60)], fill=CHEVEUX_ALEX)
+        d.smooth_poly([(124, 50), (138, 56), (150, 70), (154, 88), (150, 96),
+                       (146, 82), (138, 68), (127, 60)], fill=CHEVEUX_ALEX_OMBRE)
+        d.smooth_line([(124, 50), (124, 62)], fill=CHEVEUX_ALEX_OMBRE, width=2.0)
+        # couronne de boucles fondues — pourtour, tailles variées
+        curls = [
+            (102, 62, 8), (118, 50, 9), (134, 48, 8), (148, 54, 8), (160, 66, 8),
+            (168, 82, 8), (171, 99, 8), (168, 116, 8), (161, 131, 8),
+            (151, 143, 7),
+            (95, 78, 8), (89, 94, 8), (87, 111, 8), (89, 128, 8), (95, 142, 7),
+        ]
+        for i, (cx, cy, r) in enumerate(curls):
+            fill = CHEVEUX_ALEX if i % 3 else CHEVEUX_ALEX_OMBRE
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill)
+            d.ellipse([cx - r + 2, cy - r + 1, cx - r + 5, cy - r + 4],
+                      fill=CHEVEUX_ALEX_CLAIR)
+        # boucles encadrant les joues, devant les oreilles
+        for cx, cy, r, f in ((95, 116, 6, CHEVEUX_ALEX), (96, 129, 6, CHEVEUX_ALEX_OMBRE),
+                             (99, 141, 5, CHEVEUX_ALEX), (159, 112, 6, CHEVEUX_ALEX_OMBRE),
+                             (158, 125, 6, CHEVEUX_ALEX), (155, 137, 5, CHEVEUX_ALEX_OMBRE)):
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=f)
+        d.smooth_line([(98, 62), (112, 50)], fill=CHEVEUX_ALEX_CLAIR, width=2.4)
+
+    def diademe(d):
+        # bandeau doré double, posé sur la chevelure au-dessus du front
+        d.smooth_line([(88, 94), (124, 80), (172, 92)], fill=OR_CUIRASSE, width=5.2)
+        d.smooth_line([(87, 89), (124, 75), (173, 87)], fill=OR_CUIRASSE, width=2.4)
+        d.smooth_line([(88, 91), (124, 77.5), (172, 89)], fill=OR_TEMP, width=1.4)
+
+    soft(img, buste)
+    soft(img, epaulettes)
+    soft(img, soleil)
+    soft_clip(img, pteryges)
+    soft(img, bras)
+    soft(img, tete)
+    soft(img, cheveux)
+    soft(img, diademe)
+
+
+CHEVEUX_CLEO = "#1E1C2A"        # noir bleuté (référence Erik)
+CHEVEUX_CLEO_REFLET = "#3A3752"
+PEAU_CLEO = "#DCAB7C"           # peau chaude bronzée
+PEAU_CLEO_CLAIR = "#EBC597"
+PEAU_CLEO_OMBRE = "#B97F52"
+LAPIS = "#2C4E9C"
+LAPIS_CLAIR = "#4A72C4"
+TURQUOISE = "#2E9B8F"
+ROUGE_GEMME = "#B03A3A"
+NAVY_CAP = "#27345E"
+NAVY_CAP_CLAIR = "#3A4A80"
+
+
+def etoile(d, cx, cy, r, fill):
+    """Petite étoile 4 pointes (cape de Cléopâtre)."""
+    d.poly([(cx, cy - r), (cx + r * .3, cy - r * .3), (cx + r, cy),
+            (cx + r * .3, cy + r * .3), (cx, cy + r), (cx - r * .3, cy + r * .3),
+            (cx - r, cy), (cx - r * .3, cy - r * .3)], fill=fill)
+
+
+def dirigeant_cleopatre(db, da=None, w=256, h=256, img=None):
+    """Portrait Cléopâtre (Égypte) 256×256, fond transparent, style facetté
+    du jeu (référence Erik suivie de près) : coupe noire à frange, diadème
+    doré au uraeus, regard vert kohl, collier usekh à gemmes, robe de lin
+    plissée, cape bleu nuit étoilée, brassard-serpent doré."""
+    assert img is not None, "dirigeant_cleopatre requiert l'image de base (modelés soft)"
+
+    def buste(d):
+        # cou raccordé aux épaules : peau claire, fine ombre portée du menton
+        d.poly([(118, 134), (140, 134), (144, 174), (114, 174)], fill=PEAU_CLEO)
+        d.poly([(118, 134), (140, 134), (143, 150), (116, 150)], fill=PEAU_CLEO_CLAIR)
+        d.poly([(116, 150), (142, 150), (141, 160), (117, 160)], fill=PEAU_CLEO_OMBRE)
+        d.poly([(64, 256), (58, 220), (70, 202), (90, 186), (112, 176),
+                (128, 172), (144, 176), (166, 186), (186, 202), (198, 220),
+                (192, 256)], fill=PEAU_CLEO)
+        d.poly([(64, 256), (58, 224), (70, 204), (90, 190), (114, 182),
+                (122, 181), (110, 256)], fill=PEAU_CLEO_CLAIR)
+        d.poly([(192, 256), (198, 224), (186, 204), (166, 190), (148, 183),
+                (156, 256)], fill=PEAU_CLEO_OMBRE)
+        # deltoïdes (facettes)
+        d.smooth_poly([(70, 200), (84, 192), (92, 200), (80, 210)],
+                      fill=PEAU_CLEO_CLAIR)
+        d.smooth_poly([(186, 200), (172, 192), (164, 200), (176, 210)],
+                      fill=PEAU_CLEO_OMBRE)
+        # robe de lin : drapé asymétrique, pli diagonal
+        d.poly([(90, 256), (98, 204), (128, 193), (154, 202), (162, 256)],
+               fill=BLANC_UNI)
+        d.smooth_line([(102, 206), (94, 256)], fill=BLANC_OMBRE, width=1.4)
+        d.smooth_line([(116, 198), (106, 256)], fill=BLANC_OMBRE, width=1.4)
+        d.smooth_line([(140, 199), (148, 256)], fill=BLANC_OMBRE, width=1.4)
+        d.smooth_poly([(128, 194), (154, 202), (148, 226), (124, 218)],
+                      fill="#F7F4EC")
+        # ceinture dorée en bas
+        d.poly([(96, 250), (160, 250), (160, 256), (96, 256)], fill=OR_CUIRASSE)
+        d.poly([(96, 250), (160, 250), (160, 253), (96, 253)], fill=OR_CUIRASSE_CLAIR)
+        d.ellipse([122, 248, 134, 258], fill=OR_TEMP,
+                  outline=OR_CUIRASSE_SOMBRE, width=1.0)
+
+    def cape(d):
+        # cape bleu nuit étoilée, plus pleine, drapée sur son épaule gauche
+        d.smooth_poly([(144, 174), (184, 184), (208, 206), (220, 236),
+                       (222, 256), (160, 256), (146, 214)], fill=NAVY_CAP)
+        d.smooth_poly([(146, 176), (180, 186), (202, 208), (212, 236),
+                       (210, 256), (200, 256), (196, 222), (180, 198)],
+                      fill=NAVY_CAP_CLAIR)
+        d.smooth_line([(158, 186), (168, 256)], fill="#1D2748", width=2.0)
+        for cx, cy, r in ((180, 210, 2.6), (196, 198, 2.2), (206, 224, 2.6),
+                          (192, 238, 2.4), (214, 252, 2.2), (172, 230, 2.0),
+                          (200, 174, 2.0), (216, 214, 2.0)):
+            etoile(d, cx, cy, r, OR_TEMP)
+
+    def bras(d):
+        # bras nu (bord gauche) + brassard-serpent doré, plus bas
+        d.smooth_poly([(60, 208), (46, 226), (36, 246), (38, 256), (64, 256),
+                       (64, 232), (64, 214)], fill=PEAU_CLEO_OMBRE)
+        d.smooth_poly([(62, 212), (52, 228), (44, 246), (48, 254), (58, 252),
+                       (58, 232)], fill=PEAU_CLEO)
+        # serpent enroulé : spires nettes horizontales + tête dressée,
+        # entièrement sur le membre (rien coupé au bord)
+        d.ellipse([42, 222, 70, 236], fill=(0, 0, 0, 0),
+                  outline=OR_CUIRASSE_CLAIR, width=3.2)
+        d.ellipse([44, 234, 70, 247], fill=(0, 0, 0, 0),
+                  outline=OR_CUIRASSE, width=2.8)
+        d.taper([(56, 228), (58, 218), (55, 210), (59, 204)], 3.0, 1.4,
+                OR_CUIRASSE_CLAIR)
+        d.ellipse([55, 198, 63, 206], fill=OR_CUIRASSE_CLAIR,
+                  outline=OR_CUIRASSE_SOMBRE, width=0.8)
+        d.ellipse([59, 200, 62, 203], fill=INK)
+
+    def collier(d):
+        # grand collier usekh : bandes d'or et gemmes lapis/turquoise/rouge,
+        # posé bas sur la poitrine
+        def arc_band(dy_out, dy_in):
+            outer = [(80, 160 + dy_out), (96, 186 + dy_out), (128, 199 + dy_out),
+                     (160, 186 + dy_out), (176, 160 + dy_out)]
+            inner = [(176, 160 + dy_in), (160, 186 + dy_in), (128, 199 + dy_in),
+                     (96, 186 + dy_in), (80, 160 + dy_in)]
+            return outer + inner
+        d.smooth_poly(arc_band(0, 12), fill=OR_CUIRASSE_CLAIR,
+                      outline=OR_CUIRASSE_SOMBRE, width=1.0)
+        d.smooth_poly(arc_band(13, 21), fill=OR_CUIRASSE)
+        # segments de gemmes sur la bande inférieure, alignés sur l'arc
+        gems = (LAPIS, TURQUOISE, ROUGE_GEMME, LAPIS_CLAIR, ROUGE_GEMME,
+                TURQUOISE, LAPIS)
+        for i, g in enumerate(gems):
+            x0 = 86 + i * 12
+            dy = 8 * (1 - ((x0 + 4 - 128) / 50) ** 2)
+            d.poly([(x0, 186 + dy), (x0 + 8, 186 + dy), (x0 + 7, 195 + dy),
+                    (x0 - 1, 195 + dy)], fill=g)
+        # pendant central : goutte lapis au serpent doré
+        d.smooth_poly([(122, 202), (134, 202), (132, 220), (128, 226),
+                       (124, 220)], fill=LAPIS, outline=OR_CUIRASSE_CLAIR, width=1.2)
+        d.ellipse([125, 206, 131, 212], fill=OR_CUIRASSE_CLAIR)
+        d.smooth_line([(128, 212), (128, 220)], fill=OR_CUIRASSE_CLAIR, width=1.6)
+        # contours d'or entre les bandes
+        d.smooth_line([(80, 173), (96, 199), (128, 212), (160, 199), (176, 173)],
+                      fill=OR_TEMP, width=1.2)
+
+    def tete(d):
+        d.poly([(116, 140), (142, 140), (146, 168), (112, 168)], fill=PEAU_CLEO_OMBRE)
+        # ovale féminin aux joues pleines, mâchoire douce
+        d.smooth_poly([(128, 72), (147, 78), (156, 98), (157, 120),
+                       (151, 140), (140, 152), (128, 155), (116, 152),
+                       (105, 140), (99, 120), (100, 98), (109, 78)], fill=PEAU_CLEO)
+        d.poly([(128, 72), (147, 78), (156, 98), (150, 114), (128, 108),
+                (108, 96), (109, 78)], fill=PEAU_CLEO_CLAIR)
+        # ombre de jawline discrète le long du bord droit (pas de triangle
+        # sous la joue — retour Erik)
+        d.poly([(157, 120), (151, 140), (140, 152), (130, 155), (143, 133),
+                (153, 116)], fill=PEAU_CLEO_OMBRE)
+        # joues pleines : facettes de pommettes
+        d.smooth_poly([(105, 118), (113, 122), (111, 132), (104, 128)],
+                      fill=PEAU_CLEO_CLAIR)
+        d.smooth_poly([(151, 118), (143, 122), (145, 132), (152, 128)],
+                      fill=PEAU_CLEO_CLAIR)
+        # sourcils sombres, arqués justes (autorité, pas surprise)
+        d.smooth_line([(105, 98), (116, 95), (124, 96)], fill=CHEVEUX_CLEO, width=3.0)
+        d.smooth_line([(130, 96), (139, 95), (150, 98)], fill=CHEVEUX_CLEO, width=3.0)
+        # yeux verts au kohl, paupière droite, regard assuré
+        for ex, ey, wing in ((114, 105, -1), (142, 104, 1)):
+            d.ellipse([ex - 7, ey - 5, ex + 7, ey + 5], fill="#F2EEE4")
+            d.ellipse([ex - 3.8, ey - 4, ex + 3.8, ey + 4], fill="#6E7A3A")
+            d.ellipse([ex - 1.6, ey - 1.9, ex + 1.6, ey + 1.9], fill=INK)
+            d.ellipse([ex - 1.2, ey - 3.4, ex + 3.2, ey - 0.4], fill="#8A9450")
+            d.line([(ex - 7, ey - 4), (ex + 7, ey - 4.5)], fill="#14121E", width=2.0)
+            d.poly([(ex + wing * 6, ey - 4.5), (ex + wing * 10, ey - 7.5),
+                    (ex + wing * 7, ey - 1.5)], fill="#14121E")
+            d.line([(ex - 4, ey + 4.5), (ex + 4, ey + 4.5)], fill=PEAU_CLEO_OMBRE, width=1.2)
+        # nez fin
+        d.smooth_line([(128, 106), (125, 124), (122, 129)], fill=PEAU_CLEO_OMBRE, width=2)
+        d.poly([(122, 129), (131, 128), (133, 131), (125, 133)], fill=PEAU_CLEO_OMBRE)
+        # léger sourire assuré
+        d.poly([(119, 136), (137, 136), (133, 142), (123, 142)], fill="#B06A55")
+        d.smooth_line([(119, 136), (137, 136)], fill="#7E4234", width=1.6)
+        d.smooth_line([(117, 134), (122, 136)], fill=PEAU_CLEO_OMBRE, width=1.2)
+        d.smooth_line([(134, 136), (139, 134)], fill=PEAU_CLEO_OMBRE, width=1.2)
+
+    def cheveux_arriere(d):
+        # coupe noire : masse arrière (peinte SOUS le visage), tombant aux
+        # épaules, reflets bleutés, bord inférieur taillé à la ligne
+        d.smooth_poly([(86, 112), (84, 86), (94, 62), (118, 48), (142, 48),
+                       (164, 62), (174, 86), (176, 112), (174, 136),
+                       (170, 154), (160, 166), (96, 166), (86, 154),
+                       (82, 132)], fill=CHEVEUX_CLEO)
+        for x0, y0 in ((92, 96), (100, 76), (160, 82), (168, 108), (164, 130),
+                       (90, 128)):
+            d.line([(x0, y0), (x0 - 2, y0 + 26)], fill=CHEVEUX_CLEO_REFLET, width=2.2)
+
+    def cheveux_devant(d):
+        # frange droite sur le front, relevée pour dégager le visage
+        d.smooth_poly([(103, 90), (106, 74), (120, 66), (140, 66), (152, 76),
+                       (154, 92), (150, 93), (146, 85), (138, 82), (128, 83),
+                       (118, 82), (110, 87), (107, 93)], fill=CHEVEUX_CLEO)
+        d.smooth_line([(106, 78), (128, 70), (150, 80)], fill=CHEVEUX_CLEO_REFLET, width=2.0)
+        # rideaux latéraux écartés du visage, pointes nettes
+        d.smooth_poly([(99, 88), (95, 102), (93, 122), (94, 144), (98, 160),
+                       (104, 172), (112, 174), (108, 148), (104, 118),
+                       (102, 96)], fill=CHEVEUX_CLEO)
+        d.smooth_poly([(157, 90), (161, 104), (163, 124), (162, 146),
+                       (158, 160), (152, 172), (144, 174), (148, 148),
+                       (152, 118), (154, 98)], fill=CHEVEUX_CLEO)
+        d.poly([(104, 172), (113, 176), (108, 188)], fill=CHEVEUX_CLEO)
+        d.poly([(152, 172), (143, 176), (148, 188)], fill=CHEVEUX_CLEO)
+        d.smooth_line([(96, 100), (94, 128), (98, 154)],
+                      fill=CHEVEUX_CLEO_REFLET, width=1.6)
+        d.smooth_line([(160, 102), (162, 130), (158, 156)],
+                      fill=CHEVEUX_CLEO_REFLET, width=1.6)
+
+    def diademe(d):
+        # bandeau doré sur la frange + uraeus (cobra dressé)
+        d.smooth_line([(90, 92), (128, 80), (176, 94)], fill=OR_CUIRASSE, width=6.0)
+        d.smooth_line([(89, 86), (128, 74), (177, 88)], fill=OR_CUIRASSE, width=2.4)
+        d.smooth_line([(90, 88.5), (128, 76.5), (176, 90.5)], fill=OR_TEMP, width=1.4)
+        # uraeus au centre-droit du bandeau
+        d.taper([(148, 80), (149, 70), (147, 62), (150, 55)], 4.4, 2.4,
+                OR_CUIRASSE_CLAIR)
+        d.ellipse([144, 46, 156, 58], fill=OR_CUIRASSE_CLAIR,
+                  outline=OR_CUIRASSE_SOMBRE, width=1.0)
+        d.ellipse([147, 49, 153, 55], fill=TURQUOISE)
+        d.ellipse([149, 51, 152, 54], fill=INK)
+        d.smooth_line([(146, 58), (143, 66), (146, 74)], fill=OR_CUIRASSE, width=2.0)
+
+    soft(img, buste)
+    soft_clip(img, cape)
+    soft(img, bras)
+    soft(img, cheveux_arriere)
+    soft(img, tete)
+    soft(img, cheveux_devant)
+    soft_clip(img, collier)
+    soft(img, diademe)
+
+
 def main():
     EXPORTS.mkdir(exist_ok=True)
 
@@ -3888,6 +4280,8 @@ def main():
     # (zéro accent joueur sur les portraits — handoff ATELIER-DIRIGEANTS §4).
     dirigeants = {
         "dirigeant_napoleon": (256, 256, dirigeant_napoleon),
+        "dirigeant_alexandre": (256, 256, dirigeant_alexandre),
+        "dirigeant_cleopatre": (256, 256, dirigeant_cleopatre),
     }
 
     for name, painter in tiles.items():
