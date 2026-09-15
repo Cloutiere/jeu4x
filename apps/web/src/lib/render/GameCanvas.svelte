@@ -26,6 +26,8 @@
   import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
   import type { Point } from './arrows.js';
   import { BADGE_FONDATION, etatFondationColon } from './fondation.js';
+  import { BADGE_POPULATION } from './badge-population.js';
+  import { iconeCommerceRendement } from './rendements.js';
   import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable } from './interaction.js';
   import type { ClickAction } from './interaction.js';
   // Chantier V1 (L3) — couche hybride : terrain Three.js + sprites PixiJS
@@ -830,15 +832,25 @@
     prodFill.height = 8;
     prodFill.tint = 0xf0c419;
     prodFill.position.set(-38, 26);
+    // MENU-VILLE-RETOUCHES : badge de population SUR la case de la ville
+    // (libère la tuile voisine et son icône de rendement) — constantes 🔶
+    // calibrables à l'œil dans render/badge-population.ts.
     const popBg = new Graphics();
-    popBg.circle(52, -66, 15).fill({ color: 0x1b1b22, alpha: 0.85 });
+    popBg
+      .circle(BADGE_POPULATION.x, BADGE_POPULATION.y, BADGE_POPULATION.rayon)
+      .fill({ color: BADGE_POPULATION.remplissage, alpha: BADGE_POPULATION.alpha })
+      .stroke({
+        color: BADGE_POPULATION.contour.couleur,
+        width: BADGE_POPULATION.contour.largeur,
+        alpha: BADGE_POPULATION.contour.alpha,
+      });
     const popText = new Text({
       text: '1',
-      style: { fontFamily: 'system-ui, sans-serif', fontSize: 20, fill: 0xffffff, fontWeight: '700' },
+      style: { fontFamily: 'system-ui, sans-serif', fontSize: BADGE_POPULATION.police, fill: 0xffffff, fontWeight: '700' },
     });
     popText.label = 'pop';
     popText.anchor.set(0.5, 0.5);
-    popText.position.set(52, -66);
+    popText.position.set(BADGE_POPULATION.x, BADGE_POPULATION.y);
     c.addChild(base, accent, prodFill, popBg, popText);
     c.label = cityId;
     return c;
@@ -1202,31 +1214,33 @@
 
     // Overlay des rendements (Phase 6 L3, masquable) : sur chaque case
     // explorée à rendements, une ligne par ressource non nulle — icône
-    // (nourriture / production / commerce) + valeur générée. Phase 7b (R-90) :
-    // les cases TRAVAILLÉES par une ville (et la case de ville elle-même)
-    // affichent or/science selon la conversion de cette ville au lieu du
-    // commerce ; les cases non travaillées gardent le commerce (potentiel).
+    // (nourriture / production / commerce) + valeur générée.
     // MENU-VILLE (retour d'Erik) : en vue ville SANS le bouton Rendements, les
     // icônes de rendement ne s'affichent QUE sur les tuiles cultivables par la
     // ville affichée (son rayon de travail) — rien sur les tuiles extérieures.
-    let limiteRendements: Set<string> | null = null;
-    if (vueVilleId && !showYields && scene.state) {
+    // MENU-VILLE-RETOUCHES : en vue ville, TOUT le rayon cultivable de la
+    // ville affichée reflète sa conversion R-90 (icônes or/science, en temps
+    // réel avec le bouton ⇄) ; en vue carte du monde, toujours l'icône
+    // commerce (potentiel), quelle que soit la conversion.
+    let conversionVilleVue: 'gold' | 'science' | null = null;
+    let rayonVilleVue: Set<string> | null = null;
+    if (vueVilleId && scene.state) {
       const cityVue = scene.state.cities[vueVilleId];
       if (cityVue && scene.explored.has(tileKeyOf(cityVue))) {
-        limiteRendements = new Set();
+        conversionVilleVue = cityVue.conversion;
+        rayonVilleVue = new Set();
         const rayon = workRadiusOf(cityVue.buildings);
         for (let dq = -rayon; dq <= rayon; dq++) {
           for (let dr = Math.max(-rayon, -dq - rayon); dr <= Math.min(rayon, -dq + rayon); dr++) {
-            limiteRendements.add(tileKeyOf({ q: cityVue.q + dq, r: cityVue.r + dr }));
+            rayonVilleVue.add(tileKeyOf({ q: cityVue.q + dq, r: cityVue.r + dr }));
           }
         }
       }
     }
-
+    const limiteRendements = showYields ? null : rayonVilleVue;
     // MENU-VILLE : les rendements sont affichés AUTOMATIQUEMENT en vue ville
     // (icônes de rendement sur tout le rayon cultivable, même hors assignation).
     if (showYields || vueVilleId) {
-      const workedBy = workedTileOwner();
       // R-93 : le bonus de la ressource identifiée et accessible au joueur
       // s'ajoute aux rendements du terrain dans l'affichage, comme dans
       // tileYield. Le marqueur « inconnue » (R-92) n'est pas dans RESOURCES :
@@ -1248,18 +1262,20 @@
             };
           }
         }
-        const converter = workedBy.get(key);
         const rows: Array<{ icon: Texture | null; count: number; tint: number }> = [];
         if (y.food !== 0) rows.push({ icon: textures!.yieldIcons.food, count: y.food, tint: 0xffffff });
         if (y.production !== 0) rows.push({ icon: textures!.yieldIcons.production, count: y.production, tint: 0xffffff });
         if (y.commerce !== 0) {
-          // Case travaillée : le commerce est converti (R-90) — or ou science.
+          // MENU-VILLE-RETOUCHES : en vue ville (rayon de la ville affichée),
+          // l'icône reflète la conversion R-90 ; en vue carte, commerce.
+          const dansRayonVilleVue = conversionVilleVue !== null && rayonVilleVue?.has(key);
+          const icone = iconeCommerceRendement(dansRayonVilleVue ? conversionVilleVue : null);
           const icon =
-            converter
-              ? converter.conversion === 'science'
-                ? textures!.yieldIcons.science
-                : textures!.yieldIcons.gold
-              : textures!.yieldIcons.commerce;
+            icone === 'science'
+              ? textures!.yieldIcons.science
+              : icone === 'or'
+                ? textures!.yieldIcons.gold
+                : textures!.yieldIcons.commerce;
           rows.push({ icon, count: y.commerce, tint: 0xffffff });
         }
         if (rows.length === 0) continue;

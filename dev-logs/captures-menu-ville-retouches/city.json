@@ -1,0 +1,24 @@
+{
+  "id": "c1",
+  "q": 30,
+  "r": 6,
+  "owner": "p1",
+  "pop": 2,
+  "capital": true,
+  "foodStored": 4,
+  "production": null,
+  "workedTiles": [
+    "29,6",
+    "29,7"
+  ],
+  "buildings": [
+    "palais"
+  ],
+  "conversion": "gold",
+  "cultureCumulee": 2,
+  "wonders": [],
+  "pendingSalvage": 0,
+  "settledGreatPersons": [],
+  "wasCaptured": false,
+  "name": "Ville1"
+}
