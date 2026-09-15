@@ -2500,40 +2500,39 @@ def res_fer(db, da=None, w=64, h=64, img=None):
 
 
 def res_gemmes(db, da=None, w=64, h=64, img=None):
-    """Gemmes : géode — bloc rocheux ouvert d'où poussent des cristaux
-    prisme (améthyste, cyan), pointes brillantes, éclats."""
-    # socle rocheux
-    roche = [(8, 54), (10, 44), (20, 40), (36, 40), (50, 44), (56, 52),
-             (52, 60), (14, 60)]
-    db.smooth_poly(roche, fill="#4A4A52", steps=6)
-    db.smooth_line(roche + [roche[0]], fill=INK, width=2)
-    db.poly([(14, 46), (26, 42), (24, 50)], fill="#5E5E68")
-    # grand cristal améthyste central
-    def cristal(cx, base, sommet, w, fill, clair):
-        x0, y0 = base
-        x1, y1 = sommet
-        dx, dy = x1 - x0, y1 - y0
-        n = (-dy, dx)
-        ln = math.hypot(*n) or 1
-        nx, ny = n[0] / ln, n[1] / ln
-        pts = [(x0 + nx * w, y0 + ny * w), (x1 + nx * w * 0.5, y1 + ny * w * 0.5),
-               (x1, y1), (x1 - nx * w * 0.5, y1 - ny * w * 0.5),
-               (x0 - nx * w, y0 - ny * w)]
-        db.poly(pts, fill=fill, outline=INK, width=1.8)
-        db.line([(x0, y0), (x1, y1)], fill=clair, width=1.4)
-        db.line([(x1 - nx * w * 0.5, y1 - ny * w * 0.5),
-                 (x1 - nx * w * 0.2, y1 - ny * w * 0.2 - 3)],
-                fill="#FFFFFF", width=1.4)
-    cristal(30, (30, 44), (26, 8), 6, "#9C6FD6", "#CBADEF")
-    cristal(40, (38, 44), (46, 14), 4.5, "#58B6C9", "#A8DEE8")
-    cristal(22, (22, 46), (14, 22), 3.5, "#58B6C9", "#A8DEE8")
-    cristal(46, (44, 46), (54, 30), 2.5, "#CBADEF", "#FFFFFF")
-    # éclat en croix au-dessus du grand cristal
-    db.line([(26, 2), (26, 6)], fill="#FFFFFF", width=1.3)
-    db.line([(24, 4), (28, 4)], fill="#FFFFFF", width=1.3)
-    # modelés : lumière sur le socle
+    """Gemmes : gros diamant taille brillant unique (référence Erik) —
+    table, ceinture, pavillon en pointe, facettes alternées, éclats
+    blancs sur la ceinture, reflet spéculaire."""
+    ROUGE, SOMBRE, CLAIR = "#C24545", "#8A2F2A", "#E8907E"
+    T_G, T_D = (20, 12), (44, 12)          # coins de la table
+    G = [(4, 26), (20, 26), (44, 26), (60, 26)]  # nœuds de la ceinture
+    CULEE = (32, 60)
+    # silhouette : table + ceinture + pavillon
+    db.poly([T_G, T_D, G[3], CULEE, G[0]], fill=ROUGE, outline=INK, width=2.4)
+    # couronne : triangles entre table et ceinture
+    db.poly([G[0], T_G, G[1]], fill=SOMBRE)
+    db.poly([T_G, G[1], (32, 26)], fill=ROUGE)
+    db.poly([T_D, (32, 26), G[2]], fill=SOMBRE)
+    db.poly([T_D, G[2], G[3]], fill=SOMBRE)
+    # pavillon : trois fuseaux convergeant vers la pointe
+    db.poly([G[0], G[1], CULEE], fill=CLAIR)
+    db.poly([G[1], G[2], CULEE], fill=ROUGE)
+    db.poly([G[2], G[3], CULEE], fill=SOMBRE)
+    # arêtes internes
+    db.line([T_G, G[1]], fill=INK, width=1.4)
+    db.line([T_D, G[2]], fill=INK, width=1.4)
+    db.line([(32, 26), CULEE], fill=INK, width=1.4)
+    db.line([G[1], G[2]], fill=INK, width=1.4)
+    # reflet spéculaire sur la couronne droite
+    db.ellipse((40, 18, 48, 26), fill="#FFFFFF")
+    db.ellipse((42, 20, 46, 24), fill=(255, 255, 255, 150))
+    # éclats blancs alignés sur la ceinture
+    for gx, gy in ((4, 26), (20, 26), (32, 26), (44, 26), (60, 26)):
+        db.line([(gx - 2, gy), (gx + 2, gy)], fill="#FFFFFF", width=1.4)
+        db.line([(gx, gy - 2), (gx, gy + 2)], fill="#FFFFFF", width=1.4)
+    # modelés : voile de lumière sur la table
     if img is not None:
-        vgrad(img, (8, 40, 56, 50), (255, 255, 255), 22, 0, steps=8)
+        radial(img, 32, 16, 16, (255, 255, 255), 30, steps=6)
 
 
 def res_gibier(db, da=None, w=64, h=64, img=None):
