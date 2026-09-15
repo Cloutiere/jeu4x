@@ -45,6 +45,7 @@ SOL_CHEMIN = "#A98F63"   # brun chemin
 SOL_TERRE = "#8F7B57"    # terre
 OR = "#D9A93F"
 OR_SOMBRE = "#A87E28"
+OR_TEMP = "#C9A24E"      # doré clair (reflets épaulettes, atelier dirigeants)
 SCIENCE = "#6FA3B8"
 NOURRITURE = "#8FA84E"
 PRODUCTION = "#9C7A4E"
@@ -3601,6 +3602,152 @@ def unite_icbm(db, da, w, h):
     da.ellipse((cx - 10, ground - 196, cx + 10, ground - 176), fill="#FFFFFF")
 
 
+# ---------------------------------------------------------------- dirigeants
+# ATELIER-DIRIGEANTS (handoff) : portraits de dirigeants en GRAND FORMAT,
+# sans calque accent (zéro accent joueur sur les portraits). Itération
+# validée à l'œil par Erik (Napoléon, France) — session du 15/09/2026.
+
+PEAU = "#E8B98C"
+PEAU_CLAIR = "#F2CFA8"
+PEAU_OMBRE = "#C9976B"
+PEAU_FAUCE = "#B87F52"
+CHEVEUX = "#3A2A1E"
+MILIT = "#2E3D5C"        # bleu marine uniforme
+MILIT_CLAIR = "#3E527A"
+MILIT_SOMBRE = "#222E48"
+BLANC_UNI = "#EFEAE0"
+BLANC_OMBRE = "#D8D2C4"
+ROUGE_ECHARPE = "#B03A3A"
+BLEU_ECHARPE = "#3B5FA8"
+
+
+def dirigeant_napoleon(db, da=None, w=256, h=256, img=None):
+    """Portrait Napoléon 256×256, fond transparent, style facetté du jeu :
+    bicorne à cocarde, visage déterminé, uniforme marine à revers blancs,
+    épaulettes dorées, écharpe tricolore, pose « main dans la chemise »."""
+    assert img is not None, "dirigeant_napoleon requiert l'image de base (modelés soft)"
+    # ---------------------------------------------------------- silhouette
+    def buste(d):
+        d.poly([(58, 256), (52, 214), (62, 190), (78, 176), (100, 166),
+                (128, 162), (156, 166), (178, 176), (194, 190), (204, 214),
+                (198, 256)], fill=MILIT)
+        d.poly([(58, 256), (52, 214), (62, 190), (78, 176), (100, 166),
+                (118, 163), (108, 256)], fill=MILIT_CLAIR)
+        d.poly([(198, 256), (204, 214), (194, 190), (178, 176), (156, 166),
+                (146, 168), (156, 256)], fill=MILIT_SOMBRE)
+        d.poly([(100, 168), (118, 178), (122, 214), (108, 232), (100, 208),
+                (96, 178)], fill=BLANC_UNI)
+        d.poly([(156, 168), (140, 178), (136, 214), (148, 230), (156, 206),
+                (160, 178)], fill=BLANC_OMBRE)
+        d.poly([(106, 156), (150, 156), (154, 172), (102, 172)], fill=MILIT_SOMBRE)
+        d.line([(106, 164), (150, 164)], fill=OR, width=2.4)
+        d.line([(108, 169), (148, 169)], fill=OR_SOMBRE, width=1.6)
+
+    def echarpe(d):
+        d.poly([(64, 174), (80, 168), (176, 252), (166, 256), (158, 248),
+                (58, 184)], fill=ROUGE_ECHARPE)
+        d.poly([(72, 171), (90, 168), (180, 254), (172, 256), (168, 246),
+                (76, 180)], fill=BLANC_UNI)
+        d.poly([(80, 168), (94, 169), (184, 254), (176, 256), (172, 248),
+                (74, 176)], fill=BLEU_ECHARPE)
+
+    def bras_droit(d):
+        # bras partant SOUS l'épaulette, coude saillant hors silhouette,
+        # avant-bras horizontal à la taille, main sous le pan de la veste
+        d.smooth_poly([(88, 194), (68, 196), (48, 208), (32, 224), (26, 238),
+                       (36, 248), (56, 244), (72, 228), (84, 210)],
+                      fill=MILIT_CLAIR)
+        d.poly([(84, 210), (72, 228), (56, 244), (66, 244), (80, 230),
+                (90, 212)], fill=MILIT)
+        d.poly([(26, 238), (36, 248), (56, 244), (48, 250), (34, 250)],
+               fill="#33456A")
+        d.smooth_line([(68, 196), (48, 208), (32, 224), (26, 238), (36, 248),
+                       (56, 244)], fill="#161E30", width=2.0)
+        d.smooth_poly([(34, 236), (62, 232), (92, 228), (106, 228), (108, 242),
+                       (88, 244), (56, 246), (38, 248)], fill=MILIT_CLAIR)
+        d.poly([(34, 236), (62, 230), (92, 226), (96, 227), (58, 240),
+                (40, 244)], fill="#4A5E88")
+        d.poly([(90, 227), (102, 227), (106, 243), (94, 245)], fill=BLANC_UNI)
+        d.line([(90, 227), (94, 245)], fill=BLANC_OMBRE, width=1.2)
+        d.smooth_poly([(102, 228), (118, 227), (120, 239), (103, 240)],
+                      fill=PEAU_OMBRE)
+        d.poly([(103, 228), (118, 227), (119, 231), (104, 232)], fill=PEAU_CLAIR)
+        d.poly([(106, 235), (122, 233), (124, 248), (106, 250)], fill=MILIT)
+        d.smooth_line([(106, 235), (122, 233)], fill="#1A2438", width=1.6)
+
+    def ombre_bras(d):
+        d.poly([(80, 178), (94, 190), (94, 216), (82, 234), (90, 232),
+                (100, 212), (100, 188), (88, 176)], fill=(20, 26, 42, 110))
+
+    def epaulettes(d):
+        for sx, flip in ((78, -1), (178, 1)):
+            d.ellipse([sx - 22, 176, sx + 22, 200], fill=OR)
+            d.ellipse([sx - 22, 176, sx + 22, 200], outline=OR_SOMBRE, width=1.4)
+            for i in range(-4, 5):
+                x0 = sx + i * 4.4
+                d.line([(x0, 192), (x0 + flip * 2, 212)], fill=OR_SOMBRE,
+                       width=2.2)
+            d.line([(sx - 20, 188), (sx + 20, 188)], fill=OR_TEMP, width=1.2)
+
+    def tete(d):
+        d.poly([(118, 148), (140, 148), (142, 172), (116, 172)], fill=PEAU_OMBRE)
+        d.smooth_poly([(128, 72), (148, 78), (158, 98), (157, 122),
+                       (149, 142), (138, 155), (128, 157), (118, 155),
+                       (107, 142), (99, 122), (98, 98), (108, 78)], fill=PEAU)
+        d.poly([(128, 72), (148, 78), (158, 98), (150, 114), (128, 108),
+                (110, 94), (108, 78)], fill=PEAU_CLAIR)
+        d.poly([(157, 122), (149, 142), (138, 155), (128, 157), (135, 132),
+                (147, 118)], fill=PEAU_OMBRE)
+        d.smooth_poly([(108, 80), (120, 70), (140, 70), (152, 80), (155, 92),
+                       (140, 79), (118, 81), (106, 92)], fill=CHEVEUX)
+        d.poly([(102, 104), (107, 103), (108, 124), (104, 126)], fill=CHEVEUX)
+        d.poly([(154, 104), (149, 103), (148, 124), (152, 126)], fill=CHEVEUX)
+        d.line([(106, 101), (121, 106)], fill=CHEVEUX, width=3.0)
+        d.line([(135, 106), (150, 101)], fill=CHEVEUX, width=3.0)
+        for ex in (113, 143):
+            d.ellipse([ex - 6, 107, ex + 6, 117], fill="#F4F1EA")
+            d.ellipse([ex - 2.6, 109, ex + 2.6, 115], fill="#4A6B8A")
+            d.ellipse([ex - 1, 110.5, ex + 1, 113.5], fill=INK)
+            d.line([(ex - 6, 107), (ex + 6, 107)], fill=PEAU_FAUCE, width=1.4)
+        d.smooth_line([(128, 110), (126, 126), (123, 132)], fill=PEAU_FAUCE,
+                      width=2)
+        d.poly([(119, 134), (128, 130), (137, 134), (128, 139)], fill=PEAU_OMBRE)
+        d.line([(118, 145), (138, 145)], fill="#8E5438", width=2.6)
+        d.line([(118, 145), (114, 143)], fill=PEAU_FAUCE, width=1.4)
+        d.line([(138, 145), (142, 143)], fill=PEAU_FAUCE, width=1.4)
+        d.line([(128, 104), (128, 110)], fill=PEAU_FAUCE, width=1.2)
+        d.poly([(121, 150), (135, 150), (128, 156)], fill=PEAU_OMBRE)
+
+    def bicorne(d):
+        d.poly([(36, 74), (64, 44), (104, 30), (152, 30), (192, 44), (220, 74),
+                (200, 86), (160, 70), (128, 64), (96, 70), (56, 86)],
+               fill="#22222A")
+        d.poly([(64, 44), (104, 30), (152, 30), (192, 44), (170, 50), (128, 40),
+                (86, 50)], fill="#33333E")
+        d.poly([(36, 74), (64, 44), (86, 50), (64, 80)], fill="#3C3C4A")
+        cx, cy = 92, 58
+        d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=BLEU_ECHARPE)
+        d.ellipse([cx - 9, cy - 9, cx + 9, cy + 9], fill=BLANC_UNI)
+        d.ellipse([cx - 4.5, cy - 4.5, cx + 4.5, cy + 4.5], fill=ROUGE_ECHARPE)
+        d.smooth_line([(96, 70), (128, 64), (160, 70)], fill=OR, width=2.8)
+        d.smooth_poly([(194, 46), (202, 30), (210, 16), (222, 4), (216, 22),
+                       (210, 38), (202, 54), (196, 62)], fill="#D8D4C8")
+        d.smooth_line([(198, 56), (214, 12)], fill="#B8B4A8", width=1.2)
+
+    def deco(d):
+        d.ellipse([146, 196, 158, 208], fill=BLANC_UNI, outline=OR, width=1.2)
+        d.poly([(148, 210), (156, 210), (152, 222)], fill=ROUGE_ECHARPE)
+
+    soft(img, buste)
+    soft_clip(img, echarpe)
+    soft(img, bras_droit)
+    soft_clip(img, ombre_bras)
+    soft(img, epaulettes)
+    soft(img, tete)
+    soft(img, bicorne)
+    soft(img, deco)
+
+
 def main():
     EXPORTS.mkdir(exist_ok=True)
 
@@ -3737,6 +3884,11 @@ def main():
         # l'état filtré quand l'identité est masquée (jamais dans resources.json).
         "res_inconnue": res_inconnue,
     }
+    # ATELIER-DIRIGEANTS : portraits grand format, rendu SANS calque accent
+    # (zéro accent joueur sur les portraits — handoff ATELIER-DIRIGEANTS §4).
+    dirigeants = {
+        "dirigeant_napoleon": (256, 256, dirigeant_napoleon),
+    }
 
     for name, painter in tiles.items():
         render_tile(name, painter)
@@ -3746,11 +3898,17 @@ def main():
         render_icon(name, painter)
     for name, painter in resources.items():
         render_icon(name, painter)
+    for name, (w, h, painter) in dirigeants.items():
+        img = new_canvas(w, h)
+        painter(D(img), None, w, h, img)
+        downscale(img, w, h).save(EXPORTS / f"{name}.png")
 
     write_palette()
-    write_licenses(len(tiles), len(entities), len(icons), len(resources))
+    write_licenses(len(tiles), len(entities), len(icons), len(resources),
+                   len(dirigeants))
     print(f"OK — {len(tiles)} tuiles, {len(entities)*2} fichiers entités, "
-          f"{len(icons)} icônes, {len(resources)} ressources → {EXPORTS}")
+          f"{len(icons)} icônes, {len(resources)} ressources, "
+          f"{len(dirigeants)} dirigeants → {EXPORTS}")
 
 
 def write_palette():
@@ -3783,7 +3941,7 @@ def write_palette():
     (ROOT / "palette.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def write_licenses(n_tiles, n_entities, n_icons, n_resources):
+def write_licenses(n_tiles, n_entities, n_icons, n_resources, n_dirigeants=0):
     txt = f"""# LICENSES.md
 
 Tous les fichiers de `exports/` sont générés **procéduralement** par
@@ -3796,6 +3954,7 @@ Aucune ressource tierce, aucune police, aucun texte incorporé.
 | {n_entities} entités `unite_*`/`ville_*` (+ `_accent`) | Généré par tools/generate.py | Licence projet |
 | {n_icons} icônes `icone_*.png` | Généré par tools/generate.py | Licence projet |
 | {n_resources} ressources `res_*.png` (Phase 7c, R-91) | Généré par tools/generate.py | Licence projet |
+| {n_dirigeants} dirigeants `dirigeant_*.png` (grand format, sans accent) | Généré par tools/generate.py | Licence projet |
 
 Annexe palette : voir `palette.txt` (hex figés).
 

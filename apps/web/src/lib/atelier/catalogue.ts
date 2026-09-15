@@ -25,7 +25,7 @@ import {
 } from '@game/rules';
 
 /** Catégories de l'atelier (ordre de la barre). */
-export const CATEGORIES = ['terrains3d', 'structures3d', 'cartes', 'sprites', 'overlays'] as const;
+export const CATEGORIES = ['terrains3d', 'structures3d', 'cartes', 'sprites', 'dirigeants', 'overlays'] as const;
 export type CategorieAtelier = (typeof CATEGORIES)[number];
 
 export const NOM_CATEGORIE: Record<CategorieAtelier, string> = {
@@ -33,6 +33,7 @@ export const NOM_CATEGORIE: Record<CategorieAtelier, string> = {
   structures3d: 'Structures 3D',
   cartes: 'Cartes-ressources',
   sprites: 'Sprites 2D',
+  dirigeants: 'Dirigeants',
   overlays: 'Overlays',
 };
 
@@ -230,6 +231,20 @@ function sprites2d(): AssetAtelier[] {
   return out;
 }
 
+// --- Dirigeants (ATELIER-DIRIGEANTS : portraits grand format, SANS accent) ---
+function dirigeants(): AssetAtelier[] {
+  return [
+    {
+      id: 'dirigeant_napoleon',
+      categorie: 'dirigeants',
+      nom: 'Napoléon Bonaparte (France) — portrait 256×256, main dans la chemise',
+      source: `${SRC_GENERATEUR('dirigeant_napoleon')} (rendu sans calque accent)`,
+      sorte: 'sprite',
+      sprite: 'dirigeant_napoleon',
+    },
+  ];
+}
+
 // --- Overlays (effets PROGRAMMATIQUES — aucun fichier, fiche seule) ---------
 function overlays(): AssetAtelier[] {
   return [
@@ -250,6 +265,7 @@ export function construireCatalogue(): AssetAtelier[] {
     ...unitesGlb(),
     ...cartesRessources(),
     ...sprites2d(),
+    ...dirigeants(),
     ...overlays(),
   ];
 }

@@ -26,7 +26,7 @@ const parCategorie = (cat: string): AssetAtelier[] =>
 const idsDe = (cat: string): string[] => parCategorie(cat).map((a) => a.id);
 
 describe('atelier — catalogue L0', () => {
-  it('est déterministe et couvre les 5 catégories', () => {
+  it('est déterministe et couvre toutes les catégories (6 depuis ATELIER-DIRIGEANTS)', () => {
     expect(CATALOGUE).toEqual(construireCatalogue());
     expect([...new Set(CATALOGUE.map((a) => a.categorie))].sort()).toEqual([...CATEGORIES].sort());
     for (const cat of CATEGORIES) expect(idsDe(cat).length).toBeGreaterThan(0);
@@ -115,6 +115,18 @@ describe('atelier — catalogue L0', () => {
     expect(idsDe('sprites')).toContain('res_inconnue');
     expect(RESOURCE_UNKNOWN).toBe('inconnue');
     expect(existsSync(path.join(ART_DIR, 'res_inconnue.png'))).toBe(true);
+  });
+
+  it('chaque dirigeant catalogué a son PNG grand format SANS variante accent', () => {
+    const dirigeants = parCategorie('dirigeants');
+    expect(dirigeants.length).toBeGreaterThan(0);
+    for (const a of dirigeants) {
+      expect(a.sprite, a.id).toBeDefined();
+      expect(a.sprite!.includes('#'), `${a.id} : aucun accent joueur sur les portraits`).toBe(false);
+      expect(existsSync(path.join(ART_DIR, `${a.sprite}.png`)), `${a.sprite}.png`).toBe(true);
+      expect(existsSync(path.join(ART_DIR, `${a.sprite}_accent.png`)),
+        `${a.sprite}_accent.png ne doit PAS exister (portraits sans accent)`).toBe(false);
+    }
   });
 
   it('les .glb servis sont exposés ou surchargés (barbare_v3 via la table propriétaire, T4bis)', () => {
