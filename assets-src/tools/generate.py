@@ -2581,28 +2581,34 @@ def res_gibier(db, da=None, w=64, h=64, img=None):
 
 
 def res_or(db, da=None, w=64, h=64, img=None):
-    """Or : couronne royale dorée — cerclage à arches, pointes à perles,
-    joyaux sertis, modelés métalliques."""
-    # pointes à perles (derrière le cerclage)
-    for i, x in enumerate((14, 26, 38, 50)):
-        h = 26 if i in (1, 2) else 20
-        pts = [(x - 6, 36), (x, 36 - h), (x + 6, 36)]
-        db.poly(pts, fill=OR, outline="#8A641C", width=1.8)
-        db.ellipse((x - 3, 36 - h - 6, x + 3, 36 - h), fill="#F0D070",
-                   outline="#8A641C", width=1.4)
-    # cerclage : anneau lissé
-    cerclage = [(8, 38), (10, 48), (18, 54), (32, 56), (46, 54), (54, 48),
-                (56, 38), (46, 42), (32, 44), (18, 42)]
-    db.smooth_poly(cerclage, fill=OR)
-    db.smooth_line(cerclage + [cerclage[0]], fill="#8A641C", width=2)
-    # joyaux sertis sur le cerclage
-    for x, c in ((18, "#C24545"), (32, "#3B6FD6"), (46, "#3B9C5A")):
-        db.ellipse((x - 4, 44, x + 4, 52), fill=c, outline="#8A641C", width=1.4)
-        db.ellipse((x - 2, 46, x, 48), fill="#FFFFFF")
-    # modelés : lumière sur les pointes, ombre sous le cerclage
+    """Or : pyramide de lingots — barreaux trapézoïdaux au poli brillant,
+    estampillage, éclats et modelés métalliques."""
+    def lingot(x, y, s=1.0):
+        pts = [(x, y + 12 * s), (x + 5 * s, y), (x + 25 * s, y),
+               (x + 30 * s, y + 12 * s)]
+        db.poly(pts, fill=OR, outline="#8A641C", width=2)
+        # face supérieure polie
+        db.poly([(x + 5 * s, y), (x + 25 * s, y), (x + 23 * s, y + 3 * s),
+                 (x + 7 * s, y + 3 * s)],
+                fill="#F0D070")
+        # estampillage (poinçon central)
+        db.rrect((x + 12 * s, y + 5 * s, x + 18 * s, y + 9 * s), 1.2,
+                 fill="#C8A030")
+        # éclat sur l'arête
+        db.line([(x + 6 * s, y + 1 * s), (x + 12 * s, y + 1 * s)],
+                fill="#FFF2C0", width=1.4)
+    # rangée du bas
+    lingot(2, 44)
+    lingot(34, 44)
+    # étage du dessus, centré entre les deux
+    lingot(18, 28)
+    # éclat en croix au-dessus
+    db.line([(32, 10), (32, 16)], fill="#FFF2C0", width=1.6)
+    db.line([(29, 13), (35, 13)], fill="#FFF2C0", width=1.6)
+    # modelés : lumière sur l'étage haut, ombre sous la pyramide
     if img is not None:
-        vgrad(img, (8, 12, 56, 34), (255, 244, 200), 36, 0, steps=12)
-        vgrad(img, (10, 46, 56, 58), (80, 50, 0), 0, 30, steps=8)
+        vgrad(img, (2, 28, 64, 42), (255, 244, 200), 34, 0, steps=10)
+        vgrad(img, (4, 46, 62, 58), (80, 50, 0), 0, 28, steps=8)
 
 
 def res_marbre(db, da=None, w=64, h=64, img=None):
