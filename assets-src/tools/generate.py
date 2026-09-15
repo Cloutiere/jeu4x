@@ -2580,33 +2580,82 @@ def res_gibier(db, da=None, w=64, h=64, img=None):
         vgrad(img, (10, 38, 46, 47), (20, 20, 30), 0, 24, steps=8)
 
 
-def res_or(d):
-    """Or : pépites brillantes."""
-    for x, y, s in [(10, 34, 1.0), (30, 40, 0.9), (20, 20, 0.75)]:
-        pts = [(x, y + 14 * s), (x + 5 * s, y + 3 * s), (x + 16 * s, y),
-               (x + 22 * s, y + 9 * s), (x + 14 * s, y + 16 * s)]
-        d.poly(pts, fill=OR, outline="#8A641C", width=2)
-        d.poly([(x + 5 * s, y + 3 * s), (x + 11 * s, y + 6 * s), (x + 5 * s, y + 10 * s)],
-               fill="#F0D070")
-    _shine(d, 30, 22, 2.4)
+def res_or(db, da=None, w=64, h=64, img=None):
+    """Or : couronne royale dorée — cerclage à arches, pointes à perles,
+    joyaux sertis, modelés métalliques."""
+    # pointes à perles (derrière le cerclage)
+    for i, x in enumerate((14, 26, 38, 50)):
+        h = 26 if i in (1, 2) else 20
+        pts = [(x - 6, 36), (x, 36 - h), (x + 6, 36)]
+        db.poly(pts, fill=OR, outline="#8A641C", width=1.8)
+        db.ellipse((x - 3, 36 - h - 6, x + 3, 36 - h), fill="#F0D070",
+                   outline="#8A641C", width=1.4)
+    # cerclage : anneau lissé
+    cerclage = [(8, 38), (10, 48), (18, 54), (32, 56), (46, 54), (54, 48),
+                (56, 38), (46, 42), (32, 44), (18, 42)]
+    db.smooth_poly(cerclage, fill=OR)
+    db.smooth_line(cerclage + [cerclage[0]], fill="#8A641C", width=2)
+    # joyaux sertis sur le cerclage
+    for x, c in ((18, "#C24545"), (32, "#3B6FD6"), (46, "#3B9C5A")):
+        db.ellipse((x - 4, 44, x + 4, 52), fill=c, outline="#8A641C", width=1.4)
+        db.ellipse((x - 2, 46, x, 48), fill="#FFFFFF")
+    # modelés : lumière sur les pointes, ombre sous le cerclage
+    if img is not None:
+        vgrad(img, (8, 12, 56, 34), (255, 244, 200), 36, 0, steps=12)
+        vgrad(img, (10, 46, 56, 58), (80, 50, 0), 0, 30, steps=8)
 
 
-def res_marbre(d):
-    """Marbre : bloc blanc veiné."""
-    d.rrect((12, 14, 52, 58), 3, fill="#F2F2F0", outline=INK, width=2)
-    d.line([(18, 22), (30, 32), (24, 44)], fill="#C9C4BC", width=2.4)
-    d.line([(36, 18), (44, 28), (40, 40), (46, 52)], fill="#C9C4BC", width=2)
-    d.rrect((12, 14, 52, 22), 3, fill="#FFFFFF")
+def res_marbre(db, da=None, w=64, h=64, img=None):
+    """Marbre : colonne antique — chapiteau mouluré, fût cannelé,
+    bases moulurées, veines grises, éclat d'angle."""
+    # socle et plinthe
+    db.rrect((16, 54, 48, 62), 2, fill="#D8D4CC", outline=INK, width=2)
+    db.rrect((18, 48, 46, 56), 2, fill="#E8E4DC", outline=INK, width=1.8)
+    # fût cannelé : bande blanche + cannelures verticales
+    db.rrect((20, 16, 44, 50), 2, fill="#F2F2F0", outline=INK, width=2)
+    for x in (25, 30, 35, 40):
+        db.line([(x, 18), (x, 48)], fill="#C9C4BC", width=1.8)
+    # chapiteau : échinus évasé + abaque
+    db.smooth_poly([(18, 8), (46, 8), (48, 14), (40, 18), (24, 18), (16, 14)],
+                   fill="#F2F2F0")
+    db.smooth_line([(18, 8), (46, 8), (48, 14), (40, 18), (24, 18), (16, 14),
+                    (18, 8)],
+                   fill=INK, width=2)
+    # veines grises traversantes
+    db.smooth_line([(22, 30), (30, 34), (27, 42)], fill="#C9C4BC", width=1.6)
+    db.smooth_line([(36, 20), (41, 26), (38, 36)], fill="#C9C4BC", width=1.4)
+    # éclat d'angle (lumière rasante)
+    db.line([(22, 18), (22, 46)], fill="#FFFFFF", width=2)
+    # modelés : lumière sur le chapiteau, ombre au bas du fût
+    if img is not None:
+        vgrad(img, (16, 8, 48, 18), (255, 255, 255), 32, 0, steps=8)
+        vgrad(img, (20, 40, 44, 50), (20, 20, 30), 0, 22, steps=8)
 
 
-def res_petrole(d):
-    """Pétrole : derrick sombre + goutte noire."""
-    d.poly([(32, 4), (14, 58), (22, 58), (32, 22), (42, 58), (50, 58)],
-           fill="#4E4438", outline=INK, width=1.5)
-    d.line([(20, 44), (44, 44)], fill="#4E4438", width=3)
-    d.line([(24, 30), (40, 30)], fill="#4E4438", width=3)
-    d.ellipse((44, 40, 58, 56), fill="#26262C", outline=INK, width=2)
-    d.ellipse((48, 44, 53, 49), fill="#4A4A52")
+def res_petrole(db, da=None, w=64, h=64, img=None):
+    """Pétrole : pompe de forage (pumpjack) — balancier basculant, pilonne,
+    contrepoids, nappe noire iridescente au sol."""
+    # nappe de pétrole au sol (reflets irisés)
+    db.ellipse((4, 50, 60, 62), fill="#1E1E24")
+    db.ellipse((10, 53, 34, 60), fill="#3A3A6A")
+    db.ellipse((38, 54, 52, 59), fill="#4A6A5A")
+    # montant unique (pylône) du pivot
+    db.rrect((31, 22, 37, 52), 2, fill="#4E4438", outline=INK, width=1.5)
+    # balancier basculant : tête plongeante à gauche, contrepoids à droite
+    db.taper([(14, 24), (54, 14)], 5, 3, "#5E4E3A")
+    db.line([(14, 24), (54, 14)], fill=INK, width=1.2)
+    # pivot
+    db.ellipse((31, 16, 37, 22), fill="#3A3A40", outline=INK, width=1.5)
+    # tête de pompe (arc à l'avant, côté bas)
+    db.ellipse((7, 20, 19, 30), fill="#4E4438", outline=INK, width=1.8)
+    # contrepoids rond à l'arrière (côté haut)
+    db.ellipse((51, 8, 61, 18), fill="#3A3A40", outline=INK, width=1.8)
+    # goutte de pétrole tombant de la tête
+    db.poly([(14, 32), (17, 27), (20, 32)], fill="#26262C", outline=INK, width=1.2)
+    db.ellipse((13, 32, 21, 40), fill="#26262C", outline=INK, width=1.2)
+    # modelés : lumière sur le balancier
+    if img is not None:
+        vgrad(img, (8, 12, 58, 24), (255, 255, 255), 26, 0, steps=8)
 
 
 def res_poisson(db, da=None, w=64, h=64, img=None):
