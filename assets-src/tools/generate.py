@@ -2693,32 +2693,86 @@ def res_poisson(db, da=None, w=64, h=64, img=None):
         radial(img, 24, 33, 9, (255, 255, 255), 34, steps=6)
 
 
-def res_soie(d):
-    """Soie : rouleau d'étoffe violet."
-    """
-    d.rrect((8, 26, 50, 50), 6, fill="#9C6FD6", outline=INK, width=2)
-    d.ellipse((8, 26, 24, 50), fill="#8A5AC4", outline=INK, width=2)
-    d.ellipse((12, 31, 20, 45), fill="#C6A8EC")
-    d.poly([(50, 30), (60, 26), (58, 40), (50, 46)], fill="#B18CE0", outline=INK, width=1.5)
+def res_soie(db, da=None, w=64, h=64, img=None):
+    """Soie : ruban d'étoffe flottant en S — satin violet à reflets,
+    pans effilochés, pli sombre."""
+    # ruban : bord supérieur ondulant puis bord inférieur en retour
+    haut = [(4, 28), (14, 16), (26, 22), (38, 12), (52, 18), (60, 26)]
+    bas = [(56, 34), (44, 26), (32, 34), (20, 28), (10, 34)]
+    pts = haut + bas[::-1]
+    db.smooth_poly(pts, fill="#9C6FD6")
+    db.smooth_line(haut, fill=INK, width=2)
+    db.smooth_line(bas[::-1], fill=INK, width=2)
+    db.line([haut[-1], bas[0]], fill=INK, width=2)
+    db.line([bas[-1], haut[0]], fill=INK, width=2)
+    # reflet satin : vague claire au milieu du ruban
+    db.smooth_line([(10, 26), (22, 20), (34, 25), (46, 16), (56, 24)],
+                   fill="#C6A8EC", width=3.5)
+    # pli sombre en contrebas du reflet
+    db.smooth_line([(14, 31), (26, 26), (38, 31), (50, 24)],
+                   fill="#7A4FB4", width=2.5)
+    # modelés : voile de lumière sur la crête des ondes
+    if img is not None:
+        vgrad(img, (4, 12, 60, 24), (255, 255, 255), 28, 0, steps=8)
 
 
-def res_soufre(d):
-    """Soufre : cristaux jaunes anguleux."""
-    for x, y, s in [(12, 30, 1.0), (30, 38, 0.8), (24, 16, 0.6)]:
-        d.poly([(x, y + 20 * s), (x + 6 * s, y + 4 * s), (x + 16 * s, y),
-                (x + 20 * s, y + 14 * s), (x + 10 * s, y + 22 * s)],
-               fill="#E8D44A", outline="#8A7A1C", width=2)
-        d.poly([(x + 6 * s, y + 4 * s), (x + 12 * s, y + 8 * s), (x + 6 * s, y + 13 * s)],
-               fill="#F5EC9A")
+def res_soufre(db, da=None, w=64, h=64, img=None):
+    """Soufre : fumerolle volcanique — cône rocheux ouvert sur une bouche
+    encroûtée de jaune, coulées soufrées, volutes de vapeur."""
+    # cône rocheux
+    cone = [(8, 58), (14, 36), (24, 28), (40, 28), (50, 36), (56, 58)]
+    db.smooth_poly(cone, fill="#6E6258")
+    db.smooth_line(cone + [cone[0]], fill=INK, width=2)
+    # bouche d'évent : ouverture sombre + croûte jaune
+    db.ellipse((24, 28, 40, 36), fill="#26262C", outline=INK, width=1.8)
+    db.arc((22, 26, 42, 38), 180, 360, fill="#E8D44A", width=3.5)
+    # coulées soufrées sur les flancs
+    db.smooth_line([(26, 36), (22, 46), (24, 56)], fill="#E8D44A", width=3)
+    db.smooth_line([(38, 36), (43, 48), (41, 58)], fill="#D9C43A", width=2.4)
+    # cristaux au pied
+    for x, s in ((12, 1.0), (48, 0.85)):
+        db.poly([(x, 58 - 10 * s), (x + 4 * s, 58 - 16 * s),
+                 (x + 10 * s, 58 - 12 * s), (x + 8 * s, 58)],
+                fill="#F5EC9A", outline="#8A7A1C", width=1.4)
+    # volutes de vapeur jaunâtres
+    db.smooth_line([(30, 24), (27, 18), (33, 12), (30, 5)],
+                   fill="#EAE6C8", width=2.4)
+    db.smooth_line([(38, 25), (41, 20), (38, 15)],
+                   fill="#D8D4B4", width=2)
+    # modelés : lumière sur le flanc gauche
+    if img is not None:
+        vgrad(img, (14, 28, 36, 44), (255, 255, 255), 24, 0, steps=10)
 
 
-def res_teinture(d):
-    """Teinture : chaudron de teint violette + tissu."""
-    d.pieslice((12, 26, 46, 58), 180, 360, fill="#6B4A78", outline=INK, width=2)
-    d.ellipse((12, 34, 46, 42), fill="#8E4FA8", outline=INK, width=2)
-    d.rrect((40, 12, 56, 32), 2, fill="#E3D19A", outline=INK, width=1.5)
-    d.poly([(44, 30), (52, 30), (50, 40), (46, 40)], fill="#B18CE0")
-    d.rrect((18, 50, 40, 58), 3, fill="#5E4E3A")
+def res_teinture(db, da=None, w=64, h=64, img=None):
+    """Teinture : murex de pourpre sur linge taché — coquille crème à
+    cannelures spiralées, canal siphonal épineux, sécrétion violette."""
+    # linge froissé taché de pourpre
+    db.smooth_poly([(6, 52), (20, 46), (44, 48), (58, 54), (48, 62), (14, 62)],
+                   fill="#E3D19A")
+    db.smooth_line([(6, 52), (20, 46), (44, 48), (58, 54), (48, 62), (14, 62),
+                    (6, 52)],
+                   fill=INK, width=1.8)
+    db.ellipse((30, 54, 52, 62), fill="#8E4FA8")
+    # coquille spiralée : gros tour crème, spire lisible, ouverture pourprée
+    db.ellipse((12, 14, 52, 54), fill="#E3D19A", outline=INK, width=2.2)
+    # spirale : enroulement du bord vers le centre (arcs décroissants)
+    db.arc((16, 18, 48, 50), 210, 120, fill="#B89A6A", width=2.2)
+    db.arc((22, 24, 42, 44), 150, 60, fill="#B89A6A", width=1.8)
+    db.arc((27, 29, 37, 39), 120, 30, fill="#B89A6A", width=1.6)
+    # cœur de spire pourpré
+    db.ellipse((29, 31, 35, 37), fill="#8E4FA8", outline=INK, width=1.2)
+    # ouverture : grande ovale pourprée au bas droit, bord de lèvre
+    db.ellipse((32, 32, 50, 52), fill="#8E4FA8", outline=INK, width=1.8)
+    db.ellipse((36, 36, 45, 47), fill="#6B3A88")
+    # petit reflet sur le haut de la coquille
+    db.smooth_line([(18, 22), (26, 17), (36, 16)], fill="#F6EBD4", width=2.4)
+    # goutte de pourpre perlant sur le linge
+    db.ellipse((8, 56, 14, 61), fill="#6B3A88", outline=INK, width=1)
+    # modelés : lumière sur la spire
+    if img is not None:
+        radial(img, 26, 24, 12, (255, 255, 255), 34, steps=6)
+        vgrad(img, (10, 44, 50, 54), (20, 20, 30), 0, 22, steps=8)
 
 
 def res_uranium(d):
