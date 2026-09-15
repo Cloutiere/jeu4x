@@ -8,6 +8,6 @@
   "escalationTurn": 15,
   "units": {
     "initial": "guerrier",
-    "escalated": "archer"
+    "escalated": "guerrier"
   }
 }

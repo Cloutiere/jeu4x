@@ -268,6 +268,23 @@ function occupiedByUnit(board: Board, hex: Hex, except?: UnitId): boolean {
   return occupants(board, hex, except).length > 0;
 }
 
+/**
+ * RÉV. DÉFENSE-DE-PILE (Erik 15/09) — choix du défenseur lorsqu'une case
+ * compte plusieurs unités : 1) la plus grande force de DÉFENSE (stat de base
+ * du type — canon CivRev : guerrier 1, piquier 3, fusilier 5, …) ;
+ * 2) à défense égale, le plus de PV courants ; 3) tie-break R-81 (unitId
+ * croissant). Utilisé par l'assaut de la pile d'un camp barbare (R-96) et par
+ * l'attaque d'une case multi-occupants (R-52).
+ */
+function choisirDefenseur(units: Unit[]): Unit {
+  return [...units].sort(
+    (a, b) =>
+      unitType(b.type).defense - unitType(a.type).defense ||
+      b.hp - a.hp ||
+      compareUnitIds(a.id, b.id),
+  )[0]!;
+}
+
 function cityAt(board: Board, hex: Hex): City | null {
   for (const id of Object.keys(board.st.cities).sort()) {
     const c = board.st.cities[id]!;
@@ -1098,9 +1115,11 @@ function resolveVillageAttack(board: Board, attacker: Unit, village: BarbarianVi
       captureCamp(board, village, attacker);
       return;
     }
-    resolveAttack(board, attacker, defenders[0]!, combatTile);
+    // RÉV. DÉFENSE-DE-PILE : le meilleur défenseur encaisse l'échange.
+    const defender = choisirDefenseur(defenders);
+    resolveAttack(board, attacker, defender, combatTile);
     if (!board.st.units[attacker.id]) return; // attaquant mort : séquence stoppée
-    if (board.st.units[defenders[0]!.id]) return; // survie mutuelle : repli R-54
+    if (board.st.units[defender.id]) return; // survie mutuelle : repli R-54
     if (++guard > 10_000) throw new Error('R-96 : pile non terminale (bug)');
   }
   // Attaquant disparu sans combat (cas pathologique) : rien à faire.
@@ -1434,7 +1453,8 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[], source: Extract
       break;
     }
     // R-42 cas 2 : ennemi stationnaire → l'unité entre, combat planifié.
-    const defender = here[0]!;
+    // RÉV. DÉFENSE-DE-PILE : le meilleur défenseur de la case combat (R-52).
+    const defender = choisirDefenseur(here)!;
     path = [];
     unit.mp -= 1;
     moveUnit(board, unit, next);

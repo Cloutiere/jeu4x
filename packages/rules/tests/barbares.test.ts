@@ -526,6 +526,55 @@ describe('R-96 · Villages barbares', () => {
     expect(result.events.filter((e) => e.type === 'VillageDestroyed')).toHaveLength(0);
   });
 
+  it('R-52 rév. DÉFENSE-DE-PILE : le défenseur est l’unité à la plus grande DÉFENSE (le piquier défend avant le guerrier, malgré l’ordre des ids)', () => {
+    const build = () => {
+      const s = makeState({
+        width: 12,
+        height: 10,
+        villages: [{ q: 5, r: 5 }],
+        units: [
+          { id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 5, r: 5 }, // défense 1 (id le plus petit)
+          { id: 'b2', type: 'piquier', owner: BARBARIAN_ID, q: 5, r: 5 }, // défense 3 — MEILLEUR défenseur
+          { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4, hp: 1 }, // meurt au premier échange
+        ],
+      });
+      for (const id of [...s.villages[0]!.spawnedUnits]) delete s.units[id];
+      s.villages[0]!.spawnedUnits = ['b1', 'b2'];
+      return s;
+    };
+    const { result } = findSeed(build, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }] }, (r) =>
+      r.events.some((e) => e.type === 'UnitDestroyed' && e.unitId === 'u1'),
+    );
+    expect(result.newState.villages).toHaveLength(1);
+    // C'est le PIQUIER (b2, défense 3) qui s'est porté au-devant, pas le guerrier.
+    expect(result.events.filter((e) => e.type === 'CombatExchange').every((e) => e.defenderId === 'b2')).toBe(true);
+    expect(result.newState.units['b1']).toMatchObject({ hp: 3 }); // intact
+  });
+
+  it('R-52 rév. DÉFENSE-DE-PILE : à défense ÉGALE, l’unité avec le plus de PV défend', () => {
+    const build = () => {
+      const s = makeState({
+        width: 12,
+        height: 10,
+        villages: [{ q: 5, r: 5 }],
+        units: [
+          { id: 'b1', type: 'geant', owner: BARBARIAN_ID, q: 5, r: 5, hp: 1 }, // même défense (20), peu de PV
+          { id: 'b2', type: 'geant', owner: BARBARIAN_ID, q: 5, r: 5, hp: 3 }, // plus de PV — défend
+          { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4, hp: 1 },
+        ],
+      });
+      for (const id of [...s.villages[0]!.spawnedUnits]) delete s.units[id];
+      s.villages[0]!.spawnedUnits = ['b1', 'b2'];
+      return s;
+    };
+    const { result } = findSeed(build, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }] }, (r) =>
+      r.events.some((e) => e.type === 'UnitDestroyed' && e.unitId === 'u1'),
+    );
+    expect(result.newState.villages).toHaveLength(1);
+    expect(result.events.filter((e) => e.type === 'CombatExchange').every((e) => e.defenderId === 'b2')).toBe(true);
+    expect(result.newState.units['b1']).toBeDefined(); // b1 (peu de PV) intact — jamais ciblé
+  });
+
   it('BARBARES-PILES · capture : l’attaquant fort ENCHAÎNE (pile purgée un par un), occupe la case, détruit le camp, reçoit la récompense hutte', () => {
     const build = () => {
       const s = makeState({
