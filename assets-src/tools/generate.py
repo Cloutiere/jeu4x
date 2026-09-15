@@ -2148,15 +2148,39 @@ def icone_reseau(d):
     d.line([(26, 51), (38, 51)], fill=INK, width=3)
 
 
-def icone_culture(d):
-    """Culture (Phase 7f, R-113) : lyre violette — jalons culturels."""
-    d.line([(16, 12), (16, 40)], fill="#7A5A96", width=4)
-    d.line([(48, 12), (48, 40)], fill="#7A5A96", width=4)
-    d.arc((16, 14, 48, 46), 190, 350, fill="#9C6FD6", width=4)
-    d.arc((22, 18, 42, 42), 200, 340, fill="#9C6FD6", width=3)
-    d.ellipse((12, 40, 24, 52), fill="#7A5A96", outline=INK, width=2)
-    d.ellipse((40, 40, 52, 52), fill="#7A5A96", outline=INK, width=2)
-    d.ellipse((26, 20, 38, 32), fill="#C4A4D6", outline=INK, width=2)
+def icone_culture(db, da=None, w=64, h=64, img=None):
+    """Culture (réinvention) : masques de théâtre — comédie souriante
+    devant, tragédie sombre derrière, chevauchement net."""
+    # masque de tragédie (arrière, à droite, plus haut) : violet profond
+    trage = [(34, 4), (48, 4), (57, 13), (59, 26), (55, 40), (47, 49),
+             (38, 47), (34, 36)]
+    db.smooth_poly(trage, fill="#6B4A88")
+    db.smooth_line(trage + [trage[0]], fill=INK, width=2)
+    # yeux obliques tristes + sourcils penchés + bouche renversée (arc haut)
+    db.smooth_poly([(39, 16), (46, 14), (44, 19), (40, 19)], fill=INK)
+    db.smooth_poly([(49, 15), (55, 16), (53, 20), (49, 19)], fill=INK)
+    db.arc((39, 30, 53, 44), 200, 340, fill=INK, width=2.6)
+    # masque de comédie (avant, à gauche, plus bas) : violet clair
+    come = [(4, 20), (18, 16), (29, 23), (32, 36), (28, 50), (18, 59),
+            (9, 56), (4, 45)]
+    db.smooth_poly(come, fill="#9C6FD6")
+    db.smooth_line(come + [come[0]], fill=INK, width=2)
+    # yeux ronds pétillants + grand sourire (arc bas)
+    db.ellipse((10, 30, 15, 35), fill=INK)
+    db.ellipse((21, 29, 26, 34), fill=INK)
+    db.arc((10, 34, 27, 48), 25, 155, fill=INK, width=2.8)
+    # joues rehaussées par le sourire
+    db.ellipse((8, 34, 12, 38), fill="#B995DE")
+    db.ellipse((24, 33, 28, 37), fill="#B995DE")
+    # petit nœud de ruban au sommet du masque de comédie
+    db.smooth_poly([(16, 15), (12, 10), (18, 11), (17, 16)], fill="#6B4A88")
+    db.smooth_poly([(21, 14), (25, 9), (26, 14), (22, 16)], fill="#C6A8EC")
+    # modelés : lumière sur le front des deux masques
+    if img is not None:
+        vgrad(img, (4, 14, 32, 30), (255, 255, 255), 30, 0, steps=8)
+        vgrad(img, (34, 4, 59, 18), (255, 255, 255), 22, 0, steps=8)
+
+
 
 
 # ---------------------------------------------------------------- ressources (Phase 7c, R-91)
@@ -2839,17 +2863,31 @@ def res_vin(db, da=None, w=64, h=64, img=None):
         vgrad(img, (14, 48, 52, 62), (20, 20, 30), 0, 24, steps=8)
 
 
-def res_inconnue(d):
+def res_inconnue(db, da=None, w=64, h=64, img=None):
     """Ressource inconnue (R-92, D1 révisée) : marqueur « ? » sur stèle —
-    la présence d'une ressource est visible, pas son identité."""
-    d.ellipse((12, 48, 52, 60), fill="#8A8A92", outline=INK, width=2)   # socle
-    d.rrect((20, 6, 44, 52), 7, fill="#B8B4AC", outline=INK, width=2)   # stèle
-    d.rrect((23, 9, 41, 49), 6, fill="#C9C4BC")
+    la présence d'une ressource est visible, pas son identité.
+    Enrichie : pierre modelée, éclats, « ? » doré luisant."""
+    # socle
+    db.ellipse((12, 50, 52, 60), fill="#8A8A92", outline=INK, width=2)
+    # stèle : pierre chaude à chanfrein
+    db.rrect((20, 6, 44, 54), 7, fill="#B8B4AC", outline=INK, width=2)
+    db.rrect((23, 9, 41, 51), 6, fill="#C9C4BC")
+    # éclats de la pierre (taille)
+    db.poly([(24, 44), (30, 40), (28, 47)], fill="#B8B4AC")
+    db.poly([(34, 14), (40, 11), (38, 17)], fill="#B8B4AC")
     # « ? » doré : arc, fût, point
-    d.arc((25, 14, 39, 32), 130, 410, fill=OR, width=4)
-    d.line([(32, 28), (32, 36)], fill=OR, width=4)
-    d.ellipse((28, 39, 36, 47), fill=OR, outline="#8A641C", width=1.5)
-    _shine(d, 25, 12, 2)
+    db.arc((25, 14, 39, 32), 130, 410, fill=OR, width=4.5)
+    db.line([(32, 28), (32, 36)], fill=OR, width=4.5)
+    db.ellipse((28, 39, 36, 47), fill=OR, outline="#8A641C", width=1.5)
+    db.ellipse((30, 41, 33, 44), fill="#F0D070")
+    # lueur du « ? »
+    if img is not None:
+        radial(img, 32, 26, 14, (255, 220, 120), 60, steps=7)
+        radial(img, 32, 43, 8, (255, 220, 120), 40, steps=5)
+        vgrad(img, (20, 6, 44, 26), (255, 255, 255), 26, 0, steps=8)
+    # étincelle au sommet
+    db.line([(44, 6), (48, 2)], fill="#F0D070", width=1.4)
+    db.line([(42, 2), (46, 6)], fill="#F0D070", width=1.4)
 
 
 # ---------------------------------------------------------------- génération
