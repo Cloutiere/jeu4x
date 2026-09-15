@@ -3,25 +3,33 @@
    * MENU-VILLE (décisions d'Erik du 13/09) — menu DÉDIÉ de la vue ville
    * (double-clic). Contenu EXACT (handoff §M3 — rien d'autre à l'écran) :
    *  1. nom de la ville (VilleN — compteur par joueur) ;
-   *  2. nourriture : +X/tour + tours avant la prochaine population
-   *     (`toursAvantCroissance` — ALIGNEMENT-CROISSANCE, seuils 10 × pop) ;
-   *  3. production : marteaux/tour, item courant (nom + icône) et tours restants ;
+   *  2. nourriture : +X/tour + jauge verte réserve/seuil (10 × pop, R-63)
+   *     + tours avant la prochaine population (`toursAvantCroissance`) ;
+   *  3. production : marteaux/tour, item courant (nom + icône), jauge
+   *     marteaux/coût + tours restants (FUSION-MENU-VILLE : barre portée) ;
    *  4. sciences produites par cette ville ET or produit par cette ville ;
    *  5. or total de la civilisation (trésorerie R-134) ;
    *  6. liste des bâtiments existants ;
    *  7. choix de production par type : onglets unités / bâtiments / merveilles
    *     (mêmes règles moteur — optionsUnites/optionsBatiments/wonderProductionIssue,
    *     garde-fous affichés comme dans CityPanel).
-   * Ce composant NE remplace PAS CityPanel.svelte (carte du monde, en l'état).
-   * Zéro gameplay nouveau : les ordres SetProduction/SetWorkedTile existants.
+   * FUSION-MENU-VILLE (décisions d'Erik du 14/09) : CityPanel est SUPPRIMÉ
+   * (clic simple = sélection muette) — ses bons éléments migrent ICI : jauge
+   * de culture (palier T-27 empire), contrôle de conversion R-90 INTERACTIF
+   * (portage obligatoire — seul point de réglage), flux RushBuy (R-135),
+   * réserve de marteaux (R-130), GP installés, tooltip ALIGNEMENT. Les chips
+   * citoyens ne se portent PAS (la carte et la vue ville font le travail).
+   * Zéro gameplay nouveau : les ordres SetProduction/SetWorkedTile/
+   * SetConversion/RushBuy existants.
    */
-  import { unitType, BUILDINGS, WONDERS, tileYield, tileKeyOf, workRadiusOf, conversionGains, interiorCitizenFor, interiorCountOf, allKnownTechs, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, toursAvantCroissance, populationCap, isWonderObsolete, wonderProductionIssue, eraOfPlayer, civIdOf, neighbors, isWaterTerrain } from '@game/rules';
-  import { civName } from '../lib/labels.js';
+  import { unitType, BUILDINGS, WONDERS, tileYield, tileKeyOf, workRadiusOf, conversionGains, interiorCitizenFor, interiorCountOf, allKnownTechs, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, toursAvantCroissance, populationCap, isWonderObsolete, wonderProductionIssue, eraOfPlayer, civIdOf, neighbors, isWaterTerrain, cultureGains, empirePerCityBonus, effectsFor, rushBuyCostOf, isRushForbidden, RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
+  import { civName, greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, effectiveWorkedTiles } from '../lib/render/interaction.js';
   import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
+  import { jaugeCroissance, jaugeCulture, jaugeProduction } from '../lib/jauges.js';
 
   interface Props {
     view: GameView;
@@ -80,8 +88,13 @@
     for (const b of city.buildings) reduction = Math.max(reduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
     return reduction;
   });
+  const growth = $derived(
+    city ? jaugeCroissance(city.pop, city.foodStored, growthReduction) : { seuil: 0, ratio: 0, plafond: false },
+  );
   const growthEta = $derived(
-    city ? toursAvantCroissance(city.pop, city.foodStored, foodSurplus, growthReduction) : null,
+    city && !growth.plafond && city.foodStored < growth.seuil
+      ? toursAvantCroissance(city.pop, city.foodStored, foodSurplus, growthReduction)
+      : null,
   );
   const atPopulationCap = $derived(!!city && city.pop >= populationCap());
 
@@ -108,7 +121,7 @@
     return item.kind === 'unit' ? '/art/icone_production.png' : '/art/icone_production.png';
   }
   const prodRatio = $derived(
-    city && city.production && prodItem ? Math.max(0, Math.min(1, city.production.progress / itemCost(prodItem))) : 0,
+    city && city.production && prodItem ? jaugeProduction(city.production.progress, itemCost(prodItem)) : 0,
   );
   const prodEta = $derived(
     city && city.production && prodItem && prodPerTurn > 0
@@ -121,6 +134,33 @@
       : null,
   );
 
+  // FUSION-MENU-VILLE — portage du flux RushBuy (R-135) : CityPanel était le
+  // SEUL endroit où le joueur pouvait acheter instantanément — le flux est
+  // porté, pas perdu. Coût et éligibilité = sources uniques moteur.
+  const rush = $derived.by(() => {
+    if (!city || !mine || !city.production || !view.state) return null;
+    const cost = rushBuyCostOf(view.state, city);
+    if (cost === null) {
+      return isRushForbidden(city.production.item)
+        ? { cost: null, allowed: false, reason: 'achat interdit (merveille de victoire — R-135)' }
+        : null;
+    }
+    const player = view.state.players[city.owner];
+    const treasury = player?.treasury ?? 0;
+    if (treasury < cost) return { cost, allowed: false, reason: `trésorerie insuffisante (${treasury} or)` };
+    if (city.production.item.kind === 'unit') {
+      const occupied = Object.values(view.state.units).some(
+        (u) => u.aboard === null && u.q === city.q && u.r === city.r,
+      );
+      if (occupied) return { cost, allowed: false, reason: 'case de ville occupée (pose impossible)' };
+    }
+    return { cost, allowed: true, reason: null };
+  });
+  function rushNow(): void {
+    if (!city || !rush?.allowed) return;
+    client.submitOrder({ type: 'RushBuy', cityId: city.id });
+  }
+
   // ---- 4. Sciences et or produits par CETTE ville (conversion R-90) -------
   function gainsFor(commerce: number): { gold: number; science: number } {
     const base = conversionGains(commerce, city!.conversion, city!.buildings);
@@ -132,6 +172,49 @@
     return { gold: Math.round(base.gold * mult), science: base.science };
   }
   const gains = $derived(yields && city ? gainsFor(yields.commerce) : null);
+
+  // R-90 INTERACTIF (FUSION-MENU-VILLE — portage obligatoire) : CityPanel
+  // était le seul endroit où le joueur pouvait basculer or ⇄ science —
+  // même ordre SetConversion, même sémantique moteur (action immédiate,
+  // modifiable en phase ordres même verrouillé).
+  const conversionEditable = $derived(view.status === 'active' && view.phase === 'orders');
+  function toggleConversion(): void {
+    if (!city || !mine) return;
+    client.setConversion(city.id, city.conversion === 'gold' ? 'science' : 'gold');
+  }
+
+  // R-134 : or DIRECT versé par les ressources Gemmes/Or travaillées.
+  const directGold = $derived.by(() => {
+    if (!city || !view.state) return 0;
+    const techs = view.state.players[city.owner]?.techsUnlocked ?? [];
+    let total = 0;
+    for (const key of city.workedTiles) {
+      const res = view.state.map[key]?.resource;
+      const data = res && res !== RESOURCE_UNKNOWN ? RESOURCES[res] : undefined;
+      if (data?.directGold && (!data.revealedByTech || techs.includes(data.revealedByTech))) total += data.directGold;
+    }
+    return total;
+  });
+
+  // ---- Culture (portage de la jauge CityPanel) — cumul EMPIRE vers le
+  // prochain palier T-27 (GP-CULTURE-EVENEMENTS : Σ cultureCumulee, jamais
+  // soustrait) + culture/tour de CETTE ville (R-113).
+  const culturePaliers = $derived(view.state && engine ? view.state.players[engine]?.culturePaliers ?? 0 : 0);
+  const cultureEmpire = $derived.by(() => {
+    if (!view.state || !engine) return 0;
+    let total = 0;
+    for (const c of Object.values(view.state.cities)) {
+      if (c.owner === engine) total += c.cultureCumulee;
+    }
+    return total;
+  });
+  const culture = $derived(jaugeCulture(cultureEmpire, culturePaliers));
+  const culturePerTurn = $derived.by(() => {
+    if (!city || !view.state || !engine) return 0;
+    const empireBonus = empirePerCityBonus(view.state, engine);
+    const govEffects = effectsFor(view.state.players[city.owner]!);
+    return cultureGains(city, empireBonus.culture, allTechs, govEffects);
+  });
 
   // ---- 5. Or total de la civilisation (trésorerie R-134) ------------------
   const treasury = $derived(
@@ -269,6 +352,24 @@
             Aucun surplus — croissance à l'arrêt
           {/if}
         </p>
+        <!-- FUSION-MENU-VILLE : barre verte (style de l'ancien CityPanel) —
+             réserve vs seuil 10 × pop actuelle (R-63, jaugeCroissance pur). -->
+        <div class="gauge" title="Croissance (R-63) : réserve vs seuil 10 × population actuelle ({city.pop} → {growth.seuil}) — les citoyens ne consomment AUCUNE nourriture">
+          <span class="lab"><img src="/art/icone_nourriture.png" alt="" onerror={hideImg} /> {city.foodStored} / {growth.seuil}</span>
+          <div class="bar"><div class="fill growth-fill" style:width={`${growth.ratio * 100}%`}></div></div>
+        </div>
+        <p class="hint center-floor" title="ALIGNEMENT-CROISSANCE : la case de ville ne produit RIEN (0 N / 0 P / 0 C) — la ville vit par ses citoyens (travaillés ou intérieurs, R-60/R-60bis).">Case de ville : aucun rendement — la ville vit par ses citoyens</p>
+      </section>
+
+      <!-- Culture (portage de la jauge CityPanel) : progression EMPIRE vers le
+           prochain palier T-27 + culture/tour de cette ville (R-113). -->
+      <section class="block cult">
+        <h2>Culture de la civilisation</h2>
+        <div class="gauge" title="Culture de la CIVILISATION (GP-CULTURE-EVENEMENTS · D1/D6) : cumul EMPIRE des cultures de villes (jamais soustrait) — chaque palier T-27 franchi = +1 événement culturel ET 1 Grand Personnage (ville la plus cultivée)">
+          <span class="lab"><img src="/art/icone_culture.png" alt="" onerror={hideImg} /> Palier {culturePaliers + 1} : {cultureEmpire} / {culture.seuil}</span>
+          <div class="bar"><div class="fill culture-fill" style:width={`${culture.ratio * 100}%`}></div></div>
+        </div>
+        <p class="eta">{culturePerTurn} culture/tour (cette ville)</p>
       </section>
 
       <!-- 3. Production -->
@@ -289,6 +390,21 @@
           <p class="eta">Aucune production en file.</p>
         {/if}
         {#if prodOrder}<p class="eta pending">Changement en attente : {itemName(prodOrder.item)}</p>{/if}
+        {#if mine && rush}
+          <!-- FUSION-MENU-VILLE : flux RushBuy porté de CityPanel (R-135) —
+               c'était le seul point d'entrée de l'achat instantané. -->
+          <button
+            type="button"
+            class="rush"
+            class:locked={!rush.allowed}
+            disabled={!editable || !rush.allowed}
+            title={rush.reason ?? (prodItem ? `Acheter ${itemName(prodItem)} immédiatement pour ${rush.cost} or (marteaux restants × facteur d'ère — R-135)` : 'Achat instantané (R-135)')}
+            onclick={() => rushNow()}
+          >
+            ⚡ Acheter maintenant pour {rush.cost ?? '—'} or
+            {#if !rush.allowed}<span class="fx"> — {rush.reason}</span>{/if}
+          </button>
+        {/if}
       </section>
 
       <!-- 4. Sciences + or de CETTE ville -->
@@ -301,7 +417,22 @@
           <img src="/art/icone_or.png" alt="" onerror={hideImg} />
           {gains?.gold ?? 0} or /tour
         </p>
-        <p class="eta">Conversion du commerce : {city.conversion === 'gold' ? 'or' : 'science'} (R-90)</p>
+        {#if directGold > 0}<p class="eta">+ {directGold} or direct (Gemmes/Or — R-134)</p>{/if}
+        {#if mine}
+          <!-- FUSION-MENU-VILLE (portage obligatoire) : le contrôle de
+               conversion R-90 était le seul réglage perdu avec CityPanel —
+               même ordre SetConversion, même sémantique moteur. -->
+          <button
+            type="button"
+            class="conversion"
+            disabled={!conversionEditable}
+            title="R-90 : le commerce est converti en totalité en or ou en science (R-88 : la Bibliothèque ajoute sa science). Action immédiate."
+            onclick={toggleConversion}
+          >
+            Convertit le commerce en : <strong>{city.conversion === 'gold' ? 'Or' : 'Science'}</strong>
+            <span class="swap">⇄</span>
+          </button>
+        {/if}
       </section>
 
       <!-- 5. Trésorerie de la civilisation -->
@@ -328,11 +459,22 @@
         {#if city.wonders.length > 0}
           <div class="chips">
             {#each city.wonders as w (w)}
-              <span class="chip wonder" class:obsolete={isWonderObsolete(w, allTechs)} title="{WONDERS[w]?.effect ?? w}">
+              <span class="chip wonder" class:obsolete={isWonderObsolete(w, allTechs)} title="{WONDERS[w]?.effect ?? w}{isWonderObsolete(w, allTechs) ? ' — OBSOLÈTE (effet retiré, jalon et culture conservés — R-128)' : ''}">
                 {WONDERS[w]?.name ?? w}{isWonderObsolete(w, allTechs) ? ' · obsolète' : ''}
               </span>
             {/each}
           </div>
+        {/if}
+        {#if city.settledGreatPersons.length > 0}
+          <div class="chips">
+            {#each city.settledGreatPersons as gpCls, i (i)}
+              <span class="chip gp" title="{settleEffectLabel(gpCls)}">{greatPersonLabel(gpCls)} — {settleEffectLabel(gpCls)}</span>
+            {/each}
+          </div>
+        {/if}
+        {#if mine && city.pendingSalvage > 0}
+          <!-- R-130 rév. C7 : réserve de marteaux PERMANENTE (porté de CityPanel). -->
+          <p class="eta salvage">⚒ {city.pendingSalvage} marteaux en réserve — choisissez un projet : ils financeront la production (réserve permanente, jamais dissipée).</p>
         {/if}
       </section>
     </div>
@@ -406,6 +548,20 @@
   .item { margin: 0.2rem 0 0.15rem; display: flex; align-items: center; gap: 0.3rem; font-size: 0.9rem; }
   .bar { height: 8px; background: #12161a; border-radius: 4px; overflow: hidden; border: 1px solid #3a4148; }
   .fill { height: 100%; background: #f0c419; }
+  .gauge { display: flex; align-items: center; gap: 0.5rem; margin: 0.35rem 0 0.1rem; }
+  .gauge .lab { font-size: 0.8rem; color: #8b98a5; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.25rem; }
+  .gauge img { width: 14px; height: 14px; }
+  .growth-fill { background: #81c784; }
+  .culture-fill { background: #ba68c8; }
+  .hint { margin: 0.15rem 0 0; color: #8b98a5; font-size: 0.78rem; }
+  .conversion { display: block; width: 100%; margin-top: 0.45rem; padding: 0.4rem 0.6rem; text-align: left; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; cursor: pointer; }
+  .conversion:disabled { opacity: 0.55; cursor: default; }
+  .conversion .swap { float: right; color: #ffd54f; }
+  .rush { margin-top: 0.35rem; padding: 0.4rem 0.7rem; border-radius: 6px; border: 1px solid #b8863c; background: #332b1e; color: #ffd54f; font-weight: 600; cursor: pointer; }
+  .rush:disabled, .rush.locked { opacity: 0.55; cursor: default; }
+  .rush .fx { font-weight: 400; color: #b08d5a; font-size: 0.78rem; }
+  .chip.gp { border-color: #7e57c2; background: #322a45; color: #d1c4e9; }
+  .salvage { color: #ffe082; font-weight: 600; }
   .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.2rem 0; }
   .chip { padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid #3c7a52; background: #243b2b; font-size: 0.8rem; }
   .chip.wonder { border-color: #b8863c; background: #3c3222; color: #ffd54f; }

@@ -27,7 +27,6 @@
   import { config, rendu3dAutorise, bascule3dAutorisee } from '../lib/config.js';
   import GameCanvas from '../lib/render/GameCanvas.svelte';
   import UnitPanel from '../components/UnitPanel.svelte';
-  import CityPanel from '../components/CityPanel.svelte';
   import CityView from '../components/CityView.svelte';
   import ResearchPanel from '../components/ResearchPanel.svelte';
   import Journal from '../components/Journal.svelte';
@@ -669,8 +668,8 @@
         />
         {#if vueVilleActive && $view.state}
           <!-- MENU-VILLE : le menu dédié de la vue ville (les autres menus
-               disparaissent — CityPanel de la carte du monde reste en l'état
-               hors vue ville). -->
+               disparaissent pendant la vue — FUSION-MENU-VILLE : CityPanel
+               est supprimé, la vue ville EST le menu de ville). -->
           <CityView view={$view} {client} cityId={$vueVille!} onClose={sortirVueVille} />
         {/if}
         {#if showIdleDialog}
@@ -800,7 +799,6 @@
       <aside class="side">
         {#if myName}<p class="me">Vous jouez : <strong>{myName}</strong></p>{/if}
         <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onCancelOrder={handleCancelOrder} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onArmNuke={armNuke} onCancelNuke={cancelNuke} />
-        <CityPanel view={$view} ui={$ui} {client} />
         {#if $view.state && myEngineId($view)}
           <section class="ship" aria-label="Vaisseau spatial">
             <h3>Vaisseau spatial (victoire scientifique — R-124)</h3>
