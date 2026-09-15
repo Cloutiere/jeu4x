@@ -538,7 +538,6 @@ export class GameDO {
             id: v.id,
             q: v.q,
             r: v.r,
-            hp: v.hp,
             spawnCountdown: v.spawnCountdown,
             unitésVivantes: v.spawnedUnits.filter((id) => game.units[id]).length,
           })),

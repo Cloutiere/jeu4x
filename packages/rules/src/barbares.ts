@@ -90,6 +90,9 @@ function passable(state: GameState, hex: Hex): boolean {
  *     rayon d'aggro T-19 (pas de la ligne hexagonale ; si bloqué, premier pas
  *     réducteur de distance) ;
  *  3. sinon tenir (Hold).
+ * BARBARES-PILES : les `gardeMinimale` premiers barbares vivants de chaque
+ * `spawnedUnits` (le plus ancien garde, le dernier arrivé sort — R-81) ne
+ * SORTENT jamais (pas de Move) ; seul l'explorateur suit les phases 2-3.
  * Tie-breaks R-81 partout : distance croissante puis (q, r) croissant.
  */
 export function barbarianOrders(state: GameState): Order[] {
@@ -99,23 +102,25 @@ export function barbarianOrders(state: GameState): Order[] {
     .sort(compareUnitIds);
   if (ids.length === 0) return [];
 
-  // C3 · T-49 (garde minimale) : chaque unité connaît son village d'origine
-  // (spawnedUnits) ; une unité « au camp » (distance ≤ 1 de ce village) ne
-  // SORT pas si le camp doit garder au moins `gardeMinimale` unités. Les
-  // attaques d'un ennemi adjacent (défense du camp) restent toujours permises
-  // — interprétation 🔶 documentée : la garde contraint les SORTIES, pas le
-  // combat défensif sur place. Compte tenu du cap T-22 (3) et de la garde 1,
-  // au plus 2 unités peuvent sortir simultanément (verrouillé par test).
-  const homeOf = new Map<string, { village: (typeof state.villages)[number]; enCamp: number }>();
+  // BARBARES-PILES (rév. 15/09) · T-49 (garde minimale) : les barbares d'un
+  // camp forment une PILE sur la case même du camp. Les `gardeMinimale`
+  // PREMIERS barbares vivants de `spawnedUnits` (ordre d'engendrement =
+  // ordre des ids — R-81 ; le plus ancien garde, le dernier arrivé sort)
+  // ne quittent JAMAIS le camp : ils tiennent (Hold) ou défendent (attaque
+  // d'un ennemi ADJACENT — la garde contraint les SORTIES, pas le combat
+  // défensif sur place). Seuls les barbares suivants (au plus 1 avec cap 3
+  // et garde 2) explorent/sortent. Avec garde 2, une pile de 1 ou 2 est
+  // entièrement garde : le camp ne sort personne tant qu'il n'a pas 3 vivants.
+  const gardes = new Set<string>();
   for (const village of [...state.villages].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-    let enCamp = 0;
+    let compte = 0;
     for (const id of village.spawnedUnits) {
-      const u = state.units[id];
-      if (!u) continue;
-      if (hexDistance(u, village) <= 1) enCamp += 1;
-      homeOf.set(id, { village, enCamp: 0 });
+      if (compte >= BARBARIANS.gardeMinimale) break;
+      if (state.units[id]) {
+        gardes.add(id);
+        compte += 1;
+      }
     }
-    for (const [uid, entry] of homeOf) if (entry.village.id === village.id) homeOf.get(uid)!.enCamp = enCamp;
   }
 
   // Cibles potentielles (entités ennemies) : unités et villes des civilisations.
@@ -134,12 +139,8 @@ export function barbarianOrders(state: GameState): Order[] {
   for (const id of ids) {
     const unit = state.units[id]!;
     const here = { q: unit.q, r: unit.r };
-    const home = homeOf.get(id) ?? null;
-    // Garde : l'unité est au camp et sa sortie casserait la garde minimale.
-    const gardeBloque =
-      home !== null &&
-      hexDistance(here, home.village) <= 1 &&
-      home.enCamp <= BARBARIANS.gardeMinimale;
+    // BARBARES-PILES : une garde ne SORT jamais (Hold ou défense adjacente).
+    const gardeBloque = gardes.has(id);
 
     // (1) attaque adjacente — voisins déjà triés (q, r) croissant.
     let acted = false;
@@ -157,7 +158,6 @@ export function barbarianOrders(state: GameState): Order[] {
           orders.push({ type: 'Hold', unitId: id }); // garde minimale : tenir le camp
         } else {
           orders.push({ type: 'Move', unitId: id, path: [next] });
-          if (home !== null) home.enCamp -= 1;
         }
       }
       acted = true;
@@ -180,21 +180,19 @@ export function barbarianOrders(state: GameState): Order[] {
       continue;
     }
     const step = advanceStep(state, here, target);
-    if (step) {
-      orders.push({ type: 'Move', unitId: id, path: [step] });
-      if (home !== null && hexDistance(step, home.village) > 1) home.enCamp -= 1;
-    } else orders.push({ type: 'Hold', unitId: id });
+    if (step) orders.push({ type: 'Move', unitId: id, path: [step] });
+    else orders.push({ type: 'Hold', unitId: id });
   }
   return orders;
 }
 
 /**
- * C3 · T-50 · Dotation initiale (POLISSAGE-1) : `initialUnits` barbare(s)
- * dans CHAQUE camp au début de la partie — posés sur les cases adjacentes
- * libres du village (tri (q, r) — R-81, via freeSpawnTiles), type initial
- * (escalade R-95 non applicable au tour de départ), inscrits dans
- * `spawnedUnits` (comptent pour le cap T-22 et la garde T-49). Pure : retourne
- * un nouvel état, l'entrée n'est pas mutée.
+ * C3 · T-50 · Dotation initiale (POLISSAGE-1), rév. BARBARES-PILES :
+ * `initialUnits` barbare(s) DANS CHAQUE camp au début de la partie — posés
+ * SUR LA CASE MÊME du village (pile — co-location barbare autorisée, R-30),
+ * type initial (escalade R-95 non applicable au tour de départ), inscrits
+ * dans `spawnedUnits` (comptent pour le cap T-22 et la garde T-49). Pure :
+ * retourne un nouvel état, l'entrée n'est pas mutée.
  */
 export function spawnInitialGarrisons(state: GameState): GameState {
   const count = Math.max(0, BARBARIANS.initialUnits);
@@ -206,9 +204,7 @@ export function spawnInitialGarrisons(state: GameState): GameState {
   };
   for (const village of [...work.villages].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
     for (let i = 0; i < count; i += 1) {
-      const tile = freeSpawnTiles(work, { q: village.q, r: village.r }, 1)[0];
-      if (!tile) break; // aucune case adjacente libre : dotation perdue (miroir R-96)
-      const unit = createBarbarianUnit(work, tile, BARBARIANS.units.initial);
+      const unit = createBarbarianUnit(work, { q: village.q, r: village.r }, BARBARIANS.units.initial);
       village.spawnedUnits.push(unit.id);
     }
   }

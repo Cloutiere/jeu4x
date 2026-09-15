@@ -84,6 +84,7 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   // Phase 7d (R-95..R-98) : barbares & huttes.
   BarbarianSpawned: 320,
   VillageDestroyed: 420,
+  VillageLooted: 420,
   CityRazed: 420,
   HutOpened: 360,
   // 7o · R-153 : artefact (relique) activé.
@@ -129,6 +130,7 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   // Phase 7d : village détruit +or (good), hutte ouverte +récompense (good),
   // ville rasée / barbares engendrés (bad).
   VillageDestroyed: 'good',
+  VillageLooted: 'good',
   HutOpened: 'good',
   // 7o · R-153 : artefact activé (relique revendiquée).
   ArtifactActivated: 'good',
@@ -369,6 +371,7 @@ export class Playback {
         this.pushFx(ev.at, 'bad', dur);
         break;
       case 'VillageDestroyed':
+      case 'VillageLooted':
       case 'CityRazed':
         this.pushFx(ev.at, 'destroy', dur);
         break;

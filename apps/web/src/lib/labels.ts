@@ -260,7 +260,9 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
     case 'BarbarianSpawned':
       return `Un barbare (${event.unitId}) sort du village ${event.villageId} en (${event.at.q},${event.at.r})`;
     case 'VillageDestroyed':
-      return `Village barbare ${event.villageId} détruit par ${nameOf(event.byPlayer)} !`;
+      return `Camp barbare ${event.villageId} détruit par ${nameOf(event.byPlayer)} !`;
+    case 'VillageLooted':
+      return `Camp ${event.villageId} capturé par ${nameOf(event.byPlayer)} : ${hutRewardLabel(event.reward)}`;
     case 'CityRazed':
       return `Ville ${event.cityId} RASÉE par les barbares (${nameOf(event.owner)} la perd)`;
     case 'HutOpened':

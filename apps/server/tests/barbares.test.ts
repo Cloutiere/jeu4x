@@ -26,7 +26,7 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     expect(dump.barbares!.villages).toHaveLength(3); // R-96 : 3 villages sur les cartes 40×40
     expect(dump.barbares!.huts).toHaveLength(2); // R-98 : 2 huttes
     for (const v of dump.barbares!.villages) {
-      expect(v.hp).toBe(3); // T-21
+      expect((v as { hp?: number }).hp).toBeUndefined(); // BARBARES-PILES : camps sans PV
       expect(v.spawnCountdown).toBe(10); // T-18 (POLISSAGE-1 C3)
       expect(v.unitésVivantes).toBe(1); // dotation initiale T-50 (POLISSAGE-1 C3)
     }
@@ -116,7 +116,7 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     });
 
     const dump = await adminDump(code);
-    expect(dump.state!.schemaVersion).toBe(23); // migré (version courante, Phase 7g) puis enrichi
+    expect(dump.state!.schemaVersion).toBe(24); // migré (version courante, BARBARES-PILES) puis enrichi
     expect(dump.state!.mapId).toBe('pangee-40');
     expect(dump.state!.villages).toHaveLength(3);
     expect(dump.state!.huts).toHaveLength(2);

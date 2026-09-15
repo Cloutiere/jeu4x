@@ -77,7 +77,7 @@ export interface MakeStateOptions {
   /** Paires en guerre (défaut : toutes les paires des joueurs déclarés — v1). */
   warPairs?: Array<[PlayerId, PlayerId]>;
   /** R-96/Phase 7d : villages barbares (id 'v{n}' par (q,r) croissant). */
-  villages?: Array<{ q: number; r: number; hp?: number; spawnCountdown?: number }>;
+  villages?: Array<{ q: number; r: number; spawnCountdown?: number }>;
   /** R-98/Phase 7d : huttes bonus (id 'h{n}' par (q,r) croissant). */
   huts?: Array<{ q: number; r: number }>;
   /** 7o · R-151 : artefacts posés (id 'a{n}' par (q,r) croissant) — les
@@ -208,7 +208,6 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
     id: `v${i + 1}`,
     q: v.q,
     r: v.r,
-    hp: v.hp ?? BARBARIANS.villageHP,
     spawnCountdown: v.spawnCountdown ?? BARBARIANS.spawnInterval,
     spawnedUnits: [],
   }));

@@ -46,7 +46,6 @@ import {
   POP_PRODUCTION_BONUS,
   RANGED_RANGE,
   SETTLER_BOOTY_GOLD,
-  VILLAGE_DESTRUCTION_GOLD,
 } from './constants.js';
 import type { DestructionCause, GameEvent, GpCanal, HutReward } from './events.js';
 import { creditScience } from './research.js';
@@ -167,7 +166,7 @@ interface CollisionPlan {
   holderId: UnitId;
   challengerId: UnitId;
 }
-/** R-96 · Entrée sur une case de village barbare sans unité : le village défend. */
+/** R-96 (rév. BARBARES-PILES) · Entrée sur la case du camp barbare : la PILE de barbares défend (combats un par un). */
 interface VillageAttackPlan {
   kind: 'villageAttack';
   at: Hex;
@@ -198,8 +197,6 @@ interface PendingRetreat {
   winnerTakesTile: boolean;
   /** R-52 : si le perdant emporte les attaques répétées de la passe 3, il avance. */
   advanceOnKill: boolean;
-  /** R-96 : vainqueur VILLAGE (passe 3 : attaques répétées contre le village). */
-  villageId?: string;
 }
 
 /** État de travail mutable pendant la résolution (copie profonde de l'état). */
@@ -971,105 +968,142 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
 }
 
 // ---------------------------------------------------------------------------
-// Combat contre un VILLAGE barbare (R-96 — Phase 7d)
+// Combat contre la PILE d'un camp barbare (R-96, rév. BARBARES-PILES 15/09)
 // ---------------------------------------------------------------------------
 
 /**
- * Un échange contre un village : le village SUBIT les rounds R-51 (défense
- * `villageDefense` 🔶 + bonus défensif de son terrain) sans jamais riposter
- * (force d'attaque 0 — p = 1 pour l'attaquant… sauf bonus défensif élevé :
- * p = S_att²/(S_att²+S_def²) peut rester < 1). Le perdant du round perd 1 PV.
+ * BARBARES-PILES : la pile d'un camp = les barbares vivants sur LA CASE MÊME
+ * du village — tri R-81 (unitId croissant) : le combat un par un attaque
+ * d'abord la plus ancienne (les gardes se battent en premier).
  */
-function villageExchange(board: Board, attacker: Unit, village: BarbarianVillage, combatTile: Hex): void {
-  const aStats = unitType(attacker.type);
-  const sAtt = effectiveStrength(aStats.attack, attacker.veteran);
-  const sDef = effectiveStrength(BARBARIANS.villageDefense, false, terrainDefenseBonus(board, combatTile));
-  for (let i = 0; i < EXCHANGES_PER_ATTACK && attacker.hp > 0 && village.hp > 0; i++) {
-    const winner = combatRound(sAtt, sDef, board.rng.next());
-    if (winner === 'defender') village.hp -= 1;
-    else attacker.hp -= 1;
-  }
-  attacker.hp = Math.max(0, attacker.hp);
-  village.hp = Math.max(0, village.hp);
-  // defenderId porte l'id du village ('v*') pour les échanges de village.
-  emit(board, { type: 'Attack', attackerId: attacker.id, defenderId: village.id, at: combatTile });
-  emit(board, {
-    type: 'CombatExchange',
-    attackerId: attacker.id,
-    defenderId: village.id,
-    at: combatTile,
-    attackerHpAfter: attacker.hp,
-    defenderHpAfter: village.hp,
-  });
-  board.fought.add(attacker.id);
+function pileDefenders(board: Board, village: BarbarianVillage): Unit[] {
+  return Object.keys(board.st.units)
+    .sort(compareUnitIds)
+    .map((id) => board.st.units[id]!)
+    .filter((u) => u.owner === BARBARIAN_ID && u.q === village.q && u.r === village.r);
 }
 
-/** R-96 : village à 0 PV → détruit, or T-20 au vainqueur, disparition définitive. */
-function destroyVillage(board: Board, village: BarbarianVillage, byPlayer: PlayerId, byUnitId: UnitId | null): void {
+/**
+ * BARBARES-PILES · Capture du camp : mort du DERNIER barbare de la pile —
+ * le vainqueur (déjà entré sur la case en Phase A) l'occupe, le camp est
+ * DÉTRUIT (nettoyé de l'état) et la récompense est le BONUS ALÉATOIRE DES
+ * HUTTES (table pondérée huttes.json, tirage seedé au RNG de résolution —
+ * même philosophie que l'ouverture de hutte R-98 ; l'or fixe T-20 est
+ * supprimé). Événements journal : VillageDestroyed + VillageLooted.
+ */
+function captureCamp(board: Board, village: BarbarianVillage, winner: Unit): void {
   board.st.villages = board.st.villages.filter((v) => v.id !== village.id);
   emit(board, {
     type: 'VillageDestroyed',
     villageId: village.id,
-    byPlayer,
-    byUnitId,
+    byPlayer: winner.owner,
+    byUnitId: winner.id,
     at: { q: village.q, r: village.r },
   });
-  if (board.st.players[byPlayer]) {
-    board.st.players[byPlayer]!.treasury += VILLAGE_DESTRUCTION_GOLD;
-    emit(board, {
-      type: 'BootyGold',
-      player: byPlayer,
-      amount: VILLAGE_DESTRUCTION_GOLD,
-      sourceUnitId: byUnitId,
-      sourceVillageId: village.id,
-    });
-  }
-}
-
-/** Attaque d'un village (R-96) : un échange, puis issue selon R-52. */
-function resolveVillageAttack(board: Board, attacker: Unit, village: BarbarianVillage, combatTile: Hex): void {
-  villageExchange(board, attacker, village, combatTile);
-  if (village.hp <= 0) {
-    destroyVillage(board, village, attacker.owner, attacker.id);
-    attacker.veteran = true; // R-32 : coup fatal
-    recordCombatVictory(board, attacker); // 7h · R-123 (T-31)
-    // R-52 : l'attaquant avance — il est déjà entré sur la case (Phase A).
-    return;
-  }
-  if (attacker.hp <= 0) {
-    kill(board, attacker, 'combat', null); // le village ne « signe » pas le coup
-    return;
-  }
-  // Survie mutuelle : le village (stationnaire) garde sa case, l'attaquant se
-  // replie — allocation globale R-56 (passe 1).
-  board.pendingRetreats.push({
-    loserId: attacker.id,
-    winnerId: village.id,
+  winner.veteran = true; // R-32 : coup fatal
+  recordCombatVictory(board, winner); // 7h · R-123 (T-31) + soin Aztèque
+  const reward: HutReward = drawHutReward(board.rng);
+  applyCampReward(board, winner, { q: village.q, r: village.r }, reward);
+  emit(board, {
+    type: 'VillageLooted',
     villageId: village.id,
-    combatTile,
-    mustLeave: false,
-    winnerTakesTile: false,
-    advanceOnKill: true,
+    byPlayer: winner.owner,
+    byUnitId: winner.id,
+    at: { q: village.q, r: village.r },
+    reward,
   });
 }
 
-/** R-55 contre un village : attaques répétées jusqu'à élimination d'un des deux. */
-function repeatedVillageAttacks(board: Board, attacker: Unit, village: BarbarianVillage, combatTile: Hex): void {
-  let guard = 0;
-  while (attacker.hp > 0 && village.hp > 0) {
-    villageExchange(board, attacker, village, combatTile);
-    if (village.hp <= 0) {
-      destroyVillage(board, village, attacker.owner, attacker.id);
-      attacker.veteran = true;
-      recordCombatVictory(board, attacker); // 7h · R-123 (T-31)
-      return;
+/**
+ * Application de la récompense de capture (miroir R-98 de `openHutAt`, sans
+ * hutte) : or (×trait Espagnol), unité gratuite (case adjacente libre — perdue
+ * si aucune), science, révélation, indice d'artefact. Le kind `ambush`
+ * (poids 0 — table R-98) est SANS EFFET pour une capture de camp : engendrer
+ * des barbares sur un camp qui vient d'être purgé n'a pas de sens (choix
+ * documenté au rapport).
+ */
+function applyCampReward(board: Board, winner: Unit, campHex: Hex, reward: HutReward): void {
+  const player = board.st.players[winner.owner];
+  if (!player) return;
+  switch (reward.kind) {
+    case 'gold':
+      player.treasury += reward.amount * civHutGoldMultOf(player);
+      break;
+    case 'unit': {
+      const tile = freeSpawnTiles(board.st, campHex, 1)[0];
+      if (tile) {
+        const effectiveType = effectiveUnitTypeFor(board.st, winner.owner, HUT_REWARDS.freeUnit);
+        const stats = unitType(effectiveType);
+        const unitId = nextId(board.st.units, 'u');
+        board.st.units[unitId] = {
+          id: unitId,
+          type: effectiveType,
+          owner: winner.owner,
+          q: tile.q,
+          r: tile.r,
+          hp: stats.hpMax,
+          mp: maxMovementOf(board.st, winner.owner, effectiveType),
+          veteran: civVeteranUnitsOf(player).has(HUT_REWARDS.freeUnit) || civVeteranUnitsOf(player).has(effectiveType),
+          isArmy: false,
+          order: null,
+          detainedBy: null,
+          fortified: false,
+          aboard: null,
+          cargo: null,
+        };
+        reward.unitIds = [unitId];
+      }
+      break;
     }
-    if (attacker.hp <= 0) {
-      kill(board, attacker, 'combat', null);
-      return;
+    case 'science':
+      creditScience(board.st, winner.owner, reward.amount, (pid, techId) => {
+        emit(board, { type: 'TechResearched', player: pid, tech: techId });
+      });
+      break;
+    case 'reveal': {
+      const explored = new Set(player.vision.explored);
+      for (const h of hexesWithinRadius(campHex, reward.radius)) {
+        if (board.st.map[tileKeyOf(h)]) explored.add(tileKeyOf(h));
+      }
+      player.vision = { explored: [...explored].sort(), visible: player.vision.visible };
+      break;
     }
-    if (++guard > 10_000) throw new Error('R-55 : boucle non terminale (bug)');
+    case 'artefact_indice': {
+      const hint = applyArtefactIndiceReward(board.st, winner.owner, campHex, board.rng);
+      reward.remaining = hint.remaining;
+      if (hint.position) reward.position = hint.position;
+      break;
+    }
+    case 'ambush':
+    case 'nothing':
+      break;
   }
+}
+
+/**
+ * BARBARES-PILES · Attaque du camp = COMBATS UN PAR UN (R-52) : l'attaquant
+ * (déjà entré sur la case du camp en Phase A) enchaîne les combats complets
+ * contre les barbares de la pile (le plus ancien d'abord — R-81) TANT QU'IL
+ * EST VIVANT. Chaque barbare tué est remplacé par le suivant ; l'attaquant
+ * mort arrête la séquence (repli R-54 applicable — passe 1 déjà poussée par
+ * `resolveAttack` en cas de survie mutuelle). La mort du DERNIER barbare =
+ * capture du camp (`captureCamp`). Le camp n'est jamais ciblé en soi (plus de
+ * PV — `villageExchange` supprimé).
+ */
+function resolveVillageAttack(board: Board, attacker: Unit, village: BarbarianVillage, combatTile: Hex): void {
+  let guard = 0;
+  while (board.st.units[attacker.id]) {
+    const defenders = pileDefenders(board, village);
+    if (defenders.length === 0) {
+      captureCamp(board, village, attacker);
+      return;
+    }
+    resolveAttack(board, attacker, defenders[0]!, combatTile);
+    if (!board.st.units[attacker.id]) return; // attaquant mort : séquence stoppée
+    if (board.st.units[defenders[0]!.id]) return; // survie mutuelle : repli R-54
+    if (++guard > 10_000) throw new Error('R-96 : pile non terminale (bug)');
+  }
+  // Attaquant disparu sans combat (cas pathologique) : rien à faire.
 }
 
 /** Collision de movers convergents (R-53) : aucun dégât, la plus haute PV demeure. */
@@ -1156,13 +1190,6 @@ function allocateRetreats(board: Board): void {
   for (const req of withoutTile) {
     const loser = board.st.units[req.loserId];
     if (!loser) continue;
-    if (req.villageId) {
-      // R-96 : vainqueur village — attaques répétées contre le village (R-55).
-      const village = board.st.villages.find((v) => v.id === req.villageId);
-      if (!village) continue;
-      repeatedVillageAttacks(board, loser, village, { q: village.q, r: village.r });
-      continue;
-    }
     const winner = board.st.units[req.winnerId];
     if (!winner) continue;
     // Le perdant attaque, le vainqueur défend là où il se trouve (bonus de terrain).
@@ -1413,7 +1440,15 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[], source: Extract
     moveUnit(board, unit, next);
     openHutAt(board, next, unit); // R-98 : la hutte s'ouvre avant le combat planifié
     activateArtefactAt(artefactCtxOf(board), unit, next); // 7o · R-153
-    board.planned.push({ kind: 'attack', at: next, attackerId: unit.id, defenderId: defender.id });
+    // BARBARES-PILES : le défenseur est un barbare SUR la case de son camp →
+    // ASSAUT DE LA PILE (combats enchaînés un par un, capture du camp à la
+    // mort du dernier — R-96 rév. BARBARES-PILES). Sinon : combat normal.
+    const campIci = defender.owner === BARBARIAN_ID ? villageAt(board, next) : null;
+    if (campIci) {
+      board.planned.push({ kind: 'villageAttack', at: next, attackerId: unit.id, villageId: campIci.id });
+    } else {
+      board.planned.push({ kind: 'attack', at: next, attackerId: unit.id, defenderId: defender.id });
+    }
     break;
   }
   if (!board.st.units[unit.id]) return; // capturée en cours de route
@@ -2841,10 +2876,10 @@ function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>
 /**
  * R-96 · Engendrement barbare par les villages (Phase C — l'unité produite
  * n'agit pas le tour de sa naissance). Compteur décrémenté à chaque
- * résolution ; l'unité apparaît sur une CASE ADJACENTE LIBRE du village (tri
- * (q, r) — R-81 ; évite qu'un défenseur ne campe sur le village et le rende
- * inexpugnable), report si aucune case n'est disponible ; cap T-22 d'unités
- * vivantes par village, type selon l'escalade R-95.
+ * résolution. Rév. BARBARES-PILES (15/09) : l'unité apparaît SUR LA CASE
+ * MÊME du camp (pile — co-location barbare autorisée, R-30 ; le camp n'est
+ * plus une cible, camper dessus n'est plus une stratégie), cap T-22
+ * d'unités vivantes par village, type selon l'escalade R-95.
  */
 function processVillages(board: Board): void {
   for (const village of [...board.st.villages].sort((a, b) => compareIds(a.id, b.id))) {
@@ -2853,13 +2888,16 @@ function processVillages(board: Board): void {
     village.spawnCountdown = BARBARIANS.spawnInterval;
     village.spawnedUnits = village.spawnedUnits.filter((id) => board.st.units[id]);
     if (village.spawnedUnits.length >= BARBARIANS.capPerVillage) continue; // cap T-22
-    const hex = { q: village.q, r: village.r };
-    const tile = freeSpawnTiles(board.st, hex, 1)[0];
-    if (!tile) continue; // aucune case adjacente libre : reporté au cycle suivant
     const type = barbarianUnitType(board.st.turn + 1); // tour résultant
-    const unit = createBarbarianUnit(board.st, tile, type);
+    const unit = createBarbarianUnit(board.st, { q: village.q, r: village.r }, type);
     village.spawnedUnits.push(unit.id);
-    emit(board, { type: 'BarbarianSpawned', unitId: unit.id, villageId: village.id, owner: BARBARIAN_ID, at: tile });
+    emit(board, {
+      type: 'BarbarianSpawned',
+      unitId: unit.id,
+      villageId: village.id,
+      owner: BARBARIAN_ID,
+      at: { q: village.q, r: village.r },
+    });
   }
 }
 
@@ -4045,7 +4083,14 @@ export function resolveTurn(
     if (hexDistance(unit, target) > range) continue; // cible hors de portée
     if (unit.mp < 1) continue;
     unit.mp -= 1;
-    board.planned.push({ kind: 'attack', at: target, attackerId: unit.id, defenderId: enemy.id });
+    // BARBARES-PILES : la cible est un barbare SUR la case de son camp →
+    // assaut de la pile (même canal que l'entrée sur le camp, R-96 rév.).
+    const campCible = enemy.owner === BARBARIAN_ID ? villageAt(board, target) : null;
+    if (campCible) {
+      board.planned.push({ kind: 'villageAttack', at: target, attackerId: unit.id, villageId: campCible.id });
+    } else {
+      board.planned.push({ kind: 'attack', at: target, attackerId: unit.id, defenderId: enemy.id });
+    }
   }
   // R-44 : formation d'armées en fin de Phase A.
   processFormArmy(board, allOrdersFlattened(allOrders));

@@ -63,15 +63,18 @@ export type GameEvent =
    * (+ BootyGold). En paix (Phase 7) : 'detained'.
    */
   | { seq: number; type: 'Captured'; unitId: UnitId; owner: PlayerId; byPlayer: PlayerId; at: Hex; outcome: 'destroyed' | 'detained' }
-  /** Butin en or (T-12 capture, T-20 destruction de village R-96) — la source
-   *  est une unité (`sourceUnitId`) OU un village (`sourceVillageId`). */
+  /**
+   * Butin en or (T-12 capture d'unité pacifique, v1) — la source est une
+   * unité (`sourceUnitId`). BARBARES-PILES (15/09) : l'or fixe T-20 de
+   * destruction de village est SUPPRIMÉ — la capture d'un camp tire la
+   * récompense hutte (événement VillageLooted).
+   */
   | {
       seq: number;
       type: 'BootyGold';
       player: PlayerId;
       amount: number;
       sourceUnitId: UnitId | null;
-      sourceVillageId?: string;
     }
   /** Fusion d'armée réussie (R-31/R-44) : les 3 membres deviennent l'entité unitId. */
   | { seq: number; type: 'ArmyFormed'; unitId: UnitId; owner: PlayerId; memberIds: UnitId[]; at: Hex }
@@ -131,8 +134,20 @@ export type GameEvent =
   | { seq: number; type: 'Launch'; player: PlayerId; at: Hex }
   /** R-96 · Engendrement d'une unité barbare par un village (Phase 7d). */
   | { seq: number; type: 'BarbarianSpawned'; unitId: UnitId; villageId: string; owner: PlayerId; at: Hex }
-  /** R-96 · Village barbare détruit (0 PV) — or T-20 au vainqueur (BootyGold). */
+  /** R-96 (rév. BARBARES-PILES 15/09) · Camp barbare DÉTRUIT — à la mort du
+   *  DERNIER barbare de la pile (le camp n'a plus de PV). */
   | { seq: number; type: 'VillageDestroyed'; villageId: string; byPlayer: PlayerId; byUnitId: UnitId | null; at: Hex }
+  /** R-96 (rév. BARBARES-PILES 15/09) · Récompense de capture d'un camp —
+   *  bonus aléatoire des huttes (table pondérée huttes.json, tirage seedé). */
+  | {
+      seq: number;
+      type: 'VillageLooted';
+      villageId: string;
+      byPlayer: PlayerId;
+      byUnitId: UnitId | null;
+      at: Hex;
+      reward: HutReward;
+    }
   /** R-97 · Ville rasée par les barbares (capture barbare : aucun changement de
    *  propriétaire, la ville disparaît avec ses bâtiments). */
   | { seq: number; type: 'CityRazed'; cityId: CityId; owner: PlayerId; byPlayer: PlayerId; at: Hex }
@@ -447,6 +462,11 @@ export function eventRefs(event: GameEvent): EventRefs {
       break;
     case 'VillageDestroyed':
       refs.players.push(event.byPlayer);
+      hex(event.at);
+      break;
+    case 'VillageLooted':
+      refs.players.push(event.byPlayer);
+      if (event.byUnitId) refs.unitIds.push(event.byUnitId);
       hex(event.at);
       break;
     case 'CityRazed':

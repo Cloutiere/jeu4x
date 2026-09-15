@@ -627,7 +627,6 @@ export function applyMapEntities(state: GameState, map: LoadedMap): GameState {
       id: `v${i + 1}`,
       q: v.q,
       r: v.r,
-      hp: BARBARIANS.villageHP,
       spawnCountdown: BARBARIANS.spawnInterval,
       spawnedUnits: [],
     }));

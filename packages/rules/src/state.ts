@@ -204,16 +204,17 @@ export interface Vision {
 
 /**
  * R-96 · Village barbare (Phase 7d) — entité de carte posée depuis le JSON de
- * carte (R-94 : `villages`) par createInitialState/applyMapEntities. Attaquable
- * (T-21 PV), détruit à 0 PV (disparaît définitivement, or T-20 au vainqueur).
+ * carte (R-94 : `villages`) par createInitialState/applyMapEntities.
+ * BARBARES-PILES (rév. 15/09) : le camp n'a PLUS de PV — il n'est pas une
+ * cible en soi ; la cible du combat = les barbares de la pile présents sur SA
+ * case. Détruit à la mort du DERNIER barbare de la pile (le vainqueur occupe
+ * la case et reçoit la récompense hutte tirée au seed).
  */
 export interface BarbarianVillage {
   /** 'v1', 'v2'… — affecté par (q, r) croissant à la pose. */
   id: string;
   q: number;
   r: number;
-  /** T-21 · PV courants. */
-  hp: number;
   /** Compteur d'engendrement : résolutions restantes avant le prochain spawn
    *  (T-18) — initialisé à T-18 (premier engendrement au tour 3). */
   spawnCountdown: number;
@@ -386,7 +387,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 23;
+export const CURRENT_SCHEMA_VERSION = 24;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -980,6 +981,22 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       migratedCities[id] = rest;
     }
     return { ...state, cities: migratedCities };
+  },
+  /**
+   * BARBARES-PILES · v23 → v24 (spécification d'Erik du 15/09) — les camps
+   * barbares n'ont PLUS de PV (`villageHP` supprimé des données R-99) : le
+   * camp n'est pas une cible en soi, la cible = les barbares de la pile sur sa
+   * case. Champ `hp` retiré de CHAQUE village. Idempotent (champ absent =
+   * rien à retirer).
+   */
+  24: (state) => {
+    const villages = (state.villages ?? []) as Array<Record<string, unknown>>;
+    const migratedVillages = villages.map((v) => {
+      const { hp: _hp, ...rest } = v;
+      void _hp;
+      return rest;
+    });
+    return { ...state, villages: migratedVillages };
   },
 };
 

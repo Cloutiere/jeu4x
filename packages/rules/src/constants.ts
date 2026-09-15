@@ -53,10 +53,6 @@ export const POP_PRODUCTION_BONUS = 0.25;
 export const BARBARIAN_SPAWN_INTERVAL = BARBARIANS.spawnInterval;
 /** T-19 · Rayon d'aggro de l'IA barbare (R-97). 🔶 */
 export const BARBARIAN_AGGRO_RADIUS = BARBARIANS.aggroRadius;
-/** T-20 · Or de destruction d'un village barbare (R-96). 🔶 */
-export const VILLAGE_DESTRUCTION_GOLD = BARBARIANS.villageDestructionGold;
-/** T-21 · PV d'un village barbare (R-96). 🔶 */
-export const VILLAGE_HP = BARBARIANS.villageHP;
 /** T-22 · Cap d'unités vivantes engendrées par village (R-96). 🔶 */
 export const CAP_PER_VILLAGE = BARBARIANS.capPerVillage;
 /** T-49 · POLISSAGE-1 C3 : garde minimale par camp (R-97). 🔶 */

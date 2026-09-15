@@ -431,17 +431,11 @@ export interface BarbariansData {
   spawnInterval: number;
   /** T-19 · Rayon d'aggro de l'IA barbare (R-97). */
   aggroRadius: number;
-  /** T-20 · Or de destruction d'un village (R-96). */
-  villageDestructionGold: number;
-  /** T-21 · PV d'un village (R-96). */
-  villageHP: number;
-  /** 🔶 Force défensive d'un village dans les rounds R-51 (interprétation
-   *  documentée : le village subit les rounds sans riposter — attaque 0). */
-  villageDefense: number;
   /** T-22 · Cap d'unités vivantes engendrées par village (R-96). */
   capPerVillage: number;
-  /** T-49 · POLISSAGE-1 C3 : garde minimale — au moins N unités du camp
-   *  restent au camp (distance ≤ 1 du village d'origine, R-97). */
+  /** T-49 · BARBARES-PILES : garde minimale — les N PREMIERS barbares de la
+   *  pile (ordre d'engendrement, R-81) ne quittent JAMAIS le camp ; seuls les
+   *  suivants explorent/sortent (R-97). */
   gardeMinimale: number;
   /** T-50 · POLISSAGE-1 C3 : dotation initiale — N unités dans le camp au
    *  début de la partie (R-96). */

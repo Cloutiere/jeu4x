@@ -482,9 +482,9 @@ describe('Phase 7g · Migration v10 → v11', () => {
     });
     const raw = { ...structuredClone(v10), schemaVersion: 10 } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(23);
+    expect(out.schemaVersion).toBe(24);
     expect(out.units['u1']).toMatchObject({ aboard: null, cargo: null });
-    expect(CURRENT_SCHEMA_VERSION).toBe(23); // RETRAIT-GP-ACCUMULATEURS : gpAccum* supprimés (migration 23)
+    expect(CURRENT_SCHEMA_VERSION).toBe(24); // RETRAIT-GP-ACCUMULATEURS : gpAccum* supprimés (migration 23)
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
     expect(twice).toEqual(out);
   });
