@@ -2208,7 +2208,7 @@ def icone_culture(db, da=None, w=64, h=64, img=None):
     # masque de tragédie (arrière, à droite, plus haut) : violet profond
     trage = [(34, 4), (48, 4), (57, 13), (59, 26), (55, 40), (47, 49),
              (38, 47), (34, 36)]
-    db.smooth_poly(trage, fill="#6B4A88")
+    db.smooth_poly(trage, fill="#A06FCE")
     db.smooth_line(trage + [trage[0]], fill=INK, width=2)
     # yeux obliques tristes + sourcils penchés + bouche renversée (arc haut)
     db.smooth_poly([(39, 16), (46, 14), (44, 19), (40, 19)], fill=INK)
@@ -2217,17 +2217,17 @@ def icone_culture(db, da=None, w=64, h=64, img=None):
     # masque de comédie (avant, à gauche, plus bas) : violet clair
     come = [(4, 20), (18, 16), (29, 23), (32, 36), (28, 50), (18, 59),
             (9, 56), (4, 45)]
-    db.smooth_poly(come, fill="#9C6FD6")
+    db.smooth_poly(come, fill="#B491E4")
     db.smooth_line(come + [come[0]], fill=INK, width=2)
     # yeux ronds pétillants + grand sourire (arc bas)
     db.ellipse((10, 30, 15, 35), fill=INK)
     db.ellipse((21, 29, 26, 34), fill=INK)
     db.arc((10, 34, 27, 48), 25, 155, fill=INK, width=2.8)
     # joues rehaussées par le sourire
-    db.ellipse((8, 34, 12, 38), fill="#B995DE")
-    db.ellipse((24, 33, 28, 37), fill="#B995DE")
+    db.ellipse((8, 34, 12, 38), fill="#CDB2F0")
+    db.ellipse((24, 33, 28, 37), fill="#CDB2F0")
     # petit nœud de ruban au sommet du masque de comédie
-    db.smooth_poly([(16, 15), (12, 10), (18, 11), (17, 16)], fill="#6B4A88")
+    db.smooth_poly([(16, 15), (12, 10), (18, 11), (17, 16)], fill="#A06FCE")
     db.smooth_poly([(21, 14), (25, 9), (26, 14), (22, 16)], fill="#C6A8EC")
     # modelés : lumière sur le front des deux masques
     if img is not None:
