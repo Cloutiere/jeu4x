@@ -2745,34 +2745,45 @@ def res_soufre(db, da=None, w=64, h=64, img=None):
 
 
 def res_teinture(db, da=None, w=64, h=64, img=None):
-    """Teinture : murex de pourpre sur linge taché — coquille crème à
-    cannelures spiralées, canal siphonal épineux, sécrétion violette."""
-    # linge froissé taché de pourpre
-    db.smooth_poly([(6, 52), (20, 46), (44, 48), (58, 54), (48, 62), (14, 62)],
-                   fill="#E3D19A")
-    db.smooth_line([(6, 52), (20, 46), (44, 48), (58, 54), (48, 62), (14, 62),
-                    (6, 52)],
-                   fill=INK, width=1.8)
-    db.ellipse((30, 54, 52, 62), fill="#8E4FA8")
-    # coquille spiralée : gros tour crème, spire lisible, ouverture pourprée
-    db.ellipse((12, 14, 52, 54), fill="#E3D19A", outline=INK, width=2.2)
-    # spirale : enroulement du bord vers le centre (arcs décroissants)
-    db.arc((16, 18, 48, 50), 210, 120, fill="#B89A6A", width=2.2)
-    db.arc((22, 24, 42, 44), 150, 60, fill="#B89A6A", width=1.8)
-    db.arc((27, 29, 37, 39), 120, 30, fill="#B89A6A", width=1.6)
-    # cœur de spire pourpré
-    db.ellipse((29, 31, 35, 37), fill="#8E4FA8", outline=INK, width=1.2)
-    # ouverture : grande ovale pourprée au bas droit, bord de lèvre
-    db.ellipse((32, 32, 50, 52), fill="#8E4FA8", outline=INK, width=1.8)
-    db.ellipse((36, 36, 45, 47), fill="#6B3A88")
-    # petit reflet sur le haut de la coquille
-    db.smooth_line([(18, 22), (26, 17), (36, 16)], fill="#F6EBD4", width=2.4)
-    # goutte de pourpre perlant sur le linge
-    db.ellipse((8, 56, 14, 61), fill="#6B3A88", outline=INK, width=1)
-    # modelés : lumière sur la spire
+    """Teinture : linge blanc plongé dans un baquet de pourpre (référence
+    Erik) — tissu gorgé de violet qui dégoutte, cuve de bois à cerclages,
+    liquide aux volutes."""
+    # linge suspendu : blanc en haut, gorgé de pourpre en bas
+    linge = [(16, 2), (26, 6), (36, 3), (46, 7), (50, 16), (47, 30),
+             (49, 40), (43, 42), (41, 36), (36, 41), (31, 37), (26, 42),
+             (21, 36), (18, 40), (14, 34), (17, 22), (13, 12)]
+    db.smooth_poly(linge, fill="#F2F0E8")
+    db.smooth_line(linge + [linge[0]], fill=INK, width=2)
+    # dégradé d'immersion : pourpre qui grimpe par le bas du tissu
     if img is not None:
-        radial(img, 26, 24, 12, (255, 255, 255), 34, steps=6)
-        vgrad(img, (10, 44, 50, 54), (20, 20, 30), 0, 22, steps=8)
+        vgrad(img, (13, 2, 50, 42), (142, 79, 168), 0, 210, steps=18)
+    else:
+        db.smooth_poly([(16, 30), (48, 30), (45, 40), (36, 41), (31, 37),
+                        (26, 42), (21, 36), (18, 40)], fill="#8E4FA8")
+    # plis du tissu
+    db.smooth_line([(24, 12), (27, 22), (24, 32)], fill="#C9C4BC", width=1.4)
+    db.smooth_line([(40, 10), (38, 20), (41, 30)], fill="#C9C4BC", width=1.4)
+    # goutte qui retombe du linge
+    db.ellipse((30, 46, 35, 51), fill="#8E4FA8", outline=INK, width=1)
+    # baquet : staves de bois galbées + deux cerclages sombres
+    cuve = [(10, 46), (54, 46), (58, 54), (54, 62), (10, 62), (6, 54)]
+    db.smooth_poly(cuve, fill="#8A5A34")
+    db.smooth_line(cuve + [cuve[0]], fill=INK, width=2)
+    # staves verticales (léger galbe vers l'intérieur)
+    for x0, x1 in ((22, 23), (34, 33), (46, 45)):
+        db.line([(x0, 51), (x1, 57)], fill="#6B5230", width=1.6)
+    # cerclages
+    db.rrect((7, 48, 57, 51), 1.5, fill="#3A3A40", outline=INK, width=1)
+    db.rrect((9, 58, 55, 61), 1.5, fill="#3A3A40", outline=INK, width=1)
+    # surface du liquide pourpre (débordant au-dessus du rebord)
+    db.ellipse((11, 42, 53, 50), fill="#8E4FA8", outline=INK, width=2)
+    db.ellipse((20, 43, 34, 47), fill="#B07AC8")
+    db.smooth_line([(36, 44), (44, 45)], fill="#B07AC8", width=1.8)
+    db.smooth_line([(22, 46), (30, 47)], fill="#6B3A88", width=1.4)
+    # modelés : lumière sur le rebord et le flanc de la cuve
+    if img is not None:
+        vgrad(img, (8, 42, 56, 48), (255, 255, 255), 30, 0, steps=6)
+        vgrad(img, (12, 50, 24, 62), (255, 200, 150), 26, 0, steps=8)
 
 
 def res_uranium(d):
