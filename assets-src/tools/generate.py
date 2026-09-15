@@ -2786,23 +2786,57 @@ def res_teinture(db, da=None, w=64, h=64, img=None):
         vgrad(img, (12, 50, 24, 62), (255, 200, 150), 26, 0, steps=8)
 
 
-def res_uranium(d):
-    """Uranium : pastille verte rayonnante (trèfle)."""
-    d.ellipse((8, 14, 56, 62), fill="#7CD65C", outline=INK, width=2.5)
-    d.ellipse((13, 19, 51, 57), outline="#4E8A38", width=2)
+def res_uranium(db, da=None, w=64, h=64, img=None):
+    """Uranium : pastille verte rayonnante (trèfle) — halo radioactif,
+    jante métallique, modelé de la galette, étincelles."""
+    # halo radioactif doux autour de la pastille
+    if img is not None:
+        radial(img, 32, 38, 30, (124, 214, 92), 90, steps=8)
+    # galette : jante métallique puis face verte
+    db.ellipse((8, 14, 56, 62), fill="#4E8A38", outline=INK, width=2.5)
+    db.ellipse((11, 17, 53, 59), fill="#7CD65C")
+    db.ellipse((14, 20, 50, 56), outline="#4E8A38", width=1.6)
+    # trèfle : trois secteurs + moyeu
     for a in (90, 210, 330):
-        d.pieslice((22, 28, 42, 48), a - 30, a + 30, fill="#2E4A22")
-    d.ellipse((29, 35, 35, 41), fill="#2E4A22")
+        db.pieslice((22, 28, 42, 48), a - 28, a + 28, fill="#2E4A22")
+    db.ellipse((29, 35, 35, 41), fill="#2E4A22", outline="#1E3416", width=1)
+    # reflet sur le haut de la galette
+    db.smooth_line([(18, 22), (32, 18), (46, 22)], fill="#B0EC98", width=2.4)
+    # étincelles de radioactivité
+    for (x, y, s) in ((10, 10, 1.0), (54, 8, 0.8), (58, 34, 0.7)):
+        db.line([(x - 3 * s, y), (x + 3 * s, y)], fill="#B0EC98", width=1.4)
+        db.line([(x, y - 3 * s), (x, y + 3 * s)], fill="#B0EC98", width=1.4)
+    # modelés : lumière haut-gauche, ombre bas-droite
+    if img is not None:
+        radial(img, 22, 26, 14, (255, 255, 255), 40, steps=6)
+        vgrad(img, (30, 40, 56, 62), (10, 40, 10), 0, 34, steps=8)
 
 
-def res_vin(d):
-    """Vin : grappe de raisin + feuille."""
-    d.line([(32, 6), (32, 16)], fill="#6B5230", width=3)
-    d.poly([(32, 8), (46, 4), (44, 16)], fill=FORET_2, outline="#33582A", width=1.5)
-    for x, y in [(20, 24), (32, 22), (44, 24), (14, 36), (26, 36), (38, 36), (50, 36),
-                 (20, 48), (32, 48), (44, 48), (32, 58)]:
-        d.ellipse((x - 6, y - 6, x + 6, y + 6), fill="#8E4FA8", outline=INK, width=1.5)
-    d.ellipse((24, 18, 30, 24), fill="#B18CE0")
+def res_vin(db, da=None, w=64, h=64, img=None):
+    """Vin : grappe de raisin + feuille — baies en profondeur (rang arrière
+    sombre, premier plan clair), pruine, feuille nervurée."""
+    # rafle + vrille
+    db.taper([(32, 4), (32, 16)], 2.5, 1.5, "#6B5230")
+    db.smooth_line([(32, 6), (38, 4), (36, 9)], fill="#6B5230", width=1.4)
+    # feuille lobée nervurée
+    db.poly([(32, 8), (37, 4), (43, 3), (47, 8), (44, 14), (37, 16), (33, 13)],
+            fill=FORET_2, outline="#33582A", width=1.5)
+    db.line([(33, 13), (45, 6)], fill="#2A4A22", width=1.2)
+    # rang arrière (baies sombres)
+    for x, y in ((22, 24), (42, 24), (14, 36), (50, 36), (26, 47), (38, 47)):
+        db.ellipse((x - 6, y - 6, x + 6, y + 6), fill="#7A3F92", outline=INK, width=1.4)
+    # rang avant (baies claires)
+    for x, y in ((32, 22), (24, 35), (40, 35), (32, 47), (32, 57)):
+        db.ellipse((x - 6, y - 6, x + 6, y + 6), fill="#8E4FA8", outline=INK, width=1.5)
+    # pruine : reflets haut-gauche sur chaque baie de devant
+    for x, y in ((32, 22), (24, 35), (40, 35), (32, 47), (32, 57)):
+        db.ellipse((x - 3.5, y - 3.5, x - 0.5, y - 0.5), fill="#C6A8EC")
+    # reflet principal sur la baie du centre
+    db.ellipse((28, 18, 33, 23), fill="#E8D6F4")
+    # modelés : lumière sur le haut de la grappe
+    if img is not None:
+        vgrad(img, (12, 4, 52, 26), (255, 255, 255), 28, 0, steps=10)
+        vgrad(img, (14, 48, 52, 62), (20, 20, 30), 0, 24, steps=8)
 
 
 def res_inconnue(d):
