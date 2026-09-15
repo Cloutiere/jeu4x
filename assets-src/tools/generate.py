@@ -2277,18 +2277,19 @@ def res_ble(d):
 
 
 def res_boeufs(db, da=None, w=64, h=64, img=None):
-    """Bœufs : même vocabulaire que le bétail (vache blanche à taches de
-    profil) mais taureau — plus gros, cordré, cornes imposantes."""
-    BLANC, TACHE = "#F2F0E8", "#8A5A34"
+    """Bœufs : même vocabulaire que le bétail (de profil) mais taureau
+    brun — plus gros, cordré, cornes en croissant ; robe brune à taches
+    plus foncées pour le distinguer du bétail blanc."""
+    BRUN, TACHE = "#A06A3C", "#6E4426"
     # pattes épaisses + sabot
     for x in (12, 24, 38, 48):
-        db.rrect((x, 44, x + 8, 62), 2.5, fill=BLANC, outline=INK, width=1.5)
+        db.rrect((x, 44, x + 8, 62), 2.5, fill=BRUN, outline=INK, width=1.5)
         db.rrect((x, 57, x + 8, 62), 2, fill="#4E4438", outline=None)
     # queue avec touffe
     db.smooth_line([(8, 26), (3, 38), (5, 50)], fill=INK, width=2)
     db.ellipse((2, 48, 9, 56), fill=TACHE, outline=INK, width=1.2)
-    # corps massif + taches
-    db.ellipse((6, 18, 52, 50), fill=BLANC, outline=INK, width=2)
+    # corps massif + taches foncées
+    db.ellipse((6, 18, 52, 50), fill=BRUN, outline=INK, width=2)
     db.ellipse((14, 28, 28, 44), fill=TACHE)
     db.ellipse((32, 22, 44, 34), fill=TACHE)
     # cornes en croissant, de part et d'autre du haut du crâne
@@ -2297,13 +2298,13 @@ def res_boeufs(db, da=None, w=64, h=64, img=None):
         db.taper(pts, 6, 1.5, INK)
         db.taper(pts, 4, 0.8, "#D9C04A")
     # tête + museau rose
-    db.ellipse((40, 10, 62, 34), fill=BLANC, outline=INK, width=2)
+    db.ellipse((40, 10, 62, 34), fill=BRUN, outline=INK, width=2)
     db.ellipse((44, 12, 56, 22), fill=TACHE)
     db.ellipse((50, 24, 64, 36), fill="#E3B8A0", outline=INK, width=1.5)
     db.ellipse((57, 28, 61, 32), fill=INK)
     db.ellipse((52, 20, 56, 24), fill=INK)
     # oreille
-    db.ellipse((38, 8, 46, 16), fill=BLANC, outline=INK, width=1.5)
+    db.ellipse((38, 8, 46, 16), fill=BRUN, outline=INK, width=1.5)
     # modelés : dos éclairé, ventre ombré
     if img is not None:
         vgrad(img, (8, 18, 50, 34), (255, 255, 255), 26, 0, steps=12)
@@ -2341,37 +2342,99 @@ def res_caoutchouc(db, da=None, w=64, h=64, img=None):
         vgrad(img, (30, 34, 58, 60), (20, 20, 30), 0, 30, steps=10)
 
 
-def res_charbon(d):
-    """Charbon : tas de houille noire aux facettes grises."""
-    for x, y, s in [(10, 38, 1.0), (32, 42, 0.9), (22, 24, 0.8)]:
-        pts = [(x, y + 14 * s), (x + 6 * s, y), (x + 16 * s, y + 2 * s),
-               (x + 20 * s, y + 12 * s), (x + 10 * s, y + 16 * s)]
-        d.poly(pts, fill="#2E2E34", outline=INK, width=2)
-        d.poly([(x + 6 * s, y), (x + 12 * s, y + 5 * s), (x + 6 * s, y + 9 * s)],
-               fill="#4A4A52")
+def res_charbon(db, da=None, w=64, h=64, img=None):
+    """Charbon : tas de houille aux facettes brillantes — blocs anguleux
+    empilés, éclats métalliques, modelés et ombre portée."""
+    # ombre portée sous le tas
+    db.ellipse((6, 50, 58, 60), fill=(0, 0, 0, 45))
+    # gros bloc central (arêtes vives)
+    bloc1 = [(8, 44), (14, 32), (28, 28), (38, 34), (40, 46), (28, 54), (14, 52)]
+    db.poly(bloc1, fill="#2E2E34", outline=INK, width=2)
+    # bloc de droite, appuyé
+    bloc2 = [(36, 46), (40, 36), (52, 32), (58, 42), (54, 52), (42, 53)]
+    db.poly(bloc2, fill="#26262C", outline=INK, width=2)
+    # bloc du sommet
+    bloc3 = [(20, 30), (30, 22), (40, 26), (38, 35), (26, 37)]
+    db.poly(bloc3, fill="#33333A", outline=INK, width=1.8)
+    # facettes grises (plans réfléchissants)
+    db.poly([(14, 32), (28, 28), (24, 36), (16, 38)], fill="#4A4A52")
+    db.poly([(40, 36), (52, 32), (50, 42), (42, 42)], fill="#3E3E46")
+    db.poly([(30, 22), (40, 26), (34, 30), (27, 28)], fill="#52525A")
+    # éclats brillants
+    db.line([(16, 34), (22, 31)], fill="#8A8A92", width=1.6)
+    db.line([(43, 35), (49, 34)], fill="#7A7A84", width=1.4)
+    db.line([(31, 24), (36, 26)], fill="#9A9AA2", width=1.2)
+    # petits morceaux détachés
+    db.ellipse((10, 52, 16, 57), fill="#2E2E34", outline=INK, width=1.2)
+    db.ellipse((52, 50, 58, 55), fill="#2E2E34", outline=INK, width=1.2)
+    # modelés : lumière haut-gauche du tas
+    if img is not None:
+        vgrad(img, (8, 22, 40, 44), (255, 255, 255), 22, 0, steps=10)
+        radial(img, 18, 32, 10, (255, 255, 255), 26, steps=5)
 
 
-def res_chene(d):
-    """Chêne : branches de feuilles lobées + glands."""
-    for x, y, flip in [(16, 22, 1), (34, 14, 1), (30, 34, -1)]:
-        pts = [(x, y)]
-        for i in range(6):
-            s = 1 if i % 2 == 0 else -1
-            pts.append((x + 5 + i * 4 * flip, y + s * 6))
-        pts.append((x + 28 * flip, y))
-        d.poly(pts, fill=FORET_2, outline="#33582A", width=1.5)
-    for x, y in [(20, 44), (34, 48)]:
-        d.ellipse((x, y, x + 8, y + 12), fill="#B98A4E", outline=INK, width=1.5)
-        d.rrect((x - 1, y - 4, x + 9, y + 2), 2, fill="#6B5230")
+def res_chene(db, da=None, w=64, h=64, img=None):
+    """Chêne : branche lignifiée (taper), feuilles lobées bien marquées
+    (sinus profonds, arêtes vives), glands à chapeau texturé."""
+    # branche principale + rameau (taper fuselé)
+    db.taper([(12, 56), (26, 42), (38, 26), (46, 14)], 4, 1.2, "#6B5230")
+    db.taper([(26, 42), (38, 42), (50, 36)], 3, 0.8, "#6B5230")
+    # feuille de chêne : silhouette lobée dessinée à la main (moitié
+    # supérieure puis miroir), placée avec rotation
+    def feuille(x0, y0, ang, s):
+        ca, sa = math.cos(ang), math.sin(ang)
+        moitie = [(0, 0), (2, -2.5), (1, -4.5), (5, -5.5), (4, -7.5),
+                  (9, -7.5), (9, -9.5), (13.5, -8.5), (16, 0)]
+        pts = moitie + [(px, -py) for px, py in reversed(moitie[1:-1])]
+        pts = [(x0 + (px * ca - py * sa) * s,
+                y0 + (px * sa + py * ca) * s) for px, py in pts]
+        db.poly(pts, fill=FORET_2, outline="#33582A", width=1.5)
+        db.line([(x0, y0), (x0 + 15 * ca * s, y0 + 15 * sa * s)],
+                fill="#2A4A22", width=1.2)
+    feuille(14, 46, math.radians(-38), 1.1)
+    feuille(26, 34, math.radians(-15), 1.0)
+    feuille(34, 26, math.radians(-45), 0.85)
+    # glands : noix ovale + chapeau strié + reflet
+    for x, y in [(16, 48), (32, 46)]:
+        db.ellipse((x, y, x + 8, y + 12), fill="#B98A4E", outline=INK, width=1.4)
+        db.rrect((x - 1, y - 4, x + 9, y + 1), 2.5, fill="#6B5230",
+                 outline=INK, width=1.2)
+        db.line([(x + 2, y - 2.5), (x + 2, y - 0.5)], fill="#8A6A40", width=1)
+        db.line([(x + 5, y - 2.5), (x + 5, y - 0.5)], fill="#8A6A40", width=1)
+        db.ellipse((x + 2, y + 4, x + 4, y + 7), fill="#D9B27A")
+    # modelés : lumière sur le haut du bouquet
+    if img is not None:
+        vgrad(img, (12, 8, 50, 30), (255, 255, 255), 24, 0, steps=10)
+        vgrad(img, (16, 42, 52, 60), (20, 20, 30), 0, 22, steps=8)
 
 
-def res_encens(d):
-    """Encens : brûle-parfum doré + volutes."""
-    d.poly([(22, 56), (42, 56), (38, 46), (26, 46)], fill=BOIS, outline=INK, width=1.5)
-    d.pieslice((16, 30, 48, 50), 180, 360, fill=OR, outline=INK, width=2)
-    d.ellipse((16, 38, 48, 46), fill="#8A641C")
-    for i, (dx, dy) in enumerate([(-6, 0), (2, -4), (8, 2)]):
-        d.arc((30 + dx, 8 + dy, 40 + dx, 22 + dy), 120, 330, fill="#B8B4AC", width=3)
+def res_encens(db, da=None, w=64, h=64, img=None):
+    """Encens : brûle-parfum doré sur pied, braises incandescentes,
+    volutes de fumée lissées. Modelés métalliques."""
+    # volutes de fumée : deux S allongés séparés, montée douce
+    db.smooth_line([(27, 26), (24, 20), (30, 14), (27, 8), (29, 2)],
+                   fill="#B8B4AC", width=2.4)
+    db.smooth_line([(37, 26), (40, 19), (34, 13), (38, 6)],
+                   fill="#A8A4AC", width=2)
+    # pied + coupelle (silhouette lissée)
+    db.smooth_poly([(24, 58), (40, 58), (37, 50), (27, 50)], fill=BOIS)
+    db.smooth_line([(24, 58), (40, 58), (37, 50), (27, 50), (24, 58)],
+                   fill=INK, width=1.5)
+    # vasque dorée : dôme + collerette
+    db.smooth_poly([(16, 44), (18, 34), (26, 28), (38, 28), (46, 34), (48, 44)],
+                   fill=OR)
+    db.smooth_line([(16, 44), (18, 34), (26, 28), (38, 28), (46, 34), (48, 44),
+                    (16, 44)], fill=INK, width=2)
+    db.rrect((14, 42, 50, 48), 3, fill="#8A641C", outline=INK, width=1.5)
+    # braises incandescentes sur le dôme (percées)
+    for x, y, r in ((28, 32, 2.5), (36, 30, 2), (32, 36, 1.6)):
+        db.ellipse((x - r, y - r, x + r, y + r), fill="#E8843C")
+        db.ellipse((x - r * 0.4, y - r * 0.4, x + r * 0.4, y + r * 0.4),
+                   fill="#F7C948")
+    # modelés métalliques : reflet haut-gauche, ombre bas-droite
+    if img is not None:
+        radial(img, 24, 34, 12, (255, 244, 200), 40, steps=7)
+        vgrad(img, (30, 30, 48, 48), (20, 20, 30), 0, 30, steps=10)
 
 
 def res_epices(d):
