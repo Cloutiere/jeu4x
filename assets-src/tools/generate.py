@@ -2127,25 +2127,79 @@ def icone_pv(d):
     _shine(d, 20, 22, 2)
 
 
-def icone_pm(d):
-    d.poly([(36, 4), (16, 34), (29, 34), (24, 60), (48, 28), (34, 28)], fill=PM,
-           outline=INK, width=2.5)
+def icone_pm(db, da=None, w=64, h=64, img=None):
+    """PM (points de mouvement) : éclair — silhouette lissée, facette
+    claire, halo d'énergie."""
+    if img is not None:
+        radial(img, 34, 30, 26, (255, 240, 140), 80, steps=7)
+    eclair = [(36, 2), (14, 34), (27, 34), (22, 62), (50, 26), (35, 26)]
+    db.smooth_poly(eclair, fill=PM, steps=6)
+    db.smooth_line(eclair + [eclair[0]], fill=INK, width=2.5)
+    # facette interne claire (arête d'énergie)
+    db.poly([(34, 8), (20, 30), (27, 30), (31, 12)], fill="#F5E38A")
+    # étincelle
+    db.line([(44, 8), (44, 13)], fill="#FFF2C0", width=1.6)
+    db.line([(41.5, 10.5), (46.5, 10.5)], fill="#FFF2C0", width=1.6)
+    if img is not None:
+        radial(img, 24, 20, 10, (255, 255, 255), 50, steps=5)
 
 
-def icone_fin_tour(d):
-    d.line([(18, 6), (46, 6)], fill=INK, width=5)
-    d.line([(18, 58), (46, 58)], fill=INK, width=5)
-    d.poly([(21, 9), (43, 9), (32, 30)], fill=OR)
-    d.poly([(32, 34), (21, 55), (43, 55)], fill="#E8C46A")
-    d.ellipse((29, 28, 35, 36), fill="#8FB4CC", outline=INK, width=2)
+def icone_fin_tour(db, da=None, w=64, h=64, img=None):
+    """Fin de tour : sablier — montants à pommeaux, verre modelé,
+    sable en entonnoir, grain qui tombe, tas au fond."""
+    # montants haut et bas, avec pommeaux d'équerre
+    for y in (6, 56):
+        db.rrect((16, y, 48, y + 4), 2, fill="#4E4438", outline=INK, width=1.6)
+        db.ellipse((13, y - 1, 19, y + 5), fill="#6B5230", outline=INK, width=1.2)
+        db.ellipse((45, y - 1, 51, y + 5), fill="#6B5230", outline=INK, width=1.2)
+    # montants verticaux latéraux
+    db.rrect((17, 10, 21, 54), 1.5, fill="#6B5230", outline=INK, width=1.2)
+    db.rrect((43, 10, 47, 54), 1.5, fill="#6B5230", outline=INK, width=1.2)
+    # ampoules de verre : haut (pleine) et bas (vide avec tas)
+    db.smooth_poly([(22, 12), (42, 12), (40, 24), (34, 29), (34, 34),
+                    (30, 34), (30, 29), (24, 24)], fill="#8FB4CC")
+    db.smooth_line([(22, 12), (42, 12), (40, 24), (34, 29), (34, 34),
+                    (30, 34), (30, 29), (24, 24), (22, 12)],
+                   fill=INK, width=2)
+    db.smooth_poly([(22, 52), (42, 52), (40, 40), (34, 35), (30, 35),
+                    (30, 40), (24, 40)], fill="#8FB4CC")
+    db.smooth_line([(22, 52), (42, 52), (40, 40), (34, 35), (30, 35),
+                    (30, 40), (24, 40), (22, 52)],
+                   fill=INK, width=2)
+    # sable : tas haut, filet, tas bas
+    db.smooth_poly([(25, 22), (32, 14), (39, 22), (34, 26), (30, 27)],
+                   fill=OR)
+    db.line([(32, 30), (32, 40)], fill=OR, width=2)
+    db.smooth_poly([(26, 51), (38, 51), (35, 45), (32, 43), (29, 45)],
+                   fill="#E8C46A")
+    # reflets sur le verre
+    db.smooth_line([(25, 14), (27, 20)], fill="#D6E8F2", width=1.6)
+    db.smooth_line([(39, 44), (37, 50)], fill="#D6E8F2", width=1.6)
+    if img is not None:
+        radial(img, 32, 20, 12, (255, 240, 180), 30, steps=6)
 
 
-def icone_reseau(d):
-    for i, r in enumerate([10, 19, 28]):
-        d.arc((32 - r, 26 - r, 32 + r, 26 + r), 315, 45, fill=SCIENCE, width=6)
-    d.ellipse((26, 26, 38, 38), fill=SCIENCE, outline=INK, width=2.5)
-    d.line([(18, 44), (46, 44)], fill=INK, width=3)
-    d.line([(26, 51), (38, 51)], fill=INK, width=3)
+def icone_reseau(db, da=None, w=64, h=64, img=None):
+    """Réseau : faisceau d'ondes — arcs halo, émetteur modelé, faisceau
+    de diffusion."""
+    # halo derrière l'émetteur
+    if img is not None:
+        radial(img, 32, 28, 18, (111, 163, 184), 80, steps=7)
+    # arcs d'ondes : trois amplitudes, épaisseur décroissante
+    for r, wd in ((11, 7), (20, 5.5), (29, 4)):
+        db.arc((32 - r, 26 - r, 32 + r, 26 + r), 315, 45, fill=SCIENCE, width=wd)
+    # émetteur : disque modelé + liseré
+    db.ellipse((25, 25, 39, 39), fill=SCIENCE, outline=INK, width=2.5)
+    db.ellipse((28, 28, 33, 33), fill="#B8E8D8")
+    # faisceau de diffusion : trait principal + ondes courtes
+    db.smooth_line([(14, 46), (50, 46)], fill=INK, width=3.5)
+    db.smooth_line([(21, 52), (43, 52)], fill=INK, width=2.8)
+    db.smooth_line([(27, 58), (37, 58)], fill=INK, width=2.2)
+    # nœuds lumineux sur le faisceau
+    for x in (18, 32, 46):
+        db.ellipse((x - 2, 44, x + 2, 48), fill="#B8E8D8", outline=INK, width=1)
+    if img is not None:
+        radial(img, 32, 32, 10, (255, 255, 255), 40, steps=5)
 
 
 def icone_culture(db, da=None, w=64, h=64, img=None):
@@ -3359,14 +3413,28 @@ def unite_humanitaire(db, da, w, h):
     _gp_bras(db, [(cx + 16, ground - 122), (cx + 36, ground - 98)], "#D9D2C2")
 
 
-def icone_gouvernement(d):
-    """Gouvernement (Phase 7h, R-121) : colonne / portique."""
-    d.rrect((8, 48, 56, 56), 2, fill="#C2B6A2", outline=INK, width=2)
-    d.rrect((6, 8, 58, 14), 2, fill="#C2B6A2", outline=INK, width=2)
-    d.pieslice((14, 12, 50, 44), 180, 360, fill="#C2B6A2", outline=INK, width=2)
-    for x in (16, 28, 40, 52):
-        d.rrect((x - 4, 18, x + 4, 44), 1, fill="#E3D19A", outline=INK, width=1)
-    d.ellipse((26, 2, 38, 14), fill="#D9B45C", outline=INK, width=2)
+def icone_gouvernement(db, da=None, w=64, h=64, img=None):
+    """Gouvernement : portique classique — fronton triangulaire,
+    entablement, colonnes cannelées à chapiteaux, stylobate."""
+    # stylobate (marches)
+    db.rrect((6, 52, 58, 58), 2, fill="#C2B6A2", outline=INK, width=2)
+    db.rrect((10, 48, 54, 54), 1.5, fill="#D8CFBE", outline=INK, width=1.5)
+    # colonnes cannelées à chapiteaux
+    for x in (16, 27, 38, 47):
+        db.rrect((x, 20, x + 7, 48), 1, fill="#E3D19A", outline=INK, width=1.2)
+        for cx in (x + 1.8, x + 3.5, x + 5.2):
+            db.line([(cx, 24), (cx, 45)], fill="#C2B6A2", width=0.9)
+        db.rrect((x - 1.5, 18, x + 8.5, 21), 1, fill="#C2B6A2", outline=INK, width=1)
+    # entablement
+    db.rrect((8, 14, 56, 19), 1.5, fill="#C2B6A2", outline=INK, width=2)
+    # fronton triangulaire
+    db.poly([(32, 2), (58, 15), (6, 15)], fill="#D8CFBE", outline=INK, width=2)
+    # oculus doré au centre du fronton
+    db.ellipse((28, 6, 36, 13), fill="#D9B45C", outline=INK, width=1.6)
+    db.ellipse((30.5, 8, 33.5, 11), fill="#F0D070")
+    if img is not None:
+        vgrad(img, (6, 2, 58, 16), (255, 255, 255), 30, 0, steps=8)
+        vgrad(img, (10, 40, 54, 58), (20, 20, 30), 0, 24, steps=8)
 
 
 def unite_espion(db, da, w, h):
