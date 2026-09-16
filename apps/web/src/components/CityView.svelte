@@ -565,7 +565,12 @@
   .eta { margin: 0.15rem 0 0; color: #a5d6a7; font-size: 0.82rem; }
   .eta.pending { color: #ffe082; }
   .item { margin: 0.2rem 0 0.15rem; display: flex; align-items: center; gap: 0.3rem; font-size: 0.9rem; }
-  .bar { height: 8px; background: #12161a; border-radius: 4px; overflow: hidden; border: 1px solid #3a4148; }
+  /* BARRES-CITYVIEW (retour d'Erik du 15/09) : sans largeur propre ni flex,
+     la piste se repliait à 0 (seules ses bordures restaient visibles — le
+     résidu « | ») et le remplissage en % n'avait rien à remplir. La piste
+     prend tout l'espace à côté du compteur ; le remplissage garde la couleur
+     de la ressource (vert nourriture / violet culture / ocre production). */
+  .bar { flex: 1 1 auto; min-width: 5rem; height: 8px; background: #12161a; border-radius: 4px; overflow: hidden; border: 1px solid #3a4148; }
   .fill { height: 100%; background: #f0c419; }
   .gauge { display: flex; align-items: center; gap: 0.5rem; margin: 0.35rem 0 0.1rem; }
   .gauge .lab { font-size: 0.8rem; color: #8b98a5; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.25rem; }
