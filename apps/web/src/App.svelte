@@ -17,6 +17,7 @@
   import Progen from './pages/Progen.svelte';
   import Lab3d from './pages/Lab3d.svelte';
   import Atelier from './pages/Atelier.svelte';
+  import LaboCombat from './pages/LaboCombat.svelte';
 
   type Route =
     | { page: 'login' }
@@ -26,7 +27,8 @@
     | { page: 'debug'; code: string }
     | { page: 'progen' }
     | { page: 'lab3d' }
-    | { page: 'atelier' };
+    | { page: 'atelier' }
+    | { page: 'labo-combat' };
 
   function parseHash(): Route {
     const hash = window.location.hash.replace(/^#/, '') || '/';
@@ -34,6 +36,7 @@
     if (hash === '/progen') return { page: 'progen' };
     if (hash === '/lab3d') return { page: 'lab3d' };
     if (hash === '/atelier') return { page: 'atelier' };
+    if (hash === '/labo-combat') return { page: 'labo-combat' };
     const game = /^\/game\/([A-Z0-9]{6})$/.exec(hash);
     if (game) return { page: 'game', code: game[1]! };
     const join = /^\/join\/([A-Z0-9]{6})$/.exec(hash);
@@ -67,6 +70,10 @@
   <!-- Labo spike L0 (chantier V1) : indépendant de la session — client-side pur,
        aucune partie ni donnée de jeu (comme #/progen, sans appel /api). -->
   <Lab3d />
+{:else if route.page === 'labo-combat'}
+  <!-- Labo de combat (chantier 2D) : indépendant de la session — client pur,
+       le moteur seedé tourne dans le navigateur, aucun appel /api. -->
+  <LaboCombat />
 {:else if $session === undefined}
   <p class="loading">Chargement…</p>
 {:else if route.page === 'progen'}
