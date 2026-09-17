@@ -18,10 +18,16 @@ import {
 } from '@game/rules';
 import type { GameState, MakeStateOptions, Order, PlayerId, TileKey, Unit, UnitId } from '@game/rules';
 
-/** Camps programmables du labo : deux joueurs + le camp barbare (pose libre). */
-export type CampLabo = 'p1' | 'p2' | 'barbare';
+/** Camps programmables du labo : CINQ nations + le camp barbare (pose libre).
+ *  Extension LABO-ENGAGEMENT (M3) : simulation multi-joueurs, labo uniquement
+ *  (la création de parties réelles reste 1v1). */
+export type CampLabo = 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | 'barbare';
 
-export const CAMPS_LABO: CampLabo[] = ['p1', 'barbare', 'p2'];
+/** Nations du labo (J1..J5) — le barbare suit son régime R-183 propre. */
+export const JOUEURS_LABO = ['p1', 'p2', 'p3', 'p4', 'p5'] as const;
+export type JoueurLabo = (typeof JOUEURS_LABO)[number];
+
+export const CAMPS_LABO: CampLabo[] = [...JOUEURS_LABO, 'barbare'];
 
 export function campVersJoueur(camp: CampLabo): PlayerId {
   return camp === 'barbare' ? BARBARIAN_ID : camp;
@@ -88,11 +94,11 @@ export type CampLaboSpec = CampBarbare;
 /**
  * Construit l'état du labo : carte rectangulaire + poses libres, le tout via
  * la fixture canonique du moteur (makeState — même constructeur que les
- * tests, donc un état VALIDÉ v24). La vision est TOTALE (fog désactivé :
+ * tests, donc un état VALIDÉ v25). La vision est TOTALE (fog désactivé :
  * carte entièrement visible, préalable M2.1). Les barbares posés sont des
  * unités normales du pseudo-joueur barbare ; celles d'un camp posé sont
- * enregistrées dans `spawnedUnits` (le régime BARBARES-PILES s'applique tel
- * quel : les `gardes` premières restent au camp, l'explorateur sort).
+ * enregistrées dans `spawnedUnits` (régime ENGAGEMENT R-183 : gardien SUR la
+ * case du camp, satellites dans le rayon d'une case).
  */
 export function creerEtatLabo(opts: EtatLaboOptions): GameState {
   const unitSpecs: NonNullable<MakeStateOptions['units']> = [];
@@ -129,12 +135,18 @@ export function creerEtatLabo(opts: EtatLaboOptions): GameState {
     spawnedParCamp.push(idsCamp);
     campsSpec.push(camp);
   }
+  // M3 : nations présentes dans les poses (J1/J2 minimum, comme avant ;
+  //  J3..J5 ajoutées si utilisées — le moteur gère N propriétaires, la
+  //  guerre par paires est la default de makeState).
+  const campsPresents = new Set<JoueurLabo>(['p1', 'p2']);
+  for (const u of opts.units ?? []) if (u.camp !== 'barbare') campsPresents.add(u.camp);
+  for (const c of opts.cities ?? []) campsPresents.add(c.camp);
   const state = makeState({
     width: opts.width,
     height: opts.height,
     fill: opts.fill,
     terrainOverrides: opts.terrainOverrides,
-    players: ['p1', 'p2'],
+    players: [...campsPresents].sort(),
     units: unitSpecs,
     cities: (opts.cities ?? []).map((c, i) => ({
       id: `c${i + 1}`,
@@ -217,10 +229,11 @@ function barbarianUnitType(turn: number): string {
 // Journal de résolution — le LUI l'outil d'ajustement d'Erik (M2.4).
 // ---------------------------------------------------------------------------
 
-/** Libellés FR des camps pour le journal. */
+/** Libellés FR des camps pour le journal (J1..J5 — extension M3). */
 export function nomCamp(owner: PlayerId): string {
   if (owner === BARBARIAN_ID) return 'Barbare';
-  return owner === 'p1' ? 'J1' : owner === 'p2' ? 'J2' : owner;
+  const n = JOUEURS_LABO.indexOf(owner as JoueurLabo);
+  return n >= 0 ? `J${n + 1}` : owner;
 }
 
 function unitLabel(state: GameState, id: UnitId | null | undefined): string {
@@ -258,7 +271,7 @@ export function construireJournal(
   lignes.push('— DISPOSITION DE DÉPART —');
   for (const id of Object.keys(pre.units).sort()) {
     const u = pre.units[id]!;
-    lignes.push(`  ${id} ${u.type} (${nomCamp(u.owner)}) en (${u.q},${u.r}) — PV ${u.hp}/${unitType(u.type).hpMax}${u.veteran ? ', vétéran' : ''}${u.fortified ? ', fortifiée' : ''}`);
+    lignes.push(`  ${id} ${u.type} (${nomCamp(u.owner)}) en (${u.q},${u.r}) — PV ${u.hp}/${unitType(u.type).hpMax}${u.veteran ? ', vétéran' : ''}${u.fortified ? ', fortifiée' : ''}${u.stabilized ? '' : ', INSTABLE'}`);
   }
   for (const id of Object.keys(pre.cities).sort()) {
     const c = pre.cities[id]!;
@@ -284,7 +297,7 @@ export function construireJournal(
   lignes.push('— ORDRES DONNÉS —');
   if (ordres) {
     let aucun = true;
-    for (const side of ['p1', 'p2'] as const) {
+    for (const side of JOUEURS_LABO) {
       const liste = ordres[side] ?? [];
       for (const o of liste) {
         if (!('unitId' in o)) continue;
@@ -299,7 +312,7 @@ export function construireJournal(
       aucun = false;
       lignes.push('  Barbares : ordres automatiques (R-97 — garde/explorateur/aggro)');
     }
-    if (aucun) lignes.push('  (aucun ordre pour J1/J2)');
+    if (aucun) lignes.push('  (aucun ordre pour les nations posées)');
   } else {
     lignes.push('  (ordres non consignés)');
   }
@@ -428,7 +441,9 @@ export function formatEvent(state: GameState, ev: { type: string } & Record<stri
       return `MÊLÉE en ${hexLabel(ev.at as { q: number; r: number })} — ${detail}`;
     }
     case 'UnitExpelled':
-      return `EXPULSION (cohabitation amie, R-179) ${unitLabel(state, ev.unitId as UnitId)} : ${hexLabel(ev.from as { q: number; r: number })} → ${hexLabel(ev.to as { q: number; r: number })}`;
+      return `EXPULSION (cohabitation amie, R-179 — journal ancien) ${unitLabel(state, ev.unitId as UnitId)} : ${hexLabel(ev.from as { q: number; r: number })} → ${hexLabel(ev.to as { q: number; r: number })}`;
+    case 'UnitDispersed':
+      return `DISPERSION (pile amie, R-159 rév. B) ${unitLabel(state, ev.unitId as UnitId)} : ${hexLabel(ev.from as { q: number; r: number })} → ${hexLabel(ev.to as { q: number; r: number })}`;
     case 'Captured':
       return `CAPTURE ${unitLabel(state, ev.unitId as UnitId)} par ${nomCamp(ev.byPlayer as PlayerId)} (${ev.outcome})`;
     case 'CityFounded':

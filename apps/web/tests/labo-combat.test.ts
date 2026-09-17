@@ -164,10 +164,16 @@ describe('labo-combat — M2 programmation et résolution seedée', () => {
     for (const l of lignes) expect(l.length).toBeGreaterThan(0);
     expect(lignes.some((l) => l.startsWith('ATTAQUE'))).toBe(true);
     expect(lignes.some((l) => l.startsWith('échange'))).toBe(true);
-    // Les gardes NE SORTENT PAS d'elles-mêmes (T-49) : aucun Move volontaire
-    // barbare dans le journal (les REPLIS de combat sont un mécanisme à part,
-    // R-54 — un défenseur affaibli peut être replié même s'il est garde).
-    expect(events.some((e) => e.type === 'Move' && (e as { owner: string }).owner === BARBARIAN_ID)).toBe(false);
+    // Les gardes/satellites ne sortent pas D'EUX-MÊMES (T-49/R-183) : tout
+    // Move barbare est une entrée AGRESSIVE — R-159 rév. B (17/09) : les deux
+    // attaquants J1 sont retenus devant le camp (co-attaque, P1) et les
+    // satellites voisin les aggro'd sur leur case d'attente ; chaque Move
+    // barbare est donc immédiatement suivi d'une Attack du même unitId.
+    const movesBarbares = events.filter((e) => e.type === 'Move' && (e as { owner: string }).owner === BARBARIAN_ID);
+    for (const m of movesBarbares) {
+      const unitId = (m as { unitId: string }).unitId;
+      expect(events.some((e) => e.type === 'Attack' && (e as { attackerId: string }).attackerId === unitId)).toBe(true);
+    }
     // Les attaques J1 ont bien visé la pile du camp.
     expect(events.some((e) => e.type === 'Attack' && (e as { at: { q: number; r: number } }).at.q === 5 && (e as { at: { q: number; r: number } }).at.r === 3)).toBe(true);
   });

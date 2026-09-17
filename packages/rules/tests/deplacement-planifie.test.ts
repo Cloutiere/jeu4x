@@ -53,7 +53,7 @@ describe('R-158 · forme d\'ordre composite MultiStep (D5)', () => {
     expect(unit(newState, 'col')).toMatchObject({ q: 2, r: 0 }); // le mouvement, lui, a eu lieu
   });
 
-  it('ENGAGEMENT R-173 (ancien blocage amical R-30 abrogé) : le colon traverse la case de son ami', () => {
+  it('R-159 rév. B (17/09) : le colon ne peut plus traverser-finir sur la case de son ami (cohabitation hors attaque illégale)', () => {
     const state = makeState({
       units: [
         { id: 'col', type: 'colon', owner: 'p1', q: 0, r: 0 },
@@ -65,14 +65,14 @@ describe('R-158 · forme d\'ordre composite MultiStep (D5)', () => {
       p1: [{ type: 'MultiStep', unitId: 'col', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }], final: 'foundCity' }],
     };
     const { newState, events } = resolveTurn(state, orders, 1);
-    // La co-location amie est LÉGALE (ENGAGEMENT) : le colon atteint (2,0) —
-    // la case devient instable et la Phase E EXPELLE l'excédent (R-179) :
-    // 'bloc' (unitId inférieur) demeure, 'col' est relogé à l'adjacent libre.
+    // RÉV. R-159 rév. B (remplace l'ancien contrat « entrée + expulsion
+    // R-179 ») : le dernier pas sur une case amie SANS menace ennemie est
+    // REFUSÉ — le colon avance au maximum (il est en (1,0)) et s'arrête
+    // AVANT la case ; 'bloc' demeure seul, personne n'est expulsée.
     expect(unit(newState, 'bloc')).toMatchObject({ q: 2, r: 0 });
-    expect(events.some((e) => e.type === 'UnitExpelled' && e.unitId === 'col')).toBe(true);
-    const col = unit(newState, 'col');
-    expect(Math.max(Math.abs(col.q - 2), Math.abs(col.r - 0))).toBe(1); // adjacent au camp
-    // Pas de fondation (le colon n'a pas demeuré seul au terme du chemin).
+    expect(unit(newState, 'col')).toMatchObject({ q: 1, r: 0 });
+    expect(events.some((e) => e.type === 'UnitExpelled' || e.type === 'UnitDispersed')).toBe(false);
+    // Pas de fondation (le colon n'a jamais atteint le terme du chemin).
     expect(Object.values(newState.cities).some((c) => c.q === 2 && c.r === 0)).toBe(false);
   });
 

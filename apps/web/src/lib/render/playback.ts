@@ -61,7 +61,8 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   Move: 240,
   Retreat: 240, // ABROGÉ (ENGAGEMENT) — plus jamais émis ; durée conservée pour les journaux anciens
   MeleeResolved: 480, // ENGAGEMENT R-180 : mêlée d'instabilité
-  UnitExpelled: 300, // ENGAGEMENT R-179 : expulsion de cohabitation
+  UnitExpelled: 300, // ENGAGEMENT R-179 : expulsion de cohabitation (journaux anciens)
+  UnitDispersed: 300, // R-159 rév. B : dispersion de pile amie
   Attack: 200,
   CombatExchange: 420,
   UnitDestroyed: 420,

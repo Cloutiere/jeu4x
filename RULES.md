@@ -106,6 +106,10 @@ Les ordres sont **modifiables/annulables jusqu'au verrouillage** (« Fin de tour
 
 **R-159 · Priorité de destination (D2/D3).** La **priorité** = **chronologie de première programmation du tour** (index d'ordre croissant dans la file du joueur ; un chemin gelé — programmé dans un tour antérieur — a la priorité la plus ancienne ; tie-break `unitId` croissant, R-81).
 - **D2 — destination disputée amie/amie** : la **première unité programmée obtient la case** ; les suivantes ont leur chemin **tronqué avant la destination contestée** — elles avancent au maximum de leurs PM jusqu'à la **dernière case libre avant la destination** puis s'arrêtent (à 0 case disponible, elles restent sur place). Le traitement des mouvements reste en ordre `unitId` croissant (R-41) : la troncature pré-résolution rend la priorité effective sans réordonner le moteur. Les membres désignés d'un même `FormArmy` ne sont jamais soumis à la troncature (co-location légale R-44).
+- **R-159 rév. B — dispute de destination amie (LABO-ENGAGEMENT, Erik 17/09, remplace D2).** Deux unités du même camp peuvent programmer la **même destination** si un **ennemi** peut s'y trouver au moment de leur entrée (occupant ennemi, chemin ennemi aboutissant, ou attaque ennemie ciblant la case) — la co-destination se joint alors à l'attaque. Sinon (destination qui ne porterait que des amies) : la **première programmée obtient la case**, les suivantes **avancent au maximum** de leurs PM et s'arrêtent AVANT la case (fin du rendez-vous amical : la cohabitation hors attaque est illégale). L'ennemi qui **part** pendant la résolution fait perdre le droit d'entrée : au plus une amie y entre. Les membres d'un même `FormArmy` restent exemptés (R-44).
+- **R-159-b · entrée conditionnelle à la mort du défenseur (amis seulement).** Quand ≥ 2 attaquants du MÊME camp visent la même case défendue, leurs ENTRÉES sont **retenues** et séquencées en Phase B dans l'ordre R-177 : chacun entre PUIS attaque ; si le défenseur meurt, les suivants du même camp **n'entrent pas** — sauf si d'autres ENNEMIS demeurent sur la case (ils y entrent **sans combattre** — seul le défenseur était la cible). Les ENNEMIS ne sont JAMAIS retenus : ils entrent tous et n'attaquent que le défenseur.
+- **R-159-c · renfort défensive.** Une amie programmée sur la case d'une amie STABILISÉE est retenue ; elle n'entre qu'**après l'échange** et seulement si l'ennemi est **physiquement entré** sur la case ce tour (un tir à distance ne compte pas) — défenseur survivant : elle cohabite (mêlée reportée, R-178 rév. A) ; défenseur mort : elle entre et **cohabite avec l'ennemi vainqueur** (mêlée éventuelle). Sans attaque ennemie : elle n'entre pas.
+- **R-159-d · tir sur pile (H2).** Un tir à distance sur une case SANS défenseur stabilisé (pile) cible l'occupante **militaire la mieux fondée** (fortifiée > PV > R-81), qui se défend en VALEURS D'ATTAQUE (R-174) ; le tir n'entraîne aucune entrée, aucun report de mêlée, et ne suspend pas la dispersion (R-179-b).
 - **D3 — édition** : re-programmer une unité **remplace** son ordre **en conservant sa position dans la file** (`upsertOrderPreservingPriority` — serveur) ; **annuler puis re-programmer** la remet **en fin de file**. Ordres « impossibles en apparence » acceptés à la programmation — c'est la résolution qui tranche.
 
 **R-160 · Aperçu optimiste (D1).** Fonction pure `previewPrograms` (moteur, source unique UI 2D/3D) : chaque ordre est affiché **comme s'il réussissait** — pas de prédiction des ordres ennemis (tours simultanés). L'aperçu expose : chemin prévu, destination finale, action finale, **cases disputées** (destination revendiquée par ≥ 2 unités amies) et gagnant de la dispute (miroir R-159). Calculé **sur l'état filtré**, il ne révèle rien au-delà du visible (aucune fuite fog — miroir du bug 7o). UI : flèches de programmation (couleur = nation, vert = action finale), fantômes aux destinations prévues, badge de comptage (pile), hex surligné + tooltip pédagogique sur les cases disputées.
@@ -797,12 +801,19 @@ Base documentaire : la spécification d'Erik [`Guide Civilisations Civilization 
   du tour suivant — le défenseur qui demeure **conserve ses bonus** (R-175 : fortification,
   terrain, ville). Le report ne s'applique PAS à l'entrée simultanée sur une case SANS
   défenseur (#2 : mêlée immédiate).
-- **R-179 · Expulsion de cohabitation.** Une case à ≥ 2 unités du MÊME propriétaire (aucune
-  ennemie) ne peut le demeurer : l'unité qui RESTE est la mieux fondée (fortifiée, puis PV
-  décroissants, puis R-81) ; les autres (ordre unitId croissant) sont relogées sur la case
-  adjacente libre la plus proche (tie (q, r)) — événement `UnitExpelled`. Sans case libre :
-  elles restent (punition douce : case instable). L'expulsion ne combat pas et n'ouvre pas de
-  hutte ; elle fait perdre fortification et stabilisation.
+- **R-179 ABROGÉE → R-179-b · Dispersion de pile amie (LABO-ENGAGEMENT, Erik 17/09).** La
+  cohabitation amie n'est plus expulsée au tour de sa formation : c'est un **état résiduel
+  légal** qui persiste (ex. les deux attaquantes d'un même défenseur qui meurt). Le joueur a
+  le tour suivant pour en déplacer une lui-même. L'excédent n'est **dispersé** qu'en Phase E
+  d'un tour où **rien n'est physiquement entré** sur la case (une entrée ennemie suspend la
+  dispersion : la pile demeure pour la mêlée — rester en pile sous menace est un choix) et
+  où aucun défenseur stabilisé n'y a été attaqué (résidu de combat reporté, R-178 rév. A).
+  Celle qui RESTE est la mieux fondée (fortifiée, puis PV décroissants, puis R-81) ; les
+  autres (ordre unitId croissant) rejoignent la case adjacente libre la plus proche
+  (tie (q, r)) — événement `UnitDispersed` (`UnitExpelled` conservé pour les journaux
+  anciens). Sans case admissible : la pile persiste, nouvel essai au tour suivant. La
+  dispersée ne combat pas et n'ouvre pas de hutte ; elle perd fortification et
+  stabilisation (R-175) ; le restant se **stabilise** (R-173).
 - **R-180 · Mêlée pondérée + étau (#7, #8).** Chaque participante a un POIDS = attaque
   effective² × étau. La GAGNANTE est tirée à `w_i/Σw`, la PERDANTE parmi les restantes au
   même mécanisme (égalités de poids = tirage uniforme — #8), les autres sont
@@ -831,11 +842,14 @@ Base documentaire : la spécification d'Erik [`Guide Civilisations Civilization 
 **Abrogations ENGAGEMENT** : R-52 rév. DÉFENSE-DE-PILE, R-53 (collisions), R-54/R-55/R-56
 (replis, attaques répétées, allocation), R-59-d (défenseur à distance replié), R-96 rév.
 BARBARES-PILES (pile de camp, assaut un par un), R-30 amendée (l'arrêt ami et le régime de
-pile disparaissent — la co-location est légale partout), clause « pile » de R-97, drapeau
-d'empilement de BARBARES-PILES M2 (retiré du rendu). **Restent** : camps sans PV, capture =
-récompense hutte seedée, gardés vs explorateur, escalation guerrier-only, aggro T-19, R-59
-(à distance), R-128 Grande Muraille, R-43 (pacifiques), R-57 (villes), R-159 (dispute de
-destination amie — la première programmée garde la case).
+pile disparaissent), clause « pile » de R-97, drapeau
+d'empilement de BARBARES-PILES M2 (retiré du rendu), **R-179 (expulsion immédiate — remplacée
+par la dispersion différée R-179-b, rév. LABO-ENGAGEMENT 17/09)**, **R-159 D2 en version
+d'origine (troncature inconditionnelle — remplacée par R-159 rév. B)**. **Restent** : camps
+sans PV, capture = récompense hutte seedée, gardés vs explorateur, escalation guerrier-only,
+aggro T-19, R-59 (à distance), R-128 Grande Muraille, R-43 (pacifiques), R-57 (villes),
+R-159 rév. B (dispute de destination amie — la première programmée garde la case quand la
+case ne porterait que des amies).
 
 ## 9. Phase D — Vision, soins, fin de tour
 

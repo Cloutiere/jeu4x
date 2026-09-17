@@ -406,8 +406,8 @@ describe('R-178/R-180 · Mêlée pondérée + étau', () => {
   });
 });
 
-describe('R-179 · Expulsion de cohabitation (unités amies)', () => {
-  it('l’unité fortifiée reste, l’autre est expulsée vers une case adjacente libre', () => {
+describe('R-159 rév. B · Dispersion de pile amie (remplace R-179 — Erik 17/09)', () => {
+  it('l’unité fortifiée reste, l’autre est dispersée vers une case adjacente libre', () => {
     const s0 = makeState({
       units: [
         { id: 'u1', type: 'guerrier', owner: 'p1', q: 4, r: 4, fortified: true, stabilized: false },
@@ -416,10 +416,11 @@ describe('R-179 · Expulsion de cohabitation (unités amies)', () => {
     });
     const { newState, events } = resolveTurn(s0, AUCUN, 7);
     expect(unitOf(newState, 'u1').q).toBe(4);
-    expect(unitOf(newState, 'u1').r).toBe(4); // la fortifiée reste
+    expect(unitOf(newState, 'u1').r).toBe(4); // la fortifiée reste (H1)
     const u2 = unitOf(newState, 'u2');
-    expect(Math.abs(u2.q - 4) + Math.abs(u2.r - 4)).toBeGreaterThan(0); // expulsée (adjacente)
-    expect(events.some((e) => e.type === 'UnitExpelled' && e.unitId === 'u2')).toBe(true);
+    expect(Math.abs(u2.q - 4) + Math.abs(u2.r - 4)).toBeGreaterThan(0); // dispersée (adjacente)
+    // RÉV. R-159 rév. B : l'événement est UnitDispersed (UnitExpelled abrogé).
+    expect(events.some((e) => e.type === 'UnitDispersed' && e.unitId === 'u2')).toBe(true);
   });
 
   it('sans case libre adjacente, l’excédent reste sur place (punition : instable)', () => {

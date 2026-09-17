@@ -6,12 +6,14 @@
    * moteur (@game/rules, résolution seedée R-80) tourne dans le navigateur.
    *
    *  - M1 pose libre : carte rectangulaire ajustable (pinceau de terrain),
-   *    unités des DEUX joueurs + barbares, villes, camps barbares (gardien + satellites) ;
-   *  - M2 programmation : onglets J1/J2, chemins multi-étapes (R-158),
+   *    unités des CINQ nations + barbares, villes, camps barbares (gardien + satellites) ;
+   *  - M2 programmation : onglets J1..J5, chemins multi-étapes (R-158),
    *    action finale fondation, attaques — puis « Résoudre le tour » avec
    *    le moteur réel (seed affiché/modifiable, reproductible) ;
    *  - M2.4 observation : journal complet de résolution à côté de la carte
-   *    (événement par événement) + avant/après (PV, morts) ;
+   *    (événement par événement, mêlées/expulsions comprises) + avant/après ;
+   *  - ENGAGEMENT : badge 🔶 INSTABLE sur les cases à ≥ 2 unités (R-173 —
+   *    ce qui va se battre en Phase E se lit d'un coup d'œil).
    *  - bonus : revenir à l'état pré-résolution (snapshot) pour rejouer une
    *    variante d'ordres sur la même configuration.
    */
@@ -27,6 +29,7 @@
   import type { GameEvent, GameState, Order, PlayerId, TileKey, Unit } from '@game/rules';
   import {
     CAMPS_LABO,
+    JOUEURS_LABO,
     TYPES_POSABLES,
     campVersJoueur,
     construireJournal,
@@ -35,7 +38,7 @@
     terrainsPosables,
     nomCamp,
   } from '../lib/laboCombat.js';
-  import type { CampBarbare, CampLabo, CityLabo, UnitLabo } from '../lib/laboCombat.js';
+  import type { CampBarbare, CampLabo, CityLabo, JoueurLabo, UnitLabo } from '../lib/laboCombat.js';
 
   // --- Carte (M1.1) -----------------------------------------------------------
   let width = $state(10);
@@ -65,10 +68,10 @@
   let pvPose = $state(3);
   let campGardes = $state(2);
   let campExplorateur = $state(true);
-  let typeVillePose = $state<'p1' | 'p2'>('p1');
+  let typeVillePose = $state<JoueurLabo>('p1');
 
   // --- Programmation (M2.1) ---------------------------------------------------
-  let coteProgramme = $state<'p1' | 'p2'>('p1');
+  let coteProgramme = $state<JoueurLabo>('p1');
   let uniteSelectionnee = $state<string | null>(null);
   let modeAttaque = $state(false);
   interface Programme {
@@ -76,11 +79,12 @@
     finalFoundCity: boolean;
     attackTarget: { q: number; r: number } | null;
   }
+  /** Programmes vides pour chaque nation (M3 : J1..J5). */
+  function programmesVides(): Record<JoueurLabo, Record<string, Programme>> {
+    return { p1: {}, p2: {}, p3: {}, p4: {}, p5: {} };
+  }
   /** Ordres programmés, PAR CÔTÉ, par id d'unité de l'état affiché. */
-  let programmes = $state<{ p1: Record<string, Programme>; p2: Record<string, Programme> }>({
-    p1: {},
-    p2: {},
-  });
+  let programmes = $state<Record<JoueurLabo, Record<string, Programme>>>(programmesVides());
 
   // --- Résolution (M2.3/M2.4) -------------------------------------------------
   let etatReporte = $state<GameState | null>(null);
@@ -167,15 +171,23 @@
     ocean: '#3f6fa3',
   };
   // Couleurs d'accent codifiées (textures.ts PLAYER_COLORS — SPEC-ART §3.3/§4,
-  // décision Erik : le rouge est réservé aux barbares).
+  // décision Erik : le rouge est réservé aux barbares). J3..J5 : extension
+  // LABO-ENGAGEMENT (M3, labo uniquement) — teintes distinctes choisies en
+  // attendant la palette définitive des assets.
   const COULEURS_CAMP: Record<string, string> = {
     p1: '#3dffce', // menthe néon
     p2: '#3b6fd6', // bleu vif
+    p3: '#a78bfa', // violet
+    p4: '#f59e0b', // ambre
+    p5: '#ec4899', // rose
     [BARBARIAN_ID]: '#e03131', // rouge barbare
   };
   const TEXTE_CAMP: Record<string, string> = {
     p1: '#0b3b32', // sombre sur menthe claire
     p2: '#ffffff',
+    p3: '#ffffff',
+    p4: '#3b2f0b', // sombre sur ambre claire
+    p5: '#ffffff',
     [BARBARIAN_ID]: '#ffffff',
   };
   function couleurTerrain(q: number, r: number): string {
@@ -287,7 +299,7 @@
     unites = [];
     villes = [];
     camps = [];
-    programmes = { p1: {}, p2: {} };
+    programmes = programmesVides();
     etatReporte = null;
     etatResolu = null;
     snapshotAvant = null;
@@ -372,7 +384,7 @@
   }
 
   /** Ordres moteurs du côté donné (depuis la programmation du labo). */
-  function ordresDuCote(side: 'p1' | 'p2'): Order[] {
+  function ordresDuCote(side: JoueurLabo): Order[] {
     const ordres: Order[] = [];
     for (const id of Object.keys(programmes[side]).sort()) {
       const unite = etatAffiche.units[id];
@@ -387,16 +399,17 @@
     return ordres;
   }
 
-  const compteurOrdres = $derived.by(() => ({
-    p1: Object.keys(programmes.p1).length,
-    p2: Object.keys(programmes.p2).length,
-  }));
+  const compteurOrdres = $derived.by(() => {
+    const out: Record<string, number> = {};
+    for (const side of JOUEURS_LABO) out[side] = Object.keys(programmes[side]).length;
+    return out;
+  });
 
-  /** Résumé lisible des ordres programmés (les deux côtés) — ce qui partira
+  /** Résumé lisible des ordres programmés (toutes nations) — ce qui partira
    *  au moteur à la résolution. */
   const resumeOrdres = $derived.by(() => {
     const lignes: string[] = [];
-    for (const side of ['p1', 'p2'] as const) {
+    for (const side of JOUEURS_LABO) {
       for (const id of Object.keys(programmes[side]).sort()) {
         const u = etatAffiche.units[id];
         const prog = programmes[side][id]!;
@@ -406,7 +419,7 @@
           : prog.path.length > 0
             ? `chemin ${u.q},${u.r} → ${prog.path.map((h) => `(${h.q},${h.r})`).join(' → ')}`
             : 'sur place';
-        lignes.push(`${side === 'p1' ? 'J1' : 'J2'} ${id} ${u.type} : ${chemin}${prog.finalFoundCity ? ' + FONDATION' : ''}`);
+        lignes.push(`${nomCamp(side)} ${id} ${u.type} : ${chemin}${prog.finalFoundCity ? ' + FONDATION' : ''}`);
       }
     }
     return lignes;
@@ -462,10 +475,8 @@
       // est un Proxy Svelte 5 — structuredClone le refuse, ERREUR « could not
       // be cloned » constatée au labo) ; le clone moteur reste déterministe.
       const avant = structuredClone($state.snapshot(etatAffiche)) as GameState;
-      const ordres: Record<PlayerId, Order[]> = {
-        p1: ordresDuCote('p1'),
-        p2: ordresDuCote('p2'),
-      };
+      const ordres: Record<PlayerId, Order[]> = {};
+      for (const side of JOUEURS_LABO) ordres[side] = ordresDuCote(side);
       // R-80 : la graine utilisée est CELLE DE L'ÉTAT (portée par « Poursuivre »),
       // pas le champ de saisie — sinon les tours successifs rejoueraient la même
       // graine. Le champ est resynchronisé pour rester fidèle à l'affichage.
@@ -474,13 +485,14 @@
       seedText = String(seed);
       snapshotAvant = avant;
       etatResolu = resultat.newState;
-      journal = construireJournal(avant, resultat.events.map((ev: GameEvent) => ev as unknown as { type: string } & Record<string, unknown>), ordres)
+          journal = construireJournal(avant, resultat.events.map((ev: GameEvent) => ev as unknown as { type: string } & Record<string, unknown>), ordres)
         .map((ligne, i) => ({
           seq: i + 1,
           type: ligne.startsWith('ATTAQUE') ? 'Attack'
             : ligne.startsWith('échange') ? 'CombatExchange'
             : ligne.startsWith('MORT') ? 'UnitDestroyed'
             : ligne.startsWith('REPLI') ? 'Retreat'
+            : ligne.startsWith('MÊLÉE') || ligne.startsWith('DISPERSION') ? 'Melee'
             : ligne.includes('RÉSOLU') ? 'TurnResolved'
             : ligne.startsWith('—') || ligne.startsWith('Tour') ? 'entete'
             : 'ligne',
@@ -504,7 +516,7 @@
     etatResolu = null;
     snapshotAvant = null;
     journal = [];
-    programmes = { p1: {}, p2: {} };
+    programmes = programmesVides();
     uniteSelectionnee = null;
   }
 
@@ -512,7 +524,7 @@
     etatReporte = null;
     etatResolu = null;
     journal = [];
-    programmes = { p1: {}, p2: {} };
+    programmes = programmesVides();
   }
 
   /** Avant/après (M2.4) : unités vivantes avant vs après, morts listées. */
@@ -538,12 +550,12 @@
 
   const uniteProg = $derived(uniteSelectionnee ? etatAffiche.units[uniteSelectionnee] ?? null : null);
 
-  /** Toutes les programmations des DEUX côtés (lignes visibles en permanence,
-   *  quelle que soit l'onglet actif — la programmée du côté sélectionné est
-   *  en surépaisseur). */
+  /** Toutes les programmations de TOUTES les nations (lignes visibles en
+   *  permanence, quelle que soit l'onglet actif — la programmée du côté
+   *  sélectionné est en surépaisseur). */
   const programmesAffiches = $derived.by(() => {
-    const out: Array<{ side: 'p1' | 'p2'; unitId: string; unit: Unit; prog: Programme; actif: boolean }> = [];
-    for (const side of ['p1', 'p2'] as const) {
+    const out: Array<{ side: JoueurLabo; unitId: string; unit: Unit; prog: Programme; actif: boolean }> = [];
+    for (const side of JOUEURS_LABO) {
       for (const id of Object.keys(programmes[side]).sort()) {
         const u = etatAffiche.units[id];
         if (u) out.push({ side, unitId: id, unit: u, prog: programmes[side][id]!, actif: side === coteProgramme && id === uniteSelectionnee });
@@ -615,7 +627,7 @@
             <label>
               Camp
               <select bind:value={campPose}>
-                {#each CAMPS_LABO as c}<option value={c}>{c === 'p1' ? 'Joueur 1' : c === 'p2' ? 'Joueur 2' : 'Barbare'}</option>{/each}
+                {#each CAMPS_LABO as c}<option value={c}>{c === 'barbare' ? 'Barbare' : `Joueur ${Number(c.slice(1))}`}</option>{/each}
               </select>
             </label>
             <label>PV courants : {pvPose}
@@ -625,8 +637,7 @@
             <label>
               Propriétaire
               <select bind:value={typeVillePose}>
-                <option value="p1">Joueur 1</option>
-                <option value="p2">Joueur 2</option>
+                {#each JOUEURS_LABO as c}<option value={c}>Joueur {Number(c.slice(1))}</option>{/each}
               </select>
             </label>
             <p class="hint-small">Rayon de travail 1 posé avec la ville (R-60).</p>
@@ -661,7 +672,7 @@
                 <label>
                   Camp
                   <select bind:value={u.camp}>
-                    {#each CAMPS_LABO as c}<option value={c}>{c === 'p1' ? 'Joueur 1' : c === 'p2' ? 'Joueur 2' : 'Barbare'}</option>{/each}
+                    {#each CAMPS_LABO as c}<option value={c}>{c === 'barbare' ? 'Barbare' : `Joueur ${Number(c.slice(1))}`}</option>{/each}
                   </select>
                 </label>
                 <label>PV : {u.hp}
@@ -684,14 +695,13 @@
           {/if}
         {:else}
           <div class="onglets">
-            <button type="button" class:actif={coteProgramme === 'p1'} onclick={() => { coteProgramme = 'p1'; uniteSelectionnee = null; modeAttaque = false; }}>
-              Programmer J1 ({compteurOrdres.p1})
-            </button>
-            <button type="button" class:actif={coteProgramme === 'p2'} onclick={() => { coteProgramme = 'p2'; uniteSelectionnee = null; modeAttaque = false; }}>
-              Programmer J2 ({compteurOrdres.p2})
-            </button>
+            {#each JOUEURS_LABO as side (side)}
+              <button type="button" class:actif={coteProgramme === side} onclick={() => { coteProgramme = side; uniteSelectionnee = null; modeAttaque = false; }}>
+                Programmer {nomCamp(side)} ({compteurOrdres[side]})
+              </button>
+            {/each}
           </div>
-          <p class="hint-small">Clic sur une unité {coteProgramme === 'p1' ? 'menthe (J1)' : 'bleue (J2)'} = sélection. Puis clics sur la carte = chemin multi-étapes (R-158). Re-cliquer l'unité = annuler le dernier pas.</p>
+          <p class="hint-small">Clic sur une unité {nomCamp(coteProgramme)} = sélection. Puis clics sur la carte = chemin multi-étapes (R-158). Re-cliquer l'unité = annuler le dernier pas.</p>
           {#if uniteProg}
             <div class="edition">
               <strong>{libelleUnite(uniteProg)}</strong>
@@ -753,6 +763,13 @@
           {#if unitesParCase.get(key)}
             {@const pile = unitesParCase.get(key)!}
             {@const p = px(c.q, c.r)}
+            <!-- ENGAGEMENT · R-173 : badge INSTABLE sur toute case à ≥ 2 unités
+                 (la mêlée/expulsion de Phase E s'y jouera — lecture d'un coup
+                 d'œil, calibrage 🔶). -->
+            {#if pile.length >= 2}
+              {@const pInstable = px(c.q, c.r)}
+              <text x={pInstable.x - HEX * 0.95} y={pInstable.y - HEX * 0.78} font-size="12" fill="#d97706" style="pointer-events: none;">🔶<title>Case instable (R-173) — mêlée Phase E</title></text>
+            {/if}
             {#each pile.slice(0, 3) as u, i (u.id)}
               {@const dx = pile.length > 1 ? (i - (Math.min(pile.length, 3) - 1) / 2) * 14 : 0}
               <circle cx={p.x + dx} cy={p.y - 4} r="8" fill={COULEURS_CAMP[u.owner] ?? '#000'} stroke="#fff" stroke-width="1.5" />
@@ -805,7 +822,7 @@
           </button>
         </div>
         <p class="hint-small">
-          Ordres : J1 {compteurOrdres.p1} · J2 {compteurOrdres.p2} · barbares automatiques (R-97).
+          Ordres : {JOUEURS_LABO.map((s) => `${nomCamp(s)} ${compteurOrdres[s]}`).join(' · ')} · barbares automatiques (R-97).
           Seed {seed} — re-résoudre le même tour avec le même seed = même résultat (R-80).
         </p>
         {#if resumeOrdres.length > 0}
@@ -887,6 +904,7 @@
   .journal { max-height: 28rem; overflow: auto; font-size: 0.78rem; padding-left: 1.4rem; margin: 0; color: #d8d5cd; }
   .journal .ev-entete { font-weight: 700; color: #e8e4da; list-style: none; margin-left: -1.1rem; margin-top: 0.3rem; }
   .journal li { margin-bottom: 0.12rem; }
+  .journal .ev-Melee { font-weight: 700; color: #92400e; }
   .journal .ev-Attack { font-weight: 700; color: #7f1d1d; }
   .journal .ev-CombatExchange { color: #7f1d1d; }
   .journal .ev-UnitDestroyed { font-weight: 700; color: #000; }

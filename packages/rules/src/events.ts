@@ -71,8 +71,16 @@ export type GameEvent =
     }
   /** ENGAGEMENT · R-179 · Expulsion de cohabitation : une case ne peut pas
    *  demeurer porteur de plusieurs unités AMIES en fin de tour — l'excédent
-   *  est relogé déterministement sur une case adjacente libre. */
+   *  est relogé déterministement sur une case adjacente libre.
+   *  (Type conservé pour la lecture des journaux antérieurs ; remplacé depuis
+   *  R-159 rév. B par UnitDispersed — dispersion différée de pile amie.) */
   | { seq: number; type: 'UnitExpelled'; unitId: UnitId; owner: PlayerId; from: Hex; to: Hex }
+  /** R-159 rév. B (décision d'Erik du 17/09) · Dispersion d'une pile amie :
+   *  la cohabitation amie n'est plus expulsée au tour de sa formation — elle
+   *  persiste (état résiduel légal) et l'excédent n'est dispersé qu'en Phase E
+   *  d'un tour où RIEN n'est physiquement entré sur la case (H2 : un tir à
+   *  distance ne suspend pas la dispersion). Le restant se stabilise (R-173). */
+  | { seq: number; type: 'UnitDispersed'; unitId: UnitId; owner: PlayerId; from: Hex; to: Hex }
   /**
    * Capture d'une unité pacifique (R-43). En guerre (v1) : outcome 'destroyed'
    * (+ BootyGold). En paix (Phase 7) : 'detained'.
@@ -398,6 +406,7 @@ export function eventRefs(event: GameEvent): EventRefs {
       hex(event.at);
       break;
     case 'UnitExpelled':
+    case 'UnitDispersed':
       refs.unitIds.push(event.unitId);
       refs.players.push(event.owner);
       hex(event.from);
