@@ -424,6 +424,7 @@ function applyActivation(ctx: ArtefactActivationContext, entity: Artefact, unit:
           fortified: false,
           aboard: null,
           cargo: null,
+          stabilized: false, // ENGAGEMENT - R-173
         };
         // Exemption d'escalade (calibrage canon) : AUCUN incrément de
         // greatPersonsObtained / greatPersonsByType ici.
@@ -463,6 +464,7 @@ function applyActivation(ctx: ArtefactActivationContext, entity: Artefact, unit:
           fortified: false,
           aboard: null,
           cargo: null,
+          stabilized: false, // ENGAGEMENT - R-173
         };
         payload.unitIds = [unitId];
         payload.unitType = effectiveType;

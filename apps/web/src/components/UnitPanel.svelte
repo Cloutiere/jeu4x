@@ -343,14 +343,17 @@
           Tenir la position
         </button>
         {#if unit.fortified}
-          <!-- R-33 : tout autre ordre annule la fortification — Hold = « ne plus fortifier ». -->
-          <button type="button" disabled={!editable} title="Annule la fortification (un Hold suffit — R-33)" onclick={() => unit && client.submitOrder({ type: 'Hold', unitId: unit.id })}>
-            Ne plus fortifier
-          </button>
-        {:else}
-          <button type="button" disabled={!editable} title="Bonus défensif permanent (+25 %) tant qu'aucun autre ordre n'est donné (R-33)" onclick={() => unit && client.submitOrder({ type: 'Fortify', unitId: unit.id })}>
+          <!-- ENGAGEMENT R-175 : la fortification est durable — elle persiste
+               tant que l'unité demeure sur sa case (même en mêlée). Elle ne
+               peut plus être annulée par ordre : seul un déplacement la perd. -->
+          <span class="fortified" title="ENGAGEMENT R-175 : fortification durable — conservée tant que l'unité demeure sur cette case (même en mêlée), perdue si elle bouge.">🛡 Fortification durable</span>
+        {:else if unit.stabilized}
+          <!-- ENGAGEMENT R-174 : seule une unité STABILISÉE (seule sur sa case en fin du tour précédent) peut se fortifier. -->
+          <button type="button" disabled={!editable} title="ENGAGEMENT R-174/R-175 : fortification durable (+25 %) — conservée tant que l'unité demeure sur sa case, même en mêlée ; perdue si elle bouge." onclick={() => unit && client.submitOrder({ type: 'Fortify', unitId: unit.id })}>
             Fortifier
           </button>
+        {:else}
+          <span class="fortified" title="ENGAGEMENT R-174 : une case instable (plusieurs unités, ou arrivée ce tour) ne permet pas de se fortifier — laissez l'unité seule sur sa case un tour.">Instable — fortification indisponible</span>
         {/if}
         {#if stats?.canFoundCity}
           {#if resourceOnTile}

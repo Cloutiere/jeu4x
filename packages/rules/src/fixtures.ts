@@ -39,6 +39,9 @@ export interface UnitSpec {
   aboard?: UnitId | null;
   /** 7g · R-117 : cargaison embarquée (le transport porte cette unité). */
   cargo?: UnitId | null;
+  /** ENGAGEMENT · R-173 : stabilisée (défaut : true si seule occupante de sa
+   *  case parmi les unités posées — sémantique de début de partie). */
+  stabilized?: boolean;
 }
 
 export interface CitySpec {
@@ -150,6 +153,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
   }
 
   const units: Record<UnitId, Unit> = {};
+  const explicite = new Map<UnitId, boolean>();
   (opts.units ?? []).forEach((spec, i) => {
     const stats = unitType(spec.type);
     const id = spec.id ?? `u${i + 1}`;
@@ -169,8 +173,25 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       fortified: spec.fortified ?? false,
       aboard: spec.aboard ?? null, // 7g · R-117
       cargo: spec.cargo ?? null, // 7g · R-117
+      // ENGAGEMENT · R-173 : défaut recalculé après la pose (2e passe).
+      stabilized: spec.stabilized ?? false,
     };
+    explicite.set(id, spec.stabilized !== undefined);
   });
+  // ENGAGEMENT · R-173 : une unité posée seule sur sa case naît stabilisée
+  // (sémantique de début de partie — les co-localisations de fixture non).
+  // Un `stabilized` EXPLICITE de la spec fait foi (jamais écrasé).
+  {
+    const compte = new Map<string, number>();
+    for (const u of Object.values(units)) {
+      const key = `${u.q},${u.r}`;
+      compte.set(key, (compte.get(key) ?? 0) + 1);
+    }
+    for (const [id, u] of Object.entries(units)) {
+      if (explicite.get(id)) continue;
+      u.stabilized = compte.get(`${u.q},${u.r}`) === 1;
+    }
+  }
 
   const cities: Record<CityId, City> = {};
   (opts.cities ?? []).forEach((spec, i) => {

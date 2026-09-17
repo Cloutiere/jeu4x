@@ -49,8 +49,12 @@ function seedWhereDefenderIsHit(): number {
 }
 /** Graine dont le premier tir fait perdre 1 PV à l'attaquant. */
 function seedWhereAttackerIsHit(): number {
+  // R-177 : le 1er tir du RNG va au tirage d'ordre des plans ; l'échange lit
+  // le 2e tir — la graine doit donner roll >= 0.5 sur CE tir (p = 0.5).
   for (let s = 0; s < 1000; s++) {
-    if (createRng(s).next() >= 0.5) return s;
+    const rng = createRng(s);
+    rng.next(); // tirage d'ordre (R-177 ENGAGEMENT)
+    if (rng.next() >= 0.5) return s;
   }
   throw new Error('pas de graine trouvée');
 }
@@ -266,24 +270,10 @@ describe('Phase A · R-44/R-31 · formation d’armées', () => {
 });
 
 describe('Phase B · R-52/R-54 · attaque d’un défenseur stationnaire', () => {
-  it('survie mutuelle : le défenseur garde sa case, l’attaquant replie à son origine (R-54-1)', () => {
-    const state = makeState({
-      units: [
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
-        { id: 'u2', type: 'guerrier', owner: 'p2', q: 1, r: 0 },
-      ],
-    });
-    const { newState, events } = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] }] }, 5);
-    // échange unique : 1 PV perdu au total (3 PV chacun, T-03 = 1)
-    const u1 = unit(newState, 'u1');
-    const u2 = unit(newState, 'u2');
-    expect(u1.hp + u2.hp).toBe(5);
-    expect(u1).toMatchObject({ q: 0, r: 0 }); // repli à l’origine
-    expect(u2).toMatchObject({ q: 1, r: 0 }); // défenseur conserve
-    expect(events.some((e) => e.type === 'Retreat' && e.unitId === 'u1')).toBe(true);
-    expect(events.filter((e) => e.type === 'CombatExchange')).toHaveLength(1);
-  });
 
+  // ENGAGEMENT : R-54/R-55/R-56/R-53/R-59-d sont ABROGÉES (fin des replis et
+  // des collisions — tout le monde entre, la mêlée de Phase E tranche, R-178..R-181).
+  // Le contrat de remplacement vit dans engagement.test.ts.
   it('défenseur à 0 PV → mort, avancée de l’attaquant + vétéran (R-32, I-2)', () => {
     const seed = seedWhereDefenderIsHit();
     const state = makeState({
@@ -311,98 +301,11 @@ describe('Phase B · R-52/R-54 · attaque d’un défenseur stationnaire', () =>
     expect(unit(newState, 'u2')).toMatchObject({ q: 1, r: 0, veteran: true });
   });
 
-  it('origine occupée → repli vers la case adjacente libre la plus proche de l’origine (R-54-2)', () => {
-    const state = makeState({
-      units: [
-        { id: 'u5', type: 'guerrier', owner: 'p1', q: 5, r: 0 }, // attaquant
-        { id: 'u7', type: 'guerrier', owner: 'p1', q: 4, r: 0 }, // prend l'origine pendant que u5 attaque
-        { id: 'u9', type: 'guerrier', owner: 'p2', q: 6, r: 0 },
-      ],
-    });
-    // u5 (traité avant u7) quitte (5,0) vers (6,0) (occupé par u9) → attaque
-    // planifiée ; u7 occupe ensuite l'origine (5,0). Survie mutuelle garantie
-    // (1 échange, 3 PV) → repli : origine occupée par u7 → adjacente libre à
-    // (6,0) la plus proche de (5,0) : (5,1).
-    const orders: Record<string, Order[]> = {
-      p1: [
-        { type: 'Move', unitId: 'u5', path: [{ q: 6, r: 0 }] },
-        { type: 'Move', unitId: 'u7', path: [{ q: 5, r: 0 }] },
-      ],
-    };
-    const { newState } = resolveTurn(state, orders, 11);
-    const u5 = unit(newState, 'u5');
-    expect(u5).toMatchObject({ q: 5, r: 1 }); // au plus proche de son origine
-    expect(unit(newState, 'u7')).toMatchObject({ q: 5, r: 0 });
-    expect(unit(newState, 'u9')).toMatchObject({ q: 6, r: 0 });
-  });
 
-  it('aucun repli possible → attaques répétées jusqu’à élimination (R-55)', () => {
-    const state = makeState({
-      units: [
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
-        { id: 'u2', type: 'guerrier', owner: 'p2', q: 1, r: 0 },
-        // u3 suit u1 pour occuper son origine (0,0) dès qu'il l'a quittée
-        { id: 'u3', type: 'guerrier', owner: 'p2', q: 0, r: -1 },
-        // encerclement : toutes les cases adjacentes à la case de combat (1,0)
-        { id: 'u6', type: 'guerrier', owner: 'p2', q: 0, r: 1 },
-        { id: 'u7', type: 'guerrier', owner: 'p2', q: 1, r: 1 },
-        { id: 'u8', type: 'guerrier', owner: 'p2', q: 2, r: 0 },
-        { id: 'u9', type: 'guerrier', owner: 'p2', q: 1, r: -1 },
-      ],
-    });
-    const orders: Record<string, Order[]> = {
-      p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] }],
-      p2: [{ type: 'Move', unitId: 'u3', path: [{ q: 0, r: 0 }] }],
-    };
-    const { newState, events } = resolveTurn(state, orders, 3);
-    // origine (0,0) prise par u3, toutes les cases adjacentes à (1,0) occupées :
-    // u1 n'a aucun repli → attaques répétées jusqu'à l'élimination d'un des deux.
-    const dead = newState.units['u1'] === undefined || newState.units['u2'] === undefined;
-    expect(dead).toBe(true);
-    const exchanges = events.filter((e) => e.type === 'CombatExchange');
-    expect(exchanges.length).toBeGreaterThanOrEqual(2);
-  });
 });
 
 describe('Phase B · R-53 · collisions', () => {
-  it('aucun dégât : la plus haute PV demeure, l’autre replie à son origine', () => {
-    const state = makeState({
-      units: [
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0, hp: 3 },
-        { id: 'u2', type: 'guerrier', owner: 'p2', q: 2, r: 0, hp: 2 },
-      ],
-    });
-    const orders: Record<string, Order[]> = {
-      p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] }],
-      p2: [{ type: 'Move', unitId: 'u2', path: [{ q: 1, r: 0 }] }],
-    };
-    const { newState, events } = resolveTurn(state, orders, 1);
-    expect(unit(newState, 'u1')).toMatchObject({ q: 1, r: 0, hp: 3 }); // demeure, a bougé → pas de soin
-    // u2 n'a ni bougé (collision sans pas) ni combattu (aucun dégât, R-53)
-    // → R-71 s'applique : +1 PV (2 → 3)
-    expect(unit(newState, 'u2')).toMatchObject({ q: 2, r: 0, hp: 3 });
-    expect(events.some((e) => e.type === 'Retreat' && e.unitId === 'u2')).toBe(true);
-    expect(events.some((e) => e.type === 'CombatExchange')).toBe(false);
-  });
 
-  it('égalité de PV : demeure celle qui a parcouru le moins de cases ce tour', () => {
-    const state = makeState({
-      units: [
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0, hp: 3 },
-        { id: 'u2', type: 'guerrier', owner: 'p2', q: 2, r: 0, hp: 3 },
-      ],
-    });
-    // u1 parcourt 1 case pour arriver à (1,0) ; u2 (déjà adjacent) vise (1,0) sans bouger
-    const orders: Record<string, Order[]> = {
-      p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] }],
-      p2: [{ type: 'Move', unitId: 'u2', path: [{ q: 1, r: 0 }] }],
-    };
-    // u2 est traité après u1 (R-41) : (1,0) occupé par le mover u1 → collision.
-    // Égalité de PV impossible ici (3-3) : u2 a parcouru 0 case → u2 demeure (prend la case).
-    const { newState } = resolveTurn(state, orders, 1);
-    expect(unit(newState, 'u2')).toMatchObject({ q: 1, r: 0 });
-    expect(unit(newState, 'u1')).toMatchObject({ q: 0, r: 0 }); // replié à son origine
-  });
 
   it('collision avec un pacifique : capture, pas de comparaison de PV (R-43)', () => {
     const state = makeState({
@@ -422,96 +325,7 @@ describe('Phase B · R-53 · collisions', () => {
   });
 });
 
-describe('Phase B · R-56 · allocation globale des replis en deux passes', () => {
-  /**
-   * Dispositif à deux combats disputant UNE SEULE case de repli (3,1) —
-   * l'unique voisine commune à (2,1) et (4,1) :
-   *  - mur p2 stationnaire sur tous les autres voisins des deux cases de combat ;
-   *  - a1 (u1) attaque d1 (u7) en (2,1), a2 (u5) attaque d2 (u8) en (4,1) ;
-   *  - u3 et u6 suivent leurs attaquants pour occuper leurs origines (1,2)/(4,2)
-   *    dès qu'ils les quittent (R-41 : u3/u6 > u1/u5 à l'ordre de traitement) ;
-   *  - défenseurs « cible-test » (défense 0 → p = 1 : ils perdent le round,
-   *    échange déterministe, survie mutuelle des deux combats).
-   * Les perdants a1/a2 n'ont donc qu'une candidate : (3,1). R-50 : le combat
-   * en (2,1) se résout AVANT celui de (4,1).
-   */
-  function deuxPerdants(hpA1: number, hpA2: number): GameState {
-    const wall = (id: string, q: number, r: number) => ({ id, type: 'cible-test', owner: 'p2', q, r });
-    return makeState({
-      units: [
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 1, r: 2, hp: hpA1 }, // a1 → attaque (2,1)
-        { id: 'u3', type: 'cible-test', owner: 'p2', q: 0, r: 2 },         // suit a1, reprend (1,2)
-        { id: 'u5', type: 'guerrier', owner: 'p1', q: 4, r: 2, hp: hpA2 }, // a2 → attaque (4,1)
-        { id: 'u6', type: 'cible-test', owner: 'p2', q: 4, r: 3 },         // suit a2, reprend (4,2)
-        // défenseurs stationnaires
-        wall('u7', 2, 1), // d1
-        wall('u8', 4, 1), // d2
-        // mur : voisins de (2,1) et (4,1) sauf (3,1) et les cases de départ
-        wall('u10', 2, 0), wall('u11', 1, 1), wall('u12', 2, 2), wall('u13', 3, 0),
-        wall('u15', 4, 0), wall('u16', 5, 1), wall('u17', 5, 0), wall('u14', 3, 2),
-      ],
-    });
-  }
-
-  function orders(): Record<string, Order[]> {
-    return {
-      p1: [
-        { type: 'Move', unitId: 'u1', path: [{ q: 2, r: 1 }] },
-        { type: 'Move', unitId: 'u5', path: [{ q: 4, r: 1 }] },
-      ],
-      p2: [
-        { type: 'Move', unitId: 'u3', path: [{ q: 1, r: 2 }] },
-        { type: 'Move', unitId: 'u6', path: [{ q: 4, r: 2 }] },
-      ],
-    };
-  }
-
-  function exchangesEntre(events: GameEvent[], a: string, d: string): number {
-    return events.filter((e) => e.type === 'CombatExchange' && e.attackerId === a && e.defenderId === d).length;
-  }
-
-  it('deux perdants, une case : le plus haut PV l’obtient, même résolu en second', () => {
-    // a1 (u1) a 2 PV, a2 (u5) en a 3 : a2 reçoit (3,1) bien que son combat se
-    // résolve APRÈS celui de a1 (l'ancienne lecture « premier résolu, premier
-    // servi » aurait donné la case à a1). a1 reprend le combat contre d1 (R-55).
-    const { newState, events } = resolveTurn(deuxPerdants(2, 3), orders(), 7);
-    expect(unit(newState, 'u5')).toMatchObject({ q: 3, r: 1 }); // a2 : la case disputée
-    expect(exchangesEntre(events, 'u5', 'u8')).toBe(1); // a2 : alloué, un seul échange, pas de passe 3
-    // passe 3 : a1 (2 PV) vs d1 (2 PV) → attaques répétées, un des deux meurt
-    const morts = (newState.units['u1'] === undefined ? 1 : 0) + (newState.units['u7'] === undefined ? 1 : 0);
-    expect(morts).toBe(1);
-    expect(exchangesEntre(events, 'u1', 'u7')).toBeGreaterThanOrEqual(2);
-    expect(unit(newState, 'u8')).toMatchObject({ q: 4, r: 1, hp: 2 }); // d2 a juste encaissé l'échange
-  });
-
-  it('allocation par PV décroissants : le premier résolu ne garde pas de privilège', () => {
-    // a1 (3 PV) > a2 (2 PV) : a1 obtient (3,1) et se replie après un seul
-    // échange ; a2 repart au combat contre d2.
-    const { newState, events } = resolveTurn(deuxPerdants(3, 2), orders(), 7);
-    expect(unit(newState, 'u1')).toMatchObject({ q: 3, r: 1 });
-    expect(exchangesEntre(events, 'u1', 'u7')).toBe(1);
-    const morts = (newState.units['u5'] === undefined ? 1 : 0) + (newState.units['u8'] === undefined ? 1 : 0);
-    expect(morts).toBe(1);
-    expect(exchangesEntre(events, 'u5', 'u8')).toBeGreaterThanOrEqual(2);
-  });
-
-  it('aucune case libre nulle part : les deux perdants reprennent leur propre duel', () => {
-    // variante : (3,1) est occupé par le mur → aucun repli possible pour a1/a2,
-    // chaque perdant reprend le combat contre le vainqueur de SON combat.
-    const state = deuxPerdants(3, 3);
-    state.units['u18'] = {
-      id: 'u18', type: 'cible-test', owner: 'p2', q: 3, r: 1, hp: 3, mp: 1,
-      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
-    };
-    const { newState, events } = resolveTurn(state, orders(), 7);
-    const mortsA1 = (newState.units['u1'] === undefined ? 1 : 0) + (newState.units['u7'] === undefined ? 1 : 0);
-    const mortsA2 = (newState.units['u5'] === undefined ? 1 : 0) + (newState.units['u8'] === undefined ? 1 : 0);
-    expect(mortsA1).toBe(1);
-    expect(mortsA2).toBe(1);
-    expect(exchangesEntre(events, 'u1', 'u7')).toBeGreaterThanOrEqual(2);
-    expect(exchangesEntre(events, 'u5', 'u8')).toBeGreaterThanOrEqual(2);
-  });
-});
+// R-56 (allocation des replis) ABROGÉE (ENGAGEMENT) — voir engagement.test.ts.
 
 describe('Phase B · R-59 · unités à distance (aucune en v1, règles normatives)', () => {
   it('R-59-a/b : la catapulte attaque de sa case, n’avance pas, ne subit aucune riposte', () => {
@@ -526,22 +340,10 @@ describe('Phase B · R-59 · unités à distance (aucune en v1, règles normativ
     expect(unit(newState, 'u2')).toMatchObject({ q: 1, r: 0, hp: 2 }); // touché (S_att élevée)
   });
 
-  it('R-59-d : le défenseur à distance en survie mutuelle cède sa case', () => {
-    const state = makeState({
-      units: [
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
-        { id: 'u2', type: 'catapulte-test', owner: 'p2', q: 1, r: 0 },
-      ],
-    });
-    const { newState } = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 1, r: 0 } }] }, 1);
-    const u2 = unit(newState, 'u2');
-    expect(u2).not.toMatchObject({ q: 1, r: 0 }); // repli systématique
-    expect(unit(newState, 'u1')).toMatchObject({ q: 0, r: 0 }); // l'attaquant ne prend pas la case
-  });
 });
 
 describe('Phase B · R-57 · bonus défensif de la case de ville (T-02)', () => {
-  it('un défenseur sur case de ville reçoit +50 % → l’attaquant perd le round en (0.31 ; 0.49)', () => {
+  it('ENGAGEMENT (rév.) : un défenseur STABILISÉ sur case de ville reçoit +50 % — lecture sur l’échange (l’attaquant cohabite ensuite)', () => {
     // graine dont le premier tir t ∈ (p_ville, p_plaine) : p_ville = 1/(1+1.5²) ≈ 0.3077
     let seed = -1;
     for (let s = 0; s < 5000; s++) {
@@ -557,11 +359,11 @@ describe('Phase B · R-57 · bonus défensif de la case de ville (T-02)', () => 
         { id: 'u2', type: 'guerrier', owner: 'p2', q: 1, r: 0 },
       ],
     });
-    const { newState } = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 1, r: 0 } }] }, seed);
-    // S_att = 1, S_def = 1.5 → t ≥ p ⇒ c'est l'attaquant qui encaisse le PV
-    expect(unit(newState, 'u1').hp).toBe(2);
-    expect(unit(newState, 'u2').hp).toBe(3);
-    expect(unit(newState, 'u1')).toMatchObject({ q: 0, r: 0 }); // repli sur place (origine)
+    const { events } = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 1, r: 0 } }] }, seed);
+    // S_att = 1, S_def = 1.5 → t ≥ p ⇒ l'attaquant encaisse le PV (échange Phase B)
+    const ex = events.find((e): e is Extract<GameEvent, { type: 'CombatExchange' }> => e.type === 'CombatExchange')!;
+    expect(ex.attackerHpAfter).toBe(2);
+    expect(ex.defenderHpAfter).toBe(3);
   });
 });
 
@@ -627,7 +429,7 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     const state = cityState();
     state.units['u0'] = {
       id: 'u0', type: 'colon', owner: 'p1', q: 0, r: 0, hp: 3, mp: 2,
-      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
+      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false,
     };
     const { newState, events } = resolveTurn(state, {}, 1);
     expect(events.some((e) => e.type === 'UnitProduced')).toBe(false);
@@ -783,7 +585,7 @@ describe('R-58 · points d’accroche diplomatie (inactifs en v1)', () => {
     expect(events.some((e) => e.type === 'CombatExchange')).toBe(false);
   });
 
-  it('R-58-b : collision en paix → repli mutuel si possible, sans dégât ni incident', () => {
+  it('ENGAGEMENT R-175 (rév. R-58-b) : entrée en paix — plus de repli mutuel : incident diplomatique + cohabitation/mêlée', () => {
     const state = makeState({
       units: [
         { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
@@ -791,13 +593,16 @@ describe('R-58 · points d’accroche diplomatie (inactifs en v1)', () => {
       ],
       warPairs: [],
     });
-    const { newState, events } = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] }] }, 1);
-    expect(unit(newState, 'u1').hp).toBe(3);
-    expect(unit(newState, 'u2').hp).toBe(3);
-    expect(events.some((e) => e.type === 'DiplomaticIncident')).toBe(false);
-    // chacun est replié sur des cases distinctes, personne sur (1,0)… sauf repli légal
-    const positions = Object.values(newState.units).map((u) => `${u.q},${u.r}`);
-    expect(new Set(positions).size).toBe(2);
+    const t1 = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] }] }, 1);
+    // ENGAGEMENT : l'attaquant ENTRE (fin des replis) ; l'incident diplomatique
+    // est émis (nation en paix), sans rupture de paix (R-58-b). R-178 rév. A :
+    // le défenseur stabilisé a été attaqué → mêlée REPORTÉE au tour suivant.
+    expect(t1.events.some((e) => e.type === 'DiplomaticIncident')).toBe(true);
+    expect(t1.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
+    const t2 = resolveTurn(t1.newState, {}, 2);
+    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(true);
+    expect(t2.newState.winner).toBeNull();
+    expect(state.diplomacy.war.length).toBe(0); // la paix n'est pas rompue par l'incident
   });
 
   it('R-43/§7.7-c : capture d’un pacifique en paix → détention, pas de butin', () => {

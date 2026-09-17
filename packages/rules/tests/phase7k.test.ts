@@ -418,7 +418,7 @@ describe('7k · Bloc 0 — C3 (veto d’Erik du 04/09) : un seul GP d’un même
     const state = makeState({ cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 3 }] });
     state.units['uGP1'] = {
       id: 'uGP1', type: 'savant', owner: 'p1', q: 3, r: 2, hp: 3, mp: 2,
-      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
+      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false,
     };
     return state;
   }

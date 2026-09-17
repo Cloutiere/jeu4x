@@ -749,6 +749,94 @@ Base documentaire : la spécification d'Erik [`Guide Civilisations Civilization 
 
 **Migration `schemaVersion` 16 → 17** : champs ADDITIFS, idempotents — par joueur : `civId: 'neutre'` (les parties existantes n'avaient pas de civ : **aucun trait**) et `era` (recalculée au **compage** des techs déjà débloquées — la transition « au tour suivant » s'appliquera au premier tour résolu) ; par ville : `wasCaptured: false` (trait Mongol `commerceCaptures`). Le cratère (C15) ne porte aucun champ nouveau : c'est un **terrain** (`cratere`, terrain.json). Les unités uniques sont dérivées des données (R-148).
 
+## 8bis. Phase E — Stabilité & mêlée — ENGAGEMENT (réforme dictée par Erik le 16/09, R-173..R-183)
+
+> Réforme d'ensemble des règles d'engagement : **l'empilement est abrogé en tant que régime**
+> (R-30 amendée ENGAGEMENT, R-52 rév. DÉFENSE-DE-PILE, R-96 rév. BARBARES-PILES), **les replis
+> et les collisions disparaissent** (R-53, R-54, R-55, R-56, R-59-d ABROGÉES), et toute case
+> peut porter plusieurs unités — au prix d'un nouvel état : **l'instabilité**. Contrat testé
+> dans `packages/rules/tests/engagement.test.ts`, validé au labo `#/labo-combat`
+> (captures `dev-logs/captures-engagement/`).
+
+- **R-173 · Stabilité de case.** En fin de tour (Phase E), une case portant **exactement une
+  unité** est STABLE et cette unité est marquée **stabilisée** ; une case à 0 ou ≥ 2 unités
+  est INSTABLE. Le marquage est recalculé à chaque fin de tour ; tout déplacement fait perdre
+  la stabilisation. État : champ additif `stabilized` par unité — **migration `schemaVersion`
+  24 → 25** (toutes les unités migrées naissent stabilisées), idempotente.
+- **R-174 · Prérogatives de l'unité stabilisée.** Une unité stabilisée se défend avec ses
+  **VALEURS DE DÉFENSE** (bonus terrain + fortification + bâtiments de ville inclus) ; toute
+  autre unité attaquée utilise ses **VALEURS D'ATTAQUE** (#4 de la spécification), sans bonus
+  sauf R-175. **Seule une unité stabilisée peut recevoir l'ordre Fortify.** Une case instable
+  n'a AUCUN défenseur : les unités qui y entrent ne combattent pas en Phase B — elles se
+  joignent à l'instabilité (résolue en Phase E). Le défenseur d'une case = son unité
+  stabilisée (défense décroissante, puis PV, puis R-81 en cas de double marquage transitoire).
+- **R-175 · Fortification durable.** La fortification est ACQUISE par l'ordre Fortify
+  (réservé au stabilisé) puis CONSERVÉE tant que l'unité est en vie et DEMEURE sur sa case —
+  même en mêlée, même en cohabitation — et perdue par tout déplacement. Le bonus de TERRAIN
+  et les bonus de VILLE suivent la même logique (l'avantage de l'occupation du terrain).
+  Ancien R-33 (« annulée par tout autre ordre ») abrogé.
+- **R-176 · Engagement (#1).** Peu importe le nombre d'unités qui entrent sur une case à
+  défenseur (stabilisé) : chacune ne combat QU'avec le défenseur, jamais avec les autres
+  entrantes (#1). Un attaquant de mêlée prend PLACE sur la case attaquée (fin des replis) ;
+  une unité qui ne peut pas ENTRER (navire en mer depuis la rive) attaque depuis sa position
+  (pas de cohabitation possible).
+- **R-176a · Coup en passant (interprétation R-176 — décision d'Erik du 17/09, « j'adore le coup en passant »).** Une attaque planifiée à l'entrée (R-176) se résout **même si le défenseur a quitté la case visée** pendant la Phase A, tant qu'il reste À PORTÉE de l'attaquant (distance ≤ portée — contact en v1) : l'échange a lieu sur la case où se trouve le défenseur. Le défenseur parti se défend selon R-174 — ayant bougé, il n'est plus stabilisé : **valeurs d'attaque**, sans bonus de terrain ni fortification. Survie mutuelle : personne ne cohabite (l'attaquant demeure sur la case échangée, le défenseur sur la sienne) — pas de mêlée, les deux cases se stabilisent. Deux unités qui échangent leurs cases se croisent donc TOUJOURS (plus de collision, R-53 abrogée) et échangent au passage un échange R-51. Verrouillé par le test de reproduction du labo (seed 20260915, `engagement.test.ts` R-176a).
+- **R-177 · Ordre d'attaque (#5).** Sur une même case, les attaquants résolvent un par un :
+  plus de **PM restants** après l'entrée, puis plus forte **ATTAQUE**, puis **DÉFENSE
+  croissante**, puis plus de **PV** ; à égalité, **tirage aléatoire seedé** (une valeur par
+  plan, tirée en tête de Phase B), puis unitId (R-81). La séquence s'arrête quand le
+  défenseur est détruit (les attaquants suivants n'attaquent pas).
+- **R-178 · Mêlée d'instabilité (#2, #6, #9 — rév. A, décision d'Erik du 17/09).** Toute
+  case portant ≥ 2 unités militaires d'au moins DEUX propriétaires résout UNE MÊLÉE en fin
+  de tour (Phase E, avant vision/soins), SAUF report (ci-dessous). Des unités qui y entrent
+  en cours de tour se joignent ; sortir = échapper ; UNE mêlée par case et par tour.
+  **REPORT (rév. A)** : sur une case où un **défenseur STABILISÉ a été attaqué** ce tour
+  (entrées R-176, camp R-183 — qu'il survive ou non aux attaques), la mêlée est **REPORTÉE
+  au tour suivant** : les entrants se contentent de leurs attaques (le défenseur perd au
+  plus 1 PV par attaquant), et si toutes les unités y demeurent, la mêlée a lieu en Phase E
+  du tour suivant — le défenseur qui demeure **conserve ses bonus** (R-175 : fortification,
+  terrain, ville). Le report ne s'applique PAS à l'entrée simultanée sur une case SANS
+  défenseur (#2 : mêlée immédiate).
+- **R-179 · Expulsion de cohabitation.** Une case à ≥ 2 unités du MÊME propriétaire (aucune
+  ennemie) ne peut le demeurer : l'unité qui RESTE est la mieux fondée (fortifiée, puis PV
+  décroissants, puis R-81) ; les autres (ordre unitId croissant) sont relogées sur la case
+  adjacente libre la plus proche (tie (q, r)) — événement `UnitExpelled`. Sans case libre :
+  elles restent (punition douce : case instable). L'expulsion ne combat pas et n'ouvre pas de
+  hutte ; elle fait perdre fortification et stabilisation.
+- **R-180 · Mêlée pondérée + étau (#7, #8).** Chaque participante a un POIDS = attaque
+  effective² × étau. La GAGNANTE est tirée à `w_i/Σw`, la PERDANTE parmi les restantes au
+  même mécanisme (égalités de poids = tirage uniforme — #8), les autres sont
+  INTERMÉDIAIRES. Issue : gagnante **0 PV**, perdante **−2 PV** (`MELEE_LOSER_DAMAGE`),
+  intermédiaires **−1 PV** (`MELEE_MIDDLE_DAMAGE`) ; 0 PV = destruction ; la gagnante ne peut
+  pas mourir d'une mêlée ; coup fatal R-32/T-31 si mort. Étau : ×`1 + E × (alliées − 1)`
+  plafonné, **E = 0,25 (T-54)**, plafond **0,50 (T-55)** 🔶. Les bonus de demeure (R-175)
+  multiplient le poids de l'unité qui n'a pas bougé.
+- **R-181 · Cohabitation avec défenseur (D4, rév. A).** Les ennemis cohabitants d'un
+  défenseur vivant ne le ré-attaquent pas séquentiellement : la mêlée tranche — **au tour
+  suivant** (report R-178 rév. A), si la cohabitation demeure.
+- **R-182 · Unités pacifiques.** Elles ne participent pas aux tirages ; elles peuvent FUIR
+  (sortir en Phase A) ; elles sont CAPTURÉES quand la case se stabilise sous une unité
+  ennemie (une seule unité militaire + elles — conséquences R-43). Exception 7m : un espion
+  infiltré dans une ville reste à l'abri.
+- **R-183 · Camps barbares (rév. ENGAGEMENT).** La pile de camp est ABROGÉE : le camp est
+  tenu par son **GARDIEN** (le plus ancien barbare SUR la case, tri R-81) qui ne SORT jamais
+  (Hold ou attaque adjacente DEPUIS sa case) ; les **SATELLITES** sont tenus dans le rayon
+  d'une case (cases adjacentes libres, freeSpawnTiles tri R-81). Dotation T-50 = **3**
+  (1 gardien + 2 satellites, barbares.json `initialUnits`), gardeMinimale T-49 = **1** ;
+  rengendrement T-18 : sur le camp si libre, sinon case adjacente libre — cap T-22 = 3
+  inchangé. La capture = attaque normale du gardien (plus d'assaut un par un) ; à sa mort le
+  camp est capturé (récompense hutte seedée, R-96/R-98) ; survie mutuelle → cohabitation →
+  mêlée (R-181).
+
+**Abrogations ENGAGEMENT** : R-52 rév. DÉFENSE-DE-PILE, R-53 (collisions), R-54/R-55/R-56
+(replis, attaques répétées, allocation), R-59-d (défenseur à distance replié), R-96 rév.
+BARBARES-PILES (pile de camp, assaut un par un), R-30 amendée (l'arrêt ami et le régime de
+pile disparaissent — la co-location est légale partout), clause « pile » de R-97, drapeau
+d'empilement de BARBARES-PILES M2 (retiré du rendu). **Restent** : camps sans PV, capture =
+récompense hutte seedée, gardés vs explorateur, escalation guerrier-only, aggro T-19, R-59
+(à distance), R-128 Grande Muraille, R-43 (pacifiques), R-57 (villes), R-159 (dispute de
+destination amie — la première programmée garde la case).
+
 ## 9. Phase D — Vision, soins, fin de tour
 
 - **R-70 · Vision** : rayon `T-07` (unité) / `T-08` (ville), **distance uniquement** — aucun blocage par terrain. Recalcul par joueur à chaque résolution ; 3 états (inexploré / exploré-masqué / visible). `getFilteredState(state, player)` ne diffuse jamais d'entité hors du champ visible.
@@ -811,6 +899,8 @@ Base documentaire : la spécification d'Erik [`Guide Civilisations Civilization 
 | T-45 | `spawnPurgeRadius` | 2 🔶 (R-157, SPAWN-START — `progen/settings.ts` ; rayon hex sans ressource autour de chaque spawn) |
 | T-51 | `cultureExpansionThresholds` | 10 / 100 / 1 000 / 10 000 🔶 (R-162 — `culture.json` ; +1 anneau culturel par seuil de culture cumulée de la ville) |
 | T-52 | `cultureExpansionMaxRings` | 5 🔶 (R-162 — `culture.json`) |
+| T-54 | `meleeTauBonus` | 0.25 🔶 (R-180 — étau de mêlée, constants.ts) |
+| T-55 | `meleeTauCap` | 0.50 🔶 (R-180 — plafond de l'étau) |
 
 *(T-18..T-26 : la source des valeurs est `barbares.json`/`huttes.json` — R-99 ; `constants.ts` les ré-exporte. Le texte de R-96 du handoff citait `T-24` pour le cap par village et la liste des constantes `T-22` : normalisé **T-22**, erratum signalé au rapport. T-33..T-35 : source `espionnage.json` (R-138..R-144, Phase 7m).)*
 

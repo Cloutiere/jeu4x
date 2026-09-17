@@ -55,8 +55,9 @@ describe('labo-combat — M1 construction d état (poses libres)', () => {
       cities: [{ camp: 'p1', q: 1, r: 0 }],
       camps: [{ q: 3, r: 3, gardes: 2, explorateur: true }],
     });
+    // 1 guerrier barbare posé + camp (1 gardien + 2 satellites + 1 explorateur)
     const proprietaires = Object.values(state.units).map((u) => u.owner).sort();
-    expect(proprietaires).toEqual(['barbarien', 'barbarien', 'barbarien', 'barbarien', 'p1', 'p2']);
+    expect(proprietaires).toEqual(['barbarien', 'barbarien', 'barbarien', 'barbarien', 'barbarien', 'p1', 'p2']);
     const archer = Object.values(state.units).find((u) => u.type === 'archer')!;
     expect(archer.hp).toBe(2);
     // Fog désactivé : les deux joueurs voient toute la carte (M2.1).
@@ -68,7 +69,7 @@ describe('labo-combat — M1 construction d état (poses libres)', () => {
     expect(state.villages).toHaveLength(1);
   });
 
-  it('un camp posé = pile sur sa case : gardes dans spawnedUnits + explorateur, aucune dotation automatique', () => {
+  it('ENGAGEMENT R-183 : un camp posé = gardien SUR la case + satellites/explorateur ADJACENTS, aucune dotation automatique', () => {
     const state = creerEtatLabo({
       width: 6,
       height: 6,
@@ -78,13 +79,17 @@ describe('labo-combat — M1 construction d état (poses libres)', () => {
     const village = state.villages[0]!;
     expect(village.q).toBe(2);
     expect(village.r).toBe(2);
-    // 3 barbares posés (2 gardes + 1 explorateur), pas un de plus — la dotation
-    // automatique T-50 de makeState est retirée (le labo pose SES barbares).
+    // 4 barbares posés (1 gardien au camp + 2 satellites + 1 explorateur),
+    // pas un de plus — la dotation automatique T-50 de makeState est retirée.
     const barbares = Object.values(state.units).filter((u) => u.owner === BARBARIAN_ID);
-    expect(barbares).toHaveLength(3);
+    expect(barbares).toHaveLength(4);
     for (const b of barbares) {
-      expect(b.q).toBe(2);
-      expect(b.r).toBe(2);
+      if (b.id === village.spawnedUnits[0]) {
+        expect(b.q).toBe(2); // le gardien est SUR la case du camp
+        expect(b.r).toBe(2);
+      } else {
+        expect(Math.max(Math.abs(b.q - 2), Math.abs(b.r - 2))).toBe(1); // rayon d'une case
+      }
     }
     expect([...village.spawnedUnits].sort()).toEqual(barbares.map((b) => b.id).sort());
   });
@@ -256,9 +261,11 @@ describe('labo-combat — M2 programmation et résolution seedée', () => {
       camps: [{ q: 5, r: 3, gardes: 2, explorateur: true }],
     });
     const { events, newState } = resolveTurn(state, { p1: [], p2: [] }, 5);
+    // ENGAGEMENT R-183 : l'explorateur est posé ADJACENT au camp (rayon d'une
+    // case) — il s'approche de l'ennemi (aggro T-19) jusqu'au contact.
     const explorateur = Object.values(newState.units).find((u) => u.type === 'explorateur')!;
     expect(explorateur.type).toBe('explorateur');
-    expect(hexDistance({ q: explorateur.q, r: explorateur.r }, { q: 5, r: 3 })).toBeLessThan(2);
+    expect(hexDistance({ q: explorateur.q, r: explorateur.r }, { q: 3, r: 3 })).toBeLessThanOrEqual(1);
     expect(events.some((e) => e.type === 'Move' && (e as { owner: string }).owner === BARBARIAN_ID)).toBe(true);
   });
 });

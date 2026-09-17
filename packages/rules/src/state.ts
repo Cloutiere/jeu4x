@@ -126,7 +126,9 @@ export interface Unit {
   order: Order | null;
   /** R-43/§7.7-c : détention en temps de paix (Phase 7) — null en v1. */
   detainedBy: PlayerId | null;
-  /** R-33 : position fortifiée — bonus T-17, persiste tant qu'aucun autre ordre n'est donné. */
+  /** ENGAGEMENT · R-175 : fortification durable — acquise par l'ordre Fortify
+   *  (unité stabilisée uniquement, R-174), conservée tant que l'unité est en
+   *  vie ET demeure sur sa case (même en mêlée), perdue à tout déplacement. */
   fortified: boolean;
   /** 7g · R-117 : transport en cours (`aboard` = id du navire porteur) —
    *  null pour une entité de carte. Une unité à bord n'occupe pas, ne
@@ -135,6 +137,13 @@ export interface Unit {
   /** 7g · R-117 : cargaison embarquée (transport uniquement) — au plus une
    *  unité terrestre par Galère/Galion (cargoCapacity, décision d'Erik). */
   cargo: UnitId | null;
+  /**
+   * ENGAGEMENT · R-173 : unité STABILISÉE — seule occupante d'une case stable
+   * à la fin du tour précédent. Elle se défend avec ses VALEURS DE DÉFENSE
+   * (R-174) et est seule éligible à l'ordre Fortify. Recalculé en Phase E à
+   * chaque fin de tour ; perdu par tout déplacement.
+   */
+  stabilized: boolean;
 }
 
 export interface CityProduction {
@@ -387,7 +396,7 @@ export function isBarbarian(playerId: PlayerId): boolean {
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 24;
+export const CURRENT_SCHEMA_VERSION = 25;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -997,6 +1006,21 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       return rest;
     });
     return { ...state, villages: migratedVillages };
+  },
+  /**
+   * ENGAGEMENT · v24 → v25 (spécification dictée par Erik en session) — champ
+   * ADDITIF `stabilized: boolean` sur CHAQUE unité (R-173) : les parties
+   * migrées naissent STABILISÉES (la sémantique antérieure — une case = un
+   * défenseur de fait — les y apparente), recalculé à la première Phase E.
+   * Idempotent (champ présent = inchangé).
+   */
+  25: (state) => {
+    const units = (state.units ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedUnits: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(units).sort()) {
+      migratedUnits[id] = { stabilized: true, ...units[id]! };
+    }
+    return { ...state, units: migratedUnits };
   },
 };
 

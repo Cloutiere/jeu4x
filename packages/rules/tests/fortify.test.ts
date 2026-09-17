@@ -73,11 +73,13 @@ describe('R-33 · Fortification', () => {
     expect(r2.newState.units.u2!.fortified).toBe(true);
   });
 
-  it('R-33 : tout autre ordre annule la fortification (Move, Hold)', () => {
+  it('ENGAGEMENT R-175 (rév. R-33) : la fortification est conservée sans déplacement (Hold), perdue au déplacement (Move)', () => {
+    // Ancien contrat (annulation par tout autre ordre, y compris Hold) abrogé
+    // par ENGAGEMENT — la perte suit le DÉPLACEMENT, plus le type d'ordre.
     const state = guerriersAffrontes();
     state.units.u1!.fortified = true;
     const r = resolveTurn(state, { p1: [{ type: 'Hold', unitId: 'u1' }], p2: [] }, 42);
-    expect(r.newState.units.u1!.fortified).toBe(false);
+    expect(r.newState.units.u1!.fortified).toBe(true); // demeure sur sa case : conservée
 
     const state2 = guerriersAffrontes();
     state2.units.u2!.fortified = true;
@@ -86,8 +88,8 @@ describe('R-33 · Fortification', () => {
       { p1: [], p2: [{ type: 'Move', unitId: 'u2', path: [{ q: 2, r: 0 }] }] },
       42,
     );
-    expect(r2.newState.units.u2!.fortified).toBe(false);
-    expect(r2.newState.units.u2!.q).toBe(2); // et l’ordre s’exécute normalement
+    expect(r2.newState.units.u2!.fortified).toBe(false); // déplacement : perdue
+    expect(r2.newState.units.u2!.q).toBe(2); // et l'ordre s'exécute normalement
   });
 
   it('R-33 : une unité fortifiée ne bouge pas — Fortify efface tout chemin gelé', () => {
@@ -100,15 +102,18 @@ describe('R-33 · Fortification', () => {
     expect(r.newState.units.u2!.fortified).toBe(true);
   });
 
-  it('R-33/R-52 : le repli d’un fortifié suit R-54 — le fortifié garde sa case, l’attaquant se replie', () => {
+  it('ENGAGEMENT R-175/R-181 (ancien R-52/R-54 abrogé) : survie mutuelle = cohabitation, mêlée de fin de tour', () => {
     const seed = seedDiscriminatingFortify(); // survie mutuelle garantie
     const state = guerriersAffrontes();
     state.units.u2!.fortified = true;
     const r = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 1, r: 0 } }], p2: [] }, seed);
-    const retreat = r.events.find((e) => e.type === 'Retreat');
-    expect(retreat).toBeDefined();
-    expect(r.newState.units.u2!.q).toBe(1); // le défenseur fortifié conserve sa case
-    expect(r.newState.units.u1!.q).toBe(0); // replié sur sa case d'origine (R-54-1)
+    // Plus aucun repli : l'attaquant prend place sur la case (fin des replis).
+    expect(r.events.some((e) => e.type === 'Retreat')).toBe(false);
+    // R-178 rév. A : le défenseur fortifié a été attaqué → mêlée REPORTÉE au
+    // tour suivant (cohabitation au tour 1) ; elle résout bien au tour 2.
+    expect(r.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
+    const r2 = resolveTurn(r.newState, {}, seed + 1);
+    expect(r2.events.some((e) => e.type === 'MeleeResolved')).toBe(true);
   });
 
   it('R-33 : soins R-71 normaux — le fortifié soigne +1/tour (hors combat)', () => {

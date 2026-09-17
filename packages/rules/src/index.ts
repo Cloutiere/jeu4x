@@ -6,6 +6,8 @@ export * from './types.js';
 export * from './hex.js';
 export * from './rng.js';
 export * from './combat.js';
+/** ENGAGEMENT — mêlée pondérée + étau (R-180). */
+export * from './melee.js';
 export * from './army.js';
 export * from './data.js';
 export * from './resources.js';

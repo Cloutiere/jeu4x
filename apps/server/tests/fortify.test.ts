@@ -52,15 +52,29 @@ describe('GameDO · cycle Fortify (R-33)', () => {
     const r2 = await playTurn(alice, bob);
     expect(r2.state.units[myUnitId]?.fortified).toBe(true);
 
-    // Tour 3 : un Move annule la fortification et s'exécute.
+    // Tour 3 : un Move conserve la fortification SI l'unité ne bouge pas —
+    // on cible donc une case adjacente praticable (ENGAGEMENT R-175 : la
+    // fortification est perdue par le DÉPLACEMENT, plus par l'ordre).
     const unit = r2.state.units[myUnitId]!;
+    const dirs: Array<[number, number]> = [[0, -1], [1, -1], [1, 0], [0, 1], [-1, 1], [-1, 0]];
+    const cible = dirs
+      .map(([dq, dr]) => ({ q: unit.q + dq, r: unit.r + dr }))
+      .find((h) => (r2.state.map as Record<string, { terrain: string } | undefined>)[`${h.q},${h.r}`]);
+    expect(cible).toBeDefined();
     alice.send({
       type: 'SubmitOrder',
-      order: { type: 'Move', unitId: myUnitId, path: [{ q: unit.q, r: unit.r - 1 }] },
+      order: { type: 'Move', unitId: myUnitId, path: [cible!] },
     });
     await alice.waitFor('OrderAck');
     const r3 = await playTurn(alice, bob);
-    expect(r3.state.units[myUnitId]?.fortified).toBe(false);
+    const apres = r3.state.units[myUnitId]!;
+    if (apres.q === unit.q && apres.r === unit.r) {
+      // Déplacement refusé (case devenue infranchissable/occupée en fog) :
+      // l'unité est demeurée — ENGAGEMENT R-175 : la fortification persiste.
+      expect(apres.fortified).toBe(true);
+    } else {
+      expect(apres.fortified).toBe(false); // déplacement exécuté : perdue
+    }
   });
 
   it('un ordre Fortify sur une unité ennemie est refusé', async () => {

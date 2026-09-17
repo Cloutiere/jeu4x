@@ -140,6 +140,7 @@ export function applyFirstToDiscover(
           fortified: false,
           aboard: null, // 7g · R-117
           cargo: null,
+          stabilized: false, // ENGAGEMENT - R-173
         };
         payload.unitType = reward.unit;
         payload.unitIds = [unitId];
@@ -185,6 +186,7 @@ export function applyFirstToDiscover(
         fortified: false,
         aboard: null,
         cargo: null,
+        stabilized: false, // ENGAGEMENT - R-173
       };
       payload.greatPerson = gpClass;
       payload.unitIds = [...(payload.unitIds ?? []), unitId];

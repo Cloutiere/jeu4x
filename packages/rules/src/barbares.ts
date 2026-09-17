@@ -50,6 +50,9 @@ export function createBarbarianUnit(state: GameState, hex: Hex, type: string): U
     fortified: false,
     aboard: null, // 7g : les barbares n'embarquent jamais (aucun navire)
     cargo: null,
+    // ENGAGEMENT · R-173 : une unité qui apparaît en cours de résolution n'est
+    // pas stabilisée — la Phase E de fin de tour fait foi.
+    stabilized: false,
   };
   state.units[id] = unit;
   return unit;
@@ -102,23 +105,18 @@ export function barbarianOrders(state: GameState): Order[] {
     .sort(compareUnitIds);
   if (ids.length === 0) return [];
 
-  // BARBARES-PILES (rév. 15/09) · T-49 (garde minimale) : les barbares d'un
-  // camp forment une PILE sur la case même du camp. Les `gardeMinimale`
-  // PREMIERS barbares vivants de `spawnedUnits` (ordre d'engendrement =
-  // ordre des ids — R-81 ; le plus ancien garde, le dernier arrivé sort)
-  // ne quittent JAMAIS le camp : ils tiennent (Hold) ou défendent (attaque
-  // d'un ennemi ADJACENT — la garde contraint les SORTIES, pas le combat
-  // défensif sur place). Seuls les barbares suivants (au plus 1 avec cap 3
-  // et garde 2) explorent/sortent. Avec garde 2, une pile de 1 ou 2 est
-  // entièrement garde : le camp ne sort personne tant qu'il n'a pas 3 vivants.
+  // ENGAGEMENT (rév. 16/09) · R-183 : les barbares d'un camp sont
+  // SPATIALISÉS — le GARDIEN (le plus ancien barbare présent SUR la case du
+  // camp) ne SORT jamais (Hold ou attaque d'un ennemi adjacent) ; les
+  // SATELLITES (barbares sur les cases adjacentes du rayon d'une case) suivent
+  // le comportement normal R-97 (attaque adjacente, aggro T-19, tenir).
   const gardes = new Set<string>();
   for (const village of [...state.villages].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-    let compte = 0;
     for (const id of village.spawnedUnits) {
-      if (compte >= BARBARIANS.gardeMinimale) break;
-      if (state.units[id]) {
+      const u = state.units[id];
+      if (u && u.q === village.q && u.r === village.r) {
         gardes.add(id);
-        compte += 1;
+        break; // un seul gardien par camp : le plus ancien SUR la case
       }
     }
   }
@@ -187,12 +185,13 @@ export function barbarianOrders(state: GameState): Order[] {
 }
 
 /**
- * C3 · T-50 · Dotation initiale (POLISSAGE-1), rév. BARBARES-PILES :
- * `initialUnits` barbare(s) DANS CHAQUE camp au début de la partie — posés
- * SUR LA CASE MÊME du village (pile — co-location barbare autorisée, R-30),
- * type initial (escalade R-95 non applicable au tour de départ), inscrits
- * dans `spawnedUnits` (comptent pour le cap T-22 et la garde T-49). Pure :
- * retourne un nouvel état, l'entrée n'est pas mutée.
+ * C3 · T-50 · Dotation initiale (POLISSAGE-1), rév. ENGAGEMENT (16/09) ·
+ * R-183 : `initialUnits` barbares par camp au début de partie — LE PREMIER
+ * SUR LA CASE MÊME du camp (le gardien), les suivants sur des CASES
+ * ADJACENTES LIBRES (rayon d'une case, freeSpawnTiles : praticables, sans
+ * unité/ville/village/artefact — tri (q, r) croissant, R-81). La pile de
+ * camp est ABROGÉE (une case ne porte plus de pile barbare). Inscrits dans
+ * `spawnedUnits` (comptent pour le cap T-22). Pure : retourne un nouvel état.
  */
 export function spawnInitialGarrisons(state: GameState): GameState {
   const count = Math.max(0, BARBARIANS.initialUnits);
@@ -203,9 +202,15 @@ export function spawnInitialGarrisons(state: GameState): GameState {
     villages: state.villages.map((v) => ({ ...v, spawnedUnits: [...v.spawnedUnits] })),
   };
   for (const village of [...work.villages].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-    for (let i = 0; i < count; i += 1) {
-      const unit = createBarbarianUnit(work, { q: village.q, r: village.r }, BARBARIANS.units.initial);
-      village.spawnedUnits.push(unit.id);
+    // Le gardien d'abord (le plus ancien = il tiendra le camp, R-97 rév.).
+    const guardian = createBarbarianUnit(work, { q: village.q, r: village.r }, BARBARIANS.units.initial);
+    village.spawnedUnits.push(guardian.id);
+    // Les satellites sur les cases adjacentes libres (perdus si le terrain
+    // n'en offre pas assez — déterministe).
+    const tiles = freeSpawnTiles(work, { q: village.q, r: village.r }, count - 1);
+    for (const hex of tiles) {
+      const satellite = createBarbarianUnit(work, hex, BARBARIANS.units.initial);
+      village.spawnedUnits.push(satellite.id);
     }
   }
   return work;

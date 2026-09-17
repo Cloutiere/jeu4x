@@ -10,7 +10,9 @@ import {
   BARBARIAN_ID,
   BARBARIANS,
   TERRAINS,
+  freeSpawnTiles,
   makeState,
+  nextId,
   tileKey,
   unitType,
 } from '@game/rules';
@@ -55,8 +57,10 @@ export interface CityLabo {
   capital?: boolean;
 }
 
-/** Camp barbare : pile sur la case — `gardes` premières unités de la pile
- *  (ne sortent jamais, T-49) + au plus un explorateur (agit, R-97). */
+/** Camp barbare (rév. ENGAGEMENT R-183) : le GARDIEN demeure SUR la case du
+ *  camp (ne sort jamais, R-97 rév.) ; `satellites` unités sont posées dans le
+ *  rayon d'une case (cases adjacentes libres) ; `explorateur` (si coché) est
+ *  posé lui aussi à côté et suit l'aggro R-97. */
 export interface CampBarbare {
   q: number;
   r: number;
@@ -78,7 +82,7 @@ export interface EtatLaboOptions {
   seed?: number;
 }
 
-/** Camp posé avec son réglage de pile (unités engendrées à la pose). */
+/** Camp posé avec son réglage (rév. ENGAGEMENT) : gardien au camp + satellites adjacents. */
 export type CampLaboSpec = CampBarbare;
 
 /**
@@ -113,18 +117,17 @@ export function creerEtatLabo(opts: EtatLaboOptions): GameState {
   for (const u of opts.units ?? []) pose(u);
   const villages: Array<{ q: number; r: number; spawnCountdown?: number }> = [];
   const spawnedParCamp: UnitId[][] = [];
+  const campsSpec: CampBarbare[] = [];
   for (const camp of opts.camps ?? []) {
     const idsCamp: UnitId[] = [];
-    for (let i = 0; i < camp.gardes; i++) {
-      idsCamp.push(pose({ type: barbarianUnitType(opts.turn ?? 0), camp: 'barbare', q: camp.q, r: camp.r }));
-    }
-    if (camp.explorateur) {
-      idsCamp.push(pose({ type: 'explorateur', camp: 'barbare', q: camp.q, r: camp.r }));
-    }
+    // Le GARDIEN seul est posé SUR la case du camp (R-183) — les satellites
+    // et l'explorateur seront posés à côté (freeSpawnTiles) après makeState.
+    idsCamp.push(pose({ type: barbarianUnitType(opts.turn ?? 0), camp: 'barbare', q: camp.q, r: camp.r }));
     villages.push({ q: camp.q, r: camp.r, spawnCountdown: opts.spawnCountdown ?? BARBARIANS.spawnInterval });
     // Liaison village → unités engendrées : injectée après makeState (la
     // fixture crée les villages vides, ids par (q, r) croissant).
     spawnedParCamp.push(idsCamp);
+    campsSpec.push(camp);
   }
   const state = makeState({
     width: opts.width,
@@ -145,7 +148,7 @@ export function creerEtatLabo(opts: EtatLaboOptions): GameState {
     turn: opts.turn ?? 0,
     rngSeed: opts.seed ?? 42,
   });
-  // BARBARES-PILES : rattacher les piles posées (spawnedUnits = ids de pose).
+  // ENGAGEMENT : rattacher les unités posées (spawnedUnits = ids de pose).
   const campsTries = [...(opts.camps ?? [])].sort((a, b) => a.q - b.q || a.r - b.r);
   for (let i = 0; i < campsTries.length; i++) {
     const village = state.villages[i];
@@ -158,6 +161,44 @@ export function creerEtatLabo(opts: EtatLaboOptions): GameState {
   for (const id of Object.keys(state.units)) {
     const u = state.units[id]!;
     if (u.owner === BARBARIAN_ID && !poses.has(id)) delete state.units[id];
+  }
+  // ENGAGEMENT R-183 : pose des SATELLITES (et de l'explorateur) sur les
+  // cases adjacentes libres du camp — la pile est abrogée, le gardien seul
+  // demeure sur la case du camp.
+  const campsTries2 = [...campsSpec].sort((a, b) => a.q - b.q || a.r - b.r);
+  for (let i = 0; i < campsTries2.length; i++) {
+    const camp = campsTries2[i]!;
+    const village = state.villages[i];
+    if (!village) continue;
+    const libres = freeSpawnTiles(state, { q: camp.q, r: camp.r }, camp.gardes + (camp.explorateur ? 1 : 0));
+    let k = 0;
+    const poseSatellite = (type: string): void => {
+      const hex = libres[k++];
+      if (!hex) return; // pas de case libre : perdu (déterministe)
+      const stats = unitType(type);
+      const finalId = nextId(state.units, 'u');
+      const unit: Unit = {
+        id: finalId,
+        type,
+        owner: BARBARIAN_ID,
+        q: hex.q,
+        r: hex.r,
+        hp: stats.hpMax,
+        mp: stats.movement,
+        veteran: false,
+        isArmy: false,
+        order: null,
+        detainedBy: null,
+        fortified: false,
+        aboard: null,
+        cargo: null,
+        stabilized: false, // ENGAGEMENT R-173
+      };
+      state.units[finalId] = unit;
+      village.spawnedUnits.push(finalId);
+    };
+    for (let g = 0; g < camp.gardes; g++) poseSatellite(barbarianUnitType(opts.turn ?? 0));
+    if (camp.explorateur) poseSatellite('explorateur');
   }
   // Fog désactivé : les deux joueurs voient TOUTE la carte (préalable M2).
   const allKeys = Object.keys(state.map).sort();
@@ -224,8 +265,19 @@ export function construireJournal(
     lignes.push(`  ville ${c.name ?? id} (${nomCamp(c.owner)}) en (${c.q},${c.r}) — pop ${c.pop}${c.capital ? ', capitale' : ''}`);
   }
   for (const v of [...pre.villages].sort((a, b) => (a.id < b.id ? -1 : 1))) {
-    const pile = v.spawnedUnits.filter((uid) => pre.units[uid]).length;
-    lignes.push(`  camp barbare en (${v.q},${v.r}) — pile ${pile}, spawn dans ${v.spawnCountdown} résolution(s)`);
+    // ENGAGEMENT R-183 : le camp porte son GARDIEN (sur la case) ; les autres
+    // barbares du village sont des satellites adjacents.
+    const surCase = v.spawnedUnits.filter((uid) => {
+      const u = pre.units[uid];
+      return u && u.q === v.q && u.r === v.r;
+    }).length;
+    const satellites = v.spawnedUnits.filter((uid) => {
+      const u = pre.units[uid];
+      return u && (u.q !== v.q || u.r !== v.r);
+    }).length;
+    lignes.push(
+      `  camp barbare en (${v.q},${v.r}) — gardien ${surCase}, satellites ${satellites}, spawn dans ${v.spawnCountdown} résolution(s)`,
+    );
   }
 
   // --- 2. Ordres donnés --------------------------------------------------------
@@ -368,6 +420,15 @@ export function formatEvent(state: GameState, ev: { type: string } & Record<stri
       return `MORT ${unitLabel(state, ev.unitId as UnitId)} en ${hexLabel(ev.at as { q: number; r: number })}${ev.byUnitId ? ` (par ${unitLabel(state, ev.byUnitId as UnitId)})` : ''}`;
     case 'Retreat':
       return `REPLI ${unitLabel(state, ev.unitId as UnitId)} : ${hexLabel(ev.from as { q: number; r: number })} → ${hexLabel(ev.to as { q: number; r: number })}`;
+    case 'MeleeResolved': {
+      const roles: Record<string, string> = { winner: 'GAGNANT (0 PV perdus)', loser: 'PERDANT (−2 PV)', middle: 'intermédiaire (−1 PV)' };
+      const detail = (ev.results as Array<{ unitId: UnitId; role: string; hpAfter: number }>)
+        .map((r) => `${unitLabel(state, r.unitId)} → ${roles[r.role] ?? r.role}, PV ${r.hpAfter}`)
+        .join(' ; ');
+      return `MÊLÉE en ${hexLabel(ev.at as { q: number; r: number })} — ${detail}`;
+    }
+    case 'UnitExpelled':
+      return `EXPULSION (cohabitation amie, R-179) ${unitLabel(state, ev.unitId as UnitId)} : ${hexLabel(ev.from as { q: number; r: number })} → ${hexLabel(ev.to as { q: number; r: number })}`;
     case 'Captured':
       return `CAPTURE ${unitLabel(state, ev.unitId as UnitId)} par ${nomCamp(ev.byPlayer as PlayerId)} (${ev.outcome})`;
     case 'CityFounded':

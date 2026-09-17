@@ -53,7 +53,7 @@ describe('LobbyDO · join par code', () => {
     const dump = await adminDump(code);
     expect(dump.meta?.status).toBe('active');
     expect(dump.state?.turn).toBe(0);
-    expect(Object.keys(dump.state?.units ?? {}).length).toBe(2 + 3); // 1 Guerrier/joueur (démarrage 01/09) + dotations barbares T-50 (3 villages)
+    expect(Object.keys(dump.state?.units ?? {}).length).toBe(2 + 9); // 1 Guerrier/joueur (démarrage 01/09) + dotations barbares T-50 (3 villages × 3, rév. ENGAGEMENT)
   });
 
   it('join un code inconnu → Error notFound', async () => {

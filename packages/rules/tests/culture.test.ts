@@ -211,6 +211,7 @@ describe('CULTURE-FRONTIERES (M2) · canal d\'origine des GP — source explicit
       fortified: true,
       aboard: null, // 7g · R-117
       cargo: null,
+      stabilized: false, // ENGAGEMENT - R-173
     };
     const { newState } = resolveTurn(state, {}, 1);
     const gp = Object.values(newState.units).find((u) => unitType(u.type).greatPerson);
@@ -245,6 +246,7 @@ describe('R-115 · Installation et jalons culturels', () => {
       fortified: false,
       aboard: null, // 7g · R-117
       cargo: null,
+      stabilized: false, // ENGAGEMENT - R-173
     };
     return state;
   }
@@ -330,6 +332,7 @@ describe('R-115 · Installation et jalons culturels', () => {
       fortified: false,
       aboard: null, // 7g · R-117
       cargo: null,
+      stabilized: false, // ENGAGEMENT - R-173
     };
     host.cities['c1']!.workedTiles = [];
     host.cities['c1']!.pop = Math.min(host.cities['c1']!.pop, 1);
@@ -475,7 +478,7 @@ describe('7f · Migration v9 → v10', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(24); // la chaîne continue (RETRAIT-GP-ACCUMULATEURS)
+    expect(out.schemaVersion).toBe(25); // la chaîne continue (RETRAIT-GP-ACCUMULATEURS)
     expect((out.cities['c1'] as unknown as Record<string, unknown>)['cultureStored']).toBeUndefined(); // D5 : retiré de l'état
     expect(out.cities['c1']!.cultureCumulee).toBe(0);
     expect(out.cities['c1']!.wonders).toEqual([]);
@@ -564,6 +567,7 @@ describe('7f · e2e : culture → GP → jalons → merveilles → ONU → victo
       fortified: false,
       aboard: null, // 7g · R-117
       cargo: null,
+      stabilized: false, // ENGAGEMENT - R-173
     };
     state.cities['c2']!.workedTiles = [];
     const { newState, events } = resolveTurn(state, {}, 1);

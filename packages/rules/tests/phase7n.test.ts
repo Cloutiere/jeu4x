@@ -158,7 +158,7 @@ describe('7n · R-147 · Transition d\'ère au compage (5/14/24)', () => {
     const state = crossingState();
     state.units['settler'] = {
       id: 'settler', type: 'colon', owner: 'p1', q: 3, r: 0, hp: 3, mp: 2,
-      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
+      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false,
     };
     const orders: Record<string, Order[]> = { p1: [{ type: 'FoundCity', unitId: 'settler' }] };
     const out = resolveTurn(state, orders, 1).newState;
@@ -173,7 +173,7 @@ describe('7n · R-147 · Transition d\'ère au compage (5/14/24)', () => {
     state.players['p1']!.era = 'medievale'; // déjà franchie au tour précédent
     state.units['settler'] = {
       id: 'settler', type: 'colon', owner: 'p1', q: 3, r: 0, hp: 3, mp: 2,
-      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
+      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false,
     };
     const out = resolveTurn(state, { p1: [{ type: 'FoundCity', unitId: 'settler' }] }, 1).newState;
     const founded = Object.values(out.cities).find((c) => c.q === 3 && c.r === 0)!;
@@ -593,7 +593,7 @@ describe('7n · Migration v16 → v17 (R-145/R-147/R-149 — additive, idempoten
       cities: Record<string, { wasCaptured: boolean }>;
       schemaVersion: number;
     };
-    expect(once.schemaVersion).toBe(24);
+    expect(once.schemaVersion).toBe(25);
     expect(once.players['p1']!.civId).toBe('neutre');
     expect(once.players['p1']!.era).toBe('medievale'); // 5 techs au compage (T-36)
     expect(once.players['p2']!.era).toBe('ancienne');
@@ -603,8 +603,8 @@ describe('7n · Migration v16 → v17 (R-145/R-147/R-149 — additive, idempoten
     expect(twice.players['p1']!.era).toBe('medievale'); // champ existant conservé
   });
 
-  it('la civ adverse est PUBLIQUE dans l\'état filtré (canon) ; CURRENT_SCHEMA_VERSION = 17', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(24); // la chaîne continue (RETRAIT-GP-ACCUMULATEURS)
+  it('la civ adverse est PUBLIQUE dans l\'état filtré (canon) ; CURRENT_SCHEMA_VERSION = 25', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(25); // la chaîne continue (RETRAIT-GP-ACCUMULATEURS)
     const s = makeState({});
     s.players['p1']!.civId = 'chine';
     s.players['p2']!.civId = 'zoulous';
@@ -698,7 +698,7 @@ describe('CIV-CAPITALE-FONDEE · Bonus capital-dépendants appliqués à la FOND
     state.players[owner]!.civId = civId;
     state.units['settler'] = {
       id: 'settler', type: 'colon', owner, q: 3, r: 0, hp: 3, mp: 2,
-      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
+      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false,
     };
     return state;
   };

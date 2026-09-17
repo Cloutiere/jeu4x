@@ -158,7 +158,7 @@ describe('7n · Bloc 0 · C15 — distinction canon rétablie : ville ordinaire 
     colonState.map['4,0'] = { terrain: 'cratere', resource: null };
     colonState.units['settler'] = {
       id: 'settler', type: 'colon', owner: 'p1', q: 4, r: 0, hp: 3, mp: 2,
-      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null,
+      veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false,
     };
     const out = resolveTurn(colonState, { p1: [{ type: 'FoundCity', unitId: 'settler' }] }, 2).newState;
     expect(Object.values(out.cities).some((c) => c.q === 4 && c.r === 0)).toBe(false);

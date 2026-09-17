@@ -108,6 +108,7 @@ export function applyCapitalStartBonuses(st: GameState, playerId: PlayerId, city
         fortified: false,
         aboard: null,
         cargo: null,
+        stabilized: false, // ENGAGEMENT - R-173
       };
       emit({ type: 'GreatPersonSpawned', unitId: gpId, unitType: gpType, cityId: city.id, owner: playerId, at });
     }

@@ -204,7 +204,7 @@ describe('Phase 7g · R-118 — soutien naval', () => {
   // Graine 1 : premier tir mulberry32 = 0.6271 ∈ [0.5 ; 256/257) —
   // SANS soutien (p = 0.5) l'attaquant encaisse, AVEC Galion (p ≈ 0.996)
   // le défenseur encaisse. Même graine, issue inversée par le soutien.
-  const SEED = 1;
+  const SEED = 5; // graine recalée (ENGAGEMENT : tirage R-177 avant l'échange) // graine recalée (ENGAGEMENT : le tirage R-177 consomme le RNG avant l'échange)
 
   function duelState(withShip: boolean): GameState {
     return coastalState({
@@ -226,7 +226,7 @@ describe('Phase 7g · R-118 — soutien naval', () => {
     const without = attackerHpAfter(duelState(false));
     const withShip = attackerHpAfter(duelState(true));
     expect(without).toEqual({ attacker: 2, defender: 3 }); // p = 0.5 → l'attaquant encaisse
-    expect(withShip).toEqual({ attacker: 3, defender: 2 }); // p ≈ 0.996 → le défenseur encaisse
+    expect(withShip).toEqual({ attacker: 3, defender: 2 }); // p ≈ 0.96 → le défenseur encaisse
   });
 
   it('prédicat pur : MAX d’un seul navire, port exclu, navire embarqué exclu, attaquant naval = 0', () => {
@@ -482,9 +482,9 @@ describe('Phase 7g · Migration v10 → v11', () => {
     });
     const raw = { ...structuredClone(v10), schemaVersion: 10 } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(24);
+    expect(out.schemaVersion).toBe(25);
     expect(out.units['u1']).toMatchObject({ aboard: null, cargo: null });
-    expect(CURRENT_SCHEMA_VERSION).toBe(24); // RETRAIT-GP-ACCUMULATEURS : gpAccum* supprimés (migration 23)
+    expect(CURRENT_SCHEMA_VERSION).toBe(25); // RETRAIT-GP-ACCUMULATEURS : gpAccum* supprimés (migration 23)
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);
     expect(twice).toEqual(out);
   });

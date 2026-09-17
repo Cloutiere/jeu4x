@@ -6,7 +6,7 @@
    * moteur (@game/rules, résolution seedée R-80) tourne dans le navigateur.
    *
    *  - M1 pose libre : carte rectangulaire ajustable (pinceau de terrain),
-   *    unités des DEUX joueurs + barbares, villes, camps barbares (piles) ;
+   *    unités des DEUX joueurs + barbares, villes, camps barbares (gardien + satellites) ;
    *  - M2 programmation : onglets J1/J2, chemins multi-étapes (R-158),
    *    action finale fondation, attaques — puis « Résoudre le tour » avec
    *    le moteur réel (seed affiché/modifiable, reproductible) ;
@@ -458,12 +458,20 @@
   function resoudre(): void {
     erreur = null;
     try {
-      const avant = structuredClone(etatAffiche);
+      // $state.snapshot déproxyfie l'état (après « Poursuivre », etatReporte
+      // est un Proxy Svelte 5 — structuredClone le refuse, ERREUR « could not
+      // be cloned » constatée au labo) ; le clone moteur reste déterministe.
+      const avant = structuredClone($state.snapshot(etatAffiche)) as GameState;
       const ordres: Record<PlayerId, Order[]> = {
         p1: ordresDuCote('p1'),
         p2: ordresDuCote('p2'),
       };
-      const resultat = resolveTurn(avant, ordres, seed);
+      // R-80 : la graine utilisée est CELLE DE L'ÉTAT (portée par « Poursuivre »),
+      // pas le champ de saisie — sinon les tours successifs rejoueraient la même
+      // graine. Le champ est resynchronisé pour rester fidèle à l'affichage.
+      const resultat = resolveTurn(avant, ordres, avant.rngSeed);
+      seed = resultat.newState.rngSeed;
+      seedText = String(seed);
       snapshotAvant = avant;
       etatResolu = resultat.newState;
       journal = construireJournal(avant, resultat.events.map((ev: GameEvent) => ev as unknown as { type: string } & Record<string, unknown>), ordres)
@@ -667,7 +675,8 @@
               {:else if poseeEdition}
                 {@const c = poseeEdition as CampPosee}
                 <strong>Camp barbare</strong>
-                <label>Gardes : {c.gardes} <input type="range" min="0" max="4" bind:value={c.gardes} /></label>
+                <label>Satellites (adjacents) : {c.gardes} <input type="range" min="0" max="4" bind:value={c.gardes} /></label>
+                <span title="ENGAGEMENT R-183 : le gardien demeure toujours SUR la case du camp ; les satellites sont posés dans le rayon d'une case.">gardien au camp + satellites adjacents (R-183)</span>
                 <label class="check"><input type="checkbox" bind:checked={c.explorateur} /> Explorateur</label>
               {/if}
               <button type="button" class="danger" onclick={supprimerEditee}>Retirer</button>

@@ -37,7 +37,8 @@ function checkInvariants(state: GameState): void {
   const seen = new Set<string>();
   for (const u of Object.values(state.units)) {
     const key = `${u.q},${u.r}`;
-    expect(seen.has(key)).toBe(false); // R-30 : non-empilement
+    // ENGAGEMENT R-173 : la co-location est LÉGALE (cases instables) —
+    // l'ancien invariant R-30 « non-empilement » est abrogé.
     seen.add(key);
     expect(state.map[key]).toBeDefined(); // jamais hors carte
   }
@@ -144,14 +145,16 @@ describe('Campagne multi-tours (critère 2)', () => {
       },
       21,
     );
-    expect(unitPos(state, 'u1')).toEqual({ q: 0, r: 0 }); // bloqué par u2 (R-30), chemin gelé
+    // ENGAGEMENT R-173 : la co-location amie est légale — u1 ENTRE sur (1,0)
+    // avec u2 (1 PM), qui part ensuite à (1,1) ; la case reste à u1.
+    expect(unitPos(state, 'u1')).toEqual({ q: 1, r: 0 });
     // t2 : u1 reprend automatiquement son chemin ; u3 continue.
     step({ p2: [{ type: 'Move', unitId: 'u3', path: [{ q: 4, r: 1 }] }] }, 22);
-    expect(unitPos(state, 'u1')).toEqual({ q: 1, r: 0 });
-    // t3 : u1 → (2,0) ; u3 → (4,0).
+    expect(unitPos(state, 'u1')).toEqual({ q: 2, r: 0 }); // chemin gelé repris
+    // t3 : u1 → (3,0) ; u3 → (4,0).
     step({ p2: [{ type: 'Move', unitId: 'u3', path: [{ q: 4, r: 0 }] }] }, 23);
-    expect(unitPos(state, 'u1')).toEqual({ q: 2, r: 0 });
-    // t4 : u1 → (3,0), adjacent à u3 (4,0).
+    expect(unitPos(state, 'u1')).toEqual({ q: 3, r: 0 });
+    // t4 : chemin achevé, u1 demeure — déjà adjacent à u3 (4,0).
     step({}, 24);
     expect(unitPos(state, 'u1')).toEqual({ q: 3, r: 0 });
     // t5 : attaque explicite (I-2 : PM frais requis — u1 n'a pas bougé ce tour).
@@ -162,11 +165,18 @@ describe('Campagne multi-tours (critère 2)', () => {
     // l'échange retire exactement 1 PV au total (T-03 = 1) entre 3 et 3 PV
     const ex = exchanges[0] as Extract<GameEvent, { type: 'CombatExchange' }>;
     expect(ex.attackerHpAfter + ex.defenderHpAfter).toBe(5);
-    const u1 = state.units['u1']!;
-    const u3 = state.units['u3']!;
-    expect(u1.hp + u3.hp).toBe(5);
+    // ENGAGEMENT : après l'échange, u1 (entré sur la case) et u3 COHABITENT —
+    // R-178 rév. A : mêlée REPORTÉE au tour suivant (tour 6), elle tranche.
+    expect(allEvents.some((e) => e.type === 'MeleeResolved')).toBe(false);
+    const r6 = resolveTurn(state, {}, 26);
+    allEvents.push(...r6.events);
+    state = r6.newState;
+    const melee = allEvents.find((e): e is Extract<GameEvent, { type: 'MeleeResolved' }> => e.type === 'MeleeResolved')!;
+    expect(new Set(melee.participants)).toEqual(new Set(['u1', 'u3']));
+    const vivants = ['u1', 'u3'].filter((id) => state.units[id]);
+    expect(vivants.length).toBeGreaterThanOrEqual(1); // le gagnant survit toujours
     expect(state.winner).toBeNull();
-    expect(state.turn).toBe(5);
+    expect(state.turn).toBe(6);
   });
 });
 

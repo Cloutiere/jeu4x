@@ -504,8 +504,20 @@ export function createInitialState(
         fortified: false,
         aboard: null, // 7g · R-117
         cargo: null,
+        stabilized: false, // ENGAGEMENT - R-173
       };
     }
+  }
+
+  // ENGAGEMENT · R-173 : les unités de départ seules sur leur case naissent
+  // STABILISÉES (sémantique du premier tour — miroir de la fixture makeState).
+  {
+    const compte = new Map<string, number>();
+    for (const u of Object.values(units)) {
+      const key = `${u.q},${u.r}`;
+      compte.set(key, (compte.get(key) ?? 0) + 1);
+    }
+    for (const u of Object.values(units)) u.stabilized = compte.get(`${u.q},${u.r}`) === 1;
   }
 
   const state: GameState = {

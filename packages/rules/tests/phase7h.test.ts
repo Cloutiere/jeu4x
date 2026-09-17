@@ -383,7 +383,7 @@ describe('Migration v11 → v12 (Phase 7h)', () => {
       cities: { c1: { id: 'c1', q: 0, r: 0, wonders: ['stonehenge'] } },
     };
     const out = migrateState(v11 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(24);
+    expect(out.schemaVersion).toBe(25);
     expect(out.players['p1']!.government).toBe('despotisme');
     expect(out.players['p1']!.anarchyUntil).toBeNull();
     expect(out.players['p1']!.greatPersonsByType).toEqual({});
@@ -415,7 +415,7 @@ describe('RETRAIT-GP-ACCUMULATEURS · Migration v22 → v23', () => {
       },
     };
     const out = migrateState(v22 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(24);
+    expect(out.schemaVersion).toBe(25);
     for (const c of ['c1', 'c2'] as const) {
       expect('gpAccumGold' in out.cities[c]!).toBe(false);
       expect('gpAccumScience' in out.cities[c]!).toBe(false);
@@ -436,7 +436,7 @@ describe('RETRAIT-GP-ACCUMULATEURS · Migration v22 → v23', () => {
       c.gpAccumFood = 9;
     }
     const repris = migrateState(asV22) as unknown as GameState;
-    expect(repris.schemaVersion).toBe(24);
+    expect(repris.schemaVersion).toBe(25);
     expect(() => resolveTurn(repris, {}, 42)).not.toThrow();
   });
 });

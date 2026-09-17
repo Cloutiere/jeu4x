@@ -59,7 +59,9 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   EconomyMilestone: 1600,
   EraChanged: 2000, // 7n · R-147 : bandeau « Ère Médiévale ! »
   Move: 240,
-  Retreat: 240,
+  Retreat: 240, // ABROGÉ (ENGAGEMENT) — plus jamais émis ; durée conservée pour les journaux anciens
+  MeleeResolved: 480, // ENGAGEMENT R-180 : mêlée d'instabilité
+  UnitExpelled: 300, // ENGAGEMENT R-179 : expulsion de cohabitation
   Attack: 200,
   CombatExchange: 420,
   UnitDestroyed: 420,

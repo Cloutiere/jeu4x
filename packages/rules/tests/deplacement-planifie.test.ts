@@ -53,7 +53,7 @@ describe('R-158 · forme d\'ordre composite MultiStep (D5)', () => {
     expect(unit(newState, 'col')).toMatchObject({ q: 2, r: 0 }); // le mouvement, lui, a eu lieu
   });
 
-  it('Chemin bloqué en cours d\'étapes → l\'exécutable est fait, l\'action finale annulée', () => {
+  it('ENGAGEMENT R-173 (ancien blocage amical R-30 abrogé) : le colon traverse la case de son ami', () => {
     const state = makeState({
       units: [
         { id: 'col', type: 'colon', owner: 'p1', q: 0, r: 0 },
@@ -64,11 +64,16 @@ describe('R-158 · forme d\'ordre composite MultiStep (D5)', () => {
     const orders: Record<string, Order[]> = {
       p1: [{ type: 'MultiStep', unitId: 'col', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }], final: 'foundCity' }],
     };
-    const { newState } = resolveTurn(state, orders, 1);
-    expect(unit(newState, 'col')).toMatchObject({ q: 1, r: 0 }); // arrêt devant l'ami (R-30/R-42)
-    expect(Object.keys(newState.cities).length === 0 || !Object.values(newState.cities).some((c) => c.q === 2 && c.r === 0)).toBe(true);
-    // chemin gelé conservé SOUS forme composite (R-158)
-    expect(unit(newState, 'col')!.order?.type).toBe('MultiStep');
+    const { newState, events } = resolveTurn(state, orders, 1);
+    // La co-location amie est LÉGALE (ENGAGEMENT) : le colon atteint (2,0) —
+    // la case devient instable et la Phase E EXPELLE l'excédent (R-179) :
+    // 'bloc' (unitId inférieur) demeure, 'col' est relogé à l'adjacent libre.
+    expect(unit(newState, 'bloc')).toMatchObject({ q: 2, r: 0 });
+    expect(events.some((e) => e.type === 'UnitExpelled' && e.unitId === 'col')).toBe(true);
+    const col = unit(newState, 'col');
+    expect(Math.max(Math.abs(col.q - 2), Math.abs(col.r - 0))).toBe(1); // adjacent au camp
+    // Pas de fondation (le colon n'a pas demeuré seul au terme du chemin).
+    expect(Object.values(newState.cities).some((c) => c.q === 2 && c.r === 0)).toBe(false);
   });
 
   it('D4 : un composite dont le dernier pas entre sur un ENNEMI = attaque (combat existant, aucun nouveau duel)', () => {
@@ -245,8 +250,8 @@ describe('R-158 · migration schemaVersion 18 → 19', () => {
       path: [{ q: 1, r: 0 }],
     };
     const migrated = migrateState(v18);
-    expect(migrated.schemaVersion).toBe(24); // la chaîne continue (GP-CULTURE-EVENEMENTS)
-    expect(CURRENT_SCHEMA_VERSION).toBe(24); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
+    expect(migrated.schemaVersion).toBe(25); // la chaîne continue (GP-CULTURE-EVENEMENTS)
+    expect(CURRENT_SCHEMA_VERSION).toBe(25); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
     const order = migrated.units['u1']!.order;
     expect(order?.type).toBe('MultiStep');
     if (order?.type === 'MultiStep') {

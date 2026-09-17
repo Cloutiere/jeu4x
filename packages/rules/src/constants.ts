@@ -79,3 +79,14 @@ export const NUKE_CULTURE_PENALTY = ESPIONNAGE_DATA.nukeCulturePenalty;
 export const SPY_DUEL_MATRIX = ESPIONNAGE_DATA.duelWinChance;
 /** T-35 · Part de la trésorerie volée par `stealGold` (R-143). 🔶 */
 export const SPY_STEAL_GOLD_PCT = ESPIONNAGE_DATA.stealGoldPct;
+
+// --- ENGAGEMENT — règles d'engagement revues (spécification dictée par Erik
+// en session, R-180) : mêlée pondérée + bonus d'étau, source unique T-54/T-55.
+
+/** T-54 · Bonus d'étau de mêlée par unité alliée au-delà de la première. 🔶 */
+export const MELEE_TAU_BONUS = 0.25;
+/** T-55 · Plafond du bonus d'étau de mêlée. 🔶 */
+export const MELEE_TAU_CAP = 0.5;
+/** ENGAGEMENT · R-180 · Pertes de PV en mêlée : perdant / intermédiaires. 🔶 */
+export const MELEE_LOSER_DAMAGE = 2;
+export const MELEE_MIDDLE_DAMAGE = 1;

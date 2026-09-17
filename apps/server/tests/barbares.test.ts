@@ -28,7 +28,7 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     for (const v of dump.barbares!.villages) {
       expect((v as { hp?: number }).hp).toBeUndefined(); // BARBARES-PILES : camps sans PV
       expect(v.spawnCountdown).toBe(10); // T-18 (POLISSAGE-1 C3)
-      expect(v.unitésVivantes).toBe(1); // dotation initiale T-50 (POLISSAGE-1 C3)
+      expect(v.unitésVivantes).toBe(3); // dotation initiale T-50 (rév. ENGAGEMENT : 1 gardien + 2 satellites)
     }
     expect(dump.state!.mapId).toBe('pangee-40');
   });
@@ -65,11 +65,11 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     const t3Bob = (await bob.waitFor('TurnResult')) as TurnResult;
     expect(t3Alice.turn).toBe(3);
 
-    // Les barbares existent côté serveur (3 villages, 1 unité chacun).
+    // Les barbares existent côté serveur (3 villages, dotation T-50 : 3 chacun).
     const dump = await adminDump(code);
     const barbares = Object.values(dump.state!.units).filter((u: { owner: string }) => u.owner === 'barbarien');
-    expect(barbares).toHaveLength(3);
-    expect(dump.barbares!.villages.every((v) => v.unitésVivantes === 1)).toBe(true);
+    expect(barbares).toHaveLength(9);
+    expect(dump.barbares!.villages.every((v) => v.unitésVivantes === 3)).toBe(true);
     // Anti-triche : AUCUN client ne voit les barbares (cases inexplorées, fog).
     expect(t3Alice.state.units['u4']).toBeUndefined();
     expect(Object.values(t3Alice.state.units).filter((u) => u.owner === 'barbarien')).toHaveLength(0);
@@ -116,14 +116,17 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     });
 
     const dump = await adminDump(code);
-    expect(dump.state!.schemaVersion).toBe(24); // migré (version courante, BARBARES-PILES) puis enrichi
+    expect(dump.state!.schemaVersion).toBe(25); // migré (version courante, ENGAGEMENT) puis enrichi
     expect(dump.state!.mapId).toBe('pangee-40');
     expect(dump.state!.villages).toHaveLength(3);
     expect(dump.state!.huts).toHaveLength(2);
     for (const v of dump.state!.villages!) {
       expect(v.spawnCountdown).toBe(10); // T-18 (POLISSAGE-1 C3)
-      // Dotation initiale T-50 : l'enrichissement pose aussi le barbare de début de partie.
-      expect(v.spawnedUnits).toHaveLength(1);
+      // Dotation initiale T-50 (rév. ENGAGEMENT) : le gardien SUR le camp,
+      // jusqu'à 2 satellites sur les cases adjacentes libres (des unités de
+      // la partie peuvent occuper des cases du rayon — dotation partielle).
+      expect(v.spawnedUnits.length).toBeGreaterThanOrEqual(1);
+      expect(v.spawnedUnits.length).toBeLessThanOrEqual(3);
     }
   });
 });

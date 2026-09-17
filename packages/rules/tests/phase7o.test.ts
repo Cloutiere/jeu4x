@@ -256,8 +256,8 @@ describe('7o · parseMap · validations des artefacts portés par une carte', ()
 // ---------------------------------------------------------------------------
 
 describe('7o · Migration v17 → v18 (R-156 — additive, idempotente)', () => {
-  it('artefacts [] et pendingArtefactChoices [] ; idempotent ; CURRENT_SCHEMA_VERSION = 18', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(24); // la chaîne continue (GP-CULTURE-EVENEMENTS)
+  it('artefacts [] et pendingArtefactChoices [] ; idempotent ; CURRENT_SCHEMA_VERSION = 25', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(25); // la chaîne continue (GP-CULTURE-EVENEMENTS)
     expect(MIGRATIONS[18]).toBeDefined();
     const v17 = {
       schemaVersion: 17,
@@ -267,7 +267,7 @@ describe('7o · Migration v17 → v18 (R-156 — additive, idempotente)', () => 
       },
     };
     const once = migrateState(v17);
-    expect(once.schemaVersion).toBe(24);
+    expect(once.schemaVersion).toBe(25);
     expect(once.artefacts).toEqual([]);
     expect(once.pendingArtefactChoices).toEqual([]);
     const twice = migrateState(once as unknown as Record<string, unknown>);

@@ -183,8 +183,8 @@ describe('CULTURE-FRONTIERES · frontierRadius — progression palier après pal
 });
 
 describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)', () => {
-  it('CURRENT_SCHEMA_VERSION = 20 ; backfill 0 idempotent, valeurs existantes conservées', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(24); // RETRAIT-GP-ACCUMULATEURS : gpAccum* supprimés (migration 23)
+  it('CURRENT_SCHEMA_VERSION = 25 ; backfill 0 idempotent, valeurs existantes conservées', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(25); // RETRAIT-GP-ACCUMULATEURS : gpAccum* supprimés (migration 23)
     const v19 = {
       schemaVersion: 19,
       turn: 7,
@@ -206,7 +206,7 @@ describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v19 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(24);
+    expect(out.schemaVersion).toBe(25);
     expect(out.cities['c1']!.cultureCumulee).toBe(0); // backfill neutre (pas d'enrichissement rétroactif)
     expect((out.cities['c1'] as unknown as Record<string, unknown>)['cultureStored']).toBeUndefined(); // D5 : réservoir supprimé par la migration 22
     // Idempotent : un état déjà migré repasse sans variation.
@@ -223,7 +223,7 @@ describe('M2 · Migration schemaVersion 19 → 20 (champ additif cultureCumulee)
     v19.schemaVersion = 19;
     delete (v19.cities as Record<string, Record<string, unknown>>)['c1']!.cultureCumulee;
     const migrated = migrateState(v19) as unknown as GameState;
-    expect(migrated.schemaVersion).toBe(24);
+    expect(migrated.schemaVersion).toBe(25);
     expect(migrated.cities['c1']!.cultureCumulee).toBe(0); // backfill neutre
     const out = resolveTurn(migrated, {}, 8).newState;
     expect(out.cities['c1']!.cultureCumulee).toBe(2); // Palais pop 2 révisé : 2/tour

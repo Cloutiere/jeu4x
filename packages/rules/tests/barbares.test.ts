@@ -99,8 +99,8 @@ describe('R-99 · Données barbares.json / huttes.json', () => {
     expect(BARBARIANS.spawnInterval).toBe(10); // T-18 (C3 : était 3)
     expect(BARBARIANS.aggroRadius).toBe(2); // T-19 (C3 : était 6 — sortie à 2 cases ou moins)
     expect(BARBARIANS.capPerVillage).toBe(3); // T-22 (C3 : était 2)
-    expect(BARBARIANS.gardeMinimale).toBe(2); // T-49 (BARBARES-PILES : les 2 premiers GARDENT, seul le 3e sort)
-    expect(BARBARIANS.initialUnits).toBe(1); // T-50 (C3 : 1 barbare au camp au début)
+    expect(BARBARIANS.gardeMinimale).toBe(1); // T-49 (rév. ENGAGEMENT : 1 GARDIEN par camp, le plus ancien SUR la case)
+    expect(BARBARIANS.initialUnits).toBe(3); // T-50 (rév. ENGAGEMENT : 1 gardien au camp + 2 satellites adjacents)
     expect(BARBARIANS.escalationTurn).toBe(15); // T-23 (inchangé — seul le RYTHME change)
     expect(BARBARIANS.barbarianId).toBe('barbarien'); // R-95
     // BARBARES-PILES : camps SANS PV — villageHP, villageDefense et
@@ -322,46 +322,40 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
     expect(b1).toMatchObject({ type: 'Move', path: [{ q: 5, r: 6 }] });
   });
 
-  it('BARBARES-PILES · T-49 : garde 2 — en pile de 3, les DEUX gardes tiennent, seul le TROISIÈME sort', () => {
-    // 3 barbares EN PILE sur la case du camp (cap T-22), ennemi à distance 2
-    // (aggro T-19) : les deux premiers de `spawnedUnits` (b1, b2 — les plus
-    // anciens, tri R-81) sont des gardes et ne quittent JAMAIS le camp ; seul
-    // b3 (dernier arrivé = explorateur) avance vers l'ennemi.
+  it('ENGAGEMENT R-183 (rév. T-49) : le GARDIEN tient le camp, les SATELLITES sortent (aggro)', () => {
+    // Dotation ENGAGEMENT : 1 barbare SUR la case du camp (le gardien — le
+    // plus ancien), 2 satellites dans le rayon d'une case. Ennemi à distance
+    // 2 (aggro T-19) : le gardien ne SORT jamais ; les satellites avancent.
     const state = makeState({
       width: 14,
       height: 12,
       villages: [{ q: 6, r: 5, spawnCountdown: 99 }],
-      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 6, r: 3 }], // distance 2 du camp
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 4, r: 4 }], // distance 2 du satellite (5,5) — aggro
     });
-    // Remplace la dotation T-50 par 3 barbares EN PILE sur la case du camp.
-    const gabarit = state.units[state.villages[0]!.spawnedUnits[0]!]!;
-    for (const id of [...state.villages[0]!.spawnedUnits]) delete state.units[id];
-    state.villages[0]!.spawnedUnits = ['b1', 'b2', 'b3'];
-    state.units['b1'] = { ...gabarit, id: 'b1', q: 6, r: 5 };
-    state.units['b2'] = { ...gabarit, id: 'b2', q: 6, r: 5 };
-    state.units['b3'] = { ...gabarit, id: 'b3', q: 6, r: 5 };
+    const v = state.villages[0]!;
+    const gardien = state.units[v.spawnedUnits[0]!]!;
+    expect(gardien.q).toBe(6);
+    expect(gardien.r).toBe(5); // SUR la case du camp
     const orders = barbarianOrders(state);
     const moves = orders.filter((o) => o.type === 'Move');
-    const holds = orders.filter((o) => o.type === 'Hold');
-    expect(moves).toHaveLength(1); // seul l'explorateur (b3) sort
-    expect(moves[0]).toMatchObject({ unitId: 'b3' });
-    expect(holds).toHaveLength(2); // les deux gardes tiennent le camp
+    expect(moves).toHaveLength(1); // le satellite à distance 2 sort (aggro)
+    expect(moves[0]).toMatchObject({ unitId: v.spawnedUnits[1] }); // jamais le gardien
+    expect(orders.find((o) => o.type === 'Hold' && o.unitId === v.spawnedUnits[0])).toBeDefined(); // le gardien tient
   });
 
-  it('BARBARES-PILES · T-49 : pile de 2 (cap non atteint) — PERSONNE ne sort, tout le camp garde', () => {
+  it('ENGAGEMENT R-183 : gardien SEUL au camp — il ne sort jamais (Hold), personne ne sort', () => {
     const state = makeState({
       width: 14,
       height: 12,
       villages: [{ q: 6, r: 5, spawnCountdown: 99 }],
       units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 6, r: 3 }],
     });
-    const gabarit = state.units[state.villages[0]!.spawnedUnits[0]!]!;
-    for (const id of [...state.villages[0]!.spawnedUnits]) delete state.units[id];
-    state.villages[0]!.spawnedUnits = ['b1', 'b2'];
-    state.units['b1'] = { ...gabarit, id: 'b1', q: 6, r: 5 };
-    state.units['b2'] = { ...gabarit, id: 'b2', q: 6, r: 5 };
+    const v = state.villages[0]!;
+    // Réduit le camp au seul gardien.
+    for (const id of v.spawnedUnits.slice(1)) delete state.units[id];
+    v.spawnedUnits = [v.spawnedUnits[0]!];
     const orders = barbarianOrders(state);
-    expect(orders.filter((o) => o.type === 'Hold')).toHaveLength(2); // les 2 (≤ garde 2) gardent
+    expect(orders.filter((o) => o.type === 'Hold' && o.unitId === v.spawnedUnits[0])).toHaveLength(1);
     expect(orders.filter((o) => o.type === 'Move')).toHaveLength(0);
   });
 
@@ -395,20 +389,22 @@ describe('R-96 · Villages barbares', () => {
     expect(barbare).toMatchObject({ owner: BARBARIAN_ID, type: BARBARIANS.units.initial, q: 5, r: 5 }); // sur la case du camp
   });
 
-  it('BARBARES-PILES · T-18 : premier RÉENGENDREMENT au tour 10 (spawnInterval), SUR la case du camp (pile), compteur réarmé', () => {
+  it('ENGAGEMENT R-183 · T-18 : premier RÉENGENDREMENT au tour 10 (spawnInterval) — camp occupé par le gardien → spawn ADJACENT, compteur réarmé', () => {
     const state = makeState({ width: 12, height: 10, villages: [{ q: 5, r: 5 }] });
+    // Réduit le camp au seul gardien (cap T-22 sinon atteint d'emblée : la
+    // dotation ENGAGEMENT est de 3 = cap).
+    const v = state.villages[0]!;
+    for (const id of v.spawnedUnits.slice(1)) delete state.units[id];
+    v.spawnedUnits = [v.spawnedUnits[0]!];
     const { state: after, events } = resolveEmpty(state, 10);
     expect(after.turn).toBe(10);
     const spawns = events.filter((e) => e.type === 'BarbarianSpawned');
     expect(spawns).toHaveLength(1); // la dotation initiale (T-50) n'émet pas d'événement
     const at = (spawns[0] as Extract<GameEvent, { type: 'BarbarianSpawned' }>).at;
-    expect(at).toEqual({ q: 5, r: 5 }); // la pile se forme SUR la case du camp
+    expect(Math.max(Math.abs(at.q - 5), Math.abs(at.r - 5))).toBe(1); // case ADJACENTE au camp
     expect(spawns[0]).toMatchObject({ villageId: 'v1', owner: BARBARIAN_ID });
     const spawned = barbarians(after);
-    expect(spawned).toHaveLength(2); // dotation initiale + engendrement du tour 10
-    for (const id of spawned) {
-      expect(after.units[id]!).toMatchObject({ q: 5, r: 5 }); // co-location barbare (pile)
-    }
+    expect(spawned).toHaveLength(2); // gardien + engendrement du tour 10
     expect(after.villages[0]!.spawnCountdown).toBe(BARBARIANS.spawnInterval);
     expect(after.villages[0]!.spawnedUnits).toEqual(spawned);
   });
@@ -417,23 +413,22 @@ describe('R-96 · Villages barbares', () => {
     const state = makeState({ width: 12, height: 10, villages: [{ q: 5, r: 5 }] });
     const { state: after, events } = resolveEmpty(state, 9);
     expect(events.filter((e) => e.type === 'BarbarianSpawned')).toHaveLength(0);
-    expect(barbarians(after)).toHaveLength(1); // la dotation initiale seule (T-50)
+    expect(barbarians(after)).toHaveLength(3); // la dotation initiale seule (T-50 : 1 gardien + 2 satellites)
     expect(after.turn).toBe(9);
   });
 
-  it('R-96/T-22 : cap de 3 unités vivantes par village — le camp se régénère à 3 sans jamais le dépasser', () => {
+  it('R-96/T-22 (rév. ENGAGEMENT) : la dotation (3) ATTEINT le cap — aucun spawn tant que rien ne meurt', () => {
     const state = makeState({
       width: 14,
       height: 12,
       villages: [{ q: 5, r: 5 }],
-      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 9 }], // distance 4 > T-19 (2) : n'attire pas les barbares
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 9 }], // distance 4 > T-19 (2)
     });
     const { state: after, events } = resolveEmpty(state, 25);
-    const spawns = events.filter((e) => e.type === 'BarbarianSpawned');
-    expect(spawns).toHaveLength(2); // tours 10 et 20 — dotation + 2 = 3 (cap T-22)
+    expect(events.filter((e) => e.type === 'BarbarianSpawned')).toHaveLength(0); // cap T-22 déjà atteint
     expect(barbarians(after)).toHaveLength(3);
-    const { state: encore } = resolveEmpty(after, 10); // tour 30 : le cap est atteint
-    expect(barbarians(encore)).toHaveLength(3); // le camp se régénère à 3, jamais plus
+    const { state: encore } = resolveEmpty(after, 10); // tour 35 : toujours le cap
+    expect(barbarians(encore)).toHaveLength(3);
   });
 
   it('R-96/T-22 + T-49 : cap 3 et garde 1 → au plus 2 barbares SORTENT simultanément (≥ 1 au camp)', () => {
@@ -462,40 +457,46 @@ describe('R-96 · Villages barbares', () => {
       turn: 15,
       villages: [{ q: 5, r: 5, spawnCountdown: 1 }],
     });
+    // Réduit le camp au seul gardien (sinon le cap T-22 bloque tout spawn).
+    const v = state.villages[0]!;
+    for (const id of v.spawnedUnits.slice(1)) delete state.units[id];
+    v.spawnedUnits = [v.spawnedUnits[0]!];
     const { state: after, events } = resolveEmpty(state, 1);
     expect(after.turn).toBe(16);
     const spawn = events.find((e): e is Extract<GameEvent, { type: 'BarbarianSpawned' }> => e.type === 'BarbarianSpawned')!;
     expect(after.units[spawn.unitId]!.type).toBe(BARBARIANS.units.escalated);
-    // La dotation initiale (T-50) reste du type initial — seule la pousse du
-    // village subit l'escalade.
-    expect(after.units[after.villages[0]!.spawnedUnits.find((id) => id !== spawn.unitId)!]!.type).toBe(
-      BARBARIANS.units.initial,
-    );
+    // Le gardien (dotation initiale T-50) reste du type initial — seule la
+    // pousse du village subit l'escalade.
+    expect(after.units[v.spawnedUnits[0]!]!.type).toBe(BARBARIANS.units.initial);
     expect(eventTypes(events)).toContain('BarbarianSpawned');
   });
 
-  it('BARBARES-PILES · un par un : survie mutuelle contre le PREMIER garde → repli R-54, pile et camp intacts', () => {
+  it('ENGAGEMENT R-181 (rév. R-54) : survie mutuelle contre le GARDIEN → cohabitation, MÊLÉE de fin de tour, camp intact', () => {
     const build = () =>
       makeState({
         width: 12,
         height: 10,
         villages: [{ q: 5, r: 5 }],
-        units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4 }], // duel équilibré contre le garde
+        units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4 }], // duel équilibré contre le gardien
       });
     const id = build().villages[0]!.spawnedUnits[0]!;
     const { result } = findSeed(
       build,
-      { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }] },
+      { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 5, r: 5 } }] },
       (r) => {
-        // Le défenseur est une UNITÉ (la pile) — plus jamais le village 'v*'.
         const ex = r.events.find((e) => e.type === 'CombatExchange');
         return !!ex && ex.defenderId === id && r.newState.units[id] !== undefined && r.newState.villages.length === 1;
       },
     );
     expect(result.newState.villages).toHaveLength(1); // le camp tient toujours
     expect('hp' in result.newState.villages[0]!).toBe(false); // camps sans PV
-    expect(result.newState.units[id]).toBeDefined(); // le garde a tenu
-    expect(hexDistance(result.newState.units['u1']!, { q: 5, r: 5 })).toBeGreaterThan(0); // repli R-54
+    expect(result.newState.units[id]).toBeDefined(); // le gardien a tenu
+    // Plus de repli : cohabitation (R-181). R-178 rév. A : le gardien a été
+    // attaqué → mêlée REPORTÉE au tour suivant.
+    expect(result.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
+    expect(result.events.some((e) => e.type === 'Retreat')).toBe(false);
+    const t2 = resolveTurn(result.newState, {}, 1);
+    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(true);
   });
 
   it('BARBARES-PILES · un par un : l’attaquant faible meurt au PREMIER garde — la pile est intacte, pas de capture', () => {
@@ -526,85 +527,41 @@ describe('R-96 · Villages barbares', () => {
     expect(result.events.filter((e) => e.type === 'VillageDestroyed')).toHaveLength(0);
   });
 
-  it('R-52 rév. DÉFENSE-DE-PILE : le défenseur est l’unité à la plus grande DÉFENSE (le piquier défend avant le guerrier, malgré l’ordre des ids)', () => {
-    const build = () => {
-      const s = makeState({
-        width: 12,
-        height: 10,
-        villages: [{ q: 5, r: 5 }],
-        units: [
-          { id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 5, r: 5 }, // défense 1 (id le plus petit)
-          { id: 'b2', type: 'piquier', owner: BARBARIAN_ID, q: 5, r: 5 }, // défense 3 — MEILLEUR défenseur
-          { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4, hp: 1 }, // meurt au premier échange
-        ],
-      });
-      for (const id of [...s.villages[0]!.spawnedUnits]) delete s.units[id];
-      s.villages[0]!.spawnedUnits = ['b1', 'b2'];
-      return s;
-    };
-    const { result } = findSeed(build, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }] }, (r) =>
-      r.events.some((e) => e.type === 'UnitDestroyed' && e.unitId === 'u1'),
-    );
-    expect(result.newState.villages).toHaveLength(1);
-    // C'est le PIQUIER (b2, défense 3) qui s'est porté au-devant, pas le guerrier.
-    expect(result.events.filter((e) => e.type === 'CombatExchange').every((e) => e.defenderId === 'b2')).toBe(true);
-    expect(result.newState.units['b1']).toMatchObject({ hp: 3 }); // intact
-  });
+  // R-52 rév. DÉFENSE-DE-PILE ABROGÉE (ENGAGEMENT) : une case n'a plus de
+  // pile — le défenseur est l'unité STABILISÉE de la case (R-174), testée
+  // dans engagement.test.ts. Deux barbares ne cohabitent plus sur un camp.
 
-  it('R-52 rév. DÉFENSE-DE-PILE : à défense ÉGALE, l’unité avec le plus de PV défend', () => {
-    const build = () => {
-      const s = makeState({
-        width: 12,
-        height: 10,
-        villages: [{ q: 5, r: 5 }],
-        units: [
-          { id: 'b1', type: 'geant', owner: BARBARIAN_ID, q: 5, r: 5, hp: 1 }, // même défense (20), peu de PV
-          { id: 'b2', type: 'geant', owner: BARBARIAN_ID, q: 5, r: 5, hp: 3 }, // plus de PV — défend
-          { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 4, hp: 1 },
-        ],
-      });
-      for (const id of [...s.villages[0]!.spawnedUnits]) delete s.units[id];
-      s.villages[0]!.spawnedUnits = ['b1', 'b2'];
-      return s;
-    };
-    const { result } = findSeed(build, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }] }, (r) =>
-      r.events.some((e) => e.type === 'UnitDestroyed' && e.unitId === 'u1'),
-    );
-    expect(result.newState.villages).toHaveLength(1);
-    expect(result.events.filter((e) => e.type === 'CombatExchange').every((e) => e.defenderId === 'b2')).toBe(true);
-    expect(result.newState.units['b1']).toBeDefined(); // b1 (peu de PV) intact — jamais ciblé
-  });
 
-  it('BARBARES-PILES · capture : l’attaquant fort ENCHAÎNE (pile purgée un par un), occupe la case, détruit le camp, reçoit la récompense hutte', () => {
+
+
+  it('ENGAGEMENT R-183 · capture : l’attaquant fort tue le GARDIEN, occupe la case, détruit le camp, reçoit la récompense hutte', () => {
     const build = () => {
       const s = makeState({
         width: 12,
         height: 10,
         villages: [{ q: 5, r: 5 }],
         units: [
-          { id: 'b1', type: 'cobaye', owner: BARBARIAN_ID, q: 5, r: 5 }, // pile de 2 cobayes
-          { id: 'b2', type: 'cobaye', owner: BARBARIAN_ID, q: 5, r: 5 },
+          { id: 'b1', type: 'cobaye', owner: BARBARIAN_ID, q: 5, r: 5 }, // le gardien
           { id: 'u1', type: 'geant', owner: 'p1', q: 5, r: 4 }, // ÉCRASEMENT (R-149) : 20 ≥ 6 × 1
         ],
       });
       for (const id of [...s.villages[0]!.spawnedUnits]) delete s.units[id];
-      s.villages[0]!.spawnedUnits = ['b1', 'b2'];
+      s.villages[0]!.spawnedUnits = ['b1'];
       return s;
     };
     const { result } = findSeed(
       build,
-      { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }] },
+      { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 5, r: 5 } }] },
       (r) => r.newState.villages.length === 0,
     );
     expect(result.newState.villages).toHaveLength(0); // camp détruit
-    expect(result.newState.units['b1']).toBeUndefined();
-    expect(result.newState.units['b2']).toBeUndefined(); // pile purgée
-    expect(result.newState.units['u1']).toMatchObject({ q: 5, r: 5, veteran: true }); // occupation de la case + R-32
+    expect(result.newState.units['b1']).toBeUndefined(); // gardien tué
+    expect(result.newState.units['u1']).toMatchObject({ q: 5, r: 5, veteran: true }); // occupation + R-32
     expect(result.events.filter((e) => e.type === 'VillageDestroyed')).toHaveLength(1);
     const looted = result.events.filter((e) => e.type === 'VillageLooted');
-    expect(looted).toHaveLength(1); // récompense obtenue (journal)
+    expect(looted).toHaveLength(1);
     expect(looted[0]).toMatchObject({ villageId: 'v1', byPlayer: 'p1' });
-    expect(result.events.filter((e) => e.type === 'BootyGold')).toHaveLength(0); // l'or fixe T-20 est supprimé
+    expect(result.events.filter((e) => e.type === 'BootyGold')).toHaveLength(0);
   });
 
   it('BARBARES-PILES · même seed = même récompense de capture (tirage hutte seedé, RNG de résolution)', () => {
@@ -869,61 +826,11 @@ describe('R-98 · Huttes bonus', () => {
 // ---------------------------------------------------------------------------
 
 describe('Interactions barbares ↔ règles existantes (L1.5/L1.6)', () => {
-  it('R-53 : collision barbare/civilisation — règle normale, aucun dégât, la plus haute PV demeure', () => {
-    // b1 (unitId < u1) bouge en premier et arrive sur (6,7) ; u1 visait la même case.
-    const state = makeState({
-      width: 14,
-      height: 12,
-      units: [
-        { id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 6, r: 6 },
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 6, r: 8 },
-      ],
-    });
-    const orders = barbarianOrders(state); // b1 avance vers u1 : pas sur (6,7)
-    expect(orders).toContainEqual({ type: 'Move', unitId: 'b1', path: [{ q: 6, r: 7 }] });
-    const { newState: after, events } = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 6, r: 7 }] }] }, 11);
-    expect(eventTypes(events)).not.toContain('CombatExchange'); // R-53 : aucun dégât
-    expect(eventTypes(events)).not.toContain('UnitDestroyed');
-    // Tie-break R-53 : à PV égaux, celle qui a parcouru le MOINS de cases
-    // demeure — u1 (0 pas) garde la case, b1 (1 pas) se replie sur son origine.
-    expect(after.units['u1']).toMatchObject({ q: 6, r: 7 });
-    expect(after.units['b1']).toMatchObject({ q: 6, r: 6 });
-    expect(eventTypes(events)).toContain('Retreat');
-  });
+  // R-53 (collisions) ABROGÉE (ENGAGEMENT) : tout mover entre dans sa case —
+  // les cohabitations ennemies sont résolues par la mêlée de Phase E (R-180),
+  // couverte par engagement.test.ts.
 
-  it('R-53/R-30 : deux movers convergent vers le même détenteur — la case n’est attribuée qu’à un seul vainqueur', () => {
-    // u1 (mover) arrive sur (5,5) ; b1 et b2 visent la même case : deux
-    // collisions, u1 (1 case parcourue) perd les deux (tie-break R-53). Sans
-    // garde R-30, b1 ET b2 prenaient tous deux la case libérée.
-    // Scénario générique (hors barbares : l'IA engendrerait des attaques
-    // adjacentes qui brouilleraient le propos) — trois unités p1/p2.
-    const state = makeState({
-      width: 12,
-      height: 10,
-      villages: [],
-      units: [
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 4, r: 5 },
-        { id: 'u2', type: 'guerrier', owner: 'p2', q: 4, r: 6 },
-        { id: 'u3', type: 'guerrier', owner: 'p2', q: 5, r: 6 },
-      ],
-    });
-    const orders: Record<string, Order[]> = {
-      p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }],
-      p2: [
-        { type: 'Move', unitId: 'u2', path: [{ q: 5, r: 5 }] },
-        { type: 'Move', unitId: 'u3', path: [{ q: 5, r: 5 }] },
-      ],
-    };
-    const { newState: after, events } = resolveTurn(state, orders, 5);
-    expect(eventTypes(events)).not.toContain('CombatExchange'); // R-53 : aucun dégât
-    // R-30 : au plus une entité par case — b1 prend la case, b2 reste sur la sienne.
-    const occupantsAt = (q: number, r: number) =>
-      Object.values(after.units).filter((u) => u.q === q && u.r === r);
-    expect(occupantsAt(5, 5)).toHaveLength(1);
-    expect(occupantsAt(5, 5)[0]!.id).toBe('u2'); // premier vainqueur (ordre R-56)
-    expect(after.units['u3']).toMatchObject({ q: 5, r: 6 }); // le second garde sa case
-    expect(after.units['u1']).not.toMatchObject({ q: 5, r: 5 }); // replié (R-54)
-  });
+
 
   it('anti-triche (R-95/R-70) : l’état filtré ne montre ni barbares hors vision, ni villages/huttes inexplorés', () => {
     const state = makeState({
@@ -957,6 +864,12 @@ describe('Interactions barbares ↔ règles existantes (L1.5/L1.6)', () => {
         { id: 'u2', type: 'guerrier', owner: 'p2', q: 1, r: 1 },
       ],
     });
+    // Réduit le camp au seul gardien (sinon le cap T-22 bloque le spawn T-18).
+    {
+      const v = state.villages[0]!;
+      for (const id of v.spawnedUnits.slice(1)) delete state.units[id];
+      v.spawnedUnits = [v.spawnedUnits[0]!];
+    }
     const { state: after, events } = resolveEmpty(state, 10);
     const json = JSON.stringify(after);
     expect(json).not.toContain('"Fortify"');
@@ -995,10 +908,16 @@ describe('Interactions barbares ↔ règles existantes (L1.5/L1.6)', () => {
       height: 12,
       villages: [{ q: 5, r: 5 }],
       units: [
-        { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 7 }, // voit le camp (distance 2 ≤ vision) sans le combattre
+        { id: 'u1', type: 'guerrier', owner: 'p1', q: 4, r: 3 }, // voit le camp ET son rayon (spawn adjacent visible) sans le combattre
         { id: 'u2', type: 'guerrier', owner: 'p2', q: 0, r: 0 }, // loin
       ],
     });
+    // Réduit le camp au seul gardien (cap T-22).
+    {
+      const v = state.villages[0]!;
+      for (const id of v.spawnedUnits.slice(1)) delete state.units[id];
+      v.spawnedUnits = [v.spawnedUnits[0]!];
+    }
     const { state: after, events } = resolveEmpty(state, 10);
     const spawn = events.find((e) => e.type === 'BarbarianSpawned')!;
     expect(filterEventsForPlayer(after, 'p1', [spawn])).toHaveLength(1); // p1 voit
@@ -1071,8 +990,9 @@ describe('L4.1 · Scénario e2e seedé (village → attaque → hutte → destru
       }
     };
 
-    // 1. Dotation initiale (T-50) : 1 barbare dans CHAQUE camp dès le début.
-    expect(barbarians(state)).toHaveLength(3);
+    // 1. Dotation initiale (T-50, rév. ENGAGEMENT) : 3 barbares par camp
+    // (gardien + 2 satellites).
+    expect(barbarians(state)).toHaveLength(9);
     expect(state.turn).toBe(0);
     // La fixture re-trie les villages par (q, r) : résoudre l'id par position.
     const villageId = state.villages.find((v) => v.q === 5 && v.r === 5)!.id;
@@ -1202,9 +1122,13 @@ describe('R-96/R-98 · Placements villages/huttes dans les cartes', () => {
     for (const v of state.villages) {
       expect(v).toMatchObject({ spawnCountdown: BARBARIANS.spawnInterval });
       expect('hp' in v).toBe(false); // BARBARES-PILES : camps sans PV
-      // POLISSAGE-1 C3 · T-50 : la dotation initiale est posée par la carte.
-      expect(v.spawnedUnits).toHaveLength(1);
-      expect(state.units[v.spawnedUnits[0]!]).toMatchObject({ owner: BARBARIAN_ID, q: v.q, r: v.r }); // en pile sur le camp
+      // ENGAGEMENT R-183 · T-50 : dotation 3 — le gardien SUR le camp, les
+      // satellites dans le rayon d'une case.
+      expect(v.spawnedUnits).toHaveLength(3);
+      expect(state.units[v.spawnedUnits[0]!]).toMatchObject({ owner: BARBARIAN_ID, q: v.q, r: v.r }); // le gardien sur le camp
+      for (const id of v.spawnedUnits.slice(1)) {
+        expect(Math.max(Math.abs(state.units[id]!.q - v.q), Math.abs(state.units[id]!.r - v.r))).toBe(1); // satellite adjacent
+      }
     }
     expect(state.mapId).toBe('variee-40');
   });

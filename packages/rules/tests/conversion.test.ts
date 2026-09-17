@@ -235,7 +235,7 @@ describe('migration v5 → v6 (R-90)', () => {
       },
     };
     const out = migrateState(v5 as unknown as Record<string, unknown>) as unknown as Record<string, never>;
-    expect(out.schemaVersion).toBe(24); // la chaîne continue (GP-CULTURE-EVENEMENTS)
+    expect(out.schemaVersion).toBe(25); // la chaîne continue (GP-CULTURE-EVENEMENTS)
     const cities = out.cities as unknown as Record<string, { conversion: string }>;
     expect(cities.c1!.conversion).toBe('gold');
     expect(cities.c2!.conversion).toBe('science');

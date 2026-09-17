@@ -140,6 +140,9 @@ import {
 } from './barbares.js';
 // 7o · R-151..R-156 — artefacts (reliques) : activation Phase A + effets.
 import { activateArtefactAt, applyArtefactIndiceReward } from './artefacts.js';
+// ENGAGEMENT · R-180 : mêlée pondérée + étau (T-54/T-55).
+import { drawWeightedMelee, meleeTauMultiplier } from './melee.js';
+import { MELEE_LOSER_DAMAGE, MELEE_MIDDLE_DAMAGE } from './constants.js';
 import type { ArtefactActivationContext } from './artefacts.js';
 
 export interface TurnResult {
@@ -160,43 +163,18 @@ interface AttackPlan {
   attackerId: UnitId;
   defenderId: UnitId;
 }
-interface CollisionPlan {
-  kind: 'collision';
-  at: Hex;
-  holderId: UnitId;
-  challengerId: UnitId;
-}
-/** R-96 (rév. BARBARES-PILES) · Entrée sur la case du camp barbare : la PILE de barbares défend (combats un par un). */
+/** R-96 (rév. ENGAGEMENT) · Entrée sur la case du camp barbare : le GARDIEN défend (attaque normale). */
 interface VillageAttackPlan {
   kind: 'villageAttack';
   at: Hex;
   attackerId: UnitId;
   villageId: string;
 }
-type CombatPlan = AttackPlan | CollisionPlan | VillageAttackPlan;
+type CombatPlan = AttackPlan | VillageAttackPlan;
 
 interface FormGroup {
   members: UnitId[];
   rally: Hex;
-}
-
-/**
- * Repli différé (R-56 deux passes) : pendant la passe 1 (résolution des
- * combats R-50..R-52), un perdant devant céder le terrain est collecté au
- * lieu de replier immédiatement. La passe 2 alloue les cases de repli libres
- * GLOBALEMENT (PV décroissants), la passe 3 fait reprendre le combat aux
- * perdants sans case (R-55).
- */
-interface PendingRetreat {
-  loserId: UnitId;
-  winnerId: UnitId;
-  combatTile: Hex;
-  /** Perdant occupant la case de combat (R-59-d, détenteur d'une collision) : il doit la céder. */
-  mustLeave: boolean;
-  /** Collision gagnée par le challenger : il prend la case dès que le perdant l'a quittée. */
-  winnerTakesTile: boolean;
-  /** R-52 : si le perdant emporte les attaques répétées de la passe 3, il avance. */
-  advanceOnKill: boolean;
 }
 
 /** État de travail mutable pendant la résolution (copie profonde de l'état). */
@@ -218,8 +196,6 @@ interface Board {
   initialVisible: Map<PlayerId, Set<TileKey>>;
   /** Groupes FormArmy de ce tour (co-location transitoire, R-44). */
   formGroups: Map<UnitId, FormGroup>;
-  /** Perdants en attente d'allocation de repli (R-56 deux passes). */
-  pendingRetreats: PendingRetreat[];
   /**
    * Villes dont les citoyens doivent être auto-assignés en Phase C : fondation
    * et capture uniquement (R-60). Une désassignation manuelle ou une case devenue
@@ -235,6 +211,12 @@ interface Board {
   unknownEntered: Set<UnitId>;
   /** R-161 : cases explorées par joueur en début de tour (référence du fog). */
   explored: Map<PlayerId, Set<TileKey>>;
+  /**
+   * R-178 rév. A (décision d'Erik du 17/09) : cases où un DÉFENSEUR STABILISÉ
+   * a été attaqué ce tour — la mêlée d'instabilité y est REPORTÉE au tour
+   * suivant (les entrants se contentent de leurs attaques R-176/R-177).
+   */
+  meleeDifferees: Set<TileKey>;
   /**
    * R-158 (D5) : actions finales multi-étapes à exécuter en Phase C — unité
    * ayant atteint le terme de son chemin composite avec les PM requis.
@@ -276,8 +258,19 @@ function occupiedByUnit(board: Board, hex: Hex, except?: UnitId): boolean {
  * croissant). Utilisé par l'assaut de la pile d'un camp barbare (R-96) et par
  * l'attaque d'une case multi-occupants (R-52).
  */
-function choisirDefenseur(units: Unit[]): Unit {
-  return [...units].sort(
+/**
+ * ENGAGEMENT · R-174 · Le défenseur d'une case = son unité STABILISÉE (seule
+ * occupante en fin du tour précédent). Une case instable n'a AUCUN défenseur :
+ * les unités qui y entrent ne combattent pas en Phase B — elles rejoignent
+ * l'instabilité, résolue en Phase E par la mêlée pondérée (R-178/R-180).
+ * Cas de double marquage (co-location de deux stabilisées en cours de Phase A,
+ * ex. une unité amie qui rejoint la case d'une autre) : défense décroissante,
+ * puis PV décroissants, puis unitId croissant (R-81).
+ */
+function defenseurStabilise(board: Board, hex: Hex, ennemiDe: PlayerId): Unit | null {
+  const ici = occupants(board, hex).filter((u) => u.stabilized && u.owner !== ennemiDe);
+  if (ici.length === 0) return null;
+  return [...ici].sort(
     (a, b) =>
       unitType(b.type).defense - unitType(a.type).defense ||
       b.hp - a.hp ||
@@ -401,6 +394,7 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
           fortified: false,
           aboard: null,
           cargo: null,
+          stabilized: false, // ENGAGEMENT · R-173
         };
         reward.unitIds = [unitId];
       }
@@ -541,6 +535,10 @@ function moveUnit(board: Board, unit: Unit, to: Hex): void {
   const from = { q: unit.q, r: unit.r };
   unit.q = to.q;
   unit.r = to.r;
+  // ENGAGEMENT · R-173/R-175 : tout déplacement fait perdre la stabilisation
+  // ET la fortification (elle ne demeure que sur la case occupée).
+  unit.stabilized = false;
+  unit.fortified = false;
   board.steps.set(unit.id, (board.steps.get(unit.id) ?? 0) + 1);
   board.moved.add(unit.id);
   emit(board, { type: 'Move', unitId: unit.id, owner: unit.owner, from, to });
@@ -555,45 +553,12 @@ function moveUnit(board: Board, unit: Unit, to: Hex): void {
   }
 }
 
-/**
- * Cible de repli (R-54). Retour :
- *  - Hex : l'unité se déplace là (événement Retreat à émettre) ;
- *  - 'stay' : la case d'origine est la position courante, libre d'autres
- *    entités — l'attaquant adjacent bat en retraite sans bouger (R-52) ;
- *  - null : aucun repli → attaques répétées (R-55).
- * `mustLeave` (R-59-d, collision du détenteur) interdit le 'stay' : l'unité
- * doit céder la case qu'elle occupe.
- */
-function retreatTarget(
-  board: Board,
-  loser: Unit,
-  combatTile: Hex,
-  mustLeave: boolean,
-): Hex | 'stay' | null {
-  const origin = board.origin.get(loser.id) ?? { q: loser.q, r: loser.r };
-  if (!mustLeave && !occupiedByUnit(board, origin, loser.id)) {
-    return origin; // option 1 : la case d'origine, si elle est libre
-  }
-  // Option 2 : case adjacente libre à la case de combat, par proximité à la
-  // case d'origine, puis (q, r) croissant (R-54-2). 7g · R-117 : la
-  // praticabilité est évaluée pour l'unité elle-même (un naval se replie en
-  // mer, un terrestre sur la terre).
-  const candidates = neighbors(combatTile)
-    .filter((h) => canEnter(board, loser, h))
-    .filter((h) => !occupiedByUnit(board, h))
-    // pas de capture par repli : on n'entre pas en repli sur une ville ennemie
-    .filter((h) => {
-      const city = cityAt(board, h);
-      return !city || city.owner === loser.owner;
-    })
-    .sort((a, b) => hexDistance(a, origin) - hexDistance(b, origin) || compareHex(a, b));
-  return candidates[0] ?? null;
-}
-
 function applyRetreat(board: Board, loser: Unit, target: Hex): void {
   const from = { q: loser.q, r: loser.r };
   loser.q = target.q;
   loser.r = target.r;
+  loser.stabilized = false;
+  loser.fortified = false;
   emit(board, { type: 'Retreat', unitId: loser.id, owner: loser.owner, from, to: target });
 }
 
@@ -685,46 +650,17 @@ function recordCombatVictory(board: Board, winner: Unit): void {
 }
 
 function applyFortifyOrders(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
-  const fortify = new Set<UnitId>();
-  const cancel = new Set<UnitId>();
+  // ENGAGEMENT · R-174/R-175 : la fortification est ACQUISE par l'ordre
+  // Fortify — réservé à l'unité STABILISÉE (une unité instable ne se
+  // fortifie pas, ordre ignoré) — puis CONSERVÉE tant que l'unité est en vie
+  // et demeure sur sa case (même en mêlée, même combat). Elle est perdue par
+  // tout déplacement (moveUnit) — plus par le type d'ordre reçu.
   for (const playerId of Object.keys(ordersByPlayer).sort()) {
     for (const order of ordersByPlayer[playerId] ?? []) {
-      switch (order.type) {
-        case 'Fortify':
-          fortify.add(order.unitId);
-          break;
-        case 'Move':
-        case 'MultiStep':
-        case 'Attack':
-        case 'Hold':
-        case 'FoundCity':
-          cancel.add(order.unitId);
-          break;
-        case 'FormArmy':
-          for (const m of order.members) cancel.add(m);
-          break;
-        case 'SetProduction':
-        case 'SetWorkedTile':
-          break;
-      }
-    }
-  }
-  for (const id of cancel) {
-    const unit = board.st.units[id];
-    // Seuls les ordres du propriétaire comptent (une consigne ennemie est ignorée).
-    const ordered = Object.keys(ordersByPlayer).some(
-      (pid) => (ordersByPlayer[pid] ?? []).some((o) => orderTouchesUnit(o, id)) && unit?.owner === pid,
-    );
-    if (unit && ordered) unit.fortified = false;
-  }
-  for (const id of fortify) {
-    const unit = board.st.units[id];
-    const ordered = Object.keys(ordersByPlayer).some(
-      (pid) =>
-        (ordersByPlayer[pid] ?? []).some((o) => o.type === 'Fortify' && o.unitId === id) &&
-        unit?.owner === pid,
-    );
-    if (unit && ordered) {
+      if (order.type !== 'Fortify') continue;
+      const unit = board.st.units[order.unitId];
+      if (!unit || unit.owner !== playerId) continue; // consigne ennemie ignorée
+      if (!unit.stabilized) continue; // R-174 : réservé au stabilisé
       unit.fortified = true;
       unit.order = null; // ne bouge pas : chemin gelé effacé (R-33)
     }
@@ -792,17 +728,28 @@ function combatStrengthsOf(
       ? wonderAttackBonusEmpireOf(Object.values(board.st.cities), attacker.owner, allTechs) +
         landCombatBonus(effectsFor(attPlayer), aStats, 'attack')
       : 0);
-  // T-17 : le bonus de fortification s'ajoute au bonus de terrain (RULES.md §7.4).
-  // 7e : le bonus de défense de ville des bâtiments (Palais, Remparts) s'ajoute
-  // pour le défenseur en garnison de SA ville. 7h · R-121 : Fondamentalisme
-  // (+1 Défense aux unités terrestres). 7n · R-149 : unitDefense par TYPE
-  // (Angleterre archers à long arc).
+  // ENGAGEMENT · R-174 : le défenseur STABILISÉ (seul occupant d'une case
+  // stable au tour précédent) utilise ses VALEURS DE DÉFENSE ; toute autre
+  // unité attaquée utilise ses VALEURS D'ATTAQUE (#4 de la spécification).
+  // ENGAGEMENT · R-175 : les BONUS (terrain T-02/forêt/colline, fortification
+  // T-17, bâtiments de ville) sont conservés tant que l'unité DEMEURE sur sa
+  // case (elle n'a pas bougé ce tour) — même hors stabilisation, même en
+  // cohabitation : c'est l'avantage de l'occupation du terrain.
+  const stabilise = defender.stabilized;
+  const demeure = !board.moved.has(defender.id);
+  const baseDefense = stabilise
+    ? dStats.defense + civUnitStatBonusOf(defPlayer, 'unitDefense', defender.type)
+    : dStats.attack + civUnitStatBonusOf(defPlayer, 'unitAttack', defender.type);
+  const bonusDefense =
+    stabilise || (defender.fortified && demeure)
+      ? terrainDefenseBonus(board, combatTile) +
+        (defender.fortified ? FORTIFY_DEFENSE_BONUS : 0) +
+        cityBuildingDefenseBonus(board, combatTile, defender.owner)
+      : 0;
   const sDef = effectiveStrength(
-    dStats.defense + civUnitStatBonusOf(defPlayer, 'unitDefense', defender.type),
+    baseDefense,
     defender.veteran,
-    terrainDefenseBonus(board, combatTile) +
-      (defender.fortified ? FORTIFY_DEFENSE_BONUS : 0) +
-      cityBuildingDefenseBonus(board, combatTile, defender.owner),
+    bonusDefense,
   ) + (defPlayer && !defAnarchy ? landCombatBonus(effectsFor(defPlayer), dStats, 'defense') : 0);
   return { sAtt, sDef, sAttBase };
 }
@@ -856,38 +803,6 @@ function advanceIfMelee(board: Board, attacker: Unit, tile: Hex): void {
   moveUnit(board, attacker, tile);
 }
 
-/**
- * Attaques répétées (R-55) : échanges jusqu'à élimination d'un des deux.
- * `advanceOnKill` : l'attaquant avance sur la case libérée s'il tue (R-52) —
- * false pour le détenteur d'une collision, qui défend simplement son bien.
- */
-function repeatedAttacks(
-  board: Board,
-  attacker: Unit,
-  defender: Unit,
-  combatTile: Hex,
-  advanceOnKill: boolean,
-): void {
-  let guard = 0;
-  while (attacker.hp > 0 && defender.hp > 0) {
-    performExchange(board, attacker, defender, combatTile);
-    if (defender.hp <= 0) {
-      kill(board, defender, 'combat', attacker.id);
-      attacker.veteran = true; // R-32 : coup fatal
-      recordCombatVictory(board, attacker); // 7h · R-123 (T-31)
-      if (advanceOnKill) advanceIfMelee(board, attacker, combatTile);
-      return;
-    }
-    if (attacker.hp <= 0) {
-      kill(board, attacker, 'combat', defender.id);
-      defender.veteran = true; // R-32
-      recordCombatVictory(board, defender); // 7h · R-123 (T-31)
-      return;
-    }
-    if (++guard > 10_000) throw new Error('R-55 : boucle non terminale (bug)');
-  }
-}
-
 /** Attaque d'un défenseur (R-52) avec repli unifié (R-54) et cas R-59. */
 function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile: Hex): void {
   // R-43/R-57 : défenseur pacifique → capture, jamais de combat.
@@ -896,20 +811,10 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
     if (board.st.units[attacker.id]) advanceIfMelee(board, attacker, combatTile);
     return;
   }
-  // R-58-b / I-1 (hook, inactif en v1) : nation en paix — repli mutuel si
-  // possible, sinon échange normal + incident diplomatique (sans rupture de paix).
-  // Le défenseur se replie d'abord (il doit libérer la case) ; sa case de repli
-  // n'est pas disponible pour l'attaquant.
+  // R-58-b / I-1 (hook, inactif en v1) : nation en paix — l'échange se
+  // déroule normalement (ENGAGEMENT : plus de repli mutuel) + incident
+  // diplomatique, sans rupture de paix.
   if (!areAtWar(board.st, attacker.owner, defender.owner)) {
-    const dT = retreatTarget(board, defender, combatTile, true);
-    if (dT !== null && dT !== 'stay') {
-      applyRetreat(board, defender, dT);
-      const aT = retreatTarget(board, attacker, combatTile, false);
-      if (aT !== null) {
-        if (aT !== 'stay') applyRetreat(board, attacker, aT);
-        return;
-      }
-    }
     emit(board, { type: 'DiplomaticIncident', between: [attacker.owner, defender.owner], at: combatTile });
   }
   // 7n · R-149 · ÉCRASEMENT (Overrun — canon CivRev, mécanique ajoutée au
@@ -953,35 +858,12 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
     recordCombatVictory(board, defender); // 7h · R-123 (T-31)
     return;
   }
-  // Survie mutuelle (passe 1 de R-56) : le perdant est COLLECTÉ, l'allocation
-  // des cases de repli est globale, après la fin de tous les combats.
-  if (isRanged(attacker)) {
-    // R-59-a : l'attaquant à distance attaque DEPUIS SA CASE (exception à
-    // R-52) — survie mutuelle, il reste simplement en place (il n'a jamais
-    // quitté sa case, aucun repli n'est dû).
-    return;
-  }
-  if (isRanged(defender)) {
-    // R-59-d : le défenseur à distance qui ne vainc pas cède systématiquement sa case.
-    board.pendingRetreats.push({
-      loserId: defender.id,
-      winnerId: attacker.id,
-      combatTile,
-      mustLeave: true,
-      winnerTakesTile: false,
-      advanceOnKill: false,
-    });
-    return;
-  }
-  // R-52 : le défenseur stationnaire garde sa case, l'attaquant est en repli.
-  board.pendingRetreats.push({
-    loserId: attacker.id,
-    winnerId: defender.id,
-    combatTile,
-    mustLeave: false,
-    winnerTakesTile: false,
-    advanceOnKill: true,
-  });
+  // ENGAGEMENT · fin des replis (R-54/R-55/R-56 abrogées) : survie mutuelle =
+  // COHABITATION. Les deux unités demeurent sur la case ; l'instabilité qui en
+  // résulte est résolue en Phase E par la mêlée pondérée (R-180/R-181).
+  // R-59-a : l'attaquant à distance est déjà resté sur sa case ; R-59-d est
+  // ABROGÉE — le défenseur à distance qui ne vainc pas cohabite aussi.
+  return;
 }
 
 // ---------------------------------------------------------------------------
@@ -989,15 +871,17 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
 // ---------------------------------------------------------------------------
 
 /**
- * BARBARES-PILES : la pile d'un camp = les barbares vivants sur LA CASE MÊME
- * du village — tri R-81 (unitId croissant) : le combat un par un attaque
- * d'abord la plus ancienne (les gardes se battent en premier).
+ * ENGAGEMENT · R-183 : le camp est tenu par son GARDIEN — le plus ancien
+ * barbare vivant SUR LA CASE MÊME du village (tri R-81, unitId croissant).
+ * Les satellites demeurent dans le rayon d'une case (cases adjacentes) et ne
+ * défendent pas la case du camp elle-même.
  */
-function pileDefenders(board: Board, village: BarbarianVillage): Unit[] {
-  return Object.keys(board.st.units)
+function gardienDuCamp(board: Board, village: BarbarianVillage): Unit | null {
+  const surCase = Object.keys(board.st.units)
     .sort(compareUnitIds)
     .map((id) => board.st.units[id]!)
     .filter((u) => u.owner === BARBARIAN_ID && u.q === village.q && u.r === village.r);
+  return surCase[0] ?? null;
 }
 
 /**
@@ -1065,6 +949,7 @@ function applyCampReward(board: Board, winner: Unit, campHex: Hex, reward: HutRe
           order: null,
           detainedBy: null,
           fortified: false,
+          stabilized: false, // ENGAGEMENT · R-173
           aboard: null,
           cargo: null,
         };
@@ -1108,113 +993,28 @@ function applyCampReward(board: Board, winner: Unit, campHex: Hex, reward: HutRe
  * PV — `villageExchange` supprimé).
  */
 function resolveVillageAttack(board: Board, attacker: Unit, village: BarbarianVillage, combatTile: Hex): void {
-  let guard = 0;
-  while (board.st.units[attacker.id]) {
-    const defenders = pileDefenders(board, village);
-    if (defenders.length === 0) {
-      captureCamp(board, village, attacker);
-      return;
-    }
-    // RÉV. DÉFENSE-DE-PILE : le meilleur défenseur encaisse l'échange.
-    const defender = choisirDefenseur(defenders);
-    resolveAttack(board, attacker, defender, combatTile);
-    if (!board.st.units[attacker.id]) return; // attaquant mort : séquence stoppée
-    if (board.st.units[defender.id]) return; // survie mutuelle : repli R-54
-    if (++guard > 10_000) throw new Error('R-96 : pile non terminale (bug)');
-  }
-  // Attaquant disparu sans combat (cas pathologique) : rien à faire.
-}
-
-/** Collision de movers convergents (R-53) : aucun dégât, la plus haute PV demeure. */
-function resolveCollision(board: Board, holder: Unit, challenger: Unit, combatTile: Hex): void {
-  // Exception R-43 : une unité pacifique est capturée — pas de comparaison de PV.
-  if (isPeaceful(challenger)) {
-    capturePeaceful(board, challenger, holder.owner, null);
+  // ENGAGEMENT · R-183 : plus d'assaut un par un — le gardien encaisse UNE
+  // attaque (combat complet R-51/R-52). À sa mort, le camp est capturé
+  // (récompense hutte seedée) ; en survie mutuelle, les deux cohabitent et
+  // l'instabilité sera résolue en Phase E (mêlée pondérée — R-181/D4).
+  const guardian = gardienDuCamp(board, village);
+  if (!guardian) {
+    captureCamp(board, village, attacker);
     return;
   }
-  if (isPeaceful(holder)) {
-    capturePeaceful(board, holder, challenger.owner, null);
-    if (board.st.units[challenger.id]) moveUnit(board, challenger, combatTile);
-    return;
-  }
-  // Demeure : plus de PV ; égalité → moins de cases parcourues ; puis unitId faible (R-53).
-  const holderSteps = board.steps.get(holder.id) ?? 0;
-  const challengerSteps = board.steps.get(challenger.id) ?? 0;
-  const holderWins =
-    holder.hp > challenger.hp ||
-    (holder.hp === challenger.hp &&
-      (holderSteps < challengerSteps ||
-        (holderSteps === challengerSteps && compareUnitIds(holder.id, challenger.id) < 0)));
-
-  const loser = holderWins ? challenger : holder;
-  const winner = holderWins ? holder : challenger;
-  // Passe 1 de R-56 : le perdant est collecté. Le détenteur, qui occupe la
-  // case, doit la céder (mustLeave) et le challenger vainqueur prendra la case
-  // dès qu'elle sera libérée (winnerTakesTile, passe 2).
-  board.pendingRetreats.push({
-    loserId: loser.id,
-    winnerId: winner.id,
-    combatTile,
-    mustLeave: !holderWins,
-    winnerTakesTile: !holderWins,
-    advanceOnKill: !holderWins,
-  });
-}
-
-/**
- * R-56 — passes 2 et 3 de l'allocation globale des replis.
- *
- * Passe 2 : les cases de repli libres sont allouées par perdant à PV
- * décroissants (tie : `unitId` croissant), chacun recevant sa meilleure case
- * selon R-54, évaluée APRÈS la fin de tous les combats (cases réellement
- * libres, pas leur état au moment du combat).
- *
- * Passe 3 (R-56-3/R-55) : les perdants sans case attribuée reprennent le
- * combat avec une attaque supplémentaire contre le vainqueur de LEUR combat —
- * qui n'a jamais quitté la case — jusqu'à élimination d'une des deux. Même
- * ordre déterministe que l'allocation.
- */
-function allocateRetreats(board: Board): void {
-  const order = [...board.pendingRetreats].sort((a, b) => {
-    const la = board.st.units[a.loserId];
-    const lb = board.st.units[b.loserId];
-    return (lb ? lb.hp : -1) - (la ? la.hp : -1) || compareUnitIds(a.loserId, b.loserId);
-  });
-  // R-30 : une case gagnée par un challenger (winnerTakesTile) ne peut pas
-  // être attribuée deux fois — deux collisions distinctes sur la même case
-  // (détenteur commun vaincu par deux movers) attribueraient sinon la case à
-  // deux vainqueurs. Premier attributaire = premier dans l'ordre R-56.
-  const awarded = new Set<TileKey>();
-  const withoutTile: PendingRetreat[] = [];
-  for (const req of order) {
-    const loser = board.st.units[req.loserId];
-    if (!loser) continue; // sécurité : déjà éliminé
-    const target = retreatTarget(board, loser, req.combatTile, req.mustLeave);
-    if (target === null) {
-      withoutTile.push(req);
-      continue;
-    }
-    if (target !== 'stay') applyRetreat(board, loser, target);
-    if (req.winnerTakesTile) {
-      const key = tileKeyOf(req.combatTile);
-      if (!awarded.has(key) && !occupiedByUnit(board, req.combatTile)) {
-        const winner = board.st.units[req.winnerId];
-        if (winner) {
-          moveUnit(board, winner, req.combatTile); // le challenger prend la case libérée
-          awarded.add(key);
-        }
-      }
-    }
-  }
-  for (const req of withoutTile) {
-    const loser = board.st.units[req.loserId];
-    if (!loser) continue;
-    const winner = board.st.units[req.winnerId];
-    if (!winner) continue;
-    // Le perdant attaque, le vainqueur défend là où il se trouve (bonus de terrain).
-    repeatedAttacks(board, loser, winner, { q: winner.q, r: winner.r }, req.advanceOnKill);
+  resolveAttack(board, attacker, guardian, combatTile);
+  // ENGAGEMENT · R-183 : à la mort du gardien, le camp est capturé (le
+  // vainqueur occupe la case — il y a pris place à l'entrée — et reçoit la
+  // récompense hutte seedée).
+  if (
+    !board.st.units[guardian.id] &&
+    board.st.units[attacker.id] &&
+    board.st.villages.some((v) => v.id === village.id)
+  ) {
+    captureCamp(board, village, attacker);
   }
 }
+
 
 // ---------------------------------------------------------------------------
 // Phase A — mouvements (RULES.md §6)
@@ -1394,12 +1194,14 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[], source: Extract
       moveUnit(board, unit, next);
       break;
     }
-    if (here.some((u) => u.owner === unit.owner)) {
-      // R-30 : arrêt sur la case précédente, sauf co-location transitoire
-      // entre membres désignés d'un même FormArmy (R-44).
-      const group = board.formGroups.get(unit.id);
-      const coLocationLegale = !!group && here.every((u) => group.members.includes(u.id));
-      if (!coLocationLegale) break;
+    if (here.some((u) => u.owner === unit.owner) && !defenseurStabilise(board, next, unit.owner)) {
+      // ENGAGEMENT · R-173 : la co-location AMIE est légale partout (la pile
+      // n'est plus un régime) — la case devient simplement instable et la
+      // Phase E expulse l'excédent (R-179). Plus d'arrêt R-30 ni de rôle
+      // spécial FormArmy/R-44 (le rendez-vous est une co-location ordinaire).
+      // Exception : la case porte AUSSI un défenseur STABILISÉ ennemi (case
+      // mixte — un ami est déjà entré) → le défenseur prime (R-176 : entrer
+      // sur une case à défenseur, c'est l'attaquer) ; branche plus bas.
       path.shift();
       unit.mp -= 1;
       moveUnit(board, unit, next);
@@ -1445,30 +1247,25 @@ function executeMoveOrder(board: Board, unit: Unit, path: Hex[], source: Extract
     if (wonderBlocksEnemyAttacks(Object.values(board.st.cities), here[0]!.owner, allKnownTechs(board.st))) {
       break;
     }
-    const mover = here.find((u) => board.moved.has(u.id));
-    if (mover) {
-      // R-42 cas 3 : case visée par un mover ennemi déjà arrivé → collision.
-      path = [];
-      board.planned.push({ kind: 'collision', at: next, holderId: mover.id, challengerId: unit.id });
-      break;
-    }
-    // R-42 cas 2 : ennemi stationnaire → l'unité entre, combat planifié.
-    // RÉV. DÉFENSE-DE-PILE : le meilleur défenseur de la case combat (R-52).
-    const defender = choisirDefenseur(here)!;
+    // ENGAGEMENT · R-176/R-178 : entrée sur une case ENNEMIE — l'unité y ENTRE
+    // toujours (fin des collisions R-53 et des replis). Combat planifié SEULEMENT
+    // si la case porte un défenseur STABILISÉ (R-174) ; sinon l'entrant se joint
+    // à l'instabilité de la case, résolue en Phase E (mêlée pondérée — R-180).
+    const defender = defenseurStabilise(board, next, unit.owner);
+    const campIci = villageAt(board, next);
+    const gardienCamp = campIci ? gardienDuCamp(board, campIci) : null;
     path = [];
     unit.mp -= 1;
     moveUnit(board, unit, next);
     openHutAt(board, next, unit); // R-98 : la hutte s'ouvre avant le combat planifié
     activateArtefactAt(artefactCtxOf(board), unit, next); // 7o · R-153
-    // BARBARES-PILES : le défenseur est un barbare SUR la case de son camp →
-    // ASSAUT DE LA PILE (combats enchaînés un par un, capture du camp à la
-    // mort du dernier — R-96 rév. BARBARES-PILES). Sinon : combat normal.
-    const campIci = defender.owner === BARBARIAN_ID ? villageAt(board, next) : null;
-    if (campIci) {
+    if (campIci && gardienCamp) {
+      // R-96 rév. ENGAGEMENT : entrer sur un camp GARDÉ = attaquer le gardien.
       board.planned.push({ kind: 'villageAttack', at: next, attackerId: unit.id, villageId: campIci.id });
-    } else {
+    } else if (defender) {
       board.planned.push({ kind: 'attack', at: next, attackerId: unit.id, defenderId: defender.id });
     }
+    // sans défenseur stabilisé : aucune Phase B — mêlée en Phase E.
     break;
   }
   if (!board.st.units[unit.id]) return; // capturée en cours de route
@@ -1604,6 +1401,7 @@ function processFormArmy(board: Board, allOrders: Order[]): void {
       fortified: false, // R-33 : la formation d'armée annule la fortification
       aboard: null,
       cargo: null, // R-117 : une armée ne transporte rien
+      stabilized: false, // ENGAGEMENT · R-173
     };
     for (const m of members) delete board.st.units[m.id];
     board.st.units[armyId] = army;
@@ -1615,21 +1413,9 @@ function processFormArmy(board: Board, allOrders: Order[]): void {
       at: { ...order.rally },
     });
   }
-  for (const order of formOrders) {
-    const present = order.members
-      .map((id) => board.st.units[id])
-      .filter((u): u is Unit => !!u && u.q === order.rally.q && u.r === order.rally.r)
-      .sort((a, b) => compareUnitIds(a.id, b.id));
-    for (const extra of present.slice(1)) {
-      const target = hexesWithinRadius(order.rally, 6)
-        .filter((h) => hexDistance(h, order.rally) >= 1)
-        .filter((h) => inMapAndPassable(board, h))
-        .filter((h) => !occupiedByUnit(board, h))
-        .filter((h) => !cityAt(board, h))
-        .sort((a, b) => hexDistance(a, order.rally) - hexDistance(b, order.rally) || compareHex(a, b))[0];
-      if (target) applyRetreat(board, extra, target);
-    }
-  }
+  // ENGAGEMENT · R-179 : les membres excédentaires (fusion ratée/partial)
+  // DEMEURENT co-localisés — la Phase E expulse l'excédent amiable comme pour
+  // toute cohabitation (plus de déplacement forcé spécial R-44).
 }
 
 function allOrdersFlattened(ordersByPlayer: Record<PlayerId, Order[]>): Order[] {
@@ -1894,7 +1680,8 @@ function completeProductionNow(board: Board, city: City): void {
       // Leader installé ou trait → vétéran.
       veteran: producedVeteranOf(board.st, city.owner, city, effectiveType, stats.canAttack),
       isArmy: false,
-      order: null,
+          stabilized: false, // ENGAGEMENT · R-173
+  order: null,
       detainedBy: null,
       fortified: false,
       aboard: null,
@@ -1984,6 +1771,7 @@ function produceUnitFromReserve(board: Board, city: City, unitTypeId: string, al
     hp: stats.hpMax,
     mp: maxMovementOf(board.st, city.owner, effectiveType),
     veteran: producedVeteranOf(board.st, city.owner, city, effectiveType, stats.canAttack),
+    stabilized: false, // ENGAGEMENT · R-173
     isArmy: false,
     order: null,
     detainedBy: null,
@@ -2186,6 +1974,7 @@ function applyGreatPersonConsume(board: Board, unit: Unit, city: City): string |
           mp: stats.movement,
           // R-89 + 7j · R-126 : Caserne OU Leader installé → vétéran.
           veteran: (hasBuilding(city, 'caserne') || settledGpMultiplier(city, 'leader') > 1) && stats.canAttack,
+          stabilized: false, // ENGAGEMENT · R-173
           isArmy: false,
           order: null,
           detainedBy: null,
@@ -2909,14 +2698,22 @@ function processVillages(board: Board): void {
     village.spawnedUnits = village.spawnedUnits.filter((id) => board.st.units[id]);
     if (village.spawnedUnits.length >= BARBARIANS.capPerVillage) continue; // cap T-22
     const type = barbarianUnitType(board.st.turn + 1); // tour résultant
-    const unit = createBarbarianUnit(board.st, { q: village.q, r: village.r }, type);
+    // ENGAGEMENT · R-183 : le rengendrement remplit d'abord le CAMP (si la
+    // case n'a plus de gardien), sinon une case ADJACENTE LIBRE (rayon d'une
+    // case — la pile est abrogée). Aucune case disponible : pas de spawn.
+    const campOccupe = gardienDuCamp(board, village) !== null;
+    const tile = campOccupe
+      ? freeSpawnTiles(board.st, { q: village.q, r: village.r }, 1)[0]
+      : { q: village.q, r: village.r };
+    if (!tile) continue;
+    const unit = createBarbarianUnit(board.st, { q: tile.q, r: tile.r }, type);
     village.spawnedUnits.push(unit.id);
     emit(board, {
       type: 'BarbarianSpawned',
       unitId: unit.id,
       villageId: village.id,
       owner: BARBARIAN_ID,
-      at: { q: village.q, r: village.r },
+      at: { q: tile.q, r: tile.r },
     });
   }
 }
@@ -2948,6 +2745,7 @@ function spawnGreatPerson(board: Board, city: City, gpType: string, canal: GpCan
   board.st.units[gpId] = {
     id: gpId,
     type: gpType,
+    stabilized: false, // ENGAGEMENT · R-173
     owner: city.owner,
     q: spot.q,
     r: spot.r,
@@ -3262,6 +3060,7 @@ function applyWonderCompletionEffects(board: Board, city: City, wonderData: Wond
       board.st.units[unitId] = {
         id: unitId,
         type: wonderData.grantsUnit,
+        stabilized: false, // ENGAGEMENT · R-173
         owner: city.owner,
         q: spot.q,
         r: spot.r,
@@ -3871,6 +3670,7 @@ function applyEconomyMilestone(
       const stats = unitType(milestone.unit);
       const unitId = nextId(board.st.units, 'u');
       board.st.units[unitId] = {
+        stabilized: false, // ENGAGEMENT · R-173
         id: unitId,
         type: milestone.unit,
         owner: playerId,
@@ -3948,6 +3748,182 @@ function applyEconomyMilestone(
 // Phase D — vision, soins, PM (RULES.md §9)
 // ---------------------------------------------------------------------------
 
+/**
+ * ENGAGEMENT · Phase E — stabilité de fin de tour (R-173..R-182).
+ * Ordre : expulsions de cohabitation (R-179) → mêlées (R-178/R-180/R-181,
+ * une par case et par tour) → captures de pacifiques à la stabilisation
+ * (R-182) → marquage `stabilized` (R-173).
+ */
+function processStability(board: Board): void {
+  const st = board.st;
+
+  // Groupe les unités vivantes hors embarquées par case.
+  const parCase = (): Map<string, Unit[]> => {
+    const map = new Map<string, Unit[]>();
+    for (const id of Object.keys(st.units).sort(compareUnitIds)) {
+      const u = st.units[id]!;
+      if (u.aboard) continue;
+      const key = `${u.q},${u.r}`;
+      const list = map.get(key) ?? [];
+      list.push(u);
+      map.set(key, list);
+    }
+    return map;
+  };
+
+  // ---- 1 · Expulsion de cohabitation (R-179) : une case ne demeure pas
+  // porteur de plusieurs unités AMIES. Celle qui RESTE est la mieux fondée :
+  // fortifiée d'abord, puis plus de PV, puis unitId croissant (R-81). Les
+  // autres, en ordre unitId croissant, sont relogées sur la case adjacente
+  // libre la plus proche (tie : (q, r) croissant). Sans case libre : elles
+  // restent — punition douce, la case demeure instable (aucune valeur de
+  // défense ni fortification nouvelle). L'expulsion ne combat pas et
+  // n'ouvre pas de hutte (miroir des interprétations : un pas de mouvement
+  // seulement) ; elle fait perdre fortification et stabilisation (R-175).
+  {
+    const groups = parCase();
+    for (const key of [...groups.keys()].sort()) {
+      const here = (groups.get(key) ?? []).filter((u) => st.units[u.id]);
+      if (here.length < 2) continue;
+      const owners = new Set(here.map((u) => u.owner));
+      if (owners.size !== 1) continue; // cohabitation ennemie → mêlée, pas expulsion
+      const keeper = [...here].sort(
+        (a, b) =>
+          Number(b.fortified) - Number(a.fortified) ||
+          b.hp - a.hp ||
+          compareUnitIds(a.id, b.id),
+      )[0]!;
+      for (const u of here.filter((x) => x.id !== keeper.id).sort((a, b) => compareUnitIds(a.id, b.id))) {
+        const cible = neighbors({ q: u.q, r: u.r })
+          .filter((h) => canEnter(board, u, h))
+          .filter((h) => !occupiedByUnit(board, h))
+          .filter((h) => {
+            const city = cityAt(board, h);
+            return !villageAt(board, h) && (!city || city.owner === u.owner);
+          })
+          .sort((a, b) => compareHex(a, b))[0];
+        if (!cible) continue;
+        const from = { q: u.q, r: u.r };
+        u.q = cible.q;
+        u.r = cible.r;
+        u.fortified = false; // R-175 : perdue au déplacement
+        u.stabilized = false;
+        board.moved.add(u.id); // a quitté sa case : pas de bonus de demeure
+        emit(board, { type: 'UnitExpelled', unitId: u.id, owner: u.owner, from, to: { ...cible } });
+      }
+    }
+  }
+
+  // ---- 2 · Mêlées d'instabilité (R-178/R-180/R-181) : toute case portant
+  // ≥ 2 unités militaires d'au moins DEUX propriétaires résout UNE mêlée ce
+  // tour (défenseur vivant ou pas — décision D4 d'Erik : la mêlée tranche).
+  {
+    const groups = parCase();
+    for (const key of [...groups.keys()].sort()) {
+      const here = (groups.get(key) ?? []).filter((u) => st.units[u.id]);
+      const participants = here.filter((u) => !isPeaceful(u));
+      const owners = new Set(participants.map((u) => u.owner));
+      if (participants.length < 2 || owners.size < 2) continue;
+      const tile = { q: participants[0]!.q, r: participants[0]!.r };
+      // R-178 rév. A : un défenseur stabilisé a été attaqué ici ce tour — la
+      // mêlée est REPORTÉE au tour suivant (les unités pourront partir, être
+      // renforcées… ; le défenseur qui demeure garde ses bonus, R-175).
+      if (board.meleeDifferees.has(tileKeyOf(tile))) continue;
+      // Poids = attaque effective² × étau. Les bonus de DEMEURE (terrain,
+      // fortification, bâtiments de ville) tiennent pour l'unité qui n'a pas
+      // bougé ce tour (R-175 : l'avantage de l'occupation du terrain).
+      const compteAllies = new Map<string, number>();
+      for (const u of participants) {
+        compteAllies.set(u.owner, (compteAllies.get(u.owner) ?? 0) + 1);
+      }
+      const poids = new Map<string, number>();
+      for (const u of participants) {
+        const stats = unitType(u.type);
+        const demeure = !board.moved.has(u.id);
+        const bonus = demeure
+          ? terrainDefenseBonus(board, tile) +
+            (u.fortified ? FORTIFY_DEFENSE_BONUS : 0) +
+            cityBuildingDefenseBonus(board, tile, u.owner)
+          : 0;
+        const eff = effectiveStrength(
+          stats.attack + civUnitStatBonusOf(st.players[u.owner], 'unitAttack', u.type),
+          u.veteran,
+          bonus,
+        );
+        poids.set(u.id, eff * eff * meleeTauMultiplier(compteAllies.get(u.owner) ?? 1));
+      }
+      const roles = drawWeightedMelee(
+        participants.map((u) => ({ id: u.id, weight: poids.get(u.id) ?? 0 })),
+        board.rng,
+      );
+      const winnerRole = roles.find((r) => r.role === 'winner');
+      const winner = winnerRole ? st.units[winnerRole.id] : undefined;
+      const results: Array<{ unitId: UnitId; role: 'winner' | 'loser' | 'middle'; hpAfter: number }> = [];
+      const morts: Unit[] = [];
+      for (const role of roles) {
+        const u = st.units[role.id];
+        if (!u) continue; // cargaison coulée en cascade (sécurité)
+        if (role.role === 'winner') {
+          results.push({ unitId: u.id, role: 'winner', hpAfter: u.hp });
+          continue;
+        }
+        u.hp = Math.max(0, u.hp - (role.role === 'loser' ? MELEE_LOSER_DAMAGE : MELEE_MIDDLE_DAMAGE));
+        results.push({ unitId: u.id, role: role.role, hpAfter: u.hp });
+        if (u.hp <= 0) morts.push(u);
+      }
+      // Journal : la MÊLÉE est émise AVANT les MORT qu'elle cause (lisibilité).
+      for (const r of roles) board.fought.add(r.id); // R-71 : pas de soin
+      emit(board, {
+        type: 'MeleeResolved',
+        at: tile,
+        participants: participants.map((u) => u.id),
+        results,
+      });
+      let quelquUnEstMort = false;
+      for (const u of morts) {
+        quelquUnEstMort = true;
+        kill(board, u, 'combat', winner?.id ?? null);
+      }
+      if (winner && quelquUnEstMort) {
+        winner.veteran = true; // R-32 : coup fatal
+        recordCombatVictory(board, winner); // 7h · R-123 (T-31) + soin Aztèque
+      }
+    }
+  }
+
+  // ---- 3 · Capture des unités pacifiques à la stabilisation (R-182) : une
+  // case qui ne porte plus qu'UNE unité militaire stabilise sous elle — toute
+  // unité pacifique ENNEMIE encore présente y est capturée (R-43 : butin,
+  // barbares sans trésor). Une pacifique peut toujours FUIR avant (Phase A).
+  {
+    const groups = parCase();
+    for (const key of [...groups.keys()].sort()) {
+      const here = (groups.get(key) ?? []).filter((u) => st.units[u.id]);
+      const military = here.filter((u) => !isPeaceful(u));
+      if (military.length !== 1) continue;
+      const maitre = military[0]!;
+      for (const p of here.filter((u) => isPeaceful(u) && u.owner !== maitre.owner)) {
+        // 7m · R-142 : un espion INFILTRÉ dans une ville est à l'abri — la
+        // stabilisation de la ville ne le capture pas.
+        if (isSpyUnit(p) && cityAt(board, { q: p.q, r: p.r })) continue;
+        capturePeaceful(board, p, maitre.owner, maitre.id);
+      }
+    }
+  }
+
+  // ---- 4 · Marquage de stabilité (R-173) : exactement UNE unité sur la case
+  // (pacifique comprise) → l'unité est stabilisée pour le tour suivant.
+  {
+    const groups = parCase();
+    for (const id of Object.keys(st.units).sort(compareUnitIds)) {
+      const u = st.units[id]!;
+      if (u.aboard) continue;
+      const count = groups.get(`${u.q},${u.r}`)?.length ?? 0;
+      u.stabilized = count === 1;
+    }
+  }
+}
+
 function processHealsAndMp(board: Board): void {
   for (const id of sortUnitIds(board)) {
     const unit = board.st.units[id]!;
@@ -4006,10 +3982,10 @@ export function resolveTurn(
     fought: new Set(),
     initialVisible: new Map(),
     formGroups: new Map(),
-    pendingRetreats: [],
     pendingFill: new Set(),
     unknownEntered: new Set(),
     explored: new Map(),
+    meleeDifferees: new Set(),
     finalActions: new Map(),
   };
 
@@ -4097,34 +4073,62 @@ export function resolveTurn(
     // pas attaquer ses unités ni ses villes — l'ordre est un fizzle SANS
     // consommation de PM (la cible existe, l'attaque est interdite).
     if (wonderBlocksEnemyAttacks(Object.values(st.cities), enemy.owner, allKnownTechs(st))) continue;
+    // ENGAGEMENT · R-176 : un attaquant de MÊLÉE prend place sur la case
+    // attaquée (fin des replis — il y demeurera en cas de survie mutuelle,
+    // R-181) ; il doit donc être ADJACENT et payer le pas d'entrée.
     // R-59 : une unité à distance attaque depuis sa case, portée T-13 🔶
-    // (1 = adjacente en v1) — la mêlée exige le contact.
-    const range = isRanged(unit) ? RANGED_RANGE : 1;
-    if (hexDistance(unit, target) > range) continue; // cible hors de portée
+    // (1 = adjacente en v1) — elle n'entre jamais.
     if (unit.mp < 1) continue;
-    unit.mp -= 1;
-    // BARBARES-PILES : la cible est un barbare SUR la case de son camp →
-    // assaut de la pile (même canal que l'entrée sur le camp, R-96 rév.).
-    const campCible = enemy.owner === BARBARIAN_ID ? villageAt(board, target) : null;
-    if (campCible) {
-      board.planned.push({ kind: 'villageAttack', at: target, attackerId: unit.id, villageId: campCible.id });
+    const defender = defenseurStabilise(board, target, unit.owner);
+    const campCible = villageAt(board, target);
+    const gardienCamp = campCible ? gardienDuCamp(board, campCible) : null;
+    // ENGAGEMENT · R-183 : le GARDIEN d'un camp attaque depuis SA CASE (il
+    // demeure dans le camp, même en contre-attaque adjacente — R-97 rév.).
+    const estGardien =
+      isBarbarian(unit.owner) && villageAt(board, { q: unit.q, r: unit.r }) !== null;
+    if (isRanged(unit) || estGardien) {
+      // à distance / gardien : il faut une cible désignable (défenseur stabilisé/gardien)
+      if (hexDistance(unit, target) > RANGED_RANGE) continue;
+      if (!defender && !gardienCamp) continue;
+      unit.mp -= 1;
     } else {
-      board.planned.push({ kind: 'attack', at: target, attackerId: unit.id, defenderId: enemy.id });
+      if (hexDistance(unit, target) !== 1) continue; // l'entrée exige le contact
+      unit.mp -= 1;
+      // Interprétation ENGAGEMENT : une unité qui ne peut pas ENTRER sur la
+      // case (ex. navire en mer attaqué depuis la rive) attaque depuis sa
+      // position ; en survie mutuelle il n'y a alors pas de cohabitation
+      // (pas d'instabilité) — la case ne peut pas être occupée.
+      if (canEnter(board, unit, target)) moveUnit(board, unit, target);
     }
+    if (campCible && gardienCamp && !isBarbarian(unit.owner)) {
+      // R-96 rév. ENGAGEMENT : attaquer le gardien du camp (capture à sa
+      // mort) — les CIVILISATIONS seulement : un barbare n'attaque jamais son
+      // camp (un satellite qui vise un ennemi posé sur le camp se joint
+      // simplement à l'instabilité de la case — R-174).
+      board.planned.push({ kind: 'villageAttack', at: target, attackerId: unit.id, villageId: campCible.id });
+    } else if (defender) {
+      board.planned.push({ kind: 'attack', at: target, attackerId: unit.id, defenderId: defender.id });
+    }
+    // sans défenseur stabilisé : l'attaquant de mêlée s'est simplement joint
+    // à l'instabilité de la case (mêlée de Phase E).
   }
   // R-44 : formation d'armées en fin de Phase A.
   processFormArmy(board, allOrdersFlattened(allOrders));
 
   // ---- Phase B : combats (R-50 : tri par case puis attaquant croissant).
-  // R-56 (deux passes) : chaque combat se résout avec UN échange (R-51) et le
-  // perdant devant replier est collecté (passe 1) ; les cases de repli sont
-  // allouées globalement ensuite, par PV décroissants (passe 2), puis les
-  // perdants sans case reprennent le combat contre leur vainqueur (passe 3).
+  // ENGAGEMENT · R-177 : sur une même case, les attaquants résolvent UN PAR UN
+  // dans l'ordre : plus de PM restants d'abord, puis plus forte ATTAQUE, puis
+  // DÉFENSE croissante, puis plus de PV ; à égalité, tirage aléatoire seedé.
+  // La séquence s'arrête quand le défenseur est détruit (les attaquants
+  // suivants n'attaquent pas — ils demeurent, instabilité → mêlée Phase E).
+  const ordreAleatoire = new Map<string, number>();
+  for (const plan of board.planned) {
+    ordreAleatoire.set(clePlan(plan), board.rng.next());
+  }
   board.planned.sort(
     (a, b) =>
       compareHex(a.at, b.at) ||
-      compareUnitIds(primaryId(a), primaryId(b)) ||
-      planOrder(a) - planOrder(b),
+      cleR166(board, a, b, ordreAleatoire),
   );
   for (const plan of board.planned) {
     if (plan.kind === 'attack') {
@@ -4135,22 +4139,19 @@ export function resolveTurn(
       const range = isRanged(attacker) ? RANGED_RANGE : 1;
       if (hexDistance(attacker, defender) > range) continue; // plus au contact
       resolveAttack(board, attacker, defender, { q: defender.q, r: defender.r });
-    } else if (plan.kind === 'villageAttack') {
-      // R-96 (Phase 7d) : le village défend sa case s'il est toujours debout.
+      // R-178 rév. A : un défenseur stabilisé attaqué → mêlée REPORTÉE au
+      // tour suivant (sur la case où l'échange a eu lieu).
+      board.meleeDifferees.add(tileKeyOf({ q: defender.q, r: defender.r }));
+    } else {
+      // R-96 (rév. ENGAGEMENT) : le gardien défend sa case s'il est vivant.
       const attacker = st.units[plan.attackerId];
       const village = st.villages.find((v) => v.id === plan.villageId);
       if (!attacker || !village) continue;
       if (hexDistance(attacker, village) > 1) continue; // plus au contact
       resolveVillageAttack(board, attacker, village, { q: village.q, r: village.r });
-    } else {
-      const holder = st.units[plan.holderId];
-      const challenger = st.units[plan.challengerId];
-      if (!holder || !challenger) continue;
-      if (hexDistance(holder, challenger) !== 1) continue;
-      resolveCollision(board, holder, challenger, { q: holder.q, r: holder.r });
+      board.meleeDifferees.add(tileKeyOf({ q: village.q, r: village.r }));
     }
   }
-  allocateRetreats(board);
 
   // ---- Phase C : économie (R-60 à R-66) + barbares (R-96 : villages).
   applyLaunches(board, allOrders); // 7m · R-139 : frappes nucléaires (en tête de Phase C)
@@ -4179,6 +4180,15 @@ export function resolveTurn(
   // 7h · R-124 : victoire scientifique — les 4 composants du vaisseau contrôlés.
   checkScienceVictory(board);
 
+  // ---- Phase E : stabilité (ENGAGEMENT — R-173..R-182, fin de tour).
+  // 1) expulsion de cohabitation (R-179 : case à plusieurs AMIES) ;
+  // 2) mêlées d'instabilité (R-178/R-180/R-181 : une par case et par tour) ;
+  // 3) capture des unités pacifiques à la stabilisation (R-182) ;
+  // 4) marquage `stabilized` (R-173) pour le tour suivant.
+  // Avant la Phase D : les mêlées marquent `fought` — une unité qui a combattu
+  // ne se soigne pas (R-71).
+  processStability(board);
+
   // ---- Phase D : vision (R-70), soins (R-71), PM (R-72).
   recomputeVision(st);
   processHealsAndMp(board);
@@ -4193,11 +4203,31 @@ export function resolveTurn(
   return { newState: st, events: board.events };
 }
 
-function primaryId(plan: CombatPlan): UnitId {
-  return plan.kind === 'attack' ? plan.attackerId : plan.kind === 'villageAttack' ? plan.attackerId : plan.holderId;
+/** Clé stable d'un plan (son attaquant). */
+function clePlan(plan: CombatPlan): string {
+  return plan.attackerId;
 }
 
-/** Ordre de type de plan dans le tri R-50 (attaque et village avant collision). */
-function planOrder(plan: CombatPlan): number {
-  return plan.kind === 'collision' ? 1 : 0;
+/**
+ * ENGAGEMENT · R-177 : comparaison de DEUX attaquants d'une même case —
+ * plus de PM restants d'abord, puis plus forte ATTAQUE, puis DÉFENSE
+ * croissante, puis plus de PV ; à égalité complète, tirage aléatoire seedé
+ * (une valeur par plan, tirée en tête de Phase B), puis unitId (R-81).
+ */
+function cleR166(
+  board: { st: { units: Record<string, Unit | undefined> } },
+  a: CombatPlan,
+  b: CombatPlan,
+  ordreAleatoire: Map<string, number>,
+): number {
+  const ua = board.st.units[a.attackerId]!;
+  const ub = board.st.units[b.attackerId]!;
+  return (
+    ub.mp - ua.mp ||
+    unitType(ub.type).attack - unitType(ua.type).attack ||
+    unitType(ua.type).defense - unitType(ub.type).defense ||
+    ub.hp - ua.hp ||
+    (ordreAleatoire.get(clePlan(a)) ?? 0) - (ordreAleatoire.get(clePlan(b)) ?? 0) ||
+    compareUnitIds(a.attackerId, b.attackerId)
+  );
 }

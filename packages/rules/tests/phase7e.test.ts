@@ -10,6 +10,7 @@ import { resolveTurn } from '../src/turn.js';
 import { applySetResearch } from '../src/research.js';
 import { conversionGains } from '../src/conversion.js';
 import type { GameState } from '../src/state.js';
+import type { GameEvent } from '../src/events.js';
 import { makeState } from '../src/fixtures.js';
 import { hexDistance } from '../src/hex.js';
 
@@ -234,8 +235,7 @@ describe('R-59 · Première implémentation réelle : Catapulte (unité à dista
     expect(cat.r).toBe(0);
   });
 
-  it('R-59-d : le défenseur à distance qui ne vainc pas cède systématiquement sa case (rôles inversés)', () => {
-    // Catapulte p2 en défense, Guerrier p1 attaque depuis l'adjacent.
+  it('ENGAGEMENT R-181 (ancien R-59-d abrogé) : la catapulte attaquée en survie mutuelle COHABITE — mêlée de fin de tour', () => {
     const state = makeState({
       units: [
         { id: 'u1', type: 'guerrier', owner: 'p1', q: 1, r: 0 },
@@ -247,14 +247,13 @@ describe('R-59 · Première implémentation réelle : Catapulte (unité à dista
       { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 0, r: 0 } }] },
       1,
     );
-    const cat = newState.units['u2']!;
-    // Survie mutuelle → le DÉFENSEUR à distance se replie (Retreat) : la
-    // catapulte n'est plus sur sa case ; le Guerrier garde la sienne.
-    expect(cat.q === 0 && cat.r === 0).toBe(false);
-    expect(events.some((e) => e.type === 'Retreat' && e.unitId === 'u2')).toBe(true);
-    expect(newState.units['u1']!.q).toBe(1);
-    expect(newState.units['u1']!.r).toBe(0);
-    expect(hexDistance(newState.units['u1']!, cat)).toBeGreaterThanOrEqual(0);
+    // Plus de repli systématique (R-59-d abrogée) : la catapulte demeure sur
+    // sa case (cohabitation). R-178 rév. A : mêlée REPORTÉE au tour suivant.
+    expect(newState.units['u2']).toBeDefined();
+    expect(events.some((e) => e.type === 'Retreat')).toBe(false);
+    expect(events.some((e) => e.type === 'MeleeResolved')).toBe(false);
+    const t2 = resolveTurn(newState, {}, 2);
+    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(true);
   });
 });
 
@@ -269,11 +268,15 @@ describe('7e · Remparts et Palais : défense de ville (S_def, §7.4)', () => {
       ],
       cities: [{ id: 'c1', owner: 'p2', q: 0, r: 0, capital: false, buildings: withWalls ? ['remparts'] : [] }],
     });
-    const { newState } = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 0, r: 0 } }] }, 29);
-    return { attacker: newState.units['u1']!.hp, defender: newState.units['u2']!.hp };
+    const { events } = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 0, r: 0 } }] }, 16); // graine recalée (ENGAGEMENT : tirage R-177 avant l'échange)
+    // ENGAGEMENT : après l'échange, l'attaquant COHABITE et la mêlée de
+    // Phase E peut l'éliminer — on lit donc l'ÉCHANGE (Phase B), qui porte
+    // seul la comparaison S_def nue vs Remparts.
+    const ex = events.find((e): e is Extract<GameEvent, { type: 'CombatExchange' }> => e.type === 'CombatExchange')!;
+    return { attacker: ex.attackerHpAfter, defender: ex.defenderHpAfter };
   }
 
-  it('les Remparts (+100 %) durcissent la ville : même graine, le défenseur encaisse mieux (graine 29 : p 0,307 → 0,138)', () => {
+  it('les Remparts (+100 %) durcissent la ville : même graine, le défenseur encaisse mieux (graine 16 : p 0,307 → 0,138 — graine recalée ENGAGEMENT)', () => {
     const bare = hpAfter(false);
     const walled = hpAfter(true);
     // Graine 29 (roll 0,2106) : le défenseur d'une ville NUE (S_def 1,5 →

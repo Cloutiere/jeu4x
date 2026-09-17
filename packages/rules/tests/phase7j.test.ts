@@ -42,6 +42,7 @@ function addUnit(state: GameState, id: string, type: string, q: number, r: numbe
     fortified: false,
     aboard: null,
     cargo: null,
+    stabilized: false, // ENGAGEMENT - R-173
   };
 }
 
@@ -384,7 +385,7 @@ describe('7j · Migration v12 → v13 (fusion `penseur`, renommages D2, champs S
     };
     const out = migrateState(v12 as unknown as Record<string, unknown>) as unknown as GameState;
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(24); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
+    expect(CURRENT_SCHEMA_VERSION).toBe(25); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
  // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
     expect(out.units['u1']!.type).toBe('artiste_penseur'); // fusion D1
     expect(out.units['u2']!.type).toBe('artiste_penseur');

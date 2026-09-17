@@ -164,7 +164,6 @@
   let tilesLayer = new Container();
   let resourceLayer = new Container(); // R-91 : icônes de ressources sur les cases
   let overlayLayer = new Container();
-  let stackFlagsLayer = new Container(); // BARBARES-PILES : drapeaux d'empilement (sous les unités)
   let entitiesLayer = new Container();
   let effectsLayer = new Container();
   const camera = new Camera();
@@ -174,8 +173,6 @@
   const tileSprites = new Map<string, Sprite>();
   const resourceSprites = new Map<string, Sprite>();
   const unitSprites = new Map<string, Container>();
-  // BARBARES-PILES (M2) : drapeau d'empilement — une case par clé de tuile.
-  const stackFlags = new Map<string, Container>();
   const citySprites = new Map<string, Container>();
   // R-96/R-98 (Phase 7d) : villages barbares et huttes bonus.
   const villageSprites = new Map<string, Container>();
@@ -597,51 +594,9 @@
       }
     }
 
-    // BARBARES-PILES (M2) : drapeau d'empilement — TOUTE case affichant plus
-    // d'une unité (pile de camp barbare, et mécanisme prêt pour tout
-    // empilement futur) porte un drapeau : ROUGE pour les barbares, accent du
-    // joueur sinon. Posé au-dessus du terrain, SOUS les unités ; lisible en
-    // vue carte ET vue ville (les unités se cachent en vue ville, pas le
-    // drapeau — la pile y reste lisible). Compte ×N en clair sous le fanion.
-    const seenFlags = new Set<string>();
-    const parTuile = new Map<string, { q: number; r: number; n: number; barbare: boolean; owner: string }>();
-    for (const unit of Object.values(state.units)) {
-      if (unit.aboard) continue;
-      if (!scene.visible.has(tileKeyOf(unit))) continue;
-      const cur = parTuile.get(tileKeyOf(unit));
-      const barbare = unit.owner === BARBARIAN_ID;
-      if (cur) {
-        cur.n += 1;
-        cur.barbare = cur.barbare || barbare;
-      } else {
-        parTuile.set(tileKeyOf(unit), { q: unit.q, r: unit.r, n: 1, barbare, owner: unit.owner });
-      }
-    }
-    for (const [key, info] of parTuile) {
-      if (info.n < 2) continue;
-      seenFlags.add(key);
-      let c = stackFlags.get(key);
-      if (!c) {
-        c = buildStackFlagContainer();
-        stackFlagsLayer.addChild(c);
-        stackFlags.set(key, c);
-      }
-      const p = hexToPixel(info, HEX_SIZE);
-      // Coin haut-gauche de l'hex : au centre, les sprites d'unités (et le
-      // camp) masqueraient entièrement le fanion (calibrage 🔶 à l'œil).
-      poser3d(c, p.x - HEX_SIZE * 0.62, p.y - HEX_SIZE * 0.28);
-      const tint = info.barbare ? playerColor(BARBARIAN_ID) : playerColor(info.owner);
-      const fanion = c.getChildByLabel('fanion') as Graphics;
-      fanion.tint = tint;
-      const compte = c.getChildByLabel('compte') as Text;
-      compte.text = `×${info.n}`;
-    }
-    for (const [key, c] of stackFlags) {
-      if (!seenFlags.has(key)) {
-        c.destroy({ children: true });
-        stackFlags.delete(key);
-      }
-    }
+    // ENGAGEMENT (R-173) : le drapeau d'empilement est RETIRÉ du rendu —
+    // l'empilement n'est plus un régime : les cohabitations (instables) sont
+    // résolues par la mêlée de Phase E et l'expulsion de cohabitation.
 
     const seenCities = new Set<string>();
     for (const city of Object.values(state.cities)) {
@@ -704,8 +659,8 @@
       if (accent) accent.tint = tint;
       const base = c.getChildByLabel('base') as Sprite;
       if (base) base.tint = tint;
-      // BARBARES-PILES : le camp n'a plus de PV — la menace se lit sur la pile
-      // (drapeau d'empilement, calque `stackFlags` ci-dessous).
+      // ENGAGEMENT : le camp n'a plus de PV — sa force se lit sur ses unités
+      // (gardien au camp + satellites adjacents).
     }
     for (const [id, c] of villageSprites) {
       if (!seenVillages.has(id)) {
@@ -902,21 +857,6 @@
     return c;
   }
 
-  /** BARBARES-PILES (M2) : drapeau d'empilement — petit fanion + compte ×N,
-   *  teinté (rouge barbare / accent joueur) par le tick. 🔶 calibrage à l'œil. */
-  function buildStackFlagContainer(): Container {
-    const c = new Container();
-    const fanion = new Graphics();
-    fanion.label = 'fanion';
-    fanion.moveTo(-4, 4).lineTo(-4, -26).lineTo(14, -20).lineTo(-4, -14).fill({ color: 0xffffff, alpha: 0.95 });
-    fanion.stroke({ width: 2, color: 0x1b1b22, alpha: 0.8 });
-    const compte = new Text({ text: '', style: { fontFamily: 'inherit', fontSize: 15, fontWeight: '700', fill: 0xffffff, stroke: { color: 0x1b1b22, width: 3 } } });
-    compte.label = 'compte';
-    compte.anchor.set(0.5, 1);
-    compte.position.set(5, 4);
-    c.addChild(fanion, compte);
-    return c;
-  }
 
   /** R-96 (rév. BARBARES-PILES) : village barbare (tente/camp, accent gris-brun) — sans PV. */
   function buildVillageContainer(villageId: string): Container {
@@ -2825,10 +2765,9 @@
     tilesLayer = new Container();
     resourceLayer = new Container();
     overlayLayer = new Container();
-    stackFlagsLayer = new Container();
     entitiesLayer = new Container();
     effectsLayer = new Container();
-    world.addChild(tilesLayer, resourceLayer, overlayLayer, stackFlagsLayer, entitiesLayer, effectsLayer);
+    world.addChild(tilesLayer, resourceLayer, overlayLayer, entitiesLayer, effectsLayer);
     application.stage.addChild(world);
     if (mode3d && canvas3d) {
       // Terrain en 3D ; les icônes de ressources 2D sont masquées (les
@@ -3150,7 +3089,6 @@
     tilesLayer = new Container();
     resourceLayer = new Container();
     overlayLayer = new Container();
-    stackFlagsLayer = new Container();
     entitiesLayer = new Container();
     effectsLayer = new Container();
   }

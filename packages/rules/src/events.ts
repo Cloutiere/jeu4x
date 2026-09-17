@@ -56,8 +56,23 @@ export type GameEvent =
       defenderHpAfter: number;
     }
   | { seq: number; type: 'UnitDestroyed'; unitId: UnitId; owner: PlayerId; at: Hex; cause: DestructionCause; byUnitId: UnitId | null }
-  /** Repli (R-54) ou déplacement forcé (formation ratée, R-44). */
+  /** Repli (R-54, ABROGÉE par ENGAGEMENT — plus jamais émis ; type conservé
+   *  pour la lecture des journaux antérieurs) ou déplacement forcé (R-44). */
   | { seq: number; type: 'Retreat'; unitId: UnitId; owner: PlayerId; from: Hex; to: Hex }
+  /** ENGAGEMENT · R-180 · Mêlée d'instabilité résolue en fin de tour (une
+   *  par case et par tour). `results` porte le rôle et les PV après mêlée de
+   *  CHAQUE participante (gagnant 0, perdant −2, intermédiaires −1). */
+  | {
+      seq: number;
+      type: 'MeleeResolved';
+      at: Hex;
+      participants: UnitId[];
+      results: Array<{ unitId: UnitId; role: 'winner' | 'loser' | 'middle'; hpAfter: number }>;
+    }
+  /** ENGAGEMENT · R-179 · Expulsion de cohabitation : une case ne peut pas
+   *  demeurer porteur de plusieurs unités AMIES en fin de tour — l'excédent
+   *  est relogé déterministement sur une case adjacente libre. */
+  | { seq: number; type: 'UnitExpelled'; unitId: UnitId; owner: PlayerId; from: Hex; to: Hex }
   /**
    * Capture d'une unité pacifique (R-43). En guerre (v1) : outcome 'destroyed'
    * (+ BootyGold). En paix (Phase 7) : 'detained'.
@@ -377,6 +392,16 @@ export function eventRefs(event: GameEvent): EventRefs {
     case 'CombatExchange':
       refs.unitIds.push(event.attackerId, event.defenderId);
       hex(event.at);
+      break;
+    case 'MeleeResolved':
+      for (const r of event.results) refs.unitIds.push(r.unitId);
+      hex(event.at);
+      break;
+    case 'UnitExpelled':
+      refs.unitIds.push(event.unitId);
+      refs.players.push(event.owner);
+      hex(event.from);
+      hex(event.to);
       break;
     case 'UnitDestroyed':
       refs.unitIds.push(event.unitId);
