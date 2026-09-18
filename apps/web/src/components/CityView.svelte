@@ -405,6 +405,15 @@
           </div>
         {:else}
           <p class="eta">Aucune production en file.</p>
+          {#if mine && (prodPerTurn > 0 || city.pendingSalvage > 0)}
+            <!-- FIN-DE-TOUR-PRODUCTION (18/09) : la ville bloque la fin de tour
+                 tant qu'aucun projet n'est sélectionné (marteaux/tour > 0 ou
+                 réserve C7 en attente). -->
+            <p class="eta bloquee">
+              ⚠ Fin de tour bloquée — sélectionnez une production
+              {city.pendingSalvage > 0 ? `(${city.pendingSalvage} marteaux en réserve, C7)` : `(${prodPerTurn} marteaux/tour)`}.
+            </p>
+          {/if}
         {/if}
         {#if prodOrder}<p class="eta pending">Changement en attente : {itemName(prodOrder.item)}</p>{/if}
         {#if mine && rush}
@@ -564,6 +573,7 @@
   .sep { color: #46525c; }
   .eta { margin: 0.15rem 0 0; color: #a5d6a7; font-size: 0.82rem; }
   .eta.pending { color: #ffe082; }
+  .eta.bloquee { color: #ffab91; font-weight: 600; }
   .item { margin: 0.2rem 0 0.15rem; display: flex; align-items: center; gap: 0.3rem; font-size: 0.9rem; }
   /* BARRES-CITYVIEW (retour d'Erik du 15/09) : sans largeur propre ni flex,
      la piste se repliait à 0 (seules ses bordures restaient visibles — le

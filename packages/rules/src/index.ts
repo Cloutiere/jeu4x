@@ -35,6 +35,8 @@ export * from './map.js';
 export * from './fog.js';
 export * from './preview.js';
 export * from './turn.js';
+/** FIN-DE-TOUR-PRODUCTION — blocages de fin de tour (production/recherche). */
+export * from './finDeTour.js';
 export * from './forfeit.js';
 export * from './fixtures.js';
 /** Phase 6b — générateur procédural de cartes (pur, seedé, sans IO). */

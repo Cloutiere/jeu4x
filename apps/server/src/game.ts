@@ -38,6 +38,8 @@ import {
   artefactsForMap,
   greatPersonThresholdFor,
   allKnownTechs,
+  blocagesFinDeTour,
+  formatBlocagesFinDeTour,
   nextEconomyMilestone,
   wonderTreasuryLocked,
   WONDERS,
@@ -1231,6 +1233,17 @@ export class GameDO {
     }
     const engineId = this.engineIdOf(playerId);
     if (this.locked[engineId]) return this.sendOrderRejection(ws, 'ordres déjà verrouillés');
+    // FIN-DE-TOUR-PRODUCTION (spécification d'Erik du 18/09) : validation
+    // sémantique PRÉ-résolution — le EndTurn est rejeté tant qu'une ville à
+    // marteaux (production/tour > 0 ou réserve C7) n'a pas de production
+    // sélectionnée, ou que la science produite / le résiduel `scienceStored`
+    // (hutte recherche…) attend sans recherche sélectionnée. Même prédicat
+    // pur que l'UI (source unique `blocagesFinDeTour`) ; arbre de recherche
+    // épuisé → le blocage recherche est levé.
+    const blocages = blocagesFinDeTour(this.game, engineId, this.orders[engineId] ?? []);
+    if (blocages.length > 0) {
+      return this.sendOrderRejection(ws, formatBlocagesFinDeTour(this.game, blocages));
+    }
     this.locked[engineId] = true;
     this.game.players[engineId]!.missedTurns = 0; // verrouillage dans les temps : compteur T-06 remis à zéro
     const bot = this.meta.players.find((p) => p.bot === true && p.engineId !== engineId);

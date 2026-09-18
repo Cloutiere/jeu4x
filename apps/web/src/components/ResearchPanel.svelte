@@ -99,7 +99,8 @@
           <span class="hint">{currentProgress} / {currentTech.cost} science — changement libre (progression conservée)</span>
         </div>
       {:else if player.scienceStored > 0}
-        <p class="reserve">Choisissez une recherche — science en attente : <strong>{player.scienceStored}</strong></p>
+        <!-- FIN-DE-TOUR-PRODUCTION (18/09) : le résiduel bloque la fin de tour. -->
+        <p class="reserve">⚠ Fin de tour bloquée — choisissez une recherche : <strong>{player.scienceStored}</strong> point(s) de recherche en attente (ex. bonus de hutte).</p>
       {:else}
         <p class="hint">Aucune recherche en cours. La science produite s'accumule en réserve jusqu'au premier choix (R-85).</p>
       {/if}

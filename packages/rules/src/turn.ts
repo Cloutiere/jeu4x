@@ -3364,17 +3364,25 @@ interface CityEconomyInputs {
   /** 7l · R-134 · Or DIRECT des ressources travaillées (Gemmes +2, Or +3 —
    *  canal canon, correction du D3 de 7c) ; 0 en Anarchie (R-122 : or à zéro). */
   directGold: number;
+  /** Part OR brute de la conversion R-90 (0 en Anarchie) — les multiplicateurs
+   *  merveilles/empire/Settle restent appliqués par la boucle Phase C. */
+  rawGold: number;
+  /** Science FINALE créditée par cette ville ce tour (conversion R-90 × Settle
+   *  Savant + Temples R-149 + bonus empire — exactement le montant versé à
+   *  creditScience en Phase C ; 0 fiole en Anarchie, bonus empire inchangé).
+   *  Source unique avec le prédicat de fin de tour (blocagesFinDeTour). */
+  science: number;
 }
 
-function cityEconomyInputs(board: Board, city: City, allTechs: readonly string[]): CityEconomyInputs {
-  const player = board.st.players[city.owner]!;
+export function cityEconomyInputs(st: GameState, city: City, allTechs: readonly string[]): CityEconomyInputs {
+  const player = st.players[city.owner]!;
   // 7h · R-121/R-122 : Anarchie — marteaux, fioles, or et culture TOMBENT À
   // ZÉRO (la nourriture n'est PAS paralysée — interprétation documentée).
-  const anarchy = isInAnarchy(player, board.st.turn);
+  const anarchy = isInAnarchy(player, st.turn);
   const govEffects = anarchy ? {} : effectsFor(player);
   // 7e · Premier découvrir : bonus d'empire par ville (Littératie +1 science,
   // Chemin de fer +2 production, Industrialisation +5 or…).
-  const empireBonus = empirePerCityBonus(board.st, city.owner);
+  const empireBonus = empirePerCityBonus(st, city.owner);
 
   // Rendements : centre-ville automatique et gratuit + Σ cases travaillées
   // (base §2 + bonus bâtiments R-66 + bonus ressource si accès, R-93).
@@ -3382,7 +3390,7 @@ function cityEconomyInputs(board: Board, city: City, allTechs: readonly string[]
   // rapporte 0/0/0 (le socle R-66 rév. 06/09 est ABROGÉ) — le commerce de
   // tranche R-60bis s'ajoute par-dessus ce zéro.
   const center = tileYield(
-    board.st.map,
+    st.map,
     city.buildings,
     tileKeyOf(city),
     player.techsUnlocked,
@@ -3401,14 +3409,14 @@ function cityEconomyInputs(board: Board, city: City, allTechs: readonly string[]
     // 7n · R-149 : le contexte civ active les bonus de TERRAIN (Amérique/Russie
     // plaine, Égypte désert, Allemagne forêt, Mongolie montagne, maritime) et
     // l'accès aux ressources SANS tech (Inde).
-    const y = tileYield(board.st.map, city.buildings, key, player.techsUnlocked, city.wonders, allTechs, player)!;
+    const y = tileYield(st.map, city.buildings, key, player.techsUnlocked, city.wonders, allTechs, player)!;
     food += y.food;
     rawProduction += y.production;
     commerce += y.commerce;
     // 7l · R-134 : or direct des ressources (Gemmes +2, Or +3 dès Monnaie —
     // canon ; correction du canal commerce D3 de 7c, la trésorerie existe).
     // 7n · R-149 : l'Inde (`toutesRessources`) ignore la tech d'accès.
-    const res = board.st.map[key]?.resource;
+    const res = st.map[key]?.resource;
     const resData = res ? RESOURCES[res] : undefined;
     if (resData?.directGold && (civToutesRessources(player) || resourceAccessible(resData, player.techsUnlocked))) {
       directGold += resData.directGold;
@@ -3437,7 +3445,30 @@ function cityEconomyInputs(board: Board, city: City, allTechs: readonly string[]
   const production = anarchy
     ? 0 // R-122 : production gelée
     : Math.round(Math.floor(rawProduction * prodMult) * (govEffects.productionMult ?? 1));
-  return { anarchy, govEffects, empireBonus, food, production, commerce, directGold: anarchy ? 0 : directGold };
+  // R-90 révisée (Phase 7b) : conversion or/science du commerce — extraite
+  // ICI (source unique) : la boucle Phase C et le prédicat de fin de tour
+  // (blocagesFinDeTour) lisent exactement les mêmes montants.
+  const rawGains = anarchy
+    ? { gold: 0, science: 0 } // R-122 : fioles et or à zéro
+    : conversionGains(commerce, city.conversion, city.buildings, govEffects);
+  // Science finale créditée (miroir bit à bit de la Phase C) : conversion ×
+  // Settle Savant (R-126) + Temples R-149 (hors Anarchie) + bonus empire
+  // (crédité même en Anarchie — comportement existant de processEconomy).
+  const science =
+    (anarchy ? 0 : Math.round(rawGains.science * settledGpMultiplier(city, 'savant'))) +
+    (anarchy ? 0 : civBuildingScienceOf(player, city.buildings)) +
+    empireBonus.science;
+  return {
+    anarchy,
+    govEffects,
+    empireBonus,
+    food,
+    production,
+    commerce,
+    directGold: anarchy ? 0 : directGold,
+    rawGold: rawGains.gold,
+    science,
+  };
 }
 
 /**
@@ -3506,7 +3537,7 @@ function processEconomy(board: Board): void {
   // le départage C8 doit évaluer tous les chantiers AVANT toute complétion.
   const economyInputs = new Map<CityId, CityEconomyInputs>();
   for (const cityId of Object.keys(board.st.cities).sort()) {
-    economyInputs.set(cityId, cityEconomyInputs(board, board.st.cities[cityId]!, allTechs));
+    economyInputs.set(cityId, cityEconomyInputs(board.st, board.st.cities[cityId]!, allTechs));
   }
   // 7l · C8 · R-129 : départage des complétions SIMULTANÉES d'une même
   // merveille (le perdant bascule intégralement en réserve C7).
@@ -3515,15 +3546,15 @@ function processEconomy(board: Board): void {
   for (const cityId of Object.keys(board.st.cities).sort()) {
     const city = board.st.cities[cityId]!;
     const player = board.st.players[city.owner]!;
-    const { anarchy, govEffects, empireBonus, food, production, commerce, directGold } = economyInputs.get(cityId)!;
+    const { anarchy, govEffects, empireBonus, food, production, commerce, directGold, rawGold, science } =
+      economyInputs.get(cityId)!;
     // R-90 révisée (Phase 7b) : le commerce est converti en TOTALITÉ en or ou
     // en science selon le choix de la ville. 7e : Marché ×2 / Banque ×4 or,
     // Bibliothèque ×1,5 / Université ×4 science (data-driven, conversion.ts).
     // 7h · R-121 : Démocratie +50 % or/science (avant répartition) ;
     // Fondamentalisme : science Bibliothèque/Université = 0.
-    const rawGains = anarchy
-      ? { gold: 0, science: 0 } // R-122 : fioles et or à zéro
-      : conversionGains(commerce, city.conversion, city.buildings, govEffects);
+    // La part SCIENCE est calculée dans cityEconomyInputs (source unique —
+    // lue aussi par blocagesFinDeTour) ; la part OR est multipliée ici.
     // 7k · R-132 · Foire de Troyes (cité hôte) et Internet (tout l'empire)
     // multiplient la part OR de la conversion R-90. 7l · C10 (décision d'Erik
     // du 05/09) : cumul MULTIPLICATIF ×4 (remplace la convention MAX de 7k),
@@ -3539,14 +3570,9 @@ function processEconomy(board: Board): void {
     // Industrielle) : +50 % de production globale d'or — multiplicatif avec
     // les merveilles (miroir C10).
     const gains = {
-      gold: Math.round(
-        rawGains.gold * goldWonderMult * civEmpireGoldMultOf(player) * settledGpMultiplier(city, 'explorateur'),
-      ),
-      science: Math.round(rawGains.science * settledGpMultiplier(city, 'savant')),
+      gold: Math.round(rawGold * goldWonderMult * civEmpireGoldMultOf(player) * settledGpMultiplier(city, 'explorateur')),
+      science,
     };
-    // 7n · R-149 (trait Aztèque `templeScience`) : les Temples produisent +3
-    // Science par tour dans leur ville (fixe, hors Anarchie — R-122).
-    if (!anarchy) gains.science += civBuildingScienceOf(player, city.buildings);
     // 7l · R-134 : la trésorerie d'empire crédite la part OR des villes focus
     // Or (R-90) + bonus empire + or direct des ressources (Gemmes/Or).
     player.treasury += gains.gold + empireBonus.gold + directGold;
@@ -3555,7 +3581,7 @@ function processEconomy(board: Board): void {
     // la réserve `scienceStored` reste inchangée.
     // 7e : à la complétion, la récompense de Premier découvrir est appliquée
     // (firstDiscovery.ts) ; les nouveaux citoyens sont auto-assignés ici.
-    creditScience(board.st, city.owner, gains.science + empireBonus.science, {
+    creditScience(board.st, city.owner, gains.science, {
       onResearched: (pid, techId) => {
         emit(board, { type: 'TechResearched', player: pid, tech: techId });
       },

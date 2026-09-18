@@ -14,7 +14,7 @@
   import { get } from 'svelte/store';
   import type { GameEvent } from '@game/shared';
   import type { Hex } from '@game/rules';
-  import { CULTURE, GOVERNMENTS, TECHS, WONDERS, angkorEligibleWonders, conversionGains, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, nextEconomyMilestone, allKnownTechs, interiorCitizenFor, activeTraitsOf } from '@game/rules';
+  import { CULTURE, GOVERNMENTS, TECHS, WONDERS, angkorEligibleWonders, conversionGains, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, nextEconomyMilestone, allKnownTechs, interiorCitizenFor, activeTraitsOf, blocagesFinDeTour, libelleBlocageFinDeTour } from '@game/rules';
   import { civName, civLeader } from '../lib/labels.js';
   import { createGameClient } from '../lib/gameClient.js';
   import type { GameClient, GameView } from '../lib/gameClient.js';
@@ -317,6 +317,15 @@
 
   function requestEndTurn(): void {
     const v = get(view);
+    // FIN-DE-TOUR-PRODUCTION (18/09) : même prédicat que le serveur —
+    // impossible d'envoyer un EndTurn bloqué (production/recherche manquantes,
+    // résiduels compris : réserve C7, scienceStored d'une hutte recherche).
+    const id = myEngineId(v);
+    const blocages = v.state && id ? blocagesFinDeTour(v.state, id, v.orders) : [];
+    if (blocages.length > 0) {
+      for (const b of blocages) pushErrorToast(libelleBlocageFinDeTour(v.state!, b), 'bad');
+      return;
+    }
     const ids = unitsWithoutOrders(v);
     const salvage =
       v.state && myEngineId(v)
@@ -512,6 +521,17 @@
     };
   });
   const myResearchRatio = $derived(myResearch.cost > 0 ? Math.min(1, myResearch.progress / myResearch.cost) : 0);
+
+  // FIN-DE-TOUR-PRODUCTION (18/09) : blocages de fin de tour — le bouton
+  // « Fin de tour » est désactivé avec la liste des blocages (libellés
+  // pédagogiques partagés avec le rejet serveur). Phase « orders » uniquement.
+  const myBlocages = $derived.by(() => {
+    const v = $view;
+    const id = myEngineId(v);
+    if (!v.state || !id || v.phase !== 'orders' || v.status !== 'active' || v.locked) return [];
+    return blocagesFinDeTour(v.state, id, v.orders);
+  });
+  const myBlocagesLabel = $derived(myBlocages.map((b) => libelleBlocageFinDeTour($view.state!, b)).join('\n'));
   const myName = $derived.by(() => {
     const v = $view;
     return v.players.find((p) => p.id === v.playerId)?.name ?? '';
@@ -613,8 +633,15 @@
     </button>
     <span class="net net-{$status}">{$status}</span>
     {#if $view.locked}<span class="chip locked">Verrouillé</span>{/if}
-    <button type="button" class="primary" disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active'} onclick={requestEndTurn}>
-      Fin de tour
+    <button
+      type="button"
+      class="primary"
+      class:blocage={myBlocages.length > 0}
+      disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active' || myBlocages.length > 0}
+      title={myBlocages.length > 0 ? myBlocagesLabel : 'Terminer le tour (verrouillage des ordres)'}
+      onclick={requestEndTurn}
+    >
+      {myBlocages.length > 0 ? `Fin de tour bloquée (${myBlocages.length})` : 'Fin de tour'}
     </button>
     <button type="button" onclick={() => client.resync()}>Resync</button>
     <button
@@ -885,6 +912,7 @@
   button { padding: 0.35rem 0.8rem; cursor: pointer; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; }
   button:disabled { opacity: 0.45; cursor: default; }
   button.primary { background: #2e5e3f; border-color: #3c7a52; }
+  button.primary.blocage { background: #5c3a20; border-color: #a3703c; color: #ffcc80; }
   .body { display: flex; flex: 1; min-height: 0; }
   .map-area { position: relative; flex: 1; min-width: 0; }
   .side { width: 350px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem; padding: 0.6rem; border-left: 2px solid #2c353d; background: #141a20; }

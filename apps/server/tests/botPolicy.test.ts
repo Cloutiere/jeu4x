@@ -6,7 +6,7 @@
  * Math.random, pas de Date.now — même entrée → même plan.
  */
 import { describe, expect, it } from 'vitest';
-import { canSetProduction, createRng, makeState, rushBuyCostOf, TECHS } from '@game/rules';
+import { applySetResearch, blocagesFinDeTour, canSetProduction, createRng, makeState, rushBuyCostOf, TECHS } from '@game/rules';
 import type { GameState, Order } from '@game/rules';
 import { botPolicy, botTurnSeed } from '../src/botPolicy.js';
 import { orderShapeError } from '../src/game.js';
@@ -111,6 +111,29 @@ describe('botPolicy · recherche & régimes (actions immédiates, portage bot.mj
     const state = withPlayer(baseState({ researching: 'poterie' }), { researching: 'poterie' });
     const { actions } = planOf(state);
     expect(actions.some((a) => a.type === 'SetResearch')).toBe(false);
+  });
+
+  it('FIN-DE-TOUR-PRODUCTION : le plan du bot ne laisse AUCUN blocage de fin de tour (recherche + production)', () => {
+    const state = withPlayer(
+      baseState({ cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 }] }),
+      { researching: null, techsUnlocked: [], scienceStored: 15 },
+    );
+    // Avant plan : ville productive sans production + résiduel de recherche
+    // (15 points en réserve — ex. bonus de hutte) sans recherche sélectionnée.
+    expect(blocagesFinDeTour(state, BOT).map((b) => b.kind).sort()).toEqual(['production', 'recherche']);
+    const plan = planOf(state);
+    // Les actions immédiates du bot (SetResearch) sont appliquées par le DO
+    // AVANT la résolution (startResolution) — miroir de game.ts.
+    let st = state;
+    for (const action of plan.actions) {
+      if (action.type !== 'SetResearch') continue;
+      const applied = applySetResearch(st, BOT, action.techId);
+      expect(applied.ok).toBe(true);
+      if (applied.ok) st = applied.state;
+    }
+    // Après plan : aucun blocage — les brouillons SetProduction du bot
+    // débloquent ses villes, la recherche est sélectionnée.
+    expect(blocagesFinDeTour(st, BOT, plan.orders)).toEqual([]);
   });
 
   it('R-122 : le bot adopte la République quand la tech est complétée CE tour (sans Anarchie)', () => {
