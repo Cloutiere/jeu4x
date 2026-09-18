@@ -28,7 +28,8 @@
   import { BADGE_FONDATION, etatFondationColon } from './fondation.js';
   import { BADGE_POPULATION } from './badge-population.js';
   import { iconeCommerceRendement } from './rendements.js';
-  import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable } from './interaction.js';
+  import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, dispositionPile, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable, pilesAffichees, positionAfficheeDe as positionAfficheeDeEtat } from './interaction.js';
+  import type { PositionsAffichees } from './interaction.js';
   import type { ClickAction } from './interaction.js';
   // Chantier V1 (L3) — couche hybride : terrain Three.js + sprites PixiJS
   // projetés (option B du spike), derrière un flag de repli (défaut : 2D).
@@ -496,7 +497,11 @@
     // destination (elle masquerait l'ennemi) — le sprite réel reste à sa
     // position moteur, le fantôme translucide (rebuildOverlay) montre
     // l'arrivée décalée au bord de l'hexagone.
-    const arrivees = arriveesEnnemies();
+    // PILE-AFFICHÉE (retour Erik 17/09) : positions DESSINÉES (positionsDessinees
+    // exclut déjà les arrivées sur ennemi) + indices de cohabitation — les
+    // unités partageant une case affichée sont réduites et décalées.
+    const positions = positionsDessinees();
+    const piles = pilesAffichees(state, positions);
     // COLON-FONDATION (M1) : dérivation de l'aperçu DÉJÀ calculé
     // (scenePreviews — ordre posé et chemin gelé compris), jamais recalculée
     // par frame. Annulation comme consommation font tomber l'aperçu, donc
@@ -550,7 +555,12 @@
       // (position optimiste — comme si le déplacement avait eu lieu) ; sans
       // ordre, elle reste sur sa case moteur. Pendant le playback, l'inter-
       // polation prime (bloc « playback.active » du tick).
-      const posee = arrivees.has(unit.id) ? unit : (positionAfficheeDe(unit) ?? unit);
+      // PILE-AFFICHÉE : cohabitation visuelle — échelle réduite + décalage
+      // en éventail par indice de pile (dispositionPile, calibrage 🔶).
+      const posee = positions.get(unit.id) ?? unit;
+      const pile = piles.get(unit.id);
+      const disp = pile ? dispositionPile(pile.total, pile.index) : { dx: 0, dy: 0, echelle: 1 };
+      c.scale.set(disp.echelle);
       const p = hexToPixel(posee, HEX_SIZE);
       const anim = playback.moveOf(unit.id);
       if (anim) {
@@ -559,9 +569,9 @@
         // (continue) et le sprite reste à ses px bruts = hors champ.
         const a = hexToPixel(anim.from, HEX_SIZE);
         const b = hexToPixel(anim.to, HEX_SIZE);
-        poser3d(c, a.x + (b.x - a.x) * anim.t, a.y + (b.y - a.y) * anim.t);
+        poser3d(c, a.x + (b.x - a.x) * anim.t + disp.dx * HEX_SIZE, a.y + (b.y - a.y) * anim.t + disp.dy * HEX_SIZE);
       } else {
-        poser3d(c, p.x, p.y);
+        poser3d(c, p.x + disp.dx * HEX_SIZE, p.y + disp.dy * HEX_SIZE);
       }
       // PV (override de combat pendant le playback).
       const hp = playback.hpOf(unit.id, unit.hp);
@@ -1472,16 +1482,36 @@
       }
     }
 
-    // Sélection (anneau hexagonal). TRAVAIL-VILLE-3D : en 3D, l'anneau vit
-    // dans le calque Three (marqueurs3d, posé sur le relief) — l'anneau Pixi
-    // projeté resterait à plat.
-    const selectedTile: Hex | null = selectedTileOf();
-    if (selectedTile && !mode3dActif() && !vueActif) {
-      const gr = new Graphics();
-      gr.poly(hexLocalPoints(HEX_SIZE - 8)).stroke({ width: 5, color: 0xffe082 });
-      gr.poly(hexLocalPoints(HEX_SIZE - 16)).stroke({ width: 2, color: 0x2b2620, alpha: 0.6 });
-      gr.position.copyFrom(hexToPixel(selectedTile, HEX_SIZE));
-      overlayLayer.addChild(gr);
+    // Sélection. PILE-AFFICHÉE (retour d'Erik du 17/09) : avec plusieurs
+    // unités par case, entourer la CASE n'est plus intuitif — l'anneau entoure
+    // l'UNITÉ (ellipse posée sous le sprite, suit son décalage/échelle de
+    // pile, dessiné sous les entités). L'anneau hexagonal de CASE reste pour
+    // le brouillon de chemin (marqueur de destination) et la ville sélectionnée.
+    if (scene.ui.selectedUnitId && !scene.ui.draft && !mode3dActif() && !vueActif) {
+      const unit = scene.state?.units[scene.ui.selectedUnitId];
+      if (unit) {
+        const positions = positionsDessinees();
+        const posee = positions.get(unit.id) ?? unit;
+        const pile = pilesAffichees(scene.state!, positions).get(unit.id);
+        const disp = pile ? dispositionPile(pile.total, pile.index) : { dx: 0, dy: 0, echelle: 1 };
+        const c = hexToPixel(posee, HEX_SIZE);
+        const gr = new Graphics();
+        const rx = 52 * disp.echelle;
+        const ry = 22 * disp.echelle;
+        gr.ellipse(0, 6, rx, ry).stroke({ width: 5, color: 0xffe082 });
+        gr.ellipse(0, 6, rx + 4, ry + 3).stroke({ width: 2, color: 0x2b2620, alpha: 0.6 });
+        gr.position.set(c.x + disp.dx * HEX_SIZE, c.y + disp.dy * HEX_SIZE);
+        overlayLayer.addChild(gr);
+      }
+    } else {
+      const selectedTile: Hex | null = selectedTileOf();
+      if (selectedTile && !mode3dActif() && !vueActif) {
+        const gr = new Graphics();
+        gr.poly(hexLocalPoints(HEX_SIZE - 8)).stroke({ width: 5, color: 0xffe082 });
+        gr.poly(hexLocalPoints(HEX_SIZE - 16)).stroke({ width: 2, color: 0x2b2620, alpha: 0.6 });
+        gr.position.copyFrom(hexToPixel(selectedTile, HEX_SIZE));
+        overlayLayer.addChild(gr);
+      }
     }
 
     // FLECHE-MOUVEMENT : la flèche de survol redessinée AU-DESSUS de tout
@@ -1874,7 +1904,15 @@
     }
     if (playback.active !== lastPlaybackActive) {
       lastPlaybackActive = playback.active;
-      if (!playback.active) rebuildEffects(); // purge : aucune annonce/effet résiduel après la relecture
+      if (!playback.active) {
+        rebuildEffects(); // purge : aucune annonce/effet résiduel après la relecture
+        // CORRECTIFS-PILE : le playback repose les sprites à la position MOTEUR
+        // (interpolation origine→arrivée) — sans rebuild, la pose optimiste
+        // (arrêt de la prochaine résolution, PILE-AFFICHÉE) ne revenait jamais
+        // après la relecture : unité visuellement « en retard » d'une case.
+        entitiesDirty = true;
+        overlayDirty = true;
+      }
       onPlaybackActive?.(playback.active);
     }
     void tickerDeltaMs;
@@ -2192,12 +2230,29 @@
    * tenable en un tour reste affiché à sa destination (inchangé).
    */
   function positionAfficheeDe(unit: { id: string; owner: string; type?: string }): Hex | null {
-    if (!scene.state || !scene.myId || unit.owner !== scene.myId) return null;
-    const p = scenePreviews.find((pv) => pv.unitId === unit.id);
-    if (!p || p.path.length === 0) return null;
-    const type = unit.type ?? scene.state.units[unit.id]?.type;
-    const mp = type ? unitType(type).movement : 1;
-    return arretProchaineResolution(p.path, mp) ?? p.destination;
+    return scene.state ? positionAfficheeDeEtat(scene.state, scenePreviews, unit, scene.myId) : null;
+  }
+
+  /**
+   * PILE-AFFICHÉE (retour d'Erik du 17/09) — positions DESSINÉES de toutes les
+   * unités : aperçu d'arrêt pour les programmées, SAUF arrivée sur ennemi
+   * visible (fantôme : dessinées à leur case moteur). Miroir exact du rendu —
+   * partagé par le rendu des piles, le clic (sélection à la case affichée) et
+   * l'anneau de sélection. Recalcul O(unités + aperçus) par usage, jamais par
+   * frame.
+   */
+  function positionsDessinees(): PositionsAffichees {
+    const out: PositionsAffichees = new Map();
+    const state = scene.state;
+    if (!state) return out;
+    const arrivees = arriveesEnnemies();
+    for (const unit of Object.values(state.units)) {
+      if (unit.aboard) continue;
+      if (arrivees.has(unit.id)) continue;
+      const aff = positionAfficheeDeEtat(state, scenePreviews, unit, scene.myId);
+      if (aff) out.set(unit.id, aff);
+    }
+    return out;
   }
 
   /** CORRECTIFS-SELECTION : lignes de cheminement 3D (calque Three, posées
@@ -2602,7 +2657,7 @@
     }
     const hex = hexSousEcran(p.x, p.y);
     if (!hex) return;
-    onAction(clickAction(scene.view, scene.ui, hex));
+    onAction(clickAction(scene.view, scene.ui, hex, positionsDessinees()));
   }
 
   function onWheel(e: WheelEvent): void {
@@ -2761,6 +2816,12 @@
 
     // Assets réels (/art/, SPEC-ART) avec fallback placeholder fichier par fichier.
     textures = await loadTextures(application.renderer);
+    // CORRECTIFS-PILE (course de chargement) : si une vue est arrivée PENDANT
+    // l'await, le rebuild consommé par le tick est reparti sans textures
+    // (early-return) et les sprites gardaient une pose moteur périmée
+    // (position optimiste absente) jusqu'à la prochaine vue — on ré-invalide.
+    entitiesDirty = true;
+    overlayDirty = true;
     world = new Container();
     tilesLayer = new Container();
     resourceLayer = new Container();
@@ -2852,7 +2913,25 @@
     // sélection et accès caméra pour les vérifications GUI automatisées.
     if (import.meta.env.DEV) {
       (window as unknown as Record<string, unknown>).__game = {
-        clickHex: (q: number, r: number) => onAction(clickAction(scene.view!, scene.ui, { q, r })),
+        clickHex: (q: number, r: number) => onAction(clickAction(scene.view!, scene.ui, { q, r }, positionsDessinees())),
+        // PILE-AFFICHÉE (sonde debug) : positions dessinées + aperçus + piles.
+        sondePile: () => {
+          const positions = positionsDessinees();
+          const sprites: Record<string, unknown> = {};
+          for (const [id, c] of unitSprites) {
+            const t = c as Container & { __wx?: number; __wy?: number };
+            sprites[id] = { x: Math.round(c.x), y: Math.round(c.y), wx: t.__wx, wy: t.__wy };
+          }
+          return {
+            positions: Object.fromEntries(positions),
+            previews: scenePreviews.map((p) => ({ unitId: p.unitId, path: p.path, destination: p.destination })),
+            piles: Object.fromEntries(pilesAffichees(scene.state!, positions)),
+            myId: scene.myId,
+            sprites,
+            playback: { actif: playback.active, moves: [...playback.moves.keys()] },
+            tickError: (window as unknown as Record<string, unknown>).__tickError ?? null,
+          };
+        },
         // CORRECTIFS-SELECTION : miroir clic droit (destination) — vérifications GUI.
         rightClickHex: (q: number, r: number) => onRightClick({ q, r }),
         // Picking réel (2D ou 3D selon le flag) — vérifications GUI automatisées.

@@ -13,7 +13,7 @@
  */
 import { Assets, Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
-import { ARTEFACTS, RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
+import { ARTEFACTS, RESOURCES, RESOURCE_UNKNOWN, UNIT_TYPES } from '@game/rules';
 
 /** 7o · R-151 : les 6 artefacts du jeu de base (DLC jamais générés). */
 export const ARTEFACT_IDS: string[] = Object.keys(ARTEFACTS.pool).filter((id) => !ARTEFACTS.pool[id]!.dlcOnly).sort();
@@ -652,15 +652,21 @@ const TILE_ASSETS: Record<TerrainId, string> = {
   cratere: 'tile_cratere',
 };
 
-// 7j · R-126 : les 6 classes canoniques (art unite_<id>.png optionnelle).
-// 7m : espion (art existant, jamais chargé) et icbm (nouveau sprite) ajoutés.
-const UNIT_IDS = ['guerrier', 'colon', 'artiste', 'penseur', 'artiste_penseur', 'batisseur', 'savant', 'explorateur', 'humanitaire', 'leader', 'espion', 'icbm'];
+// 7j · R-126 : les 6 classes canoniques ont un PLACEHOLDER dessiné ci-dessus
+// (unités illustres = alias du même Graphics). PILE-AFFICHÉE (retour d'Erik du
+// 18/09 — archer invisible) : la liste de chargement n'est PLUS une liste
+// fermée — TOUS les types du moteur (units.json, source unique) reçoivent une
+// entrée dans `textures.units` : art dédiée `unite_<id>.png` si présente,
+// sinon alias R-148, sinon placeholder, sinon guerrier par défaut. Une liste
+// fermée oubliait des types entraînables (archer, legion, fusilier…) et le
+// rendu les laissait INVISIBLES (conteneur sans sprite).
+const TOUS_TYPES_UNITES = Object.keys(UNIT_TYPES).sort();
 
 // 7n · R-148 · ALIAS des unités uniques 🔶 (art dédiée reportée — le volume
 // 7n ne permet pas 24 nouvelles planches generate.py) : chaque unique rend le
 // sprite de l'unité QU'IL REMPLACE, teinté par l'accent de son propriétaire
 // (le rendu distingue déjà les camps). Un PNG `unite_<id>.png` ajouté plus
-// tard dans public/art/ prend automatiquement la main (entityOrFallback).
+// tard dans public/art/ prend automatiquement la main (chargement optionnel).
 const UNIQUE_UNIT_ALIASES: Record<string, string> = {
   guerrier_jaguar: 'guerrier',
   guerrier_impi: 'guerrier',
@@ -679,6 +685,14 @@ const UNIQUE_UNIT_ALIASES: Record<string, string> = {
   char_sherman: 'char_d_assaut',
   char_panzer: 'char_d_assaut',
   char_t34: 'char_d_assaut',
+  // Avions de l'ère moderne sans planche dédiée 🔶 : silhouette de chasseur.
+  flying_fortress: 'chasseur',
+  heinkel: 'chasseur',
+  lancaster: 'chasseur',
+  me109: 'chasseur',
+  mustang: 'chasseur',
+  spitfire: 'chasseur',
+  zero: 'chasseur',
 };
 
 async function texOrFallback(name: string, fallback: Texture): Promise<Texture> {
@@ -707,11 +721,14 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const resourceIds = [...Object.keys(RESOURCES).sort(), RESOURCE_UNKNOWN];
   // Phase 7d (R-95) : variantes barbares (accent gris-brun au rendu).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, units, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
+    // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
+    // TOUS les types du moteur — un 404 par type sans planche, puis résolu
+    // par alias/placeholder/filet de sécurité ci-dessous.
     Promise.all(
-      UNIT_IDS.filter((id) => fallback.units[id]).map((id) =>
-        entityOrFallback(`unite_${id}`, fallback.units[id]!).then((t) => [id, t] as const),
+      TOUS_TYPES_UNITES.map((id) =>
+        optionalEntity(`unite_${id}`).then((t) => [id, t] as const),
       ),
     ),
     Promise.all(
@@ -733,17 +750,25 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     Promise.all(resourceIds.map((id) => optionalIcon(`res_${id}`).then((t) => [id, t] as const))),
   ]);
 
-  // 7n · R-148 : ALIAS des unités uniques (art dédiée reportée 🔶) — chaque
-  // unique partage le sprite de l'unité qu'il remplace, teinté par l'accent
-  // du propriétaire. Synchrone (aucun chargement réseau supplémentaire) ; un
-  // PNG dédié `unite_<id>.png` pourra prendre la main plus tard.
-  const uniqueAliases = Object.entries(UNIQUE_UNIT_ALIASES)
-    .filter(([, base]) => fallback.units[base])
-    .map(([unique, base]) => [unique, fallback.units[base]!] as const);
+  // Fusion : placeholders dessinés (guerrier, colon, classes illustres et
+  // leurs alias) PUIS art réelle `unite_<id>.png` (prend la main) PUIS alias
+  // R-148 des uniques sans planche (le sprite de l'unité remplacée, teinté
+  // accent propriétaire) PUIS filet de sécurité guerrier — chaque type du
+  // moteur a UNE entrée : plus jamais d'unité invisible (conteneur vide).
+  const unitsFinales: Record<string, EntityTexture> = { ...fallback.units };
+  for (const [id, t] of unitesReelles) {
+    if (t) unitsFinales[id] = t;
+  }
+  for (const [unique, base] of Object.entries(UNIQUE_UNIT_ALIASES)) {
+    if (!unitsFinales[unique] && unitsFinales[base]) unitsFinales[unique] = unitsFinales[base]!;
+  }
+  for (const id of TOUS_TYPES_UNITES) {
+    if (!unitsFinales[id]) unitsFinales[id] = unitsFinales.guerrier!;
+  }
 
   return {
     tiles: Object.fromEntries(tiles) as Record<TerrainId, Texture>,
-    units: Object.fromEntries([...units, ...barbareUnits, ...uniqueAliases]),
+    units: { ...unitsFinales, ...Object.fromEntries(barbareUnits) },
     cities: { settlement, capital },
     villageBarbare,
     hutte,

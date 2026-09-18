@@ -41,6 +41,92 @@ export function unitAtHex(state: GameState, hex: Hex): { id: UnitId; owner: stri
   return null;
 }
 
+/**
+ * PILE-AFFICHÉE (retour d'Erik du 17/09) — position DESSINÉE d'une unité :
+ * une unité amie programmée est affichée à sa case d'ARRÊT de la prochaine
+ * résolution (position optimiste), pas à sa case moteur. Map UnitId → Hex ;
+ * les unités sans position affichée (pas d'aperçu, ennemis, arrivée sur
+ * ennemi visible) en sont absentes et restent à leur case moteur.
+ */
+export type PositionsAffichees = Map<UnitId, Hex>;
+
+/** Position affichée PURE d'une unité (miroir de `GameCanvas.positionAfficheeDe`,
+ *  consumé par le rendu ET la couche de clic) : case d'arrêt de la prochaine
+ *  résolution d'après les aperçus DÉJÀ calculés (`previewPrograms`), null sinon. */
+export function positionAfficheeDe(
+  state: GameState,
+  previews: ProgramPreview[],
+  unit: { id: UnitId; owner: string; type?: string },
+  myId: string | null,
+): Hex | null {
+  if (!state || !myId || unit.owner !== myId) return null;
+  const p = previews.find((pv) => pv.unitId === unit.id);
+  if (!p || p.path.length === 0) return null;
+  const type = unit.type ?? state.units[unit.id]?.type;
+  const mp = type ? unitType(type).movement : 1;
+  return arretProchaineResolution(p.path, mp) ?? p.destination;
+}
+
+/**
+ * PILE-AFFICHÉE (retour d'Erik du 17/09) — occupants d'une case AU SENS DESSINÉ :
+ * une unité programmée est sélectionnable sur sa case d'arrêt affichée (pas sa
+ * case de départ — elle n'y est plus visible), les autres sur leur case moteur.
+ * Ordre d'insertion de `state.units` (déterministe, miroir du rendu). Pur.
+ */
+export function unitesSurHex(
+  state: GameState,
+  hex: Hex,
+  positions?: PositionsAffichees,
+): Array<{ id: UnitId; owner: string }> {
+  const out: Array<{ id: UnitId; owner: string }> = [];
+  for (const u of Object.values(state.units)) {
+    // 7g · R-117 : une unité EMBARQUÉE n'est pas une entité de carte.
+    if (u.aboard) continue;
+    const posee = positions?.get(u.id) ?? u;
+    if (posee.q === hex.q && posee.r === hex.r) out.push({ id: u.id, owner: u.owner });
+  }
+  return out;
+}
+
+/**
+ * PILE-AFFICHÉE (retour d'Erik du 17/09) — disposition VISUELLE d'une
+ * cohabitation : plusieurs unités sur la même case sont réduites et décalées
+ * pour rester lisibles individuellement (l'empilement n'est plus un régime
+ * R-173, mais il existe visuellement — instabilités, arrivées partagées).
+ * Étalement horizontal en éventail, bords légèrement à l'avant. Pur, calibrage
+ * 🔶 à l'œil (fractions de HEX_SIZE côté appelant).
+ */
+export function dispositionPile(total: number, index: number): { dx: number; dy: number; echelle: number } {
+  if (total <= 1 || index < 0 || index >= total) return { dx: 0, dy: 0, echelle: 1 };
+  const mid = (total - 1) / 2;
+  return { dx: (index - mid) * 0.5, dy: Math.abs(index - mid) * 0.12, echelle: 0.66 };
+}
+
+/**
+ * PILE-AFFICHÉE — indices de pile par unité d'après ses positions DESSINÉES :
+ * Map UnitId → { index, total } au sein de sa case (ordre d'insertion du
+ * state, miroir exact du rendu et du clic). Pur.
+ */
+export function pilesAffichees(
+  state: GameState,
+  positions: PositionsAffichees,
+): Map<UnitId, { index: number; total: number }> {
+  const groupes = new Map<string, UnitId[]>();
+  for (const u of Object.values(state.units)) {
+    if (u.aboard) continue;
+    const posee = positions.get(u.id) ?? u;
+    const key = tileKeyOf(posee);
+    const groupe = groupes.get(key);
+    if (groupe) groupe.push(u.id);
+    else groupes.set(key, [u.id]);
+  }
+  const out = new Map<UnitId, { index: number; total: number }>();
+  for (const groupe of groupes.values()) {
+    groupe.forEach((id, index) => out.set(id, { index, total: groupe.length }));
+  }
+  return out;
+}
+
 export function cityAtHex(state: GameState, hex: Hex): { id: CityId; owner: string } | null {
   for (const c of Object.values(state.cities)) {
     if (c.q === hex.q && c.r === hex.r) return { id: c.id, owner: c.owner };
@@ -96,12 +182,19 @@ export function ordersEditable(view: GameView): boolean {
 
 /**
  * Décision de clic PURE (clic GAUCHE — schéma d'Erik du 08/09, réaffirmé le
- * 12/09) : le clic gauche SÉLECTIONNE UNIQUEMENT (unité/ville, re-clic =
- * désélection, worked tiles d'une ville sélectionnée R-60). La programmation
+ * 12/09 ; PILE-AFFICHÉE rev. 17/09) : le clic gauche SÉLECTIONNE UNIQUEMENT
+ * (unité/ville, worked tiles d'une ville sélectionnée R-60). La programmation
  * (déplacement, préview multi-tours au clic maintenu, attaque-par-entrée
  * R-42) passe par le CLIC DROIT (`rightClickAction`).
+ *
+ * `positions` (optionnel) = positions DESSINÉES des unités programmées : le
+ * clic cible la case où l'unité est AFFICHÉE (sa case d'arrêt — Erik : « je
+ * dois pouvoir la sélectionner en cliquant sur la case où elle se trouve »).
+ * Plusieurs unités sur la même case : CHAQUE NOUVEAU CLIC passe à l'unité
+ * suivante (cycle, Erik 17/09) ; après la dernière, la ville s'il y en a une,
+ * sinon retour à la première.
  */
-export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction {
+export function clickAction(view: GameView, ui: UiState, hex: Hex, positions?: PositionsAffichees): ClickAction {
   const state = view.state;
   if (!state) return { kind: 'none' };
 
@@ -109,20 +202,29 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
   // (le lancement n'est soumis qu'après la modale de confirmation, côté page).
   if (ui.nukeArmed) return { kind: 'nukeTarget', hex };
 
-  // 0. Re-clic sur l'entité sélectionnée = désélection (retour Phase 5 L1,
-  //    1re partie en ligne). Exception : capitale défendue — le re-clic sur
-  //    l'unité sélectionne la ville (alternance deterministic préservée,
-  //    le re-clic sur la ville reprend l'unité via la règle 2).
-  if (ui.selectedUnitId) {
-    const clicked = unitAtHex(state, hex);
-    if (clicked && clicked.id === ui.selectedUnitId) {
-      const city = cityAtHex(state, hex);
+  // Occupants AU SENS DESSINÉ (position affichée prime sur la case moteur).
+  const occupants = unitesSurHex(state, hex, positions);
+  const unit = occupants[0] ?? null;
+  const city = cityAtHex(state, hex);
+
+  // 0. Re-clic sur la case de l'unité sélectionnée : CYCLE parmi les
+  //    cohabitantes (Erik 17/09) — ou, seule sur sa case, désélection
+  //    (retour Phase 5 L1). Exception capitale défendue : après le dernier
+  //    occupant, le clic sélectionne la ville (alternance préservée, le
+  //    re-clic sur la ville reprend l'unité via la règle 2).
+  if (ui.selectedUnitId && occupants.some((o) => o.id === ui.selectedUnitId)) {
+    if (occupants.length > 1) {
+      const idx = occupants.findIndex((o) => o.id === ui.selectedUnitId);
+      const next = occupants[idx + 1];
+      if (next) return { kind: 'selectUnit', unitId: next.id, mine: next.owner === myEngineId(view) };
+      // Dernier occupant : la ville s'il y en a une (alternance capitale), sinon retour à la première.
       if (city) return { kind: 'selectCity', cityId: city.id };
-      return { kind: 'deselect' };
+      return { kind: 'selectUnit', unitId: occupants[0]!.id, mine: occupants[0]!.owner === myEngineId(view) };
     }
+    if (city) return { kind: 'selectCity', cityId: city.id };
+    return { kind: 'deselect' };
   }
   if (ui.selectedCityId) {
-    const city = cityAtHex(state, hex);
     if (city && city.id === ui.selectedCityId) return { kind: 'deselect' };
   }
 
@@ -133,9 +235,8 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
   //    SetWorkedTile en attente appliqués, miroir pop/push du moteur) —
   //    sinon, après une désélection, la ville paraît pleine tout le tour
   //    (l'état connu n'est mis à jour qu'à la résolution) et le re-clic est
-  //    refusé à tort.
-  const unit = unitAtHex(state, hex);
-  const city = unit ? cityAtHex(state, hex) : null;
+  //    refusé à tort. `unit`/`city` sont AU SENS DESSINÉ (calculés en tête) :
+  //    une unité partie ailleurs ne bloque plus sa case d'origine.
   if (ui.selectedCityId && ordersEditable(view) && !ui.draft) {
     const selCity = state.cities[ui.selectedCityId];
     if (selCity && selCity.owner === myEngineId(view)) {
@@ -162,16 +263,13 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex): ClickAction 
     }
   }
 
-  // 2. Sélection. Case avec unité ET ville (capitale défendue) : alterner —
-  //    1er clic l'unité, 2e clic la ville (le re-clic sur l'unité sélectionnée
-  //    est déjà traité en règle 0).
+  // 2. Sélection. Case avec unité ET ville (capitale défendue) : le premier
+  //    occupant (au sens dessiné) ; l'alternance via ville sélectionnée.
   if (unit && city) {
-    if (ui.selectedCityId === city.id) return { kind: 'selectUnit', unitId: unit.id, mine: unit.owner === myEngineId(view) };
     return { kind: 'selectUnit', unitId: unit.id, mine: unit.owner === myEngineId(view) };
   }
   if (unit) return { kind: 'selectUnit', unitId: unit.id, mine: unit.owner === myEngineId(view) };
-  const aloneCity = cityAtHex(state, hex);
-  if (aloneCity) return { kind: 'selectCity', cityId: aloneCity.id };
+  if (city) return { kind: 'selectCity', cityId: city.id };
 
   // 3. Vide (connu ou brouillard) : déselection.
   //    (RAFFINEMENT-MOUVEMENT, décision d'Erik du 12/09 : la programmation
