@@ -168,6 +168,19 @@ export default {
       return stub.fetch('https://game.internal/internal/admin', { method: 'POST' });
     }
 
+    // HANDOFF-TRACE-RESOLUTION · Trace de résolution d'une partie (debug —
+    // même protection ADMIN_TOKEN que le dump). ?turn=N : la trace complète ;
+    // sans : la liste des tours tracés disponibles (mémoire DO, 20 derniers).
+    const adminTraceMatch = /^\/admin\/game\/([A-Z0-9]{6})\/trace$/.exec(url.pathname);
+    if (adminTraceMatch) {
+      const auth = request.headers.get('authorization') ?? '';
+      if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) {
+        return jsonResponse({ error: 'unauthorized' }, 401);
+      }
+      const stub = env.GAME.get(env.GAME.idFromName(adminTraceMatch[1]!));
+      return stub.fetch(`https://game.internal/internal/trace${url.search}`);
+    }
+
     return jsonResponse({ error: 'notFound' }, 404);
   },
 } satisfies ExportedHandler<Env>;

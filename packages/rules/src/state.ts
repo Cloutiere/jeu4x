@@ -18,7 +18,7 @@ export type TileKey = string;
 
 /** Ordres déclaratifs — RULES.md §4. Reçus déjà verrouillés par resolveTurn (L4). */
 export type Order =
-  /** Exécution pas à pas, multi-tours ; halte si un ennemi devient visible. */
+  /** Exécution pas à pas, multi-tours ; la halte X-2 (arrêt à la découverte d'un ennemi) est ABROGÉE (18/09). */
   | { type: 'Move'; unitId: UnitId; path: Array<{ q: number; r: number }> }
   /** Attaque explicite d'une case cible adjacente. */
   | { type: 'Attack'; unitId: UnitId; target: { q: number; r: number } }

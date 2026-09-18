@@ -29,6 +29,57 @@
   let dump = $state<AdminDump | null>(null);
   let error = $state<string | null>(null);
 
+  // HANDOFF-TRACE-RESOLUTION · Trace de résolution du vrai jeu (même endpoint
+  // admin, même token). La trace est instrumentation passive : la résolution
+  // est bit à bit identique avec ou sans (verrouillé par test moteur).
+  interface TraceIndex { tours: number[] }
+  interface TraceReponse extends TraceIndex {
+    trace: { tour: number; seed: number } | null;
+    lisible: string[];
+  }
+  let toursTraces = $state<number[]>([]);
+  let tourSelectionne = $state<number | null>(null);
+  let traceReponse = $state<TraceReponse | null>(null);
+  let traceErreur = $state<string | null>(null);
+
+  async function chargerIndexTraces(): Promise<void> {
+    const res = await fetch(`${apiBase()}/admin/game/${code}/trace`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      traceErreur = `GET /admin/game/${code}/trace : ${res.status}`;
+      return;
+    }
+    toursTraces = ((await res.json()) as TraceIndex).tours;
+    traceErreur = null;
+  }
+
+  async function chargerTrace(tour: number): Promise<void> {
+    tourSelectionne = tour;
+    traceReponse = null;
+    const res = await fetch(`${apiBase()}/admin/game/${code}/trace?turn=${tour}`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      traceErreur = `GET /admin/game/${code}/trace?turn=${tour} : ${res.status}`;
+      return;
+    }
+    traceReponse = (await res.json()) as TraceReponse;
+    traceErreur = null;
+  }
+
+  function telechargerTraceJson(): void {
+    if (!traceReponse?.trace) return;
+    const json = JSON.stringify(traceReponse.trace, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trace-partie-${code}-tour${traceReponse.trace.tour + 1}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   $effect(() => {
     if (!DEV || !token) return;
     dump = null;
@@ -44,6 +95,7 @@
       }
       dump = (await res.json()) as AdminDump;
     });
+    void chargerIndexTraces();
   });
 </script>
 
@@ -87,13 +139,36 @@
       <h2>lastEvents</h2>
       <pre>{JSON.stringify(dump.lastEvents, null, 2)}</pre>
     </section>
+    <section>
+      <h2>Trace de résolution (décisions du moteur, règles citées, compte de seed)</h2>
+      {#if traceErreur}<p class="error">{traceErreur}</p>{/if}
+      {#if toursTraces.length === 0}
+        <p>Aucune trace disponible — résous un tour de la partie, puis recharge.</p>
+      {:else}
+        <p class="hint">
+          Tours tracés :
+          {#each toursTraces as t (t)}
+            <button type="button" class:actif={t === tourSelectionne} onclick={() => chargerTrace(t)}>Tour {t + 1}</button>
+          {/each}
+        </p>
+      {/if}
+      {#if traceReponse?.trace}
+        <p>
+          <button type="button" onclick={telechargerTraceJson}>💾 Télécharger le JSON (tour {traceReponse.trace.tour + 1}, seed {traceReponse.trace.seed})</button>
+        </p>
+        <pre>{traceReponse.lisible.join('\n')}</pre>
+      {/if}
+    </section>
   {/if}
 </main>
 
 <style>
-  main { max-width: 60rem; margin: 1rem auto; font-family: system-ui, sans-serif; }
+  main { max-width: 60rem; margin: 1rem auto; font-family: system-ui, sans-serif; color: #e2e6ea; }
   header { display: flex; gap: 1rem; align-items: center; margin-bottom: 0.75rem; }
-  section { margin: 1rem 0; border: 1px solid #ccc; border-radius: 6px; padding: 0.75rem; }
-  pre { max-height: 26rem; overflow: auto; font-size: 0.72rem; }
+  section { margin: 1rem 0; border: 1px solid #4a5158; border-radius: 6px; padding: 0.75rem; background: #191e24; }
+  h2 { color: #9aa7b2; font-size: 0.95rem; margin: 0 0 0.4rem; }
+  pre { max-height: 26rem; overflow: auto; font-size: 0.72rem; color: #d8d5cd; }
   .error { color: #b00020; }
+  .hint { font-size: 0.8rem; display: flex; gap: 0.3rem; flex-wrap: wrap; align-items: center; }
+  button.actif { background: #1f2937; color: #fff; }
 </style>

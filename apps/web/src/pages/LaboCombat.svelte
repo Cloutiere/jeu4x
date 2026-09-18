@@ -22,11 +22,13 @@
     BARBARIAN_ID,
     TERRAINS,
     colRowToHex,
+    createTraceCollector,
+    formaterTrace,
     hexDistance,
     resolveTurn,
     unitType,
   } from '@game/rules';
-  import type { GameEvent, GameState, Order, PlayerId, TileKey, Unit } from '@game/rules';
+  import type { GameEvent, GameState, Order, PlayerId, ResolutionTrace, TileKey, Unit } from '@game/rules';
   import {
     CAMPS_LABO,
     JOUEURS_LABO,
@@ -91,6 +93,12 @@
   let etatResolu = $state<GameState | null>(null);
   let snapshotAvant = $state<GameState | null>(null);
   let journal = $state<Array<{ seq: number; type: string; ligne: string }>>([]);
+  // HANDOFF-TRACE-RESOLUTION (M2) : trace de résolution — activée par défaut,
+  // sessions de jeu normales non touchées (le collecteur ne vit qu'ici).
+  let traceActive = $state(true);
+  let trace = $state<ResolutionTrace | null>(null);
+  let lignesTrace = $state<string[]>([]);
+  let traceCopiee = $state(false);
   let erreur = $state<string | null>(null);
 
   /** État affiché : état reporté d'un tour résolu, sinon reconstruit des poses. */
@@ -304,6 +312,8 @@
     etatResolu = null;
     snapshotAvant = null;
     journal = [];
+  trace = null;
+  lignesTrace = [];
     uniteSelectionnee = null;
     cibleEdition = null;
   }
@@ -458,6 +468,26 @@
   }
   let journalCopie = $state(false);
 
+  // --- Trace de résolution (HANDOFF-TRACE-RESOLUTION, M2) ---------------------
+  function jsonTrace(): string {
+    return trace ? JSON.stringify(trace, null, 2) : '';
+  }
+  async function copierTraceJson(): Promise<void> {
+    await navigator.clipboard.writeText(jsonTrace());
+    traceCopiee = true;
+    setTimeout(() => (traceCopiee = false), 2000);
+  }
+  function telechargerTraceJson(): void {
+    if (!trace) return;
+    const blob = new Blob([jsonTrace()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trace-resolution-tour${trace.tour + 1}-seed${trace.seed}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // --- Résolution (M2.3) ------------------------------------------------------
   function appliquerSeedText(): void {
     const parsed = Number.parseInt(seedText, 10);
@@ -480,7 +510,10 @@
       // R-80 : la graine utilisée est CELLE DE L'ÉTAT (portée par « Poursuivre »),
       // pas le champ de saisie — sinon les tours successifs rejoueraient la même
       // graine. Le champ est resynchronisé pour rester fidèle à l'affichage.
-      const resultat = resolveTurn(avant, ordres, avant.rngSeed);
+      const collecteur = traceActive ? createTraceCollector(avant) : null;
+      const resultat = resolveTurn(avant, ordres, avant.rngSeed, collecteur ?? undefined);
+      trace = collecteur ? collecteur.trace : null;
+      lignesTrace = trace ? formaterTrace(trace) : [];
       seed = resultat.newState.rngSeed;
       seedText = String(seed);
       snapshotAvant = avant;
@@ -507,6 +540,8 @@
   function revenirAvant(): void {
     etatResolu = null;
     journal = [];
+  trace = null;
+  lignesTrace = [];
   }
 
   /** Enchaîner : l'état résolu devient la base du tour suivant (ordres gelés). */
@@ -516,6 +551,8 @@
     etatResolu = null;
     snapshotAvant = null;
     journal = [];
+  trace = null;
+  lignesTrace = [];
     programmes = programmesVides();
     uniteSelectionnee = null;
   }
@@ -524,6 +561,8 @@
     etatReporte = null;
     etatResolu = null;
     journal = [];
+  trace = null;
+  lignesTrace = [];
     programmes = programmesVides();
   }
 
@@ -855,6 +894,23 @@
       </section>
 
       <section>
+        <h2>Trace de résolution</h2>
+        <label class="check">
+          <input type="checkbox" bind:checked={traceActive} />
+          Trace activée (collecteur passif — décision par décision)
+        </label>
+        {#if lignesTrace.length === 0}
+          <p class="hint-small">Aucune trace — résous un tour (trace activée) pour lire les états par phase, les décisions du moteur (règles citées) et le compte de seed.</p>
+        {:else}
+          <div class="ligne boutons">
+            <button type="button" onclick={copierTraceJson}>📋 {traceCopiee ? 'JSON copié !' : 'Copier le JSON'}</button>
+            <button type="button" onclick={telechargerTraceJson}>💾 Télécharger le JSON</button>
+          </div>
+          <pre class="trace">{lignesTrace.join('\n')}</pre>
+        {/if}
+      </section>
+
+      <section>
         <h2>Avant / après</h2>
         {#if !diffResolution}
           <p class="hint-small">La comparaison s'affiche après une résolution (positions, PV, morts).</p>
@@ -911,6 +967,7 @@
   .journal .ev-Retreat { color: #92400e; }
   .journal .ev-TurnResolved { font-weight: 700; letter-spacing: 0.05em; }
   .diff { font-size: 0.75rem; max-height: 14rem; overflow: auto; margin: 0.2rem 0 0.6rem; padding-left: 1.1rem; color: #d8d5cd; }
+  .trace { max-height: 24rem; overflow: auto; font-size: 0.7rem; line-height: 1.35; background: #14181c; border: 1px solid #3a4148; border-radius: 4px; padding: 0.4rem; white-space: pre-wrap; color: #cfe3cf; }
   @media (max-width: 90rem) {
     aside { width: 100%; }
     .carte-host { min-width: 100%; }

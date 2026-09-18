@@ -11,7 +11,7 @@
  *   côté serveur, Phase 1). Un ordre illégal est ignoré individuellement,
  *   sans bloquer la partie (RULES.md §5).
  * - Seul l'ordre Move persiste sur l'unité (chemin restant, gelé en cas de
- *   halte, repris au tour suivant) ; les autres ordres sont consommés.
+ *   arrêt, repris au tour suivant) ; les autres ordres sont consommés.
  */
 import { createRng } from './rng.js';
 import type { SeededRng } from './rng.js';
@@ -144,6 +144,9 @@ import { activateArtefactAt, applyArtefactIndiceReward } from './artefacts.js';
 import { drawWeightedMelee, meleeTauMultiplier } from './melee.js';
 import { MELEE_LOSER_DAMAGE, MELEE_MIDDLE_DAMAGE } from './constants.js';
 import type { ArtefactActivationContext } from './artefacts.js';
+// HANDOFF-TRACE-RESOLUTION · collecteur de trace passif (défaut absent = zéro coût).
+import { TraceCollector } from './trace.js';
+import type { TracePhaseId } from './trace.js';
 
 export interface TurnResult {
   newState: GameState;
@@ -196,8 +199,6 @@ interface Board {
   steps: Map<UnitId, number>;
   /** Unités ayant participé à un échange de combat (R-71 : pas de soin). */
   fought: Set<UnitId>;
-  /** Vision en début de tour : un ennemi visible alors est « connu » (pas de halte). */
-  initialVisible: Map<PlayerId, Set<TileKey>>;
   /** Groupes FormArmy de ce tour (co-location transitoire, R-44). */
   formGroups: Map<UnitId, FormGroup>;
   /**
@@ -252,6 +253,51 @@ interface Board {
    * ayant atteint le terme de son chemin composite avec les PM requis.
    */
   finalActions: Map<UnitId, 'foundCity'>;
+  /**
+   * HANDOFF-TRACE-RESOLUTION : récolteur passif (null = instrumentation
+   * absente, zéro coût — aucun comportement, RNG ni ordre modifiés).
+   */
+  trace: TraceCollector | null;
+  /** Étiquette d'usage du prochain roll (compte de seed — trace uniquement). */
+  traceUsage: string;
+  /** Phase courante pour l'attribution des décisions (trace uniquement). */
+  tracePhase: TracePhaseId;
+}
+
+/**
+ * RNG TRACÉ : même mulberry32, chaque next() rapporté au collecteur avec
+ * l'étiquette d'usage courante. Zéro influence : la suite des valeurs est
+ * bit à bit identique (le wrapper ne consomme rien de plus).
+ */
+function rngTrace(board: Board): void {
+  const base = board.rng;
+  board.rng = {
+    next(): number {
+      const v = base.next();
+      board.trace?.roll(v, board.traceUsage);
+      return v;
+    },
+    nextInt(maxExclusive: number): number {
+      return Math.floor(this.next() * maxExclusive);
+    },
+    get state(): number {
+      return base.state;
+    },
+  };
+}
+
+/** Trace une décision si le récolteur est présent (zéro coût sinon). */
+function decide(board: Board, kind: string, rule: string, ligne: string, detail?: Record<string, unknown>): void {
+  board.trace?.decide(board.tracePhase, kind, rule, ligne, detail);
+}
+
+/** Roll tracé d'un tirage : étiquette d'usage posée autour de l'appel. */
+function rollTrace(board: Board, usage: string, tirer: () => number): number {
+  const prev = board.traceUsage;
+  board.traceUsage = usage;
+  const v = board.rng.next();
+  board.traceUsage = prev;
+  return v;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,12 +339,19 @@ function occupiedByUnit(board: Board, hex: Hex, except?: UnitId): boolean {
 function defenseurStabilise(board: Board, hex: Hex, ennemiDe: PlayerId): Unit | null {
   const ici = occupants(board, hex).filter((u) => u.stabilized && u.owner !== ennemiDe);
   if (ici.length === 0) return null;
-  return [...ici].sort(
+  const tri = [...ici].sort(
     (a, b) =>
       unitType(b.type).defense - unitType(a.type).defense ||
       b.hp - a.hp ||
       compareUnitIds(a.id, b.id),
-  )[0]!;
+  );
+  // TRACE · choix du défenseur : les valeurs comparées (défense, PV, R-81).
+  if (board.trace && tri.length > 1) {
+    decide(board, 'choix-defenseur', 'R-174', `Défenseur de (${hex.q},${hex.r}) : ${tri[0]!.id} (défense ${unitType(tri[0]!.type).defense}, PV ${tri[0]!.hp}) — comparé à ${tri.slice(1).map((u) => `${u.id} (défense ${unitType(u.type).defense}, PV ${u.hp})`).join(', ')}`, {
+      case: hex, elu: tri[0]!.id, candidats: ici.map((u) => ({ id: u.id, defense: unitType(u.type).defense, hp: u.hp })),
+    });
+  }
+  return tri[0]!;
 }
 
 /**
@@ -309,16 +362,21 @@ function defenseurStabilise(board: Board, hex: Hex, ennemiDe: PlayerId): Unit | 
  * capture — jamais de combat).
  */
 function mieuxFondeeSur(board: Board, hex: Hex, attaquant: PlayerId): Unit | null {
-  return (
-    occupants(board, hex)
-      .filter((u) => u.owner !== attaquant && !isPeaceful(u))
-      .sort(
-        (a, b) =>
-          Number(b.fortified) - Number(a.fortified) ||
-          b.hp - a.hp ||
-          compareUnitIds(a.id, b.id),
-      )[0] ?? null
-  );
+  const candidats = occupants(board, hex)
+    .filter((u) => u.owner !== attaquant && !isPeaceful(u));
+  const elue = candidats.sort(
+    (a, b) =>
+      Number(b.fortified) - Number(a.fortified) ||
+      b.hp - a.hp ||
+      compareUnitIds(a.id, b.id),
+  )[0] ?? null;
+  // TRACE · R-159-d : la cible d'un tir sur pile, valeurs comparées.
+  if (board.trace && candidats.length > 1 && elue) {
+    decide(board, 'choix-cible-tir', 'R-159-d', `Tir sur pile (${hex.q},${hex.r}) sans défenseur stabilisé : cible ${elue.id} (fortifiée ${elue.fortified}, PV ${elue.hp}) — mieux fondée (fortifiée > PV > R-81)`, {
+      case: hex, elue: elue.id, candidats: candidats.map((u) => ({ id: u.id, fortified: u.fortified, hp: u.hp })),
+    });
+  }
+  return elue;
 }
 
 function cityAt(board: Board, hex: Hex): City | null {
@@ -404,7 +462,9 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
       return;
     }
   }
+  board.traceUsage = 'récompense hutte (R-98)';
   const reward: HutReward = drawHutReward(board.rng);
+  board.traceUsage = '';
 
   switch (reward.kind) {
     case 'gold':
@@ -807,17 +867,26 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
   const dStats = unitType(defender.type);
   const noRiposte = isRanged(attacker) && !isRanged(defender);
   const { sAtt, sDef } = combatStrengthsOf(board, attacker, defender, combatTile);
+  const pTouche = sAtt * sAtt / (sAtt * sAtt + sDef * sDef);
   for (let i = 0; i < EXCHANGES_PER_ATTACK && attacker.hp > 0 && defender.hp > 0; i++) {
     if (noRiposte) {
       defender.hp -= 1;
       continue;
     }
-    const winner = combatRound(sAtt, sDef, board.rng.next());
+    const winner = combatRound(
+      sAtt,
+      sDef,
+      rollTrace(board, `combat att=${attacker.id} def=${defender.id} round=${i + 1}/${EXCHANGES_PER_ATTACK} p(att)=${pTouche.toFixed(3)}`, () => board.rng.next()),
+    );
     if (winner === 'defender') defender.hp -= 1;
     else attacker.hp -= 1;
   }
   attacker.hp = Math.max(0, attacker.hp);
   defender.hp = Math.max(0, defender.hp);
+  decide(board, 'echange', 'R-51', `Échange att=${attacker.id} (S_att ${sAtt.toFixed(2)}) vs def=${defender.id} (S_def ${sDef.toFixed(2)}) — p(touche att)=${pTouche.toFixed(3)} → PV att ${attacker.hp}, PV def ${defender.hp}`, {
+    attaquant: attacker.id, defenseur: defender.id, sAtt, sDef, pTouche,
+    pvAttaquant: attacker.hp, pvDefenseur: defender.hp, sansRiposte: noRiposte,
+  });
   emit(board, { type: 'Attack', attackerId: attacker.id, defenderId: defender.id, at: combatTile });
   emit(board, {
     type: 'CombatExchange',
@@ -872,6 +941,9 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
     // 🔶 sDef > 0 exigé : le ratio est indéfini contre une défense nulle
     // (aucune unité réelle n'a 0 défense — les unités pacifiques sont capturées).
     if (sAttBase > 0 && sDef > 0 && sAttBase >= sDef * civOverrunRatioOf(board.st.players[attacker.owner])) {
+      decide(board, 'overrun', 'R-149', `ÉCRASEMENT : ${attacker.id} (S_att base ${sAttBase.toFixed(2)}) ≥ ratio × S_def ${sDef.toFixed(2)} — ${defender.id} détruit instantanément (aucun round R-51)`, {
+        attaquant: attacker.id, defenseur: defender.id, sAttBase, sDef,
+      });
       defender.hp = 0;
       emit(board, { type: 'Attack', attackerId: attacker.id, defenderId: defender.id, at: combatTile });
       emit(board, {
@@ -948,7 +1020,9 @@ function captureCamp(board: Board, village: BarbarianVillage, winner: Unit): voi
   });
   winner.veteran = true; // R-32 : coup fatal
   recordCombatVictory(board, winner); // 7h · R-123 (T-31) + soin Aztèque
+  board.traceUsage = 'récompense camp (R-183)';
   const reward: HutReward = drawHutReward(board.rng);
+  board.traceUsage = '';
   applyCampReward(board, winner, { q: village.q, r: village.r }, reward);
   emit(board, {
     type: 'VillageLooted',
@@ -1063,35 +1137,15 @@ function resolveVillageAttack(board: Board, attacker: Unit, village: BarbarianVi
 // Phase A — mouvements (RULES.md §6)
 // ---------------------------------------------------------------------------
 
-/** R-42 (halt) : un ennemi (unité ou ville) est-il devenu visible hors de la case visée ? */
-function haltedByNewSighting(board: Board, unit: Unit, next: Hex): boolean {
-  const known = board.initialVisible.get(unit.owner) ?? new Set<TileKey>();
-  const visible = computeVisibleTiles(board.st, unit.owner);
-  const nextKey = tileKeyOf(next);
-  for (const id of Object.keys(board.st.units).sort(compareUnitIds)) {
-    const enemy = board.st.units[id]!;
-    if (enemy.owner === unit.owner || enemy.aboard) continue; // 7g : une cargaison n'est pas une entité de carte
-    const key = tileKeyOf(enemy);
-    if (key !== nextKey && visible.has(key) && !known.has(key)) return true;
-  }
-  for (const id of Object.keys(board.st.cities).sort()) {
-    const enemyCity = board.st.cities[id]!;
-    if (enemyCity.owner === unit.owner) continue;
-    const key = tileKeyOf(enemyCity);
-    if (key !== nextKey && visible.has(key) && !known.has(key)) return true;
-  }
-  return false;
-}
-
 /**
  * Exécute le chemin d'une unité, pas à pas, dans la limite des PM (R-40..R-43).
- * Met à jour unit.order : chemin restant (gelé en cas de halte) ou null.
+ * Met à jour unit.order : chemin restant (gelé si arrêt en cours) ou null.
  * Interprétations documentées :
  *  - chemin invalide (hors carte / infranchissable) → le reste du chemin est effacé ;
  *  - blocage amical → l'unité s'arrête ce tour, le chemin restant est conservé ;
- *  - le halte ne s'applique pas à l'ennemi situé sur la case visée (I-1 :
- *    entrer sur cet ennemi déclenche l'attaque prévue (R-176) ou le fait
- *    rejoindre l'instabilité de la case, résolue en Phase E).
+ *  - X-2 (halte à la découverte d'un ennemi) ABROGÉE (décision d'Erik du
+ *    18/09) : entrer sur un ennemi visible déclenche l'attaque prévue
+ *    (R-176) ou rejoint l'instabilité de la case, résolue en Phase E.
  */
 function executeMoveOrder(
   board: Board,
@@ -1102,9 +1156,9 @@ function executeMoveOrder(
 ): void {
   while (unit.mp > 0 && path.length > 0) {
     const next = path[0]!;
-    // R-95 (Phase 7d) : les barbares ne subissent pas la halte X-2 — leurs
-    // ordres (1 pas) sont régénérés à chaque résolution, la halte les figerait.
-    if (!isBarbarian(unit.owner) && haltedByNewSighting(board, unit, next)) break; // halte, chemin gelé
+    // X-2 ABROGÉE (décision d'Erik du 18/09) : la découverte d'un ennemi
+    // n'arrête PLUS le chemin — une unité exécute son ordre quelle que soit
+    // la vision révélée en cours de route (par elle ou par une autre unité).
 
     // R-161 (D6) : limite de pénétration du fog — après UNE entrée en case
     // inconnue ce tour, le reste du chemin est ignoré (l'unité s'arrête).
@@ -1263,9 +1317,11 @@ function executeMoveOrder(
         if (board.potentielEnnemi.has(`${unit.owner}|${tileKeyOf(next)}`)) {
           path = [];
           board.retenus.push({ unitId: unit.id, at: { ...next }, priorite, active: false });
+          decide(board, 'entree-retenue', 'R-159 rév. B', `${unit.id} RETENU devant (${next.q},${next.r}) — un ennemi peut encore s'y trouver à la résolution (décision après la Phase B : renfort ou jointure d'instabilité)`, { unitId: unit.id, case: next, priorite });
           break;
         }
         path = path.slice(1); // destination refusée — le chemin gelé s'arrête ici
+        decide(board, 'destination-refusee', 'R-159 rév. B', `${unit.id} AVANCE AU MAXIMUM et s'arrête avant (${next.q},${next.r}) — destination amie sans menace ennemie : la cohabitation hors attaque est illégale`, { unitId: unit.id, case: next });
         break;
       }
       path.shift();
@@ -1330,6 +1386,7 @@ function executeMoveOrder(
     ) {
       path = []; // plus rien à geler : la décision tombe à l'activation (Phase B)
       board.retenus.push({ unitId: unit.id, at: { ...next }, priorite, active: false });
+      decide(board, 'entree-retenue', 'R-159 rév. B', `${unit.id} RETENU devant (${next.q},${next.r}) — case défendue visée par ≥ 2 attaquants du même camp : l'entrée se séquencera en Phase B (R-177)`, { unitId: unit.id, case: next, priorite });
       if (campIci && gardienCamp) {
         board.planned.push({ kind: 'villageAttack', at: next, attackerId: unit.id, villageId: campIci.id, latent: true });
       } else {
@@ -1497,6 +1554,7 @@ function collectMoveOrders(
     // au rendez-vous — jamais soumis à la troncature de dispute.
     const candidates = group.filter((a) => !board.formGroups.has(a.unit.id));
     if (candidates.length < 2) continue;
+    const dest = group[0]!.path[group[0]!.path.length - 1]!;
     const winner = [...candidates].sort(
       (x, y) => x.priority - y.priority || compareUnitIds(x.unit.id, y.unit.id),
     )[0]!;
@@ -1505,6 +1563,10 @@ function collectMoveOrders(
       // Troncature : la destination (dernier pas) et au-delà sont retirés.
       loser.path = loser.path.slice(0, -1);
       loser.final = undefined; // l'action finale portait sur la case disputée
+      decide(board, 'dispute-tronquee', 'R-159 rév. B', `${loser.unit.id} CÈDE la case (${dest.q},${dest.r}) à ${winner.unit.id} — co-destination amie sans menace : la première programmée (priorité ${winner.priority}) obtient la case, l'autre avance au maximum`, {
+        perdant: loser.unit.id, gagnant: winner.unit.id, case: dest,
+        priorites: candidates.map((c) => ({ unitId: c.unit.id, priorite: c.priority })),
+      });
     }
   }
   return assignments;
@@ -2448,12 +2510,14 @@ function applyLaunches(board: Board, ordersByPlayer: Record<PlayerId, Order[]>):
         const candidates = city.buildings.filter((b) => b !== 'palais').sort();
         const pool = [...candidates];
         const destroyed: string[] = [];
+        board.traceUsage = 'nucléaire — destruction de bâtiments (C16)';
         for (let i = 0; i < Math.ceil(pool.length / 2); i++) {
           const j = i + Math.floor(board.rng.next() * (pool.length - i));
           [pool[i], pool[j]] = [pool[j]!, pool[i]!];
           destroyed.push(pool[i]!);
         }
         destroyed.sort();
+        board.traceUsage = '';
         city.buildings = city.buildings.filter((b) => !destroyed.includes(b));
         emit(board, {
           type: 'CityNuked',
@@ -3946,16 +4010,26 @@ function processStability(board: Board): void {
           b.hp - a.hp ||
           compareUnitIds(a.id, b.id),
       )[0]!;
+      decide(board, 'dispersion-reste', 'R-179-b', `Dispersion de la pile amie (${key}) : ${keeper.id} RESTE (mieux fondée — fortifiée, puis PV décroissants, puis R-81)`, {
+        case: key, restante: keeper.id, candidates: here.map((u) => ({ id: u.id, fortified: u.fortified, hp: u.hp })),
+      });
       for (const u of here.filter((x) => x.id !== keeper.id).sort((a, b) => compareUnitIds(a.id, b.id))) {
-        const cible = neighbors({ q: u.q, r: u.r })
+        const candidates = neighbors({ q: u.q, r: u.r })
           .filter((h) => canEnter(board, u, h))
           .filter((h) => !occupiedByUnit(board, h))
           .filter((h) => {
             const city = cityAt(board, h);
             return !villageAt(board, h) && (!city || city.owner === u.owner);
           })
-          .sort((a, b) => compareHex(a, b))[0];
-        if (!cible) continue; // aucune case admissible : la pile persiste (P2)
+          .sort((a, b) => compareHex(a, b));
+        const cible = candidates[0];
+        if (!cible) {
+          decide(board, 'dispersion-impossible', 'R-179-b', `${u.id} ne peut pas être dispersé depuis (${key}) — aucune case adjacente admissible : la pile persiste (P2)`, { unitId: u.id, case: key });
+          continue; // aucune case admissible : la pile persiste (P2)
+        }
+        decide(board, 'dispersion-part', 'R-179-b', `${u.id} quitte la pile (${key}) pour (${cible.q},${cible.r}) — première case adjacente libre tri (q, r) parmi ${candidates.length} candidate(s)`, {
+          unitId: u.id, case: key, destination: cible, candidates: candidates.map((h) => tileKeyOf(h)),
+        });
         const from = { q: u.q, r: u.r };
         u.q = cible.q;
         u.r = cible.r;
@@ -3981,7 +4055,10 @@ function processStability(board: Board): void {
       // R-178 rév. A : un défenseur stabilisé a été attaqué ici ce tour — la
       // mêlée est REPORTÉE au tour suivant (les unités pourront partir, être
       // renforcées… ; le défenseur qui demeure garde ses bonus, R-175).
-      if (board.meleeDifferees.has(tileKeyOf(tile))) continue;
+      if (board.meleeDifferees.has(tileKeyOf(tile))) {
+        decide(board, 'melee-reportee-phase-e', 'R-178 rév. A', `Instabilité (${tile.q},${tile.r}) : mêlée REPORTÉE au tour suivant (un défenseur stabilisé y a été attaqué)`, { case: tile, participants: participants.map((u) => u.id) });
+        continue;
+      }
       // Poids = attaque effective² × étau. Les bonus de DEMEURE (terrain,
       // fortification, bâtiments de ville) tiennent pour l'unité qui n'a pas
       // bougé ce tour (R-175 : l'avantage de l'occupation du terrain).
@@ -3990,6 +4067,7 @@ function processStability(board: Board): void {
         compteAllies.set(u.owner, (compteAllies.get(u.owner) ?? 0) + 1);
       }
       const poids = new Map<string, number>();
+      const tracePoids: Array<{ id: UnitId; eff: number; tau: number; poids: number }> = [];
       for (const u of participants) {
         const stats = unitType(u.type);
         const demeure = !board.moved.has(u.id);
@@ -4003,12 +4081,26 @@ function processStability(board: Board): void {
           u.veteran,
           bonus,
         );
-        poids.set(u.id, eff * eff * meleeTauMultiplier(compteAllies.get(u.owner) ?? 1));
+        const tau = meleeTauMultiplier(compteAllies.get(u.owner) ?? 1);
+        poids.set(u.id, eff * eff * tau);
+        tracePoids.push({ id: u.id, eff, tau, poids: eff * eff * tau });
       }
+      const rollDebut = board.trace?.marque() ?? 0;
+      board.traceUsage = 'mêlée tirage gagnant/perdant (R-180)';
       const roles = drawWeightedMelee(
         participants.map((u) => ({ id: u.id, weight: poids.get(u.id) ?? 0 })),
         board.rng,
       );
+      board.traceUsage = '';
+      if (board.trace) {
+        const somme = tracePoids.reduce((acc, p) => acc + p.poids, 0);
+        const rollsMelee = board.trace.trace.rolls.slice(rollDebut).map((r) => r.valeur);
+        const winnerRole = roles.find((r) => r.role === 'winner');
+        const w = tracePoids.find((p) => p.id === winnerRole?.id);
+        decide(board, 'mêlée', 'R-180', `Mêlée (${tile.q},${tile.r}) — ${tracePoids.map((p) => `poids ${p.id}=${p.poids.toFixed(2)} (eff² ${p.eff.toFixed(2)}, étau ×${p.tau.toFixed(2)})`).join(', ')} ; Σw=${somme.toFixed(2)} ; tirage ${rollsMelee.join(' puis ')} → GAGNANTE ${winnerRole?.id ?? '—'} (w/Σw=${w && somme > 0 ? (w.poids / somme).toFixed(2) : '—'}) ; perdante −2 PV, intermédiaires −1 PV`, {
+          case: tile, participants: tracePoids, sommePoids: somme, rolls: rollsMelee, roles,
+        });
+      }
       const winnerRole = roles.find((r) => r.role === 'winner');
       const winner = winnerRole ? st.units[winnerRole.id] : undefined;
       const results: Array<{ unitId: UnitId; role: 'winner' | 'loser' | 'middle'; hpAfter: number }> = [];
@@ -4059,6 +4151,7 @@ function processStability(board: Board): void {
         // 7m · R-142 : un espion INFILTRÉ dans une ville est à l'abri — la
         // stabilisation de la ville ne le capture pas.
         if (isSpyUnit(p) && cityAt(board, { q: p.q, r: p.r })) continue;
+        decide(board, 'capture-stabilisation', 'R-182', `${p.id} (pacifique) est capturé par ${maitre.id} à la stabilisation de (${p.q},${p.r})`, { pacifique: p.id, maitre: maitre.id, case: { q: p.q, r: p.r } });
         capturePeaceful(board, p, maitre.owner, maitre.id);
       }
     }
@@ -4100,6 +4193,7 @@ export function resolveTurn(
   inputState: GameState,
   ordersByPlayer: Record<PlayerId, Order[]>,
   rngSeed: number,
+  trace?: TraceCollector,
 ): TurnResult {
   const st: GameState = structuredClone(inputState);
   st.phase = 'resolving';
@@ -4133,7 +4227,6 @@ export function resolveTurn(
     moved: new Set(),
     steps: new Map(),
     fought: new Set(),
-    initialVisible: new Map(),
     formGroups: new Map(),
     pendingFill: new Set(),
     unknownEntered: new Set(),
@@ -4144,7 +4237,15 @@ export function resolveTurn(
     potentielEnnemi: new Set(),
     retenus: [],
     finalActions: new Map(),
+    trace: trace ?? null,
+    traceUsage: '',
+    tracePhase: 'A',
   };
+
+  // HANDOFF-TRACE-RESOLUTION : récolteur passif — le RNG est enveloppé pour
+  // RAPPORTER chaque roll (aucun tirage ajouté, suite bit à bit identique).
+  if (board.trace) rngTrace(board);
+  trace?.phaseIn('A', st);
 
   for (const id of sortUnitIds(board)) {
     const u = st.units[id]!;
@@ -4152,7 +4253,6 @@ export function resolveTurn(
     board.steps.set(id, 0);
   }
   for (const playerId of Object.keys(st.players).sort()) {
-    board.initialVisible.set(playerId, computeVisibleTiles(st, playerId));
     // R-161 (D6) : référence du fog — les cases explorées en DÉBUT de tour
     // (vision.explored n'est mise à jour qu'en Phase D). Une liste VIDE
     // (fixtures : fog non modélisé) est sans objet — aucune limite appliquée.
@@ -4185,7 +4285,7 @@ export function resolveTurn(
     // (l'étape suivante partirait d'une case inconnue — le reste est tu).
     if (board.unknownEntered.has(after.id)) continue;
     const last = path[path.length - 1] ?? source.path[source.path.length - 1];
-    if (!last || after.q !== last.q || after.r !== last.r) continue; // terme du chemin non atteint (halte, blocage, fog R-161)
+    if (!last || after.q !== last.q || after.r !== last.r) continue; // terme du chemin non atteint (arrêt, blocage, fog R-161)
     const mpRequired = DEPLACEMENT.mpCostOfFinalAction;
     if (after.mp < mpRequired) continue; // PM insuffisants : action annulée, mouvement conservé
     board.finalActions.set(after.id, 'foundCity');
@@ -4271,6 +4371,7 @@ export function resolveTurn(
         board.coAttaquees.has(`${unit.owner}|${tileKeyOf(target)}`)
       ) {
         board.retenus.push({ unitId: unit.id, at: { ...target }, priorite: 0, active: false });
+        decide(board, 'entree-retenue', 'R-159 rév. B', `${unit.id} RETENU devant (${target.q},${target.r}) — ordre Attack explicite sur une case co-attaquée : l'entrée se séquencera en Phase B (R-177)`, { unitId: unit.id, case: target });
         if (viaCamp) {
           board.planned.push({ kind: 'villageAttack', at: target, attackerId: unit.id, villageId: campCible!.id, latent: true });
         } else {
@@ -4299,6 +4400,7 @@ export function resolveTurn(
   }
   // R-44 : formation d'armées en fin de Phase A.
   processFormArmy(board, allOrdersFlattened(allOrders));
+  trace?.phaseOut('A', st);
 
   // ---- Phase B : combats (R-50 : tri par case puis attaquant croissant).
   // ENGAGEMENT · R-177 : sur une même case, les attaquants résolvent UN PAR UN
@@ -4306,15 +4408,34 @@ export function resolveTurn(
   // DÉFENSE croissante, puis plus de PV ; à égalité, tirage aléatoire seedé.
   // La séquence s'arrête quand le défenseur est détruit (les attaquants
   // suivants n'attaquent pas — ils demeurent, instabilité → mêlée Phase E).
+  trace?.phaseIn('B', st);
+  board.tracePhase = 'B';
   const ordreAleatoire = new Map<string, number>();
   for (const plan of board.planned) {
-    ordreAleatoire.set(clePlan(plan), board.rng.next());
+    ordreAleatoire.set(
+      clePlan(plan),
+      rollTrace(board, `R-177 tirage d'égalité att=${plan.attackerId}`, () => board.rng.next()),
+    );
   }
   board.planned.sort(
     (a, b) =>
       compareHex(a.at, b.at) ||
       cleR166(board, a, b, ordreAleatoire),
   );
+  // TRACE · R-177 : la séquence d'attaque retenue par case, avec ses entrées.
+  if (board.trace) {
+    const parCase = new Map<string, string[]>();
+    for (const plan of board.planned) {
+      const k = tileKeyOf(plan.at);
+      const l = parCase.get(k) ?? [];
+      l.push(plan.attackerId);
+      parCase.set(k, l);
+    }
+    for (const [k, attaquants] of [...parCase.entries()].sort()) {
+      if (attaquants.length < 2) continue;
+      decide(board, 'ordre-attaque', 'R-177', `Case (${k}) : séquence d'attaque ${attaquants.join(' → ')} (PM restants → attaque → défense croissante → PV → tirage seedé)`, { case: k, attaquants, ordreAleatoire: attaquants.map((a) => ordreAleatoire.get(a)) });
+    }
+  }
   for (const plan of board.planned) {
     if (plan.kind === 'attack') {
       const attacker = st.units[plan.attackerId];
@@ -4329,15 +4450,23 @@ export function resolveTurn(
         const retenue = board.retenus.find((r) => r.unitId === plan.attackerId && !r.active);
         if (!retenue) continue;
         retenue.active = true;
-        if (hexDistance(attacker, caseCible) !== 1 || attacker.mp < 1) continue;
+        if (hexDistance(attacker, caseCible) !== 1 || attacker.mp < 1) {
+          decide(board, 'entree-retenue-refus', 'R-159 rév. B', `${attacker.id} RETENU reste devant (${caseCible.q},${caseCible.r}) — hors de portée ou sans PM`, { unitId: attacker.id, case: caseCible, mp: attacker.mp });
+          continue;
+        }
         if (!defender) {
-          if (!occupants(board, caseCible).some((u) => u.owner !== attacker.owner)) continue;
+          if (!occupants(board, caseCible).some((u) => u.owner !== attacker.owner)) {
+            decide(board, 'entree-retenue-refus', 'R-159-b', `${attacker.id} n'entre pas : défenseur déjà mort et aucun ennemi ne demeure sur (${caseCible.q},${caseCible.r})`, { unitId: attacker.id, case: caseCible });
+            continue;
+          }
           attacker.mp -= 1;
           moveUnit(board, attacker, caseCible); // entrée sans combat (P1)
+          decide(board, 'entree-retenue-sans-combat', 'R-159-b', `${attacker.id} entre SANS combattre sur (${caseCible.q},${caseCible.r}) — le défenseur est mort, des ennemis demeurent`, { unitId: attacker.id, case: caseCible });
           continue;
         }
         attacker.mp -= 1;
         moveUnit(board, attacker, caseCible);
+        decide(board, 'entree-retenue-activation', 'R-159-b', `${attacker.id} entre PUIS attaque ${defender.id} sur (${caseCible.q},${caseCible.r}) — séquence R-177 des entrées retenues`, { unitId: attacker.id, defenseur: defender.id, case: caseCible });
         resolveAttack(board, attacker, defender, { q: defender.q, r: defender.r });
         if (defender.stabilized) board.meleeDifferees.add(tileKeyOf(caseCible));
         continue;
@@ -4346,11 +4475,20 @@ export function resolveTurn(
       // R-59 : portée T-13 pour l'attaquant à distance, contact sinon.
       const range = isRanged(attacker) ? RANGED_RANGE : 1;
       if (hexDistance(attacker, defender) > range) continue; // plus au contact
+      // R-176a : le défenseur a QUITTÉ la case visée pendant la Phase A —
+      // l'échange a lieu sur sa case actuelle (coup en passant).
+      const origineDef = board.origin.get(defender.id);
+      if (origineDef && (origineDef.q !== plan.at.q || origineDef.r !== plan.at.r)) {
+        decide(board, 'coup-en-passant', 'R-176a', `${attacker.id} attaque ${defender.id} EN PASSANT sur (${defender.q},${defender.r}) — il a quitté la case visée (${plan.at.q},${plan.at.r}) et se défend en valeurs d'attaque (R-174)`, { attaquant: attacker.id, defenseur: defender.id, caseVisee: plan.at, caseReelle: { q: defender.q, r: defender.r } });
+      }
       resolveAttack(board, attacker, defender, { q: defender.q, r: defender.r });
       // R-178 rév. A : un défenseur STABILISÉ attaqué → mêlée REPORTÉE au
       // tour suivant. Un tir/attaque sur unité non stabilisée (pile) ne
       // reporte rien — la dispersion de pile amie n'est pas suspendue (H2).
-      if (defender.stabilized) board.meleeDifferees.add(tileKeyOf({ q: defender.q, r: defender.r }));
+      if (defender.stabilized) {
+        board.meleeDifferees.add(tileKeyOf({ q: defender.q, r: defender.r }));
+        decide(board, 'melee-reportee', 'R-178 rév. A', `Mêlée REPORTÉE au tour suivant sur (${defender.q},${defender.r}) — un défenseur stabilisé y a été attaqué ; il conserve ses bonus (R-175)`, { case: { q: defender.q, r: defender.r }, defenseur: defender.id });
+      }
     } else {
       // R-96 (rév. ENGAGEMENT) : le gardien défend sa case s'il est vivant.
       const attacker = st.units[plan.attackerId];
@@ -4382,16 +4520,25 @@ export function resolveTurn(
     if (r.active) continue;
     r.active = true;
     const u = st.units[r.unitId];
-    if (!u || u.mp < 1) continue;
+    if (!u || u.mp < 1) {
+      decide(board, 'renfort-refus', 'R-159 rév. B', `${r.unitId} retenu n'entre pas sur (${r.at.q},${r.at.r}) — plus de PM ou morte`, { unitId: r.unitId, case: r.at });
+      continue;
+    }
     const ennemiIci = occupants(board, r.at).some((x) => x.owner !== u.owner);
     const entreeEnnemie = [...(board.entrees.get(tileKeyOf(r.at)) ?? [])].some((o) => o !== u.owner);
     if (ennemiIci || entreeEnnemie) {
       u.mp -= 1;
       moveUnit(board, u, r.at);
+      decide(board, 'renfort-entree', 'R-159 rév. B', `${u.id} entre sur (${r.at.q},${r.at.r}) — un ennemi y demeure ou y est entré ce tour (priorité ${r.priorite})`, { unitId: u.id, case: r.at, priorite: r.priorite, ennemiIci, entreeEnnemie });
+    } else {
+      decide(board, 'renfort-refus', 'R-159 rév. B', `${u.id} retenu n'entre pas sur (${r.at.q},${r.at.r}) — aucun ennemi présent ni entré ce tour (un tir ne compte pas, H2)`, { unitId: u.id, case: r.at, priorite: r.priorite });
     }
   }
+  trace?.phaseOut('B', st);
 
   // ---- Phase C : économie (R-60 à R-66) + barbares (R-96 : villages).
+  trace?.phaseIn('C', st);
+  board.tracePhase = 'C';
   applyLaunches(board, allOrders); // 7m · R-139 : frappes nucléaires (en tête de Phase C)
   applySetProduction(board, allOrders);
   applyRushBuys(board, allOrders); // 7l · R-135 : achat instantané (avant l'économie)
@@ -4417,6 +4564,7 @@ export function resolveTurn(
   checkLeaderGreatPerson(board);
   // 7h · R-124 : victoire scientifique — les 4 composants du vaisseau contrôlés.
   checkScienceVictory(board);
+  trace?.phaseOut('C', st);
 
   // ---- Phase E : stabilité (ENGAGEMENT — R-173..R-182, fin de tour).
   // 1) expulsion de cohabitation (R-179 : case à plusieurs AMIES) ;
@@ -4425,7 +4573,19 @@ export function resolveTurn(
   // 4) marquage `stabilized` (R-173) pour le tour suivant.
   // Avant la Phase D : les mêlées marquent `fought` — une unité qui a combattu
   // ne se soigne pas (R-71).
+  trace?.phaseIn('E', st);
+  board.tracePhase = 'E';
+  const stabiliseesAvant = board.trace
+    ? Object.values(st.units).filter((u) => u.stabilized).map((u) => u.id)
+    : [];
   processStability(board);
+  if (board.trace) {
+    const nouveautes = Object.values(st.units)
+      .filter((u) => u.stabilized && !stabiliseesAvant.includes(u.id))
+      .map((u) => u.id);
+    decide(board, 'stabilisation', 'R-173', `${nouveautes.length} unité(s) marquée(s) STABILISÉE(s) pour le tour suivant (case à exactement une unité)`, { stabilisees: nouveautes });
+  }
+  trace?.phaseOut('E', st);
 
   // ---- Phase D : vision (R-70), soins (R-71), PM (R-72).
   recomputeVision(st);

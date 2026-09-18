@@ -144,11 +144,11 @@ describe('Phase A · R-40/R-41 · mouvement garanti, ordre déterministe', () =>
     expect(unit(r2.newState, 'u1')).toMatchObject({ q: 0, r: 0 });
   });
 
-  it('R-42 (halte) : un ennemi qui DEVIENT visible gèle le reste du chemin', () => {
+  it("X-2 ABROGÉE (18/09) : la découverte d'un ennemi n'arrête plus le chemin — PM seuls", () => {
     const state = makeState({
       units: [
         { id: 'u1', type: 'colon', owner: 'p1', q: 0, r: 0 }, // vision 2, PM 2
-        { id: 'u2', type: 'guerrier', owner: 'p2', q: 3, r: 0 }, // distance 3 au départ
+        { id: 'u2', type: 'guerrier', owner: 'p2', q: 3, r: 0 }, // devient visible en cours de route
       ],
     });
     const { newState } = resolveTurn(
@@ -156,12 +156,13 @@ describe('Phase A · R-40/R-41 · mouvement garanti, ordre déterministe', () =>
       { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }, { q: 2, r: 0 }, { q: 3, r: 0 }] }] },
       1,
     );
-    // après 1 pas, u2 (distance 2) devient visible → halte sur (1,0)
-    expect(unit(newState, 'u1')).toMatchObject({ q: 1, r: 0 });
+    // u2 (distance 2 après le premier pas) devient visible : PLUS de halte —
+    // l'unité avance jusqu'à épuisement de ses PM (2 pas), chemin restant gelé.
+    expect(unit(newState, 'u1')).toMatchObject({ q: 2, r: 0 });
     expect(newState.units['u1']!.order).toEqual({
       type: 'Move',
       unitId: 'u1',
-      path: [{ q: 2, r: 0 }, { q: 3, r: 0 }],
+      path: [{ q: 3, r: 0 }],
     });
   });
 

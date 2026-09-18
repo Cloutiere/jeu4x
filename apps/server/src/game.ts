@@ -26,6 +26,10 @@ import {
   applyMapEntities,
   migrateState,
   resolveTurn,
+  createTraceCollector,
+  formaterTrace,
+  // HANDOFF-TRACE-RESOLUTION · trace de résolution (vrai jeu — debug/admin).
+  type ResolutionTrace,
   applySetResearch,
   applySetConversion,
   applySetGovernment,
@@ -409,6 +413,8 @@ export class GameDO {
         return this.handleAbandon(request);
       case '/internal/admin':
         return this.handleAdminDump();
+      case '/internal/trace':
+        return this.handleTrace(url);
       default:
         break;
     }
@@ -530,6 +536,34 @@ export class GameDO {
    *  Phase 7f : inclut un résumé `culture` (jalons, seuil GP, merveilles, ONU).
    *  Phase 7g : inclut un résumé `naval` (flottes : transports + cargaisons,
    *  espions, missions d'espionnage en brouillon). */
+  /** HANDOFF-TRACE-RESOLUTION · Trace de résolution du VRAI jeu (debug —
+   *  protégé par ADMIN_TOKEN côté Worker). Sans ?turn= : liste des tours
+   *  disponibles ; avec ?turn=N : la trace complète (JSON déterministe) +
+   *  son rendu lisible. Instrumentation passive : la résolution est bit à
+   *  bit identique avec ou sans trace (verrouillé par test moteur). */
+  private async handleTrace(url: URL): Promise<Response> {
+    const tours = [...(await this.state.storage.list({ prefix: 'trace:' }))]
+      .map(([k]) => Number.parseInt(String(k).slice('trace:'.length), 10))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => a - b);
+    const param = url.searchParams.get('turn');
+    if (param === null) return jsonResponse({ tours });
+    const tour = Number.parseInt(param, 10);
+    const trace = await this.state.storage.get<ResolutionTrace>(`trace:${tour}`);
+    if (!trace) return jsonResponse({ error: 'notFound', tours }, 404);
+    return jsonResponse({ tours, trace, lisible: formaterTrace(trace) });
+  }
+
+  /** Rétention des traces : au plus 20 tours (les plus anciens sont supprimés). */
+  private async purgerTraces(): Promise<void> {
+    const cles = [...(await this.state.storage.list({ prefix: 'trace:' }))]
+      .map(([k]) => String(k))
+      .sort();
+    for (const cle of cles.slice(0, Math.max(0, cles.length - 20))) {
+      await this.state.storage.delete(cle);
+    }
+  }
+
   private handleAdminDump(): Response {
     const game = this.game;
     const barbares = game
@@ -1272,7 +1306,8 @@ export class GameDO {
   private async finishResolution(): Promise<void> {
     const input = this.resolving;
     if (!input || !this.game) return;
-    const result = resolveTurn(this.game, input.orders, input.rngSeed);
+    const collecteur = createTraceCollector(this.game);
+    const result = resolveTurn(this.game, input.orders, input.rngSeed, collecteur);
     // BOT-SOLO : les événements des actions immédiates du bot (recherche,
     // régime) précèdent ceux de la résolution dans le journal diffusé.
     const events = input.botEvents && input.botEvents.length > 0 ? [...input.botEvents, ...result.events] : result.events;
@@ -1282,10 +1317,15 @@ export class GameDO {
     this.locked = { p1: false, p2: false };
     this.orders = { p1: [], p2: [] }; // brouillons consommés par la résolution
     // Persistance atomique : état + journal + remises à zéro, motif supprimé.
+    // HANDOFF-TRACE-RESOLUTION : la trace est PERSISTÉE (clé `trace:<tour>`,
+    // rétention 20 tours — les isolats d'un DO sont éphémères) ; le tour du
+    // motif est utilisé (le state est déjà avancé d'un tour ici).
     await this.state.storage.transaction(async (tx) => {
       await tx.put({ game: this.game, lastEvents: this.lastEvents, orders: this.orders, locked: this.locked });
       await tx.delete('resolving');
+      await tx.put({ [`trace:${input.turn}`]: collecteur.trace });
     });
+    await this.purgerTraces();
     if (this.game.winner) {
       // Motif de méta dérivé du dernier événement Victory (7f : victoire
       // culturelle → 'culture' ; les autres raisons restent 'domination').
