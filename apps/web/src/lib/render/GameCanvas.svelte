@@ -255,7 +255,15 @@
       app?.renderer.resize(w, h);
       stage3d?.resize(w, h);
     }
-    return poseVueVillePour(p.x, p.y, w, h, HEX_SIZE, workRadiusOf(city.buildings));
+    // Retour d'Erik (19/09) : le double-clic doit montrer ENTIÈREMENT la zone
+    // dessinée — la frontière culturelle déborde du rayon de travail dès le
+    // palier 2 (workRadius + paliers − 1, règles). Cadrer sur ce rayon-là,
+    // pas sur le seul rayon de travail (tuiles du haut/bas tronquées).
+    const rayonAffiche = frontierRadius(
+      workRadiusOf(city.buildings),
+      rayonCulturelDe(city.cultureCumulee),
+    );
+    return poseVueVillePour(p.x, p.y, w, h, HEX_SIZE, rayonAffiche);
   }
 
   $effect(() => {
