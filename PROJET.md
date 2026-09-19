@@ -34,6 +34,7 @@
 | Chantier V2 | **Structures 3D** : cartes-ressources en slots (état neutre avant tech), ville = Nœud Serveur, cratère, huttes/camps — ✅ accepté |
 | Bot solo | **Partie solo contre le bot** (bot interne du GameDO, case au lobby) — ✅ accepté, 1re partie solo jouée en ligne |
 | Atelier | **Page `#/atelier`** + rituel [ATELIER-ASSETS.md](ATELIER-ASSETS.md) — Erik y retouche ses assets en sessions libres |
+| Socle desktop | **Coquille Electron de distribution Windows** (tranche 1, zéro Steam) — ✅ accepté le 19/09 : `desktop/` autonome (option A : la fenêtre charge la prod, session cookie + OAuth inchangés), sécurité durcie (sandbox, allowlist navigation, CSP), raccourcis neutralisés (F11 plein écran, confirmation de sortie en partie), session persistante, installeur NSIS + CI artifact ; bench 60 FPS = navigateur. Rapport : `docs/historique/rapports/REPORT-ELECTRON-SOCLE.md`. Tranche 2 (Steam) au backlog après approbation fiscale Steamworks |
 
 ## 🚧 En cours / prêts à lancer
 
