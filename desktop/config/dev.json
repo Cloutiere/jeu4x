@@ -1,0 +1,8 @@
+{
+  "env": "dev",
+  "gameServerUrl": "http://localhost:5174",
+  "windowTitle": "4X multijoueur asynchrone (dev)",
+  "oauthHosts": ["accounts.google.com", "discord.com"],
+  "csp": false,
+  "devtools": true
+}

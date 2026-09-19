@@ -1,0 +1,67 @@
+{
+  "name": "game-4x-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Coquille Electron de distribution desktop du jeu 4X — tranche 1, zéro Steam. Dossier autonome (hors workspace pnpm) : dépendances et build confinés ici, zéro impact sur apps/packages.",
+  "author": "Erik",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "pnpm run build && electron .",
+    "start:dev": "pnpm run build && electron . --env=dev",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "dist": "pnpm run build && electron-builder --win",
+    "dist:dir": "pnpm run build && electron-builder --win --dir"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0",
+    "playwright-core": "^1.63.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.11"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
+  },
+  "build": {
+    "appId": "com.erikaistudio.game4x",
+    "productName": "4X multijoueur asynchrone",
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "dist/**"
+    ],
+    "extraResources": [
+      {
+        "from": "config",
+        "to": "config"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "4X multijoueur asynchrone"
+    }
+  }
+}

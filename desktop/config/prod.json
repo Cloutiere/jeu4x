@@ -1,0 +1,8 @@
+{
+  "env": "prod",
+  "gameServerUrl": "https://game-4x-server-prod.erik-ai-studio.workers.dev",
+  "windowTitle": "4X multijoueur asynchrone",
+  "oauthHosts": ["accounts.google.com", "discord.com"],
+  "csp": true,
+  "devtools": false
+}

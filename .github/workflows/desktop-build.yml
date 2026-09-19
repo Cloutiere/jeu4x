@@ -1,0 +1,55 @@
+# desktop/ — build de l'installeur Windows en artifact CI (M5.1, tranche 1 sans Steam).
+#
+# DÉCLENCHEMENT MANUEL UNIQUEMENT (workflow_dispatch) — aucun impact sur le
+# déploiement web (deploy.yml). Produit l'installeur NSIS sans le distribuer :
+# l'artifact est téléchargeable depuis la page Actions du dépôt.
+#
+# Non signé pour l'instant (pas de certificat) : quand Erik l'obtient, définir
+# les secrets CSC_LINK + CSC_KEY_PASSWORD — electron-builder les consomme tout
+# seul, aucune modification de ce workflow n'est nécessaire.
+name: Desktop build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # Version lue depuis "packageManager" dans package.json (source unique).
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # desktop/ est un dossier AUTONOME (hors workspace pnpm) : installation
+      # confinée, le reste du dépôt n'est pas touché.
+      - name: Install (desktop/)
+        working-directory: desktop
+        run: pnpm --ignore-workspace install --frozen-lockfile
+
+      - name: Tests purs (config, navigation, raccourcis, CSP)
+        working-directory: desktop
+        run: pnpm test
+
+      - name: Typecheck
+        working-directory: desktop
+        run: pnpm typecheck
+
+      - name: Build installeur NSIS
+        working-directory: desktop
+        run: pnpm dist
+
+      - name: Artifact (sans distribution)
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-windows
+          path: |
+            desktop/release/*Setup*.exe
+            desktop/release/*.blockmap
+          if-no-files-found: error
+          retention-days: 14
