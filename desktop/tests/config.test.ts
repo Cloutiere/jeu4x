@@ -65,6 +65,46 @@ describe('validateConfig', () => {
       '4X multijoueur asynchrone',
     );
   });
+
+  // --- résolution logique fixe (ELECTRON-RESOLUTION) ---
+
+  it('défauts de résolution : 1280×720, mode fenêtre, dpr forcé à 1', () => {
+    const c = validateConfig(PROD_VALIDE, 'prod');
+    expect(c.resolutionBase).toEqual({ largeur: 1280, hauteur: 720 });
+    expect(c.modeDefaut).toBe('fenetre');
+    expect(c.deviceScaleFactor).toBe(1);
+  });
+
+  it('accepte une résolution explicite et un mode plein écran', () => {
+    const c = validateConfig(
+      { ...PROD_VALIDE, resolutionBase: { largeur: 1920, hauteur: 1080 }, modeDefaut: 'pleine-ecran' },
+      'prod',
+    );
+    expect(c.resolutionBase).toEqual({ largeur: 1920, hauteur: 1080 });
+    expect(c.modeDefaut).toBe('pleine-ecran');
+  });
+
+  it('deviceScaleFactor null = suivre le système', () => {
+    expect(validateConfig({ ...PROD_VALIDE, deviceScaleFactor: null }, 'prod').deviceScaleFactor).toBeNull();
+  });
+
+  it('refuse les valeurs de résolution invalides', () => {
+    expect(() => validateConfig({ ...PROD_VALIDE, resolutionBase: { largeur: 100, hauteur: 720 } }, 'prod')).toThrow(ConfigError);
+    expect(() => validateConfig({ ...PROD_VALIDE, resolutionBase: { largeur: 1280.5, hauteur: 720 } }, 'prod')).toThrow(ConfigError);
+    expect(() => validateConfig({ ...PROD_VALIDE, resolutionBase: { largeur: '1280', hauteur: 720 } }, 'prod')).toThrow(ConfigError);
+    expect(() => validateConfig({ ...PROD_VALIDE, resolutionBase: { hauteur: 720 } }, 'prod')).toThrow(ConfigError);
+    expect(() => validateConfig({ ...PROD_VALIDE, resolutionBase: '1280x720' }, 'prod')).toThrow(ConfigError);
+  });
+
+  it('refuse un modeDefaut inconnu', () => {
+    expect(() => validateConfig({ ...PROD_VALIDE, modeDefaut: 'kiosque' }, 'prod')).toThrow(ConfigError);
+  });
+
+  it('refuse un deviceScaleFactor invalide', () => {
+    expect(() => validateConfig({ ...PROD_VALIDE, deviceScaleFactor: 0 }, 'prod')).toThrow(ConfigError);
+    expect(() => validateConfig({ ...PROD_VALIDE, deviceScaleFactor: -1 }, 'prod')).toThrow(ConfigError);
+    expect(() => validateConfig({ ...PROD_VALIDE, deviceScaleFactor: '1' }, 'prod')).toThrow(ConfigError);
+  });
 });
 
 describe('resolveConfig', () => {

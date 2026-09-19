@@ -15,7 +15,7 @@ export interface KeyEvent {
   meta: boolean;
 }
 
-export type ShortcutDecision = 'block' | 'fullscreen-toggle' | 'allow';
+export type ShortcutDecision = 'block' | 'fullscreen-toggle' | 'fullscreen-exit' | 'allow';
 
 export interface ShortcutRules {
   /** DevTools accessibles (config dev uniquement). */
@@ -28,6 +28,9 @@ export function shortcutDecision(e: KeyEvent, rules: ShortcutRules): ShortcutDec
   const ctrl = e.control || e.meta; // Ctrl sous Windows/Linux, Cmd si jamais porté sur macOS
 
   if (key === 'F11' && !ctrl && !e.alt && !e.shift) return 'fullscreen-toggle';
+  // Échap : sortie du plein écran letterbox (le toggle natif Chromium ne
+  // s'applique pas — le plein écran est piloté par la coquille).
+  if (key === 'Escape' && !ctrl && !e.alt && !e.shift) return 'fullscreen-exit';
 
   // Rechargement / navigation navigateur : jamais.
   if (ctrl && !e.alt && (key === 'r' || key === 'R')) return 'block';

@@ -42,7 +42,7 @@ try {
   else échec(`URL inattendue : ${url}`);
 
   // 2. Titre propre (configuration, non surchargé par la page).
-  const title = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getTitle());
+  const title = await app.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows()[0].getTitle());
   if (title === '4X multijoueur asynchrone') ok(`titre : ${title}`);
   else échec(`titre inattendu : ${title}`);
 
@@ -94,12 +94,12 @@ try {
   // 8. F11 plein écran (touche réelle).
   sendKeys('{F11}');
   await win.waitForTimeout(800);
-  let plein = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFullScreen());
+  let plein = await app.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows()[0].isFullScreen());
   if (plein) ok('F11 → plein écran');
   else échec('F11 n’a pas basculé le plein écran');
   sendKeys('{F11}');
   await win.waitForTimeout(800);
-  plein = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFullScreen());
+  plein = await app.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows()[0].isFullScreen());
   if (!plein) ok('F11 → retour fenêtré');
   else échec('F11 n’est pas revenu en fenêtré');
 

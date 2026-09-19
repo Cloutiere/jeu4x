@@ -7,19 +7,38 @@
  * REPORT-ELECTRON-SOCLE.md pour le verdict d'investigation sur l'option B).
  * L'URL serveur vient d'un fichier de configuration par environnement, jamais
  * du code.
+ *
+ * Résolution logique fixe (ELECTRON-RESOLUTION, décision d'Erik du 18/09) :
+ * le contenu du jeu vit dans une WebContentsView de taille logique fixe
+ * (resolutionBase, défaut 1280×720) au cœur d'une BaseWindow — la vue de jeu
+ * est ainsi indépendante de la taille de la fenêtre :
+ *  - mode fenêtre (défaut) : fenêtre non redimensionnable dont le contenu fait
+ *    exactement resolutionBase (bordures/barre de titre en sus) ;
+ *  - plein écran (F11/Échap/bouton) : la vue est mise à l'échelle au maximum
+ *    en préservant le ratio (letterbox, bandes noires) — jamais d'étirement,
+ *    jamais de crop.
  */
-import { app, BrowserWindow, Menu, dialog, ipcMain, session } from 'electron';
+import { app, BaseWindow, WebContentsView, Menu, dialog, ipcMain, session } from 'electron';
 import * as path from 'node:path';
 import { configDirOf, EnvConfig, resolveConfig } from './config';
 import { estEnPartie, navigationDecision } from './navigation';
 import { shortcutDecision } from './shortcuts';
 import { cspPolicyFor } from './csp';
+import { computeLetterbox } from './letterbox';
 
 // Départ propre : pas de fichier .js généré à côté des sources.
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 
-let mainWindow: BrowserWindow | null = null;
+// Profil de substitution optionnel (`--profil=<chemin>`) : sessions isolées
+// (tests e2e, deuxième instance) sans toucher au profil persistant d'Erik.
+const profilArg = process.argv.find((a) => a.startsWith('--profil='));
+if (profilArg) app.setPath('userData', path.resolve(profilArg.slice('--profil='.length)));
+
+let mainWindow: BaseWindow | null = null;
+let gameView: WebContentsView | null = null;
 let config: EnvConfig;
+/** Zoom de base de normalisation DPR (1 si le switch a été pris en compte). */
+let zoomBase = 1;
 
 /** `--env=dev` sur la ligne de commande (défaut : prod). */
 function cliEnv(): string | undefined {
@@ -27,16 +46,105 @@ function cliEnv(): string | undefined {
   return arg ? arg.slice('--env='.length) : undefined;
 }
 
+// La config est lue avant le ready : le DPR forcé doit être posé avant que
+// Chromium ne démarre (switch ligne de commande, pas d'API runtime).
+let configCharge: EnvConfig | null = null;
+let erreurConfig: unknown = null;
+try {
+  configCharge = resolveConfig({
+    cliEnv: cliEnv(),
+    envVar: process.env.GAME4X_ENV,
+    serverUrlOverride: process.env.GAME_SERVER_URL,
+    configDir: configDirOf(process.resourcesPath ?? '', app.getAppPath(), app.isPackaged),
+  });
+} catch (e) {
+  erreurConfig = e;
+}
+if (configCharge?.deviceScaleFactor != null) {
+  app.commandLine.appendSwitch('force-device-scale-factor', String(configCharge.deviceScaleFactor));
+}
+
+/** Bounds de la vue : tout le contenu de la fenêtre (mode fenêtré). */
+function boundsFenetres(): Electron.Rectangle {
+  const [width, height] = mainWindow!.getContentSize();
+  return { x: 0, y: 0, width, height };
+}
+
+/** Letterbox : contenu à l'échelle max, ratio préservé, centré (bandes noires). */
+function appliquerLetterboxPleinEcran(): void {
+  if (!mainWindow || !gameView || !mainWindow.isFullScreen()) return;
+  const [width, height] = mainWindow.getContentSize();
+  const lb = computeLetterbox({ width, height }, config.resolutionBase);
+  gameView.setBounds(lb.rect);
+  // Le zoom ré-échantillonne le rendu à l'échelle (le texte reste net, ce
+  // n'est pas un étirement bitmap) ; viewport logique = resolutionBase.
+  gameView.webContents.setZoomFactor(zoomBase * lb.echelle);
+}
+
+/** Retour fenêtré : bounds plein contenu, zoom ×1, fenêtre fixe à nouveau. */
+function restaurerFenetre(): void {
+  if (!mainWindow || !gameView || mainWindow.isFullScreen()) return;
+  mainWindow.setResizable(false);
+  gameView.setBounds(boundsFenetres());
+  gameView.webContents.setZoomFactor(zoomBase);
+}
+
+/** F11/Échap/bouton : bascule fenêtré ↔ plein écran letterbox. */
+function toggleFullscreen(): void {
+  if (!mainWindow) return;
+  if (mainWindow.isFullScreen()) {
+    mainWindow.setFullScreen(false);
+    // Windows : l'état final (et la taille d'écran) n'est stable qu'après le
+    // redimensionnement — on applique en différé, idempotent.
+    setTimeout(() => restaurerFenetre(), 100);
+  } else {
+    // Windows : le plein écran ne passe pas toujours sur une fenêtre non
+    // redimensionnable — on le permet le temps du plein écran.
+    mainWindow.setResizable(true);
+    mainWindow.setFullScreen(true);
+    setTimeout(() => appliquerLetterboxPleinEcran(), 100);
+  }
+}
+
+/**
+ * Normalisation DPR (ceinture et bretelles du switch `force-device-scale-factor`) :
+ * après chargement, on lit le devicePixelRatio réel de la page et on compense
+ * par le zoom de base — viewport logique = resolutionBase quoi qu'il arrive.
+ */
+async function normaliserDpr(): Promise<void> {
+  if (!gameView || config.deviceScaleFactor == null) return;
+  try {
+    const dpr = await gameView.webContents.executeJavaScript('window.devicePixelRatio');
+    if (typeof dpr === 'number' && dpr > 0) {
+      const nouveau = config.deviceScaleFactor / dpr;
+      if (Math.abs(nouveau - zoomBase) > 1e-9) {
+        console.log(`[coquille] dpr réel ${dpr} ≠ cible ${config.deviceScaleFactor} → zoom de base ${nouveau}`);
+        zoomBase = nouveau;
+        if (mainWindow?.isFullScreen()) appliquerLetterboxPleinEcran();
+        else gameView.webContents.setZoomFactor(zoomBase);
+      }
+    }
+  } catch {
+    // page en cours de navigation : la prochaine tentative corrigera
+  }
+}
+
 function createWindow(): void {
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 720,
-    minWidth: 800,
-    minHeight: 600,
+  const base = config.resolutionBase;
+  mainWindow = new BaseWindow({
+    width: base.largeur,
+    height: base.hauteur,
+    useContentSize: true, // le CONTENU fait resolutionBase ; bordures en sus
+    resizable: false, // résolution fixe : pas de redimensionnement
+    maximizable: false,
+    fullscreenable: true,
     title: config.windowTitle,
     icon: path.join(__dirname, '..', 'resources', 'icon.png'),
     show: false,
-    backgroundColor: '#1a1c22',
+    backgroundColor: '#000000', // bandes letterbox en plein écran
+  });
+
+  gameView = new WebContentsView({
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, // M3 : pont explicite uniquement (preload)
@@ -45,22 +153,31 @@ function createWindow(): void {
       spellcheck: false,
     },
   });
-
-  // Le titre reste celui de la configuration (la page ne le surcharge pas).
-  mainWindow.on('page-title-updated', (e) => e.preventDefault());
+  mainWindow.contentView.addChildView(gameView);
+  gameView.setBounds(boundsFenetres());
 
   // Affichage sans flash blanc une fois la première peinture prête.
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  gameView.webContents.once('did-finish-load', () => mainWindow?.show());
+  mainWindow.on('resize', () => {
+    // En plein écran, les bounds/zoom de la vue sont ceux du letterbox —
+    // ne pas les écraser par un plein contenu pendant la transition.
+    if (mainWindow?.isFullScreen()) return;
+    gameView?.setBounds(boundsFenetres());
+  });
+
+  // Plein écran letterbox : repositionnement différé en secours des events.
+  mainWindow.on('enter-full-screen', () => setTimeout(() => appliquerLetterboxPleinEcran(), 100));
+  mainWindow.on('leave-full-screen', () => setTimeout(() => restaurerFenetre(), 100));
 
   // ------------------------------------------------------------------
   // M3 — sécurité : navigation confinée, pas de fenêtre/iframe nouvelle.
   // ------------------------------------------------------------------
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  gameView.webContents.setWindowOpenHandler((details) => {
     console.warn(`[sécurité] ouverture de fenêtre refusée : ${details.url}`);
     return { action: 'deny' };
   });
-  mainWindow.webContents.on('will-attach-webview', (e) => e.preventDefault());
-  mainWindow.webContents.on('will-navigate', (e, url) => {
+  gameView.webContents.on('will-attach-webview', (e) => e.preventDefault());
+  gameView.webContents.on('will-navigate', (e, url) => {
     const decision = navigationDecision(url, {
       gameServerUrl: config.gameServerUrl,
       oauthHosts: config.oauthHosts,
@@ -71,11 +188,11 @@ function createWindow(): void {
   });
 
   // ------------------------------------------------------------------
-  // M2 — raccourcis navigateur neutralisés, F11 = plein écran.
+  // M2 — raccourcis navigateur neutralisés, F11/Échap = plein écran letterbox.
   // ------------------------------------------------------------------
-  mainWindow.webContents.setVisualZoomLevelLimits(1, 1).catch(() => undefined);
+  gameView.webContents.setVisualZoomLevelLimits(1, 1).catch(() => undefined);
   const debugClavier = process.env.GAME4X_DEBUG === '1';
-  mainWindow.webContents.on('before-input-event', (event, input) => {
+  gameView.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
     const decision = shortcutDecision(
       { key: input.key, control: input.control, shift: input.shift, alt: input.alt, meta: input.meta },
@@ -88,7 +205,10 @@ function createWindow(): void {
     }
     if (decision === 'fullscreen-toggle') {
       event.preventDefault();
-      void mainWindow?.setFullScreen(!mainWindow.isFullScreen());
+      toggleFullscreen();
+    } else if (decision === 'fullscreen-exit' && mainWindow?.isFullScreen()) {
+      event.preventDefault();
+      toggleFullscreen();
     }
   });
 
@@ -96,8 +216,8 @@ function createWindow(): void {
   // M2 — quitter propre : confirmation native si une partie est en cours.
   // ------------------------------------------------------------------
   mainWindow.on('close', (e) => {
-    if (!mainWindow) return;
-    if (!estEnPartie(mainWindow.webContents.getURL())) return;
+    if (!mainWindow || !gameView) return;
+    if (!estEnPartie(gameView.webContents.getURL())) return;
     const choice = dialog.showMessageBoxSync(mainWindow, {
       type: 'question',
       buttons: ['Quitter', 'Annuler'],
@@ -110,14 +230,14 @@ function createWindow(): void {
   });
 
   // Résilience : plantage du renderer → rechargement de la fenêtre.
-  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+  gameView.webContents.on('render-process-gone', (_e, details) => {
     console.error(`[renderer] process gone : ${details.reason}`);
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.reload();
+    if (gameView && !gameView.webContents.isDestroyed()) gameView.webContents.reload();
   });
 
   // Serveur injoignable : quelques re-tentatives, puis message natif.
   let loadRetries = 0;
-  mainWindow.webContents.on('did-fail-load', (_e, errorCode, _desc, url, isMainFrame) => {
+  gameView.webContents.on('did-fail-load', (_e, errorCode, _desc, url, isMainFrame) => {
     if (!isMainFrame || errorCode === -3) return; // -3 = ABORTED (navigation remplacée)
     if (loadRetries >= 3) {
       const choice = dialog.showMessageBoxSync(mainWindow!, {
@@ -129,22 +249,28 @@ function createWindow(): void {
       });
       if (choice === 0) {
         loadRetries = 0;
-        void mainWindow?.loadURL(config.gameServerUrl);
+        void gameView?.webContents.loadURL(config.gameServerUrl);
       } else {
         app.quit();
       }
       return;
     }
     loadRetries += 1;
-    setTimeout(() => void mainWindow?.loadURL(config.gameServerUrl), 1000 * loadRetries);
+    setTimeout(() => void gameView?.webContents.loadURL(config.gameServerUrl), 1000 * loadRetries);
   });
-  mainWindow.webContents.on('did-finish-load', () => {
+  gameView.webContents.on('did-finish-load', () => {
     loadRetries = 0;
+    void normaliserDpr();
   });
 
-  if (config.devtools) mainWindow.webContents.openDevTools({ mode: 'detach' });
+  if (config.devtools) gameView.webContents.openDevTools({ mode: 'detach' });
 
-  void mainWindow.loadURL(config.gameServerUrl);
+  void gameView.webContents.loadURL(config.gameServerUrl);
+
+  // Mode par défaut de la config (défaut : fenêtre).
+  if (config.modeDefaut === 'pleine-ecran') {
+    mainWindow.once('show', () => toggleFullscreen());
+  }
 }
 
 /** M3 — CSP injectée sur les documents du serveur de jeu uniquement. */
@@ -184,22 +310,19 @@ function installPermissionDeny(): void {
 // Cycle de vie de l'application.
 // ------------------------------------------------------------------
 app.whenReady().then(() => {
-  try {
-    config = resolveConfig({
-      cliEnv: cliEnv(),
-      envVar: process.env.GAME4X_ENV,
-      serverUrlOverride: process.env.GAME_SERVER_URL,
-      configDir: configDirOf(process.resourcesPath ?? '', app.getAppPath(), app.isPackaged),
-    });
-  } catch (e) {
+  if (erreurConfig) {
     dialog.showErrorBox(
       'Configuration de la coquille invalide',
-      e instanceof Error ? e.message : String(e),
+      erreurConfig instanceof Error ? erreurConfig.message : String(erreurConfig),
     );
     app.quit();
     return;
   }
-  console.log(`[coquille] env=${config.env} serveur=${config.gameServerUrl}`);
+  config = configCharge!;
+
+  console.log(`[coquille] env=${config.env} serveur=${config.gameServerUrl} ` +
+    `résolution=${config.resolutionBase.largeur}x${config.resolutionBase.hauteur} mode=${config.modeDefaut} ` +
+    `dpr=${config.deviceScaleFactor ?? 'système'}`);
 
   app.setAppUserModelId('com.erikaistudio.game4x');
   Menu.setApplicationMenu(null); // M2 : pas de menu Chromium
@@ -207,15 +330,18 @@ app.whenReady().then(() => {
   installPermissionDeny();
 
   // Pont preload : quitter proprement depuis le jeu (même confirmation que la croix,
-  // l'événement close de la fenêtre fait le travail).
+  // l'événement close de la fenêtre fait le travail) ; plein écran (bouton futur).
   ipcMain.handle('shell:quit', () => {
     app.quit();
+  });
+  ipcMain.handle('shell:toggle-fullscreen', () => {
+    toggleFullscreen();
   });
 
   createWindow();
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (mainWindow === null || (mainWindow.isDestroyed() && gameView?.webContents.isDestroyed())) createWindow();
   });
 });
 

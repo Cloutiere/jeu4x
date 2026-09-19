@@ -39,6 +39,17 @@ Captures dans `dev-logs/captures-electron/`. Pièges connus : **tuer les `electr
 - Sélection d'environnement : `--env=dev` (CLI) > variable `GAME4X_ENV` > défaut `prod`.
 - Surcharge ponctuelle de l'URL : variable d'environnement `GAME_SERVER_URL` (prod / 5174 / staging futur).
 
+## Résolution logique fixe (ELECTRON-RESOLUTION)
+
+Le contenu du jeu est une **WebContentsView à taille logique fixe** au cœur de la fenêtre — le rendu ne dépend ni de la fenêtre ni de la machine :
+
+- `resolutionBase` (défaut `{"largeur": 1280, "hauteur": 720}`) : la vue de jeu fait exactement cette taille en mode fenêtre (fenêtre **non redimensionnable**, bordures en sus) ;
+- plein écran **letterbox** : F11 (ou Échap pour en sortir, ou `gameShell.toggleFullscreen()` du pont preload) — la vue est mise à l'échelle au maximum en préservant le ratio, **bandes noires** si l'écran n'est pas 16:9 (jamais d'étirement, jamais de crop) ; `modeDefaut` : `fenetre` (défaut) ou `pleine-ecran` ;
+- `deviceScaleFactor` (défaut `1`, `null` = suivre Windows) : neutralise le facteur d'échelle Windows pour un rendu identique au pixel sur toutes les machines ; une compensation par zoom de base s'applique au chargement si le DPR réel diffère ;
+- `--profil=<chemin>` (CLI) : profil userData de substitution (sessions isolées pour les tests / une deuxième instance).
+
+Vue de référence : **identique au pixel** entre la fenêtre, le plein écran letterbox et le navigateur à viewport 1280×720 (prouvé par `scripts/compare-vue.mjs`, 0 pixel de différence). Captures : `dev-logs/captures-electron-resolution/`.
+
 ## Sécurité (M3, non négociable)
 
 `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, menu supprimé, navigation confinée (serveur de jeu + fournisseurs OAuth uniquement, sous-domaines adversaires rejetés), toute fenêtre/iframe nouvelle interceptée, permissions renderer refusées, CSP injectée sur les documents du serveur de jeu en prod, `webSecurity` jamais désactivé. La session de jeu est le cookie `session` du serveur (persistant entre les lancements via le profil Electron par défaut).

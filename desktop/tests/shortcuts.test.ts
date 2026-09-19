@@ -23,9 +23,10 @@ describe('shortcutDecision', () => {
     expect(shortcutDecision(key({ key: '0', control: true }), PROD)).toBe('block');
   });
 
-  it('F11 bascule le plein écran', () => {
+  it('F11 bascule le plein écran, Échap le quitte (letterbox)', () => {
     expect(shortcutDecision(key({ key: 'F11' }), PROD)).toBe('fullscreen-toggle');
     expect(shortcutDecision(key({ key: 'F11', control: true }), PROD)).toBe('allow');
+    expect(shortcutDecision(key({ key: 'Escape' }), PROD)).toBe('fullscreen-exit');
   });
 
   it('bloque les DevTools en prod, les laisse en dev', () => {
@@ -38,7 +39,6 @@ describe('shortcutDecision', () => {
   it("laisse passer les touches du jeu", () => {
     expect(shortcutDecision(key({ key: 'a' }), PROD)).toBe('allow');
     expect(shortcutDecision(key({ key: 'ArrowLeft' }), PROD)).toBe('allow');
-    expect(shortcutDecision(key({ key: 'Escape' }), PROD)).toBe('allow');
     expect(shortcutDecision(key({ key: 'Enter', shift: true }), PROD)).toBe('allow');
     expect(shortcutDecision(key({ key: 'c', control: true }), PROD)).toBe('allow'); // copie locale OK
   });

@@ -4,5 +4,8 @@
   "windowTitle": "4X multijoueur asynchrone",
   "oauthHosts": ["accounts.google.com", "discord.com"],
   "csp": true,
-  "devtools": false
+  "devtools": false,
+  "resolutionBase": { "largeur": 1280, "hauteur": 720 },
+  "modeDefaut": "fenetre",
+  "deviceScaleFactor": 1
 }

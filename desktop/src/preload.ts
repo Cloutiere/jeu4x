@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld('gameShell', {
   quit: (): void => {
     void ipcRenderer.invoke('shell:quit');
   },
+  /** Plein écran letterbox (F11 / Échap / bouton futur du jeu). */
+  toggleFullscreen: (): void => {
+    void ipcRenderer.invoke('shell:toggle-fullscreen');
+  },
 });
 
 // M2 : zoom molette neutralisé (Ctrl+molette) — le canvas PixiJS gère son propre zoom.

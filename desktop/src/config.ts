@@ -10,6 +10,10 @@
  */
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import type { ResolutionBase } from './letterbox';
+
+/** Valeurs par défaut de la résolution logique (décision d'Erik du 18/09). */
+export const RESOLUTION_DEFAUT: ResolutionBase = { largeur: 1280, hauteur: 720 };
 
 export interface EnvConfig {
   /** Nom de l'environnement (informatif, repris du fichier). */
@@ -24,6 +28,12 @@ export interface EnvConfig {
   csp: boolean;
   /** DevTools ouverts au lancement (debug local uniquement). */
   devtools: boolean;
+  /** Résolution logique fixe (M1) : tout le monde voit la même vue globale. */
+  resolutionBase: ResolutionBase;
+  /** Mode d'affichage au lancement : « fenetre » (défaut) ou « pleine-ecran » (letterbox). */
+  modeDefaut: 'fenetre' | 'pleine-ecran';
+  /** DPR forcé (neutralisation du facteur d'échelle Windows) ; null = suivre le système. */
+  deviceScaleFactor: number | null;
 }
 
 export interface ResolveConfigInput {
@@ -96,7 +106,47 @@ export function validateConfig(parsed: unknown, env: string, serverUrlOverride?:
     oauthHosts: (c.oauthHosts as string[]).map((h) => h.toLowerCase()),
     csp: c.csp === true,
     devtools: c.devtools === true,
+    resolutionBase: parseResolutionBase(c.resolutionBase, env),
+    modeDefaut: parseModeDefaut(c.modeDefaut, env),
+    deviceScaleFactor: parseDeviceScaleFactor(c.deviceScaleFactor, env),
   };
+}
+
+/** Lit/valide `resolutionBase` — défaut 1280×720, valeurs invalides refusées. */
+function parseResolutionBase(v: unknown, env: string): ResolutionBase {
+  if (v === undefined) return { ...RESOLUTION_DEFAUT };
+  if (typeof v !== 'object' || v === null) {
+    throw new ConfigError(`Configuration « ${env} » : resolutionBase doit être un objet {largeur, hauteur}`);
+  }
+  const r = v as Record<string, unknown>;
+  for (const clé of ['largeur', 'hauteur'] as const) {
+    const n = r[clé];
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 320 || n > 8192) {
+      throw new ConfigError(
+        `Configuration « ${env} » : resolutionBase.${clé} doit être un entier entre 320 et 8192 (reçu ${String(n)})`,
+      );
+    }
+  }
+  return { largeur: r.largeur as number, hauteur: r.hauteur as number };
+}
+
+/** Lit/valide `modeDefaut` — défaut « fenetre ». */
+function parseModeDefaut(v: unknown, env: string): 'fenetre' | 'pleine-ecran' {
+  if (v === undefined) return 'fenetre';
+  if (v !== 'fenetre' && v !== 'pleine-ecran') {
+    throw new ConfigError(`Configuration « ${env} » : modeDefaut doit être « fenetre » ou « pleine-ecran » (reçu ${String(v)})`);
+  }
+  return v;
+}
+
+/** Lit/valide `deviceScaleFactor` — défaut 1 (rendu identique au pixel partout). */
+function parseDeviceScaleFactor(v: unknown, env: string): number | null {
+  if (v === undefined) return 1;
+  if (v === null) return null;
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) {
+    throw new ConfigError(`Configuration « ${env} » : deviceScaleFactor doit être un nombre > 0 ou null`);
+  }
+  return v;
 }
 
 /**
