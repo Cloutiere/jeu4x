@@ -549,8 +549,15 @@ def render_entity(name, w, h, painter):
         args.append(base)
     painter(*args)
     downscale(base, w, h).save(EXPORTS / f"{name}.png")
-    white = Image.new("RGBA", accent.size, (255, 255, 255, 255))
-    accent.paste(white, (0, 0), accent.getchannel("A"))
+    # calque accent « blanc teintable » : tout pixel clair est normalisé en
+    # blanc pur (alpha conservé) ; les traits d'ENCRE sombre (détails internes
+    # destinés à survivre à la teinte multiplicative) gardent leur couleur.
+    px = accent.load()
+    for yy in range(accent.height):
+        for xx in range(accent.width):
+            r, g, b, a = px[xx, yy]
+            if a > 0 and (r + g + b) / 3 >= 140:
+                px[xx, yy] = (255, 255, 255, a)
     downscale(accent, w, h).save(EXPORTS / f"{name}_accent.png")
 
 
@@ -671,8 +678,12 @@ def unite_guerrier(db, da, w, h, img=None):
     db.ellipse((cx - 78, g - 120, cx - 30, g - 72), outline="#7E7E86", width=3)
     db.ellipse((cx - 66, g - 108, cx - 42, g - 84), fill="#7E7E86")
     da.ellipse(sb, fill="#FFFFFF")
-    da.ellipse((cx - 78, g - 120, cx - 30, g - 72), outline="#E0E0E0", width=3)
-    da.ellipse((cx - 66, g - 108, cx - 42, g - 84), fill="#E0E0E0")
+    # mêmes détails que le bouclier de la base (liseré, anneau, umbo), en GRIS
+    # (assorti au modelé de la base) : assez sombre pour survivre à la teinte.
+    GRIS_BOUCLIER = "#6E6E74"
+    da.ellipse(sb, outline=GRIS_BOUCLIER, width=3)
+    da.ellipse((cx - 78, g - 120, cx - 30, g - 72), outline=GRIS_BOUCLIER, width=3)
+    da.ellipse((cx - 66, g - 108, cx - 42, g - 84), fill=GRIS_BOUCLIER)
 
     # ---- modelés (voiles doux bornés aux pixels peints de la base)
     if img is not None:
@@ -724,6 +735,12 @@ def unite_colon(db, da, w, h, img=None):
             (cx - 6, g - 172), (cx - 12, g - 156)]
     db.smooth_poly(hood, fill="#6E6A62")
     da.smooth_poly(hood, fill="#FFFFFF")
+    # détails accent en GRIS (assortis à la base) : pourtour de l'ouverture
+    # du visage, rabat du sac, douves + cerclages du baril.
+    GRIS_BOUCLIER = "#6E6E74"
+    da.smooth_line([(cx + 20, g - 168), (cx + 6, g - 176),
+                    (cx - 6, g - 172), (cx - 12, g - 156)],
+                   GRIS_BOUCLIER, 2.5)
     # bras poussant + main
     db.taper([(cx + 18, g - 122), (cx + 34, g - 114), (cx + 48, g - 106)],
              14, 11, "#8E8A80")
@@ -741,6 +758,8 @@ def unite_colon(db, da, w, h, img=None):
                     (cx - 30, g - 122)], fill="#8A6F4A")
     db.smooth_line([(cx - 22, g - 132), (cx - 4, g - 146)], "#6B5230", 4)
     da.smooth_poly(sack, fill="#FFFFFF")
+    da.smooth_poly([(cx - 30, g - 134), (cx - 8, g - 128), (cx - 14, g - 118),
+                    (cx - 30, g - 122)], fill=GRIS_BOUCLIER)
     # ---- charrette
     ax, ay = 186, g - 46
     db.smooth_poly([(ax - 52, ay - 30), (ax + 48, ay - 30),
@@ -771,6 +790,11 @@ def unite_colon(db, da, w, h, img=None):
     db.rrect((ax - 34, ay - 56, ax + 10, ay - 50), 2, fill="#5E4630")
     db.rrect((ax - 34, ay - 42, ax + 10, ay - 36), 2, fill="#5E4630")
     da.rrect(baril, 6, fill="#FFFFFF")
+    for sx in (-22, -10, 2):
+        da.line([(ax + sx, ay - 60), (ax + sx, ay - 30)], fill=GRIS_BOUCLIER,
+                width=1.6)
+    da.rrect((ax - 34, ay - 56, ax + 10, ay - 50), 2, fill=GRIS_BOUCLIER)
+    da.rrect((ax - 34, ay - 42, ax + 10, ay - 36), 2, fill=GRIS_BOUCLIER)
 
     # ---- modelés (voiles doux bornés aux pixels peints de la base)
     if img is not None:
@@ -943,132 +967,354 @@ def batiment_tribunal(db, da, w, h):
 
 
 
-def unite_archer(db, da, w, h):
-    """256x320, arc bande + carquois (carquois = accent), silhouette elancee."""
-    cx, ground = 120, 300
-    shadow(db, cx, ground + 4, 46)
-    # jambes fines
-    db.rrect((cx - 20, ground - 60, cx - 4, ground), 7, fill="#5E4E3A")
-    db.rrect((cx + 4, ground - 60, cx + 20, ground), 7, fill="#5E4E3A")
-    # tunique courte verte
-    db.poly([(cx - 28, ground - 122), (cx + 28, ground - 122), (cx + 34, ground - 58),
-             (cx - 34, ground - 58)], fill=FORET_1)
-    db.poly([(cx - 28, ground - 122), (cx - 8, ground - 122), (cx - 18, ground - 58),
-             (cx - 34, ground - 58)], fill=FORET_2)
-    db.rrect((cx - 32, ground - 76, cx + 32, ground - 68), 3, fill="#6B5230")
-    # tete + capuche de chasse
-    db.ellipse((cx - 16, ground - 158, cx + 16, ground - 126), fill="#B99B7E")
-    db.pieslice((cx - 18, ground - 164, cx + 18, ground - 132), 180, 360, fill=FORET_2)
-    _gp_yeux(db, cx, ground - 147)
-    # bras tendant l'arc (gauche, main sur la poignée) + arc
-    _gp_bras(db, [(cx - 20, ground - 118), (cx - 56, ground - 124)], FORET_1)
-    bow = [(cx - 62, ground - 160), (cx - 74, ground - 124), (cx - 62, ground - 88)]
+def unite_archer(db, da, w, h, img=None):
+    """256x320 — archer au standard « board-game enrichi » : silhouettes
+    lissées (Catmull-Rom), membres fuselés, modelés radiaux. Arc bande +
+    carquois ; le carquois seul porte le calque accent (blanc, teinte joueur
+    à la volée) avec liseré, rayures et tiges de flèches en GRIS."""
+    cx, g = 120, 300
+    shadow(db, cx, g + 4, 46)
+    CUIR, CUIR_SOMBRE = "#5E4E3A", "#3E342A"
+
+    # jambes fuselées + bottes hautes de chasse
+    for sx in (-1, 1):
+        lx = cx + sx * 13
+        db.taper([(lx, g - 60), (lx + sx * 2, g - 32), (lx + sx * 3, g - 8)],
+                 14, 10, CUIR)
+        db.rrect((lx + sx * 3 - 10, g - 12, lx + sx * 3 + 10, g + 2), 4,
+                 fill=CUIR_SOMBRE)
+        db.rrect((lx + sx * 3 - 10, g - 24, lx + sx * 3 + 10, g - 16), 3,
+                 fill="#6B5230")
+
+    # tunique courte verte cintrée (pan éclairé à gauche) + franges d'ourlet
+    db.smooth_poly([(cx - 22, g - 122), (cx + 22, g - 122),
+                    (cx + 27, g - 88), (cx + 23, g - 56),
+                    (cx - 23, g - 56), (cx - 27, g - 88)],
+                   fill=FORET_1)
+    db.smooth_poly([(cx - 22, g - 122), (cx - 4, g - 122),
+                    (cx - 12, g - 56), (cx - 23, g - 56), (cx - 27, g - 88)],
+                   fill=FORET_2)
+    for fx in (-18, -6, 6, 18):
+        db.poly([(cx + fx - 4, g - 56), (cx + fx + 4, g - 56),
+                 (cx + fx, g - 47)], fill="#374E2C")
+    db.rrect((cx - 24, g - 76, cx + 24, g - 68), 3, fill="#6B5230")
+
+    # tête + capuche de chasse (visage complet : sourcils, yeux, nez, bouche)
+    db.ellipse((cx - 16, g - 158, cx + 16, g - 126), fill="#B99B7E")
+    for ex in (-7, 7):
+        db.ellipse((cx + ex - 2.2, g - 148, cx + ex + 2.2, g - 144), fill=INK)
+        db.line([(cx + ex - 3.4, g - 151), (cx + ex + 3.4, g - 149.5)],
+                fill="#4E5E38", width=2.2)
+    db.line([(cx, g - 148), (cx - 1, g - 141)], fill="#9A7E62", width=2.2)
+    db.smooth_line([(cx - 4, g - 135), (cx, g - 136), (cx + 4, g - 135)],
+                   "#5E4632", 2.2)
+    db.pieslice((cx - 18, g - 164, cx + 18, g - 132), 180, 360, fill=FORET_2)
+    # pointe de capuche retombant sur la nuque
+    db.smooth_poly([(cx + 12, g - 156), (cx + 20, g - 144),
+                    (cx + 14, g - 132)], fill=FORET_2)
+
+    # pose de tir réelle : bras d'arc tendu (main au milieu de la branche),
+    # bras de tir plié (main à la joue sur la corde), corde en V, flèche
+    # encochée posée sur la main d'arc.
+    db.taper([(cx - 16, g - 116), (cx - 34, g - 122), (cx - 44, g - 130)],
+             11, 9, FORET_1)
+    db.ellipse((cx - 50, g - 138, cx - 38, g - 126), fill="#B99B7E")  # main d'arc
+    bow = [(cx - 44, g - 164), (cx - 58, g - 132),
+           (cx - 44, g - 100)]  # branche bombée vers la cible
     db.line(bow, fill=BOIS, width=6)
-    db.line([(cx - 62, ground - 160), (cx - 48, ground - 124), (cx - 62, ground - 88)],
-            fill=SABLE, width=2)
-    db.line([(cx - 70, ground - 124), (cx - 40, ground - 124)], fill=BOIS, width=4)
-    # bras tirant la corde (droite, main sur l'encoche de la flèche)
-    _gp_bras(db, [(cx + 20, ground - 112), (cx - 40, ground - 124)], FORET_1)
-    # carquois = accent
-    quiver = (cx + 28, ground - 158, cx + 52, ground - 100)
+    db.line([(cx - 44, g - 164), (cx - 52, g - 132),
+             (cx - 44, g - 100)], fill=SABLE, width=2)
+    # bras de tir plié, main à hauteur de la flèche
+    db.taper([(cx + 16, g - 112), (cx + 12, g - 124), (cx + 6, g - 132)],
+             11, 9, FORET_1)
+    db.ellipse((cx + 2, g - 138, cx + 14, g - 126), fill="#B99B7E")  # main de corde
+    # corde en V (tendue jusqu'à la main de tir) + flèche horizontale
+    # centrée dans l'arc, à la hauteur de la main d'arc
+    db.line([(cx - 44, g - 164), (cx + 8, g - 132)], fill=SABLE, width=2)
+    db.line([(cx + 8, g - 132), (cx - 44, g - 100)], fill=SABLE, width=2)
+    db.line([(cx + 6, g - 132), (cx - 62, g - 132)], fill=BOIS, width=2.5)
+    db.poly([(cx - 62, g - 135), (cx - 68, g - 132), (cx - 62, g - 129)],
+            fill=GRIS_ARMURE)  # pointe de flèche
+
+    # carquois = accent (haut du carquois au niveau des épaules)
+    quiver = (cx + 30, g - 138, cx + 54, g - 84)
     db.rrect(quiver, 6, fill="#7E6A48", outline=INK, width=2)
     for dx, dy in ((-6, 0), (2, -8), (10, -4)):
-        db.line([(cx + 36 + dx, ground - 156 + dy), (cx + 36 + dx, ground - 176 + dy)],
+        db.line([(cx + 38 + dx, g - 136 + dy), (cx + 38 + dx, g - 154 + dy)],
                 fill=SABLE, width=3)
     da.rrect(quiver, 6, fill="#FFFFFF")
+    # détails accent en GRIS : liseré, rayures horizontales, tiges des flèches.
+    GRIS_BOUCLIER = "#6E6E74"
+    da.rrect(quiver, 6, outline=GRIS_BOUCLIER, width=2)
+    for sy in (g - 128, g - 112, g - 96):
+        da.line([(cx + 32, sy), (cx + 52, sy)], fill=GRIS_BOUCLIER, width=2)
+    for dx, dy in ((-6, 0), (2, -8), (10, -4)):
+        da.line([(cx + 38 + dx, g - 136 + dy), (cx + 38 + dx, g - 154 + dy)],
+                fill=GRIS_BOUCLIER, width=3)
+
+    # ---- modelés (voiles doux bornés aux pixels peints de la base)
+    if img is not None:
+        radial(img, cx - 8, g - 150, 14, (255, 255, 255), 45)   # visage
+        radial(img, cx + 2, g - 92, 24, (255, 255, 255), 16)    # torse
+        radial(img, cx + 22, g - 64, 20, (20, 20, 30), 40)      # flanc ombre
+        unit_shading(img, cx, g - 166, g - 36, strength=18)
 
 
-def unite_cavalier(db, da, w, h):
-    """256x320, cheval au pas + cavalier (caparacon = accent), silhouette large."""
-    cx, ground = 128, 296
-    shadow(db, cx, ground + 6, 84)
-    # ---- cheval (corps)
-    body = [(48, ground - 118), (200, ground - 118), (212, ground - 78),
-            (192, ground - 58), (60, ground - 58), (40, ground - 80)]
-    db.poly(body, fill="#8A5A34")
-    db.poly([(48, ground - 118), (130, ground - 118), (124, ground - 58),
-             (60, ground - 58), (40, ground - 80)], fill="#A06A40")
-    # jambes du cheval
-    for x in (56, 92, 148, 182):
-        db.rrect((x, ground - 62, x + 14, ground), 5, fill="#6E4626")
-    # tete + encolure
-    db.poly([(182, ground - 126), (214, ground - 118), (218, ground - 84),
-             (188, ground - 88)], fill="#8A5A34")
-    db.ellipse((208, ground - 118, 244, ground - 86), fill="#8A5A34")
-    db.poly([(214, ground - 118), (224, ground - 132), (232, ground - 116)],
-            fill="#8A5A34")
-    db.ellipse((226, ground - 108, 236, ground - 98), fill="#2B2620")
-    mane = [(178, ground - 132), (196, ground - 116), (188, ground - 88), (172, ground - 104)]
-    db.poly(mane, fill="#4E3822")
-    # queue
-    db.line([(44, ground - 100), (24, ground - 66)], fill="#4E3822", width=7)
-    # ---- cavalier
-    rider = 92
-    db.rrect((rider + 8, ground - 96, rider + 24, ground - 58), 6, fill="#5E4E3A")
-    db.poly([(rider - 14, ground - 190), (rider + 22, ground - 190),
-             (rider + 30, ground - 108), (rider - 22, ground - 108)], fill=GRIS_ARMURE)
-    db.poly([(rider - 14, ground - 190), (rider + 2, ground - 190),
-             (rider - 8, ground - 108), (rider - 22, ground - 108)], fill="#B4B4BA")
-    # cou (la tête ne flotte plus)
-    db.rrect((rider + 2, ground - 202, rider + 14, ground - 186), 3,
-             fill="#B99B7E", outline=INK, width=1.5)
-    db.ellipse((rider - 8, ground - 222, rider + 22, ground - 192), fill="#B99B7E", outline=INK, width=1.5)
-    db.pieslice((rider - 10, ground - 228, rider + 24, ground - 196), 180, 360,
+def unite_cavalier(db, da, w, h, img=None):
+    """256x320 — cavalier au standard « board-game enrichi » : cheval au pas,
+    cavalier centré sur la selle (jambes visibles aux étriers, selle à
+    pommeau et troussequin), épée levée. Le caparaçon sur le flanc porte le
+    calque accent (blanc, teinte joueur à la volée) avec liseré en GRIS."""
+    cx, g = 128, 296
+    CUIR, CUIR_SOMBRE = "#6B4A2A", "#3E342A"
+    GRIS_BOUCLIER = "#6E6E74"
+    shadow(db, cx, g + 6, 84)
+
+    # ---- cheval : corps lissé, jambes aux sabots, encolure, tête
+    body = [(48, g - 118), (200, g - 118), (214, g - 80),
+            (194, g - 58), (62, g - 58), (40, g - 82)]
+    db.smooth_poly(body, fill="#8A5A34")
+    db.smooth_poly([(48, g - 118), (130, g - 118), (124, g - 58),
+                    (62, g - 58), (40, g - 82)], fill="#A06A40")
+    # jambes en marche : membres du côté lointain verticaux (portent, plus
+    # sombres), postérieur proche en poussée vers l'arrière, antérieur proche
+    # tendu vers l'avant — sabots posés au sol
+    FAR, NEAR = "#5A3A20", "#6E4626"
+    ART_FAR, ART_NEAR = "#66422C", "#7E5432"
+    # côté lointain (portent) : genou en avant au membre antérieur,
+    # jarret en arrière au postérieur — plis marqués comme les proches
+    db.taper([(94, g - 60), (84, g - 42), (94, g - 8)], 12, 9, FAR)
+    db.rrect((88, g - 10, 100, g + 2), 3, fill="#3E342A")
+    db.ellipse((78, g - 48, 90, g - 36), fill=ART_FAR)
+    db.taper([(170, g - 60), (180, g - 44), (172, g - 8)], 12, 9, FAR)
+    db.rrect((166, g - 10, 178, g + 2), 3, fill="#3E342A")
+    db.ellipse((174, g - 50, 186, g - 38), fill=ART_FAR)
+    # côté proche : postérieur en poussée, antérieur tendu, plis marqués
+    db.taper([(70, g - 60), (46, g - 40), (30, g - 8)], 13, 9, NEAR)
+    db.rrect((20, g - 12, 34, g), 3, fill="#3E342A")
+    db.taper([(186, g - 60), (206, g - 46), (212, g - 8)], 13, 9, NEAR)
+    db.rrect((206, g - 12, 220, g), 3, fill="#3E342A")
+    # articulations marquées : genou (avant) et jarret (arrière)
+    db.ellipse((40, g - 46, 54, g - 34), fill=ART_NEAR)
+    db.ellipse((199, g - 52, 213, g - 40), fill=ART_NEAR)
+    db.smooth_poly([(180, g - 124), (208, g - 154), (214, g - 130),
+                    (196, g - 100)], fill="#8A5A34")  # encolure dressée
+    # tête haute, profilée : front, chanfrein, museau, mâchoire
+    db.smooth_poly([(204, g - 154), (216, g - 158), (234, g - 148),
+                    (246, g - 134), (248, g - 124), (240, g - 114),
+                    (226, g - 114), (212, g - 124), (202, g - 136)],
+                   fill="#8A5A34")
+    # museau plus sombre + naseau + bouche
+    db.smooth_poly([(232, g - 140), (246, g - 134), (248, g - 124),
+                    (240, g - 114), (230, g - 116), (232, g - 128)],
+                   fill="#7A4E2C")
+    db.ellipse((236, g - 126, 241, g - 121), fill="#3E342A")   # naseau
+    db.line([(236, g - 116), (222, g - 118)], fill="#3E342A", width=1.5)  # bouche
+    # oreilles (deux, avec intérieur)
+    db.poly([(208, g - 150), (212, g - 166), (220, g - 150)], fill="#8A5A34")
+    db.poly([(210, g - 151), (212, g - 161), (217, g - 150)], fill="#4E3822")
+    db.poly([(220, g - 150), (226, g - 164), (230, g - 148)], fill="#8A5A34")
+    db.poly([(222, g - 149), (225, g - 159), (227, g - 148)], fill="#4E3822")
+    # œil avec reflet
+    db.ellipse((220, g - 138, 228, g - 131), fill="#2B2620")
+    db.ellipse((222, g - 137, 225, g - 134), fill="#C9C2B4")
+    # crinière à scallops le long de l'encolure + toupet
+    db.smooth_poly([(176, g - 126), (188, g - 136), (180, g - 116),
+                    (192, g - 106), (184, g - 96), (196, g - 88),
+                    (186, g - 90), (168, g - 108)], fill="#4E3822")
+    db.smooth_poly([(198, g - 154), (212, g - 156), (204, g - 144)],
+                   fill="#4E3822")
+    # bridon : nasal + montant + mors, et rêne vers la main du cavalier
+    db.line([(214, g - 152), (232, g - 122)], fill=CUIR_SOMBRE, width=2)
+    db.line([(234, g - 132), (248, g - 126)], fill=CUIR_SOMBRE, width=2.5)
+    db.line([(206, g - 150), (200, g - 130)], fill=CUIR_SOMBRE, width=2)
+    db.line([(232, g - 114), (196, g - 122), (116, g - 146)],
+            fill=CUIR_SOMBRE, width=2)  # rêne
+    db.line([(44, g - 100), (24, g - 66)], fill="#4E3822", width=7)  # queue
+
+    # ---- caparaçon = accent : DEUX panneaux latéraux sculptés — l'arrière
+    # remonte au ras du troussequin et épouse la jambe ; l'avant s'insère
+    # entre la jambe et l'épaule du cheval, sans recouvrir le pied.
+    capar_arriere = [(84, g - 108), (120, g - 108), (136, g - 92),
+                     (134, g - 58), (104, g - 58), (92, g - 84)]
+    capar_avant = [(156, g - 104), (188, g - 104), (188, g - 84),
+                   (176, g - 58), (162, g - 58), (156, g - 88)]
+    for panneau in (capar_arriere, capar_avant):
+        db.poly(panneau, fill=GRIS_NEUTRE, outline=INK, width=2)
+        da.poly(panneau, fill="#FFFFFF")
+        da.poly(panneau, outline=GRIS_BOUCLIER, width=2.5)
+    da.line([(90, g - 98), (118, g - 98)], fill=GRIS_BOUCLIER, width=2.5)
+    da.line([(162, g - 96), (184, g - 96)], fill=GRIS_BOUCLIER, width=2.5)
+
+    # ---- selle à pommeau et troussequin, posée bien au centre du dos
+    db.smooth_poly([(cx - 30, g - 118), (cx + 30, g - 118),
+                    (cx + 26, g - 96), (cx - 26, g - 96)], fill=CUIR)
+    db.smooth_poly([(cx - 30, g - 118), (cx - 4, g - 118),
+                    (cx - 6, g - 96), (cx - 26, g - 96)], fill="#7E5A34")
+    db.ellipse((cx + 22, g - 130, cx + 36, g - 114), fill=CUIR,
+               outline=CUIR_SOMBRE, width=2)       # pommeau (avant)
+    db.rrect((cx - 32, g - 126, cx - 20, g - 108), 4, fill=CUIR,
+             outline=CUIR_SOMBRE, width=2)         # troussequin (arrière)
+    db.rrect((cx - 28, g - 100, cx + 28, g - 92), 3, fill=CUIR_SOMBRE)
+    for sx in (-20, 20):                           # sangles de selle
+        db.line([(cx + sx, g - 96), (cx + sx, g - 80)], fill=CUIR_SOMBRE, width=3)
+
+    # ---- cavalier : centré sur la selle, jambes visibles aux étriers
+    rider = cx
+    # jambe proche (genou plié, pied à l'étrier) + jambe lointaine
+    for dx, teinte in ((4, "#5E4E3A"), (-6, "#4E4234")):
+        db.taper([(rider + dx, g - 112), (rider + dx + 16, g - 96),
+                  (rider + dx + 18, g - 66)], 12, 9, teinte)
+        db.rrect((rider + dx + 12, g - 70, rider + dx + 26, g - 58), 4,
+                 fill=CUIR_SOMBRE)                 # pied / étrier
+        db.line([(rider + dx + 19, g - 88), (rider + dx + 19, g - 64)],
+                fill=CUIR_SOMBRE, width=2.5)       # sangle d'étrier
+    # torse cintré assis (pan éclairé à gauche)
+    db.smooth_poly([(rider - 16, g - 188), (rider + 16, g - 188),
+                    (rider + 20, g - 150), (rider + 14, g - 112),
+                    (rider - 14, g - 112), (rider - 20, g - 150)],
+                   fill=GRIS_NEUTRE)
+    db.smooth_poly([(rider - 16, g - 188), (rider - 3, g - 188),
+                    (rider - 9, g - 112), (rider - 14, g - 112),
+                    (rider - 20, g - 150)], fill="#CBC7BE")
+    # ceinture
+    db.rrect((rider - 17, g - 128, rider + 17, g - 121), 2, fill="#6B5230")
+    # tête de profil, tournée vers l'avant du cheval (à droite)
+    db.ellipse((rider - 13, g - 212, rider + 15, g - 184), fill="#B99B7E")
+    for ex in (3, 10):  # yeux rapprochés du bord avant (profil)
+        db.ellipse((rider + ex - 2, g - 203, rider + ex + 2, g - 199), fill=INK)
+    db.poly([(rider + 13, g - 206), (rider + 17, g - 202),
+             (rider + 13, g - 198)], fill="#B99B7E")   # nez de profil
+    db.line([(rider + 15, g - 202), (rider + 14, g - 200)],
+            fill="#9A7E62", width=1.8)
+    db.line([(rider + 7, g - 192), (rider + 13, g - 193)],
+            fill="#5E4632", width=2)                    # bouche
+    db.pieslice((rider - 15, g - 218, rider + 17, g - 188), 180, 360,
                 fill=GRIS_ARMURE)
-    _gp_yeux(db, rider + 7, ground - 208)
-    db.line([(rider + 3, ground - 198), (rider + 11, ground - 198)], fill=INK, width=1.5)
-    # bras tenant la lance (contourné)
-    _gp_bras(db, [(rider + 24, ground - 172), (rider + 56, ground - 158)], GRIS_ARMURE)
-    db.line([(rider + 54, ground - 160), (rider + 58, ground - 232)], fill=BOIS, width=5)
-    db.poly([(rider + 52, ground - 232), (rider + 84, ground - 226), (rider + 56, ground - 214)],
-            fill=ROUGE_JOUEUR)
-    # caparacon sur le flanc = accent
-    capar = [(96, ground - 116), (176, ground - 116), (188, ground - 76),
-             (160, ground - 58), (100, ground - 58), (84, ground - 84)]
-    db.poly(capar, fill=GRIS_NEUTRE, outline=INK, width=2)
-    da.poly(capar, fill="#FFFFFF")
+    # bras gauche (côté visible) : épée levée au ciel, lame vers le haut
+    db.taper([(rider + 12, g - 184), (rider + 24, g - 194), (rider + 32, g - 200)],
+             11, 9, GRIS_NEUTRE)
+    db.ellipse((rider + 28, g - 210, rider + 40, g - 198), fill="#B99B7E")
+    db.rrect((rider + 26, g - 216, rider + 42, g - 208), 2, fill=OR,
+             outline=OR_SOMBRE, width=1.5)
+    db.taper([(rider + 34, g - 208), (rider + 37, g - 230), (rider + 39, g - 252)],
+             5, 2.5, GRIS_ARMURE)
+    # bras droit (côté opposé, tenu bas, rêne)
+    db.taper([(rider - 14, g - 180), (rider - 24, g - 164), (rider - 18, g - 148)],
+             11, 9, GRIS_NEUTRE)
+    db.ellipse((rider - 24, g - 152, rider - 12, g - 140), fill="#B99B7E")
+
+    # ---- modelés (voiles doux bornés aux pixels peints de la base)
+    if img is not None:
+        radial(img, 96, g - 92, 30, (255, 255, 255), 26)     # garrot du cheval
+        radial(img, 180, g - 66, 26, (20, 20, 30), 34)       # flanc arrière ombre
+        radial(img, rider - 4, g - 158, 18, (255, 255, 255), 26)  # torse
+        radial(img, rider + 4, g - 200, 12, (255, 255, 255), 40)  # casque
+        unit_shading(img, rider, g - 224, g - 12, strength=16)
 
 
-def unite_legion(db, da, w, h):
-    """256x320, legionnaire romain : glaive + scutum rectangulaire (scutum =
-    accent), casque a crete."""
-    cx, ground = 120, 300
-    shadow(db, cx, ground + 4, 52)
-    # jambes en caligae
-    db.rrect((cx - 24, ground - 58, cx - 6, ground), 7, fill="#B99B7E")
-    db.rrect((cx + 6, ground - 58, cx + 24, ground), 7, fill="#B99B7E")
-    # tunique rouge + segmentata
-    db.poly([(cx - 30, ground - 128), (cx + 30, ground - 128), (cx + 36, ground - 54),
-             (cx - 36, ground - 54)], fill=ROUGE_JOUEUR)
-    db.poly([(cx - 30, ground - 128), (cx - 10, ground - 128), (cx - 20, ground - 54),
-             (cx - 36, ground - 54)], fill="#C24545")
-    _gp_carrure(db, cx, ground - 128, 30, "#C24545")
-    for y in (ground - 118, ground - 104, ground - 90):
-        db.rrect((cx - 28, y, cx + 28, y + 8), 2, fill=GRIS_ARMURE)
-    db.rrect((cx - 32, ground - 84, cx + 32, ground - 76), 3, fill="#6B5230")
-    # cou + tete + casque a crete
-    db.rrect((cx - 6, ground - 146, cx + 6, ground - 124), 3, fill="#B99B7E",
-             outline=INK, width=1.5)
-    db.ellipse((cx - 16, ground - 164, cx + 16, ground - 132), fill="#B99B7E")
-    db.pieslice((cx - 19, ground - 170, cx + 19, ground - 138), 180, 360, fill=GRIS_ARMURE)
-    _gp_yeux(db, cx, ground - 150)
-    db.line([(cx - 5, ground - 140), (cx + 5, ground - 140)], fill=INK, width=1.5)
-    crest = [(cx - 3, ground - 172), (cx + 3, ground - 172), (cx + 5, ground - 196),
-             (cx - 5, ground - 196)]
-    db.poly(crest, fill=ROUGE_JOUEUR, outline=INK, width=1)
-    # bras droit : glaive levé, poing sur la poignée
-    _gp_bras(db, [(cx + 24, ground - 116), (cx + 48, ground - 148)], "#C24545")
-    db.line([(cx + 44, ground - 152), (cx + 52, ground - 196)], fill=GRIS_ARMURE, width=6)
-    db.rrect((cx + 42, ground - 156, cx + 56, ground - 148), 2, fill=OR)
-    db.ellipse((cx + 42, ground - 154, cx + 54, ground - 142), fill="#B99B7E",
+def unite_legion(db, da, w, h, img=None):
+    """256x320 — légionnaire romain au standard « board-game enrichi » :
+    silhouettes lissées (Catmull-Rom), membres fuselés, modelés radiaux.
+    Glaive + scutum rectangulaire ; le scutum seul porte le calque accent
+    (blanc, teinte joueur à la volée) avec bord, liseré et umbo en GRIS.
+    Tunique et crête neutres : l'accent porte la couleur du joueur."""
+    cx, g = 120, 300
+    shadow(db, cx, g + 4, 52)
+    CUIR_SOMBRE = "#3E342A"
+    GRIS_BOUCLIER = "#6E6E74"
+
+    # jambes fuselées (stance écartée, pieds vers l'extérieur) + mollets
+    # musclés + caligae à lanières
+    for sx in (-1, 1):
+        lx = cx + sx * 19
+        db.ellipse((lx - 8, g - 52, lx + 8, g - 34), fill="#A08770")  # mollet
+        db.taper([(lx - sx * 3, g - 62), (lx + sx * 1, g - 34),
+                  (lx + sx * 4, g - 10)], 16, 12, "#B99B7E")
+        db.rrect((lx + sx * 4 - 12, g - 12, lx + sx * 4 + 12, g + 2), 4,
+                 fill=CUIR_SOMBRE)
+        for bx in (-7, 0, 7):
+            db.line([(lx + sx * 4 + bx, g - 34), (lx + sx * 4 + bx + sx * 3, g - 14)],
+                    fill="#8A7458", width=2)
+
+    # tunique neutre plus cintrée (V musclé : épaules larges, taille fine)
+    db.smooth_poly([(cx - 27, g - 132), (cx + 27, g - 132),
+                    (cx + 31, g - 100), (cx + 24, g - 56),
+                    (cx - 24, g - 56), (cx - 31, g - 100)],
+                   fill=GRIS_NEUTRE)
+    db.smooth_poly([(cx - 27, g - 132), (cx - 5, g - 132),
+                    (cx - 13, g - 56), (cx - 24, g - 56), (cx - 31, g - 100)],
+                   fill="#CBC7BE")
+    for fx in (-21, -7, 7, 21):
+        db.poly([(cx + fx - 5, g - 56), (cx + fx + 5, g - 56),
+                 (cx + fx, g - 46)], fill="#7A766C")
+    # épaulières (carrure) + segmentata : lames horizontales + ceinture cloutée
+    for sx in (-1, 1):
+        db.smooth_poly([(cx + sx * 18, g - 134), (cx + sx * 32, g - 128),
+                        (cx + sx * 30, g - 116), (cx + sx * 16, g - 120)],
+                       fill=GRIS_ARMURE)
+    for y in (g - 116, g - 102, g - 88):
+        db.rrect((cx - 24, y, cx + 24, y + 8), 2, fill=GRIS_ARMURE,
+                 outline="#7E7E86", width=1)
+    db.rrect((cx - 27, g - 82, cx + 27, g - 74), 3, fill="#6B5230")
+    for fx in (-19, 0, 19):
+        db.ellipse((cx + fx - 1.6, g - 81, cx + fx + 1.6, g - 75),
+                   fill="#4A3A22")
+
+    # tête + casque à jugulaires, crête neutre
+    db.ellipse((cx - 16, g - 170, cx + 16, g - 136), fill="#B99B7E")
+    for ex in (-6, 6):
+        db.ellipse((cx + ex - 2.2, g - 156, cx + ex + 2.2, g - 152), fill=INK)
+        db.line([(cx + ex - 3.4, g - 159), (cx + ex + 3.4, g - 157.5)],
+                fill="#6E563E", width=2.2)
+    db.line([(cx, g - 156), (cx - 1, g - 149)], fill="#9A7E62", width=2.2)
+    db.smooth_line([(cx - 5, g - 143), (cx, g - 144), (cx + 5, g - 143)],
+                   "#5E4632", 2.2)
+    db.pieslice((cx - 19, g - 176, cx + 19, g - 142), 180, 360, fill=GRIS_ARMURE)
+    db.rrect((cx - 19, g - 160, cx + 19, g - 154), 2, fill="#7E7E86")
+    # jugulaires (joues)
+    for sx in (-1, 1):
+        db.poly([(cx + sx * 16, g - 162), (cx + sx * 20, g - 150),
+                 (cx + sx * 14, g - 146)], fill=GRIS_ARMURE)
+    crest = [(cx - 5, g - 174), (cx + 5, g - 174), (cx + 7, g - 200),
+             (cx - 7, g - 200)]
+    db.smooth_poly(crest, fill="#8A8A92")
+
+    # bras droit : glaive levé (lame fuselée + garde dorée)
+    db.taper([(cx + 22, g - 116), (cx + 38, g - 138), (cx + 46, g - 152)],
+             13, 10, GRIS_NEUTRE)
+    db.rrect((cx + 42, g - 156, cx + 56, g - 148), 2, fill=OR,
+             outline=OR_SOMBRE, width=1.5)
+    db.taper([(cx + 47, g - 152), (cx + 50, g - 176), (cx + 52, g - 198)],
+             5, 2.5, GRIS_ARMURE)
+    db.ellipse((cx + 42, g - 154, cx + 54, g - 142), fill="#B99B7E",
                outline=INK, width=1.5)
+
     # bras gauche (vers le scutum)
-    _gp_bras(db, [(cx - 24, ground - 116), (cx - 44, ground - 100)], "#C24545")
-    # scutum rectangulaire = accent
-    scut = (cx - 84, ground - 138, cx - 20, ground - 44)
+    db.taper([(cx - 22, g - 116), (cx - 38, g - 104), (cx - 48, g - 94)],
+             13, 10, GRIS_NEUTRE)
+
+    # scutum = accent : fond blanc + bord, liseré, umbo en GRIS (survit à
+    # toute teinte joueur) — les mêmes détails que le guerrier.
+    # scutum = accent : peint en double (base grise pour la vignette/réf,
+    # calque blanc + détails GRIS pour la teinte joueur).
+    scut = (cx - 84, g - 138, cx - 20, g - 44)
     db.rrect(scut, 10, fill=GRIS_ARMURE, outline=INK, width=3)
-    db.rrect((cx - 76, ground - 130, cx - 28, ground - 52), 8, outline=OR, width=3)
-    db.ellipse((cx - 58, ground - 104, cx - 46, ground - 92), fill=OR)
+    db.rrect((cx - 76, g - 130, cx - 28, g - 52), 8, outline="#7E7E86", width=3)
+    db.ellipse((cx - 58, g - 104, cx - 46, g - 92), fill="#7E7E86")
+    da.rrect(scut, 10, fill="#FFFFFF")
+    da.rrect(scut, 10, outline=GRIS_BOUCLIER, width=3)
+    da.rrect((cx - 76, g - 130, cx - 28, g - 52), 8, outline=GRIS_BOUCLIER,
+             width=3)
+    da.ellipse((cx - 58, g - 104, cx - 46, g - 92), fill=GRIS_BOUCLIER)
+
+    # ---- modelés (voiles doux bornés aux pixels peints de la base)
+    if img is not None:
+        radial(img, cx - 8, g - 168, 16, (255, 255, 255), 70)   # casque
+        radial(img, cx + 2, g - 102, 26, (255, 255, 255), 18)   # torse
+        radial(img, cx + 30, g - 68, 24, (20, 20, 30), 44)      # flanc ombre
+        radial(img, cx + 50, g - 190, 12, (255, 255, 255), 55)  # lame
+        unit_shading(img, cx, g - 182, g - 40, strength=18)
 # ------------------------------------------------- barbares (décision Erik 12/09)
 # AUCUNE teinte d'accent pour les barbares : le rouge est CUIT dans la base
 # (convention Civ). Les calques accent de ces trois assets restent vides.
@@ -1540,63 +1786,160 @@ def unite_catapulte(db, da, w, h):
     db.ellipse((178, ground - 112, 200, ground - 92), fill=MONTAGNE_1, outline=INK, width=1)
 
 
-def unite_chevalier(db, da, w, h):
-    """256x320, cavalier lourd : destrier bardé de plates (barding = accent),
-    chevalier en heaume fermé, lance au repos."""
-    cx, ground = 128, 296
-    shadow(db, cx, ground + 6, 84)
-    # ---- destrier : robe brune visible, plaques d'armure par-dessus
-    body = [(48, ground - 118), (200, ground - 118), (212, ground - 78),
-            (192, ground - 58), (60, ground - 58), (40, ground - 80)]
-    db.poly(body, fill="#8A5A34")
-    db.poly([(48, ground - 118), (130, ground - 118), (124, ground - 58),
-             (60, ground - 58), (40, ground - 80)], fill="#A06A40")
-    for x in (56, 92, 148, 182):
-        db.rrect((x, ground - 62, x + 14, ground), 5, fill="#6E4626")
-    # crinet : plaques sur la crinière
-    crinet = [(178, ground - 132), (196, ground - 116), (188, ground - 88), (172, ground - 104)]
-    db.poly(crinet, fill=GRIS_ARMURE, outline=INK, width=1.5)
-    # encolure + tête brune, chanfrain plaqué devant
-    db.poly([(182, ground - 126), (214, ground - 118), (218, ground - 84),
-             (188, ground - 88)], fill="#8A5A34")
-    db.ellipse((208, ground - 118, 244, ground - 86), fill="#8A5A34")
-    db.poly([(214, ground - 118), (224, ground - 132), (232, ground - 116)],
-            fill="#8A5A34")
-    db.poly([(214, ground - 116), (244, ground - 108), (240, ground - 88),
-             (212, ground - 98)], fill=GRIS_ARMURE, outline=INK, width=1.5)
-    db.line([(218, ground - 104), (238, ground - 98)], fill=INK, width=2)
-    db.ellipse((216, ground - 112, 224, ground - 106), fill=INK)
-    db.line([(44, ground - 100), (24, ground - 66)], fill="#4E3822", width=7)
-    # peytral (plastron de poitrail)
-    db.poly([(186, ground - 122), (208, ground - 112), (204, ground - 86),
-             (182, ground - 92)], fill=GRIS_ARMURE, outline=INK, width=1.5)
-    # ---- chevalier en armure complète
-    rider = 92
-    db.rrect((rider + 8, ground - 96, rider + 24, ground - 58), 6, fill="#6E6E78")
-    db.poly([(rider - 14, ground - 190), (rider + 22, ground - 190),
-             (rider + 30, ground - 108), (rider - 22, ground - 108)], fill=GRIS_ARMURE)
-    db.poly([(rider - 14, ground - 190), (rider + 2, ground - 190),
-             (rider - 8, ground - 108), (rider - 22, ground - 108)], fill="#84848E")
-    # heaume fermé : fente de visière, trous de respiration, cimier
-    db.rrect((rider + 2, ground - 202, rider + 14, ground - 186), 3,
-             fill=GRIS_ARMURE, outline=INK, width=1.5)
-    db.ellipse((rider - 8, ground - 222, rider + 22, ground - 192), fill=GRIS_ARMURE,
+def unite_chevalier(db, da, w, h, img=None):
+    """256x320 — chevalier lourd, même montage que le cavalier : destrier en
+    marche à pattes articulées, tête haute, selle à pommeau, cavalier centré
+    de profil. Spécificités : bardage de plates (caparaçon = accent, deux
+    panneaux sculptés), chanfrein + crinet + peytral d'armure, heaume fermé
+    de profil, lance couchée en arrêt."""
+    cx, g = 128, 296
+    CUIR, CUIR_SOMBRE = "#6B4A2A", "#3E342A"
+    GRIS_BOUCLIER = "#6E6E74"
+    shadow(db, cx, g + 6, 84)
+
+    # ---- destrier (même marche articulée que le cavalier)
+    body = [(48, g - 118), (200, g - 118), (214, g - 80),
+            (194, g - 58), (62, g - 58), (40, g - 82)]
+    db.smooth_poly(body, fill="#8A5A34")
+    db.smooth_poly([(48, g - 118), (130, g - 118), (124, g - 58),
+                    (62, g - 58), (40, g - 82)], fill="#A06A40")
+    FAR, NEAR = "#5A3A20", "#6E4626"
+    ART_FAR, ART_NEAR = "#66422C", "#7E5432"
+    db.taper([(94, g - 60), (84, g - 42), (94, g - 8)], 12, 9, FAR)
+    db.rrect((88, g - 10, 100, g + 2), 3, fill="#3E342A")
+    db.ellipse((78, g - 48, 90, g - 36), fill=ART_FAR)
+    db.taper([(170, g - 60), (180, g - 44), (172, g - 8)], 12, 9, FAR)
+    db.rrect((166, g - 10, 178, g + 2), 3, fill="#3E342A")
+    db.ellipse((174, g - 50, 186, g - 38), fill=ART_FAR)
+    db.taper([(70, g - 60), (46, g - 40), (30, g - 8)], 13, 9, NEAR)
+    db.rrect((20, g - 12, 34, g), 3, fill="#3E342A")
+    db.taper([(186, g - 60), (206, g - 46), (212, g - 8)], 13, 9, NEAR)
+    db.rrect((206, g - 12, 220, g), 3, fill="#3E342A")
+    db.ellipse((40, g - 46, 54, g - 34), fill=ART_NEAR)
+    db.ellipse((199, g - 52, 213, g - 40), fill=ART_NEAR)
+    # encolure dressée + tête haute profilée
+    db.smooth_poly([(180, g - 124), (208, g - 154), (214, g - 130),
+                    (196, g - 100)], fill="#8A5A34")
+    db.smooth_poly([(204, g - 154), (216, g - 158), (234, g - 148),
+                    (246, g - 134), (248, g - 124), (240, g - 114),
+                    (226, g - 114), (212, g - 124), (202, g - 136)],
+                   fill="#8A5A34")
+    db.smooth_poly([(232, g - 140), (246, g - 134), (248, g - 124),
+                    (240, g - 114), (230, g - 116), (232, g - 128)],
+                   fill="#7A4E2C")
+    db.ellipse((236, g - 126, 241, g - 121), fill="#3E342A")
+    db.line([(236, g - 116), (222, g - 118)], fill="#3E342A", width=1.5)
+    db.poly([(208, g - 150), (212, g - 166), (220, g - 150)], fill="#8A5A34")
+    db.poly([(220, g - 150), (226, g - 164), (230, g - 148)], fill="#8A5A34")
+    db.ellipse((220, g - 138, 228, g - 131), fill="#2B2620")
+    db.ellipse((222, g - 137, 225, g - 134), fill="#C9C2B4")
+    db.line([(44, g - 100), (24, g - 66)], fill="#4E3822", width=7)  # queue
+
+    # ---- bardage d'armure : chanfrein (tête), crinet (encolure), peytral
+    db.smooth_poly([(206, g - 152), (220, g - 156), (240, g - 142),
+                    (247, g - 128), (243, g - 116), (228, g - 118),
+                    (210, g - 128), (202, g - 140)],
+                   fill=GRIS_ARMURE, outline=INK, width=1.5)  # chanfrein
+    db.line([(226, g - 136), (240, g - 124)], fill=INK, width=1.5)
+    db.smooth_poly([(178, g - 128), (206, g - 150), (212, g - 134),
+                    (190, g - 108), (180, g - 100)],
+                   fill=GRIS_ARMURE, outline=INK, width=1.5)  # crinet
+    db.smooth_poly([(186, g - 124), (208, g - 112), (204, g - 86),
+                    (180, g - 94)],
+                   fill=GRIS_ARMURE, outline=INK, width=1.5)  # peytral
+
+    # ---- caparaçon = accent : deux panneaux sculptés (comme le cavalier)
+    capar_arriere = [(84, g - 108), (120, g - 108), (136, g - 92),
+                     (134, g - 58), (104, g - 58), (92, g - 84)]
+    capar_avant = [(156, g - 104), (188, g - 104), (188, g - 84),
+                   (176, g - 58), (162, g - 58), (156, g - 88)]
+    for panneau in (capar_arriere, capar_avant):
+        db.poly(panneau, fill=GRIS_NEUTRE, outline=INK, width=2)
+        da.poly(panneau, fill="#FFFFFF")
+        da.poly(panneau, outline=GRIS_BOUCLIER, width=2.5)
+    da.line([(90, g - 98), (118, g - 98)], fill=GRIS_BOUCLIER, width=2.5)
+    da.line([(162, g - 96), (184, g - 96)], fill=GRIS_BOUCLIER, width=2.5)
+
+    # ---- selle à pommeau et troussequin (comme le cavalier)
+    db.smooth_poly([(cx - 30, g - 118), (cx + 30, g - 118),
+                    (cx + 26, g - 96), (cx - 26, g - 96)], fill=CUIR)
+    db.smooth_poly([(cx - 30, g - 118), (cx - 4, g - 118),
+                    (cx - 6, g - 96), (cx - 26, g - 96)], fill="#7E5A34")
+    db.ellipse((cx + 22, g - 130, cx + 36, g - 114), fill=CUIR,
+               outline=CUIR_SOMBRE, width=2)
+    db.rrect((cx - 32, g - 126, cx - 20, g - 108), 4, fill=CUIR,
+             outline=CUIR_SOMBRE, width=2)
+    db.rrect((cx - 28, g - 100, cx + 28, g - 92), 3, fill=CUIR_SOMBRE)
+    for sx in (-20, 20):
+        db.line([(cx + sx, g - 96), (cx + sx, g - 80)], fill=CUIR_SOMBRE, width=3)
+
+    # ---- chevalier : centré sur la selle, jambes armurées aux étriers
+    rider = cx
+    for dx, teinte in ((4, "#6E6E78"), (-6, "#5A5A64")):
+        db.taper([(rider + dx, g - 112), (rider + dx + 16, g - 96),
+                  (rider + dx + 18, g - 66)], 12, 9, teinte)
+        db.rrect((rider + dx + 12, g - 70, rider + dx + 26, g - 58), 4,
+                 fill=CUIR_SOMBRE)
+        db.line([(rider + dx + 19, g - 88), (rider + dx + 19, g - 64)],
+                fill=CUIR_SOMBRE, width=2.5)
+    # bras gauche côté caché (dessiné SOUS le torse, teinte sombre) : seule
+    # la main dépasse devant la poitrine pour tenir la rêne
+    _gp_bras(db, [(rider + 14, g - 182), (rider + 20, g - 168),
+                  (rider + 22, g - 158)], "#84848E", w=9)
+    # cuirasse cintrée (pan éclairé à gauche)
+    db.smooth_poly([(rider - 16, g - 188), (rider + 16, g - 188),
+                    (rider + 20, g - 150), (rider + 14, g - 112),
+                    (rider - 14, g - 112), (rider - 20, g - 150)],
+                   fill=GRIS_ARMURE)
+    db.smooth_poly([(rider - 16, g - 188), (rider - 3, g - 188),
+                    (rider - 9, g - 112), (rider - 14, g - 112),
+                    (rider - 20, g - 150)], fill="#B4B4BA")
+    db.rrect((rider - 17, g - 128, rider + 17, g - 121), 2, fill="#6B5230")
+    # culot de la lance dépassant derrière le chevalier (dessiné sous le
+    # torse : le fût passe derrière le corps)
+    db.line([(rider - 36, g - 166), (rider - 14, g - 171)], fill=BOIS, width=6)
+    # heaume fermé de profil (hauté) : fente de visière à droite, trous de
+    # respiration
+    db.ellipse((rider - 13, g - 218, rider + 15, g - 190), fill=GRIS_ARMURE,
                outline=INK, width=1.5)
-    db.rrect((rider - 2, ground - 210, rider + 20, ground - 204), 1, fill=INK)
-    for hx in (rider + 4, rider + 10, rider + 16):
-        db.ellipse((hx, ground - 198, hx + 3, ground - 195), fill=INK)
-    db.poly([(rider + 4, ground - 228), (rider + 10, ground - 244),
-             (rider + 16, ground - 228)], fill=ROUGE_JOUEUR, outline=INK, width=1)
-    # bras d'armure, lance couchée en arrêt
-    _gp_bras(db, [(rider + 24, ground - 172), (rider + 58, ground - 152)], GRIS_ARMURE)
-    db.line([(rider + 50, ground - 158), (rider + 98, ground - 142)], fill=BOIS, width=6)
-    db.poly([(rider + 96, ground - 146), (rider + 114, ground - 140),
-             (rider + 98, ground - 132)], fill=GRIS_ARMURE, outline=INK, width=1)
-    # caparaçon sur le flanc = accent
-    capar = [(96, ground - 116), (176, ground - 116), (188, ground - 76),
-             (160, ground - 58), (100, ground - 58), (84, ground - 84)]
-    db.poly(capar, fill=GRIS_NEUTRE, outline=INK, width=2)
-    da.poly(capar, fill="#FFFFFF")
+    db.rrect((rider + 2, g - 211, rider + 18, g - 206), 1, fill=INK)
+    for hx in (rider + 5, rider + 11):
+        db.ellipse((hx, g - 202, hx + 3, g - 199), fill=INK)
+    # lance en arrêt, sans garde : le fût passe devant le torse, pointe haute
+    db.line([(rider - 14, g - 171), (rider + 104, g - 194)], fill=BOIS, width=6)
+    db.poly([(rider + 102, g - 200), (rider + 122, g - 196),
+             (rider + 103, g - 187)], fill=GRIS_ARMURE, outline=INK, width=1)
+    # bras droit côté ARRIÈRE (technique ancienne génération : double passe
+    # INK) : descend le long du torse, coude relevé, puis l'avant-bras
+    # REMONTE sur la lance
+    _gp_bras(db, [(rider - 12, g - 186), (rider - 16, g - 172),
+                  (rider - 18, g - 160)], GRIS_ARMURE, w=10)
+    _gp_bras(db, [(rider - 16, g - 148), (rider - 10, g - 162),
+                  (rider - 4, g - 172)], GRIS_ARMURE, w=8)
+    # plates segmentées : lames en travers du bras + coudière renflée
+    for py in (g - 180, g - 172, g - 164):
+        db.line([(rider - 22, py), (rider - 9, py + 1)], fill=INK, width=1.5)
+    db.line([(rider - 15, g - 160), (rider - 10, g - 168)], fill=INK, width=1.5)
+    db.line([(rider - 12, g - 154), (rider - 5, g - 161)], fill=INK, width=1.5)
+    db.ellipse((rider - 25, g - 170, rider - 11, g - 152), fill=GRIS_ARMURE,
+               outline=INK, width=1.5)            # coudière
+    db.line([(rider - 14, g - 182), (rider - 18, g - 164)],
+            fill="#B4B4BA", width=2)              # arête éclairée du bras
+    db.ellipse((rider - 10, g - 181, rider + 2, g - 169), fill=GRIS_ARMURE,
+               outline=INK, width=1.5)            # main sur le fût
+
+    # main gauche dépassant devant la poitrine + rêne du mors à la main
+    db.ellipse((rider + 16, g - 166, rider + 28, g - 154), fill="#84848E",
+               outline=INK, width=1.5)
+    db.line([(232, g - 114), (196, g - 126), (rider + 22, g - 160)],
+            fill=CUIR_SOMBRE, width=2)
+    # ---- modelés (voiles doux bornés aux pixels peints de la base)
+    if img is not None:
+        radial(img, 96, g - 92, 30, (255, 255, 255), 26)     # garrot du cheval
+        radial(img, 180, g - 66, 26, (20, 20, 30), 34)       # flanc arrière ombre
+        radial(img, rider - 4, g - 158, 18, (255, 255, 255), 30)  # cuirasse
+        radial(img, rider + 4, g - 200, 12, (255, 255, 255), 45)  # heaume
+        unit_shading(img, rider, g - 240, g - 12, strength=16)
 
 
 def unite_fusilier(db, da, w, h):

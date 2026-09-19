@@ -15,4 +15,4 @@ Aucune ressource tierce, aucune police, aucun texte incorporé.
 Annexe palette : voir `palette.txt` (hex figés).
 
 Régénérer après modification : `python tools/generate.py`.
-Dernière génération : 2026-09-15
+Dernière génération : 2026-09-19

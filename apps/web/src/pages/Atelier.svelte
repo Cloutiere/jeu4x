@@ -375,7 +375,7 @@
     return `/art/${stem}.png`;
   }
 
-  function teindre(img: HTMLImageElement, couleur: string): string {
+  function teindreAccent(img: HTMLImageElement, couleur: string): HTMLCanvasElement {
     const c = document.createElement('canvas');
     c.width = img.naturalWidth;
     c.height = img.naturalHeight;
@@ -386,7 +386,28 @@
     ctx.fillRect(0, 0, c.width, c.height);
     ctx.globalCompositeOperation = 'destination-in';
     ctx.drawImage(img, 0, 0);
+    return c;
+  }
+
+  // Variante d'accent = sprite complet : base + calque d'accent teinté par-dessus
+  // (même mécanique que le teintage runtime — le calque blanc est teinté puis composé).
+  function composer(base: HTMLImageElement, accent: HTMLImageElement, couleur: string): string {
+    const c = document.createElement('canvas');
+    c.width = base.naturalWidth;
+    c.height = base.naturalHeight;
+    const ctx = c.getContext('2d')!;
+    ctx.drawImage(base, 0, 0);
+    ctx.drawImage(teindreAccent(accent, couleur), 0, 0);
     return c.toDataURL('image/png');
+  }
+
+  function chargerImg(src: string): Promise<HTMLImageElement> {
+    return new Promise((resoudre, echouer) => {
+      const img = new Image();
+      img.onload = () => resoudre(img);
+      img.onerror = echouer;
+      img.src = src;
+    });
   }
 
   $effect(() => {
@@ -400,11 +421,13 @@
     baseCharge = `/art/${base}.png`;
     if (!accent) { accentsTintees = []; return; }
     untrack(() => {
-      const img = new Image();
-      img.onload = () => {
-        accentsTintees = ACCENTS.map((a) => ({ nom: a.nom, url: teindre(img, a.couleur) }));
-      };
-      img.src = `/art/${accent}.png`;
+      Promise.all([chargerImg(`/art/${base}.png`), chargerImg(`/art/${accent}.png`)])
+        .then(([imgBase, imgAccent]) => {
+          accentsTintees = ACCENTS.map((a) => ({ nom: a.nom, url: composer(imgBase, imgAccent, a.couleur) }));
+        })
+        .catch(() => {
+          accentsTintees = [];
+        });
     });
   });
 
