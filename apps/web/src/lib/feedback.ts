@@ -41,7 +41,33 @@ export function unexecutedOrders(
         const moved = has('Move', 'unitId', order.unitId);
         const frozen = unit.order?.type === 'Move'; // halte/blocage : chemin gelé
         if (!moved && !frozen) {
-          out.push({ unitId: order.unitId, label: 'Déplacement impossible (chemin bloqué ou invalide)' });
+          // RESOLUTION-DEPLACEMENTS (bug 2) : échange de cases entre deux
+          // unités AMIES — chacune programmée (1 case) sur la case de l'autre,
+          // aucune n'a bougé. Le refus moteur est correct ; le message nomme
+          // la cause (détection déterministe : ordres + état post-résolution).
+          const dest = order.path[order.path.length - 1];
+          const echange =
+            order.path.length === 1 &&
+            dest !== undefined &&
+            orders.some((other) => {
+              if (other.type !== 'Move' || other.unitId === order.unitId || other.path.length !== 1) return false;
+              const otherUnit = newState.units[other.unitId];
+              if (!otherUnit || otherUnit.owner !== unit.owner) return false;
+              const cible = other.path[0]!;
+              return (
+                cible.q === unit.q &&
+                cible.r === unit.r && // l'autre me visait (je n'ai pas bougé)
+                otherUnit.q === dest.q &&
+                otherUnit.r === dest.r && // elle est toujours sur ma destination
+                !has('Move', 'unitId', other.unitId) // elle non plus n'a pas bougé
+              );
+            });
+          out.push({
+            unitId: order.unitId,
+            label: echange
+              ? 'Deux unités ne peuvent pas interchanger de position'
+              : 'Déplacement impossible (chemin bloqué ou invalide)',
+          });
         }
         break;
       }

@@ -30,6 +30,8 @@
   import CityView from '../components/CityView.svelte';
   import ResearchPanel from '../components/ResearchPanel.svelte';
   import Journal from '../components/Journal.svelte';
+  import Historique from '../components/Historique.svelte';
+  import { pushHistory, resetHistory } from '../lib/eventHistory.js';
   import GovernmentPanel from '../components/GovernmentPanel.svelte';
 
   let { code }: { code: string } = $props();
@@ -53,13 +55,27 @@
   const toasts = playback.toasts;
   let errorToasts = $state<Array<{ id: number; text: string; kind: 'good' | 'bad' | 'info' }>>([]);
   let errorToastId = 1;
+  // RESOLUTION-DEPLACEMENTS §4 : tout toast affiché alimente l'historique
+  // d'événements persistant du menu de droite (zéro gameplay — présentation).
   function pushErrorToast(text: string, kind: 'good' | 'bad' | 'info' = 'bad'): void {
+    pushHistory(text, kind, get(view)?.turn ?? 0);
     const id = errorToastId++;
     errorToasts = [...errorToasts, { id, text, kind }];
     setTimeout(() => {
       errorToasts = errorToasts.filter((t) => t.id !== id);
     }, 5000);
   }
+  let dernierToastVu = 0;
+  resetHistory(); // une partie = un historique (la SPA survit au changement de partie)
+  onDestroy(
+    toasts.subscribe((list) => {
+      for (const t of list) {
+        if (t.id <= dernierToastVu) continue;
+        dernierToastVu = t.id;
+        pushHistory(t.text, t.kind, get(view)?.turn ?? 0);
+      }
+    }),
+  );
 
   const client: GameClient = createGameClient(code, {
     onMessage(message) {
@@ -826,7 +842,10 @@
       <aside class="side">
         {#if myName}<p class="me">Vous jouez : <strong>{myName}</strong></p>{/if}
         <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onCancelOrder={handleCancelOrder} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onArmNuke={armNuke} onCancelNuke={cancelNuke} />
-        {#if $view.state && myEngineId($view)}
+        {#if $view.state && myEngineId($view) && SHIP_COMPONENTS.some((c) => c.built)}
+          <!-- RESOLUTION-DEPLACEMENTS §4 : la section « Course à l'espace »
+               n'apparaît qu'à la PREMIÈRE complétion d'un composant du
+               vaisseau (data-driven : bâtiments des villes — R-124). -->
           <section class="ship" aria-label="Vaisseau spatial">
             <h3>Vaisseau spatial (victoire scientifique — R-124)</h3>
             <ul>
@@ -843,6 +862,7 @@
             {/if}
           </section>
         {/if}
+        <Historique />
         <Journal view={$view} />
         <details class="raw">
           <summary>État brut (debug)</summary>

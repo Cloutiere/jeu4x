@@ -1313,8 +1313,23 @@ function executeMoveOrder(
       //    REFUSÉ — l'unité a avancé au maximum, elle s'arrête avant la case.
       const ennemiIci = here.some((u) => u.owner !== unit.owner);
       const dernierPas = path.length === 1;
-      if (!ennemiIci && dernierPas && !board.formGroups.has(unit.id)) {
-        if (board.potentielEnnemi.has(`${unit.owner}|${tileKeyOf(next)}`)) {
+      // RESOLUTION-DEPLACEMENTS (arbitrage Erik 18/09) : les amies présentes
+      // programment TOUTES de quitter la case ce tour (chemin actif, premier
+      // pas ailleurs que la case de l'entrant — l'échange de cases reste
+      // interdit) → entrée DIRECTE, cohabitation transitoire de Phase A : la
+      // fenêtre de refus due à l'ordre unitId (R-41) est levée. Si un départ
+      // échoue finalement, la cohabitation persiste et l'action finale obéit
+      // à l'option B (fondation annulée — processFoundCity).
+      const amiesPartent =
+        !ennemiIci &&
+        here
+          .filter((u) => u.owner === unit.owner)
+          .every((u) => {
+            const o = u.order;
+            if (!o || (o.type !== 'Move' && o.type !== 'MultiStep') || o.path.length === 0) return false;
+            return o.path[0]!.q !== unit.q || o.path[0]!.r !== unit.r;
+          });
+      if (!ennemiIci && dernierPas && !board.formGroups.has(unit.id) && !amiesPartent) {        if (board.potentielEnnemi.has(`${unit.owner}|${tileKeyOf(next)}`)) {
           path = [];
           board.retenus.push({ unitId: unit.id, at: { ...next }, priorite, active: false });
           decide(board, 'entree-retenue', 'R-159 rév. B', `${unit.id} RETENU devant (${next.q},${next.r}) — un ennemi peut encore s'y trouver à la résolution (décision après la Phase B : renfort ou jointure d'instabilité)`, { unitId: unit.id, case: next, priorite });
@@ -1323,6 +1338,9 @@ function executeMoveOrder(
         path = path.slice(1); // destination refusée — le chemin gelé s'arrête ici
         decide(board, 'destination-refusee', 'R-159 rév. B', `${unit.id} AVANCE AU MAXIMUM et s'arrête avant (${next.q},${next.r}) — destination amie sans menace ennemie : la cohabitation hors attaque est illégale`, { unitId: unit.id, case: next });
         break;
+      }
+      if (amiesPartent) {
+        decide(board, 'entree-cohabitation-transitoire', 'R-159 rév. B', `${unit.id} ENTRE sur (${next.q},${next.r}) — les amies présentes programment de quitter la case (cohabitation transitoire de Phase A)`, { unitId: unit.id, case: next });
       }
       path.shift();
       unit.mp -= 1;
@@ -3054,6 +3072,20 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     if (tile.terrain === 'cratere') continue;
     // T-09 : distance minimale à toute ville existante.
     if (Object.values(board.st.cities).some((c) => hexDistance(c, hex) < MIN_CITY_DISTANCE)) continue;
+    // RESOLUTION-DEPLACEMENTS · option B (arbitrage Erik 18/09) : une amie
+    // cohabite ENCORE sur la case à l'arrivée (son départ programmé a échoué)
+    // → fondation ANNULÉE ; le colon cohabite et fondera au tour suivant si
+    // la case se libère.
+    if (occupants(board, hex).some((u) => u.id !== unit.id && u.owner === unit.owner)) {
+      decide(
+        board,
+        'fondation-annulee-cohabitation',
+        'R-64',
+        `${unit.id} ne fonde pas sur (${hex.q},${hex.r}) — une unité amie cohabite encore sur la case (option B : fondation annulée, le colon cohabite)`,
+        { unitId: unit.id, case: hex },
+      );
+      continue;
+    }
     const ownerHasCity = Object.values(board.st.cities).some((c) => c.owner === unit.owner);
     // 7i · D3 · R-64 (rév.) : population initiale selon l'Ère de l'empire
     // (7n · R-147 : ère par COMPAGE — champ `era`, transition au tour suivant)
