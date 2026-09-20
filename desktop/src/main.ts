@@ -107,22 +107,36 @@ function toggleFullscreen(): void {
 }
 
 /**
- * Normalisation DPR (ceinture et bretelles du switch `force-device-scale-factor`) :
- * après chargement, on lit le devicePixelRatio réel de la page et on compense
- * par le zoom de base — viewport logique = resolutionBase quoi qu'il arrive.
+ * Normalisation du zoom à chaque chargement (retour d'Erik 19/09 : « zoom
+ * vraiment grand aléatoire »).
+ *
+ * Cause racine : Chromium PERSISTE le zoom par origine dans le profil — un
+ * zoomFactor posé par le letterbox (F11) ou par un script de test réapparaît
+ * aux lancements suivants, d'où un zoom aléatoire selon la session précédente.
+ * `setZoomFactor` remplaçant le zoom effectif, la séquence déterministe est :
+ *  1. zoom 1 → le devicePixelRatio lu est alors le DPR de BASE (système) ;
+ *  2. zoom de base = cible / base (neutralise aussi le cas où le switch
+ *     `force-device-scale-factor` n'a pas été pris en compte).
+ * Le zoom de base sert ensuite de multiplicateur au letterbox plein écran.
  */
 async function normaliserDpr(): Promise<void> {
   if (!gameView || config.deviceScaleFactor == null) return;
+  const cible = config.deviceScaleFactor;
   try {
-    const dpr = await gameView.webContents.executeJavaScript('window.devicePixelRatio');
-    if (typeof dpr === 'number' && dpr > 0) {
-      const nouveau = config.deviceScaleFactor / dpr;
-      if (Math.abs(nouveau - zoomBase) > 1e-9) {
-        console.log(`[coquille] dpr réel ${dpr} ≠ cible ${config.deviceScaleFactor} → zoom de base ${nouveau}`);
-        zoomBase = nouveau;
-        if (mainWindow?.isFullScreen()) appliquerLetterboxPleinEcran();
-        else gameView.webContents.setZoomFactor(zoomBase);
-      }
+    const wc = gameView.webContents;
+    wc.setZoomFactor(1);
+    let zoomBaseLocale = 1;
+    for (let passe = 0; passe < 3; passe++) {
+      const dpr = await wc.executeJavaScript('window.devicePixelRatio');
+      if (typeof dpr !== 'number' || !(dpr > 0)) return;
+      if (Math.abs(dpr - cible) <= 1e-6) break;
+      zoomBaseLocale *= cible / dpr;
+      wc.setZoomFactor(zoomBaseLocale);
+    }
+    if (Math.abs(zoomBaseLocale - zoomBase) > 1e-9) {
+      console.log(`[coquille] zoom de base ${zoomBaseLocale} (dpr cible ${cible})`);
+      zoomBase = zoomBaseLocale;
+      if (mainWindow?.isFullScreen()) appliquerLetterboxPleinEcran();
     }
   } catch {
     // page en cours de navigation : la prochaine tentative corrigera

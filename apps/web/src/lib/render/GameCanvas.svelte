@@ -255,13 +255,13 @@
       app?.renderer.resize(w, h);
       stage3d?.resize(w, h);
     }
-    // Retour d'Erik (19/09) : le double-clic doit montrer ENTIÈREMENT la zone
-    // dessinée — la frontière culturelle déborde du rayon de travail dès le
-    // palier 2 (workRadius + paliers − 1, règles). Cadrer sur ce rayon-là,
-    // pas sur le seul rayon de travail (tuiles du haut/bas tronquées).
-    const rayonAffiche = frontierRadius(
-      workRadiusOf(city.buildings),
-      rayonCulturelDe(city.cultureCumulee),
+    // Retours d'Erik (19/09) : le double-clic doit montrer ENTIÈREMENT les
+    // tuiles jusqu'à la DISTANCE 2 au minimum — le prochain anneau cultivable
+    // (frontière culturelle en expansion) doit rester visible pour prévoir —
+    // et davantage si la frontière dessinée dépasse (frontierRadius).
+    const rayonAffiche = Math.max(
+      2,
+      frontierRadius(workRadiusOf(city.buildings), rayonCulturelDe(city.cultureCumulee)),
     );
     return poseVueVillePour(p.x, p.y, w, h, HEX_SIZE, rayonAffiche);
   }
