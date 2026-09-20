@@ -18,6 +18,7 @@
   import Lab3d from './pages/Lab3d.svelte';
   import Atelier from './pages/Atelier.svelte';
   import LaboCombat from './pages/LaboCombat.svelte';
+  import LaboRendu from './pages/LaboRendu.svelte';
 
   type Route =
     | { page: 'login' }
@@ -28,7 +29,8 @@
     | { page: 'progen' }
     | { page: 'lab3d' }
     | { page: 'atelier' }
-    | { page: 'labo-combat' };
+    | { page: 'labo-combat' }
+    | { page: 'labo-rendu' };
 
   function parseHash(): Route {
     const hash = window.location.hash.replace(/^#/, '') || '/';
@@ -37,6 +39,7 @@
     if (hash === '/lab3d') return { page: 'lab3d' };
     if (hash === '/atelier') return { page: 'atelier' };
     if (hash === '/labo-combat') return { page: 'labo-combat' };
+    if (hash === '/labo-rendu') return { page: 'labo-rendu' };
     const game = /^\/game\/([A-Z0-9]{6})$/.exec(hash);
     if (game) return { page: 'game', code: game[1]! };
     const join = /^\/join\/([A-Z0-9]{6})$/.exec(hash);
@@ -74,6 +77,11 @@
   <!-- Labo de combat (chantier 2D) : indépendant de la session — client pur,
        le moteur seedé tourne dans le navigateur, aucun appel /api. -->
   <LaboCombat />
+{:else if route.page === 'labo-rendu'}
+  <!-- Labo de rendu des unités (CALIBRATION-UNITES) : indépendant de la session —
+       client pur, cohabitations 1..7 unités / 1..7 nations sur une case (miroir
+       #/progen, aucun appel /api). -->
+  <LaboRendu />
 {:else if $session === undefined}
   <p class="loading">Chargement…</p>
 {:else if route.page === 'progen'}

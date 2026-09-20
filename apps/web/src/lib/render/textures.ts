@@ -699,9 +699,22 @@ const UNIQUE_UNIT_ALIASES: Record<string, string> = {
   zero: 'chasseur',
 };
 
+/** NETTETÉ-DÉZOOM (retour d'Erik du 20/09 : « plus elle rapetisse, plus elle
+ *  apparaît détériorée ») : les PNG d'art sont chargés SANS mipmaps — en
+ *  MINIFICATION (dézoom), l'échantillonnage linéaire simple aliasse les traits
+ *  fins (lignes qui scintillent ou disparaissent). Les mipmaps (demi-résolutions
+ *  précalculées + filtrage trilinéaire) rendent les petites tailles propres.
+ *  WebGL2 : NPOT toléré. S'applique aux assets réels uniquement. */
+function avecMipmaps(tex: Texture): Texture {
+  tex.source.autoGenerateMipmaps = true;
+  tex.source.style.minFilter = 'linear';
+  tex.source.style.mipmapFilter = 'linear';
+  return tex;
+}
+
 async function texOrFallback(name: string, fallback: Texture): Promise<Texture> {
   try {
-    return (await Assets.load(`/art/${name}.png`)) as Texture;
+    return avecMipmaps((await Assets.load(`/art/${name}.png`)) as Texture);
   } catch {
     return fallback;
   }
@@ -802,7 +815,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
 /** Icône optionnelle : null si l'asset est absent (l'overlay retombe sur le texte). */
 async function optionalIcon(name: string): Promise<Texture | null> {
   try {
-    return (await Assets.load(`/art/${name}.png`)) as Texture;
+    return avecMipmaps((await Assets.load(`/art/${name}.png`)) as Texture);
   } catch {
     return null;
   }
@@ -814,10 +827,10 @@ async function optionalIcon(name: string): Promise<Texture | null> {
  *  L'accent retombe sur la base (teinté joueur au rendu) s'il est absent. */
 async function optionalEntity(name: string): Promise<EntityTexture | null> {
   try {
-    const base = (await Assets.load(`/art/${name}.png`)) as Texture;
+    const base = avecMipmaps((await Assets.load(`/art/${name}.png`)) as Texture);
     let accent: Texture;
     try {
-      accent = (await Assets.load(`/art/${name}_accent.png`)) as Texture;
+      accent = avecMipmaps((await Assets.load(`/art/${name}_accent.png`)) as Texture);
     } catch {
       accent = base;
     }

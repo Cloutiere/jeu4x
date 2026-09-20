@@ -28,7 +28,10 @@
   import { BADGE_FONDATION, etatFondationColon } from './fondation.js';
   import { BADGE_POPULATION } from './badge-population.js';
   import { iconeCommerceRendement } from './rendements.js';
-  import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, dispositionPile, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable, pilesAffichees, positionAfficheeDe as positionAfficheeDeEtat } from './interaction.js';
+  import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, dispositionsCohabitation, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable, pilesAffichees, positionAfficheeDe as positionAfficheeDeEtat } from './interaction.js';
+  // CALIBRATION-UNITES : hauteur des unités seules (calibre guerrier Recraft),
+  // constantes 🔶 éditables à l'œil dans calibration-unites.ts.
+  import { PIEDS_Y, echelleUnite, hauteurUnitePx, AJUST_HAUTEUR } from './calibration-unites.js';
   import type { PositionsAffichees } from './interaction.js';
   import type { ClickAction } from './interaction.js';
   // Chantier V1 (L3) — couche hybride : terrain Three.js + sprites PixiJS
@@ -166,6 +169,9 @@
   let resourceLayer = new Container(); // R-91 : icônes de ressources sur les cases
   let overlayLayer = new Container();
   let entitiesLayer = new Container();
+  // CALIBRATION-UNITES : tri par zIndex — profondeur des unités empilées
+  // dans une zone de cohabitation (première unité au premier plan).
+  entitiesLayer.sortableChildren = true;
   let effectsLayer = new Container();
   const camera = new Camera();
   let vw = 1;
@@ -487,12 +493,6 @@
     }
   }
 
-  function hpBarColor(ratio: number): number {
-    if (ratio > 0.66) return 0x4caf50;
-    if (ratio > 0.33) return 0xffc107;
-    return 0xe53935;
-  }
-
   function rebuildEntities(): void {
     if (!app || !textures || !scene.state) return;
     const state = scene.state;
@@ -509,7 +509,9 @@
     // exclut déjà les arrivées sur ennemi) + indices de cohabitation — les
     // unités partageant une case affichée sont réduites et décalées.
     const positions = positionsDessinees();
-    const piles = pilesAffichees(state, positions);
+    // CALIBRATION-UNITES : poses de cohabitation GROUPÉES PAR NATION (une
+    // ligne par unité ; remplace l'éventail par indice de PILE-AFFICHÉE).
+    const poses = dispositionsCohabitation(state, positions);
     // COLON-FONDATION (M1) : dérivation de l'aperçu DÉJÀ calculé
     // (scenePreviews — ordre posé et chemin gelé compris), jamais recalculée
     // par frame. Annulation comme consommation font tomber l'aperçu, donc
@@ -563,12 +565,16 @@
       // (position optimiste — comme si le déplacement avait eu lieu) ; sans
       // ordre, elle reste sur sa case moteur. Pendant le playback, l'inter-
       // polation prime (bloc « playback.active » du tick).
-      // PILE-AFFICHÉE : cohabitation visuelle — échelle réduite + décalage
-      // en éventail par indice de pile (dispositionPile, calibrage 🔶).
+      // PILE-AFFICHÉE : cohabitation visuelle — CALIBRATION-UNITES (retour
+      // Erik 20/09) : paquets COMPACTS PAR NATION, répartition déterministe
+      // dans l'hexagone (dispositionsCohabitation, interaction.ts — pur, testé).
       const posee = positions.get(unit.id) ?? unit;
-      const pile = piles.get(unit.id);
-      const disp = pile ? dispositionPile(pile.total, pile.index) : { dx: 0, dy: 0, echelle: 1 };
+      const disp = poses.get(unit.id) ?? { dx: 0, dy: 0, echelle: 1, z: 0 };
       c.scale.set(disp.echelle);
+      // CALIBRATION-UNITES : profondeur dans le paquet — la première unité
+      // d'une zone reste au premier plan, les suivantes passent derrière
+      // (z négatif, tri du layer, cf. dispositionCohabitationParNation).
+      c.zIndex = disp.z;
       const p = hexToPixel(posee, HEX_SIZE);
       const anim = playback.moveOf(unit.id);
       if (anim) {
@@ -589,7 +595,9 @@
       // tuer la boucle de rendu (le crash du ticker gelait les clics carte).
       if (fill) {
         fill.width = 76 * ratio;
-        fill.tint = hpBarColor(ratio);
+        // CALIBRATION-UNITES (retour Erik 20/09) : barre de PV à la couleur
+        // d'accent du joueur (plus de vert/ambre/rouge par ratio de PV).
+        fill.tint = playerColor(unit.owner);
       }
       // Marqueur écu de fortification (R-33).
       const shield = c.getChildByLabel('fortify');
@@ -623,6 +631,7 @@
       let c = citySprites.get(city.id);
       if (!c) {
         c = buildCityContainer(city.id, city.capital, city.owner);
+        c.zIndex = 50; // structures au-dessus des unités empilées (tri CALIBRATION-UNITES)
         entitiesLayer.addChild(c);
         citySprites.set(city.id, c);
       }
@@ -663,6 +672,7 @@
       let c = villageSprites.get(village.id);
       if (!c) {
         c = buildVillageContainer(village.id);
+        c.zIndex = 50;
         entitiesLayer.addChild(c);
         villageSprites.set(village.id, c);
       }
@@ -695,6 +705,7 @@
       let c = hutSprites.get(hut.id);
       if (!c) {
         c = buildHutContainer(hut.id);
+        c.zIndex = 50;
         entitiesLayer.addChild(c);
         hutSprites.set(hut.id, c);
       }
@@ -747,7 +758,7 @@
   function buildUnitContainer(unitId: string, type: string, owner: string): Container {
     const c = new Container();
     // R-95 (Phase 7d) : les unités barbares ont leurs propres sprites
-    // (`barbare_<type>`, accent gris-brun via playerColor('barbarien')).
+    // (`barbare_<type>`, accent de repli = rouge sang de la palette accents.json).
     const tex =
       owner === BARBARIAN_ID
         ? (textures!.units[`barbare_${type}`] ?? textures!.units[type])
@@ -757,58 +768,67 @@
     // Variante CUITE par propriétaire (décision Erik 20/09 : ex. guerrier@p1,
     // rouge cuit dans le PNG par import_svg) — sprite unique SANS teinte.
     const cuite = textures!.cuites?.[`${type}@${owner}`];
+    // CALIBRATION-UNITES : échelle par type — la hauteur écran vise
+    // `hauteurUnitePx(HEX_SIZE)` × ajustement du type (calibre = guerrier
+    // Recraft), quel que soit le ratio du PNG. Ancrage PIEDS (0.5,1)+PIEDS_Y.
+    const echelle = echelleUnite(type, tex.base.height, HEX_SIZE);
+    // Sommet du sprite dans le repère du conteneur (barres/écus accrochés
+    // relativement — l'ancien -158/-178 supposait le sprite painter 320 px).
+    const sommet = PIEDS_Y - tex.base.height * echelle;
     let base: Sprite;
     let accent: Sprite | null = null;
     if (cuite) {
       base = new Sprite(cuite.base);
       base.label = 'base';
       base.anchor.set(0.5, 1);
-      base.scale.set(0.5);
-      base.y = 10;
+      base.scale.set(echelle);
+      base.y = PIEDS_Y;
     } else {
       base = new Sprite(tex.base);
       base.label = 'base';
       base.anchor.set(0.5, 1);
-      base.scale.set(0.5);
-      base.y = 10;
+      base.scale.set(echelle);
+      base.y = PIEDS_Y;
       accent = new Sprite(tex.accent);
       accent.label = 'accent';
       accent.anchor.set(0.5, 1);
-      accent.scale.set(0.5);
-      accent.y = 10;
+      accent.scale.set(echelle);
+      accent.y = PIEDS_Y;
       accent.tint = color;
     }
     const bg = new Sprite(textures!.px);
     bg.width = 80;
     bg.height = 10;
     bg.tint = 0x1b1b22;
-    bg.position.set(-40, -158);
+    // CALIBRATION-UNITES (retour Erik 20/09) : barre de PV RAPPROCHÉE —
+    // collée au sommet du sprite (l'ancien écart était de 8 px au-dessus).
+    bg.position.set(-40, sommet - 1);
     const fill = new Sprite(textures!.px);
     fill.label = 'hpFill';
     fill.height = 10;
-    fill.position.set(-38, -156);
+    fill.position.set(-38, sommet + 1);
     c.addChild(base);
     if (accent) c.addChild(accent);
     c.addChild(bg, fill);
     // Écu de fortification (R-33) : petit bouclier bleu au-dessus du PV, caché par défaut.
     const shield = new Graphics();
     shield.label = 'fortify';
-    shield.moveTo(0, -178).lineTo(12, -172).lineTo(12, -162).quadraticCurveTo(12, -152, 0, -148).quadraticCurveTo(-12, -152, -12, -162).lineTo(-12, -172).closePath().fill({ color: 0x90caf9 }).stroke({ width: 2, color: 0x1b3a5c });
+    shield.moveTo(0, sommet - 28).lineTo(12, sommet - 22).lineTo(12, sommet - 12).quadraticCurveTo(12, sommet - 2, 0, sommet + 2).quadraticCurveTo(-12, sommet - 2, -12, sommet - 12).lineTo(-12, sommet - 22).closePath().fill({ color: 0x90caf9 }).stroke({ width: 2, color: 0x1b3a5c });
     shield.visible = false;
     c.addChild(shield);
     // 7g · R-117 : indicateur de CHARGE (petit point ambré) — visible quand le
     // transport porte une unité embarquée.
     const cargoDot = new Graphics();
     cargoDot.label = 'cargo';
-    cargoDot.circle(30, -150, 7).fill({ color: 0xffcc80 }).stroke({ width: 2, color: 0x1b1b22 });
+    cargoDot.circle(30, sommet, 7).fill({ color: 0xffcc80 }).stroke({ width: 2, color: 0x1b1b22 });
     cargoDot.visible = false;
     c.addChild(cargoDot);
     // 7m · R-142/R-144 : badge ESPION EN VILLE (œil ambré à gauche) — garnison
     // (contre-espionnage) ou infiltration, selon le propriétaire de la ville.
     const spyBadge = new Graphics();
     spyBadge.label = 'spybadge';
-    spyBadge.ellipse(-30, -150, 10, 6).fill({ color: 0xffb74d }).stroke({ width: 2, color: 0x1b1b22 });
-    spyBadge.circle(-30, -150, 3).fill({ color: 0x1b1b22 });
+    spyBadge.ellipse(-30, sommet, 10, 6).fill({ color: 0xffb74d }).stroke({ width: 2, color: 0x1b1b22 });
+    spyBadge.circle(-30, sommet, 3).fill({ color: 0x1b1b22 });
     spyBadge.visible = false;
     c.addChild(spyBadge);
     // COLON-FONDATION (M2) : état « en train de fonder » — slot data-driven
@@ -818,17 +838,18 @@
     // Tant que l'art est absent : badge provisoire (constantes 🔶) au-dessus
     // du Colon — marqueur de fondation lisible, sans effet sur le picking.
     if (type === 'colon' && textures!.colonFondation) {
+      const fondEchelle = echelleUnite('colon', textures!.colonFondation.base.height, HEX_SIZE);
       const fondBase = new Sprite(textures!.colonFondation.base);
       fondBase.label = 'fondBase';
       fondBase.anchor.set(0.5, 1);
-      fondBase.scale.set(0.5);
-      fondBase.y = 10;
+      fondBase.scale.set(fondEchelle);
+      fondBase.y = PIEDS_Y;
       fondBase.visible = false;
       const fondAccent = new Sprite(textures!.colonFondation.accent);
       fondAccent.label = 'fondAccent';
       fondAccent.anchor.set(0.5, 1);
-      fondAccent.scale.set(0.5);
-      fondAccent.y = 10;
+      fondAccent.scale.set(fondEchelle);
+      fondAccent.y = PIEDS_Y;
       fondAccent.tint = color;
       fondAccent.visible = false;
       c.addChild(fondBase, fondAccent);
@@ -891,7 +912,7 @@
   }
 
 
-  /** R-96 (rév. BARBARES-PILES) : village barbare (tente/camp, accent gris-brun) — sans PV. */
+  /** R-96 (rév. BARBARES-PILES) : village barbare (tente/camp, accent rouge sang) — sans PV. */
   function buildVillageContainer(villageId: string): Container {
     const c = new Container();
     const tex = textures!.villageBarbare;
@@ -1515,8 +1536,7 @@
       if (unit) {
         const positions = positionsDessinees();
         const posee = positions.get(unit.id) ?? unit;
-        const pile = pilesAffichees(scene.state!, positions).get(unit.id);
-        const disp = pile ? dispositionPile(pile.total, pile.index) : { dx: 0, dy: 0, echelle: 1 };
+        const disp = dispositionsCohabitation(scene.state!, positions).get(unit.id) ?? { dx: 0, dy: 0, echelle: 1, z: 0 };
         const c = hexToPixel(posee, HEX_SIZE);
         const gr = new Graphics();
         const rx = 52 * disp.echelle;

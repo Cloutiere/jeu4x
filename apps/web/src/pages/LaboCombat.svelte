@@ -118,7 +118,9 @@
     });
   });
 
-  /** Unités par case de l'état affiché (clé "q,r"). */
+  /** Unités par case de l'état affiché (clé "q,r") — CALIBRATION-UNITES :
+   *  tri stable par propriétaire (R-81) au sein de chaque case, pour que les
+   *  jetons cohabitants soient GROUPÉS PAR NATION dans l'éventail. */
   const unitesParCase = $derived.by(() => {
     const parCase = new Map<TileKey, Unit[]>();
     for (const id of Object.keys(etatAffiche.units).sort()) {
@@ -128,6 +130,7 @@
       pile.push(u);
       parCase.set(key, pile);
     }
+    for (const pile of parCase.values()) pile.sort((a, b) => (a.owner < b.owner ? -1 : a.owner > b.owner ? 1 : 0));
     return parCase;
   });
 

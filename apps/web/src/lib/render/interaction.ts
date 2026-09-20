@@ -102,6 +102,99 @@ export function dispositionPile(total: number, index: number): { dx: number; dy:
   return { dx: (index - mid) * 0.5, dy: Math.abs(index - mid) * 0.12, echelle: 0.66 };
 }
 
+import { HAUTEUR_UNITE, HAUTEUR_UNITE_PILE } from './calibration-unites.js';
+
+/**
+ * CALIBRATION-UNITES (retour d'Erik du 20/09, rév. ZONES-HEX) — disposition
+ * VISUELLE d'une cohabitation : l'hexagone (pointy-top) offre 6 ZONES, une par
+ * côté, ancrées AU BORD du côté (axes : gauche, droite, haut-gauche,
+ * haut-droite, bas-gauche, bas-droite — ordre de REMPLISSAGE). Les nations
+ * (triées R-81) remplissent les zones dans l'ordre ; les unités d'une même
+ * nation sont EMPILÉES EN ESCALIER DIAGONAL dans leur zone. UNE SEULE nation
+ * à plusieurs unités : côte à côte, centrées sur la tuile. Décalages en
+ * fractions de HEX_SIZE côté appelant. Pur, testé. Calibrage 🔶.
+ */
+const ZONES_HEX: Array<{ x: number; y: number }> = [
+  { x: -0.62, y: 0 }, // 1 · gauche (côté ouest)
+  { x: 0.62, y: 0 }, // 2 · droite (côté est)
+  { x: -0.31, y: -0.54 }, // 3 · haut-gauche (côté nord-ouest)
+  { x: 0.31, y: -0.54 }, // 4 · haut-droite (côté nord-est)
+  { x: -0.31, y: 0.54 }, // 5 · bas-gauche (côté sud-ouest)
+  { x: 0.31, y: 0.54 }, // 6 · bas-droite (côté sud-est)
+];
+const PAS_ESCALIER = 0.09; // pas diagonal d'empilement intra-zone (fraction de HEX_SIZE)
+const PAS_COTE_A_COTE = 0.22; // pas horizontal, une seule nation centrée
+const ECHELLE_PILE = HAUTEUR_UNITE_PILE / HAUTEUR_UNITE;
+
+export function dispositionCohabitationParNation(
+  unites: Array<{ id: UnitId; owner: string }>,
+): Map<UnitId, { dx: number; dy: number; echelle: number; z: number }> {
+  const out = new Map<UnitId, { dx: number; dy: number; echelle: number; z: number }>();
+  if (unites.length === 0) return out;
+  if (unites.length === 1) {
+    out.set(unites[0]!.id, { dx: 0, dy: 0, echelle: 1, z: 0 });
+    return out;
+  }
+  // Paquets par nation — ordre des nations TRIÉ (R-81), unités d'une même
+  // nation dans l'ordre d'insertion (miroir du rendu et du cycle de clic).
+  const parNation = new Map<string, Array<{ id: UnitId; owner: string }>>();
+  for (const u of unites) {
+    const paquet = parNation.get(u.owner);
+    if (paquet) paquet.push(u);
+    else parNation.set(u.owner, [u]);
+  }
+  const paquets = [...parNation.keys()].sort().map((o) => parNation.get(o)!);
+  if (paquets.length === 1) {
+    // Une seule nation à plusieurs unités : côte à côte, CENTRÉES sur la tuile.
+    const paquet = paquets[0]!;
+    const mid = (paquet.length - 1) / 2;
+    paquet.forEach((u, ui) => {
+      out.set(u.id, { dx: (ui - mid) * PAS_COTE_A_COTE, dy: 0, echelle: ECHELLE_PILE, z: ui === 0 ? 0 : -ui });
+    });
+    return out;
+  }
+  // Plusieurs nations : une zone par nation (ordre de remplissage ZONES_HEX ;
+  // garde-fou déterministe si jamais > 6 : retour à la première zone, les
+  // paquets s'y empilent — le jeu ne compte que 6 camps max : 5 joueurs +
+  // barbares).
+  paquets.forEach((paquet, ni) => {
+    const zone = ZONES_HEX[ni % ZONES_HEX.length]!;
+    paquet.forEach((u, ui) => {
+      // Escalier diagonal : chaque unité décalée d'un pas vers la droite et
+      // vers le haut (têtes et barres de PV lisibles) — et la PROFONDEUR suit
+      // l'inverse de l'insertion (retour d'Erik) : la PREMIÈRE unité du paquet
+      // reste au premier plan, chaque suivante passe DERRIÈRE la précédente
+      // (z négatif → dessinée avant ; 0 = ordre naturel du layer).
+      out.set(u.id, { dx: zone.x + ui * PAS_ESCALIER, dy: zone.y - ui * PAS_ESCALIER, echelle: ECHELLE_PILE, z: ui === 0 ? 0 : -ui });
+    });
+  });
+  return out;
+}
+
+/**
+ * CALIBRATION-UNITES — disposition groupée par nation pour TOUTES les cases
+ * dessinées d'un coup (miroir `pilesAffichees`) : Map UnitId → pose. Pur.
+ */
+export function dispositionsCohabitation(
+  state: GameState,
+  positions: PositionsAffichees,
+): Map<UnitId, { dx: number; dy: number; echelle: number; z: number }> {
+  const groupes = new Map<string, Array<{ id: UnitId; owner: string }>>();
+  for (const u of Object.values(state.units)) {
+    if (u.aboard) continue;
+    const posee = positions.get(u.id) ?? u;
+    const key = tileKeyOf(posee);
+    const groupe = groupes.get(key);
+    if (groupe) groupe.push({ id: u.id, owner: u.owner });
+    else groupes.set(key, [{ id: u.id, owner: u.owner }]);
+  }
+  const out = new Map<UnitId, { dx: number; dy: number; echelle: number; z: number }>();
+  for (const groupe of groupes.values()) {
+    for (const [id, pose] of dispositionCohabitationParNation(groupe)) out.set(id, pose);
+  }
+  return out;
+}
+
 /**
  * PILE-AFFICHÉE — indices de pile par unité d'après ses positions DESSINÉES :
  * Map UnitId → { index, total } au sein de sa case (ordre d'insertion du
