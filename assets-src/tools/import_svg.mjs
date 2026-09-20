@@ -36,6 +36,9 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const EXPORTS = path.join(ROOT, 'assets-src', 'exports');
 const PROFILS = path.join(ROOT, 'assets-src', 'tools', 'import_svg.profiles.json');
+// PALETTE OFFICIELLE (décision Erik 20/09, HANDOFF-ACCENTS-7-FACTIONS) :
+// 7 joueurs + barbare × 3 teintes — source unique partagée avec le web.
+const PALETTE = path.join(ROOT, 'apps', 'web', 'src', 'lib', 'render', 'accents.json');
 const SS = 2;          // rastérisation 2× la cible puis LANCZOS (anti-aliasing)
 const POIDS_MAX = 300 * 1024;
 const ENCRE = '#2B2620'; // contour hexagonal (identique generate.py INK)
@@ -66,6 +69,38 @@ const sharp = chargerSharp();
 
 function lireProfils() {
   return JSON.parse(fs.readFileSync(PROFILS, 'utf8'));
+}
+
+// ------------------------------------------------- palette officielle (8 factions)
+
+/** Palette officielle (accents.json) : { p1..p7, barbare } × {reflet, base, ombre}. */
+function lireFactions() {
+  return JSON.parse(fs.readFileSync(PALETTE, 'utf8')).factions;
+}
+
+/** Suffixe de fichier d'une faction : p1 → j1 … p7 → j7, barbare → barbare. */
+function suffixeFaction(cle) {
+  return cle === 'barbare' ? 'barbare' : `j${cle.slice(1)}`;
+}
+
+/** G5 (variante cuite) : les teintes attendues (couleurs cibles dont la source
+ *  existe dans le SVG) doivent être présentes AU PIXEL dans le PNG (±2/canal,
+ *  anti-aliasing ignoré). Renvoie la liste des teintes manquantes. */
+async function gateTeintes(png, attendues) {
+  const { data, info } = await raw(png);
+  const cibles = attendues.map((hex) => ({
+    hex,
+    rgb: [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)),
+    vu: false,
+  }));
+  for (let i = 0; i < info.width * info.height; i++) {
+    if (data[i * 4 + 3] < 200) continue;
+    for (const c of cibles) {
+      if (c.vu) continue;
+      if (c.rgb.every((v, k) => Math.abs(data[i * 4 + k] - v) <= 2)) c.vu = true;
+    }
+  }
+  return cibles.filter((c) => !c.vu).map((c) => c.hex);
 }
 
 // ------------------------------------------------- extraction du calque accent
@@ -415,88 +450,119 @@ async function importer(nomProfil, options = {}) {
   const svgPath = path.join(ROOT, profil.svg);
   const dossier = options.exports ?? EXPORTS;
   const dirDiag = options.diagnostics ?? path.join(ROOT, 'dev-logs', 'captures-import-svg');
-  let svgText = fs.readFileSync(svgPath, 'utf8');
+  const svgTextBrut = fs.readFileSync(svgPath, 'utf8');
   const cible = profil.cible;
 
-  // VARIANTE CUITE (décision Erik 20/09) : les couleurs d'accent sont
-  // remplacées DANS le SVG (fill + stop-color), le PNG est rendu sans calque
-  // accent — l'asset porte sa couleur, le moteur ne teinte pas.
-  let comptes = null;
-  if (profil.remplacements) {
-    const r = appliquerRemplacements(svgText, profil.remplacements);
-    svgText = r.svg;
-    comptes = r.comptes;
-  }
-  const svgBuffer = Buffer.from(svgText);
-  // tuile hexagonale : pas de calque accent (décor plein), extraction inutile
-  const { svg: accentSvg, nb: nbBlancs } = cible.mode === 'hex' || comptes
-    ? { svg: null, nb: 0 }
-    : extraireAccent(svgText);
-
-  let resultat;
-  if (cible.mode === 'hex') {
-    resultat = await composerHex(svgBuffer, cible);
+  // Les variantes à produire. Deux modes de cuisson :
+  //  - profil.remplacements : une variante unique, paires source→cible explicites ;
+  //  - profil.remplacementsPalette (PALETTE OFFICIELLE, Erik 20/09) : UNE
+  //    variante par faction de accents.json (7 joueurs + barbare = 8), les 3
+  //    gris du maître mappés sur {reflet, base, ombre} — source → TONALITÉ.
+  let variantes;
+  if (profil.remplacementsPalette) {
+    const factions = lireFactions();
+    variantes = Object.entries(factions).map(([cle, f]) => ({
+      stem: `${profil.stem}_${suffixeFaction(cle)}`,
+      remplacements: Object.fromEntries(
+        Object.entries(profil.remplacementsPalette).map(([src, ton]) => [src, f[ton]]),
+      ),
+      faction: cle,
+    }));
   } else {
-    resultat = await composer(svgBuffer, accentSvg, cible);
+    variantes = [{ stem: profil.stem, remplacements: profil.remplacements ?? null, faction: null }];
   }
 
-  const erreurs = [];
-  const accentPng = resultat.accent ?? resultat.base;
-
-  if (resultat.accent) {
-    const fautesBlanc = await gateBlancPure(resultat.accent);
-    if (fautesBlanc.length) {
-      erreurs.push(`G1 blanc pur : ${fautesBlanc.length}+ pixels opaques non blancs (ex. ${JSON.stringify(fautesBlanc[0])})`);
-      await diagnostic(resultat.accent, fautesBlanc, path.join(dirDiag, `diag-${nomProfil}-blanc.png`));
+  for (const variante of variantes) {
+    let svgText = svgTextBrut;
+    let comptes = null;
+    if (variante.remplacements) {
+      const r = appliquerRemplacements(svgText, variante.remplacements);
+      svgText = r.svg;
+      comptes = r.comptes;
     }
-    const trous = await gateTrous(resultat.accent, resultat.base);
-    if (trous.length) {
-      erreurs.push(`G2 trous : ${trous.length}+ px transparents de l'accent posés sur une base CLAIRE (zone blanche manquante, ex. ${JSON.stringify(trous[0])})`);
-      await diagnostic(resultat.accent, trous, path.join(dirDiag, `diag-${nomProfil}-trous.png`));
-    }
-  } else if (cible.mode === 'hex') {
-    // pas de calque accent sur une tuile : le décor doit couvrir tout l'hexagone
-    const trous = await gateTrous(resultat.base);
-    if (trous.length) {
-      erreurs.push(`G2 hexagone : décor incomplet (${trous.length}+ trous)`);
-    }
-  }
+    const svgBuffer = Buffer.from(svgText);
+    // tuile hexagonale : pas de calque accent (décor plein), extraction inutile
+    const { svg: accentSvg, nb: nbBlancs } = cible.mode === 'hex' || comptes
+      ? { svg: null, nb: 0 }
+      : extraireAccent(svgText);
 
-  const baseMeta = await sharp(resultat.base).metadata();
-  const echecDims = gateDimensions([baseMeta.width, baseMeta.height], cible);
-  if (echecDims) {
-    erreurs.push(`G3 dimensions : attendu ${echecDims.attendu.join('×')}, obtenu ${echecDims.obtenu.join('×')}`);
-  }
-
-  if (erreurs.length) {
-    throw new Error(`GATES EN ÉCHEC pour « ${nomProfil} » :\n  - ${erreurs.join('\n  - ')}`);
-  }
-
-  const sorties = [{ stem: profil.stem, buf: resultat.base }];
-  if (resultat.accent) sorties.push({ stem: `${profil.stem}_accent`, buf: resultat.accent });
-
-  for (const { stem, buf } of sorties) {
-    const chemin = path.join(dossier, `${stem}.png`);
-    const meta = await sharp(buf).metadata();
-    if (buf.length > POIDS_MAX) {
-      throw new Error(`G4 poids : ${stem}.png = ${(buf.length / 1024).toFixed(0)} Ko > ${(POIDS_MAX / 1024).toFixed(0)} Ko`);
+    let resultat;
+    if (cible.mode === 'hex') {
+      resultat = await composerHex(svgBuffer, cible);
+    } else {
+      resultat = await composer(svgBuffer, accentSvg, cible);
     }
-    fs.writeFileSync(chemin, buf);
-    console.log(`écrit ${chemin} (${meta.width}×${meta.height}, ${(buf.length / 1024).toFixed(0)} Ko)`);
-  }
-  if (comptes) {
-    const detail = Object.entries(comptes)
-      .map(([de, n]) => `${de} → ${profil.remplacements[de]} ×${n}`)
-      .join(', ');
-    console.log(`« ${nomProfil} » : variante cuite — ${detail} ; gates OK`);
-    const total = Object.values(comptes).reduce((a, b) => a + b, 0);
-    if (total === 0) {
-      throw new Error(`aucun remplacement appliqué — vérifier les couleurs du profil contre le SVG source`);
+
+    const erreurs = [];
+    const accentPng = resultat.accent ?? resultat.base;
+
+    if (resultat.accent) {
+      const fautesBlanc = await gateBlancPure(resultat.accent);
+      if (fautesBlanc.length) {
+        erreurs.push(`G1 blanc pur : ${fautesBlanc.length}+ pixels opaques non blancs (ex. ${JSON.stringify(fautesBlanc[0])})`);
+        await diagnostic(resultat.accent, fautesBlanc, path.join(dirDiag, `diag-${variante.stem}-blanc.png`));
+      }
+      const trous = await gateTrous(resultat.accent, resultat.base);
+      if (trous.length) {
+        erreurs.push(`G2 trous : ${trous.length}+ px transparents de l'accent posés sur une base CLAIRE (zone blanche manquante, ex. ${JSON.stringify(trous[0])})`);
+        await diagnostic(resultat.accent, trous, path.join(dirDiag, `diag-${variante.stem}-trous.png`));
+      }
+    } else if (cible.mode === 'hex') {
+      // pas de calque accent sur une tuile : le décor doit couvrir tout l'hexagone
+      const trous = await gateTrous(resultat.base);
+      if (trous.length) {
+        erreurs.push(`G2 hexagone : décor incomplet (${trous.length}+ trous)`);
+      }
     }
-  } else {
-    console.log(`« ${nomProfil} » : ${nbBlancs} paths blancs → accent ; gates OK`);
+
+    const baseMeta = await sharp(resultat.base).metadata();
+    const echecDims = gateDimensions([baseMeta.width, baseMeta.height], cible);
+    if (echecDims) {
+      erreurs.push(`G3 dimensions : attendu ${echecDims.attendu.join('×')}, obtenu ${echecDims.obtenu.join('×')}`);
+    }
+
+    // G5 (variante cuite) : chaque teinte attendue dont la SOURCE existe dans
+    // le SVG doit être présente au pixel (±2/canal). Une source absente du
+    // fichier (ex. #8C8C8C chez le guerrier Recraft) est signalée ×0 mais
+    // n'exige pas sa teinte au rendu.
+    if (comptes) {
+      const detail = Object.entries(comptes)
+        .map(([de, n]) => `${de} → ${variante.remplacements[de]} ×${n}`)
+        .join(', ');
+      const attendues = Object.entries(comptes)
+        .filter(([, n]) => n > 0)
+        .map(([de]) => variante.remplacements[de]);
+      const manquantes = await gateTeintes(resultat.base, attendues);
+      if (manquantes.length) {
+        erreurs.push(`G5 teintes au pixel : absentes du rendu (±2) — ${manquantes.join(', ')}`);
+      }
+      const total = Object.values(comptes).reduce((a, b) => a + b, 0);
+      if (total === 0) {
+        throw new Error(`« ${nomProfil} » : aucun remplacement appliqué — vérifier les couleurs du profil contre le SVG source`);
+      }
+      console.log(`« ${variante.stem} » (faction ${variante.faction}) : variante cuite — ${detail} ; gates OK`);
+    } else {
+      console.log(`« ${variante.stem} » : ${nbBlancs} paths blancs → accent ; gates OK`);
+    }
+
+    if (erreurs.length) {
+      throw new Error(`GATES EN ÉCHEC pour « ${variante.stem} » :\n  - ${erreurs.join('\n  - ')}`);
+    }
+
+    const sorties = [{ stem: variante.stem, buf: resultat.base }];
+    if (resultat.accent) sorties.push({ stem: `${variante.stem}_accent`, buf: resultat.accent });
+
+    for (const { stem, buf } of sorties) {
+      const chemin = path.join(dossier, `${stem}.png`);
+      const meta = await sharp(buf).metadata();
+      if (buf.length > POIDS_MAX) {
+        throw new Error(`G4 poids : ${stem}.png = ${(buf.length / 1024).toFixed(0)} Ko > ${(POIDS_MAX / 1024).toFixed(0)} Ko`);
+      }
+      fs.writeFileSync(chemin, buf);
+      console.log(`écrit ${chemin} (${meta.width}×${meta.height}, ${(buf.length / 1024).toFixed(0)} Ko)`);
+    }
   }
-  return { stem: profil.stem, nbBlancs };
+  return { stem: profil.stem, variantes: variantes.map((v) => v.stem) };
 }
 
 const args = process.argv.slice(2);
@@ -505,4 +571,4 @@ if (args[0] && !args[0].startsWith('-')) {
 } else {
   console.log('usage : node tools/import_svg.mjs <profil>');
 }
-export { importer, extraireAccent, gateBlancPure, gateTrous, gateDimensions, composer };
+export { importer, extraireAccent, gateBlancPure, gateTrous, gateDimensions, gateTeintes, composer, suffixeFaction, lireFactions };

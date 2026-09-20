@@ -1,0 +1,14 @@
+{
+  "_commentaire": "PALETTE OFFICIELLE DES ACCENTS — décision Erik 20/09 (fait foi, HANDOFF-ACCENTS-7-FACTIONS). 7 joueurs × 3 teintes (reflet / base / ombre) + le Barbare (rouge sang dédié, option B tranchée) = 8 palettes. Les 3 gris du SVG maître se mappent déterministes : #FEFEFE → reflet, #FFFFFF → base, #8C8C8C → ombre (tolérance ±2/canal). Tonalité BASE par défaut pour les traits fins (anneaux, liserés, frontières, worked tiles, sélection, tooltips) — elle est conçue pour la lisibilité ; reflet/ombre servent aux sprites et, à l'œil d'Erik, aux états (survol = reflet, sélection forte = ombre). Source unique : lue par le web (accents.ts) ET par le pipeline import_svg.mjs. Zéro gameplay.",
+  "gris_maitre": { "reflet": "#FEFEFE", "base": "#FFFFFF", "ombre": "#8C8C8C" },
+  "factions": {
+    "p1": { "nom": "Bleu Acier", "reflet": "#567894", "base": "#3B5B75", "ombre": "#233B4E" },
+    "p2": { "nom": "Ocre Jaune", "reflet": "#E2A650", "base": "#C98A32", "ombre": "#8A581A" },
+    "p3": { "nom": "Vert Mousse", "reflet": "#6A8F6E", "base": "#4F7053", "ombre": "#304B34" },
+    "p4": { "nom": "Gris Ardoise / Fer", "reflet": "#616770", "base": "#44484E", "ombre": "#2A2D32" },
+    "p5": { "nom": "Rouge Brique", "reflet": "#D55B52", "base": "#B84239", "ombre": "#782822" },
+    "p6": { "nom": "Bleu-Vert Canard", "reflet": "#468A88", "base": "#2D6A68", "ombre": "#1A4543" },
+    "p7": { "nom": "Rouge Bourgogne", "reflet": "#A84D5E", "base": "#8A3343", "ombre": "#591E2A" },
+    "barbare": { "nom": "Rouge Sang", "reflet": "#DF424A", "base": "#B81D24", "ombre": "#7A0E13" }
+  }
+}

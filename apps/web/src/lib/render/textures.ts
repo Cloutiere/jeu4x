@@ -14,22 +14,20 @@
 import { Assets, Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
 import { ARTEFACTS, RESOURCES, RESOURCE_UNKNOWN, UNIT_TYPES } from '@game/rules';
+import { CLES_JOUEURS, suffixeCuit } from './accents.js';
 
 /** 7o · R-151 : les 6 artefacts du jeu de base (DLC jamais générés). */
 export const ARTEFACT_IDS: string[] = Object.keys(ARTEFACTS.pool).filter((id) => !ARTEFACTS.pool[id]!.dlcOnly).sort();
 import type { TerrainId } from '@game/rules';
 
-/** Couleurs d'accent joueurs — SPEC-ART §3.3/§4 (extensible à 8). */
-export const PLAYER_COLORS: Record<string, number> = {
-  p1: 0x3dffce, // menthe néon (décision Erik 13/09 : le rouge est réservé aux barbares)
-  p2: 0x3b6fd6, // bleu vif
-  // R-95 (Phase 7d) : accent dédié des barbares — gris-brun, ni rouge ni bleu.
-  // Sans effet depuis le 12/09 : les sprites barbares ont leur rouge CUIT dans
-  // la base (décision Erik), leurs calques accent sont vides.
-  barbarien: 0x8a7a66,
-};
+/** Couleurs d'accent joueurs — palette officielle 7 factions + barbare
+ *  (accents.json, décision Erik 20/09, HANDOFF-ACCENTS-7-FACTIONS) : tonalité
+ *  BASE par faction (lisibilité des traits fins). Source unique : accents.ts ;
+ *  plus aucun hex de faction codé en dur ici. */
+export { PLAYER_COLORS } from './accents.js';
+import { couleurAccent } from './accents.js';
 export function playerColor(engineId: string): number {
-  return PLAYER_COLORS[engineId] ?? 0x8a5ad6;
+  return couleurAccent(engineId, 'base');
 }
 
 const OUTLINE = 0x2b2620; // gris-brun très sombre (SPEC-ART §4)
@@ -610,8 +608,9 @@ export function createTextures(renderer: Renderer): GameTextures {
     cuites: {},
     units: {
       ...units,
-      // R-95 (Phase 7d) : variantes barbares — accent gris-brun au rendu
-      // (playerColor('barbarien')), silhouettes distinctes des joueurs.
+      // R-95 (Phase 7d) : variantes barbares — depuis la palette officielle
+      // (accents.json, Erik 20/09) leur accent de repli est le ROUGE SANG
+      // (base #B81D24) ; en pratique leurs sprites portent le rouge cuit.
       barbare_guerrier: bakeEntityOnce(barbarianUnits.guerrier!),
       barbare_archer: bakeEntityOnce(barbarianUnits.archer!),
     },
@@ -724,9 +723,9 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   // R-91 : les 22 ressources de resources.json + le marqueur « inconnue »
   // (R-92, diffusion d'identité masquée) — optionnels, id → res_<id>.png.
   const resourceIds = [...Object.keys(RESOURCES).sort(), RESOURCE_UNKNOWN];
-  // Phase 7d (R-95) : variantes barbares (accent gris-brun au rendu).
+  // Phase 7d (R-95) : variantes barbares (accent de repli rouge sang — accents.json).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerrierJ1, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -747,9 +746,11 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     entityOrFallback('hutte', fallback.hutte),
     Promise.all(ARTEFACT_IDS.map((id) => entityOrFallback(`artefact_${id}`, fallback.artefacts[id]!).then((t) => [id, t] as const))),
     optionalEntity('unite_colonFondation'),
-    // Variante CUITE Joueur 1 (décision Erik 20/09) : le guerrier importé
-    // porte son rouge cuit — rendu SANS teinte d'accent (GameCanvas).
-    optionalEntity('unite_guerrier_j1'),
+    // VarianteS CUITES par propriétaire (décision Erik 20/09, étendue aux 7
+    // factions le même jour — accents.json) : le guerrier importé porte la
+    // palette de son propriétaire CUITE dans le PNG — rendu SANS teinte.
+    // Fallback : teinte runtime si le PNG d'un owner est absent (compat).
+    Promise.all(CLES_JOUEURS.map((cle) => optionalEntity(`unite_guerrier_${suffixeCuit(cle)}`).then((t) => [cle, t] as const))),
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
@@ -775,9 +776,13 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   }
 
   // Variantes cuites par propriétaire (cf. interface) : la clé dit quel
-  // (type, propriétaire) affiche le sprite cuit SANS teinte.
+  // (type, propriétaire) affiche le sprite cuit SANS teinte — 7 factions
+  // (accents.json). Le barbare garde ses sprites dédiés (rouge déjà cuit
+  // dans la base, R-95) ; sa palette 3 teintes sert aux rendus/camps.
   const cuites: Record<string, EntityTexture> = {};
-  if (guerrierJ1) cuites['guerrier@p1'] = guerrierJ1;
+  guerriersCuits.forEach(([cle, tex], i) => {
+    if (tex) cuites[`guerrier@${CLES_JOUEURS[i]}`] = tex;
+  });
 
   return {
     tiles: Object.fromEntries(tiles) as Record<TerrainId, Texture>,

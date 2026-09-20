@@ -21,7 +21,7 @@ const sharp = require(path.join(ROOT, 'node_modules', '.pnpm',
   'node_modules', 'sharp'));
 
 const outils = await import('./import_svg.mjs');
-const { extraireAccent, gateBlancPure, gateTrous, gateDimensions, importer } = outils;
+const { extraireAccent, gateBlancPure, gateTrous, gateDimensions, gateTeintes, importer, lireFactions, suffixeFaction } = outils;
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'import-svg-'));
@@ -213,6 +213,55 @@ test('variante cuite : les couleurs sont remplacées dans le PNG (sans accent)',
     if (cibles.has(k)) vus.add(k);
   }
   assert.deepEqual([...vus].sort(), ['8A3029', 'B84239', 'D55B52']);
+});
+
+test('remplacementsPalette : 8 variantes (7 joueurs + barbare), teintes de la palette au pixel', async () => {
+  // SVG maître synthétique portant les 3 gris : chaque variante doit rendre
+  // EXACTEMENT les 3 teintes de sa faction (±2, gate G5).
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+    <rect width="128" height="128" fill="#FFFFFF"/>
+    <rect x="16" y="16" width="96" height="96" fill="#FEFEFE"/>
+    <rect x="32" y="32" width="64" height="64" fill="#8C8C8C"/>
+  </svg>`;
+  const dossier = tmp();
+  const r = await importer('palette-fixture', {
+    profil: {
+      svg: ecrire(svg),
+      stem: 'test_palette',
+      cible: { mode: 'unite', w: 64, h: 64, margeX: 2, margeHaut: 2, margeBas: 2 },
+      remplacementsPalette: { '#FFFFFF': 'base', '#FEFEFE': 'reflet', '#8C8C8C': 'ombre' },
+    },
+    exports: dossier,
+    diagnostics: dossier,
+  });
+  const factions = lireFactions();
+  assert.deepEqual(r.variantes, Object.keys(factions).map(suffixeFaction).map((s) => `test_palette_${s}`));
+  assert.equal(r.variantes.length, 8);
+  for (const [cle, f] of Object.entries(factions)) {
+    const stem = `test_palette_${suffixeFaction(cle)}`;
+    assert.ok(fs.existsSync(path.join(dossier, `${stem}.png`)), stem);
+    assert.ok(!fs.existsSync(path.join(dossier, `${stem}_accent.png`)), `${stem} : pas de calque accent (cuit)`);
+    const attendues = [f.reflet, f.base, f.ombre];
+    assert.deepEqual(await gateTeintes(path.join(dossier, `${stem}.png`), attendues), [], `${stem} : les 3 teintes doivent être au pixel`);
+  }
+  // La variante J1 reproduit la table Erik (rouge brique) et le barbare le
+  // rouge sang dédié (option B tranchée 20/09).
+  const { data, info } = await sharp(path.join(dossier, 'test_palette_j1.png')).raw().toBuffer({ resolveWithObject: true });
+  const vues = new Set();
+  for (let i = 0; i < info.width * info.height; i++) {
+    if (data[i * 4 + 3] < 250) continue;
+    vues.add([data[i * 4], data[i * 4 + 1], data[i * 4 + 2]].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase());
+  }
+  for (const hex of ['B84239', 'D55B52', '782822']) assert.ok(vues.has(hex), `J1 doit porter ${hex}`);
+});
+
+test('G5 gateTeintes : tolérance ±2 par canal, teinte absente signalée', async () => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+    <rect width="32" height="32" fill="#B84239"/></svg>`;
+  const png = await sharp(Buffer.from(svg)).png().toBuffer();
+  assert.deepEqual(await gateTeintes(png, ['#B84239']), []);       // exact
+  assert.deepEqual(await gateTeintes(png, ['#BA4339']), []);       // +2/+1/+0 → toléré
+  assert.deepEqual(await gateTeintes(png, ['#B84340']), ['#B84340']); // +7 bleu → refusé
 });
 
 test('idempotence : deux imports du guerrier = mêmes octets', async () => {

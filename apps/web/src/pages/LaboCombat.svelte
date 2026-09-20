@@ -41,6 +41,7 @@
     nomCamp,
   } from '../lib/laboCombat.js';
   import type { CampBarbare, CampLabo, CityLabo, JoueurLabo, UnitLabo } from '../lib/laboCombat.js';
+  import { CLES_JOUEURS, FACTIONS } from '../lib/render/accents.js';
 
   // --- Carte (M1.1) -----------------------------------------------------------
   let width = $state(10);
@@ -178,26 +179,22 @@
     eau: '#5b93c4',
     ocean: '#3f6fa3',
   };
-  // Couleurs d'accent codifiées (textures.ts PLAYER_COLORS — SPEC-ART §3.3/§4,
-  // décision Erik : le rouge est réservé aux barbares). J3..J5 : extension
-  // LABO-ENGAGEMENT (M3, labo uniquement) — teintes distinctes choisies en
-  // attendant la palette définitive des assets.
-  const COULEURS_CAMP: Record<string, string> = {
-    p1: '#3dffce', // menthe néon
-    p2: '#3b6fd6', // bleu vif
-    p3: '#a78bfa', // violet
-    p4: '#f59e0b', // ambre
-    p5: '#ec4899', // rose
-    [BARBARIAN_ID]: '#e03131', // rouge barbare
+  // Palette officielle 7 factions + barbare (accents.json, décision Erik
+  // 20/09) — tonalité BASE (lisibilité) ; le labo n'engage que 5 camps + le
+  // barbare, mais toute la palette est définie d'un seul tenant.
+  const COULEURS_CAMP: Record<string, string> = Object.fromEntries([
+    ...CLES_JOUEURS.map((cle) => [cle, FACTIONS[cle]!.base]),
+    [BARBARIAN_ID, FACTIONS.barbare!.base],
+  ]);
+  // Texte lisible sur la tonalité base : sombre sur teinte claire, blanc sinon.
+  const texteLisible = (hex: string): string => {
+    const n = parseInt(hex.slice(1), 16);
+    const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+    return lum > 0.55 ? '#3b2f0b' : '#ffffff';
   };
-  const TEXTE_CAMP: Record<string, string> = {
-    p1: '#0b3b32', // sombre sur menthe claire
-    p2: '#ffffff',
-    p3: '#ffffff',
-    p4: '#3b2f0b', // sombre sur ambre claire
-    p5: '#ffffff',
-    [BARBARIAN_ID]: '#ffffff',
-  };
+  const TEXTE_CAMP: Record<string, string> = Object.fromEntries(
+    Object.entries(COULEURS_CAMP).map(([cle, hex]) => [cle, texteLisible(hex)]),
+  );
   function couleurTerrain(q: number, r: number): string {
     const t = terrain[`${q},${r}`] ?? fill;
     return COULEURS_TERRAIN[t] ?? '#ccc';

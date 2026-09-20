@@ -1,20 +1,20 @@
 {
-  "_commentaire": "Profils d'import SVG (Erik désigne explicitement chaque fichier). cible.mode = 'unite' (256×320, ancré bas) | 'hex' (tuile 224×256 clippée + contour #2B2620). margeX/Haut/Bas en px de la cible. remplacements (variante CUITE, décision Erik 20/09) : couleurs remplacées dans le SVG (fill + stop-color), PNG sans calque accent — le moteur ne teinte pas. IMPORTANT : Erik fournit, le pipeline n'importe QUE ces fichiers-là.",
+  "_commentaire": "Profils d'import SVG (Erik désigne explicitement chaque fichier). cible.mode = 'unite' (256×320, ancré bas) | 'hex' (tuile 224×256 clippée + contour #2B2620). margeX/Haut/Bas en px de la cible. remplacements (variante CUITE) : paires source→cible explicites, une seule sortie. remplacementsPalette (PALETTE OFFICIELLE, décision Erik 20/09 — HANDOFF-ACCENTS-7-FACTIONS) : source → TONALITÉ (reflet|base|ombre) ; UNE variante par faction de apps/web/src/lib/render/accents.json (7 joueurs + barbare = 8), stems <stem>_j1.._j7,_barbare, sans calque accent. IMPORTANT : Erik fournit, le pipeline n'importe QUE ces fichiers-là.",
   "guerrier-bronze": {
     "svg": "full-body-game-sprite-of-an-ancient-bronze-age-war.svg",
     "stem": "unite_guerrier",
     "cible": { "mode": "unite", "w": 256, "h": 320, "margeX": 14, "margeHaut": 6, "margeBas": 10, "echelle": 0.75 }
   },
-  "guerrier-j1-cuit": {
+  "guerrier-cuite": {
     "svg": "full-body-game-sprite-of-an-ancient-bronze-age-war.svg",
-    "stem": "unite_guerrier_j1",
+    "stem": "unite_guerrier",
     "cible": { "mode": "unite", "w": 256, "h": 320, "margeX": 14, "margeHaut": 6, "margeBas": 10, "echelle": 0.75 },
-    "remplacements": {
-      "#FFFFFF": "#B84239",
-      "#FEFEFE": "#D55B52",
-      "#FEFEFD": "#D55B52",
-      "#FAF9F9": "#D55B52",
-      "#8C8C8C": "#8A3029"
+    "remplacementsPalette": {
+      "#FFFFFF": "base",
+      "#FEFEFE": "reflet",
+      "#FEFEFD": "reflet",
+      "#FAF9F9": "reflet",
+      "#8C8C8C": "ombre"
     }
   }
 }

@@ -41,6 +41,7 @@
   import { createUiState } from '../lib/render/ui.js';
   import type { UiState } from '../lib/render/ui.js';
   import { contexteRendement, allumeDe as allumeDans } from '../lib/render3d/rendement.js';
+  import { playerColor } from '../lib/render/textures.js';
   import { FOV } from '../lib/render3d/camera3d.js';
   import { Stage3D } from '../lib/render3d/stage3d.js';
   import { TerrainWorld, mapBoundsWorld, pickHex3D, hexWorldPos } from '../lib/render3d/world3d.js';
@@ -197,7 +198,7 @@
   /** V2 : assemble les entrées du planificateur de structures (état réel en
    *  fenêtre, pire cas synthétique sur la carte entière — miroir du bench L0). */
   function assemblerStructures(): EntreeStructures {
-    const couleurDe = (owner: string): number => (owner === 'p2' ? 0x3b6fd6 : 0xd64545);
+    const couleurDe = playerColor; // palette officielle (accents.json, tonalité BASE)
     dernieresUnitesGlb = [];
     if (!carteEntiere && filtered) {
       const visible = new Set(filtered.players['p1']?.vision.visible ?? []);

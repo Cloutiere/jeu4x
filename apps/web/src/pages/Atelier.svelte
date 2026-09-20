@@ -30,6 +30,7 @@
   import { StructuresWorld, planifierStructures } from '../lib/render3d/structures3d.js';
   import type { EntreeStructures, TuileStructures } from '../lib/render3d/structures3d.js';
   import { PLAYER_COLORS } from '../lib/render/textures.js';
+  import { LISTE_FACTIONS } from '../lib/render/accents.js';
   import { TERRAINS3D, STRUCTURES3D, MODELES_UNITES3D, SURCHARGE_UNITES3D_PAR_PROPRIO } from '../lib/render3d/spec3d.js';
   import type { EntreeUnite3D } from '../lib/render3d/spec3d.js';
   // Fonderie T3 : isolement des unités à modèle .glb (même calque que le jeu).
@@ -353,11 +354,14 @@
   }
 
   // --- Sprites 2D : variantes d'accent joueur (teinte canvas) -----------------
-  const ACCENTS: Array<{ nom: string; couleur: string; cle: string }> = [
-    { nom: 'Joueur 1', couleur: '#3dffce', cle: 'p1' },
-    { nom: 'Joueur 2', couleur: '#3b6fd6', cle: 'p2' },
-    { nom: 'Barbare', couleur: '#8a7a66', cle: 'barbarien' },
-  ];
+  // Palette officielle 7 factions + barbare (accents.json, décision Erik
+  // 20/09) — tonalité BASE pour la teinte runtime ; les variantes CUITES
+  // (PNG import_svg) prennent la main quand elles existent.
+  const ACCENTS: Array<{ nom: string; couleur: string; cle: string }> = LISTE_FACTIONS.map((f) => ({
+    nom: f.cle === 'barbare' ? 'Barbare' : `Joueur ${f.suffixe!.slice(1)}`,
+    couleur: f.base,
+    cle: f.cle === 'barbare' ? 'barbarien' : f.cle,
+  }));
   let accentsTintees = $state<Array<{ nom: string; url: string }>>([]);
   let baseCharge = $state('');
 
@@ -423,7 +427,12 @@
     // Variantes CUITES par joueur (décision Erik 20/09 : import_svg cuit les
     // couleurs dans le PNG) — prennent la main sur la teinte quand le PNG
     // existe, sinon repli sur la teinte runtime.
-    const CUITES: Record<string, string> = { p1: '/art/unite_guerrier_j1.png' };
+    const CUITES: Record<string, string> = Object.fromEntries(
+      LISTE_FACTIONS.map((f) => [
+        f.cle === 'barbare' ? 'barbarien' : f.cle,
+        `/art/unite_guerrier_${f.suffixe}.png`,
+      ]),
+    );
     untrack(() => {
       const imgs = Promise.all([chargerImg(`/art/${base}.png`), chargerImg(`/art/${accent}.png`)]);
       Promise.all(
