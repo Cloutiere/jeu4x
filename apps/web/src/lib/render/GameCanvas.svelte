@@ -258,7 +258,9 @@
     if (w !== vw || h !== vh) {
       vw = w;
       vh = h;
-      app?.renderer.resize(w, h);
+      // PLEIN-ÉCRAN NET : même logique que le ResizeObserver — la résolution
+      // suit le DPR effectif (le zoom letterbox de la coquille le change).
+      app?.renderer.resize(w, h, Math.min(4, window.devicePixelRatio || 1));
       stage3d?.resize(w, h);
     }
     // Retours d'Erik (19/09) : le double-clic doit montrer ENTIÈREMENT les
@@ -1858,9 +1860,31 @@
   let lastPlaybackActive = false;
   let lastFrame = performance.now();
   let frames = 0;
+  // PLEIN-ÉCRAN NET (retour Erik 20/09 : « F11 après avoir démarré le jeu,
+  // l'image du guerrier est floue ») : la coquille Electron letterboxe le
+  // plein écran en multipliant le zoom Chromium (setZoomFactor = échelle
+  // letterbox) — le DPR effectif change SANS que le viewport CSS bouge (le
+  // ResizeObserver ne se déclenche donc pas) et la résolution Pixi captée à
+  // l'init (DPR fenêtré, neutralisé à 1) restait celle du fenêtré : le canvas
+  // 1280×720 en résolution 1 était ré-échantillonné par le zoom → rendu flou.
+  // On relit donc le DPR à chaque frame ; s'il bouge, on repasse la
+  // résolution au renderer (même borne 2 que l'init) — lecture d'un champ à
+  // la frame, coût négligeable.
+  let dernierDpr = Math.min(4, window.devicePixelRatio || 1);
+
+  function suivreDpr(): void {
+    if (!app) return;
+    const dpr = Math.min(4, window.devicePixelRatio || 1);
+    if (dpr === dernierDpr) return;
+    dernierDpr = dpr;
+    app.renderer.resize(vw, vh, dpr);
+    tilesDirty = true;
+    cameraChanged = true;
+  }
 
   function tick(tickerDeltaMs: number): void {
     frames += 1;
+    suivreDpr();
     try {
       tickInner(tickerDeltaMs);
     } catch (err) {
@@ -2854,7 +2878,7 @@
     await application.init({
       ...(mode3d ? { backgroundAlpha: 0 } : { background: '#141a20' }),
       antialias: true,
-      resolution: Math.min(2, window.devicePixelRatio || 1),
+      resolution: Math.min(4, window.devicePixelRatio || 1),
       autoDensity: true,
       width: host.clientWidth || 800,
       height: host.clientHeight || 600,
@@ -3033,7 +3057,11 @@
       if (!entry || !app) return;
       vw = Math.max(1, entry.contentRect.width);
       vh = Math.max(1, entry.contentRect.height);
-      app.renderer.resize(vw, vh);
+      // PLEIN-ÉCRAN NET : au resize (navigateur), la résolution suit le DPR
+      // effectif — le cas de la coquille (zoom letterbox sans resize) est
+      // couvert par suivreDpr() dans le ticker.
+      const dpr = Math.min(4, window.devicePixelRatio || 1);
+      app.renderer.resize(vw, vh, dpr);
       marqueurs3d?.resize(vw, vh);
       if (stage3d) {
         stage3d.resize(vw, vh);
