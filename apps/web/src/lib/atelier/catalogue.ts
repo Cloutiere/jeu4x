@@ -198,13 +198,20 @@ const ICONES = [
 
 function sprites2d(): AssetAtelier[] {
   const out: AssetAtelier[] = [];
+  // Sprites IMPORTÉS (SVG Recraft d'Erik, pipeline import_svg.mjs) — le PNG
+  // écrase celui du painter dans exports/ ; fiche A/B du painter conservée.
+  const IMPORTES = new Set(['unite_guerrier']);
   for (const id of Object.keys(TERRAINS)) {
     const stem = id === 'ville' ? 'tile_ville_sol' : `tile_${id}`;
     out.push(spriteAsset(stem, `Tuile ${id}`, `${SRC_GENERATEUR('render_tile')} — consommé par textures.ts (tiles)` , false));
   }
   for (const [id, u] of Object.entries(UNIT_TYPES)) {
-    out.push(spriteAsset(`unite_${id}`, `Unité ${u.name}`, `${SRC_GENERATEUR('render_entity')} — textures.ts (units)`, true));
+    const mention = IMPORTES.has(`unite_${id}`) ? ' — IMPORT SVG (Recraft, import_svg.mjs)' : '';
+    out.push(spriteAsset(`unite_${id}`, `Unité ${u.name}`, `${SRC_GENERATEUR('render_entity')} — textures.ts (units)${mention}`, true));
   }
+  // A/B : l'ancien sprite peintre du guerrier, conservé pour le verdict
+  // d'Erik (fichiers unite_guerrier_avant*.png, issus du dernier generate.py).
+  out.push(spriteAsset('unite_guerrier_avant', 'Guerrier (peintre, AVANT import — comparaison A/B)', `${SRC_GENERATEUR('unite_guerrier')} (référence A/B de l'import SVG) — textures.ts (units)`, true));
   // COLON-FONDATION : état « en train de fonder » du Colon (art d'Erik en
   // attente — PNG optionnel, badge provisoire au rendu tant qu'il manque).
   out.push(spriteAsset('unite_colonFondation', 'Colon « en train de fonder » (état, R-158)', `${SRC_GENERATEUR('render_entity')} — textures.ts (colonFondation)`, true));

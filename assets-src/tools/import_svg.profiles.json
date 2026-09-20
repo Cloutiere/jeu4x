@@ -1,0 +1,8 @@
+{
+  "_commentaire": "Profils d'import SVG (Erik désigne explicitement chaque fichier). cible.mode = 'unite' (256×320, ancré bas) | 'hex' (tuile 224×256 clippée + contour #2B2620). margeX/Haut/Bas en px de la cible. IMPORTANT : Erik fournit, le pipeline n'importe QUE ces fichiers-là.",
+  "guerrier-bronze": {
+    "svg": "full-body-game-sprite-of-an-ancient-bronze-age-war.svg",
+    "stem": "unite_guerrier",
+    "cible": { "mode": "unite", "w": 256, "h": 320, "margeX": 14, "margeHaut": 6, "margeBas": 10, "echelle": 0.75 }
+  }
+}
