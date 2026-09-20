@@ -11,8 +11,9 @@
 | J5 | Bleu-Vert Canard | `#468A88` | **`#2D6A68`** | `#1A4543` |
 | J6 | Gris Ardoise / Fer | `#616770` | **`#44484E`** | `#2A2D32` |
 | J7 | Rouge Bourgogne | `#A84D5E` | **`#8A3343`** | `#591E2A` |
+| **Barbare** (rôle dédié, distinct des 7 joueurs) | Rouge Sang | `#DF424A` | **`#B81D24`** | `#7A0E13` |
 
-Le guerrier Recraft actuel (référence de style) porte déjà les 3 gris dans sa zone d'accent.
+Le guerrier Recraft actuel (référence de style) porte déjà les 3 gris dans sa zone d'accent. **TOTAL : 8 palettes** — J1..J7 pour les joueurs (+ le labo 5 nations + barbares), le Barbare pour les camps.
 
 ## 1. Préalables
 
@@ -25,7 +26,7 @@ Le guerrier Recraft actuel (référence de style) porte déjà les 3 gris dans s
 ### M1 — La palette data-driven, source unique
 1. Un fichier de données (`accents.json` ou section dédiée) : la table des 7 joueurs × {reflet, base, ombre} ci-dessus, **validée par un schéma** (7 entrées, hex valides, teintes distinctes) ;
 2. **Inventaire complet des couleurs d'accent codées en dur** dans `apps/web` (grep des hex historiques `#3DFFCE`, `#FF9A3D`, `#D64545`, et tout autre accent/drapeau/anneau) et remplacement par des lectures de la palette (**tonalité BASE par défaut pour les traits fins** — anneaux, liserés, frontières, worked tiles, sélection, tooltips — la Base est conçue pour la lisibilité) ; les Reflets/Ombres servent au rendu des sprites et, si utile, aux états (survol = reflet, sélection forte = ombre — à l'œil par Erik) ;
-3. **Le rouge barbare** : point à ARBITRER PAR ERIK avant d'implémenter (voir §4) — défaut proposé : J7 Bourgogne DEVIENDRA la teinte barbare (cohérence « le rouge est aux barbares »), les 7 joueurs réels n'utilisent que J1..J6 si le jeu reste 1v1+barbares... mais le labo 5 nations + barbares utilisera J1..J5+J6 si besoin. À confirmer.
+3. **Le rouge barbare — TRANCHÉ par Erik (20/09) : option B** — les barbares gardent un rouge **dédié et distinct**, désormais en 3 teintes : Reflet `#DF424A`, Base `#B81D24`, Ombre `#7A0E13` (« rouge sang »). **Total : 8 palettes** dans le fichier de données (7 joueurs + barbare) ; J7 Bourgogne reste disponible pour un 7e joueur humain (labo). Le mode variante cuite produit donc **8 variantes** par asset (7 joueurs + barbare), l'ancien rouge barbare plat est remplacé partout.
 
 ### M2 — Le pipeline : variantes cuites × 7 × 3 tons
 1. Le mode variante cuite (`import_svg`) étendu : mapping déterministe des 3 gris du maître (`#FEFEFE`→reflet, `#FFFFFF`→base, `#8C8C8C`→ombre, tolérance ±2 par canal, anti-aliasing ignoré) → **7 variantes** (guerrier, et les autres assets importés qui portent des gris d'accent) ;
@@ -41,9 +42,9 @@ Le guerrier Recraft actuel (référence de style) porte déjà les 3 gris dans s
 
 - Les teintes de terrains/ressources (neutres, non joueur) ; le 3D ; `assets-src` atelier d'Erik (fichiers racine intouchés) ; toute décision de style non dictée par la table ci-dessus.
 
-## 4. Question à arbitrer par Erik AVANT le lancement
+## 4. Arbitrage des barbares — TRANCHÉ (Erik, 20/09)
 
-**Le rouge barbare** : les barbares utilisaient un rouge réservé (`#D64545`-famille). Options : **(A)** les barbares prennent **J7 Bourgogne** (la table couvre tout, 7 teintes au total) ; **(B)** les barbares gardent leur rouge distinct ET J7 reste disponible pour un 7e joueur humain (8 teintes au total — le labo 5 nations + barbares n'en utilise que 6). Défaut proposé : **A** (simplicité, la Bourgogne lit « barbare »). Dire à l'agent « barbares = A » ou « = B » en début de session.
+**Option B** : les barbares gardent leur rouge dédié **distinct des 7 joueurs**, en 3 teintes (Reflet `#DF424A` / Base `#B81D24` / Ombre `#7A0E13`). J7 Bourgogne reste un 7e joueur humain. **8 palettes au total** dans le fichier de données — voir la table §1 et la mission M1.3/M2.2.
 
 ## 5. Fin de session
 
