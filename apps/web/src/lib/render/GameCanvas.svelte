@@ -590,14 +590,17 @@
       // PV (override de combat pendant le playback).
       const hp = playback.hpOf(unit.id, unit.hp);
       const ratio = Math.max(0, Math.min(1, hp / unitType(unit.type).hpMax));
-      const fill = c.getChildByLabel('hpFill') as Sprite | null;
-      // 7j : garde-fou — un type sans sprite (données éditées) ne doit pas
-      // tuer la boucle de rendu (le crash du ticker gelait les clics carte).
-      if (fill) {
-        fill.width = 76 * ratio;
-        // CALIBRATION-UNITES (retour Erik 20/09) : barre de PV à la couleur
-        // d'accent du joueur (plus de vert/ambre/rouge par ratio de PV).
+      // PROTO-3-VIES : un compartiment par vie — chaque cellule est pleine
+      // si sa vie est acquise, partiellement remplie pour la vie en cours.
+      const largeurCellule = 70 / 3; // même géométrie que la création (76 − 2 encoches de 3)
+      for (let i = 0; i < 3; i++) {
+        const fill = c.getChildByLabel(`hpFill${i}`) as Sprite | null;
+        if (!fill) continue;
+        const cellule = Math.max(0, Math.min(1, ratio * 3 - i));
+        fill.width = largeurCellule * cellule;
+        // CALIBRATION-UNITES (retour Erik 20/09) : couleur d'accent du joueur.
         fill.tint = playerColor(unit.owner);
+        fill.visible = cellule > 0;
       }
       // Marqueur écu de fortification (R-33).
       const shield = c.getChildByLabel('fortify');
@@ -803,13 +806,26 @@
     // CALIBRATION-UNITES (retour Erik 20/09) : barre de PV RAPPROCHÉE —
     // collée au sommet du sprite (l'ancien écart était de 8 px au-dessus).
     bg.position.set(-40, sommet - 1);
-    const fill = new Sprite(textures!.px);
-    fill.label = 'hpFill';
-    fill.height = 10;
-    fill.position.set(-38, sommet + 1);
+    // PROTO-3-VIES (demande Erik 20/09) : la barre est divisée en 3
+    // compartiments (1 compartiment = 1 vie, hpMax = 3 partout), séparés
+    // par de fines encoches du fond. Le remplissage par compartiment est
+    // piloté dans la boucle de rendu (labels hpFill0/1/2).
+    const CELLULES_PV = 3;
+    const INNER_W = 76;
+    const ENCOche = 3;
+    const largeurCellule = (INNER_W - (CELLULES_PV - 1) * ENCOche) / CELLULES_PV;
+    const fills: Sprite[] = [];
+    for (let i = 0; i < CELLULES_PV; i++) {
+      const fill = new Sprite(textures!.px);
+      fill.label = `hpFill${i}`;
+      fill.width = largeurCellule;
+      fill.height = 10;
+      fill.position.set(-38 + i * (largeurCellule + ENCOche), sommet + 1);
+      fills.push(fill);
+    }
     c.addChild(base);
     if (accent) c.addChild(accent);
-    c.addChild(bg, fill);
+    c.addChild(bg, ...fills);
     // Écu de fortification (R-33) : petit bouclier bleu au-dessus du PV, caché par défaut.
     const shield = new Graphics();
     shield.label = 'fortify';
