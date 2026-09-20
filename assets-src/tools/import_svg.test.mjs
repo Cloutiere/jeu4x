@@ -30,6 +30,7 @@ function tmp() {
 const svgBlancPlein = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <rect x="100" y="100" width="500" height="500" fill="#333333"/>
   <rect x="150" y="150" width="400" height="400" fill="#FFFFFF"/>
+  <circle cx="350" cy="350" r="60" fill="#222222"/>
 </svg>`;
 
 function profil(cible, texte = svgBlancPlein, stem = 'test_fixt') {
@@ -67,25 +68,61 @@ test('G1 : blanc pur accepté (bords AA tolérés)', async () => {
   assert.equal((await gateBlancPure(png)).length, 0);
 });
 
-test('G2 : vrai trou (anneau épais) rejeté', async () => {
-  // anneau : un rect blanc sur fond transparent encadré... un anneau laisserait
-  // le centre ouvert MAIS relié au bord ; on enferme : cadre blanc plein avec
-  // un trou carré intérieur (via fill-rule evenodd).
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+test('G2 : vrai trou (zone claire non couverte) rejeté', async () => {
+  // trou dans le blanc posé sur une base CLAIRE : la teinte ne s'y appliquera
+  // pas → rejet. (Un trou sur base sombre est légitime : détail percé.)
+  const txt = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+    <rect x="4" y="4" width="56" height="56" fill="#EEEECC"/>
     <path fill="#FFFFFF" fill-rule="evenodd" d="M8 8h48v48H8Z M20 20h24v24H20Z"/></svg>`;
-  const png = await sharp(Buffer.from(svg)).png().toBuffer();
-  const trous = await gateTrous(png);
-  assert.ok(trous.length > 0, 'le trou enfermé doit être rejeté');
+  const { svg: accentSvg } = extraireAccent(txt);
+  const accent = await sharp(Buffer.from(accentSvg)).png().toBuffer();
+  const base = await sharp(Buffer.from(txt)).png().toBuffer();
+  const trous = await gateTrous(accent, base);
+  assert.ok(trous.length > 0, 'le trou sur base claire doit être rejeté');
   assert.ok(trous[0].taille > 16, 'le trou de 24×24 dépasse la tolérance AA');
 });
 
+test('G2 : détails percés acceptés (transparence sur base sombre)', async () => {
+  // accent = rendu des formes blanches SEULES, base = rendu complet : le disque
+  // sombre est transparent dans l'accent, sombre et opaque dans la base.
+  const txt = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+    <rect x="8" y="8" width="48" height="48" fill="#FFFFFF"/>
+    <circle cx="32" cy="32" r="12" fill="#222222"/>
+  </svg>`;
+  const { svg: accentSvg } = extraireAccent(txt);
+  const accent = await sharp(Buffer.from(accentSvg)).png().toBuffer();
+  const base = await sharp(Buffer.from(txt)).png().toBuffer();
+  assert.equal((await gateTrous(accent, base)).length, 0);
+});
+
 test('G2 : fentes AA (jonctions de paths) acceptées', async () => {
-  // fente de 1 px enfermée entre deux rects blancs
+  // fente de 1 px enfermée entre deux rects blancs, au-dessus d'un fond sombre
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+    <rect x="8" y="8" width="48" height="48" fill="#222222"/>
     <rect x="8" y="8" width="27" height="48" fill="#FFFFFF"/>
     <rect x="36" y="8" width="20" height="48" fill="#FFFFFF"/></svg>`;
   const png = await sharp(Buffer.from(svg)).png().toBuffer();
-  assert.equal((await gateTrous(png)).length, 0);
+  assert.equal((await gateTrous(png, png)).length, 0);
+});
+
+test('percement des détails : l\'accent est percé là où la base est sombre', async () => {
+  const dossier = tmp();
+  await importer('fixture', {
+    profil: profil({ mode: 'unite', w: 128, h: 128, margeX: 8, margeHaut: 8, margeBas: 8 }),
+    exports: dossier,
+    diagnostics: dossier,
+  });
+  const acc = await sharp(path.join(dossier, 'test_fixt_accent.png')).raw().toBuffer({ resolveWithObject: true });
+  const bas = await sharp(path.join(dossier, 'test_fixt.png')).raw().toBuffer({ resolveWithObject: true });
+  const n = acc.info.width * acc.info.height;
+  let percés = 0, blancsPleins = 0;
+  for (let i = 0; i < n; i++) {
+    const aAcc = acc.data[i * 4 + 3], aBas = bas.data[i * 4 + 3];
+    if (aAcc === 0 && aBas === 255) percés++;              // détail percé
+    if (aAcc === 255 && aBas === 255) blancsPleins++;      // blanc conservé
+  }
+  assert.ok(percés > 20, `le cercle sombre doit être percé dans l'accent (trouvés : ${percés})`);
+  assert.ok(blancsPleins > 500, `le blanc doit rester plein autour (trouvés : ${blancsPleins})`);
 });
 
 test('G3 : dimensions/ratio faux rejetés, profil respecté sinon', async () => {
@@ -144,12 +181,46 @@ test('génère les résolutions du catalogue + hexagone (clip + contour)', async
   assert.ok(encre, 'contour #2B2620 tracé au sommet de l\'hexagone');
 });
 
+test('variante cuite : les couleurs sont remplacées dans le PNG (sans accent)', async () => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+    <rect width="128" height="128" fill="#FFFFFF"/>
+    <rect x="16" y="16" width="96" height="96" fill="#FEFEFE"/>
+    <rect x="32" y="32" width="64" height="64" fill="#8C8C8C"/>
+  </svg>`;
+  const dossier = tmp();
+  const r = await importer('j1', {
+    profil: {
+      svg: ecrire(svg),
+      stem: 'test_j1',
+      cible: { mode: 'unite', w: 64, h: 64, margeX: 2, margeHaut: 2, margeBas: 2 },
+      remplacements: { '#FFFFFF': '#B84239', '#FEFEFE': '#D55B52', '#8C8C8C': '#8A3029' },
+    },
+    exports: dossier,
+    diagnostics: dossier,
+  });
+  assert.equal(r.stem, 'test_j1');
+  // pas de calque accent : seul le PNG de base existe
+  assert.ok(fs.existsSync(path.join(dossier, 'test_j1.png')));
+  assert.ok(!fs.existsSync(path.join(dossier, 'test_j1_accent.png')));
+  // les trois couleurs cibles sont présentes à l'identique dans le rendu
+  const { data, info } = await sharp(path.join(dossier, 'test_j1.png')).raw().toBuffer({ resolveWithObject: true });
+  const cibles = new Set(['B84239', 'D55B52', '8A3029']);
+  const vus = new Set();
+  for (let i = 0; i < info.width * info.height; i++) {
+    if (data[i * 4 + 3] < 250) continue;
+    const k = [data[i * 4], data[i * 4 + 1], data[i * 4 + 2]]
+      .map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+    if (cibles.has(k)) vus.add(k);
+  }
+  assert.deepEqual([...vus].sort(), ['8A3029', 'B84239', 'D55B52']);
+});
+
 test('idempotence : deux imports du guerrier = mêmes octets', async () => {
   const d1 = tmp(), d2 = tmp();
   const prof = {
     svg: 'full-body-game-sprite-of-an-ancient-bronze-age-war.svg',
     stem: 'unite_guerrier',
-    cible: { mode: 'unite', w: 256, h: 320, margeX: 14, margeHaut: 6, margeBas: 10 },
+    cible: { mode: 'unite', w: 256, h: 320, margeX: 14, margeHaut: 6, margeBas: 10, echelle: 0.75 },
   };
   await importer('guerrier', { profil: prof, exports: d1, diagnostics: d1 });
   await importer('guerrier', { profil: prof, exports: d2, diagnostics: d2 });

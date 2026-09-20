@@ -754,17 +754,30 @@
         : textures!.units[type];
     if (!tex) return c; // type d'unité sans placeholder (ne devrait pas arriver en v1)
     const color = playerColor(owner);
-    const base = new Sprite(tex.base);
-    base.label = 'base';
-    base.anchor.set(0.5, 1);
-    base.scale.set(0.5);
-    base.y = 10;
-    const accent = new Sprite(tex.accent);
-    accent.label = 'accent';
-    accent.anchor.set(0.5, 1);
-    accent.scale.set(0.5);
-    accent.y = 10;
-    accent.tint = color;
+    // Variante CUITE par propriétaire (décision Erik 20/09 : ex. guerrier@p1,
+    // rouge cuit dans le PNG par import_svg) — sprite unique SANS teinte.
+    const cuite = textures!.cuites?.[`${type}@${owner}`];
+    let base: Sprite;
+    let accent: Sprite | null = null;
+    if (cuite) {
+      base = new Sprite(cuite.base);
+      base.label = 'base';
+      base.anchor.set(0.5, 1);
+      base.scale.set(0.5);
+      base.y = 10;
+    } else {
+      base = new Sprite(tex.base);
+      base.label = 'base';
+      base.anchor.set(0.5, 1);
+      base.scale.set(0.5);
+      base.y = 10;
+      accent = new Sprite(tex.accent);
+      accent.label = 'accent';
+      accent.anchor.set(0.5, 1);
+      accent.scale.set(0.5);
+      accent.y = 10;
+      accent.tint = color;
+    }
     const bg = new Sprite(textures!.px);
     bg.width = 80;
     bg.height = 10;
@@ -774,7 +787,9 @@
     fill.label = 'hpFill';
     fill.height = 10;
     fill.position.set(-38, -156);
-    c.addChild(base, accent, bg, fill);
+    c.addChild(base);
+    if (accent) c.addChild(accent);
+    c.addChild(bg, fill);
     // Écu de fortification (R-33) : petit bouclier bleu au-dessus du PV, caché par défaut.
     const shield = new Graphics();
     shield.label = 'fortify';

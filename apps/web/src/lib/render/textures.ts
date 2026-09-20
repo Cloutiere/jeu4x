@@ -45,6 +45,10 @@ export interface GameTextures {
   /** Clé = id type d'unité des données JSON (unite_guerrier…) + variantes
    *  barbares `barbare_<type>` (Phase 7d, R-95). */
   units: Record<string, EntityTexture>;
+  /** Variantes CUITES par propriétaire (import_svg : couleurs d'accent cuites
+   *  dans le PNG, pas de calque accent à teinter) — clé `<type>@<owner>`
+   *  (ex. `guerrier@p1`). Décision Erik 20/09. */
+  cuites: Record<string, EntityTexture>;
   cities: { settlement: EntityTexture; capital: EntityTexture };
   /** R-96 (Phase 7d) : village barbare (tente/camp). */
   villageBarbare: EntityTexture;
@@ -603,6 +607,7 @@ export function createTextures(renderer: Renderer): GameTextures {
 
   return {
     tiles,
+    cuites: {},
     units: {
       ...units,
       // R-95 (Phase 7d) : variantes barbares — accent gris-brun au rendu
@@ -721,7 +726,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const resourceIds = [...Object.keys(RESOURCES).sort(), RESOURCE_UNKNOWN];
   // Phase 7d (R-95) : variantes barbares (accent gris-brun au rendu).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerrierJ1, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -742,6 +747,9 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     entityOrFallback('hutte', fallback.hutte),
     Promise.all(ARTEFACT_IDS.map((id) => entityOrFallback(`artefact_${id}`, fallback.artefacts[id]!).then((t) => [id, t] as const))),
     optionalEntity('unite_colonFondation'),
+    // Variante CUITE Joueur 1 (décision Erik 20/09) : le guerrier importé
+    // porte son rouge cuit — rendu SANS teinte d'accent (GameCanvas).
+    optionalEntity('unite_guerrier_j1'),
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
@@ -766,9 +774,15 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     if (!unitsFinales[id]) unitsFinales[id] = unitsFinales.guerrier!;
   }
 
+  // Variantes cuites par propriétaire (cf. interface) : la clé dit quel
+  // (type, propriétaire) affiche le sprite cuit SANS teinte.
+  const cuites: Record<string, EntityTexture> = {};
+  if (guerrierJ1) cuites['guerrier@p1'] = guerrierJ1;
+
   return {
     tiles: Object.fromEntries(tiles) as Record<TerrainId, Texture>,
     units: { ...unitsFinales, ...Object.fromEntries(barbareUnits) },
+    cuites,
     cities: { settlement, capital },
     villageBarbare,
     hutte,

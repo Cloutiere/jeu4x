@@ -66,6 +66,38 @@ Note : le handoff disait « orange J2 » — la palette décidée le 13/09 (text
 4. Dans `generate.py`, commenter la ligne correspondante de `entities` (le painter reste) ; pour l'A/B, extraire l'ancien PNG du HEAD git sous `*_avant` et ajouter la fiche dans `catalogue.ts` (constante `IMPORTES`) ;
 5. `pnpm sync-art` (apps/web) puis `pnpm test` — l'asset apparaît dans l'atelier et en partie.
 
-## 7. État
+## 7. Correctif « détails dans la zone d'accent » (retour d'Erik du 20/09)
 
-Validé localement, **en attente du verdict d'Erik** (A/B atelier : `unite_guerrier` vs `unite_guerrier_avant`). Commit/push sur demande explicite. Serveurs dev arrêtés.
+**Constat** : en jeu, l'accent teinté (composé AU-DESSUS de la base — convention painter, `GameCanvas.buildUnitContainer` et atelier `composer()`) recouvrait les détails sombres de la zone d'accent : le bouclier du guerrier apparaissait comme un disque plein, rayons invisibles.
+
+**Pourquoi pas l'inversion de l'ordre de composition** : l'accent SOUS la base effacerait la couleur joueur de **toutes les unités peintre** (leurs bases sont opaques dans la zone d'accent — le painter pose ses détails en gris DANS le calque accent, pas dans la base). Le correctif est donc fait là où réside l'écart : **le pipeline**.
+
+**Correction (import_svg.mjs)** — convention painter appliquée au SVG : les détails sombres de la zone d'accent (luminance < `SEUIL_ENCRE` = 140, le seuil du painter, mesurée sur le rendu complet à haute résolution) sont **PERCÉS en transparence dans le calque accent**. À l'écran, la teinte s'applique au champ du bouclier tandis que les rayons de la **base** restent visibles à travers — sous toutes les teintes, sans toucher au moteur ni à l'atelier. Garde-fou : refus si aucun détail n'est percé (SVG dont les détails seraient hors zone blanche → ils seraient masqués par la teinte).
+
+**G2 révisé** (« couverture de l'accent ») : un pixel transparent de l'accent n'est légitime que hors silhouette ou sur un pixel de base pas franchement clair (lum < `SEUIL_CLAIR` = 210 — les franges d'AA détail↔blanc plafonnent à ~200 mesurés ; le champ nu est ~250). Un trou sur le champ blanc = zone blanche manquante = refus. Tests : 10/10 (trou sur champ clair rejeté, détails percés acceptés, percement vérifié sur l'import).
+
+**Lisibilité au rendu réel** (sprite 256×320 affiché à 128×160, échelle 0.5 — captures `partie-guerrier-details-visibles.png` et `partie-guerrier-zoom-details.png`) : l'étoile à 8 rayons reste discernable à l'échelle carte (~30 px de bouclier) et nette en zoom/atelier (`atelier-guerrier-accents-perces.png`). Si Erik la juge trop fine à l'échelle 64 px, deux leviers : (a) épaissir les rayons dans le SVG source Recraft (préféré — c'est le trait d'Erik), (b) ajout d'un paramètre de dilatation du percement dans le pipeline.
+
+**Vérifié** : tests convertisseur 10/10, web 312/312, `generate.py --check` conforme pour le guerrier (restent colon/chevalier, préexistants). Non committé — attente du verdict d'Erik.
+
+## 8. Variante cuite Joueur 1 (décision Erik 20/09 — « on oublie l'accent actuel »)
+
+Nouveau mode du pipeline : `profil.remplacements` = { couleurSource → couleurCible } — remplacement **dans le texte SVG** (attributs `fill` et `stop-color`, insensible à la casse), rendu **sans calque accent** : l'asset porte sa couleur, le moteur n'a plus à teinter. Sortie : `unite_guerrier_j1.png` (256×320, sans `_accent`).
+
+Profil `guerrier-j1-cuit`, couleurs demandées par Erik :
+
+| Source | Cible | Occurrences dans le SVG |
+|---|---|---|
+| `#FFFFFF` | `#B84239` | **19** (champ du bouclier) |
+| `#FEFEFE` | `#D55B52` | **0** — absent du fichier |
+| `#8C8C8C` | `#8A3029` | **0** — absent du fichier |
+
+Le SVG ne contient pas `FEFEFE` ni `8C8C8C` en littéraux ; les quasi-blancs réels sont les **stops du dégradé 5** (`#FAF9F9 → #FEFEFD`, l'ombrage du bouclier), mappés vers `#D55B52`. Le rendu pixel ne montre pas de gris `8C8C8C` (la rampe d'AA s'arrête à `#C8C8C8`, ce sont des franges d'anti-aliasing, pas des aplats). Si Erik veut d'autres correspondances, il suffit d'ajouter des paires au profil (une couleur source absente ne bloque pas — signalée ×0 ; un total nul est refusé).
+
+**Périmètre** : la variante est visible dans l'atelier (fiche « Guerrier — variante cuite Joueur 1 », sans accent) — **ET le moteur l'utilise** : câblage fait le 20/09 (retour d'Erik « ce sont encore les anciennes couleurs ») — `textures.ts` : chargement optionnel `unite_guerrier_j1` + map `GameTextures.cuites` (clé `<type>@<owner>`) ; `GameCanvas.buildUnitContainer` : variante cuite = sprite unique SANS teinte d'accent ; atelier : la variante « accent Joueur 1 » de la fiche `unite_guerrier` affiche le PNG cuit (« Joueur 1 (cuit) »), repli teinte runtime si PNG absent. J2 et barbare inchangés (teinte runtime) — autres couleurs à definir avec Erik. Vérifié en partie solo : le guerrier J1 porte le bouclier rouge cuit (`partie-guerrier-j1-cuit-en-jeu.png`).
+
+**Vérifié** : tests convertisseur 11/11 (nouveau test : les trois couleurs cibles présentes à l'identique, pas de `_accent`), web 312/312, svelte-check 0 erreur. Captures `atelier-guerrier-j1-cuit.png` (cuite) et `atelier-guerrier-j1-teinte-runtime.png` (teinte runtime, pour comparaison). Non committé.
+
+## 9. État
+
+**Accepté par Erik le 20/09** (« tout est parfait ») : percement des détails d'accent, variante cuite Joueur 1 et câblage moteur. Commité et poussé sur sa demande.

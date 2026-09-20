@@ -212,6 +212,9 @@ function sprites2d(): AssetAtelier[] {
   // A/B : l'ancien sprite peintre du guerrier, conservé pour le verdict
   // d'Erik (fichiers unite_guerrier_avant*.png, issus du dernier generate.py).
   out.push(spriteAsset('unite_guerrier_avant', 'Guerrier (peintre, AVANT import — comparaison A/B)', `${SRC_GENERATEUR('unite_guerrier')} (référence A/B de l'import SVG) — textures.ts (units)`, true));
+  // Variante CUITE Joueur 1 (décision Erik 20/09 : couleurs d'accent cuites
+  // dans le SVG, pas de calque accent — import_svg.mjs profil guerrier-j1-cuit).
+  out.push(spriteAsset('unite_guerrier_j1', 'Guerrier — variante cuite Joueur 1 (rouge, accent intégré)', `assets-src/tools/import_svg.mjs (profil guerrier-j1-cuit) — import SVG Recraft`, false));
   // COLON-FONDATION : état « en train de fonder » du Colon (art d'Erik en
   // attente — PNG optionnel, badge provisoire au rendu tant qu'il manque).
   out.push(spriteAsset('unite_colonFondation', 'Colon « en train de fonder » (état, R-158)', `${SRC_GENERATEUR('render_entity')} — textures.ts (colonFondation)`, true));

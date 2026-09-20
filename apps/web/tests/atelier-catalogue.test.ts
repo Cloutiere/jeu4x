@@ -38,7 +38,7 @@ describe('atelier — catalogue L0', () => {
     for (const a of CATALOGUE) {
       expect(a.id.length).toBeGreaterThan(0);
       expect(a.nom.length).toBeGreaterThan(0);
-      expect(a.source).toMatch(/visuel3d\.json|packages\/rules|generate\.py|code —/);
+      expect(a.source).toMatch(/visuel3d\.json|packages\/rules|generate\.py|import_svg\.mjs|code —/);
     }
   });
 

@@ -420,14 +420,29 @@
     const { base, accent } = stemsDe(asset);
     baseCharge = `/art/${base}.png`;
     if (!accent) { accentsTintees = []; return; }
+    // Variantes CUITES par joueur (décision Erik 20/09 : import_svg cuit les
+    // couleurs dans le PNG) — prennent la main sur la teinte quand le PNG
+    // existe, sinon repli sur la teinte runtime.
+    const CUITES: Record<string, string> = { p1: '/art/unite_guerrier_j1.png' };
     untrack(() => {
-      Promise.all([chargerImg(`/art/${base}.png`), chargerImg(`/art/${accent}.png`)])
-        .then(([imgBase, imgAccent]) => {
-          accentsTintees = ACCENTS.map((a) => ({ nom: a.nom, url: composer(imgBase, imgAccent, a.couleur) }));
-        })
-        .catch(() => {
-          accentsTintees = [];
-        });
+      const imgs = Promise.all([chargerImg(`/art/${base}.png`), chargerImg(`/art/${accent}.png`)]);
+      Promise.all(
+        ACCENTS.map(async (a) => {
+          const cuite = base === 'unite_guerrier' ? CUITES[a.cle] : undefined;
+          if (cuite) {
+            try {
+              await chargerImg(cuite);
+              return { nom: `${a.nom} (cuit)`, url: cuite };
+            } catch {
+              // PNG cuit absent : repli sur la teinte runtime
+            }
+          }
+          const [imgBase, imgAccent] = await imgs;
+          return { nom: a.nom, url: composer(imgBase, imgAccent, a.couleur) };
+        }),
+      )
+        .then((vs) => { accentsTintees = vs; })
+        .catch(() => { accentsTintees = []; });
     });
   });
 

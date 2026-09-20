@@ -69,6 +69,7 @@ function texturesDeSecours(): GameTextures {
   const entite = { base: corpsUnit, accent: accentUnit };
   return {
     tiles: {} as GameTextures['tiles'],
+    cuites: {},
     units: { guerrier: entite },
     cities: { settlement: { base: corpsVille, accent: accentVille }, capital: { base: corpsVille, accent: accentVille } },
     villageBarbare: entite,
