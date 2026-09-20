@@ -19,6 +19,9 @@ import type { Writable } from 'svelte/store';
 import type { CityId, GameEvent, GameState, Order, ServerToClientMessage, Unit, UnitId } from '@game/shared';
 import { connectWs } from './net.js';
 import type { NetStatus, SocketHandle } from './net.js';
+// REPLAY-RESOLUTION (L2) : capture de l'état pré-résolution à chaque
+// TurnResult, purge au Snapshot (chargement/reconnexion).
+import { reducePaireReplay, replayPair } from './replay.js';
 
 export interface GameView {
   code: string;
@@ -202,6 +205,9 @@ export function createGameClient(
       error.set(`${message.code} : ${message.message}`);
       return;
     }
+    // L2 : la paire de relecture est mise à jour AVANT l'écrasement de la
+    // vue — au TurnResult, `get(view).state` EST l'état pré-résolution.
+    replayPair.update((p) => reducePaireReplay(p, message, message.type === 'TurnResult' ? get(view).state : null));
     view.update((v) => reduceView(v, message));
   }
 

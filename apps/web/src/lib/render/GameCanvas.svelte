@@ -96,6 +96,14 @@
     onEnterVueVille?(cityId: string): void;
     /** MENU-VILLE : sortie demandée par le canvas (Échap / double-clic hors ville). */
     onExitVueVille?(): void;
+    /** REPLAY-RESOLUTION (L3) : état de relecture rendu À LA PLACE de l'état
+     *  de la vue quand non null (le renderer n'y lit QUE des entités — même
+     *  contrat que l'état filtré). Null = rendu normal. */
+    etatReplay?: GameState | null;
+    /** REPLAY-RESOLUTION : relecture en cours (Échap = quitter). */
+    replayActif?: boolean;
+    /** REPLAY-RESOLUTION : sortie demandée par le canvas (Échap). */
+    onExitReplay?(): void;
   }
 
   let {
@@ -116,6 +124,9 @@
     vueVilleId = null,
     onEnterVueVille,
     onExitVueVille,
+    etatReplay = null,
+    replayActif = false,
+    onExitReplay,
   }: Props = $props();
 
   // La bascule de l'overlay de rendements reconstruit la surcouche ; le
@@ -292,6 +303,27 @@
       tilesDirty = true;
       entitiesDirty = true; // MENU-VILLE : les unités réapparaissent
     }
+  });
+
+  // REPLAY-RESOLUTION (L3) : pendant la relecture, le renderer consomme
+  // l'ÉTAT DE RELECTURE (pré-résolution + delta des événements rejoués) à la
+  // place de l'état de la vue — mêmes caches de sprites, même pipeline
+  // (la bascule marque tout dirty, comme une vue poussée). À la sortie,
+  // l'état réel de la dernière vue reprend sans reconstruction coûteuse.
+  $effect(() => {
+    const etat = etatReplay ?? scene.view?.state ?? null;
+    if (!scene.view || !etat) return;
+    if (scene.state === etat) return;
+    scene.state = etat;
+    const vision = etat && scene.myId ? etat.players[scene.myId]?.vision : undefined;
+    scene.explored = new Set(vision?.explored ?? []);
+    scene.visible = new Set(vision?.visible ?? []);
+    hoverCache.purge();
+    scenePreviews = []; // aucune position optimiste pendant la relecture
+    tilesDirty = true;
+    entitiesDirty = true;
+    overlayDirty = true;
+    cameraChanged = true;
   });
 
   // --- Chantier V1 (L3) : couche 3D hybride (terrain Three.js en fond, les
@@ -2811,6 +2843,12 @@
 
   function onKey(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
+      // REPLAY-RESOLUTION (D4) : Échap quitte d'abord la relecture (retour
+      // immédiat à l'état réel — la page purge playback + état dérivé).
+      if (replayActif) {
+        onExitReplay?.();
+        return;
+      }
       // MENU-VILLE : Échap sort d'abord de la vue ville (voie de sortie 2).
       if (vueVilleActif()) {
         onExitVueVille?.();

@@ -209,6 +209,14 @@ export class Playback {
   speed = 1;
 
   /**
+   * REPLAY-RESOLUTION (L3) : hook appelé AU DÉBUT de chaque événement rejoué
+   * (dans `next()`). En mode relecture, la page y applique l'effet de
+   * l'événement À L'ÉTAT DE RELECTURE (sprite détruit à l'événement, drapeau
+   * de ville, PV…) — jamais en playback cosmétique (hook null).
+   */
+  onEvenement: ((ev: GameEvent) => void) | null = null;
+
+  /**
    * Phase 1 « annonce » (Phase 5.5 L2) : lignes de déplacement prévues de
    * tous les movers du tour, affichées ~1 s avant les mouvements. Vide dès
    * que la phase est consommée (ou si aucun Move dans le tour rejoué).
@@ -321,6 +329,10 @@ export class Playback {
     const dur = DURATIONS[ev.type] ?? 200;
     const item: CurrentItem = { ev, t: 0, dur };
     this.current = item;
+
+    // REPLAY-RESOLUTION : l'effet structurel est appliqué à l'état de
+    // relecture AU DÉBUT de l'événement (avant les effets cosmétiques).
+    this.onEvenement?.(ev);
 
     // Effets au DÉBUT de l'événement.
     switch (ev.type) {

@@ -13,6 +13,7 @@
   import { onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import type { GameEvent } from '@game/shared';
+  import type { GameState } from '@game/shared';
   import type { Hex } from '@game/rules';
   import { CULTURE, GOVERNMENTS, TECHS, WONDERS, angkorEligibleWonders, conversionGains, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, nextEconomyMilestone, allKnownTechs, interiorCitizenFor, activeTraitsOf, blocagesFinDeTour, libelleBlocageFinDeTour } from '@game/rules';
   import { civName, civLeader } from '../lib/labels.js';
@@ -24,6 +25,7 @@
   import { rightClickAction, annulationOrdre, unitsWithoutOrders, myEngineId } from '../lib/render/interaction.js';
   import type { ClickAction } from '../lib/render/interaction.js';
   import { unexecutedOrders } from '../lib/feedback.js';
+  import { replayPair, cloneEtatReplay, appliquerEvenement } from '../lib/replay.js';
   import { config, rendu3dAutorise, bascule3dAutorisee } from '../lib/config.js';
   import GameCanvas from '../lib/render/GameCanvas.svelte';
   import UnitPanel from '../components/UnitPanel.svelte';
@@ -80,7 +82,12 @@
   const client: GameClient = createGameClient(code, {
     onMessage(message) {
       // Resync/reconnexion : le snapshot reçu prime sur toute animation.
-      if (message.type === 'Snapshot') playback.reset();
+      // REPLAY-RESOLUTION (L2) : un Snapshot purge aussi la paire (fait dans
+      // gameClient) — la relecture en cours cesse, l'état reçu est l'autorité.
+      if (message.type === 'Snapshot') terminerReplay();
+      // REPLAY-RESOLUTION (D1) : un nouveau TurnResult remplace la paire —
+      // la relecture en cours est quittée (elle portait l'ancien tour).
+      if (message.type === 'TurnResult') terminerReplay();
       // Polish Phase 5 : un ordre écarté par le moteur à la résolution est
       // signalé (le hook voit les ordres d'AVANT la mise à jour de la vue).
       if (message.type === 'TurnResult') {
@@ -396,6 +403,50 @@
   }
 
   // ---------------------------------------------------------------------
+  // REPLAY-RESOLUTION (D3/D4) — mode relecture du dernier tour résolu.
+  // L'état RENDU devient un état dérivé (clone du pré-résolution) sur lequel
+  // le playback applique les événements AU FUR ET À MESURE ; l'état
+  // autoritaire du store n'est jamais muté. Pan/zoom restent libres, clic =
+  // accélérer, Échap/bouton = quitter (retour immédiat à l'état réel).
+  // ---------------------------------------------------------------------
+  let etatReplay = $state<GameState | null>(null);
+  let replayActif = $state(false);
+
+  function demarrerReplay(): void {
+    const paire = get(replayPair);
+    if (!paire || playbackActive || replayActif) return;
+    selectNothing(ui); // aucune sélection pendant la relecture
+    vueVille.set(null); // la vue ville n'a pas de sens sur le pré-état
+    const etat = cloneEtatReplay(paire.statePre);
+    playback.reset();
+    // Chaque événement rejoué applique son effet AU CLONE (sprite détruit à
+    // l'événement, drapeau de ville, PV) — surcouche D3.
+    playback.onEvenement = (ev) => appliquerEvenement(etat, ev);
+    etatReplay = etat;
+    replayActif = true;
+    playback.enqueue(paire.events);
+  }
+
+  /** Quitter la relecture (fin de file, Échap, bouton, nouveau tour, resync). */
+  function terminerReplay(): void {
+    if (!replayActif && etatReplay === null) {
+      playback.onEvenement = null;
+      return;
+    }
+    playback.reset();
+    playback.onEvenement = null;
+    etatReplay = null;
+    replayActif = false;
+  }
+
+  // Fin de file → retour automatique à l'état réel (D4) — onPlaybackActive
+  // bascule à false quand la file d'événements est épuisée.
+  function onPlaybackActiveChange(active: boolean): void {
+    playbackActive = active;
+    if (!active && replayActif) terminerReplay();
+  }
+
+  // ---------------------------------------------------------------------
   // Dérivés d'affichage
   // ---------------------------------------------------------------------
 
@@ -704,10 +755,13 @@
           onRightClick={handleRightClick}
           onCancelDraft={cancelDraft}
           onReady={(api) => (canvasApi = api)}
-          onPlaybackActive={(a) => (playbackActive = a)}
+          onPlaybackActive={onPlaybackActiveChange}
           vueVilleId={$vueVille}
           onEnterVueVille={entrerVueVille}
           onExitVueVille={sortirVueVille}
+          {etatReplay}
+          {replayActif}
+          onExitReplay={terminerReplay}
         />
         {#if vueVilleActive && $view.state}
           <!-- MENU-VILLE : le menu dédié de la vue ville (les autres menus
@@ -863,7 +917,22 @@
           </section>
         {/if}
         <Historique />
-        <Journal view={$view} />
+        <!-- REPLAY-RESOLUTION (D4) : relecture du dernier tour résolu.
+             Indisponible sans paire mémorisée (reconnexion/chargement : le
+             pré-état n'existe pas localement — L2, défaut sûr). -->
+        <button
+          type="button"
+          class="replay-btn"
+          class:active-toggle={replayActif}
+          disabled={!$replayPair || playbackActive}
+          title={$replayPair
+            ? 'Rejouer le dernier tour résolu, depuis les positions d\u2019origine (clic = accélérer, Échap = quitter)'
+            : 'Relecture indisponible : l\u2019état d\u2019avant résolution n\u2019est pas mémorisé (démarrage, reconnexion ou rechargement de la page)'}
+          onclick={replayActif ? terminerReplay : demarrerReplay}
+        >
+          {replayActif ? '⏹ Quitter la relecture (Échap)' : '⟲ Rejouer la résolution'}
+        </button>
+        <Journal view={$view} onCentrerHex={(hex) => canvasApi?.centerOnHex(hex)} />
         <details class="raw">
           <summary>État brut (debug)</summary>
           <pre>{JSON.stringify($view.state, null, 2)}</pre>
