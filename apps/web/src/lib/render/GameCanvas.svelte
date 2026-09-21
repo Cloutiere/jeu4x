@@ -29,6 +29,9 @@
   import { BADGE_POPULATION } from './badge-population.js';
   import { iconeCommerceRendement } from './rendements.js';
   import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, dispositionsCohabitation, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable, pilesAffichees, positionAfficheeDe as positionAfficheeDeEtat } from './interaction.js';
+  // PLACEMENT-MELEE : contexte de mêlée (côtés d'entrée, stabilisée au centre).
+  import { contexteMelee } from '../melee.js';
+  import { get } from 'svelte/store';
   // CALIBRATION-UNITES : hauteur des unités seules (calibre guerrier Recraft),
   // constantes 🔶 éditables à l'œil dans calibration-unites.ts.
   import { PIEDS_Y, echelleUnite, hauteurUnitePx, AJUST_HAUTEUR } from './calibration-unites.js';
@@ -545,7 +548,10 @@
     const positions = positionsDessinees();
     // CALIBRATION-UNITES : poses de cohabitation GROUPÉES PAR NATION (une
     // ligne par unité ; remplace l'éventail par indice de PILE-AFFICHÉE).
-    const poses = dispositionsCohabitation(state, positions);
+    // PLACEMENT-MELEE : les cases en mêlée (≥ 2 nations) passent par la
+    // disposition par CÔTÉ D'ENTRÉE + stabilisée au centre (mémoires client,
+    // lib/melee.ts — valides aussi en relecture, D6).
+    const poses = dispositionsCohabitation(state, positions, get(contexteMelee));
     // COLON-FONDATION (M1) : dérivation de l'aperçu DÉJÀ calculé
     // (scenePreviews — ordre posé et chemin gelé compris), jamais recalculée
     // par frame. Annulation comme consommation font tomber l'aperçu, donc
@@ -607,7 +613,7 @@
       c.scale.set(disp.echelle);
       // CALIBRATION-UNITES : profondeur dans le paquet — la première unité
       // d'une zone reste au premier plan, les suivantes passent derrière
-      // (z négatif, tri du layer, cf. dispositionCohabitationParNation).
+      // (z négatif, tri du layer, cf. dispositionMelee).
       c.zIndex = disp.z;
       const p = hexToPixel(posee, HEX_SIZE);
       const anim = playback.moveOf(unit.id);
@@ -1586,7 +1592,7 @@
       if (unit) {
         const positions = positionsDessinees();
         const posee = positions.get(unit.id) ?? unit;
-        const disp = dispositionsCohabitation(scene.state!, positions).get(unit.id) ?? { dx: 0, dy: 0, echelle: 1, z: 0 };
+        const disp = dispositionsCohabitation(scene.state!, positions, get(contexteMelee)).get(unit.id) ?? { dx: 0, dy: 0, echelle: 1, z: 0 };
         const c = hexToPixel(posee, HEX_SIZE);
         const gr = new Graphics();
         const rx = 52 * disp.echelle;

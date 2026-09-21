@@ -10,10 +10,9 @@
 import { describe, expect, it } from 'vitest';
 import { makeState } from '@game/rules';
 import type { GameState, Hex } from '@game/rules';
-import {
-  dispositionCohabitationParNation,
-  dispositionsCohabitation,
-} from '../src/lib/render/interaction.js';
+import { dispositionsCohabitation, dispositionMelee } from '../src/lib/render/interaction.js';
+import { contexteMeleeVide } from '../src/lib/melee.js';
+import type { ContexteMelee } from '../src/lib/melee.js';
 import { AJUST_HAUTEUR, echelleUnite, hauteurUnitePx } from '../src/lib/render/calibration-unites.js';
 
 const HEX_SIZE = 64;
@@ -44,80 +43,87 @@ describe('echelleUnite — hauteur des unités seules (calibre guerrier Recraft)
   });
 });
 
-describe('dispositionCohabitationParNation — paquets compacts par nation', () => {
+describe('dispositionMelee — cohabitations par côtés (rév. Erik 21/09)', () => {
   it('unité seule : centrée, échelle pleine', () => {
-    const poses = dispositionCohabitationParNation([{ id: 'u1', owner: 'p1' }]);
+    const poses = dispositionMelee([{ id: 'u1', owner: 'p1' }], '0,0', null);
     expect(poses.get('u1')).toEqual({ dx: 0, dy: 0, echelle: 1, z: 0 });
   });
 
-  it('deux nations : paquets gauche/droite, chacun compact (écart interne < écart entre paquets)', () => {
-    const poses = dispositionCohabitationParNation([
-      { id: 'a1', owner: 'p2' },
-      { id: 'b1', owner: 'p1' },
-      { id: 'b2', owner: 'p1' },
-    ]);
+  it('repli sans info : paquets par nation TRIÉE, zones gauche/droite', () => {
+    const poses = dispositionMelee(
+      [
+        { id: 'a1', owner: 'p2' },
+        { id: 'b1', owner: 'p1' },
+        { id: 'b2', owner: 'p1' },
+      ],
+      '0,0',
+      null,
+    );
     // Nations TRIÉES (R-81) : p1 (b1,b2) à gauche, p2 (a1) à droite.
     expect(poses.get('b1')!.dx).toBeLessThan(0);
     expect(poses.get('b2')!.dx).toBeLessThan(0);
     expect(poses.get('a1')!.dx).toBeGreaterThan(0);
-    // Écart interne du paquet p1 nettement inférieur à l'écart entre paquets.
-    const interne = Math.abs(poses.get('b2')!.dx - poses.get('b1')!.dx);
-    const entrePaquets = Math.abs(poses.get('a1')!.dx - poses.get('b1')!.dx);
-    expect(interne).toBeLessThan(entrePaquets);
     // Cohabitation : échelle réduite partout.
     for (const p of poses.values()) expect(p.echelle).toBeLessThan(1);
   });
 
-  it('trois nations : zones gauche, droite puis haut-gauche (ordre de remplissage), déterministe', () => {
+  it('repli sans info, trois nations : zones gauche, droite puis haut-gauche, déterministe', () => {
     const unites = [
       { id: 'c1', owner: 'p3' },
       { id: 'a1', owner: 'p1' },
       { id: 'b1', owner: 'p2' },
     ];
-    const poses = dispositionCohabitationParNation(unites);
+    const poses = dispositionMelee(unites, '0,0', null);
     expect(poses.get('a1')!.dx).toBeLessThan(0); // p1 → zone gauche
     expect(poses.get('a1')!.dy).toBe(0);
     expect(poses.get('b1')!.dx).toBeGreaterThan(0); // p2 → zone droite
     expect(poses.get('c1')!.dy).toBeLessThan(0); // p3 → zone haut-gauche
     expect(poses.get('c1')!.dx).toBeLessThan(0);
-    // Déterminisme : mêmes entrées → mêmes sorties.
-    const encore = dispositionCohabitationParNation([...unites].reverse());
+    const encore = dispositionMelee([...unites].reverse(), '0,0', null);
     for (const [id, p] of poses) expect(encore.get(id)).toEqual(p);
   });
 
-  it('plusieurs unités d\'une même nation dans une zone : escalier diagonal (droite + haut)', () => {
-    const poses = dispositionCohabitationParNation([
-      { id: 'a1', owner: 'p1' },
-      { id: 'b1', owner: 'p2' },
-      { id: 'a2', owner: 'p1' },
-      { id: 'a3', owner: 'p1' },
-    ]);
-    // Paquet p1 en zone gauche : escalier diagonal (chaque unité monte à droite).
+  it('repli sans info : escalier diagonal intra-zone, première unité au premier plan', () => {
+    const poses = dispositionMelee(
+      [
+        { id: 'a1', owner: 'p1' },
+        { id: 'b1', owner: 'p2' },
+        { id: 'a2', owner: 'p1' },
+        { id: 'a3', owner: 'p1' },
+      ],
+      '0,0',
+      null,
+    );
     expect(poses.get('a2')!.dx).toBeGreaterThan(poses.get('a1')!.dx);
     expect(poses.get('a2')!.dy).toBeLessThan(poses.get('a1')!.dy);
     expect(poses.get('a3')!.dx).toBeGreaterThan(poses.get('a2')!.dx);
-    expect(poses.get('a3')!.dy).toBeLessThan(poses.get('a2')!.dy);
-    // p2 reste dans sa propre zone (droite).
-    expect(poses.get('b1')!.dx).toBeGreaterThan(0);
-    // PROFONDEUR (retour Erik) : la première unité du paquet est au premier
-    // plan, chaque suivante derrière la précédente.
     expect(poses.get('a1')!.z).toBeGreaterThan(poses.get('a2')!.z);
     expect(poses.get('a2')!.z).toBeGreaterThan(poses.get('a3')!.z);
-    expect(poses.get('a1')!.z).toBe(0); // premier plan = ordre naturel du layer
+    expect(poses.get('a1')!.z).toBe(0);
+    expect(poses.get('b1')!.dx).toBeGreaterThan(0);
   });
 
-  it('UNE SEULE nation à plusieurs unités : côte à côte, centrées sur la tuile', () => {
-    const poses = dispositionCohabitationParNation([
-      { id: 'u1', owner: 'p1' },
-      { id: 'u2', owner: 'p1' },
-      { id: 'u3', owner: 'p1' },
-    ]);
-    expect(poses.get('u1')!.dx).toBeLessThan(0);
-    expect(poses.get('u2')!.dx).toBe(0); // milieu centré
-    expect(poses.get('u3')!.dx).toBeGreaterThan(0);
-    for (const p of poses.values()) expect(p.dy).toBe(0);
-    // Symétrie du paquet autour du centre.
-    expect(poses.get('u1')!.dx + poses.get('u3')!.dx).toBeCloseTo(0);
+  it('PILE AMIE avec côtés connus : posée sur ses côtés comme une mêlée (décision 21/09)', () => {
+    const ctx: ContexteMelee = {
+      coteParUnite: new Map([
+        ['m1', { cote: 'O', ordre: 1 }],
+        ['m2', { cote: 'E', ordre: 2 }],
+      ]),
+      stabiliseeParCase: new Map(),
+    };
+    const poses = dispositionMelee(
+      [
+        { id: 'm1', owner: 'p1' },
+        { id: 'm2', owner: 'p1' },
+      ],
+      '0,0',
+      ctx,
+    );
+    expect(poses.get('m1')!.dx).toBeLessThan(0);
+    expect(poses.get('m2')!.dx).toBeGreaterThan(0);
+    // Pas de centrale : personne ne prend le centre.
+    expect(poses.get('m1')!.dx).not.toBe(0);
+    expect(poses.get('m2')!.dx).not.toBe(0);
   });
 });
 

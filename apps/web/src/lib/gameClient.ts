@@ -22,6 +22,8 @@ import type { NetStatus, SocketHandle } from './net.js';
 // REPLAY-RESOLUTION (L2) : capture de l'état pré-résolution à chaque
 // TurnResult, purge au Snapshot (chargement/reconnexion).
 import { reducePaireReplay, replayPair } from './replay.js';
+// PLACEMENT-MELEE (D5) : mémoires client du placement en mêlée.
+import { contexteMelee, reduceContexteMelee } from './melee.js';
 
 export interface GameView {
   code: string;
@@ -207,8 +209,20 @@ export function createGameClient(
     }
     // L2 : la paire de relecture est mise à jour AVANT l'écrasement de la
     // vue — au TurnResult, `get(view).state` EST l'état pré-résolution.
-    replayPair.update((p) => reducePaireReplay(p, message, message.type === 'TurnResult' ? get(view).state : null));
-    view.update((v) => reduceView(v, message));
+    // PLACEMENT-MELEE : même prisme pour le contexte de mêlée (côtés
+    // d'entrée + stabilisée à la création — pré-état + événements, purge
+    // Snapshot, D5).
+    if (message.type === 'TurnResult') {
+      const preState = get(view).state;
+      const nextView = reduceView(get(view), message);
+      replayPair.update((p) => reducePaireReplay(p, message, preState));
+      contexteMelee.update((c) => reduceContexteMelee(c, message, preState, nextView.state));
+      view.set(nextView);
+    } else {
+      replayPair.update((p) => reducePaireReplay(p, message, null));
+      contexteMelee.update((c) => reduceContexteMelee(c, message, null, null));
+      view.update((v) => reduceView(v, message));
+    }
   }
 
   handle = connectWs(

@@ -23,6 +23,12 @@ export const HAUTEUR_UNITE = 1.25;
  *  paquets. */
 export const HAUTEUR_UNITE_PILE = 0.55;
 
+/** Hauteur de l'unité STABILISÉE/FORTIFIÉE au centre d'une mêlée — cran
+ *  intermédiaire (demande d'Erik du 21/09) entre la pleine grandeur (1.25) et
+ *  les petites versions de cohabitation (0.55). L'échelle en dérive dans
+ *  render/interaction.ts : HAUTEUR_UNITE_CENTRE / HAUTEUR_UNITE. Calibrage 🔶. */
+export const HAUTEUR_UNITE_CENTRE = 0.8;
+
 /** Ajustement INDIVIDUEL par type (1.0 = calibre guerrier). Le guerrier
  *  Recraft EST la référence — ne pas le modifier sans redéfinir le calibre.
  *  Les anciens sprites painter (archer, colon…) se règlent ici s'ils semblent

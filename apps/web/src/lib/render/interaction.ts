@@ -102,7 +102,9 @@ export function dispositionPile(total: number, index: number): { dx: number; dy:
   return { dx: (index - mid) * 0.5, dy: Math.abs(index - mid) * 0.12, echelle: 0.66 };
 }
 
-import { HAUTEUR_UNITE, HAUTEUR_UNITE_PILE } from './calibration-unites.js';
+import { HAUTEUR_UNITE, HAUTEUR_UNITE_PILE, HAUTEUR_UNITE_CENTRE } from './calibration-unites.js';
+// PLACEMENT-MELEE : mémoires client (côté d'entrée, stabilisée à la création).
+import type { ContexteMelee, Cote } from '../melee.js';
 
 /**
  * CALIBRATION-UNITES (retour d'Erik du 20/09, rév. ZONES-HEX) — disposition
@@ -111,7 +113,8 @@ import { HAUTEUR_UNITE, HAUTEUR_UNITE_PILE } from './calibration-unites.js';
  * haut-droite, bas-gauche, bas-droite — ordre de REMPLISSAGE). Les nations
  * (triées R-81) remplissent les zones dans l'ordre ; les unités d'une même
  * nation sont EMPILÉES EN ESCALIER DIAGONAL dans leur zone. UNE SEULE nation
- * à plusieurs unités : côte à côte, centrées sur la tuile. Décalages en
+ * à plusieurs unités : escalier diagonal centré sur la tuile (même pas que
+ * les sections de mêlée — retour d'Erik 21/09). Décalages en
  * fractions de HEX_SIZE côté appelant. Pur, testé. Calibrage 🔶.
  */
 const ZONES_HEX: Array<{ x: number; y: number }> = [
@@ -123,61 +126,119 @@ const ZONES_HEX: Array<{ x: number; y: number }> = [
   { x: 0.31, y: 0.54 }, // 6 · bas-droite (côté sud-est)
 ];
 const PAS_ESCALIER = 0.09; // pas diagonal d'empilement intra-zone (fraction de HEX_SIZE)
-const PAS_COTE_A_COTE = 0.22; // pas horizontal, une seule nation centrée
-const ECHELLE_PILE = HAUTEUR_UNITE_PILE / HAUTEUR_UNITE;
+export const ECHELLE_PILE = HAUTEUR_UNITE_PILE / HAUTEUR_UNITE;
+/** Cran INTERMÉDIAIRE (Erik 21/09) de l'unité stabilisée/fortifiée au centre
+ *  d'une cohabitation — entre la pleine grandeur et les petites versions. */
+export const ECHELLE_CENTRE = HAUTEUR_UNITE_CENTRE / HAUTEUR_UNITE;
 
-export function dispositionCohabitationParNation(
+/**
+ * PLACEMENT-MELEE — offset de bord (fraction de HEX_SIZE) par côté d'entrée :
+ * miroir des ZONES_HEX repositionnées par côté RÉEL d'entrée (E = droite,
+ * O = gauche, NO/NE = haut, SO/SE = bas). Pointy-top.
+ */
+const OFFSETS_COTES: Record<Cote, { x: number; y: number }> = {
+  O: { x: -0.62, y: 0 },
+  E: { x: 0.62, y: 0 },
+  NO: { x: -0.31, y: -0.54 },
+  NE: { x: 0.31, y: -0.54 },
+  SO: { x: -0.31, y: 0.54 },
+  SE: { x: 0.31, y: 0.54 },
+};
+
+/**
+ * PLACEMENT-MELEE (demande d'Erik du 20/09, D1..D7 ; rév.
+ * 21/09) — disposition
+ * de TOUTE cohabitation (mêlée comme pile amie — décision du 21/09 : mêmes
+ * côtés d'hexagone partout) :
+ * - unité SEULE : centrée, pleine grandeur (comportement historique) ;
+ * - la stabilisée À LA CRÉATION de la mêlée (mémoire client, lib/melee.ts)
+ *   est AU CENTRE au CRAN INTERMÉDIAIRE (ECHELLE_CENTRE, demande d'Erik du
+ *   21/09), premier plan absolu (z = +1) — c'est LA référence visuelle ;
+ *   centre VIDE si elle est morte (D3). Après la fin de la mêlée, les
+ *   survivantes GARDENT leur place de mêlée (centre compris, décision du
+ *   21/09 — l'escalier centré des piles amies est abrogé) ;
+ * - chaque autre unité est posée sur le CÔTÉ par lequel elle a pénétré la
+ *   tuile (dernier mouvement connu, D1) ; sans info, repli sur le remplissage
+ *   par zones de l'ancienne logique (paquets par nation triée, D1) ;
+ * - intra-section : escalier diagonal existant, ordre d'ARRIVÉE — le premier
+ *   entré reste au premier plan ancré au bord, chaque nouvelle arrivante se
+ *   place DERRIÈRE (z décroissant, D2) ; les nations se MELANGENT dans une
+ *   section (D4/D7 — barbares compris).
+ * Pur, testé. Calibrage 🔶 : offsets de bord, pas d'escalier, z de la centrale.
+ */
+export function dispositionMelee(
   unites: Array<{ id: UnitId; owner: string }>,
+  cleCase: string,
+  contexte: ContexteMelee | null,
 ): Map<UnitId, { dx: number; dy: number; echelle: number; z: number }> {
   const out = new Map<UnitId, { dx: number; dy: number; echelle: number; z: number }>();
-  if (unites.length === 0) return out;
+  // Seule sur la case : CENTRÉE, pleine grandeur (historique) — la place de
+  // mêlée ne vaut que pour les cohabitations (retour d'Erik 21/09 : une
+  // unité seule ne doit jamais être décentrée par son côté d'entrée).
   if (unites.length === 1) {
     out.set(unites[0]!.id, { dx: 0, dy: 0, echelle: 1, z: 0 });
     return out;
   }
-  // Paquets par nation — ordre des nations TRIÉ (R-81), unités d'une même
-  // nation dans l'ordre d'insertion (miroir du rendu et du cycle de clic).
-  const parNation = new Map<string, Array<{ id: UnitId; owner: string }>>();
+  const echelleSection = ECHELLE_PILE;
+  // Centre : l'ancienne stabilisée (mémoire persistante tant qu'elle vit sur
+  // la case), au cran intermédiaire dès qu'il y a cohabitation.
+  const stabiliseeId = contexte?.stabiliseeParCase.get(cleCase);
+  if (stabiliseeId && unites.some((u) => u.id === stabiliseeId)) {
+    out.set(stabiliseeId, { dx: 0, dy: 0, echelle: ECHELLE_CENTRE, z: 1 });
+  }
+  // Sections par côté d'entrée connu — ordre d'arrivée (seq), id en bris de
+  // égalité (déterminisme si deux événements partageaient un seq).
+  const sections = new Map<Cote, Array<{ id: UnitId; owner: string; ordre: number }>>();
+  const sansInfo: Array<{ id: UnitId; owner: string }> = [];
   for (const u of unites) {
+    if (u.id === stabiliseeId) continue;
+    const entree = contexte?.coteParUnite.get(u.id);
+    if (entree) {
+      const section = sections.get(entree.cote);
+      if (section) section.push({ ...u, ordre: entree.ordre });
+      else sections.set(entree.cote, [{ ...u, ordre: entree.ordre }]);
+    } else {
+      sansInfo.push(u);
+    }
+  }
+  for (const [cote, section] of sections) {
+    section.sort((a, b) => a.ordre - b.ordre || (a.id < b.id ? -1 : 1));
+    const bord = OFFSETS_COTES[cote]!;
+    section.forEach((u, ui) => {
+      out.set(u.id, { dx: bord.x + ui * PAS_ESCALIER, dy: bord.y - ui * PAS_ESCALIER, echelle: echelleSection, z: ui === 0 ? 0 : -ui });
+    });
+  }
+  // Repli (D1) : les unités sans côté connu reprennent l'ancien remplissage
+  // par zones (paquets par nation triée R-81, zone = index de nation) ; une
+  // SEULE unité sans aucune info reste centrée (pleine grandeur).
+  const parNation = new Map<string, Array<{ id: UnitId; owner: string }>>();
+  for (const u of sansInfo) {
     const paquet = parNation.get(u.owner);
     if (paquet) paquet.push(u);
     else parNation.set(u.owner, [u]);
   }
-  const paquets = [...parNation.keys()].sort().map((o) => parNation.get(o)!);
-  if (paquets.length === 1) {
-    // Une seule nation à plusieurs unités : côte à côte, CENTRÉES sur la tuile.
-    const paquet = paquets[0]!;
-    const mid = (paquet.length - 1) / 2;
-    paquet.forEach((u, ui) => {
-      out.set(u.id, { dx: (ui - mid) * PAS_COTE_A_COTE, dy: 0, echelle: ECHELLE_PILE, z: ui === 0 ? 0 : -ui });
-    });
-    return out;
-  }
-  // Plusieurs nations : une zone par nation (ordre de remplissage ZONES_HEX ;
-  // garde-fou déterministe si jamais > 6 : retour à la première zone, les
-  // paquets s'y empilent — le jeu ne compte que 6 camps max : 5 joueurs +
-  // barbares).
-  paquets.forEach((paquet, ni) => {
+  [...parNation.keys()].sort().forEach((o, ni) => {
     const zone = ZONES_HEX[ni % ZONES_HEX.length]!;
-    paquet.forEach((u, ui) => {
-      // Escalier diagonal : chaque unité décalée d'un pas vers la droite et
-      // vers le haut (têtes et barres de PV lisibles) — et la PROFONDEUR suit
-      // l'inverse de l'insertion (retour d'Erik) : la PREMIÈRE unité du paquet
-      // reste au premier plan, chaque suivante passe DERRIÈRE la précédente
-      // (z négatif → dessinée avant ; 0 = ordre naturel du layer).
-      out.set(u.id, { dx: zone.x + ui * PAS_ESCALIER, dy: zone.y - ui * PAS_ESCALIER, echelle: ECHELLE_PILE, z: ui === 0 ? 0 : -ui });
+    parNation.get(o)!.forEach((u, ui) => {
+      out.set(u.id, { dx: zone.x + ui * PAS_ESCALIER, dy: zone.y - ui * PAS_ESCALIER, echelle: echelleSection, z: ui === 0 ? 0 : -ui });
     });
   });
   return out;
 }
 
 /**
- * CALIBRATION-UNITES — disposition groupée par nation pour TOUTES les cases
- * dessinées d'un coup (miroir `pilesAffichees`) : Map UnitId → pose. Pur.
+ * CALIBRATION-UNITES — disposition pour TOUTES les cases dessinées d'un coup
+ * (miroir `pilesAffichees`) : Map UnitId → pose. Pur.
+ * PLACEMENT-MELEE rév. 21/09 : TOUTE cohabitation (mêlée OU pile amie —
+ * décision d'Erik) passe par `dispositionMelee` (côtés d'entrée, stabilisée
+ * au centre au cran intermédiaire, survivantes sur leur place). Une unité
+ * seule reste centrée pleine grandeur. `contexte` (mémoires client,
+ * lib/melee.ts) est optionnel : null = repli zones pour les cohabitations.
  */
 export function dispositionsCohabitation(
   state: GameState,
   positions: PositionsAffichees,
+  contexte: ContexteMelee | null = null,
 ): Map<UnitId, { dx: number; dy: number; echelle: number; z: number }> {
   const groupes = new Map<string, Array<{ id: UnitId; owner: string }>>();
   for (const u of Object.values(state.units)) {
@@ -189,8 +250,9 @@ export function dispositionsCohabitation(
     else groupes.set(key, [{ id: u.id, owner: u.owner }]);
   }
   const out = new Map<UnitId, { dx: number; dy: number; echelle: number; z: number }>();
-  for (const groupe of groupes.values()) {
-    for (const [id, pose] of dispositionCohabitationParNation(groupe)) out.set(id, pose);
+  for (const [key, groupe] of groupes) {
+    const poses = dispositionMelee(groupe, key, contexte);
+    for (const [id, pose] of poses) out.set(id, pose);
   }
   return out;
 }
