@@ -144,6 +144,7 @@ Erik exprime souvent ses idées en vrac ou en documents de recherche. Ton travai
    - **Electron** : SOCLE tranche 1 (`e37c75a` — option A coquille prod, sécurité durcie, OAuth OK) + RESOLUTION (`8674f41` — 1280×720 letterbox, zoom Chromium persistant neutralisé) ; **tranche 2 Steam en attente de l'approbation fiscale Steamworks d'Erik** (W-8BEN en cours) ;
    - `schemaVersion` **25**, suites vertes (~1279), prod 200.
 3. **Chantiers STANDBY (prêts, non lancés ou en attente d'Erik)** :
+   - **HANDOFF-PLACEMENT-MELEE.md** (à la racine, prêt, 20/09) — placement mêlée par côté d'entrée + stabilisée au centre ; décisions D1-D7 déjà vetoées par Erik (dernier côté connu, escalier existant nouvelles derrière, centre vide si morte, cohab. amie inchangée, relecture incluse, client seul) ;
    - **HANDOFF-TUTO-ENGAGEMENT.md** (à la racine, prêt) — catalogue de scénarios illustrant chaque règle dans le labo ;
    - **HANDOFF-GEMINI-PROMPTS-UNITES.md** (à la racine, prêt) — document pour l'agent externe Gemini : prompts Recraft des 12 unités terrestres (Erik les génère lui-même) ;
    - Pipeline d'import prêt pour les prochains SVG d'Erik (gates au pixel, 3 gris d'accent) ;
