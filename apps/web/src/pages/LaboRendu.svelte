@@ -68,8 +68,14 @@
         // Nations réparties en entrelacé — le groupement visuel doit les
         // réunir en paquets compacts malgré l'ordre d'insertion.
         owner: NATIONS[i % nations]!,
-        type: 'guerrier', // CALIBRATION-UNITES : uniquement des guerriers (retour d'Erik)
-        q: 0,
+        // PRÉVIEW VISUELLE (demande Erik 21/09, conservée) : u1 = archer,
+        // les suivantes = guerriers — pour comparer les sprites côte à côte.
+        type: i === 0 ? 'archer' : 'guerrier',
+        // PRÉVIEW VISUELLE (demande Erik 21/09, conservée) : unités réparties
+        // sur des tuiles VOISINES (archer en (0,0), guerriers en (1,0) et
+        // suivants) — pas de cohabitation, lecture individuelle des sprites ;
+        // les guerriers supplémentaires forment une pile sur la tuile de droite.
+        q: i === 0 ? 0 : 1,
         r: 0,
       });
     }
