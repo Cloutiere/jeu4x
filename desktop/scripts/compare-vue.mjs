@@ -1,7 +1,7 @@
 /**
  * Comparaison « vue identique au pixel » (ELECTRON-RESOLUTION M2.3) :
- * la fenêtre Electron (1280×720, DPR 1) vs un navigateur Chromium (Edge) à
- * viewport 1280×720 / DPR 1, sur la même page de prod. Un diff de pixels
+ * la fenêtre Electron (resolutionBase, DPR 1) vs un navigateur Chromium (Edge)
+ * au même viewport / DPR 1, sur la même page de prod. Base lue dans dist/config.js. Un diff de pixels
  * faible (animations/moment de peinture) atteste la même composition.
  * Usage : pnpm exec node scripts/compare-vue.mjs
  */
@@ -11,10 +11,13 @@ import * as path from 'node:path';
 import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
 import { fileURLToPath } from 'node:url';
+import { RESOLUTION_DEFAUT } from '../dist/config.js';
+
+const BASE = RESOLUTION_DEFAUT;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP = path.dirname(HERE);
-const CAPTURES = path.join(DESKTOP, '..', 'dev-logs', 'captures-electron-resolution');
+const CAPTURES = path.join(DESKTOP, '..', 'dev-logs', 'captures-fenetre-grande');
 fs.mkdirSync(CAPTURES, { recursive: true });
 const URL_PROD = 'https://game-4x-server-prod.erik-ai-studio.workers.dev/';
 
@@ -24,21 +27,21 @@ const échec = (msg) => {
 };
 const ok = (msg) => console.log(`✓ ${msg}`);
 
-// 1. Capture navigateur (référence du projet : viewport 1280×720).
+// 1. Capture navigateur (référence : viewport = resolutionBase).
 let nav;
 try {
   nav = await chromium.launch({ channel: 'msedge', headless: true });
 } catch {
   nav = await chromium.launch({ headless: true });
 }
-const pageNav = await nav.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+const pageNav = await nav.newPage({ viewport: { width: BASE.largeur, height: BASE.hauteur }, deviceScaleFactor: 1 });
 await pageNav.goto(URL_PROD, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 await pageNav.waitForTimeout(3000); // peinture + polices stables
-await pageNav.screenshot({ path: path.join(CAPTURES, 'reference-navigateur-1280x720.png') });
+await pageNav.screenshot({ path: path.join(CAPTURES, 'reference-navigateur.png') });
 await nav.close();
-ok('capture navigateur : reference-navigateur-1280x720.png');
+ok('capture navigateur : reference-navigateur.png');
 
-// 2. Capture coquille Electron (mode fenêtre 1280×720, DPR 1) — profil
+// 2. Capture coquille Electron (mode fenêtre resolutionBase, DPR 1) — profil
 // temporaire : même état non connecté que le navigateur de référence.
 const profilTmp = path.join(DESKTOP, '..', 'dev-logs', 'tmp-profil-compare');
 const app = await electron.launch({ args: ['.', `--profil=${profilTmp}`], cwd: DESKTOP });
@@ -47,14 +50,14 @@ try {
   const win = await app.firstWindow();
   await win.waitForLoadState('domcontentloaded', { timeout: 30_000 });
   await win.waitForTimeout(3000);
-  bufElectron = await win.screenshot({ path: path.join(CAPTURES, 'electron-fenetre-1280x720.png') });
-  ok('capture coquille : electron-fenetre-1280x720.png');
+  bufElectron = await win.screenshot({ path: path.join(CAPTURES, 'electron-fenetre.png') });
+  ok('capture coquille : electron-fenetre.png');
 } finally {
   await app.close();
 }
 
 // 3. Diff de pixels.
-const imgNav = PNG.sync.read(fs.readFileSync(path.join(CAPTURES, 'reference-navigateur-1280x720.png')));
+const imgNav = PNG.sync.read(fs.readFileSync(path.join(CAPTURES, 'reference-navigateur.png')));
 const imgElectron = PNG.sync.read(bufElectron);
 if (imgNav.width !== imgElectron.width || imgNav.height !== imgElectron.height) {
   échec(`dimensions différentes : nav ${imgNav.width}×${imgNav.height} vs electron ${imgElectron.width}×${imgElectron.height}`);

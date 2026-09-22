@@ -17,6 +17,13 @@ export const HEX_SIZE = 64;
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 2.25;
 
+/** Pas d'un cran de molette (identique au handler onWheel). */
+export const PAS_ZOOM_MOLETTE = 1.15;
+/** Zoom de DÉPART d'une partie (retours d'Erik des 21-22/09) : 4 crans de molette
+ * depuis ×1 — calé sur ses captures « visuel souhaité au démarrage » (la tuile
+ * de base remplit la vue, pas de grande marge noire autour des cases). */
+export const ZOOM_DEPART = PAS_ZOOM_MOLETTE ** 4;
+
 export interface Rect {
   x: number;
   y: number;

@@ -153,7 +153,9 @@
 </main>
 
 <style>
-  main { max-width: 56rem; margin: 2rem auto; font-family: system-ui, sans-serif; }
+  /* FENETRE-GRANDE (retour d'Erik du 22/09) : à 1920×1080 le texte du lobby
+     était trop petit — zoom de lisibilité global de la page (facile à régler). */
+  main { max-width: 56rem; margin: 2rem auto; font-family: system-ui, sans-serif; zoom: 1.25; }
   h3 { margin: 0.8rem 0 0.4rem; font-size: 0.95rem; }
   h3 em { color: #9db8a6; font-style: normal; font-weight: 400; }
   header { display: flex; gap: 1rem; align-items: center; }

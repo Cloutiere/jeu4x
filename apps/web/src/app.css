@@ -1,0 +1,7 @@
+/* Reset global : la marge par défaut (8 px) de Chromium sur body fait dépasser
+   la page du viewport (main.game height:100vh + 16 px) → scrollbar parasite. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+}

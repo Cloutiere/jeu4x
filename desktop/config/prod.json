@@ -5,7 +5,7 @@
   "oauthHosts": ["accounts.google.com", "discord.com"],
   "csp": true,
   "devtools": false,
-  "resolutionBase": { "largeur": 1280, "hauteur": 720 },
+  "resolutionBase": { "largeur": 1920, "hauteur": 1080 },
   "modeDefaut": "fenetre",
   "deviceScaleFactor": 1
 }

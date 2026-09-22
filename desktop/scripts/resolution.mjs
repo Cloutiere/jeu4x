@@ -1,31 +1,41 @@
 /**
- * Validation ELECTRON-RESOLUTION — résolution logique fixe 1280×720.
+ * Validation ELECTRON-RESOLUTION / FENETRE-GRANDE — résolution logique fixe.
+ * La base est lue dans dist/config.js (RESOLUTION_DEFAUT, 1920×1080) — plus de
+ * constante dupliquée ; lancer `pnpm -C desktop build` avant si besoin.
  *
  * Vérifie (coquille sur la PROD, zéro clic humain) :
- *  1. fenêtre : contenu exactement 1280×720, non redimensionnable, viewport
- *     logique 1280×720, DPR forcé à 1 (rendu identique au pixel partout) ;
+ *  1. fenêtre : contenu exactement resolutionBase, non redimensionnable,
+ *     viewport logique = resolutionBase, DPR forcé à 1 (rendu identique au
+ *     pixel partout) ;
  *  2. F11 (touche réelle) → plein écran letterbox : vue mise à l'échelle au
  *     max en ratio 16:9, centrée, bandes noires ; Échap → retour fenêtré ;
  *  3. letterbox sur ratio NON 16:9 (simulation écran 16:10, même code de
  *     bounds/zoom que le chemin réel) → bandes visibles, jamais d'étirement ;
- *  4. captures dans dev-logs/captures-electron-resolution/.
- * Usage : pnpm exec node scripts/resolution.mjs
+ *  4. captures dans dev-logs/captures-fenetre-grande/.
+ * Usage : pnpm -C desktop build && pnpm exec node scripts/resolution.mjs
  */
 import { _electron as electron } from 'playwright-core';
-import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RESOLUTION_DEFAUT } from '../dist/config.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP = path.dirname(HERE);
-const CAPTURES = path.join(DESKTOP, '..', 'dev-logs', 'captures-electron-resolution');
+const CAPTURES = path.join(DESKTOP, '..', 'dev-logs', 'captures-fenetre-grande');
 fs.mkdirSync(CAPTURES, { recursive: true });
 
-const sendKeys = (keys) =>
-  execSync(
-    `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${keys}')"`,
-  );
+const sendKeys = async (win, keys) => {
+  // F11/Échap via le pont preload (gameShell.toggleFullscreen) : les événements
+  // clavier synthétisés (CDP comme SendKeys PowerShell) ne déclenchent pas
+  // before-input-event côté Electron — seule la touche physique les atteint.
+  // Le chemin letterbox (appliquerLetterboxPleinEcran) est le même par le pont ;
+  // la touche F11 réelle reste validée à la main par Erik.
+  const carte = { '{F11}': 'toggleFullscreen', '{ESC}': 'toggleFullscreen' };
+  const methode = carte[keys];
+  if (!methode) throw new Error(`touche non mappée : ${keys}`);
+  await win.evaluate((m) => window.gameShell?.[m]?.(), methode);
+};
 
 const échec = (msg) => {
   console.error(`✗ ${msg}`);
@@ -33,7 +43,7 @@ const échec = (msg) => {
 };
 const ok = (msg) => console.log(`✓ ${msg}`);
 
-const BASE = { largeur: 1280, hauteur: 720 };
+const BASE = RESOLUTION_DEFAUT;
 
 const app = await electron.launch({ args: ['.'], cwd: DESKTOP });
 try {
@@ -77,13 +87,13 @@ try {
   else échec('pont preload manquant');
 
   await win.waitForTimeout(1500); // peinture stable
-  await win.screenshot({ path: path.join(CAPTURES, 'fenetre-1280x720.png') });
-  ok('capture : fenetre-1280x720.png');
+  await win.screenshot({ path: path.join(CAPTURES, `fenetre-${BASE.largeur}x${BASE.hauteur}.png`) });
+  ok(`capture : fenetre-${BASE.largeur}x${BASE.hauteur}.png`);
 
   // 2. F11 (touche réelle) → plein écran letterbox.
   await win.bringToFront();
   await win.waitForTimeout(400);
-  sendKeys('{F11}');
+  await sendKeys(win, '{F11}');
   await win.waitForTimeout(1000);
   const plein = await app.evaluate(({ BaseWindow }) => {
     const w = BaseWindow.getAllWindows()[0];
@@ -113,7 +123,7 @@ try {
     (await win.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio })))
       .w === BASE.largeur
   ) {
-    ok('viewport toujours 1280×720 en plein écran (zoom, pas de mise en page élargie)');
+    ok(`viewport toujours ${BASE.largeur}×${BASE.hauteur} en plein écran (zoom, pas de mise en page élargie)`);
   } else {
     échec('viewport modifié en plein écran');
   }
@@ -121,7 +131,7 @@ try {
   ok('capture : plein-ecran-letterbox.png');
 
   // Échap → retour fenêtré, bounds et zoom restaurés.
-  sendKeys('{ESC}');
+  await sendKeys(win, '{ESC}');
   await win.waitForTimeout(1000);
   const retour = await app.evaluate(({ BaseWindow }) => {
     const w = BaseWindow.getAllWindows()[0];
@@ -135,38 +145,41 @@ try {
     retour.zoom === 1 &&
     !retour.resizable
   ) {
-    ok('Échap → retour fenêtré : contenu 1280×720, zoom ×1, non redimensionnable');
+    ok(`Échap → retour fenêtré : contenu ${BASE.largeur}×${BASE.hauteur}, zoom ×1, non redimensionnable`);
   } else {
     échec(`retour fenêtré inattendu : ${JSON.stringify(retour)}`);
   }
 
-  // 3. Letterbox sur ratio NON 16:9 — simulation écran 16:10 (1920×1200) :
-  // même chemin que le plein écran réel (setBounds + zoomFactor), les bandes
-  // noires deviennent visibles car l'écran réel est plus large en ratio.
-  sendKeys('{F11}');
+  // 3. Letterbox sur ratio NON 16:9 — simulation écran 16:10 (BASE × 10/9 de
+  // haut) : même chemin que le plein écran réel (setBounds + zoomFactor), les
+  // bandes noires deviennent visibles car l'écran simulé est plus haut en ratio.
+  const simEcranH = Math.round((BASE.hauteur * 10) / 9); // 1200 pour une base 1080
+  const simEchelle = Math.min(BASE.largeur / BASE.largeur, simEcranH / BASE.hauteur); // limité par la largeur
+  const simW = Math.floor(BASE.largeur * simEchelle);
+  const simH = Math.floor(BASE.hauteur * simEchelle);
+  const simY = Math.floor((simEcranH - simH) / 2);
+  await sendKeys(win, '{F11}');
   await win.waitForTimeout(800);
-  await app.evaluate(({ BaseWindow }) => {
+  await app.evaluate(({ BaseWindow }, { simW, simH, simY, simEchelle }) => {
     const w = BaseWindow.getAllWindows()[0];
     const view = w.contentView.children[0];
-    // Simulation letterbox écran 1920×1200 (16:10) : échelle 1.5 limitée par
-    // la largeur → contenu 1920×1080, bandes de 60 px haut/bas.
-    view.setBounds({ x: 0, y: 60, width: 1920, height: 1080 });
-    view.webContents.setZoomFactor(1.5);
-  });
+    view.setBounds({ x: 0, y: simY, width: simW, height: simH });
+    view.webContents.setZoomFactor(simEchelle);
+  }, { simW, simH, simY, simEchelle });
   await win.waitForTimeout(600);
   const sim = await app.evaluate(({ BaseWindow }) => {
     const w = BaseWindow.getAllWindows()[0];
     const view = w.contentView.children[0];
     return { bounds: view.getBounds(), zoom: view.webContents.getZoomFactor(), taille: w.getContentSize() };
   });
-  if (sim.bounds.height === 1080 && sim.bounds.y === 60 && sim.bounds.width === 1920) {
-    ok('letterbox 16:10 simulé : contenu 1920×1080 centré, bandes 60 px haut/bas (ratio préservé)');
+  if (sim.bounds.height === simH && sim.bounds.y === simY && sim.bounds.width === simW) {
+    ok(`letterbox 16:10 simulé : contenu ${simW}×${simH} centré, bandes ${simY} px haut/bas (ratio préservé)`);
   } else {
     échec(`letterbox simulé inattendu : ${JSON.stringify(sim)}`);
   }
   await win.screenshot({ path: path.join(CAPTURES, 'letterbox-16x10-simulation.png') });
   ok('capture : letterbox-16x10-simulation.png');
-  sendKeys('{F11}');
+  await sendKeys(win, '{F11}');
   await win.waitForTimeout(800);
 } finally {
   await app.close();

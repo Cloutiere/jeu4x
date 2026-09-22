@@ -68,19 +68,24 @@ describe('validateConfig', () => {
 
   // --- résolution logique fixe (ELECTRON-RESOLUTION) ---
 
-  it('défauts de résolution : 1280×720, mode fenêtre, dpr forcé à 1', () => {
+  it('défauts de résolution : 1920×1080 (FENETRE-GRANDE), mode fenêtre, dpr forcé à 1', () => {
     const c = validateConfig(PROD_VALIDE, 'prod');
-    expect(c.resolutionBase).toEqual({ largeur: 1280, hauteur: 720 });
+    expect(c.resolutionBase).toEqual({ largeur: 1920, hauteur: 1080 });
     expect(c.modeDefaut).toBe('fenetre');
     expect(c.deviceScaleFactor).toBe(1);
   });
 
+  it('accepte une résolution explicite différente du défaut (ex. 1280×720) sans code', () => {
+    const c = validateConfig({ ...PROD_VALIDE, resolutionBase: { largeur: 1280, hauteur: 720 } }, 'prod');
+    expect(c.resolutionBase).toEqual({ largeur: 1280, hauteur: 720 });
+  });
+
   it('accepte une résolution explicite et un mode plein écran', () => {
     const c = validateConfig(
-      { ...PROD_VALIDE, resolutionBase: { largeur: 1920, hauteur: 1080 }, modeDefaut: 'pleine-ecran' },
+      { ...PROD_VALIDE, resolutionBase: { largeur: 2560, hauteur: 1440 }, modeDefaut: 'pleine-ecran' },
       'prod',
     );
-    expect(c.resolutionBase).toEqual({ largeur: 1920, hauteur: 1080 });
+    expect(c.resolutionBase).toEqual({ largeur: 2560, hauteur: 1440 });
     expect(c.modeDefaut).toBe('pleine-ecran');
   });
 

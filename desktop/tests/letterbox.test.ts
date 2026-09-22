@@ -58,3 +58,32 @@ describe('computeLetterbox — ratio de la base 16:9 (1280×720)', () => {
     expect(lb.rect.x).toBe(Math.floor((1367 - lb.rect.width) / 2));
   });
 });
+
+describe('computeLetterbox — base FENETRE-GRANDE 16:9 (1920×1080)', () => {
+  it('écran 16:9 de la taille de la base : plein cadre, aucune bande', () => {
+    const lb = computeLetterbox({ width: 1920, height: 1080 }, { largeur: 1920, hauteur: 1080 });
+    expect(lb.echelle).toBe(1);
+    expect(lb.rect).toEqual({ x: 0, y: 0, width: 1920, height: 1080 });
+    expect(lb.bandeGauche).toBe(0);
+    expect(lb.bandeHaut).toBe(0);
+  });
+
+  it('écran 16:9 plus grand (2560×1440 → ×4/3), aucune bande', () => {
+    const lb = computeLetterbox({ width: 2560, height: 1440 }, { largeur: 1920, hauteur: 1080 });
+    expect(lb.echelle).toBe(2560 / 1920);
+    expect(lb.rect).toEqual({ x: 0, y: 0, width: 2560, height: 1440 });
+  });
+
+  it('écran 16:10 (1920×1200) : bandes 60 px haut/bas, ratio préservé', () => {
+    const lb = computeLetterbox({ width: 1920, height: 1200 }, { largeur: 1920, hauteur: 1080 });
+    expect(lb.echelle).toBe(1); // limité par la largeur
+    expect(lb.rect).toEqual({ x: 0, y: 60, width: 1920, height: 1080 });
+    expect(lb.bandeHaut).toBe(60);
+  });
+
+  it('ancienne base 1280×720 toujours exprimable (échelle ×1,5 sur écran 1920×1080)', () => {
+    const lb = computeLetterbox({ width: 1920, height: 1080 }, { largeur: 1280, hauteur: 720 });
+    expect(lb.echelle).toBe(1.5);
+    expect(lb.rect).toEqual({ x: 0, y: 0, width: 1920, height: 1080 });
+  });
+});

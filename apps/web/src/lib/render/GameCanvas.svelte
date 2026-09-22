@@ -21,7 +21,7 @@
   import { Camera } from './camera.js';
   import { loadTextures, playerColor } from './textures.js';
   import type { GameTextures } from './textures.js';
-  import { HEX_SIZE, hexesInRect, mapBounds, screenToHex, poseVueVillePour, hexSousEcranVueVille } from './hexView.js';
+  import { HEX_SIZE, hexesInRect, mapBounds, screenToHex, poseVueVillePour, hexSousEcranVueVille, ZOOM_DEPART } from './hexView.js';
   import type { PoseVueVille } from './hexView.js';
   import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
   import type { Point } from './arrows.js';
@@ -441,11 +441,25 @@
       const { x, z } = hexWorldPos(focus);
       stage3d!.cam.centerOn(x, z);
       stage3d!.cam.clamp(vw, vh);
+      appliquerZoomDepart();
     } else {
       camera.centerOn(hexToPixel(focus, HEX_SIZE).x, hexToPixel(focus, HEX_SIZE).y, vw, vh);
       camera.clamp(bounds, vw, vh);
+      appliquerZoomDepart();
     }
     cameraChanged = true;
+  }
+
+  /** Zoom de départ (retour d'Erik du 22/09) : ZOOM_DEPART (crans de molette
+   * cumulés depuis ×1), ancré au centre de la vue — même bornes que la molette. */
+  function appliquerZoomDepart(): void {
+    const change = mode3dActif()
+      ? stage3d!.cam.zoomAt(vw / 2, vh / 2, vw, vh, ZOOM_DEPART)
+      : camera.zoomAt(vw / 2, vh / 2, ZOOM_DEPART);
+    if (change) {
+      if (mode3dActif()) stage3d!.cam.clamp(vw, vh);
+      else camera.clamp(bounds, vw, vh);
+    }
   }
 
   // ---------------------------------------------------------------------

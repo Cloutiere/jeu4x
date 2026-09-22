@@ -10,7 +10,7 @@
  *
  * Résolution logique fixe (ELECTRON-RESOLUTION, décision d'Erik du 18/09) :
  * le contenu du jeu vit dans une WebContentsView de taille logique fixe
- * (resolutionBase, défaut 1280×720) au cœur d'une BaseWindow — la vue de jeu
+ * (resolutionBase, défaut 1920×1080 — FENETRE-GRANDE, décision d'Erik du 21/09) au cœur d'une BaseWindow — la vue de jeu
  * est ainsi indépendante de la taille de la fenêtre :
  *  - mode fenêtre (défaut) : fenêtre non redimensionnable dont le contenu fait
  *    exactement resolutionBase (bordures/barre de titre en sus) ;

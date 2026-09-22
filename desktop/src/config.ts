@@ -12,8 +12,8 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import type { ResolutionBase } from './letterbox';
 
-/** Valeurs par défaut de la résolution logique (décision d'Erik du 18/09). */
-export const RESOLUTION_DEFAUT: ResolutionBase = { largeur: 1280, hauteur: 720 };
+/** Valeurs par défaut de la résolution logique (décision d'Erik du 21/09 : ×1,5 sur l'ancienne base 1280×720). */
+export const RESOLUTION_DEFAUT: ResolutionBase = { largeur: 1920, hauteur: 1080 };
 
 export interface EnvConfig {
   /** Nom de l'environnement (informatif, repris du fichier). */
