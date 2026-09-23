@@ -300,6 +300,90 @@ async function composerHex(svgBuffer, cible) {
   return { base, accent: null };
 }
 
+// ---------------------------------------------------------------------- tuile hex pré-clippée
+
+/** Mode « tuile » (TUILES-SVG, Erik 22/09) : le SVG source est DÉJÀ clippé en
+ *  hexagone pointy-top (fond transparent autour — nouveau style d'Erik, à la
+ *  différence du mode `hex` ci-dessus qui part d'un fond carré plein). On
+ *  recadre la bbox du contenu opaque, on l'amène à la géométrie du jeu
+ *  (hw = √3/2·H centré dans le canvas 224×256), on re-clippe avec le masque du
+ *  jeu (les proportions de l'hexagone d'Erik diffèrent légèrement) puis
+ *  contour #2B2620 2,5 px tracé en code. */
+const DEPASSE = 2; // le décor déborde le masque de 2 px de part et d'autre :
+                   // aucune languette transparente entre l'hexagone d'Erik
+                   // (ratio ~0,885) et celui du jeu (√3/2 ≈ 0,866)
+
+async function composerTuile(svgBuffer, cible, facteur = 1.0) {
+  const W = cible.w, H = cible.h;
+  const cx = W / 2;
+  const hw = H * Math.sqrt(3) / 2;
+  const inset = 0.5;
+  const pts = [
+    [cx, inset], [cx + hw / 2 - inset / 2, H / 4], [cx + hw / 2 - inset / 2, (3 * H) / 4],
+    [cx, H - inset], [cx - hw / 2 + inset / 2, (3 * H) / 4], [cx - hw / 2 + inset / 2, H / 4],
+  ].map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
+  const couverture = Math.ceil(hw) + 2 * DEPASSE;
+  const hauteur = H + 2 * DEPASSE;
+
+  // deux passes : rendu normalisé 2048² (la taille intrinsèque du SVG importe
+  // peu), recadrage bbox dans cet espace puis LANCZOS.
+  const grand = await sharp(svgBuffer, { density: (72 * 2048) / 1024 })
+    .resize(2048, 2048, { fit: 'fill' })
+    .png()
+    .toBuffer();
+  const brut = await sharp(grand).raw().toBuffer({ resolveWithObject: true });
+  const bbox = bboxAlpha({ data: brut.data, w: brut.info.width, h: brut.info.height });
+  // échelle UNIFORME en mode cover (max des deux rapports) : l'hexagone source
+  // d'Erik n'a pas exactement les proportions du jeu (0,87 à 0,98 selon le
+  // fichier) — un fit anisotrope déformerait le dessin ET laisserait des
+  // languettes transparentes aux coins du masque (G2). En cover le décor
+  // déborde partout, la fenêtre recadre au centre. `facteur` (1,0 par défaut)
+  // zoome en plus si les coins de la source sont arrondis (voir importer).
+  const echelle = Math.max(couverture / bbox.width, hauteur / bbox.height) * facteur;
+  const tw = Math.max(couverture, Math.round(bbox.width * echelle));
+  const th = Math.max(hauteur, Math.round(bbox.height * echelle));
+  const decor = await sharp(grand)
+    .extract({ left: bbox.left, top: bbox.top, width: bbox.width, height: bbox.height })
+    .resize(tw, th, { kernel: 'lanczos3' })
+    .png()
+    .toBuffer();
+
+  const masque = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">` +
+    `<polygon points="${pts}" fill="#FFFFFF"/></svg>`,
+  );
+  const contour = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">` +
+    `<polygon points="${pts}" fill="none" stroke="${ENCRE}" stroke-width="2.5"/></svg>`,
+  );
+
+  // la fenêtre du canvas (224×256) se découpe dans le décor en cover :
+  // horizontalement au centre ; verticalement collée AU HAUT — l'excédent
+  // éventuel est coupé EN BAS uniquement (consigne Erik : ne jamais couper le
+  // haut des tuiles, le bas est moins dommageable).
+  const fenetre = await sharp(decor)
+    .extract({
+      left: Math.round((tw - W) / 2),
+      top: 0,
+      width: W,
+      height: H,
+    })
+    .png()
+    .toBuffer();
+
+  const base = await sharp({
+    create: { width: W, height: H, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([
+      { input: fenetre, left: 0, top: 0 },
+      { input: await sharp(masque).png().toBuffer(), blend: 'dest-in' },
+      { input: contour, left: 0, top: 0 },
+    ])
+    .png()
+    .toBuffer();
+  return { base, accent: null };
+}
+
 // ---------------------------------------------------------------------- gates
 
 function raw(pngBuffer) {
@@ -481,14 +565,28 @@ async function importer(nomProfil, options = {}) {
       comptes = r.comptes;
     }
     const svgBuffer = Buffer.from(svgText);
-    // tuile hexagonale : pas de calque accent (décor plein), extraction inutile
-    const { svg: accentSvg, nb: nbBlancs } = cible.mode === 'hex' || comptes
+    // tuile hexagonale (mode hex : fond carré plein ; mode tuile : SVG déjà
+    // clippé hexagone par Erik) : pas de calque accent (décor plein)
+    const { svg: accentSvg, nb: nbBlancs } = cible.mode === 'hex' || cible.mode === 'tuile' || comptes
       ? { svg: null, nb: 0 }
       : extraireAccent(svgText);
 
     let resultat;
     if (cible.mode === 'hex') {
       resultat = await composerHex(svgBuffer, cible);
+    } else if (cible.mode === 'tuile') {
+      // zoom ADAPTATIF : ×1,0 suffit si l'hexagone source a les bonnes
+      // proportions ; on ne zoome que si la gate G2 détecte des trous (coins
+      // arrondis de la source), par pas de 1 % jusqu'à couverture complète —
+      // objectif Erik : ne jamais couper le haut des tuiles.
+      for (let f = 1.0; f <= 1.081; f += 0.01) {
+        resultat = await composerTuile(svgBuffer, cible, f);
+        const trousEssai = await gateTrous(resultat.base);
+        if (trousEssai.filter((t) => t.taille > AA_TROUS).length === 0) {
+          if (f > 1.0) console.log(`  (tuile : zoom cover ×${f.toFixed(2)} pour couvrir les coins)`);
+          break;
+        }
+      }
     } else {
       resultat = await composer(svgBuffer, accentSvg, cible);
     }
@@ -507,7 +605,7 @@ async function importer(nomProfil, options = {}) {
         erreurs.push(`G2 trous : ${trous.length}+ px transparents de l'accent posés sur une base CLAIRE (zone blanche manquante, ex. ${JSON.stringify(trous[0])})`);
         await diagnostic(resultat.accent, trous, path.join(dirDiag, `diag-${variante.stem}-trous.png`));
       }
-    } else if (cible.mode === 'hex') {
+    } else if (cible.mode === 'hex' || cible.mode === 'tuile') {
       // pas de calque accent sur une tuile : le décor doit couvrir tout l'hexagone
       const trous = await gateTrous(resultat.base);
       if (trous.length) {
@@ -542,7 +640,7 @@ async function importer(nomProfil, options = {}) {
       }
       console.log(`« ${variante.stem} » (faction ${variante.faction}) : variante cuite — ${detail} ; gates OK`);
     } else {
-      console.log(`« ${variante.stem} » : ${nbBlancs} paths blancs → accent ; gates OK`);
+      console.log(`« ${variante.stem} » : ${nbBlancs ? `${nbBlancs} paths blancs → accent` : 'décor plein (pas de calque accent)'} ; gates OK`);
     }
 
     if (erreurs.length) {
@@ -571,4 +669,4 @@ if (args[0] && !args[0].startsWith('-')) {
 } else {
   console.log('usage : node tools/import_svg.mjs <profil>');
 }
-export { importer, extraireAccent, gateBlancPure, gateTrous, gateDimensions, gateTeintes, composer, suffixeFaction, lireFactions };
+export { importer, extraireAccent, gateBlancPure, gateTrous, gateDimensions, gateTeintes, composer, composerTuile, suffixeFaction, lireFactions };

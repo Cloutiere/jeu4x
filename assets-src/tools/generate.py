@@ -4487,14 +4487,21 @@ def main():
     EXPORTS.mkdir(exist_ok=True)
 
     tiles = {
-        "tile_prairie": tile_prairie,
-        "tile_plaine": tile_plaine,
-        "tile_foret": tile_foret,
-        "tile_colline": tile_colline,
-        "tile_montagne": tile_montagne,
-        "tile_desert": tile_desert,
-        "tile_eau": tile_eau,
-        "tile_ocean": tile_ocean,
+        # tile_prairie/plaine/colline/montagne/desert/foret/eau/ocean : IMPORTÉES
+        # (SVG d'Erik, assets-src/tools/import_svg.mjs profils « tuile-* », mode
+        # tuile 22/09 — prairie épurée, forêt arbre_droit, eau=rivage et
+        # océan=ocean le soir) — les painters restent ci-dessus mais ne
+        # régénèrent plus les PNG (ils écraseraient les imports) ; retour arrière
+        # = réactiver la ligne ET relancer generate.py (les fiches tile_*_avant
+        # sont les PNG painter). Seule tile_ville_sol reste au painter.
+        # "tile_prairie": tile_prairie,
+        # "tile_plaine": tile_plaine,
+        # "tile_foret": tile_foret,
+        # "tile_colline": tile_colline,
+        # "tile_montagne": tile_montagne,
+        # "tile_desert": tile_desert,
+        # "tile_eau": tile_eau,
+        # "tile_ocean": tile_ocean,
         "tile_ville_sol": tile_ville_sol,
     }
     entities = {

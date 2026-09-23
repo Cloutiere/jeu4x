@@ -3,18 +3,106 @@
   "guerrier-bronze": {
     "svg": "full-body-game-sprite-of-an-ancient-bronze-age-war.svg",
     "stem": "unite_guerrier",
-    "cible": { "mode": "unite", "w": 256, "h": 320, "margeX": 14, "margeHaut": 6, "margeBas": 10, "echelle": 0.75 }
+    "cible": {
+      "mode": "unite",
+      "w": 256,
+      "h": 320,
+      "margeX": 14,
+      "margeHaut": 6,
+      "margeBas": 10,
+      "echelle": 0.75
+    }
   },
   "guerrier-cuite": {
     "svg": "full-body-game-sprite-of-an-ancient-bronze-age-war.svg",
     "stem": "unite_guerrier",
-    "cible": { "mode": "unite", "w": 256, "h": 320, "margeX": 14, "margeHaut": 6, "margeBas": 10, "echelle": 0.75 },
+    "cible": {
+      "mode": "unite",
+      "w": 256,
+      "h": 320,
+      "margeX": 14,
+      "margeHaut": 6,
+      "margeBas": 10,
+      "echelle": 0.75
+    },
     "remplacementsPalette": {
       "#FFFFFF": "base",
       "#FEFEFE": "reflet",
       "#FEFEFD": "reflet",
       "#FAF9F9": "reflet",
       "#8C8C8C": "ombre"
+    }
+  },
+  "tuile-prairie": {
+    "svg": "new_tiles/prairie_epuree.svg",
+    "stem": "tile_prairie",
+    "cible": {
+      "mode": "tuile",
+      "w": 224,
+      "h": 256
+    }
+  },
+  "tuile-plaine": {
+    "svg": "new_tiles/plaine.svg",
+    "stem": "tile_plaine",
+    "cible": {
+      "mode": "tuile",
+      "w": 224,
+      "h": 256
+    }
+  },
+  "tuile-colline": {
+    "svg": "new_tiles/colline.svg",
+    "stem": "tile_colline",
+    "cible": {
+      "mode": "tuile",
+      "w": 224,
+      "h": 256
+    }
+  },
+  "tuile-montagne": {
+    "svg": "new_tiles/montagne.svg",
+    "stem": "tile_montagne",
+    "cible": {
+      "mode": "tuile",
+      "w": 224,
+      "h": 256
+    }
+  },
+  "tuile-desert": {
+    "svg": "new_tiles/desert.svg",
+    "stem": "tile_desert",
+    "cible": {
+      "mode": "tuile",
+      "w": 224,
+      "h": 256
+    }
+  },
+  "tuile-foret": {
+    "svg": "new_tiles/arbre_droit.svg",
+    "stem": "tile_foret",
+    "cible": {
+      "mode": "tuile",
+      "w": 224,
+      "h": 256
+    }
+  },
+  "tuile-eau": {
+    "svg": "new_tiles/rivage.svg",
+    "stem": "tile_eau",
+    "cible": {
+      "mode": "tuile",
+      "w": 224,
+      "h": 256
+    }
+  },
+  "tuile-ocean": {
+    "svg": "new_tiles/ocean.svg",
+    "stem": "tile_ocean",
+    "cible": {
+      "mode": "tuile",
+      "w": 224,
+      "h": 256
     }
   }
 }

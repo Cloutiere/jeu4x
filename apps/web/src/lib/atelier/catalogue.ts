@@ -201,13 +201,23 @@ function sprites2d(): AssetAtelier[] {
   // Sprites IMPORTÉS (SVG Recraft d'Erik, pipeline import_svg.mjs) — le PNG
   // écrase celui du painter dans exports/ ; fiche A/B du painter conservée.
   const IMPORTES = new Set(['unite_guerrier']);
+  // Tuiles IMPORTÉES (SVG d'Erik 22/09, import_svg.mjs mode tuile) — A/B
+  // painter conservé (fichiers tile_<n>_avant.png) ; eau (rivage) et océan
+  // ajoutées le soir. Ne reste au painter que tile_ville_sol.
+  const TUILES_IMPORTES = new Set(['prairie', 'plaine', 'colline', 'montagne', 'desert', 'foret', 'eau', 'ocean']);
   for (const id of Object.keys(TERRAINS)) {
     const stem = id === 'ville' ? 'tile_ville_sol' : `tile_${id}`;
-    out.push(spriteAsset(stem, `Tuile ${id}`, `${SRC_GENERATEUR('render_tile')} — consommé par textures.ts (tiles)` , false));
+    const mention = TUILES_IMPORTES.has(id) ? ' — IMPORT SVG (Erik, import_svg.mjs mode tuile)' : '';
+    out.push(spriteAsset(stem, `Tuile ${id}`, `${SRC_GENERATEUR('render_tile')} — consommé par textures.ts (tiles)${mention}` , false));
   }
   for (const [id, u] of Object.entries(UNIT_TYPES)) {
     const mention = IMPORTES.has(`unite_${id}`) ? ' — IMPORT SVG (Recraft, import_svg.mjs)' : '';
     out.push(spriteAsset(`unite_${id}`, `Unité ${u.name}`, `${SRC_GENERATEUR('render_entity')} — textures.ts (units)${mention}`, true));
+  }
+  // A/B : les anciennes tuiles peintres, conservées pour le verdict d'Erik
+  // (fichiers tile_<n>_avant.png, issus du dernier generate.py painter).
+  for (const id of TUILES_IMPORTES) {
+    out.push(spriteAsset(`tile_${id}_avant`, `Tuile ${id} (peintre, AVANT import — comparaison A/B)`, `${SRC_GENERATEUR('render_tile')} (référence A/B de l'import SVG) — textures.ts (tiles)`, false));
   }
   // A/B : l'ancien sprite peintre du guerrier, conservé pour le verdict
   // d'Erik (fichiers unite_guerrier_avant*.png, issus du dernier generate.py).

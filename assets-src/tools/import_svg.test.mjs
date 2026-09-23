@@ -181,6 +181,54 @@ test('génère les résolutions du catalogue + hexagone (clip + contour)', async
   assert.ok(encre, 'contour #2B2620 tracé au sommet de l\'hexagone');
 });
 
+test('mode tuile : SVG déjà clippé hexagone → 224×256, contour encre, trou rejeté', async () => {
+  // hexagone pointy-top synthétique (comme les tuiles d'Erik : fond
+  // transparent autour, décor plein dedans)
+  const hexSvg = (contenu) => {
+    const w = 1024, h = 1024, hw = w * Math.sqrt(3) / 2, cx = w / 2;
+    const pts = [
+      [cx, 0], [cx + hw / 2, h / 4], [cx + hw / 2, 3 * h / 4],
+      [cx, h], [cx - hw / 2, 3 * h / 4], [cx - hw / 2, h / 4],
+    ].map(([x, y]) => `${x.toFixed(0)},${y.toFixed(0)}`).join(' ');
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+      <polygon points="${pts}" fill="#A8C86A"/>${contenu}</svg>`;
+  };
+  const cible = { mode: 'tuile', w: 224, h: 256 };
+
+  // décor complet : clip jeu, contour encre, 224×256
+  const d1 = tmp();
+  await importer('fixture-tuile', {
+    profil: { svg: ecrire(hexSvg('')), stem: 'tile_test_tuile', cible },
+    exports: d1, diagnostics: d1,
+  });
+  const pngPath = path.join(d1, 'tile_test_tuile.png');
+  const meta = await sharp(pngPath).metadata();
+  assert.deepEqual([meta.width, meta.height], [224, 256]);
+  const { data, info } = await sharp(pngPath).raw().toBuffer({ resolveWithObject: true });
+  assert.equal(data[(4 * info.width + 2) * 4 + 3], 0, 'coin haut-gauche hors hexagone = transparent');
+  assert.equal(data[(info.height / 2 * info.width + info.width / 2) * 4 + 3], 255, 'centre opaque');
+  let encre = false;
+  for (let y = 0; y < 4; y++) {
+    const i = (y * info.width + 112) * 4;
+    if (data[i] === 0x2b && data[i + 1] === 0x26 && data[i + 2] === 0x20) encre = true;
+  }
+  assert.ok(encre, 'contour #2B2620 tracé au sommet de l\'hexagone');
+
+  // trou intérieur > 16 px² → G2 refuse
+  const trou = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+    <defs><mask id="m"><rect width="1024" height="1024" fill="#FFFFFF"/>
+      <circle cx="512" cy="512" r="120" fill="#000000"/></mask></defs>
+    <polygon points="${hexSvg('').match(/points="([^"]+)"/)[1]}" fill="#A8C86A" mask="url(#m)"/></svg>`;
+  const d2 = tmp();
+  assert.rejects(
+    () => importer('fixture-tuile-trou', {
+      profil: { svg: ecrire(trou), stem: 'tile_test_trou', cible },
+      exports: d2, diagnostics: d2,
+    }),
+    /décor incomplet/,
+  );
+});
+
 test('variante cuite : les couleurs sont remplacées dans le PNG (sans accent)', async () => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
     <rect width="128" height="128" fill="#FFFFFF"/>
@@ -244,15 +292,16 @@ test('remplacementsPalette : 8 variantes (7 joueurs + barbare), teintes de la pa
     const attendues = [f.reflet, f.base, f.ombre];
     assert.deepEqual(await gateTeintes(path.join(dossier, `${stem}.png`), attendues), [], `${stem} : les 3 teintes doivent être au pixel`);
   }
-  // La variante J1 reproduit la table Erik (rouge brique) et le barbare le
-  // rouge sang dédié (option B tranchée 20/09).
-  const { data, info } = await sharp(path.join(dossier, 'test_palette_j1.png')).raw().toBuffer({ resolveWithObject: true });
+  // La variante p5 reproduit la table Erik (rouge brique, ordre final de la
+  // palette : J1 = Bleu Acier) et le barbare le rouge sang dédié (option B
+  // tranchée 20/09).
+  const { data, info } = await sharp(path.join(dossier, 'test_palette_j5.png')).raw().toBuffer({ resolveWithObject: true });
   const vues = new Set();
   for (let i = 0; i < info.width * info.height; i++) {
     if (data[i * 4 + 3] < 250) continue;
     vues.add([data[i * 4], data[i * 4 + 1], data[i * 4 + 2]].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase());
   }
-  for (const hex of ['B84239', 'D55B52', '782822']) assert.ok(vues.has(hex), `J1 doit porter ${hex}`);
+  for (const hex of ['B84239', 'D55B52', '782822']) assert.ok(vues.has(hex), `p5 (rouge brique) doit porter ${hex}`);
 });
 
 test('G5 gateTeintes : tolérance ±2 par canal, teinte absente signalée', async () => {
