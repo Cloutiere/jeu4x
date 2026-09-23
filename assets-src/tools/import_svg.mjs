@@ -83,6 +83,34 @@ function suffixeFaction(cle) {
   return cle === 'barbare' ? 'barbare' : `j${cle.slice(1)}`;
 }
 
+// SYSTÈME 4 TONS (GUERRIER-4TONS, décision Erik 23/09) : Erik peint les
+// couleurs de faction DANS le SVG maître (4 tons Lightest/Base/Dark/Darkest
+// par faction — rampes linéaires, la logique « Accent » 3 gris est abandonnée
+// pour ces assets). Même source que le web : accents.json §factions4.
+const TONS4 = ['lightest', 'base', 'dark', 'darkest'];
+
+/** Palette 4 tons : { nom, lightest, base, dark, darkest } des 7 factions +
+ *  l'ordre J1..J7 + la faction du barbare (accents.json, validé côté web). */
+function lireFactions4() {
+  const data = JSON.parse(fs.readFileSync(PALETTE, 'utf8'));
+  const { factions4, ordre_joueurs4, barbare4 } = data;
+  for (const [cle, f] of Object.entries(factions4)) {
+    for (const ton of TONS4) {
+      if (!/^#[0-9a-f]{6}$/i.test(f[ton])) {
+        throw new Error(`accents.json : factions4.${cle}.${ton} = « ${f[ton]} » n'est pas un hex #RRGGBB`);
+      }
+    }
+  }
+  if (ordre_joueurs4.length !== 7 || new Set(ordre_joueurs4).size !== 7
+    || ordre_joueurs4.some((c) => !factions4[c])) {
+    throw new Error('accents.json : ordre_joueurs4 — 7 factions distinctes attendues');
+  }
+  if (!factions4[barbare4]) {
+    throw new Error(`accents.json : barbare4 — faction « ${barbare4} » inconnue`);
+  }
+  return { factions4, ordre_joueurs4, barbare4 };
+}
+
 /** G5 (variante cuite) : les teintes attendues (couleurs cibles dont la source
  *  existe dans le SVG) doivent être présentes AU PIXEL dans le PNG (±2/canal,
  *  anti-aliasing ignoré). Renvoie la liste des teintes manquantes. */
@@ -543,7 +571,24 @@ async function importer(nomProfil, options = {}) {
   //    variante par faction de accents.json (7 joueurs + barbare = 8), les 3
   //    gris du maître mappés sur {reflet, base, ombre} — source → TONALITÉ.
   let variantes;
-  if (profil.remplacementsPalette) {
+  if (profil.remplacementsPalette4) {
+    // SYSTÈME 4 TONS (GUERRIER-4TONS) : une variante par joueur selon
+    // ordre_joueurs4 (J1..J7) + le barbare (barbare4, ex. Rouge Royal).
+    // remplacementsPalette4 : hex SOURCE du maître → RÔLE de ton (le mappeur
+    // remplace par rôle, insensible à la casse, fill + stop-color).
+    const { factions4, ordre_joueurs4, barbare4 } = lireFactions4();
+    const clesFactions = [...ordre_joueurs4, barbare4];
+    variantes = clesFactions.map((cle, i) => ({
+      stem: `${profil.stem}_${i === 7 ? 'barbare' : `j${i + 1}`}`,
+      remplacements: Object.fromEntries(
+        Object.entries(profil.remplacementsPalette4).map(([src, ton]) => {
+          if (!TONS4.includes(ton)) throw new Error(`rôle de ton inconnu « ${ton} » (${TONS4.join(', ')})`);
+          return [src, factions4[cle][ton]];
+        }),
+      ),
+      faction: cle,
+    }));
+  } else if (profil.remplacementsPalette) {
     const factions = lireFactions();
     variantes = Object.entries(factions).map(([cle, f]) => ({
       stem: `${profil.stem}_${suffixeFaction(cle)}`,
@@ -566,8 +611,10 @@ async function importer(nomProfil, options = {}) {
     }
     const svgBuffer = Buffer.from(svgText);
     // tuile hexagonale (mode hex : fond carré plein ; mode tuile : SVG déjà
-    // clippé hexagone par Erik) : pas de calque accent (décor plein)
-    const { svg: accentSvg, nb: nbBlancs } = cible.mode === 'hex' || cible.mode === 'tuile' || comptes
+    // clippé hexagone par Erik) : pas de calque accent (décor plein).
+    // profil.sansAccent : SVG entièrement PEINT par Erik (4 tons — le maître
+    // guerrier ne porte aucune forme blanche) → rendu direct, pas de calque.
+    const { svg: accentSvg, nb: nbBlancs } = cible.mode === 'hex' || cible.mode === 'tuile' || comptes || profil.sansAccent
       ? { svg: null, nb: 0 }
       : extraireAccent(svgText);
 
@@ -669,4 +716,4 @@ if (args[0] && !args[0].startsWith('-')) {
 } else {
   console.log('usage : node tools/import_svg.mjs <profil>');
 }
-export { importer, extraireAccent, gateBlancPure, gateTrous, gateDimensions, gateTeintes, composer, composerTuile, suffixeFaction, lireFactions };
+export { importer, extraireAccent, gateBlancPure, gateTrous, gateDimensions, gateTeintes, composer, composerTuile, suffixeFaction, lireFactions, lireFactions4 };

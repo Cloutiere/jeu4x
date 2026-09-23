@@ -13,7 +13,7 @@
   import { createUiState } from '../lib/render/ui.js';
   import { Playback } from '../lib/render/playback.js';
   import { makeState, recomputeVision } from '@game/rules';
-  import type { GameState } from '@game/rules';
+  import type { GameState, TerrainId } from '@game/rules';
   // PLACEMENT-MELEE (L3) : scénario mêlée — le labo pilote le store du
   // contexte (côtés d'entrée + stabilisée) que GameCanvas consomme.
   import { contexteMelee } from '../lib/melee.js';
@@ -79,7 +79,41 @@
         r: 0,
       });
     }
-    return makeState({ width: 8, height: 8, units, cities: [] });
+    // GUERRIER-4TONS (décision Erik 23/09) : démonstration du guerrier peint
+    // à la main (variantes cuites J1-J7, accents.json §ordre_joueurs4) sur les
+    // tuiles du nouveau style — unités SEULES (lecture individuelle, une par
+    // terrain) + une cohabitation 3 nations pour comparer les teintes côte à
+    // côte. La préview archer ci-dessus est PRÉSERVÉE (ajouter, ne pas
+    // remplacer). La variante barbare (`unite_guerrier_barbare.png`) n'est pas
+    // rendue ici : le barbare garde ses sprites dédiés au rendu (R-95) — elle
+    // se lit à l'atelier (fiche unite_guerrier_barbare).
+    const TERRAINS_DEMO: Record<string, string> = {
+      '0,2': 'prairie',
+      '1,2': 'plaine',
+      '2,2': 'colline',
+      '3,2': 'desert',
+      '4,2': 'foret',
+      '5,2': 'montagne',
+      '6,2': 'prairie',
+      '0,4': 'colline',
+      '1,4': 'colline',
+    };
+    const POS_DEMO = [
+      ['0,2', 'p1'], ['1,2', 'p2'], ['2,2', 'p3'], ['3,2', 'p4'],
+      ['4,2', 'p5'], ['5,2', 'p6'], ['6,2', 'p7'],
+    ] as const;
+    POS_DEMO.forEach(([pos, owner], i) => {
+      const [q, r] = pos.split(',').map(Number);
+      units.push({ id: `d${i + 1}`, owner, type: 'guerrier', q, r });
+    });
+    // Cohabitation multi-nations (3 nations côte à côte, tuile colline).
+    for (const [i, owner] of ['p1', 'p3', 'p5'].entries()) {
+      units.push({ id: `d1${i + 1}`, owner, type: 'guerrier', q: 0, r: 4 });
+    }
+    const terrainOverrides: Record<string, TerrainId> = Object.fromEntries(
+      Object.entries(TERRAINS_DEMO).map(([k, t]) => [k, t as TerrainId]),
+    );
+    return makeState({ width: 8, height: 8, units, cities: [], terrainOverrides });
   }
 
   function contexteDuLabo(): ContexteMelee {
@@ -107,6 +141,13 @@
     const state = construireEtat();
     contexteMelee.set(contexteDuLabo());
     recomputeVision(state); // brouillard : le joueur local voit autour de ses unités
+    // GUERRIER-4TONS : la démonstration pose des unités d'AUTRES nations
+    // (variantes J1-J7) loin des unités « locales » — sans ça le brouillard
+    // les masquerait. Labo : la carte est entièrement visible.
+    const toutesCases = Object.keys(state.map).sort();
+    for (const p of Object.values(state.players)) {
+      p.vision = { explored: toutesCases, visible: toutesCases };
+    }
     viewStore.set({
       ...initialView('labo-rendu'),
       status: 'active',

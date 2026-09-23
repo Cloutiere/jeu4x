@@ -328,3 +328,54 @@ test('idempotence : deux imports du guerrier = mêmes octets', async () => {
     assert.equal(h1, h2, `${f} doit être déterministe`);
   }
 });
+
+test('remplacementsPalette4 : 8 variantes 4 tons (J1-J7 + barbare=Rouge Royal), G5 4 teintes', async () => {
+  // Fixture « peinte à la main » : les 4 hex sources du maître guerrier
+  // (rampes saphir d'Erik), SANS forme blanche (pas de calque accent).
+  const svg4 = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
+    <rect x="32" y="32" width="192" height="48" fill="#649EFF"/>
+    <rect x="32" y="80" width="192" height="48" fill="#233A9D"/>
+    <rect x="32" y="128" width="192" height="48" fill="#4571C4"/>
+    <rect x="32" y="176" width="192" height="48" fill="#0d174f"/>
+  </svg>`;
+  const dossier = tmp();
+  const r = await importer('palette4-fixture', {
+    profil: {
+      svg: ecrire(svg4),
+      stem: 'test_p4',
+      cible: { mode: 'unite', w: 64, h: 64, margeX: 2, margeHaut: 2, margeBas: 2 },
+      remplacementsPalette4: { '#649EFF': 'lightest', '#233A9D': 'base', '#4571C4': 'dark', '#0D174F': 'darkest' },
+    },
+    exports: dossier,
+    diagnostics: dossier,
+  });
+  // 8 variantes : j1..j7 + barbare (ordre_joueurs4 de accents.json).
+  assert.deepEqual(r.variantes, ['j1', 'j2', 'j3', 'j4', 'j5', 'j6', 'j7', 'barbare'].map((s) => `test_p4_${s}`));
+  const { factions4, ordre_joueurs4, barbare4 } = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'apps', 'web', 'src', 'lib', 'render', 'accents.json'), 'utf8'),
+  );
+  const cles = [...ordre_joueurs4, barbare4];
+  for (const [i, cle] of cles.entries()) {
+    const suffixe = i === 7 ? 'barbare' : `j${i + 1}`;
+    const stem = `test_p4_${suffixe}`;
+    assert.ok(fs.existsSync(path.join(dossier, `${stem}.png`)), stem);
+    const f = factions4[cle];
+    // G5 étendue : les 4 tons au pixel (±2/canal) — la source #0d174f en
+    // minuscules dans la fixture doit être remplacée aussi (casse-insensible).
+    assert.deepEqual(
+      await gateTeintes(path.join(dossier, `${stem}.png`), [f.lightest, f.base, f.dark, f.darkest]),
+      [],
+      `${stem} : les 4 tons de ${cle} doivent être au pixel`,
+    );
+  }
+  // Décision Erik 23/09 : le barbare EST le Rouge Royal (identique à J2).
+  const lu = fs.readFileSync(path.join(dossier, 'test_p4_barbare.png'));
+  const j2 = fs.readFileSync(path.join(dossier, 'test_p4_j2.png'));
+  assert.equal(
+    crypto.createHash('sha256').update(lu).digest('hex'),
+    crypto.createHash('sha256').update(j2).digest('hex'),
+    'barbare (rouge royal) = pixels identiques à j2',
+  );
+  // Le maître n'a pas de calque accent : aucune sortie *_accent.
+  assert.ok(!fs.existsSync(path.join(dossier, 'test_p4_accent.png')));
+});

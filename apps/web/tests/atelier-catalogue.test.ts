@@ -73,8 +73,14 @@ describe('atelier — catalogue L0', () => {
     // Unités : textures.ts ne charge que les ids AVEC art (UNIT_IDS) — on exige
     // donc le catalogue pour chaque unité dont le PNG existe réellement.
     const attends: string[] = [];
+    // GUERRIER-4TONS (23/09) : le guerrier peint par Erik n'a PLUS de calque
+    // accent (couleurs cuites dans le SVG maître, variantes cuites J1-J7 +
+    // barbare) — base seule, comme les barbares ci-dessous.
+    const SANS_ACCENT = new Set(['guerrier']);
     for (const id of Object.keys(UNIT_TYPES)) {
-      if (existsSync(path.join(ART_DIR, `unite_${id}.png`))) attends.push(`unite_${id}`, `unite_${id}_accent`);
+      if (!existsSync(path.join(ART_DIR, `unite_${id}.png`))) continue;
+      attends.push(`unite_${id}`);
+      if (!SANS_ACCENT.has(id)) attends.push(`unite_${id}_accent`);
     }
     // Bâtiments : pièces de vaisseau (vaisseau_*) n'ont pas de sprite 2D —
     // même règle « catalogué si l'art existe » que les unités.

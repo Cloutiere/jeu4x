@@ -4505,10 +4505,12 @@ def main():
         "tile_ville_sol": tile_ville_sol,
     }
     entities = {
-        # unite_guerrier : IMPORTÉ (SVG Recraft d'Erik, assets-src/tools/import_svg.mjs
-        # profil « guerrier-bronze ») — le painter reste ci-dessus mais ne régénère
-        # plus le PNG (il écraserait l'import) ; retour arrière = réactiver la ligne
-        # ET relancer generate.py, ou git revert du commit d'import.
+        # unite_guerrier : IMPORTÉ (SVG d'Erik peint à la main, palette 4 tons —
+        # assets-src/tools/import_svg.mjs profils « guerrier-ref » (base) et
+        # « guerrier-4tons » (8 variantes cuites J1-J7 + barbare)) — le painter
+        # reste ci-dessus mais ne régénère plus le PNG (il écraserait l'import) ;
+        # retour arrière = réactiver la ligne ET relancer generate.py, ou git
+        # revert du commit d'import.
         # "unite_guerrier": (256, 320, unite_guerrier),
         "unite_colon": (256, 320, unite_colon),
         "ville_settlement": (224, 256, ville_settlement),

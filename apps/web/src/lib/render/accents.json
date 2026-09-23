@@ -1,5 +1,6 @@
 {
   "_commentaire": "PALETTE OFFICIELLE DES ACCENTS — décision Erik 20/09 (fait foi, HANDOFF-ACCENTS-7-FACTIONS). 7 joueurs × 3 teintes (reflet / base / ombre) + le Barbare (rouge sang dédié, option B tranchée) = 8 palettes. Les 3 gris du SVG maître se mappent déterministes : #FEFEFE → reflet, #FFFFFF → base, #8C8C8C → ombre (tolérance ±2/canal). Tonalité BASE par défaut pour les traits fins (anneaux, liserés, frontières, worked tiles, sélection, tooltips) — elle est conçue pour la lisibilité ; reflet/ombre servent aux sprites et, à l'œil d'Erik, aux états (survol = reflet, sélection forte = ombre). Source unique : lue par le web (accents.ts) ET par le pipeline import_svg.mjs. Zéro gameplay.",
+  "_commentaire4": "SYSTÈME 4 TONS (GUERRIER-4TONS, décision Erik 23/09) — nouvelle génération d'assets : Erik peint lui-même les couleurs de faction dans le SVG (4 tons par faction, rampes Lightest/Base/Dark/Darkest, la logique « Accent » 3 gris intermédiaire est abandonnée pour ces assets). `factions4` : table officielle (data-driven, Erik peut changer les valeurs). `ordre_joueurs4` : mapping joueur→faction J1..J7 dans l'ordre (défaut, non tranché par Erik — éditable). `barbare4` : faction du Barbare (décision Erik 23/09 : Rouge Royal). Le mappeur 4 tons du pipeline (remplacementsPalette4) remplace PAR RÔLE les 4 hex du maître guerrier par les tons de la faction. La table 3 gris `factions` reste la source des AUTRES assets.",
   "gris_maitre": { "reflet": "#FEFEFE", "base": "#FFFFFF", "ombre": "#8C8C8C" },
   "factions": {
     "p1": { "nom": "Bleu Acier", "reflet": "#567894", "base": "#3B5B75", "ombre": "#233B4E" },
@@ -10,5 +11,16 @@
     "p6": { "nom": "Bleu-Vert Canard", "reflet": "#468A88", "base": "#2D6A68", "ombre": "#1A4543" },
     "p7": { "nom": "Rouge Bourgogne", "reflet": "#A84D5E", "base": "#8A3343", "ombre": "#591E2A" },
     "barbare": { "nom": "Rouge Sang", "reflet": "#DF424A", "base": "#B81D24", "ombre": "#7A0E13" }
-  }
+  },
+  "factions4": {
+    "rouge-royal": { "nom": "Rouge Royal", "lightest": "#E85A5A", "base": "#A62121", "dark": "#7A0A0A", "darkest": "#490000" },
+    "bleu-saphir": { "nom": "Bleu Saphir", "lightest": "#649EFF", "base": "#233A9D", "dark": "#151F6F", "darkest": "#0A0F3D" },
+    "vert-emeraude": { "nom": "Vert Émeraude", "lightest": "#6ED78D", "base": "#1A6A36", "dark": "#124A27", "darkest": "#0B2B18" },
+    "jaune-dor": { "nom": "Jaune d'Or", "lightest": "#FFE98F", "base": "#D8A61C", "dark": "#AA8215", "darkest": "#7E610A" },
+    "violet-amethyste": { "nom": "Violet Améthyste", "lightest": "#A26ED7", "base": "#60128C", "dark": "#480D69", "darkest": "#310848" },
+    "cuivre-ardent": { "nom": "Cuivre Ardent", "lightest": "#FFCD99", "base": "#D97B30", "dark": "#9A4E20", "darkest": "#633114" },
+    "cyan-celeste": { "nom": "Cyan Céleste", "lightest": "#B3EFEF", "base": "#00D2D2", "dark": "#009797", "darkest": "#005E5E" }
+  },
+  "ordre_joueurs4": ["bleu-saphir", "rouge-royal", "vert-emeraude", "jaune-dor", "violet-amethyste", "cuivre-ardent", "cyan-celeste"],
+  "barbare4": "rouge-royal"
 }

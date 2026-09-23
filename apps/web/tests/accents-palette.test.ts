@@ -17,6 +17,10 @@ import {
   factionDe,
   hexEnNombre,
   suffixeCuit,
+  FACTIONS4,
+  ORDRE_JOUEURS4,
+  FACTION_BARBARE4,
+  faction4DeJoueur,
 } from '../src/lib/render/accents.js';
 
 const HEX_RE = /^#[0-9a-f]{6}$/i;
@@ -59,15 +63,17 @@ describe('accents — palette officielle 7 factions + barbare', () => {
   });
 
   it('PLAYER_COLORS (table plate du moteur) = bases p1..p7 + barbarien', () => {
+    // GUERRIER-4TONS (23/09) : couleur de base du joueur = tonalité `base` du
+    // SYSTÈME 4 TONS (ordre_joueurs4, barbare4) — liée automatiquement.
     expect(PLAYER_COLORS).toEqual({
-      p1: 0x3b5b75,
-      p2: 0xc98a32,
-      p3: 0x4f7053,
-      p4: 0x44484e,
-      p5: 0xb84239,
-      p6: 0x2d6a68,
-      p7: 0x8a3343,
-      barbarien: 0xb81d24,
+      p1: 0x233a9d, // bleu saphir
+      p2: 0xa62121, // rouge royal
+      p3: 0x1a6a36, // vert émeraude
+      p4: 0xd8a61c, // jaune d'or
+      p5: 0x60128c, // violet améthyste
+      p6: 0xd97b30, // cuivre ardent
+      p7: 0x00d2d2, // cyan céleste
+      barbarien: 0xa62121, // barbare = rouge royal
     });
   });
 
@@ -77,5 +83,26 @@ describe('accents — palette officielle 7 factions + barbare', () => {
     expect(clePalette('barbarien')).toBe('barbare');
     expect(hexEnNombre('#DF424A')).toBe(0xdf424a);
     expect(LISTE_FACTIONS).toHaveLength(8);
+  });
+
+  it('système 4 tons (GUERRIER-4TONS, Erik 23/09) : 7 factions × 4 tons, ordre J1-J7, barbare = Rouge Royal', () => {
+    expect(Object.keys(FACTIONS4)).toHaveLength(7);
+    expect(ORDRE_JOUEURS4).toHaveLength(7);
+    // J1 = Bleu Saphir (couleur de la référence, décision par défaut §2)
+    expect(faction4DeJoueur(1).base.toLowerCase()).toBe('#233a9d');
+    expect(faction4DeJoueur(1).darkest.toLowerCase()).toBe('#0a0f3d');
+    // barbare = rouge royal (identique à J2, décision Erik 23/09)
+    expect(FACTION_BARBARE4).toBe('rouge-royal');
+    expect(FACTIONS4[FACTION_BARBARE4]).toEqual(faction4DeJoueur(2));
+    // rampes linéaires : lightest > base > dark > darkest en luminance
+    for (const f of Object.values(FACTIONS4)) {
+      const lum = (h: string) => {
+        const n = parseInt(h.slice(1), 16);
+        return ((n >> 16) & 255) + ((n >> 8) & 255) + (n & 255);
+      };
+      expect(lum(f.lightest)).toBeGreaterThan(lum(f.base));
+      expect(lum(f.base)).toBeGreaterThan(lum(f.dark));
+      expect(lum(f.dark)).toBeGreaterThan(lum(f.darkest));
+    }
   });
 });

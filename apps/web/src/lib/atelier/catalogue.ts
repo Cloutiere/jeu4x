@@ -211,7 +211,9 @@ function sprites2d(): AssetAtelier[] {
     out.push(spriteAsset(stem, `Tuile ${id}`, `${SRC_GENERATEUR('render_tile')} — consommé par textures.ts (tiles)${mention}` , false));
   }
   for (const [id, u] of Object.entries(UNIT_TYPES)) {
-    const mention = IMPORTES.has(`unite_${id}`) ? ' — IMPORT SVG (Recraft, import_svg.mjs)' : '';
+    const mention = IMPORTES.has(`unite_${id}`)
+      ? (id === 'guerrier' ? ' — IMPORT SVG 4 tons (Erik 23/09, import_svg.mjs guerrier-ref/guerrier-4tons)' : ' — IMPORT SVG (Recraft, import_svg.mjs)')
+      : '';
     out.push(spriteAsset(`unite_${id}`, `Unité ${u.name}`, `${SRC_GENERATEUR('render_entity')} — textures.ts (units)${mention}`, true));
   }
   // A/B : les anciennes tuiles peintres, conservées pour le verdict d'Erik
@@ -222,21 +224,23 @@ function sprites2d(): AssetAtelier[] {
   // A/B : l'ancien sprite peintre du guerrier, conservé pour le verdict
   // d'Erik (fichiers unite_guerrier_avant*.png, issus du dernier generate.py).
   out.push(spriteAsset('unite_guerrier_avant', 'Guerrier (peintre, AVANT import — comparaison A/B)', `${SRC_GENERATEUR('unite_guerrier')} (référence A/B de l'import SVG) — textures.ts (units)`, true));
-  // Variantes CUITES ×8 (palette officielle 7 factions + barbare, décision
-  // Erik 20/09 — accents.json : couleurs cuites dans le SVG, pas de calque
-  // accent — import_svg.mjs profil guerrier-cuite, remplacementsPalette).
+  // Variantes CUITES ×8 — SYSTÈME 4 TONS (GUERRIER-4TONS, décision Erik
+  // 23/09 — accents.json §factions4 : Erik peint les 4 tons de faction dans
+  // le SVG maître ; le pipeline remplace par rôle, J1-J7 selon
+  // ordre_joueurs4 + barbare = Rouge Royal — import_svg.mjs profil
+  // guerrier-4tons, remplacementsPalette4).
   const VARIANTES_CUITES = [
-    ['j1', 'Joueur 1 (bleu acier)'],
-    ['j2', 'Joueur 2 (ocre jaune)'],
-    ['j3', 'Joueur 3 (vert mousse)'],
-    ['j4', 'Joueur 4 (gris ardoise)'],
-    ['j5', 'Joueur 5 (rouge brique)'],
-    ['j6', 'Joueur 6 (bleu-vert canard)'],
-    ['j7', 'Joueur 7 (rouge bourgogne)'],
-    ['barbare', 'Barbare (rouge sang)'],
+    ['j1', 'Joueur 1 (bleu saphir)'],
+    ['j2', 'Joueur 2 (rouge royal)'],
+    ['j3', 'Joueur 3 (vert émeraude)'],
+    ['j4', 'Joueur 4 (jaune d\'or)'],
+    ['j5', 'Joueur 5 (violet améthyste)'],
+    ['j6', 'Joueur 6 (cuivre ardent)'],
+    ['j7', 'Joueur 7 (cyan céleste)'],
+    ['barbare', 'Barbare (rouge royal)'],
   ] as const;
   for (const [suffixe, nom] of VARIANTES_CUITES) {
-    out.push(spriteAsset(`unite_guerrier_${suffixe}`, `Guerrier — variante cuite ${nom} (accent intégré)`, `assets-src/tools/import_svg.mjs (profil guerrier-cuite, remplacementsPalette) — import SVG Recraft`, false));
+    out.push(spriteAsset(`unite_guerrier_${suffixe}`, `Guerrier — variante cuite ${nom} (accent intégré, 4 tons)`, `assets-src/tools/import_svg.mjs (profil guerrier-4tons, remplacementsPalette4) — SVG d'Erik peint à la main`, false));
   }
   // COLON-FONDATION : état « en train de fonder » du Colon (art d'Erik en
   // attente — PNG optionnel, badge provisoire au rendu tant qu'il manque).
