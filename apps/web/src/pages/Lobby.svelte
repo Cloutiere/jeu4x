@@ -29,10 +29,14 @@
   let hostCiv = $state<string | null>('amerique');
   let joinCiv = $state<string | null>('rome');
   let showCivPicker = $state(true);
-  // Chantier BOT-SOLO : partie solo (le bot rejoint en p2, civ au choix —
-  // « aléatoire » = tirage seedé par la partie).
+  // Chantier BOT-SOLO : partie solo (les bots remplissent TOUS les sièges
+  // vides, civ au choix — « aléatoire » = tirage seedé par la partie).
   let solo = $state(false);
   let botCiv = $state<string>('random');
+  // CARTE-MULTI : sièges 2-5 (2 = miroir 1v1 inchangé ; 3-5 = carte libre
+  // sans symétrie). Les cartes préfabriquées restent à 2 sièges (D3).
+  let sieges = $state(2);
+  const siegesVerrouilles = $derived(mapId !== 'procedural-40');
   const CIV_IDS = Object.keys(CIVILIZATIONS.civs).sort();
 
   function createGame(): void {
@@ -40,6 +44,7 @@
       mapId,
       turnTimerMinutes: timerMinutes > 0 ? timerMinutes : null,
       isPublic,
+      ...(sieges !== 2 && !siegesVerrouilles ? { playerCount: sieges } : {}),
       ...(hostCiv ? { civId: hostCiv } : {}),
       ...(solo ? { solo: true } : {}),
       ...(solo && botCiv !== 'random' ? { botCivId: botCiv } : {}),
@@ -80,13 +85,21 @@
       Timer (minutes, 0 = aucun)
       <input type="number" min="0" bind:value={timerMinutes} />
     </label>
+    <label title={siegesVerrouilles ? 'Les cartes préfabriquées sont à 2 joueurs — la carte aléatoire porte 2 à 5 sièges.' : undefined}>
+      Sièges (2-5)
+      <select bind:value={sieges} disabled={siegesVerrouilles}>
+        {#each [2, 3, 4, 5] as n (n)}
+          <option value={n}>{n} joueurs{#if n === 2} (miroir 1v1){/if}{#if n >= 3} — carte libre{/if}</option>
+        {/each}
+      </select>
+    </label>
     <label class="check">
       <input type="checkbox" bind:checked={isPublic} />
       Partie publique
     </label>
     <label class="check">
       <input type="checkbox" bind:checked={solo} />
-      Partie solo (contre le bot)
+      Partie solo (les {sieges - 1} sièges vides sont remplis de bots)
     </label>
     {#if solo}
       <label>
@@ -122,7 +135,7 @@
       <ul>
         {#each $games.waiting as game (game.code)}
           <li>
-            <strong>{game.code}</strong> — hôte {game.players[0]?.name ?? '?'}{game.players[0]?.civId ? ` (${civName(game.players[0].civId)})` : ''} — timer {game.settings.turnTimerMinutes ?? '∞'}
+            <strong>{game.code}</strong> — hôte {game.players[0]?.name ?? '?'}{game.players[0]?.civId ? ` (${civName(game.players[0].civId)})` : ''} — {game.players.length}/{game.settings.playerCount ?? 2} sièges — timer {game.settings.turnTimerMinutes ?? '∞'}
             <button type="button" onclick={() => client.join(game.code)}>Rejoindre</button>
           </li>
         {/each}
@@ -141,7 +154,8 @@
             <strong>{game.code}</strong> — {game.status} — tour {game.turn}
             {#if game.settings.solo}<span class="badge">solo</span>{/if}
             {#if game.players.some((p) => p.bot)}
-              — contre {game.players.find((p) => p.bot)?.name ?? 'Bot'}{#if game.players.find((p) => p.bot)?.civId} ({civName(game.players.find((p) => p.bot)!.civId!)}){/if}
+              {@const bots = game.players.filter((p) => p.bot)}
+              — contre {bots.map((b) => `${b.name}${b.civId ? ` (${civName(b.civId)})` : ''}`).join(', ')}
             {/if}
             <a href={`#/game/${game.code}`}>Ouvrir</a>
             <button type="button" onclick={() => client.abandon(game.code)}>Abandonner</button>

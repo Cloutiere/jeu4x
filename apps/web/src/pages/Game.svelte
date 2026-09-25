@@ -188,7 +188,7 @@
       }
       if (e.type === 'Launch') {
         pushErrorToast(
-          e.player === pid ? 'Vaisseau spatial lancé !' : 'Le vaisseau spatial adverse a été lancé…',
+          e.player === pid ? 'Vaisseau spatial lancé !' : `${nomJoueur(e.player)} a lancé son Vaisseau spatial…`,
           e.player === pid ? 'good' : 'bad',
         );
       }
@@ -197,12 +197,12 @@
         pushErrorToast(`Palier économique ${e.threshold.toLocaleString('fr-FR')} or : ${e.label} !`, 'good');
       }
       if (e.type === 'EconomyMilestone' && e.reward === 'worldBank' && e.player !== pid) {
-        pushErrorToast('L\'adversaire a débloqué la Banque mondiale… (victoire économique)', 'bad');
+        pushErrorToast(`${nomJoueur(e.player)} a débloqué la Banque mondiale… (victoire économique)`, 'bad');
       }
       // 7m · R-139/C13 : frappe nucléaire — annonce différenciée tireur/victime.
       if (e.type === 'NukeLaunched' && e.outcome === 'detonated') {
         pushErrorToast(
-          e.owner === pid ? 'Votre frappe nucléaire a détoné — l\'adversaire est prévenu (pénalité de jalon 🔶).' : '☢️ Une ICBM adverse a détoné sur nos positions !',
+          e.owner === pid ? 'Votre frappe nucléaire a détoné — vos adversaires sont prévenus (pénalité de jalon 🔶).' : `☢️ Une ICBM de ${nomJoueur(e.owner)} a détoné sur nos positions !`,
           e.owner === pid ? 'info' : 'bad',
         );
       }
@@ -516,10 +516,37 @@
     for (const t of myCivTraits) lines.push(`${t.inactif ? '○ (inactif) ' : '• '}${t.label}`);
     return lines.join(String.fromCharCode(10));
   });
+  // CARTE-MULTI : nom lisible d'un joueur (humain « Alice », bot « Bot 3 »)
+  // — civ affichée quand connue. Retombe sur l'id brut (états migrés).
+  function nomJoueur(engineId: string): string {
+    const info = $view.players.find((x) => x.engineId === engineId);
+    const civ = $view.state?.players[engineId]?.civId ?? 'neutre';
+    if (!info) return civ !== 'neutre' ? civName(civ) : engineId;
+    return civ !== 'neutre' ? `${info.name} (${civName(civ)})` : info.name;
+  }
   const oppCivId = $derived.by(() => {
     const id = myEngineId($view);
     const other = id && $view.state ? Object.keys($view.state.players).find((p) => p !== id) : null;
     return (other && $view.state ? $view.state.players[other]?.civId : null) ?? 'neutre';
+  });
+  // CARTE-MULTI : suffixe du bandeau — « Adversaire : X » à 2 sièges
+  // (inchangé), « Adversaires : X · Y · Z » à 3+ (une entrée par joueur).
+  const adversairesBadge = $derived.by(() => {
+    const id = myEngineId($view);
+    if (!id || !$view.state) return '';
+    const others = Object.keys($view.state.players).filter((p) => p !== id).sort();
+    if (others.length === 0) return '';
+    const label = others.length === 1 ? 'Adversaire' : 'Adversaires';
+    const noms = others
+      .map((p) => {
+        const info = $view.players.find((x) => x.engineId === p);
+        const civ = $view.state!.players[p]?.civId ?? 'neutre';
+        const base = civName(civ);
+        // Bots : « Bot 3 : civ » — humains : la civ seule (lisibilité).
+        return info?.bot ? `${info.name} : ${base}` : base;
+      })
+      .join(' · ');
+    return ` · ${label} : ${noms}`;
   });
 
   // 7l · R-134 : trésorerie + GPT net (somme des villes focus Or — miroir du
@@ -662,7 +689,7 @@
         onclick={() => (showGovernment = !showGovernment)}
       >
         <span class="civname">{civName(myCivId)}</span>
-        <span class="eraname">{eraLabel(myEra)}{oppCivId !== 'neutre' ? ` · Adversaire : ${civName(oppCivId)}` : ''}</span>
+        <span class="eraname">{eraLabel(myEra)}{adversairesBadge}</span>
       </button>
     {/if}
     <span class="res" title="Trésorerie d'empire (R-134) — zéro entretien ; + GPT net des villes focus Or (R-90)">
@@ -736,7 +763,7 @@
 
   {#if $view.status === 'waiting'}
     <div class="center">
-      <p class="waiting">En attente du joueur 2.</p>
+      <p class="waiting">En attente des autres joueurs…</p>
       <p>Lien d'invitation : <code>/#/join/{code}</code> — ou lancez le bot : <code>pnpm --filter @game/server bot -- {code} Bot</code></p>
     </div>
   {:else if !$view.state}
@@ -869,7 +896,7 @@
             <h1>{victoryEvent?.winner === myEngineId($view) ? 'Victoire !' : 'Défaite…'}</h1>
             <p>
               {victoryEvent
-                ? `Vainqueur : ${victoryEvent.winner} — motif : ${
+                ? `Vainqueur : ${nomJoueur(victoryEvent.winner)} — motif : ${
                     victoryEvent.reason === 'forfeit'
                       ? 'forfait'
                       : victoryEvent.reason === 'culture'

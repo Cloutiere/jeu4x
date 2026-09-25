@@ -117,6 +117,13 @@ export interface ProgenReportShape {
   counts: { resources: number; villages: number; huts: number };
   fertility: { p1: number; p2: number; delta: number; threshold: number; normalized: boolean };
   connected: boolean;
+  /** CARTE-MULTI : équité du mode libre (présente pour libreMulti). */
+  multi?: {
+    joueurCount: number;
+    equiteScore: number;
+    pairSpread: number;
+    spawns: Array<{ id: string; fertility: number; distanceCentre: number }>;
+  };
 }
 
 export interface AdminDump {

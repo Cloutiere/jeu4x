@@ -149,6 +149,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       techsUnlockedThisTurn: [], // 7h · R-122
       vision: { explored: [], visible: [] },
       missedTurns: 0,
+      defeated: false, // CARTE-MULTI (migration 26)
     };
   }
 

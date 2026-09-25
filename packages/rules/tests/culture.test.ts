@@ -478,7 +478,7 @@ describe('7f · Migration v9 → v10', () => {
       settings: { turnTimerMinutes: null },
     };
     const out = migrateState(v9 as unknown as Record<string, unknown>) as unknown as GameState;
-    expect(out.schemaVersion).toBe(25); // la chaîne continue (RETRAIT-GP-ACCUMULATEURS)
+    expect(out.schemaVersion).toBe(26); // la chaîne continue (RETRAIT-GP-ACCUMULATEURS)
     expect((out.cities['c1'] as unknown as Record<string, unknown>)['cultureStored']).toBeUndefined(); // D5 : retiré de l'état
     expect(out.cities['c1']!.cultureCumulee).toBe(0);
     expect(out.cities['c1']!.wonders).toEqual([]);

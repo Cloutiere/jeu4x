@@ -25,6 +25,9 @@ function nukeState(opts: Parameters<typeof makeState>[0] = {}): GameState {
     height: 8,
     cities: [
       { id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5, capital: false },
+      // CARTE-MULTI : p1 possède une ville — le lancement (le missile est
+      // consommé) ne doit pas annihiler le tireur et clore la partie.
+      { id: 'chezmoi', owner: 'p1', q: 9, r: 7, capital: true },
     ],
     units: [
       { id: 'nuke', type: 'icbm', owner: 'p1', q: 2, r: 0 },
@@ -126,6 +129,7 @@ describe('7n · Bloc 0 · C15 — distinction canon rétablie : ville ordinaire 
   it('C15 : une ville ORDINAIRE visée est RASÉE — effacée, cratère stérile, merveilles détruites', () => {
     const state = nukeState({
       cities: [
+        { id: 'chezmoi', owner: 'p1', q: 9, r: 7, capital: true }, // CARTE-MULTI : le tireur garde un bien
         {
           id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5, capital: false,
           buildings: ['temple', 'marche'],
@@ -134,6 +138,13 @@ describe('7n · Bloc 0 · C15 — distinction canon rétablie : ville ordinaire 
         },
       ],
     });
+    // CARTE-MULTI : p2 garde une unité de refuge — la perte de sa seule ville
+    // (et de sa garnison, C13.4) n'annihile pas le focus du test (le rasement).
+    state.units['refuge'] = {
+      id: 'refuge', type: 'guerrier', owner: 'p2', q: 8, r: 1,
+      hp: 3, mp: 1, veteran: false, isArmy: false, order: null,
+      detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: true,
+    };
     state.map['0,0'] = { terrain: 'ville', resource: null };
     const { newState, events } = resolveTurn(state, launch({ q: 0, r: 0 }), 1);
     // La ville est EFFACÉE de la carte (bâtiments et merveilles avec elle).
@@ -171,6 +182,7 @@ describe('7n · Bloc 0 · C15 — distinction canon rétablie : ville ordinaire 
   it('C15 : la CAPITALE conserve la règle C13 — survit, pop 2, merveilles préservées', () => {
     const state = nukeState({
       cities: [
+        { id: 'chezmoi', owner: 'p1', q: 9, r: 7, capital: true }, // CARTE-MULTI : le tireur garde un bien
         {
           id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5, capital: true,
           buildings: ['temple', 'marche'],
@@ -259,7 +271,7 @@ describe('7n · Bloc 0 · C15 — distinction canon rétablie : ville ordinaire 
   });
 
   it('C14 : frapper la CAPITALE ne valide pas la domination — la partie continue', () => {
-    const state = nukeState({ cities: [{ id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5, capital: true }] });
+    const state = nukeState({ cities: [{ id: 'chezmoi', owner: 'p1', q: 9, r: 7, capital: true }, { id: 'cible', owner: 'p2', q: 0, r: 0, pop: 5, capital: true }] });
     const { newState, events } = resolveTurn(state, launch({ q: 0, r: 0 }), 1);
     expect(newState.winner).toBeNull();
     expect(newState.cities['cible']!.owner).toBe('p2');

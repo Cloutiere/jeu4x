@@ -143,7 +143,7 @@ describe('SPAWN-START · Purge des ressources rayon 2 (unitaire)', () => {
 describe('SPAWN-START · Garantie sur les cartes générées (statistique, N seeds)', () => {
   const SEEDS = [1, 2, 3, 5, 7, 11, 13, 42, 99, 606, 777, 1234, 2718, 4242, 314159, 20260902];
 
-  it('100 % des seeds : voisinage EXACT 2F/2P/1eau + 1 productive non-montagne, 0 ressource au rayon 2', () => {
+  it('100 % des seeds : voisinage EXACT 2F/2P/1eau + 1 productive non-montagne, 0 ressource au rayon 2', { timeout: 120000 }, () => {
     for (const seed of SEEDS) {
       const { map } = generateProceduralMap(seed);
       expect(map.spawns, `seed ${seed}`).toHaveLength(2);

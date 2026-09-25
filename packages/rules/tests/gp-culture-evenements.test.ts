@@ -140,8 +140,8 @@ describe('GP-CULTURE-EVENEMENTS · D5 — migration 21 → 22 et reprise de part
     v21.schemaVersion = 21;
     (v21.cities as Record<string, Record<string, unknown>>)['c1']!.cultureStored = 87; // réservoir pré-chantier
     const migrated = migrateState(v21) as unknown as GameState;
-    expect(migrated.schemaVersion).toBe(25);
-    expect(CURRENT_SCHEMA_VERSION).toBe(25);
+    expect(migrated.schemaVersion).toBe(26);
+    expect(CURRENT_SCHEMA_VERSION).toBe(26);
     expect((migrated.cities['c1'] as unknown as Record<string, unknown>)['cultureStored']).toBeUndefined(); // D5 : réservoir supprimé
     expect(migrated.players['p1']!.culturePaliers).toBe(0); // backfill 0
     expect(migrateState(structuredClone(migrated) as unknown as Record<string, unknown>)).toEqual(migrated);

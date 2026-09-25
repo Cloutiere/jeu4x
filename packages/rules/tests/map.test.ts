@@ -110,10 +110,26 @@ describe('L3 · Loader de cartes — validation', () => {
     expect(() => parseMap(m)).toThrow(/plus d'une unité/);
   });
 
-  it('v1 : exactement deux joueurs', () => {
+  it('CARTE-MULTI : 1 joueur refusé (2 à 5 requis)', () => {
     const m = validSmallMap();
     m.players = m.players.slice(0, 1);
-    expect(() => parseMap(m)).toThrow(/2 joueurs/);
+    expect(() => parseMap(m)).toThrow(/2 à 5 joueurs/);
+  });
+
+  it('CARTE-MULTI : 6 joueurs refusés (2 à 5 requis)', () => {
+    const m = validSmallMap();
+    const [a, b] = m.players;
+    // 4 spawns supplémentaires, espacés (distance ≥ 12) — la borne haute
+    // du validateur est testée indépendamment de la géométrie réelle.
+    const extras = Array.from({ length: 4 }, (_, i) => ({
+      id: `p${i + 3}`,
+      capital: { q: (i % 2) * 12, r: Math.floor(i / 2) * 12 + 12 },
+      units: [
+        { type: 'guerrier', q: (i % 2) * 12, r: Math.floor(i / 2) * 12 + 13 },
+      ],
+    }));
+    m.players = [a!, b!, ...extras];
+    expect(() => parseMap(m)).toThrow(/2 à 5 joueurs/);
   });
 });
 

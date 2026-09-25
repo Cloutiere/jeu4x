@@ -52,8 +52,10 @@ import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
 import { botPolicy, botTurnSeed } from './botPolicy.js';
 
-export type EnginePlayerId = 'p1' | 'p2';
-const ENGINE_IDS: EnginePlayerId[] = ['p1', 'p2'];
+// CARTE-MULTI : jusqu'à 5 sièges moteur (p1..p5) — seuls les sièges présents
+// dans `meta.players` sont actifs (les parties 1v1 n'en instancient que 2).
+export type EnginePlayerId = 'p1' | 'p2' | 'p3' | 'p4' | 'p5';
+const ENGINE_IDS: EnginePlayerId[] = ['p1', 'p2', 'p3', 'p4', 'p5'];
 
 /**
  * Phase 6b : charge la carte de la partie — préfabriquée (données commises)
@@ -62,10 +64,23 @@ const ENGINE_IDS: EnginePlayerId[] = ['p1', 'p2'];
  * réveil à froid). Retourne aussi le rapport de génération (procedural-40
  * uniquement) à consigner dans `meta.progen` (dump admin).
  */
+/** Nombre de sièges visé (2-5, défaut 2 — parties existantes). */
+export function siegesDe(settings: GameCreationSettings): number {
+  return Math.max(2, Math.min(5, Math.round(settings.playerCount ?? 2)));
+}
+
 function loadMapForGame(settings: GameCreationSettings, seed: number): { map: LoadedMap; report?: ProgenReport } {
   if (settings.mapId === 'procedural-40') {
-    const { map, report } = generateProceduralMap(seed);
+    // CARTE-MULTI : le nombre de sièges pilote la stratégie de génération
+    // (2 = miroir 1v1 historique, 3-5 = libre sans symétrie — même seed →
+    // même carte, rejouable au réveil à froid).
+    const { map, report } = generateProceduralMap(seed, { playerCount: siegesDe(settings) });
     return { map, report };
+  }
+  // D3 : les cartes préfabriquées portent exactement 2 spawns — le lobby
+  // refuse déjà la création multi-sièges sur ces cartes ; garde défensive.
+  if (siegesDe(settings) !== 2) {
+    throw new Error('les cartes préfabriquées sont réservées aux parties à 2 sièges (carte libre requise pour 3-5 joueurs)');
   }
   return { map: loadBuiltinMapSync(settings.mapId) };
 }
@@ -145,6 +160,23 @@ function sameSubject(a: Order, b: Order): boolean {
 
 function orderTouchesUnit(order: Order, unitId: UnitId): boolean {
   return ('unitId' in order && order.unitId === unitId) || (order.type === 'FormArmy' && order.members.includes(unitId));
+}
+
+/** CARTE-MULTI : slots vides pour TOUS les sièges — toute lecture d'un blob
+ *  persisté (2 clés pour les parties antérieures) est complétée par ces
+ *  défauts : lecture tolérante, idempotente, aucune migration serveur. */
+function emptyOrders(): Record<EnginePlayerId, Order[]> {
+  return { p1: [], p2: [], p3: [], p4: [], p5: [] };
+}
+
+function emptyLocked(): Record<EnginePlayerId, boolean> {
+  return { p1: false, p2: false, p3: false, p4: false, p5: false };
+}
+
+/** Normalise un blob d'ordres/verrous potentiellement incomplet (parties
+ *  1v1 antérieures) vers la forme 5 sièges. */
+function normalizeSlots<T>(stored: Partial<Record<EnginePlayerId, T>> | null | undefined, empty: Record<EnginePlayerId, T>): Record<EnginePlayerId, T> {
+  return { ...empty, ...(stored ?? {}) };
 }
 
 function isHex(v: unknown): v is { q: number; r: number } {
@@ -330,8 +362,8 @@ export class GameDO {
   private loaded = false;
   private meta: GameMeta | null = null;
   private game: GameState | null = null;
-  private orders: Record<EnginePlayerId, Order[]> = { p1: [], p2: [] };
-  private locked: Record<EnginePlayerId, boolean> = { p1: false, p2: false };
+  private orders: Record<EnginePlayerId, Order[]> = emptyOrders();
+  private locked: Record<EnginePlayerId, boolean> = emptyLocked();
   private resolving: PendingResolution | null = null;
   private lastEvents: GameEvent[] = [];
 
@@ -367,8 +399,10 @@ export class GameDO {
         // Carte inconnue des données courantes : partie sans villages (dégradé).
       }
     }
-    this.orders = (await this.state.storage.get<Record<EnginePlayerId, Order[]>>('orders')) ?? { p1: [], p2: [] };
-    this.locked = (await this.state.storage.get<Record<EnginePlayerId, boolean>>('locked')) ?? { p1: false, p2: false };
+    // CARTE-MULTI : complétion des blobs 2-sièges (parties antérieures) —
+    // les clés manquantes reçoivent leur défaut (aucune migration).
+    this.orders = normalizeSlots(await this.state.storage.get<Record<EnginePlayerId, Order[]>>('orders'), emptyOrders());
+    this.locked = normalizeSlots(await this.state.storage.get<Record<EnginePlayerId, boolean>>('locked'), emptyLocked());
     this.resolving = (await this.state.storage.get<PendingResolution>('resolving')) ?? null;
     this.lastEvents = (await this.state.storage.get<GameEvent[]>('lastEvents')) ?? [];
     this.loaded = true;
@@ -479,22 +513,35 @@ export class GameDO {
     if (!this.meta) return jsonResponse({ error: 'notFound' }, 404);
     if (this.meta.status !== 'waiting') return jsonResponse({ error: 'gameFull' }, 409);
     if (this.meta.players.some((p) => p.id === body.player.id)) return jsonResponse({ ok: true });
-    if (this.meta.players.length >= 2) return jsonResponse({ error: 'gameFull' }, 409);
+    // CARTE-MULTI : capacité = sièges visés (2-5 — défaut 2, parties existantes).
+    if (this.meta.players.length >= siegesDe(this.meta.settings)) return jsonResponse({ error: 'gameFull' }, 409);
 
     // 7n · R-145 : validation de la civ du joueur B (connue des données ;
     // défaut = neutre). Calibrage canon (Erik 06/09) : la Merveille Antique
     // (Égypte) est TIRÉE par le moteur — plus aucun choix ni exclusion R-129.
     const civId = body.player.civId && CIVILIZATIONS.civs[body.player.civId] ? body.player.civId : undefined;
 
+    // Prochain siège moteur libre (p2, puis p3..p5) — attribution dans
+    // l'ordre d'arrivée (convention conservée : l'hôte est p1).
+    const engineId = ENGINE_IDS.find((id) => !this.meta!.players.some((p) => p.engineId === id));
+    if (!engineId) return jsonResponse({ error: 'gameFull' }, 409);
     this.meta.players.push({
       id: body.player.id,
       name: body.player.bot === true ? 'Bot' : body.player.name,
-      engineId: 'p2',
+      engineId,
       ...(civId ? { civId } : {}),
       ...(body.player.bot === true ? { bot: true } : {}),
     });
-    this.meta.status = 'active';
+    // La partie démarre au DERNIER siège rempli (1v1 : le premier join —
+    // comportement inchangé ; multi : l'état n'est créé qu'à la fin).
+    if (this.meta.players.length >= siegesDe(this.meta.settings)) this.meta.status = 'active';
 
+    if (this.meta.status !== 'active') {
+      // CARTE-MULTI : salle d'attente incomplète — l'état moteur sera créé au
+      // DERNIER siège (1v1 : le premier join est toujours le dernier).
+      await this.state.storage.put({ meta: this.meta });
+      return jsonResponse({ ok: true });
+    }
     // État moteur initial : carte préfabriquée OU procédurale (Phase 6b —
     // générée depuis la graine de partie déjà présente dans meta) + graine.
     const { map, report } = loadMapForGame(this.meta.settings, this.meta.seed);
@@ -506,8 +553,8 @@ export class GameDO {
       if (p.civId) civSetup[p.engineId] = { civId: p.civId };
     }
     this.game = createInitialState(map, this.meta.seed, civSetup);
-    this.orders = { p1: [], p2: [] };
-    this.locked = { p1: false, p2: false };
+    this.orders = emptyOrders();
+    this.locked = emptyLocked();
     this.resolving = null;
     this.lastEvents = [];
 
@@ -517,7 +564,12 @@ export class GameDO {
     return jsonResponse({ ok: true });
   }
 
-  /** Abandon : l'adversaire gagne (traité comme un forfait, RULES.md §1). */
+  /**
+   * Abandon (traité comme un forfait, RULES.md §1). CARTE-MULTI : le
+   * quitteur est ÉLIMINÉ ; à 2 sièges la partie se clôt (victoire de
+   * l'adversaire — flux IDENTIQUE) ; à 3+ elle CONTINUE entre survivants
+   * (PlayerDefeated public) jusqu'au dernier en lice.
+   */
   private async handleAbandon(request: Request): Promise<Response> {
     const body = await this.readJson<{ byPlayerId: PlayerId }>(request);
     if (!this.meta) return jsonResponse({ error: 'notFound' }, 404);
@@ -525,12 +577,28 @@ export class GameDO {
     if (this.meta.status !== 'active' || !this.game) return jsonResponse({ error: 'notActive' }, 409);
     const quitter = this.meta.players.find((p) => p.id === body.byPlayerId);
     if (!quitter) return jsonResponse({ error: 'notInGame' }, 403);
-    const winner: EnginePlayerId = quitter.engineId === 'p1' ? 'p2' : 'p1';
+    this.game.players[quitter.engineId]!.defeated = true;
+    const enLice = Object.keys(this.game.players)
+      .filter((id) => this.game!.players[id]?.defeated !== true)
+      .sort() as EnginePlayerId[];
     const seq = this.game.lastEventSeq + 1;
-    const events: GameEvent[] = [{ seq, type: 'Victory', winner, reason: 'forfeit' }];
+    if (enLice.length === 1) {
+      const winner = enLice[0]!;
+      const events: GameEvent[] = [{ seq, type: 'Victory', winner, reason: 'forfeit' }];
+      this.game.lastEventSeq = seq;
+      await this.finishGame('abandoned', winner, events);
+      return jsonResponse({ ok: true, finished: true });
+    }
+    // Élimination non décisive : la partie continue (le quitteur n'a plus de
+    // socket — ses brouillons sont jetés, son siège est auto-verrouillé).
+    const events: GameEvent[] = [{ seq, type: 'PlayerDefeated', player: quitter.engineId, byPlayer: null, cause: 'forfeit' }];
     this.game.lastEventSeq = seq;
-    await this.finishGame('abandoned', winner, events);
-    return jsonResponse({ ok: true });
+    this.lastEvents = [...this.lastEvents, ...events];
+    this.orders[quitter.engineId] = [];
+    this.locked[quitter.engineId] = true;
+    await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents, orders: this.orders, locked: this.locked });
+    this.broadcastTurnResult(events);
+    return jsonResponse({ ok: true, finished: false });
   }
 
   /** Dump d'état NON filtré (admin debug — protégé par ADMIN_TOKEN côté Worker).
@@ -1023,6 +1091,9 @@ export class GameDO {
       return this.sendOrderRejection(ws, 'ordres non modifiables (résolution ou partie terminée)');
     }
     const engineId = this.engineIdOf(playerId);
+    if (this.game.players[engineId]?.defeated === true) {
+      return this.sendOrderRejection(ws, 'joueur éliminé (partie terminée pour vous)');
+    }
     if (this.locked[engineId]) {
       return this.sendOrderRejection(ws, 'ordres verrouillés (Fin de tour déjà validé)');
     }
@@ -1232,6 +1303,9 @@ export class GameDO {
       return this.sendOrderRejection(ws, 'verrouillage impossible (résolution ou partie terminée)');
     }
     const engineId = this.engineIdOf(playerId);
+    if (this.game.players[engineId]?.defeated === true) {
+      return this.sendOrderRejection(ws, 'joueur éliminé (partie terminée pour vous)');
+    }
     if (this.locked[engineId]) return this.sendOrderRejection(ws, 'ordres déjà verrouillés');
     // FIN-DE-TOUR-PRODUCTION (spécification d'Erik du 18/09) : validation
     // sémantique PRÉ-résolution — le EndTurn est rejeté tant qu'une ville à
@@ -1246,14 +1320,21 @@ export class GameDO {
     }
     this.locked[engineId] = true;
     this.game.players[engineId]!.missedTurns = 0; // verrouillage dans les temps : compteur T-06 remis à zéro
-    const bot = this.meta.players.find((p) => p.bot === true && p.engineId !== engineId);
-    if (bot) {
-      this.locked[bot.engineId] = true;
-      this.game.players[bot.engineId]!.missedTurns = 0; // le bot « termine » toujours son tour
+    // CARTE-MULTI : TOUS les sièges non humains se verrouillent en même temps
+    // — bots (ordres générés à la résolution) et joueurs ÉLIMINÉS (zombie :
+    // aucune contribution, jamais de forfait T-06 pour eux).
+    for (const p of this.meta.players) {
+      if (p.engineId === engineId) continue;
+      if (p.bot === true) {
+        this.locked[p.engineId] = true;
+        this.game.players[p.engineId]!.missedTurns = 0; // le bot « termine » toujours son tour
+      } else if (this.game.players[p.engineId]?.defeated === true) {
+        this.locked[p.engineId] = true;
+      }
     }
     await this.state.storage.put({ locked: this.locked, game: this.game });
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'verrouillé' });
-    if (this.locked.p1 && this.locked.p2) await this.startResolution();
+    if (this.meta.players.every((p) => this.locked[p.engineId])) await this.startResolution();
   }
 
   // -----------------------------------------------------------------------
@@ -1274,7 +1355,11 @@ export class GameDO {
     const botEvents: GameEvent[] = [];
     for (const p of this.meta.players) {
       if (!p.bot) continue;
-      const rng = createRng(botTurnSeed(this.meta.seed, game.turn));
+      if (game.players[p.engineId]?.defeated === true) continue; // bot éliminé : plus d'ordres
+      // CARTE-MULTI : graine PAR BOT (seeds indépendants — sinon tous les
+      // bots d'une partie tireraient des plans identiques). L'id historique
+      // 'bot' conserve la dérivation d'origine (bot solo inchangé).
+      const rng = createRng(botTurnSeed(this.meta.seed, game.turn, p.engineId));
       const plan = botPolicy(game, p.engineId, rng);
       for (const order of plan.orders) {
         if (orderShapeError(order) !== null) continue; // jamais un ordre mal formé
@@ -1308,7 +1393,10 @@ export class GameDO {
     // 1. Persister le motif AVANT de résoudre : un crash ici est repris par
     //    ensureResolved()/l'alarme, qui rejoueront à l'identique (les ordres
     //    du bot sont PERSISTÉS dans le motif — même entrée → même sortie).
-    const orders: Record<EnginePlayerId, Order[]> = { p1: [...(this.orders.p1 ?? [])], p2: [...(this.orders.p2 ?? [])] };
+    const orders = normalizeSlots(
+      Object.fromEntries(ENGINE_IDS.map((id) => [id, [...(this.orders[id] ?? [])]])) as Record<EnginePlayerId, Order[]>,
+      emptyOrders(),
+    );
     this.resolving = { turn: game.turn, orders, rngSeed: game.rngSeed, ...(botEvents.length > 0 ? { botEvents } : {}) };
     game.phase = 'resolving';
     await this.state.storage.put({ game: this.game, resolving: this.resolving, orders: this.orders, lastEvents: this.lastEvents });
@@ -1320,15 +1408,18 @@ export class GameDO {
     const input = this.resolving;
     if (!input || !this.game) return;
     const collecteur = createTraceCollector(this.game);
-    const result = resolveTurn(this.game, input.orders, input.rngSeed, collecteur);
+    // CARTE-MULTI : les motifs persistés par l'ancien code ne portent que
+    // p1/p2 — complétés (rejeu idempotent des parties en cours de résolution
+    // au moment du déploiement).
+    const result = resolveTurn(this.game, normalizeSlots(input.orders, emptyOrders()), input.rngSeed, collecteur);
     // BOT-SOLO : les événements des actions immédiates du bot (recherche,
     // régime) précèdent ceux de la résolution dans le journal diffusé.
     const events = input.botEvents && input.botEvents.length > 0 ? [...input.botEvents, ...result.events] : result.events;
     this.game = result.newState;
     this.lastEvents = events;
     this.resolving = null;
-    this.locked = { p1: false, p2: false };
-    this.orders = { p1: [], p2: [] }; // brouillons consommés par la résolution
+    this.locked = emptyLocked();
+    this.orders = emptyOrders(); // brouillons consommés par la résolution
     // Persistance atomique : état + journal + remises à zéro, motif supprimé.
     // HANDOFF-TRACE-RESOLUTION : la trace est PERSISTÉE (clé `trace:<tour>`,
     // rétention 20 tours — les isolats d'un DO sont éphémères) ; le tour du
@@ -1431,14 +1522,15 @@ export class GameDO {
     if (replayed || (await this.ensureResolved())) return;
 
     // Échéance du timer : auto-verrouillage des ordres courants (§4.6).
-    for (const engineId of ENGINE_IDS) {
+    // CARTE-MULTI : boucle sur les sièges RÉELS de la partie ; les bots et
+    // les joueurs éliminés « répondent » toujours (jamais de forfait T-06).
+    for (const p of this.meta.players) {
+      const engineId = p.engineId;
       if (this.locked[engineId]) {
         this.game.players[engineId]!.missedTurns = 0; // verrouillé dans les temps
       } else {
         this.locked[engineId] = true;
-        // Chantier BOT-SOLO : le bot « répond » toujours au timer (ses ordres
-        // sont générés à la résolution) — jamais de forfait T-06 pour lui.
-        if (this.isBot(engineId)) {
+        if (p.bot === true || this.game.players[engineId]?.defeated === true) {
           this.game.players[engineId]!.missedTurns = 0;
         } else {
           this.game.players[engineId]!.missedTurns += 1; // timer manqué (T-06)

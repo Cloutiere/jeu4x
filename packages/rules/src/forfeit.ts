@@ -9,6 +9,7 @@
  */
 import { FORFEIT_MISSED_TURNS } from './constants.js';
 import type { GameEvent } from './events.js';
+import { activePlayerIds } from './state.js';
 import type { GameState } from './state.js';
 
 export interface ForfeitResult {
@@ -30,17 +31,29 @@ export function checkForfeit(input: GameState): ForfeitResult {
   const events: GameEvent[] = [];
   if (state.winner !== null) return { state, events };
 
+  // CARTE-MULTI (2-5 joueurs) : un forfait ÉLIMINE son joueur. À 2 joueurs
+  // la partie se clôt (victoire du survivant — flux IDENTIQUE au historique :
+  // un seul événement Victory 'forfeit') ; à 3+ elle CONTINUE (PlayerDefeated
+  // public) jusqu'au dernier en lice. Les joueurs déjà éliminés ne forfaits
+  // plus. Départage déterministe R-81 : plus petit playerId d'abord.
   const ids = Object.keys(state.players).sort();
   for (const loserId of ids) {
+    if (state.players[loserId]?.defeated === true) continue;
+    if (state.winner !== null) break;
     const missed = state.players[loserId]?.missedTurns ?? 0;
     if (missed < FORFEIT_MISSED_TURNS) continue;
-    const winner = ids.find((id) => id !== loserId);
-    if (!winner) continue;
+    state.players[loserId]!.defeated = true;
+    const enLice = activePlayerIds(state);
     const seq = state.lastEventSeq + 1;
-    events.push({ seq, type: 'Victory', winner, reason: 'forfeit' });
+    if (enLice.length === 1) {
+      const winner = enLice[0]!;
+      events.push({ seq, type: 'Victory', winner, reason: 'forfeit' });
+      state.lastEventSeq = seq;
+      state.winner = winner;
+      break; // la partie est close : un seul survivant
+    }
+    events.push({ seq, type: 'PlayerDefeated', player: loserId, byPlayer: null, cause: 'forfeit' });
     state.lastEventSeq = seq;
-    state.winner = winner;
-    break; // la partie est close : un seul vainqueur
   }
   return { state, events };
 }

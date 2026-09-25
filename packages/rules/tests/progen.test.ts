@@ -283,11 +283,14 @@ describe('Phase 6b · Équilibrage — fertilité & équité (PDF §AssignStarti
 });
 
 describe('Phase 6b · Stratégie injectable (ajout d\'Erik — pérennité multi-joueurs)', () => {
-  it('R-106 : mirror1v1 rejette playerCount ≠ 2 (regionalMulti futur)', () => {
+  it('R-106 · CARTE-MULTI : mirror1v1 rejette toujours playerCount ≠ 2 ; le 3-5P passe par libreMulti', () => {
     expect(() =>
       MIRROR_1V1.geoSize(resolveProgenSettings({ playerCount: 3 })),
     ).toThrow(ProgenPlacementError);
-    expect(() => generateMap(1, { playerCount: 5 })).toThrow(/regionalMulti/);
+    // D1/D3 : le multi n'est plus refusé — génération LIBRE sans symétrie
+    // (libreMulti), 5 spawns validés par le même parseMap.
+    const r = generateMap(1, { playerCount: 5 });
+    expect(r.spawns).toHaveLength(5);
   });
 
   it('R-106 : la couche géophysique génère une grille COMPLÈTE indépendamment du miroir', () => {

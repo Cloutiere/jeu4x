@@ -24,7 +24,7 @@ import {
   tileKeyOf,
 } from './hex.js';
 import type { Hex } from './hex.js';
-import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId, allKnownTechs } from './state.js';
+import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId, allKnownTechs, activePlayerIds } from './state.js';
 import type { BarbarianVillage, City, CityId, GameState, Order, Player, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
 import { BARBARIAN_ID, BARBARIANS, CULTURE, DEPLACEMENT, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, RESOURCES, isWaterTerrain, isSpyUnit } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable } from './economy.js';
@@ -680,6 +680,8 @@ function kill(board: Board, unit: Unit, cause: DestructionCause, byUnitId: UnitI
     const cargo = board.st.units[unit.cargo];
     if (cargo) kill(board, cargo, 'sunk', byUnitId);
   }
+  // CARTE-MULTI : dernière entité perdue → élimination par annihilation.
+  verifierAnnihilation(board, unit.owner);
 }
 
 /**
@@ -2567,6 +2569,7 @@ function applyLaunches(board: Board, ordersByPlayer: Record<PlayerId, Order[]>):
         delete board.st.cities[cityThere.id];
         board.st.map[tileKeyOf(target)] = { terrain: 'cratere', resource: null };
         emit(board, { type: 'CityRazed', cityId: razed.id, owner: razed.owner, byPlayer: unit.owner, at: target });
+        verifierAnnihilation(board, razed.owner); // CARTE-MULTI : dernière ville perdue
       }
     }
   }
@@ -2800,6 +2803,32 @@ function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>
   }
 }
 
+/**
+ * CARTE-MULTI (2-5 joueurs) — élimination d'un joueur qui perd SA capitale
+ * ORIGINALE (jamais capturée avant : `wasCaptured` false — la recapture d'une
+ * capitale déjà volée à un tiers n'élimine personne). Marque `defeated` puis :
+ *  - élimination NON décisive (≥ 2 joueurs en lice restent) → événement
+ *    PUBLIC PlayerDefeated, la partie continue, retour null ;
+ *  - élimination DÉCISIVE (un seul joueur en lice) → AUCUN PlayerDefeated
+ *    (le flux 1v1 — Victory seul, sans doublon — reste IDENTIQUE), retour du
+ *    survivant : l'appelant pose `winner` et émet Victory.
+ */
+function eliminerJoueur(
+  board: Board,
+  loserId: PlayerId,
+  byPlayer: PlayerId | null,
+  cause: 'capitalCaptured' | 'capitalRazed' | 'forfeit' | 'attrition',
+): PlayerId | null {
+  const loser = board.st.players[loserId];
+  if (loser) loser.defeated = true;
+  const enLice = activePlayerIds(board.st);
+  if (enLice.length > 1) {
+    emit(board, { type: 'PlayerDefeated', player: loserId, byPlayer, cause });
+    return null;
+  }
+  return enLice[0] ?? null;
+}
+
 /** R-65 : ville sans défenseur investie → capture (capitale = victoire). R-97 : capture BARBARE → rasement. */function processCityCaptures(board: Board): void {
   for (const cityId of Object.keys(board.st.cities).sort()) {
     const city = board.st.cities[cityId]!;
@@ -2815,6 +2844,10 @@ function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>
     const invader = here.find((u) => u.owner !== city.owner && !isSpyUnit(u));
     if (!invader) continue;
     const fromOwner = city.owner;
+    // CARTE-MULTI : la capture justement posée ci-dessous (`wasCaptured = true`,
+    // R-149) ne doit pas masquer le test « capitale ORIGINALE » — figé AVANT
+    // toute mutation de la ville.
+    const capitaleOriginale = city.capital && city.wasCaptured !== true;
     if (isBarbarian(invader.owner)) {
       // R-97 (Phase 7d) : les barbares ne fondent pas de ville — la ville est
       // RASÉE (disparaît, bâtiments perdus, aucun changement de propriétaire).
@@ -2841,15 +2874,19 @@ function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>
         }
       }
       emit(board, { type: 'CityRazed', cityId, owner: fromOwner, byPlayer: invader.owner, at: hex });
-      if (city.capital) {
-        // R-97 : la capitale rasée = défaite de son propriétaire — victoire de
-        // l'AUTRE joueur réel (les barbares ne gagnent jamais).
-        const winner =
-          Object.keys(board.st.players)
-            .filter((id) => id !== fromOwner && !isBarbarian(id))
-            .sort()[0] ?? null;
-        board.st.winner = winner;
-        emit(board, { type: 'Victory', winner: winner ?? '', reason: 'razedCapital' });
+      if (capitaleOriginale) {
+        // R-97 : la capitale (ORIGINALE) rasée = défaite de son propriétaire —
+        // les barbares ne gagnent jamais (CARTE-MULTI : élimination, victoire
+        // du DERNIER joueur en lice ; à 2 joueurs : l'autre joueur, identique).
+        const survivant = eliminerJoueur(board, fromOwner, null, 'capitalRazed');
+        if (survivant) {
+          board.st.winner = survivant;
+          emit(board, { type: 'Victory', winner: survivant, reason: 'razedCapital' });
+        }
+      } else {
+        // CARTE-MULTI : ville ordinaire rasée — le propriétaire a-t-il perdu
+        // sa dernière entité ? (après la priorité capitale R-97)
+        verifierAnnihilation(board, fromOwner);
       }
       continue;
     }
@@ -2901,10 +2938,43 @@ function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>
       });
     }
     emit(board, { type: 'CityCaptured', cityId, fromOwner, toOwner: invader.owner, at: hex, ...(plunder > 0 ? { plunder } : {}) });
-    if (city.capital) {
-      board.st.winner = invader.owner; // R-65 : victoire par domination
-      emit(board, { type: 'Victory', winner: invader.owner, reason: 'domination' });
+    if (capitaleOriginale) {
+      // R-65 · CARTE-MULTI : la capture de la capitale ORIGINALE d'un joueur
+      // l'élimine ; victoire par domination = DERNIER joueur en lice (à 2
+      // joueurs : le captreur, flux d'événements inchangé).
+      const survivant = eliminerJoueur(board, fromOwner, invader.owner, 'capitalCaptured');
+      if (survivant) {
+        board.st.winner = survivant; // R-65 : victoire par domination
+        emit(board, { type: 'Victory', winner: survivant, reason: 'domination' });
+      }
+    } else {
+      // CARTE-MULTI : ville ordinaire capturée — le perdant a-t-il perdu sa
+      // dernière entité ? (après la priorité capitale R-65)
+      verifierAnnihilation(board, fromOwner);
     }
+  }
+}
+
+/**
+ * CARTE-MULTI — élimination par ANNIHILATION : un joueur EN LICE qui vient
+ * de perdre sa DERNIÈRE entité (unité ou ville) est éliminé (un colon tué
+ * avant la fondation, la dernière unité détruite…). Sans ceci, un tel
+ * joueur reste mort-vivant : ni vainqueur possible pour lui, ni domination
+ * complète pour les autres. Vérifié ÉVÉNEMENTIELLEMENT (à la mort d'une
+ * unité, à la perte d'une ville) — jamais par balayage de l'état : un
+ * joueur qui n'a jamais rien possédé ne déclenche rien. PlayerDefeated
+ * public (cause 'attrition') ; victoire du dernier en lice si décisive.
+ */
+function verifierAnnihilation(board: Board, ownerId: PlayerId): void {
+  if (board.st.winner) return;
+  const p = board.st.players[ownerId];
+  if (!p || p.defeated === true) return;
+  if (Object.values(board.st.units).some((u) => u.owner === ownerId)) return;
+  if (Object.values(board.st.cities).some((c) => c.owner === ownerId)) return;
+  const survivant = eliminerJoueur(board, ownerId, null, 'attrition');
+  if (survivant) {
+    board.st.winner = survivant;
+    emit(board, { type: 'Victory', winner: survivant, reason: 'domination' });
   }
 }
 
@@ -3006,6 +3076,7 @@ const SHIP_COMPONENTS = ['vaisseau_habitation', 'vaisseau_support_vie', 'vaissea
 function checkScienceVictory(board: Board): void {
   if (board.st.winner) return;
   for (const playerId of Object.keys(board.st.players).sort()) {
+    if (board.st.players[playerId]?.defeated === true) continue; // CARTE-MULTI : un éliminé ne gagne plus
     const buildings = new Set<string>();
     for (const id of Object.keys(board.st.cities).sort()) {
       const city = board.st.cities[id]!;
@@ -3231,11 +3302,15 @@ function completeWonder(board: Board, city: City, wonderId: string): void {
   // R-116 : les Nations Unies achevées = VICTOIRE CULTURELLE.
   // 7l · R-137 : la Banque mondiale achevée = VICTOIRE ÉCONOMIQUE
   // (l'or n'est PAS débité — condition, pas un prix).
-  if (wonderData.cultureVictory) {
+  // CARTE-MULTI : un joueur ÉLIMINÉ peut achever l'ONU/la Banque mondiale
+  // (sa zombie-économie continue) mais ne gagne PLUS la partie — la merveille
+  // se complète sans émission de Victory.
+  const proprietaireEnLice = board.st.players[city.owner]?.defeated !== true;
+  if (wonderData.cultureVictory && proprietaireEnLice) {
     board.st.winner = city.owner;
     emit(board, { type: 'Victory', winner: city.owner, reason: 'culture' });
   }
-  if (wonderData.economicVictory) {
+  if (wonderData.economicVictory && proprietaireEnLice) {
     board.st.winner = city.owner;
     emit(board, { type: 'Victory', winner: city.owner, reason: 'economique' });
   }

@@ -29,6 +29,7 @@ import { autoAssignWorkedTiles } from './economy.js';
 import { hexesWithinRadius } from './hex.js';
 import { spawnInitialGarrisons } from './barbares.js';
 import { artefactsForMap } from './artefacts.js';
+import { guerreUniverselle } from './state.js';
 import {
   eraOfTechCount,
   civStartTechs,
@@ -148,8 +149,8 @@ export function parseMap(raw: unknown): LoadedMap {
   for (const [ch, t] of Object.entries(legend)) {
     if (!TERRAINS[t]) issues.push(`légende : terrain inconnu "${t}" (caractère "${ch}")`);
   }
-  if (!Array.isArray(data.players) || data.players.length !== 2) {
-    issues.push('v1 : exactement 2 joueurs requis');
+  if (!Array.isArray(data.players) || data.players.length < 2 || data.players.length > 5) {
+    issues.push('2 à 5 joueurs requis (CARTE-MULTI : sièges p1..p5)');
   }
 
   const terrain: Record<string, string> = {};
@@ -172,7 +173,7 @@ export function parseMap(raw: unknown): LoadedMap {
     }
   }
 
-  if (data.players?.length === 2) {
+  if (Array.isArray(data.players) && data.players.length >= 2) {
     const seenUnits = new Set<string>();
     const capitals: Hex[] = [];
     data.players.forEach((p, i) => {
@@ -241,11 +242,15 @@ export function parseMap(raw: unknown): LoadedMap {
         seenUnits.add(key);
       }
     });
-    // Distance minimale entre capitales (décision #7 : spawns ≥ 12).
-    if (capitals.length === 2) {
-      const d = hexDistance(capitals[0]!, capitals[1]!);
-      if (d < MIN_SPAWN_DISTANCE) {
-        issues.push(`capitales à distance ${d} < ${MIN_SPAWN_DISTANCE}`);
+    // Distance minimale entre capitales (décision #7 : spawns ≥ 12) —
+    // CARTE-MULTI : contrainte ALL-PAIRS sur les N spawns (à 2 joueurs :
+    // la paire unique historique, comportement inchangé).
+    for (let i = 0; i < capitals.length; i++) {
+      for (let j = i + 1; j < capitals.length; j++) {
+        const d = hexDistance(capitals[i]!, capitals[j]!);
+        if (d < MIN_SPAWN_DISTANCE) {
+          issues.push(`capitales ${data.players[i]!.id}/${data.players[j]!.id} à distance ${d} < ${MIN_SPAWN_DISTANCE}`);
+        }
       }
     }
   }
@@ -430,6 +435,7 @@ export function createInitialState(
       techsUnlockedThisTurn: [], // 7h · R-122
       vision: { explored: [], visible: [] },
       missedTurns: 0,
+      defeated: false, // CARTE-MULTI · migration 26 : personne n'est éliminé au départ
     };
   }
 
@@ -534,7 +540,10 @@ export function createInitialState(
     units,
     cities,
     settings: { turnTimerMinutes: null },
-    diplomacy: { war: [[map.spawns[0]!.id, map.spawns[1]!.id]] },
+    // R-58 · CARTE-MULTI : guerre universelle — TOUTES les paires de spawns
+    // (à 2 joueurs : la paire unique historique, bit-identique). Le FFA
+    // remplace la diplomatie (périmètre interdit CARTE-MULTI §7).
+    diplomacy: { war: guerreUniverselle(map.spawns.map((s) => s.id)) },
     // Villages/huttes réellement posés par applyMapEntities ci-dessous (R-96/R-98).
     villages: [],
     huts: [],

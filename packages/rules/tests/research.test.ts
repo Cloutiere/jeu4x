@@ -41,7 +41,7 @@ describe('migration v4 → v5 (R-85 : champs de recherche additifs)', () => {
   it('migrateState applique toute la chaîne de migrations jusqu’à la version courante', () => {
     const out = migrateState<GameState>(structuredClone(v4));
     expect(out.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(25); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
+    expect(CURRENT_SCHEMA_VERSION).toBe(26); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
     expect(out.players['p2']!.techsUnlocked).toEqual([]);
     // 7l · R-134 : au bout de la chaîne, l'or v4 devient la trésorerie (report).
     expect(out.players['p1']!.treasury).toBe(5);

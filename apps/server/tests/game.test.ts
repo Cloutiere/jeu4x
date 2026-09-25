@@ -101,7 +101,7 @@ describe('GameDO · temps réel à deux onglets', () => {
     expect(resultB.events.some((e) => e.type === 'TurnResolved')).toBe(true);
 
     const dump = await adminDump(code);
-    expect(dump.locked).toEqual({ p1: false, p2: false }); // déverrouillés pour le tour 1
+    expect(dump.locked).toEqual({ p1: false, p2: false, p3: false, p4: false, p5: false }); // déverrouillés pour le tour 1 (CARTE-MULTI : 5 sièges normalisés)
     expect(dump.orders.p1).toEqual([]); // brouillons consommés
     alice.close();
     bob.close();

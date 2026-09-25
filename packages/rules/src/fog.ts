@@ -61,6 +61,7 @@ export function recomputeVision(state: GameState): void {
 const PUBLIC_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
   'TurnResolved',
   'Victory',
+  'PlayerDefeated', // CARTE-MULTI : une élimination est publique (miroir Victory)
   'DiplomaticIncident',
   'EraChanged',
 ]);

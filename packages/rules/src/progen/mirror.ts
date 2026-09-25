@@ -66,6 +66,27 @@ export interface PlacementReport {
     compositionP1: Record<string, number>;
     compositionP2: Record<string, number>;
   };
+  /** CARTE-MULTI (libreMulti uniquement) : équité du placement libre —
+   *  fertilité/composition PAR spawn, distances pairwise, métrique D1
+   *  (score minimal, tolérance 🔶 librePairSpreadMax). */
+  multi?: {
+    joueurCount: number;
+    spawns: Array<{
+      id: string;
+      capital: Hex;
+      fertility: number;
+      distanceCentre: number;
+      composition: Record<string, number>;
+    }>;
+    pairwise: Array<{ a: string; b: string; distance: number }>;
+    equiteScore: number;
+    pairSpread: number;
+    sommeEcarts: number;
+    normalises: number;
+    /** Déficit de la garantie de couverture 6c par type (tolérance 🔶 —
+     *  ressources rares sur carte libre). */
+    couvertureManquants: Record<string, number>;
+  };
 }
 
 export interface PlacementOutput {
@@ -696,6 +717,13 @@ export function getStartPlacementStrategy(id: string): StartPlacementStrategy {
   const s = START_PLACEMENT_STRATEGIES[id];
   if (!s) throw new ProgenPlacementError(`stratégie de placement inconnue : "${id}"`);
   return s;
+}
+
+/** Enregistrement d'une stratégie supplémentaire (libreMulti — CARTE-MULTI)
+ *  SANS cycle d'imports : index.ts (qui importe mirror ET libre) appelle ceci
+ *  au chargement du module. */
+export function registerStrategy(id: string, strategy: StartPlacementStrategy): void {
+  START_PLACEMENT_STRATEGIES[id] = strategy;
 }
 
 /** Utilitaire interne : appartenance d'une case à la carte finale (réexport test). */

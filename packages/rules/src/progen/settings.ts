@@ -9,11 +9,13 @@
  * protocole et le dump admin tels quels.
  */
 
-/** Stratégie de placement des départs (ajout d'Erik, 02/09) : aujourd'hui le
- *  miroir 1v1 est la seule implémentation ; `regionalMulti` (2-5 joueurs,
- *  partitionnement régional du PDF §AssignStartingPlots) s'ajoutera derrière
- *  la même interface sans toucher à la couche géophysique. */
-export type StartPlacementId = 'mirror1v1';
+/** Stratégie de placement des départs (ajout d'Erik, 02/09). `mirror1v1` :
+ *  demi-carte + rotation 180° (parties à 2 sièges — INCHANGÉ, D3). `libreMulti`
+ *  (CARTE-MULTI, D1 — veto d'Erik du 24/09 : « la géométrie rotationnelle
+ *  n'est plus recherchée du tout ») : génération LIBRE sans AUCUNE symétrie,
+ *  3-5 spawns équidistants choisis par recherche seedée sur critère d'équité
+ *  (l'équité vient du PLACEMENT, pas de la géométrie). */
+export type StartPlacementId = 'mirror1v1' | 'libreMulti';
 
 export interface ProgenSettings {
   /** Nombre de joueurs visés — 2 pour mirror1v1 ; 2-5 pour regionalMulti futur. */
@@ -120,6 +122,26 @@ export interface ProgenSettings {
   fertilityMountainPenalty: number;
   /** Tentatives maximales (connexité/seuil/validité) avant échec explicite. */
   maxAttempts: number;
+  // --- CARTE-MULTI · mode libre (D1 : génération sans symétrie, 3-5 spawns) -
+  /** Nombre de RESTARTS de l'échantillonnage farthest-point (départs tirés au
+   *  RNG seedé), chacun suivi d'une passe d'amélioration locale 🔶. */
+  libreAttempts: number;
+  /** Taille du bassin de candidats (meilleurs sites par fertilité) soumis à
+   *  la recherche de spawns 🔶. */
+  libreCandidatePool: number;
+  /** Poids du terme « distance au centre de carte » dans le critère d'équité
+   *  🔶 (score = Σ écarts pairwise² + w·Σ écarts-centre² + wFert·(écart
+   *  fertilité max−min) — minimisé ; métrique CONSIGNÉE dans le rapport). */
+  libreCenterWeight: number;
+  /** Poids de l'écart de fertilité (max−min des sites choisis) 🔶. */
+  libreFertilityWeight: number;
+  /** Poids du terme d'éQUIDISTANCE 🔶 : wSpread × (écart pairwise max−min)²
+   *  — pousse la recherche vers des spawns à égales distances (D1). */
+  libreSpreadWeight: number;
+  /** Tolérance d'équidistance 🔶 : écart maximal toléré entre distances
+   *  pairwise extrêmes (max − min, en cases hex) — porte d'acceptation d'un
+   *  jeu de spawns ; sinon nouvelle tentative (nouvelle sous-graine). */
+  librePairSpreadMax: number;
 }
 
 export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
@@ -161,9 +183,15 @@ export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   fertilityFoodWeight: 2,
   fertilityProductionWeight: 1.5,
   fertilityCommerceWeight: 1,
-  fertilityMountainPenalty: 2,
-  maxAttempts: 10,
-};
+    fertilityMountainPenalty: 2,
+    maxAttempts: 10,
+    libreAttempts: 80,
+    libreCandidatePool: 500,
+    libreCenterWeight: 2,
+    libreFertilityWeight: 1,
+    libreSpreadWeight: 4,
+    librePairSpreadMax: 8,
+  };
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 
@@ -173,10 +201,14 @@ const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
  */
 export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): ProgenSettings {
   const s = { ...DEFAULT_PROGEN_SETTINGS, ...(overrides ?? {}) };
+  const playerCount = Math.max(2, Math.min(5, Math.round(s.playerCount)));
   return {
     ...s,
-    playerCount: Math.max(2, Math.min(5, Math.round(s.playerCount))),
-    startPlacement: s.startPlacement === 'mirror1v1' ? 'mirror1v1' : 'mirror1v1',
+    playerCount,
+    // CARTE-MULTI · D1/D3 : 2 sièges = miroir 1v1 TOUJOURS (inchangé — même
+    // byte de carte) ; 3-5 sièges = génération libre (le libre à 2 retombe
+    // sur le miroir : la stratégie n'est pas définie en dessous de 3).
+    startPlacement: playerCount >= 3 ? 'libreMulti' : 'mirror1v1',
     continents: s.continents === 2 ? 2 : s.continents === 3 ? 3 : 1,
     archipelagoLandScale: Math.min(1, Math.max(0.4, s.archipelagoLandScale)),
     landRatio: Math.min(0.75, Math.max(0.25, s.landRatio)),
@@ -215,5 +247,11 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
       Math.max(0, s.fertilityRingWeights[2]),
     ],
     maxAttempts: Math.min(25, Math.max(1, Math.round(s.maxAttempts))),
+    libreAttempts: Math.min(200, Math.max(1, Math.round(s.libreAttempts))),
+    libreCandidatePool: Math.min(600, Math.max(10, Math.round(s.libreCandidatePool))),
+    libreCenterWeight: Math.max(0, s.libreCenterWeight),
+    libreFertilityWeight: Math.max(0, s.libreFertilityWeight),
+    libreSpreadWeight: Math.max(0, s.libreSpreadWeight),
+    librePairSpreadMax: Math.max(0, Math.round(s.librePairSpreadMax)),
   };
 }

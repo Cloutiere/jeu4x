@@ -149,6 +149,13 @@ export type GameEvent =
    *  (Vaisseau spatial — R-124) ou 'economique' (Banque mondiale — 7l ·
    *  R-137). */
   | { seq: number; type: 'Victory'; winner: PlayerId; reason: 'domination' | 'forfeit' | 'razedCapital' | 'culture' | 'science' | 'economique' }
+  /** CARTE-MULTI (2-5 joueurs) : un joueur est ÉLIMINÉ (capitale capturée ou
+   *  rasée, forfait T-06, abandon). Événement PUBLIC (fog — miroir de
+   *  Victory). N'est JAMAIS émis lorsque l'élimination est DÉCISIVE (un seul
+   *  joueur en lice reste : Victory suit immédiatement, sans doublon — le
+   *  flux d'événements 1v1 reste IDENTIQUE). `byPlayer` = l'artisan
+   *  (capturer) ou null (barbares, forfait, abandon). */
+  | { seq: number; type: 'PlayerDefeated'; player: PlayerId; byPlayer: PlayerId | null; cause: 'capitalCaptured' | 'capitalRazed' | 'forfeit' | 'attrition' }
   /** 7h · R-122 : adoption d'un régime — `anarchy: true` = transition manuelle
    *  (1 tour d'Anarchie), `false` = bascule à la complétion de la tech. */
   | { seq: number; type: 'GovernmentChanged'; player: PlayerId; government: string; anarchy: boolean }

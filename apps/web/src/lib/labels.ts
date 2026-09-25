@@ -257,6 +257,17 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
       return `Incident diplomatique entre ${nameOf(event.between[0])} et ${nameOf(event.between[1])}`;
     case 'Victory':
       return `VICTOIRE de ${nameOf(event.winner)} (${event.reason})`;
+    case 'PlayerDefeated': {
+      // CARTE-MULTI : élimination (capitale capturée/rasée, forfait, abandon).
+      const causes: Record<string, string> = {
+        capitalCaptured: 'capitale capturée',
+        capitalRazed: 'capitale rasée par les barbares',
+        forfeit: 'forfait / abandon',
+        attrition: 'anéantie (plus aucune unité ni ville)',
+      };
+      const par = event.byPlayer ? ` par ${nameOf(event.byPlayer)}` : '';
+      return `${nameOf(event.player)} est ÉLIMINÉ${par} (${causes[event.cause] ?? event.cause})`;
+    }
     case 'BarbarianSpawned':
       return `Un barbare (${event.unitId}) sort du village ${event.villageId} en (${event.at.q},${event.at.r})`;
     case 'VillageDestroyed':

@@ -331,6 +331,14 @@ export interface Player {
   vision: Vision;
   /** Timers manqués consécutifs (forfait T-06 — géré côté serveur, Phase 1). */
   missedTurns: number;
+  /** CARTE-MULTI (2-5 joueurs) : joueur ÉLIMINÉ — sa capitale a été capturée
+   *  ou rasée (ou forfait/abandon à 3+ joueurs). À 2 joueurs la première
+   *  élimination clôt la partie (comportement 1v1 INCHANGÉ — le survivant
+   *  gagne) ; à 3+ la partie CONTINUE jusqu'au dernier en lice. Champ ADDITIF
+   *  (migration 26 : false partout). Zombie 🔶 : ses unités/villes restent en
+   *  jeu (défendent, économie auto-assignée) mais il ne peut plus gagner, le
+   *  serveur refuse ses ordres et le forfait T-06 ne le compte plus. */
+  defeated: boolean;
 }
 
 export interface GameSettings {
@@ -393,10 +401,35 @@ export function isBarbarian(playerId: PlayerId): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// CARTE-MULTI (2-5 joueurs) — élimination et joueurs en lice.
+// ---------------------------------------------------------------------------
+
+/** Joueurs EN LICE (non éliminés), triés (R-81). Les barbares ne sont pas
+ *  dans `players` — jamais concernés. */
+export function activePlayerIds(state: Pick<GameState, 'players'>): PlayerId[] {
+  return Object.keys(state.players)
+    .filter((id) => state.players[id]?.defeated !== true)
+    .sort();
+}
+
+/** Paires de guerre initiales : TOUS contre TOUS (R-58 — à 2 joueurs c'est la
+ *  paire unique historique ; à 3+ le FFA complet remplace la diplomatie,
+ *  périmètre interdit de CARTE-MULTI §7). Déterministe : ids triés, paires
+ *  triées (i < j). */
+export function guerreUniverselle(ids: PlayerId[]): Array<[PlayerId, PlayerId]> {
+  const sorted = [...ids].sort();
+  const war: Array<[PlayerId, PlayerId]> = [];
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) war.push([sorted[i]!, sorted[j]!]);
+  }
+  return war;
+}
+
+// ---------------------------------------------------------------------------
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 25;
+export const CURRENT_SCHEMA_VERSION = 26;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -1021,6 +1054,20 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       migratedUnits[id] = { stabilized: true, ...units[id]! };
     }
     return { ...state, units: migratedUnits };
+  },
+  /**
+   * CARTE-MULTI · v25 → v26 — champ ADDITIF `defeated: boolean` sur CHAQUE
+   * joueur (élimination — capitales capturées/rasées, forfait, abandon).
+   * Toutes les parties existantes (1v1) n'ont JAMAIS eu d'éliminé : false
+   * partout. Idempotent (champ présent = inchangé).
+   */
+  26: (state) => {
+    const players = (state.players ?? {}) as Record<string, Record<string, unknown>>;
+    const migratedPlayers: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(players).sort()) {
+      migratedPlayers[id] = { defeated: false, ...players[id]! };
+    }
+    return { ...state, players: migratedPlayers };
   },
 };
 

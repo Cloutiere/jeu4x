@@ -637,7 +637,12 @@ describe('R-97 · Rasement des villes', () => {
       width: 14,
       height: 12,
       cities: [{ id: 'c2', owner: 'p1', q: 7, r: 3, capital: false }],
-      units: [{ id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 7, r: 1 }], // distance 2 ≤ T-19
+      units: [
+        { id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 7, r: 1 }, // distance 2 ≤ T-19
+        // CARTE-MULTI : p1 garde une unité de refuge — la perte de c2 n'est
+        // pas une annihilation (focus du test : le rasement lui-même).
+        { id: 'refuge', type: 'guerrier', owner: 'p1', q: 0, r: 10 },
+      ],
     });
     const { state: after, events } = resolveEmpty(state, 3); // approche (2 tours) + entrée
     expect(after.cities['c2']).toBeUndefined(); // rasée = disparue

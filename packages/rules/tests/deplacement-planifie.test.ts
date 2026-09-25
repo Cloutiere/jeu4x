@@ -250,8 +250,8 @@ describe('R-158 · migration schemaVersion 18 → 19', () => {
       path: [{ q: 1, r: 0 }],
     };
     const migrated = migrateState(v18);
-    expect(migrated.schemaVersion).toBe(25); // la chaîne continue (GP-CULTURE-EVENEMENTS)
-    expect(CURRENT_SCHEMA_VERSION).toBe(25); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
+    expect(migrated.schemaVersion).toBe(26); // la chaîne continue (GP-CULTURE-EVENEMENTS)
+    expect(CURRENT_SCHEMA_VERSION).toBe(26); // GP-CULTURE-EVENEMENTS : D1/D5 (cultureStored supprimé, culturePaliers)
     const order = migrated.units['u1']!.order;
     expect(order?.type).toBe('MultiStep');
     if (order?.type === 'MultiStep') {

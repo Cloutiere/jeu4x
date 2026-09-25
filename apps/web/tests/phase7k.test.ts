@@ -55,3 +55,18 @@ describe('7k · R-132 — libellé UnitsUpgraded (Atelier de Léonard)', () => {
     expect(label).toContain('galere → galion');
   });
 });
+
+// CARTE-MULTI : le journal nomme l'élimination (PlayerDefeated — public).
+import type { GameEvent } from '@game/shared';
+describe('CARTE-MULTI · journal — PlayerDefeated', () => {
+  const nameOf = (id: string) => (id === 'p2' ? 'Bot' : 'Alice');
+  it('libellé élimination avec artisan (capitale capturée)', () => {
+    const ev = { seq: 9, type: 'PlayerDefeated', player: 'p2', byPlayer: 'p1', cause: 'capitalCaptured' } as unknown as GameEvent;
+    expect(eventLabel(ev, nameOf)).toContain('Alice');
+    expect(eventLabel(ev, nameOf)).toContain('ÉLIMINÉ');
+  });
+  it('libellé sans artisan (barbares / forfait)', () => {
+    const ev = { seq: 10, type: 'PlayerDefeated', player: 'p1', byPlayer: null, cause: 'forfeit' } as unknown as GameEvent;
+    expect(eventLabel(ev, nameOf)).toContain('forfait');
+  });
+});

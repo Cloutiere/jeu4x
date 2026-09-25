@@ -74,7 +74,7 @@ describe('GameDO · crash pendant resolveTurn → reprise idempotente', () => {
     expect(JSON.stringify(after.state)).toBe(JSON.stringify(expected.newState));
     expect(JSON.stringify(after.lastEvents)).toBe(JSON.stringify(expected.events));
     expect(after.state?.turn).toBe(1);
-    expect(after.locked).toEqual({ p1: false, p2: false });
+    expect(after.locked).toEqual({ p1: false, p2: false, p3: false, p4: false, p5: false });
 
     alice.close();
   });

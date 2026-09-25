@@ -30,8 +30,13 @@ import { resolveProgenSettings } from './settings.js';
 import type { ProgenSettings } from './settings.js';
 import { generateTerrain } from './geo.js';
 import type { PhysicalMap } from './geo.js';
-import { getStartPlacementStrategy, attemptSeed, ProgenPlacementError } from './mirror.js';
-import type { StartPlacementStrategy, PlacementOutput } from './mirror.js';
+import { getStartPlacementStrategy, attemptSeed, ProgenPlacementError, registerStrategy } from './mirror.js';
+import type { StartPlacementStrategy, PlacementOutput, PlacementReport } from './mirror.js';
+import { LIBRE_MULTI } from './libre.js';
+
+// CARTE-MULTI : enregistrement de la stratégie libre (3-5 joueurs) — fait ICI
+// (et non dans mirror.ts) pour éviter tout cycle d'imports.
+registerStrategy('libreMulti', LIBRE_MULTI);
 import { fertilityScore } from './fertility.js';
 import type { TerrainLookup } from './fertility.js';
 
@@ -79,6 +84,9 @@ export interface ProgenReport {
     compositionP1: Record<string, number>;
     compositionP2: Record<string, number>;
   };
+  /** CARTE-MULTI (libreMulti uniquement) : équité du placement libre —
+   *  fertilité/composition PAR spawn, distances pairwise, métrique D1. */
+  multi?: PlacementReport['multi'];
   connected: boolean;
 }
 
@@ -191,6 +199,28 @@ export function landConnected(map: LoadedMap, from: Hex, to: Hex): boolean {
   return false;
 }
 
+/** CARTE-MULTI : BFS depuis le premier spawn — TOUS les spawns sont-ils
+ *  reliés à pied ? (connexité exigée hors archipel.) */
+export function spawnsTousRelies(map: LoadedMap): boolean {
+  const spawns = map.spawns;
+  if (spawns.length < 2) return false;
+  const start = spawns[0]!.capital;
+  const seen = new Set<string>([tileKeyOf(start)]);
+  const queue: Hex[] = [start];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const n of neighbors(current)) {
+      const key = tileKeyOf(n);
+      if (seen.has(key)) continue;
+      const t = map.terrain[key];
+      if (!t || !TERRAINS[t]!.passable) continue;
+      seen.add(key);
+      queue.push(n);
+    }
+  }
+  return spawns.every((s) => seen.has(tileKeyOf(s.capital)));
+}
+
 /**
  * Génère une carte procédurale complète : géophysique → stratégie de
  * placement → MapData → validation parseMap → connexité → checksum.
@@ -234,11 +264,16 @@ export function generateProceduralMap(
 
       const [s1, s2] = loaded.spawns;
       if (!s1 || !s2) throw new ProgenPlacementError('spawns manquants');
-      const connected = landConnected(loaded, s1.capital, s2.capital);
+      // CARTE-MULTI : à 3+ spawns, la connexité terrestre (pangée/deux
+      // continents) exige que TOUS les spawns soient reliés entre eux.
+      const connected =
+        loaded.spawns.length === 2
+          ? landConnected(loaded, s1.capital, s2.capital)
+          : spawnsTousRelies(loaded);
       // Archipel : les spawns peuvent être sur des îles séparées — la
       // connexité terrestre n'est PAS requise (contact au naval, Phase 7).
       if (!connected && settings.continents !== 3) {
-        throw new ProgenPlacementError('pas de connexion terrestre entre les deux spawns');
+        throw new ProgenPlacementError('pas de connexion terrestre entre les spawns');
       }
 
       let landTiles = 0;
@@ -281,13 +316,16 @@ export function generateProceduralMap(
         fertility: {
           p1,
           p2,
-          delta: rawDelta < 1e-9 ? 0 : rawDelta,
+          // Mode libre : le delta n'est PAS p1−p2 (plus que 2 spawns) —
+          // écart max−min de fertilité sur les N spawns (checksum d'équité D1).
+          delta: out.report.multi ? out.report.delta : rawDelta < 1e-9 ? 0 : rawDelta,
           topAverage: out.report.topAverage,
           threshold: out.report.threshold,
           normalized: out.report.normalized,
           candidates: out.report.candidates,
         },
         spawn: out.report.spawn,
+        multi: out.report.multi,
         connected,
       };
       return { map: loaded, report };
@@ -333,6 +371,8 @@ export { guaranteeResourceCoverage } from './mirror.js';
 export { forceSpawnNeighborhood, purgeResourcesNear, spawnNeighborhoodComposition, productiveFreeTile } from './mirror.js';
 export type { StartPlacementStrategy, PlacementOutput, PlacementReport } from './mirror.js';
 export { MIRROR_1V1, START_PLACEMENT_STRATEGIES, attemptSeed } from './mirror.js';
+export { LIBRE_MULTI } from './libre.js';
+export { centreDeCarte, scoreEnsemble, choisirSpawns } from './libre.js';
 export { fertilityScore, tileFertility, ringCells } from './fertility.js';
 export type { TerrainLookup } from './fertility.js';
 export { generateTerrain, classifyWaters } from './geo.js';

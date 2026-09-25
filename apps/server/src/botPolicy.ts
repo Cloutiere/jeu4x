@@ -48,12 +48,26 @@ export const BOT_NAME = 'Bot';
 
 /**
  * Graine du RNG du bot pour un tour donné : dérivation déterministe du seed
- * de partie (R-80) — même partie rejouée + mêmes ordres humains → mêmes
+ * de partie (R-80) — même partie rejouée + mîmes ordres humains → mêmes
  * ordres du bot. Sensible au tour (chaque tour re-tire) et indépendant du
  * RNG de résolution du moteur (flux séparés).
+ *
+ * CARTE-MULTI : `engineId` distingue les bots d'une même partie (5 sièges
+ * = jusqu'à 4 bots à seeds INDÉPENDANTS — sinon ils tireraient des plans
+ * identiques). COMPATIBILITÉ 1v1 : l'id historique 'bot' (et l'appel à deux
+ * arguments) conserve la dérivation ORIGINALE bit à bit — le bot solo ne
+ * change pas de comportement. `engineId` est haché FNV-1a (déterministe,
+ * R-80/R-82).
  */
-export function botTurnSeed(gameSeed: number, turn: number): number {
-  return (Math.imul(turn + 0x9e37, 0x85ebca6b) ^ Math.imul(gameSeed >>> 0, 0xc2b2ae35)) >>> 0;
+export function botTurnSeed(gameSeed: number, turn: number, engineId?: string): number {
+  const base = (Math.imul(turn + 0x9e37, 0x85ebca6b) ^ Math.imul(gameSeed >>> 0, 0xc2b2ae35)) >>> 0;
+  if (!engineId || engineId === BOT_PLAYER_ID) return base;
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < engineId.length; i++) {
+    hash ^= engineId.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return (base ^ hash) >>> 0;
 }
 
 /** Actions immédiates (hors ordres de tour) choisies par la politique. */
@@ -313,6 +327,20 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng):
   const mine = Object.values(state.units)
     .filter((u) => u.owner === playerId)
     .sort((a, b) => compareUnitIds(a.id, b.id)); // R-81 : parcours déterministe
+
+  // CARTE-MULTI · départ COLON (cartes procédurales — R-64) : le bot fonde
+  // SA capitale dès qu'il possède un colon sans ville (coût nul sur le site
+  // réservé). Sans ceci, le bot restait inerte toute la partie sur ces
+  // cartes (trou préexistant — les tests bot solo étaient sur pangee-40,
+  // démarrage capitale). Ordre unitaire du même validateur orderShapeError.
+  const aUneVille = Object.values(state.cities).some((c) => c.owner === playerId);
+  if (!aUneVille) {
+    const colon = mine.find((u) => u.type === 'colon');
+    if (colon) {
+      orders.push({ type: 'FoundCity', unitId: colon.id });
+      return { orders, actions };
+    }
+  }
 
   for (const unit of mine) {
     // R-117 : unité embarquée → débarquement vers une rive libre.

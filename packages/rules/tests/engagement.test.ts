@@ -53,12 +53,12 @@ describe('R-173 · Stabilité de case & migration 24→25', () => {
     // simule un état v24 : pas encore de champ stabilized
     for (const u of Object.values(v24.units)) delete (u as unknown as Record<string, unknown>).stabilized;
     const m = migrateState<GameState>(v24 as never);
-    expect(m.schemaVersion).toBe(25);
+    expect(m.schemaVersion).toBe(26);
     for (const u of Object.values(m.units)) expect(u.stabilized).toBe(true);
     // idempotent
     const m2 = migrateState<GameState>(structuredClone(m) as never);
-    expect(m2.schemaVersion).toBe(25);
-    expect(CURRENT_SCHEMA_VERSION).toBe(25);
+    expect(m2.schemaVersion).toBe(26);
+    expect(CURRENT_SCHEMA_VERSION).toBe(26);
   });
 
   it('R-173 : en fin de tour, une case à exactement 1 unité la marque stabilisée, une case à 2 laisse instable', () => {

@@ -55,6 +55,7 @@ interface CurrentItem {
 
 /** Durée (ms, vitesse 1) par type d'événement. */
 const DURATIONS: Record<GameEvent['type'], number> = {
+  PlayerDefeated: 900, // CARTE-MULTI : élimination (miroir Victory)
   RushBuy: 1200,
   EconomyMilestone: 1600,
   EraChanged: 2000, // 7n · R-147 : bandeau « Ère Médiévale ! »

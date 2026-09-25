@@ -28,7 +28,7 @@ import { contexteMelee, reduceContexteMelee } from './melee.js';
 export interface GameView {
   code: string;
   playerId: string | null;
-  players: Array<{ id: string; name: string; engineId: string }>;
+  players: Array<{ id: string; name: string; engineId: string; bot?: boolean }>;
   status: 'waiting' | 'active' | 'finished';
   turn: number;
   phase: 'orders' | 'resolving';

@@ -236,6 +236,17 @@ export class LobbyDO {
     if (settings.turnTimerMinutes !== null && !(typeof settings.turnTimerMinutes === 'number' && settings.turnTimerMinutes > 0)) {
       return this.sendError(ws, 'badMessage', 'timer invalide');
     }
+    // CARTE-MULTI : sièges 2-5 (défaut 2 — créations existantes inchangées).
+    // D3 : les cartes préfabriquées portent exactement 2 spawns — la carte
+    // libre (procédurale) est requise pour 3-5 sièges.
+    const rawSieges = (settings as { playerCount?: number }).playerCount;
+    if (rawSieges !== undefined && !(Number.isInteger(rawSieges) && rawSieges >= 2 && rawSieges <= 5)) {
+      return this.sendError(ws, 'badMessage', 'nombre de sièges invalide (2 à 5)');
+    }
+    const sieges = Math.round(rawSieges ?? 2);
+    if (sieges > 2 && settings.mapId !== 'procedural-40') {
+      return this.sendError(ws, 'badMessage', 'les cartes préfabriquées sont réservées aux parties à 2 sièges — choisir la carte libre pour 3-5 joueurs');
+    }
     // 7n · R-145 : la civ de l'hôte est validée (connue des données). La
     // Merveille Antique (Égypte) est TIRÉE par le moteur — plus de choix.
     const hostCiv = (settings as { civId?: string }).civId;
@@ -264,13 +275,28 @@ export class LobbyDO {
     if (!code) return this.sendError(ws, 'internal', 'génération de code impossible');
 
     const seed = generateSeed();
-    let botCivId: string | undefined;
+    // CARTE-MULTI : en solo, TOUS les sièges restants reçoivent un bot
+    // (1v1 : un seul bot — flux inchangé ; 5 sièges : 4 bots à civs tirées
+    // de façon déterministe et DISTINCTES dans l'ordre des sièges, R-80).
+    const botCivIds: Array<string | undefined> = [];
     if (solo) {
-      if (rawBotCiv && rawBotCiv !== 'random') {
-        botCivId = rawBotCiv;
-      } else {
-        const ids = Object.keys(CIVILIZATIONS.civs).sort(); // R-81 : tirage déterministe
-        botCivId = ids[createRng((seed ^ 0x000b07) >>> 0).nextInt(ids.length)]!;
+      const ids = Object.keys(CIVILIZATIONS.civs).sort(); // R-81
+      const rng = createRng((seed ^ 0x000b07) >>> 0);
+      const tirees = new Set<string>();
+      for (let si = 2; si <= sieges; si++) {
+        if (rawBotCiv && rawBotCiv !== 'random' && si === 2) {
+          botCivIds.push(rawBotCiv); // 1v1 : la civ demandée s'applique au bot unique
+          tirees.add(rawBotCiv);
+          continue;
+        }
+        // Tirage seedé sans remise (civs distinctes quand le pool le permet) ;
+        // l'appel au RNG consomme un tir par bot (déterminisme par siège).
+        let picked = ids[rng.nextInt(ids.length)]!;
+        if (tirees.size < ids.length) {
+          while (tirees.has(picked)) picked = ids[rng.nextInt(ids.length)]!;
+        }
+        tirees.add(picked);
+        botCivIds.push(picked);
       }
     }
     const init = await this.gameStub(code).fetch('https://game.internal/internal/init', {
@@ -301,25 +327,35 @@ export class LobbyDO {
         mapId: settings.mapId,
         turnTimerMinutes: settings.turnTimerMinutes,
         isPublic: settings.isPublic === true,
+        ...(sieges !== 2 ? { playerCount: sieges } : {}),
         ...(solo ? { solo: true } : {}),
-        ...(solo && botCivId ? { botCivId } : {}),
+        ...(solo && botCivIds[0] ? { botCivId: botCivIds[0] } : {}),
       },
       turn: 0,
       createdAt: Date.now(),
     };
     if (solo) {
-      // Le bot rejoint via le chemin normal (GameDO : état initial créé au
-      // join — même code que l'invitation d'un humain). Pas de socket : le
-      // GameDO génère ses ordres à chaque résolution.
-      const join = await this.gameStub(code).fetch('https://game.internal/internal/join', {
-        method: 'POST',
-        body: JSON.stringify({ player: { id: BOT_PLAYER_ID, name: BOT_NAME, bot: true, civId: botCivId } }),
-      });
-      if (!join.ok) {
-        return this.sendError(ws, 'internal', `démarrage du bot impossible (${join.status})`);
+      // Les bots rejoignent via le chemin normal (GameDO : état initial créé
+      // au DERNIER join — même code que l'invitation d'un humain). Pas de
+      // socket : le GameDO génère leurs ordres à chaque résolution. Le
+      // PREMIER bot garde l'id réservé 'bot' (parties 1v1 existantes) ; les
+      // suivants 'bot:2'..'bot:5' (réservés — l'auth ne délivre jamais ces
+      // ids).
+      for (let si = 2; si <= sieges; si++) {
+        const botId = si === 2 ? BOT_PLAYER_ID : `bot:${si}`;
+        const civId = botCivIds[si - 2];
+        const join = await this.gameStub(code).fetch('https://game.internal/internal/join', {
+          method: 'POST',
+          body: JSON.stringify({ player: { id: botId, name: si === 2 ? BOT_NAME : `${BOT_NAME} ${si - 1}`, bot: true, civId } }),
+        });
+        if (!join.ok) {
+          return this.sendError(ws, 'internal', `démarrage du bot impossible (${join.status})`);
+        }
+        game.players.push({ id: botId, name: si === 2 ? BOT_NAME : `${BOT_NAME} ${si - 1}`, bot: true, ...(civId ? { civId } : {}) });
       }
-      game.players.push({ id: BOT_PLAYER_ID, name: BOT_NAME, bot: true, ...(botCivId ? { civId: botCivId } : {}) });
       game.status = 'active';
+    } else if (sieges !== 2) {
+      game.settings = { ...game.settings, ...(sieges !== 2 ? { playerCount: sieges } : {}) };
     }
     await this.putGame(game);
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'GameCreated', code });
@@ -337,7 +373,8 @@ export class LobbyDO {
       this.sendTo(ws, { proto: PROTO_VERSION, type: 'GameJoined', code });
       return;
     }
-    if (game.status !== 'waiting' || game.players.length >= 2) {
+    const sieges = Math.max(2, Math.min(5, Math.round(game.settings.playerCount ?? 2)));
+    if (game.status !== 'waiting' || game.players.length >= sieges) {
       return this.sendError(ws, 'gameFull', 'partie complète');
     }
 
@@ -356,7 +393,8 @@ export class LobbyDO {
       name: att.name,
       ...(civId ? { civId } : {}),
     });
-    game.status = 'active';
+    // CARTE-MULTI : la partie démarre au DERNIER siège rempli.
+    if (game.players.length >= sieges) game.status = 'active';
     await this.putGame(game);
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'GameJoined', code });
     await this.broadcastList();
@@ -375,7 +413,10 @@ export class LobbyDO {
         body: JSON.stringify({ byPlayerId: att.playerId }),
       });
       if (!res.ok) return this.sendError(ws, 'internal', 'abandon impossible');
-      game.status = 'finished'; // le GameDO notifie aussi gameFinished (idempotent)
+      // CARTE-MULTI : l'abandon d'un joueur à 3+ ne clôt PAS la partie — le
+      // GameDO indique si l'élimination était décisive (1v1 : toujours).
+      const body = (await res.json().catch(() => null)) as { finished?: boolean } | null;
+      if (body?.finished !== false) game.status = 'finished'; // le GameDO notifie aussi gameFinished (idempotent)
     } else {
       // Partie en attente : suppression simple.
       await this.state.storage.delete(this.gameKey(code));

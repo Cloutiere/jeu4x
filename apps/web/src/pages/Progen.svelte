@@ -33,6 +33,9 @@
 
   // --- Réglages (défauts = settings du générateur) ---------------------------
   let seed = $state(20260902);
+  // CARTE-MULTI : curseur de sièges — 2 = miroir 1v1 (inchangé), 3-5 =
+  // génération LIBRE sans symétrie (recherche de spawns équidistants, D1).
+  let sieges = $state(2);
   let seedText = $state('20260902');
   let landRatio = $state(DEFAULT_PROGEN_SETTINGS.landRatio);
   let continents = $state<1 | 2 | 3>(DEFAULT_PROGEN_SETTINGS.continents);
@@ -110,6 +113,7 @@
     copied = false;
     try {
       const result = generateProceduralMap(seed, {
+        playerCount: sieges,
         landRatio,
         continents,
         rifts,
@@ -149,10 +153,11 @@
         ...initialView('progen'),
         status: 'active',
         playerId: 'p1',
-        players: [
-          { id: 'lab-host', name: 'Joueur 1', engineId: 'p1' },
-          { id: 'lab-other', name: 'Joueur 2', engineId: 'p2' },
-        ],
+        players: Object.keys(state.players).map((id) => ({
+          id: `lab-${id}`,
+          name: `Joueur ${Number(id.slice(1))}`,
+          engineId: id,
+        })),
         turn: 0,
         phase: 'orders',
         state,
@@ -191,6 +196,7 @@
   // Régénération à la volée : tout curseur/seed/toggle recalcule la carte.
   $effect(() => {
     void seed;
+    void sieges;
     void landRatio;
     void continents;
     void rifts;
@@ -273,8 +279,10 @@
     <a href="#/lobby">← Lobby</a>
   </header>
   <p class="hint">
-    Outil de calibrage 100 % client-side (aucune partie). Le miroir 1v1 garantit
-    l'équité : tout ce qui existe côté joueur 1 existe à l'identique côté joueur 2.
+    Outil de calibrage 100 % client-side (aucune partie). À 2 sièges, le miroir
+    1v1 garantit l'équité : tout ce qui existe côté joueur 1 existe à
+    l'identique côté joueur 2. À 3-5 sièges (CARTE-MULTI), génération LIBRE
+    sans symétrie : spawns équidistants choisis par le critère d'équité.
   </p>
 
   <div class="columns">
@@ -290,6 +298,14 @@
 
       <section>
         <h2>Réglages du générateur</h2>
+        <label>
+          Sièges (2-5)
+          <select bind:value={sieges}>
+            {#each [2, 3, 4, 5] as n (n)}
+              <option value={n}>{n} joueurs{#if n === 2} — miroir 1v1{/if}{#if n >= 3} — libre sans symétrie{/if}</option>
+            {/each}
+          </select>
+        </label>
         <label>
           Ratio terre : {Math.round(landRatio * 100)} %
           <input type="range" min="0.35" max="0.7" step="0.01" bind:value={landRatio} />
@@ -403,12 +419,17 @@
           <table>
             <tbody>
               <tr><td>Voisinage P1</td><td>{compositionLabel(report.spawn.compositionP1)}</td></tr>
-              <tr><td>Voisinage P2</td><td>{compositionLabel(report.spawn.compositionP2)}</td></tr>
-              <tr><td>Composition identique</td><td class:zero={JSON.stringify(report.spawn.compositionP1) === JSON.stringify(report.spawn.compositionP2)}>{JSON.stringify(report.spawn.compositionP1) === JSON.stringify(report.spawn.compositionP2) ? 'oui' : 'NON'}</td></tr>
+              {#if !report.multi}<tr><td>Voisinage P2</td><td>{compositionLabel(report.spawn.compositionP2)}</td></tr>{/if}
+              {#if !report.multi}
+                <tr><td>Composition identique</td><td class:zero={JSON.stringify(report.spawn.compositionP1) === JSON.stringify(report.spawn.compositionP2)}>{JSON.stringify(report.spawn.compositionP1) === JSON.stringify(report.spawn.compositionP2) ? 'oui' : 'NON'}</td></tr>
+              {/if}
               <tr><td>Rayon sans ressource</td><td>{report.spawn.purgeRadius}</td></tr>
               <tr><td>Ressources purgées</td><td>{report.spawn.purged}</td></tr>
             </tbody>
           </table>
+          {#if report.multi}
+            <p class="hint-small">Mode libre : la composition R-157 de CHAQUE spawn est dans le panneau « Équité du placement libre » ci-dessous (elle peut différer d'un joueur à l'autre — l'équité vient du placement, pas de la symétrie).</p>
+          {/if}
         {:else if !error}
           <p>Génération…</p>
         {/if}
@@ -437,6 +458,42 @@
           <p>Génération…</p>
         {/if}
       </section>
+
+      {#if report?.multi}
+        <section>
+          <h2>Équité du placement libre (CARTE-MULTI)</h2>
+          <table>
+            <thead>
+              <tr><th>Spawn</th><th>Capital (q,r)</th><th>Fertilité</th><th>Dist. centre</th><th>Voisinage (R-157)</th></tr>
+            </thead>
+            <tbody>
+              {#each report.multi.spawns as sp (sp.id)}
+                <tr>
+                  <td>{sp.id}</td>
+                  <td>({sp.capital.q},{sp.capital.r})</td>
+                  <td>{sp.fertility.toFixed(1)}</td>
+                  <td>{sp.distanceCentre}</td>
+                  <td>{compositionLabel(sp.composition)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+          <table>
+            <tbody>
+              <tr><td>Score d'équité (métrique D1 🔶, minimisée)</td><td>{report.multi.equiteScore.toFixed(1)}</td></tr>
+              <tr><td>Écart pairwise max − min</td><td class:zero={report.multi.pairSpread <= 8}>{report.multi.pairSpread} (tolérance 🔶 {sieges >= 3 ? 8 : '—'})</td></tr>
+              <tr><td>Somme des écarts pairwise</td><td>{report.multi.sommeEcarts.toFixed(1)}</td></tr>
+              <tr><td>Spawns normalisés (R-103)</td><td>{report.multi.normalises}/{report.multi.joueurCount}</td></tr>
+              <tr><td>Couverture ressources manquante</td><td>{Object.keys(report.multi.couvertureManquants).length === 0 ? '—' : Object.entries(report.multi.couvertureManquants).map(([id, m]) => `${id}: −${m}`).join(', ')}</td></tr>
+              <tr><td>Distances pairwise</td><td>{report.multi.pairwise.map((p) => `${p.a}-${p.b}: ${p.distance}`).join(' · ')}</td></tr>
+            </tbody>
+          </table>
+          <p class="hint-small">
+            Mode libre : AUCUNE symétrie (D1) — l'équité vient du placement
+            (spawns équidistants, R-157 par spawn, fertilité équilibrée).
+          </p>
+        </section>
+      {/if}
 
       <section>
         <h2>Terrains par type</h2>
