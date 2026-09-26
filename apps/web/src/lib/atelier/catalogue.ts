@@ -224,23 +224,22 @@ function sprites2d(): AssetAtelier[] {
   // A/B : l'ancien sprite peintre du guerrier, conservé pour le verdict
   // d'Erik (fichiers unite_guerrier_avant*.png, issus du dernier generate.py).
   out.push(spriteAsset('unite_guerrier_avant', 'Guerrier (peintre, AVANT import — comparaison A/B)', `${SRC_GENERATEUR('unite_guerrier')} (référence A/B de l'import SVG) — textures.ts (units)`, true));
-  // Variantes CUITES ×8 — SYSTÈME 4 TONS (GUERRIER-4TONS, décision Erik
-  // 23/09 — accents.json §factions4 : Erik peint les 4 tons de faction dans
-  // le SVG maître ; le pipeline remplace par rôle, J1-J7 selon
-  // ordre_joueurs4 + barbare = Rouge Royal — import_svg.mjs profil
-  // guerrier-4tons, remplacementsPalette4).
+  // Variantes CUITES ×6 par unité — ASSETS-6COULEURS (décision Erik 26/09) :
+  // un SVG PEINT par faction (plus de recoloriage pipeline) — import_svg.mjs
+  // profils guerrier-6couleurs / archer-6couleurs (mode variantesFournies).
+  // Violet Améthyste et Cyan Céleste sortent de la table active (D1).
   const VARIANTES_CUITES = [
     ['j1', 'Joueur 1 (bleu saphir)'],
     ['j2', 'Joueur 2 (rouge royal)'],
     ['j3', 'Joueur 3 (vert émeraude)'],
     ['j4', 'Joueur 4 (jaune d\'or)'],
-    ['j5', 'Joueur 5 (violet améthyste)'],
-    ['j6', 'Joueur 6 (cuivre ardent)'],
-    ['j7', 'Joueur 7 (cyan céleste)'],
-    ['barbare', 'Barbare (rouge royal)'],
+    ['j5', 'Joueur 5 (cuivre ardent)'],
+    ['j6', 'Joueur 6 (ardoise)'],
   ] as const;
-  for (const [suffixe, nom] of VARIANTES_CUITES) {
-    out.push(spriteAsset(`unite_guerrier_${suffixe}`, `Guerrier — variante cuite ${nom} (accent intégré, 4 tons)`, `assets-src/tools/import_svg.mjs (profil guerrier-4tons, remplacementsPalette4) — SVG d'Erik peint à la main`, false));
+  for (const [type, label] of [['unite_guerrier', 'Guerrier'], ['unite_archer', 'Archer']] as const) {
+    for (const [suffixe, nom] of VARIANTES_CUITES) {
+      out.push(spriteAsset(`${type}_${suffixe}`, `${label} — variante fournie ${nom} (SVG peint par Erik, 6 couleurs)`, `assets-src/tools/import_svg.mjs (profil ${type === 'unite_guerrier' ? 'guerrier' : 'archer'}-6couleurs, variantesFournies) — SVG d'Erik peints par IA sous sa direction`, false));
+    }
   }
   // COLON-FONDATION : état « en train de fonder » du Colon (art d'Erik en
   // attente — PNG optionnel, badge provisoire au rendu tant qu'il manque).

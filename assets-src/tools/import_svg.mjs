@@ -101,9 +101,9 @@ function lireFactions4() {
       }
     }
   }
-  if (ordre_joueurs4.length !== 7 || new Set(ordre_joueurs4).size !== 7
+  if (ordre_joueurs4.length !== 6 || new Set(ordre_joueurs4).size !== 6
     || ordre_joueurs4.some((c) => !factions4[c])) {
-    throw new Error('accents.json : ordre_joueurs4 — 7 factions distinctes attendues');
+    throw new Error('accents.json : ordre_joueurs4 — 6 factions distinctes attendues');
   }
   if (!factions4[barbare4]) {
     throw new Error(`accents.json : barbare4 — faction « ${barbare4} » inconnue`);
@@ -562,7 +562,7 @@ async function importer(nomProfil, options = {}) {
   const svgPath = path.join(ROOT, profil.svg);
   const dossier = options.exports ?? EXPORTS;
   const dirDiag = options.diagnostics ?? path.join(ROOT, 'dev-logs', 'captures-import-svg');
-  const svgTextBrut = fs.readFileSync(svgPath, 'utf8');
+  const svgTextBrut = profil.variantesFournies || /\.(png)$/i.test(profil.svg) ? null : fs.readFileSync(svgPath, 'utf8');
   const cible = profil.cible;
 
   // Les variantes à produire. Deux modes de cuisson :
@@ -573,13 +573,14 @@ async function importer(nomProfil, options = {}) {
   let variantes;
   if (profil.remplacementsPalette4) {
     // SYSTÈME 4 TONS (GUERRIER-4TONS) : une variante par joueur selon
-    // ordre_joueurs4 (J1..J7) + le barbare (barbare4, ex. Rouge Royal).
-    // remplacementsPalette4 : hex SOURCE du maître → RÔLE de ton (le mappeur
-    // remplace par rôle, insensible à la casse, fill + stop-color).
+    // ordre_joueurs4 (J1..J6). remplacementsPalette4 : hex SOURCE du maître
+    // → RÔLE de ton (le mappeur remplace par rôle, insensible à la casse,
+    // fill + stop-color). La variante barbare (barbare4) n'est produite que
+    // si sa faction est HORS ordre (depuis ASSETS-6COULEURS, le barbare a
+    // son propre SVG peint — profil dédié, plus de variante par faction).
     const { factions4, ordre_joueurs4, barbare4 } = lireFactions4();
-    const clesFactions = [...ordre_joueurs4, barbare4];
-    variantes = clesFactions.map((cle, i) => ({
-      stem: `${profil.stem}_${i === 7 ? 'barbare' : `j${i + 1}`}`,
+    variantes = ordre_joueurs4.map((cle, i) => ({
+      stem: `${profil.stem}_j${i + 1}`,
       remplacements: Object.fromEntries(
         Object.entries(profil.remplacementsPalette4).map(([src, ton]) => {
           if (!TONS4.includes(ton)) throw new Error(`rôle de ton inconnu « ${ton} » (${TONS4.join(', ')})`);
@@ -588,6 +589,28 @@ async function importer(nomProfil, options = {}) {
       ),
       faction: cle,
     }));
+    if (!ordre_joueurs4.includes(barbare4)) {
+      variantes.push({
+        stem: `${profil.stem}_barbare`,
+        remplacements: Object.fromEntries(
+          Object.entries(profil.remplacementsPalette4).map(([src, ton]) => [src, factions4[barbare4][ton]]),
+        ),
+        faction: barbare4,
+      });
+    }
+  } else if (profil.variantesFournies) {
+    // MODE « VARIANTES FOURNIES » (ASSETS-6COULEURS, Erik 26/09) : un SVG
+    // PEINT PAR FACTION (les variantes ne sont plus recoloriées — fin du
+    // maître + remplacements pour ces cibles). Chaque entrée = paletteId →
+    // chemin de SVG ; le stem suit la position dans ordre_joueurs4 (j1..j6).
+    // AUCUN remplacement : la cuite = rendu direct du SVG (gate cohérence =
+    // re-rendu déterministe, cf. --check).
+    const { ordre_joueurs4 } = lireFactions4();
+    variantes = ordre_joueurs4.map((cle, i) => {
+      const svg = profil.variantesFournies[cle];
+      if (!svg) throw new Error(`variantesFournies — pas de SVG fourni pour « ${cle} »`);
+      return { stem: `${profil.stem}_j${i + 1}`, svg, remplacements: null, faction: cle };
+    });
   } else if (profil.remplacementsPalette) {
     const factions = lireFactions();
     variantes = Object.entries(factions).map(([cle, f]) => ({
@@ -602,24 +625,39 @@ async function importer(nomProfil, options = {}) {
   }
 
   for (const variante of variantes) {
-    let svgText = svgTextBrut;
+    // Source de la variante : son SVG propre (variantesFournies) ou le SVG
+    // du profil ; un profil PNG (icônes de rendement) est lu en binaire.
+    const sourceRelatif = variante.svg ?? profil.svg;
+    const estPng = sourceRelatif.toLowerCase().endsWith('.png');
+    if (estPng) {
+      var svgBuffer = fs.readFileSync(path.join(ROOT, sourceRelatif));
+    } else {
+      const texte = variante.svg
+        ? fs.readFileSync(path.join(ROOT, sourceRelatif), 'utf8')
+        : svgTextBrut;
+      var svgBuffer = Buffer.from(texte);
+    }
+    let svgText = estPng || variante.svg ? null : svgTextBrut;
     let comptes = null;
     if (variante.remplacements) {
       const r = appliquerRemplacements(svgText, variante.remplacements);
-      svgText = r.svg;
+      svgBuffer = Buffer.from(r.svg);
       comptes = r.comptes;
     }
-    const svgBuffer = Buffer.from(svgText);
     // tuile hexagonale (mode hex : fond carré plein ; mode tuile : SVG déjà
     // clippé hexagone par Erik) : pas de calque accent (décor plein).
     // profil.sansAccent : SVG entièrement PEINT par Erik (4 tons — le maître
     // guerrier ne porte aucune forme blanche) → rendu direct, pas de calque.
-    const { svg: accentSvg, nb: nbBlancs } = cible.mode === 'hex' || cible.mode === 'tuile' || comptes || profil.sansAccent
+    const { svg: accentSvg, nb: nbBlancs } = cible.mode === 'hex' || cible.mode === 'tuile' || cible.mode === 'icone' || comptes || profil.sansAccent || profil.variantesFournies
       ? { svg: null, nb: 0 }
       : extraireAccent(svgText);
 
     let resultat;
-    if (cible.mode === 'hex') {
+    if (cible.mode === 'icone') {
+      // MODE « ICÔNE » (ASSETS-6COULEURS, D5) : source PNG d'Erik (1024²)
+      // déscalée aux dimensions existantes du HUD (64×64), plein cadre.
+      resultat = { base: await sharp(svgBuffer).resize(cible.w, cible.h).png().toBuffer(), accent: null };
+    } else if (cible.mode === 'hex') {
       resultat = await composerHex(svgBuffer, cible);
     } else if (cible.mode === 'tuile') {
       // zoom ADAPTATIF : ×1,0 suffit si l'hexagone source a les bonnes

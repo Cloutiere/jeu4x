@@ -122,7 +122,7 @@ describe('LOBBY-5 · salle d\'attente 5 sièges', () => {
     // Hôte : le siège 1 de l'invité reste humain ; il humanise le siège 2,
     // change la palette du siège 3 (bot) et la topographie.
     const nouvelle = config5(3);
-    nouvelle.sieges[3]!.paletteId = 'cyan-celeste';
+    nouvelle.sieges[3]!.paletteId = 'ardoise';
     nouvelle.topographie = 'un-continent';
     const tokHost = await makeToken('host5e', 'host5e');
     const l2 = await openLobbySocket(tokHost);
@@ -200,7 +200,7 @@ describe('LOBBY-5 · salle d\'attente 5 sièges', () => {
   });
 
   it("un humain peut joindre avec la couleur d'un bot configuré — le bot est réaffecté au démarrage (règle Erik 25/09)", async () => {
-    const cfg = config5(2); // sièges 3-5 bots : vert-emeraude, jaune-dor, violet-amethyste
+    const cfg = config5(2); // sièges 3-5 bots : vert-emeraude, jaune-dor, cuivre-ardent
     const code = await creerPartie5('host5k', cfg);
     // l'invité prend Vert Émeraude, palette du bot du siège 3 — ACCEPTÉ
     await joindre('inv1k', code, { paletteId: 'vert-emeraude' });

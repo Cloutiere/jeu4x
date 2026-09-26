@@ -20,7 +20,7 @@ import { CLES_JOUEURS, ORDRE_JOUEURS4, couleurBaseJoueur, suffixeCuit, suffixeCu
 export const ARTEFACT_IDS: string[] = Object.keys(ARTEFACTS.pool).filter((id) => !ARTEFACTS.pool[id]!.dlcOnly).sort();
 import type { TerrainId } from '@game/rules';
 
-/** Couleurs d'accent joueurs — palette officielle 7 factions + barbare
+/** Couleurs d'accent joueurs — palette officielle 6 factions + barbare
  *  (accents.json, décision Erik 20/09, HANDOFF-ACCENTS-7-FACTIONS) : tonalité
  *  BASE par faction (lisibilité des traits fins). Source unique : accents.ts ;
  *  plus aucun hex de faction codé en dur ici. */
@@ -742,7 +742,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const resourceIds = [...Object.keys(RESOURCES).sort(), RESOURCE_UNKNOWN];
   // Phase 7d (R-95) : variantes barbares (accent de repli rouge sang — accents.json).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -769,6 +769,9 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     // sélection suit la couleur CHOISIE par chaque joueur, plus l'index de
     // siège. Fallback : teinte runtime si le PNG d'une palette est absent.
     Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_guerrier_j${i + 1}`).then((t) => [pal, t] as const))),
+    // ARCHER ×6 (ASSETS-6COULEURS, Erik 26/09) : mêmes variantes cuites par
+    // palette que le guerrier (clôt la mission ARCHER-SVG suspendue).
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_archer_j${i + 1}`).then((t) => [pal, t] as const))),
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
@@ -794,12 +797,15 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   }
 
   // Variantes cuites PAR PALETTE (cf. interface) : la clé dit quel
-  // (type, paletteId) affiche le sprite cuit SANS teinte — 7 palettes 4
+  // (type, paletteId) affiche le sprite cuit SANS teinte — 6 palettes 4
   // tons (accents.json). Le barbare garde ses sprites dédiés (rouge déjà
   // cuit dans la base, R-95) ; sa palette sert aux rendus/camps.
   const cuites: Record<string, EntityTexture> = {};
   guerriersCuits.forEach(([pal, tex]) => {
     if (tex) cuites[`guerrier@${pal}`] = tex;
+  });
+  archersCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`archer@${pal}`] = tex;
   });
 
   return {

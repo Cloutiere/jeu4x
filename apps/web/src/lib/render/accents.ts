@@ -99,16 +99,19 @@ export interface Faction4 {
 const TONS4 = ['lightest', 'base', 'dark', 'darkest'] as const;
 
 export const FACTIONS4 = brut.factions4 as Readonly<Record<string, Faction4>>;
-/** Mapping joueur→faction (J1..J7 dans l'ordre, défaut non tranché par Erik
- *  — éditable dans accents.json). */
+/** Mapping joueur→faction (J1..J6 dans l'ordre — ASSETS-6COULEURS, décision
+ *  Erik 26/09 : Violet Améthyste et Cyan Céleste sortent de la table active). */
 export const ORDRE_JOUEURS4 = brut.ordre_joueurs4 as Readonly<string[]>;
 /** Faction du Barbare (décision Erik 23/09 : Rouge Royal). */
 export const FACTION_BARBARE4 = brut.barbare4 as string;
+/** Repli data-driven (D6) : paletteId d'une PARTIE EXISTANTE référençant une
+ *  palette retirée → faction de remplacement (violet/cyan → Ardoise). */
+export const REPLI_PALETTE4 = (brut.repli_palette4 ?? {}) as Readonly<Record<string, string>>;
 
 function valider4(data: typeof brut): void {
   const entrees = Object.entries(data.factions4 as Record<string, Faction4>);
-  if (entrees.length !== 7) {
-    throw new Error(`accents.json : factions4 — 7 factions attendues, ${entrees.length} trouvées`);
+  if (entrees.length !== 6) {
+    throw new Error(`accents.json : factions4 — 6 factions attendues, ${entrees.length} trouvées`);
   }
   for (const [cle, f] of entrees) {
     for (const ton of TONS4) {
@@ -120,8 +123,8 @@ function valider4(data: typeof brut): void {
       throw new Error(`accents.json : factions4.${cle} — les 4 tons doivent être distincts`);
     }
   }
-  if (ORDRE_JOUEURS4.length !== 7 || new Set(ORDRE_JOUEURS4).size !== 7) {
-    throw new Error('accents.json : ordre_joueurs4 — 7 factions distinctes attendues');
+  if (ORDRE_JOUEURS4.length !== 6 || new Set(ORDRE_JOUEURS4).size !== 6) {
+    throw new Error('accents.json : ordre_joueurs4 — 6 factions distinctes attendues');
   }
   for (const cle of ORDRE_JOUEURS4) {
     if (!FACTIONS4[cle]) {
@@ -131,21 +134,35 @@ function valider4(data: typeof brut): void {
   if (!FACTIONS4[FACTION_BARBARE4]) {
     throw new Error(`accents.json : barbare4 — faction « ${FACTION_BARBARE4} » inconnue`);
   }
+  for (const [ancienne, repli] of Object.entries(REPLI_PALETTE4)) {
+    if (FACTIONS4[ancienne]) {
+      throw new Error(`accents.json : repli_palette4 — « ${ancienne} » est encore une faction active`);
+    }
+    if (!FACTIONS4[repli]) {
+      throw new Error(`accents.json : repli_palette4 — repli « ${repli} » inconnu pour « ${ancienne} »`);
+    }
+  }
 }
 valider4(brut);
 
-/** Faction 4 tons d'un joueur : J1..J7 selon `ordre_joueurs4`. */
+/** Faction 4 tons d'un joueur : J1..J6 selon `ordre_joueurs4` ; au-delà
+ *  (p7 des parties anciennes), repli = la DERNIÈRE faction (Ardoise). */
 export function faction4DeJoueur(joueur: number): Faction4 {
-  return FACTIONS4[ORDRE_JOUEURS4[joueur - 1]!]!;
+  const index = Math.min(joueur - 1, ORDRE_JOUEURS4.length - 1);
+  return FACTIONS4[ORDRE_JOUEURS4[index]!]!;
 }
 
 /** Table plate consommée par les rendus (clé moteur : p1..p7 + barbarien).
  *  COULEUR DE BASE DU JOUEUR (demande Erik 23/09, GUERRIER-4TONS) : liée au
- *  SYSTÈME 4 TONS (factions4, tonalité `base`, ordre J1-J7 + barbare4) — les
+ *  SYSTÈME 4 TONS (factions4, tonalité `base`, ordre J1-J6 + barbare4) — les
  *  barres de PV, camps et traits fins suivent AUTOMATIQUEMENT la table éditée
- *  (l'ancienne table 3 gris ne sert plus que les assets non migrés). */
+ *  (l'ancienne table 3 gris ne sert plus que les assets non migrés). p6/p7
+ *  (parties anciennes) : repli Ardoise (D6). */
 export const PLAYER_COLORS: Record<string, number> = Object.fromEntries([
-  ...CLES_JOUEURS.map((cle, i) => [cle, hexEnNombre(FACTIONS4[ORDRE_JOUEURS4[i]!]!.base)]),
+  ...CLES_JOUEURS.map((cle, i) => [
+    cle,
+    hexEnNombre(FACTIONS4[ORDRE_JOUEURS4[Math.min(i, ORDRE_JOUEURS4.length - 1)]!]!.base),
+  ]),
   ['barbarien', hexEnNombre(FACTIONS4[FACTION_BARBARE4]!.base)],
 ]);
 
@@ -169,12 +186,16 @@ export function definirPalettesJoueurs(map: PalettesJoueurs | null): void {
 /** PaletteId (factions4) d'un propriétaire moteur : override de la partie
  *  courante, sinon le défaut par index de siège ; le barbare garde sa
  *  faction dédiée (barbare4). */
+/** PaletteId (factions4) d'un propriétaire : override de la partie courante
+ *  (repli D6 si la palette est retirée — violet/cyan → Ardoise), sinon le
+ *  défaut par index de siège (p7 des parties anciennes → Ardoise) ; le
+ *  barbare garde sa faction dédiée (barbare4). */
 export function paletteDe(owner: string): string {
   const override = palettesJeu[owner];
-  if (override) return override;
+  if (override) return REPLI_PALETTE4[override] ?? (FACTIONS4[override] ? override : ORDRE_JOUEURS4[ORDRE_JOUEURS4.length - 1]!);
   if (owner === 'barbarien') return FACTION_BARBARE4;
   const index = CLES_JOUEURS.indexOf(owner as (typeof CLES_JOUEURS)[number]);
-  return index >= 0 ? ORDRE_JOUEURS4[index]! : ORDRE_JOUEURS4[0]!;
+  return index >= 0 ? ORDRE_JOUEURS4[Math.min(index, ORDRE_JOUEURS4.length - 1)]! : ORDRE_JOUEURS4[0]!;
 }
 
 /** Couleur de BASE (tonalité lisibilité) d'un propriétaire — table 4 tons. */
@@ -184,8 +205,10 @@ export function couleurBaseJoueur(owner: string): number {
 }
 
 /** Suffixe de fichier des variantes cuites pour UNE PALETTE : index dans
- *  `ordre_joueurs4` → j1..j7 (les PNG cuits par le pipeline import_svg). */
+ *  `ordre_joueurs4` → j1..j6 (les PNG cuits par le pipeline import_svg) ;
+ *  palette retirée → repli D6 avant résolution. */
 export function suffixeCuitPalette(paletteId: string): string {
-  const index = ORDRE_JOUEURS4.indexOf(paletteId);
+  const resolu = REPLI_PALETTE4[paletteId] ?? paletteId;
+  const index = ORDRE_JOUEURS4.indexOf(resolu);
   return index >= 0 ? `j${index + 1}` : suffixeCuit('p1');
 }

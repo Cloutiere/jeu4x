@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * LOBBY-5 · D2 — Nuancier des 7 palettes 4 tons (accents.json, source
+   * LOBBY-5 · D2 — Nuancier des 6 palettes 4 tons (accents.json, source
    * unique via @game/shared). Les palettes PRISES sont grisées avec le nom
    * du preneur ; la sélection pilote l'accent en jeu (unités cuites, barres
    * de PV, anneaux, frontières).

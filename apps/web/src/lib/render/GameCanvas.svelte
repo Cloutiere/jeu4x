@@ -736,7 +736,10 @@
       let c = villageSprites.get(village.id);
       if (!c) {
         c = buildVillageContainer(village.id);
-        c.zIndex = 50;
+        // RETOUR ERIK 26/09 (ASSETS-6COULEURS) : le camp barbare est un DÉCOR
+        // de fond — les personnages passent DEVANT (z des unités ≥ 0 ; les
+        // structures bâties restent à 50, au-dessus).
+        c.zIndex = -100;
         entitiesLayer.addChild(c);
         villageSprites.set(village.id, c);
       }

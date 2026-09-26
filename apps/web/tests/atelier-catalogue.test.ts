@@ -73,10 +73,10 @@ describe('atelier — catalogue L0', () => {
     // Unités : textures.ts ne charge que les ids AVEC art (UNIT_IDS) — on exige
     // donc le catalogue pour chaque unité dont le PNG existe réellement.
     const attends: string[] = [];
-    // GUERRIER-4TONS (23/09) : le guerrier peint par Erik n'a PLUS de calque
-    // accent (couleurs cuites dans le SVG maître, variantes cuites J1-J7 +
-    // barbare) — base seule, comme les barbares ci-dessous.
-    const SANS_ACCENT = new Set(['guerrier']);
+    // ASSETS-6COULEURS (26/09) : guerrier ET archer sont les SVG peints
+    // d'Erik (un SVG par couleur, aucun calque accent) — base seule, comme
+    // les barbares ci-dessous.
+    const SANS_ACCENT = new Set(['guerrier', 'archer']);
     for (const id of Object.keys(UNIT_TYPES)) {
       if (!existsSync(path.join(ART_DIR, `unite_${id}.png`))) continue;
       attends.push(`unite_${id}`);

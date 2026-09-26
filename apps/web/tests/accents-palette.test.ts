@@ -63,16 +63,17 @@ describe('accents — palette officielle 7 factions + barbare', () => {
   });
 
   it('PLAYER_COLORS (table plate du moteur) = bases p1..p7 + barbarien', () => {
-    // GUERRIER-4TONS (23/09) : couleur de base du joueur = tonalité `base` du
-    // SYSTÈME 4 TONS (ordre_joueurs4, barbare4) — liée automatiquement.
+    // ASSETS-6COULEURS (26/09) : couleur de base du joueur = tonalité `base`
+    // du système 4 tons (ordre J1-J6, barbare4) ; p6/p7 (parties anciennes)
+    // → repli Ardoise (D6, rampe dérivée depuis l'ancien gris #44484E).
     expect(PLAYER_COLORS).toEqual({
       p1: 0x233a9d, // bleu saphir
       p2: 0xa62121, // rouge royal
       p3: 0x1a6a36, // vert émeraude
       p4: 0xd8a61c, // jaune d'or
-      p5: 0x60128c, // violet améthyste
-      p6: 0xd97b30, // cuivre ardent
-      p7: 0x00d2d2, // cyan céleste
+      p5: 0xd97b30, // cuivre ardent
+      p6: 0x44484e, // ardoise
+      p7: 0x44484e, // repli ardoise (parties anciennes)
       barbarien: 0xa62121, // barbare = rouge royal
     });
   });
@@ -85,15 +86,21 @@ describe('accents — palette officielle 7 factions + barbare', () => {
     expect(LISTE_FACTIONS).toHaveLength(8);
   });
 
-  it('système 4 tons (GUERRIER-4TONS, Erik 23/09) : 7 factions × 4 tons, ordre J1-J7, barbare = Rouge Royal', () => {
-    expect(Object.keys(FACTIONS4)).toHaveLength(7);
-    expect(ORDRE_JOUEURS4).toHaveLength(7);
+  it('système 4 tons, 6 couleurs (ASSETS-6COULEURS, Erik 26/09) : ordre J1-J6, barbare = Rouge Royal, ardoise dérivée', () => {
+    expect(Object.keys(FACTIONS4)).toHaveLength(6);
+    expect(ORDRE_JOUEURS4).toHaveLength(6);
+    // Les couleurs sorties (violet/cyan) ne reviennent pas, le repli est câblé.
+    expect(Object.keys(FACTIONS4)).not.toContain('violet-amethyste');
+    expect(Object.keys(FACTIONS4)).not.toContain('cyan-celeste');
+    expect(ORDRE_JOUEURS4[5]).toBe('ardoise');
     // J1 = Bleu Saphir (couleur de la référence, décision par défaut §2)
     expect(faction4DeJoueur(1).base.toLowerCase()).toBe('#233a9d');
     expect(faction4DeJoueur(1).darkest.toLowerCase()).toBe('#0a0f3d');
     // barbare = rouge royal (identique à J2, décision Erik 23/09)
     expect(FACTION_BARBARE4).toBe('rouge-royal');
     expect(FACTIONS4[FACTION_BARBARE4]).toEqual(faction4DeJoueur(2));
+    // p7 (parties anciennes) → repli Ardoise
+    expect(faction4DeJoueur(7).base.toLowerCase()).toBe('#44484e');
     // rampes linéaires : lightest > base > dark > darkest en luminance
     for (const f of Object.values(FACTIONS4)) {
       const lum = (h: string) => {

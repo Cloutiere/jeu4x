@@ -182,7 +182,7 @@
     eau: '#5b93c4',
     ocean: '#3f6fa3',
   };
-  // Palette officielle 7 factions + barbare (accents.json, décision Erik
+  // Palette officielle 6 factions + barbare (accents.json, décision Erik
   // 20/09) — tonalité BASE (lisibilité) ; le labo n'engage que 5 camps + le
   // barbare, mais toute la palette est définie d'un seul tenant.
   const COULEURS_CAMP: Record<string, string> = Object.fromEntries([

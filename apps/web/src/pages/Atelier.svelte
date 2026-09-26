@@ -354,7 +354,7 @@
   }
 
   // --- Sprites 2D : variantes d'accent joueur (teinte canvas) -----------------
-  // Palette officielle 7 factions + barbare (accents.json, décision Erik
+  // Palette officielle 6 factions + barbare (accents.json, décision Erik
   // 20/09) — tonalité BASE pour la teinte runtime ; les variantes CUITES
   // (PNG import_svg) prennent la main quand elles existent.
   const ACCENTS: Array<{ nom: string; couleur: string; cle: string }> = LISTE_FACTIONS.map((f) => ({

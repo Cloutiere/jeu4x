@@ -79,14 +79,13 @@
         r: 0,
       });
     }
-    // GUERRIER-4TONS (décision Erik 23/09) : démonstration du guerrier peint
-    // à la main (variantes cuites J1-J7, accents.json §ordre_joueurs4) sur les
-    // tuiles du nouveau style — unités SEULES (lecture individuelle, une par
-    // terrain) + une cohabitation 3 nations pour comparer les teintes côte à
-    // côte. La préview archer ci-dessus est PRÉSERVÉE (ajouter, ne pas
-    // remplacer). La variante barbare (`unite_guerrier_barbare.png`) n'est pas
-    // rendue ici : le barbare garde ses sprites dédiés au rendu (R-95) — elle
-    // se lit à l'atelier (fiche unite_guerrier_barbare).
+    // ASSETS-6COULEURS (décision Erik 26/09) : guerrier ET archer — les SVG
+    // peints par Erik (un par couleur, variantes cuites j1..j6, accents.json
+    // §ordre_joueurs4) posés sur les tuiles du nouveau style — unités SEULES
+    // (lecture individuelle, une par terrain) + une cohabitation 3 nations
+    // pour comparer les couleurs côte à côte. Barbare : le sprite peint
+    // d'Erik (unit_barbare.svg) + son camp (tuile_barbare.svg →
+    // village_barbare) sur la rangée du haut.
     const TERRAINS_DEMO: Record<string, string> = {
       '0,2': 'prairie',
       '1,2': 'plaine',
@@ -94,26 +93,46 @@
       '3,2': 'desert',
       '4,2': 'foret',
       '5,2': 'montagne',
-      '6,2': 'prairie',
-      '0,4': 'colline',
-      '1,4': 'colline',
+      '0,4': 'prairie',
+      '1,4': 'plaine',
+      '2,4': 'colline',
+      '3,4': 'desert',
+      '4,4': 'foret',
+      '5,4': 'montagne',
+      '0,6': 'prairie',
+      '7,0': 'prairie',
+      '6,0': 'plaine',
     };
     const POS_DEMO = [
       ['0,2', 'p1'], ['1,2', 'p2'], ['2,2', 'p3'], ['3,2', 'p4'],
-      ['4,2', 'p5'], ['5,2', 'p6'], ['6,2', 'p7'],
+      ['4,2', 'p5'], ['5,2', 'p6'],
     ] as const;
     POS_DEMO.forEach(([pos, owner], i) => {
       const [q, r] = pos.split(',').map(Number);
       units.push({ id: `d${i + 1}`, owner, type: 'guerrier', q, r });
     });
-    // Cohabitation multi-nations (3 nations côte à côte, tuile colline).
+    // Archer ×6 — même calibre guerrier (même hauteur de contenu à l'écran).
+    const POS_ARCHERS = [
+      ['0,4', 'p1'], ['1,4', 'p2'], ['2,4', 'p3'], ['3,4', 'p4'],
+      ['4,4', 'p5'], ['5,4', 'p6'],
+    ] as const;
+    POS_ARCHERS.forEach(([pos, owner], i) => {
+      const [q, r] = pos.split(',').map(Number);
+      units.push({ id: `d2${i + 1}`, owner, type: 'archer', q, r });
+    });
+    // Cohabitation multi-nations (3 nations côte à côte, tuile prairie).
     for (const [i, owner] of ['p1', 'p3', 'p5'].entries()) {
-      units.push({ id: `d1${i + 1}`, owner, type: 'guerrier', q: 0, r: 4 });
+      units.push({ id: `d1${i + 1}`, owner, type: 'guerrier', q: 0, r: 6 });
     }
+    // Barbare : unité peinte (owner « barbarien ») à côté de son camp.
+    units.push({ id: 'barb1', owner: 'barbarien', type: 'guerrier', q: 7, r: 0 });
     const terrainOverrides: Record<string, TerrainId> = Object.fromEntries(
       Object.entries(TERRAINS_DEMO).map(([k, t]) => [k, t as TerrainId]),
     );
-    return makeState({ width: 8, height: 8, units, cities: [], terrainOverrides });
+    return makeState({
+      width: 8, height: 8, units, cities: [], terrainOverrides,
+      villages: [{ q: 6, r: 0 }], // camp barbare (tuile_barbare d'Erik)
+    });
   }
 
   function contexteDuLabo(): ContexteMelee {
@@ -142,7 +161,7 @@
     contexteMelee.set(contexteDuLabo());
     recomputeVision(state); // brouillard : le joueur local voit autour de ses unités
     // GUERRIER-4TONS : la démonstration pose des unités d'AUTRES nations
-    // (variantes J1-J7) loin des unités « locales » — sans ça le brouillard
+    // (variantes J1-J6) loin des unités « locales » — sans ça le brouillard
     // les masquerait. Labo : la carte est entièrement visible.
     const toutesCases = Object.keys(state.map).sort();
     for (const p of Object.values(state.players)) {

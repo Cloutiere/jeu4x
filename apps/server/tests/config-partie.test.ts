@@ -18,7 +18,7 @@ function valide(overrides: Record<string, unknown> = {}): Record<string, unknown
       { type: 'bot', paletteId: 'rouge-royal' },
       { type: 'bot', paletteId: 'vert-emeraude' },
       { type: 'bot', paletteId: 'jaune-dor' },
-      { type: 'bot', paletteId: 'violet-amethyste' },
+      { type: 'bot', paletteId: 'cuivre-ardent' },
     ],
     civsAleatoires: false,
     topographie: 'archipel',
@@ -49,7 +49,7 @@ describe('ConfigPartie · validateur', () => {
       { type: 'zombie', paletteId: 'rouge-royal' },
       { type: 'bot', paletteId: 'vert-emeraude' },
       { type: 'bot', paletteId: 'jaune-dor' },
-      { type: 'bot', paletteId: 'violet-amethyste' },
+      { type: 'bot', paletteId: 'cuivre-ardent' },
     ] });
     expect(configPartieErreur(c)).toMatch(/siège 2|siège/i);
   });
@@ -92,7 +92,7 @@ describe('ConfigPartie · validateur', () => {
   });
 
   it('les 7 palettes d\'accents.json sont toutes acceptables', () => {
-    expect(CLES_PALETTES4).toHaveLength(7);
+    expect(CLES_PALETTES4).toHaveLength(6);
     const sieges = CLES_PALETTES4.slice(0, 5).map((paletteId, i) => ({ type: i === 0 ? 'humain' : 'bot', paletteId }));
     expect(configPartieErreur({ sieges, civsAleatoires: false, topographie: 'archipel' })).toBeNull();
   });
@@ -108,15 +108,15 @@ describe('ConfigPartie · validateur', () => {
 describe('ConfigPartie · règle des couleurs humain/bot (retour Erik 25/09)', () => {
   it("un humain qui prend la couleur d'un bot dépossède ce bot — réaffectation à la première palette libre", () => {
     const c = valide() as unknown as ReturnType<typeof configPartieDefaut>;
-    // l'hôte (humain) prend le Violet Améthyste du siège 5 (bot)
-    (c.sieges[0] as { paletteId: string }).paletteId = 'violet-amethyste';
+    // l'hôte (humain) prend le Cuivre Ardent du siège 5 (bot)
+    (c.sieges[0] as { paletteId: string }).paletteId = 'cuivre-ardent';
     const resolue = resoutConflitsPalettes(c);
-    expect((resolue.sieges[0] as { paletteId: string }).paletteId).toBe('violet-amethyste');
+    expect((resolue.sieges[0] as { paletteId: string }).paletteId).toBe('cuivre-ardent');
     const palettes = resolue.sieges.map((s) => (s as { paletteId: string }).paletteId);
     expect(new Set(palettes).size).toBe(5); // plus aucun doublon
     // sièges 2-4 inchangés ; le siège 5 reçoit la première palette libre
     expect(palettes[1]).toBe('rouge-royal');
-    expect(palettes[4]).toBe('bleu-saphir');
+    expect(palettes[4]).toBe('bleu-saphir'); // le bleu libéré par l'hôte
     expect(configPartieErreur(resolue)).toBeNull();
   });
 
@@ -138,7 +138,7 @@ describe('ConfigPartie · règle des couleurs humain/bot (retour Erik 25/09)', (
   });
 
   it('première palette libre : priorité à ordre_joueurs4 puis les autres', () => {
-    expect(premierePaletteLibre(new Set(['bleu-saphir', 'rouge-royal', 'vert-emeraude', 'jaune-dor', 'violet-amethyste']))).toBe('cuivre-ardent');
+    expect(premierePaletteLibre(new Set(['bleu-saphir', 'rouge-royal', 'vert-emeraude', 'jaune-dor', 'cuivre-ardent']))).toBe('ardoise');
     expect(premierePaletteLibre(new Set([...CLES_PALETTES4]))).toBeNull();
   });
 });

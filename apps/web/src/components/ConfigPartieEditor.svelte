@@ -2,7 +2,7 @@
   /**
    * LOBBY-5 — éditeur de la ConfigPartie (5 sièges) partagé par l'écran de
    * création et la salle d'attente. Type de siège (Humain/Bot), nuancier des
-   * 7 palettes 4 tons (prises grisées + nom du preneur — D2), civ par siège
+   * 6 palettes 4 tons (prises grisées + nom du preneur — D2), civ par siège
    * (désactivée si « Civilisations aléatoires » — D3), topographie (D4 —
    * l'existant du progen, liste data-driven TOPOGRAPHIES).
    * Édition LOCALE : le parent valide/seralise via onchange ; l'unicité est

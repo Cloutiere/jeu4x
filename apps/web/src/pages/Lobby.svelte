@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Page lobby — LOBBY-5 (demande d'Erik du 24/09) : UNE SEULE voie de
-   * création, 5 sièges systématiques (humains/bots), nuancier des 7 palettes
+   * création, 5 sièges systématiques (humains/bots), nuancier des 6 palettes
    * 4 tons, toggle « Civilisations aléatoires », topographie (l'existant du
    * progen), timer et publique/privée. Les cartes préfabriquées/miroir 1v1
    * quittent l'UI (accessibles au labo #/progen — D1). La jointure (liste

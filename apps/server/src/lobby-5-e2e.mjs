@@ -75,7 +75,7 @@ const config5 = {
     { type: 'humain', paletteId: 'rouge-royal', civId: null },
     { type: 'bot', paletteId: 'vert-emeraude', civId: null },
     { type: 'bot', paletteId: 'jaune-dor', civId: null },
-    { type: 'bot', paletteId: 'violet-amethyste', civId: null },
+    { type: 'bot', paletteId: 'cuivre-ardent', civId: null },
   ],
   civsAleatoires: false,
   topographie: 'archipel',

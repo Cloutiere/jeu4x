@@ -1,7 +1,30 @@
 {
   "_commentaire": "Profils d'import SVG (Erik désigne explicitement chaque fichier). cible.mode = 'unite' (256×320, ancré bas) | 'hex' (tuile 224×256 clippée + contour #2B2620). margeX/Haut/Bas en px de la cible. remplacements (variante CUITE) : paires source→cible explicites, une seule sortie. remplacementsPalette (PALETTE OFFICIELLE, décision Erik 20/09 — HANDOFF-ACCENTS-7-FACTIONS) : source → TONALITÉ (reflet|base|ombre) ; UNE variante par faction de apps/web/src/lib/render/accents.json (7 joueurs + barbare = 8), stems <stem>_j1.._j7,_barbare, sans calque accent. IMPORTANT : Erik fournit, le pipeline n'importe QUE ces fichiers-là.",
-  "guerrier-ref": {
-    "svg": "assets-src/modeles/guerrier_ref.svg",
+  "guerrier-6couleurs": {
+    "_doc": "ASSETS-6COULEURS (26/09) : un SVG PEINT par faction (mapping D1 : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise). Aucun recoloriage — la cuite = rendu direct du SVG. echelle 0,7765 = calibre guerrier (hauteur de contenu identique au maître).",
+    "svg": "new_units/guerrier/guerrier_bleu.svg",
+    "stem": "unite_guerrier",
+    "variantesFournies": {
+      "bleu-saphir": "new_units/guerrier/guerrier_bleu.svg",
+      "rouge-royal": "new_units/guerrier/guerrier_rouge.svg",
+      "vert-emeraude": "new_units/guerrier/guerrier_vert.svg",
+      "jaune-dor": "new_units/guerrier/guerrier_jaune.svg",
+      "cuivre-ardent": "new_units/guerrier/guerrier_orange.svg",
+      "ardoise": "new_units/guerrier/guerrier_ardoise.svg"
+    },
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 0.8808
+    }
+  },
+  "guerrier-base": {
+    "_doc": "Sprite de base unite_guerrier (fallback + pile) : le SVG bleu d'Erik supplanté au maître saphir (consigné, maître conservé en assets-src/modeles/guerrier_ref.svg).",
+    "svg": "new_units/guerrier/guerrier_bleu.svg",
     "stem": "unite_guerrier",
     "sansAccent": true,
     "cible": {
@@ -11,12 +34,21 @@
       "margeX": 28,
       "margeHaut": 12,
       "margeBas": 20,
-      "echelle": 0.7765
+      "echelle": 0.8808
     }
   },
-  "guerrier-4tons": {
-    "svg": "assets-src/modeles/guerrier_ref.svg",
-    "stem": "unite_guerrier",
+  "archer-6couleurs": {
+    "_doc": "Archer d'Erik ×6 (clôt ARCHER-SVG suspendu) — même calibre que le guerrier (même hauteur de contenu à l'écran).",
+    "svg": "new_units/archer/archer_bleu.svg",
+    "stem": "unite_archer",
+    "variantesFournies": {
+      "bleu-saphir": "new_units/archer/archer_bleu.svg",
+      "rouge-royal": "new_units/archer/archer_rouge.svg",
+      "vert-emeraude": "new_units/archer/archer_vert.svg",
+      "jaune-dor": "new_units/archer/archer_jaune.svg",
+      "cuivre-ardent": "new_units/archer/archer_orange.svg",
+      "ardoise": "new_units/archer/archer_ardoise.svg"
+    },
     "cible": {
       "mode": "unite",
       "w": 512,
@@ -24,13 +56,47 @@
       "margeX": 28,
       "margeHaut": 12,
       "margeBas": 20,
-      "echelle": 0.7765
-    },
-    "remplacementsPalette4": {
-      "#649EFF": "lightest",
-      "#233A9D": "base",
-      "#4571C4": "dark",
-      "#0D174F": "darkest"
+       "echelle": 0.8312
+    }
+  },
+  "archer-base": {
+    "_doc": "Sprite de base unite_archer : le SVG bleu d'Erik remplace le planche peintre (mission ARCHER-SVG clôturée).",
+    "svg": "new_units/archer/archer_bleu.svg",
+    "stem": "unite_archer",
+    "sansAccent": true,
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+       "echelle": 0.8312
+    }
+  },
+  "barbare-unite": {
+    "_doc": "D4 : unit_barbare.svg d'Erik remplace le guerrier barbare (unite_barbare_guerrier) — sprite peint cuit tel quel, HORS système J1-J6, aucune variante.",
+    "svg": "new_barbares/unit_barbare.svg",
+    "stem": "unite_barbare_guerrier",
+    "sansAccent": true,
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+       "echelle": 0.9674
+    }
+  },
+  "tuile-barbare": {
+    "_doc": "D4 : tuile du CAMP barbare (village_barbare) — la hutte bonus (hutte.png) est un asset distinct, intouchée. Mode tuile TUILES-SVG (hexagone + contour).",
+    "svg": "new_barbares/tuile_barbare.svg",
+    "stem": "village_barbare",
+    "cible": {
+      "mode": "tuile",
+      "w": 224,
+      "h": 256
     }
   },
   "tuile-prairie": {
@@ -104,5 +170,35 @@
       "w": 224,
       "h": 256
     }
+  },
+  "icone-nourriture": {
+    "svg": "new_icones/icone_nourriture.svg",
+    "stem": "icone_nourriture",
+    "cible": { "mode": "icone", "w": 64, "h": 64 }
+  },
+  "icone-production": {
+    "svg": "new_icones/icone_production.svg",
+    "stem": "icone_production",
+    "cible": { "mode": "icone", "w": 64, "h": 64 }
+  },
+  "icone-or": {
+    "svg": "new_icones/icone_or.svg",
+    "stem": "icone_or",
+    "cible": { "mode": "icone", "w": 64, "h": 64 }
+  },
+  "icone-sciences": {
+    "svg": "new_icones/icone_sciences.svg",
+    "stem": "icone_science",
+    "cible": { "mode": "icone", "w": 64, "h": 64 }
+  },
+  "icone-balance": {
+    "svg": "new_icones/icone_balance.svg",
+    "stem": "icone_commerce",
+    "cible": { "mode": "icone", "w": 64, "h": 64 }
+  },
+  "icone-culture": {
+    "svg": "new_icones/icone_culture.svg",
+    "stem": "icone_culture",
+    "cible": { "mode": "icone", "w": 64, "h": 64 }
   }
 }
