@@ -367,6 +367,8 @@ export function fertilityHeatmap(map: LoadedMap, settings?: Partial<ProgenSettin
 // Réexports utiles au serveur et au labo.
 export { resolveProgenSettings, DEFAULT_PROGEN_SETTINGS } from './settings.js';
 export type { ProgenSettings, StartPlacementId } from './settings.js';
+export { TOPOGRAPHIES, topographieParId } from './settings.js';
+export type { Topographie } from './settings.js';
 export { guaranteeResourceCoverage } from './mirror.js';
 export { forceSpawnNeighborhood, purgeResourcesNear, spawnNeighborhoodComposition, productiveFreeTile } from './mirror.js';
 export type { StartPlacementStrategy, PlacementOutput, PlacementReport } from './mirror.js';

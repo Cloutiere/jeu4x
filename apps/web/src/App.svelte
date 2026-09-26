@@ -11,6 +11,7 @@
   import { session, loadSession } from './lib/session.js';
   import Login from './pages/Login.svelte';
   import Lobby from './pages/Lobby.svelte';
+  import Attente from './pages/Attente.svelte';
   import Game from './pages/Game.svelte';
   import Join from './pages/Join.svelte';
   import Debug from './pages/Debug.svelte';
@@ -23,6 +24,7 @@
   type Route =
     | { page: 'login' }
     | { page: 'lobby' }
+    | { page: 'attente'; code: string }
     | { page: 'game'; code: string }
     | { page: 'join'; code: string }
     | { page: 'debug'; code: string }
@@ -40,6 +42,8 @@
     if (hash === '/atelier') return { page: 'atelier' };
     if (hash === '/labo-combat') return { page: 'labo-combat' };
     if (hash === '/labo-rendu') return { page: 'labo-rendu' };
+    const attente = /^\/attente\/([A-Z0-9]{6})$/.exec(hash);
+    if (attente) return { page: 'attente', code: attente[1]! };
     const game = /^\/game\/([A-Z0-9]{6})$/.exec(hash);
     if (game) return { page: 'game', code: game[1]! };
     const join = /^\/join\/([A-Z0-9]{6})$/.exec(hash);
@@ -94,6 +98,9 @@
   <Login />
 {:else if route.page === 'lobby'}
   <Lobby />
+{:else if route.page === 'attente'}
+  <!-- LOBBY-5 : salle d'attente (config éditable par l'hôte, temps réel). -->
+  <Attente code={route.code} />
 {:else if route.page === 'game'}
   <Game code={route.code} />
 {:else if route.page === 'debug'}

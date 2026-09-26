@@ -17,6 +17,26 @@
  *  (l'équité vient du PLACEMENT, pas de la géométrie). */
 export type StartPlacementId = 'mirror1v1' | 'libreMulti';
 
+/** LOBBY-5 · D4 — topographies proposées à la création : l'EXISTANT du mode
+ *  libre multi (le sélecteur `continents` du labo #/progen, rien de nouveau).
+ *  Data-driven : la liste du lobby et le validateur la lisent — ajouter une
+ *  topographie = éditer ce tableau. */
+export interface Topographie {
+  id: string;
+  nom: string;
+  continents: 1 | 2 | 3;
+}
+
+export const TOPOGRAPHIES: Topographie[] = [
+  { id: 'un-continent', nom: 'Un continent (pangée)', continents: 1 },
+  { id: 'deux-continents', nom: 'Deux continents (rift + isthme)', continents: 2 },
+  { id: 'archipel', nom: 'Archipel (îlots, défaut)', continents: 3 },
+];
+
+export function topographieParId(id: string): Topographie | undefined {
+  return TOPOGRAPHIES.find((t) => t.id === id);
+}
+
 export interface ProgenSettings {
   /** Nombre de joueurs visés — 2 pour mirror1v1 ; 2-5 pour regionalMulti futur. */
   playerCount: number;

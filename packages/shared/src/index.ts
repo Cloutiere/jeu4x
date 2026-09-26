@@ -11,6 +11,21 @@ import type { CityId, GameEvent, GameState, HutReward, Order, PlayerId, SpyActio
 
 export type { CityId, GameEvent, GameState, HutReward, Order, PlayerId, SpyActionKind, Unit, UnitId };
 
+/** LOBBY-5 — config structurée à 5 sièges + validateur dédié (avant handlers). */
+import type { ConfigPartie } from './config.js';
+export {
+  CLES_PALETTES4,
+  ORDRE_PALETTES4,
+  PALETTES4,
+  nomPalette4,
+  SIEGES_PAR_PARTIE,
+  configPartieErreur,
+  configPartieDefaut,
+  premierePaletteLibre,
+  resoutConflitsPalettes,
+} from './config.js';
+export type { ConfigPartie, SiegeConfig } from './config.js';
+
 /** Version du protocole — incrémenter à toute rupture de compatibilité. */
 export const PROTO_VERSION = 1;
 
@@ -47,6 +62,11 @@ export interface GameCreationSettings {
   /** Chantier BOT-SOLO : civilisation du bot ('random'/absent = tirage
    *  seedé par la partie, R-80). Réutilise le choix de civ 7n côté serveur. */
   botCivId?: string;
+  /** LOBBY-5 · D1/D8 : la config structurée à 5 sièges (humains/bots,
+   *  paletteId par siège, civs aléatoires, topographie). Champ ADDITIF :
+   *  absent sur les parties créées avant la mission (flux historique 1v1
+   *  inchangé — testé) ; présent ⇒ nouvelle voie de création unique. */
+  config?: ConfigPartie;
 }
 
 export interface PlayerInfo {
@@ -62,6 +82,12 @@ export interface GamePlayerInfo extends PlayerInfo {
   /** Chantier BOT-SOLO : joueur bot interne (pas de socket — ses ordres sont
    *  générés par le GameDO à la résolution). */
   bot?: boolean;
+  /** LOBBY-5 · D2/D5 : palette d'accent 4 tons choisie (clé de
+   *  `factions4` dans accents.json) — pilote TOUT l'accent en jeu (unités
+   *  cuites, barres PV, anneaux, frontières). Champ META (pas de GameState). */
+  paletteId?: string;
+  /** LOBBY-5 : index du siège dans `config.sieges` (0-based) — méta lobby. */
+  siege?: number;
 }
 
 export type GameStatus = 'waiting' | 'active' | 'finished';
@@ -71,8 +97,9 @@ export interface GameSummary {
   status: GameStatus;
   isPublic: boolean;
   /** 7n : la civ choisie (optionnelle — affichage lobby) accompagne chaque joueur.
-   *  Chantier BOT-SOLO : `bot: true` marque le joueur bot (badge « solo »). */
-  players: Array<PlayerInfo & { civId?: string; bot?: boolean }>;
+   *  Chantier BOT-SOLO : `bot: true` marque le joueur bot (badge « solo »).
+   *  LOBBY-5 : `paletteId`/`siege` — couleur choisie + index de siège. */
+  players: Array<PlayerInfo & { civId?: string; bot?: boolean; paletteId?: string; siege?: number }>;
   settings: GameCreationSettings;
   turn: number;
   /** Création, epoch ms (méta lobby — jamais dans le GameState moteur). */
@@ -118,10 +145,20 @@ export type ClientToServerMessage = ProtoMessage &
     | { type: 'CreateGame'; settings: GameCreationSettings }
     /** 7n · R-145 : `civId` — choix de civilisation du joueur B au join.
      *  Calibrage canon (Erik 06/09) : la Merveille Antique de l'Égypte est
-     *  tirée au RNG seedé par le MOTEUR — plus aucun choix client. */
-    | { type: 'JoinGame'; code: string; civId?: string }
+     *  tirée au RNG seedé par le MOTEUR — plus aucun choix client.
+     *  LOBBY-5 · D2 : `paletteId` — couleur choisie au join (unicité
+     *  serveur ; collision → refus explicite). */
+    | { type: 'JoinGame'; code: string; civId?: string; paletteId?: string }
     | { type: 'ListGames' }
     | { type: 'AbandonGame'; code: string }
+    /** LOBBY-5 · D6 : l'hôte modifie sa config tant que la partie attend
+     *  (types de sièges, couleurs, civs de bots, topographie — même
+     *  validateur que la création ; sièges humains occupés préservés). */
+    | { type: 'UpdateGameConfig'; code: string; config: ConfigPartie }
+    /** LOBBY-5 · D6 : l'hôte verrouille la config et démarre — les bots
+     *  remplissent leurs sièges, les civs aléatoires sont tirées (seedé,
+     *  uniques), l'état initial est créé (paletteId par joueur inclus). */
+    | { type: 'StartGame'; code: string }
   );
 
 // ---------------------------------------------------------------------------

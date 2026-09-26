@@ -14,7 +14,7 @@
 import { Assets, Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
 import { ARTEFACTS, RESOURCES, RESOURCE_UNKNOWN, UNIT_TYPES } from '@game/rules';
-import { CLES_JOUEURS, suffixeCuit } from './accents.js';
+import { CLES_JOUEURS, ORDRE_JOUEURS4, couleurBaseJoueur, suffixeCuit, suffixeCuitPalette } from './accents.js';
 
 /** 7o · R-151 : les 6 artefacts du jeu de base (DLC jamais générés). */
 export const ARTEFACT_IDS: string[] = Object.keys(ARTEFACTS.pool).filter((id) => !ARTEFACTS.pool[id]!.dlcOnly).sort();
@@ -25,9 +25,13 @@ import type { TerrainId } from '@game/rules';
  *  BASE par faction (lisibilité des traits fins). Source unique : accents.ts ;
  *  plus aucun hex de faction codé en dur ici. */
 export { PLAYER_COLORS } from './accents.js';
-import { couleurAccent } from './accents.js';
+/** Couleur de BASE du joueur (barres de PV, camps, traits fins) — GUERRIER-
+ *  4TONS (demande Erik 23/09) : liée au système 4 tons (factions4.base).
+ *  LOBBY-5 · D5 : la palette est CELLE CHOISIE PAR LE JOUEUR au lobby
+ *  (override par partie installé via definirPalettesJoueurs) ; sans override
+ *  (labos, parties anciennes) : défaut par index de siège (p1 → J1…). */
 export function playerColor(engineId: string): number {
-  return couleurAccent(engineId, 'base');
+  return couleurBaseJoueur(engineId);
 }
 
 const OUTLINE = 0x2b2620; // gris-brun très sombre (SPEC-ART §4)
@@ -759,11 +763,12 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     entityOrFallback('hutte', fallback.hutte),
     Promise.all(ARTEFACT_IDS.map((id) => entityOrFallback(`artefact_${id}`, fallback.artefacts[id]!).then((t) => [id, t] as const))),
     optionalEntity('unite_colonFondation'),
-    // VarianteS CUITES par propriétaire (décision Erik 20/09, étendue aux 7
-    // factions le même jour — accents.json) : le guerrier importé porte la
-    // palette de son propriétaire CUITE dans le PNG — rendu SANS teinte.
-    // Fallback : teinte runtime si le PNG d'un owner est absent (compat).
-    Promise.all(CLES_JOUEURS.map((cle) => optionalEntity(`unite_guerrier_${suffixeCuit(cle)}`).then((t) => [cle, t] as const))),
+    // VarianteS CUITES par PALETTE (LOBBY-5 · D5, étend la décision Erik
+    // 20/09) : le guerrier importé porte la palette CUITE dans le PNG —
+    // rendu SANS teinte. Clé = `<type>@<paletteId>` (factions4) : la
+    // sélection suit la couleur CHOISIE par chaque joueur, plus l'index de
+    // siège. Fallback : teinte runtime si le PNG d'une palette est absent.
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_guerrier_j${i + 1}`).then((t) => [pal, t] as const))),
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
@@ -788,13 +793,13 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     if (!unitsFinales[id]) unitsFinales[id] = unitsFinales.guerrier!;
   }
 
-  // Variantes cuites par propriétaire (cf. interface) : la clé dit quel
-  // (type, propriétaire) affiche le sprite cuit SANS teinte — 7 factions
-  // (accents.json). Le barbare garde ses sprites dédiés (rouge déjà cuit
-  // dans la base, R-95) ; sa palette 3 teintes sert aux rendus/camps.
+  // Variantes cuites PAR PALETTE (cf. interface) : la clé dit quel
+  // (type, paletteId) affiche le sprite cuit SANS teinte — 7 palettes 4
+  // tons (accents.json). Le barbare garde ses sprites dédiés (rouge déjà
+  // cuit dans la base, R-95) ; sa palette sert aux rendus/camps.
   const cuites: Record<string, EntityTexture> = {};
-  guerriersCuits.forEach(([cle, tex], i) => {
-    if (tex) cuites[`guerrier@${CLES_JOUEURS[i]}`] = tex;
+  guerriersCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`guerrier@${pal}`] = tex;
   });
 
   return {

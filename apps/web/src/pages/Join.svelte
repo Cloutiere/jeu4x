@@ -9,6 +9,7 @@
   import { apiBase } from '../lib/net.js';
   import { loadSession } from '../lib/session.js';
   import CivPicker from '../components/CivPicker.svelte';
+  import Nuancier from '../components/Nuancier.svelte';
 
   let { code }: { code: string } = $props();
 
@@ -21,6 +22,9 @@
   // Calibrage canon (Erik 06/09) : la Merveille Antique de l'Égypte est tirée
   // par le moteur — plus aucun choix de merveille.
   let joinCiv = $state<string | null>('rome');
+  // LOBBY-5 · D2 : la couleur (palette 4 tons) est choisie au join — unicité
+  // serveur (refus explicite si prise entre-temps).
+  let joinPalette = $state<string | null>(null);
   let sessionReady = $state(false);
 
   $effect(() => {
@@ -48,8 +52,8 @@
         }),
       );
       client = c;
-      // 7n : le join attend le CHOIX de la civ (bouton « Rejoindre »).
-      message = `Choisissez votre civilisation pour rejoindre ${current}.`;
+      // 7n : le join attend le CHOIX de la civ ; LOBBY-5 : + la COULEUR.
+      message = `Choisissez votre couleur et votre civilisation pour rejoindre ${current}.`;
     })();
   });
 
@@ -57,7 +61,7 @@
     if (!client) return;
     // Le message part même si le socket n'est pas encore ouvert : net.ts
     // le met en file et l'envoie à l'ouverture.
-    client.join(code, joinCiv ?? undefined);
+    client.join(code, joinCiv ?? undefined, joinPalette ?? undefined);
   }
 
   onDestroy(() => {
@@ -73,8 +77,10 @@
   <main class="joinciv">
     <h1>Rejoindre la partie {code}</h1>
     <p>{message}</p>
+    <p>Couleur (les prises sont grisées par le serveur — unicité garantie) :</p>
+    <Nuancier value={joinPalette} onchange={(p) => { joinPalette = p; }} />
     <CivPicker value={joinCiv} onchange={(civ) => { joinCiv = civ; }} compact />
-    <button type="button" class="confirm" onclick={confirmJoin}>Rejoindre avec cette civilisation</button>
+    <button type="button" class="confirm" onclick={confirmJoin} disabled={!joinPalette}>Rejoindre avec cette couleur et cette civilisation</button>
   </main>
 {:else}
   <p class="loading">{error ?? message}</p>

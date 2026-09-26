@@ -148,3 +148,44 @@ export const PLAYER_COLORS: Record<string, number> = Object.fromEntries([
   ...CLES_JOUEURS.map((cle, i) => [cle, hexEnNombre(FACTIONS4[ORDRE_JOUEURS4[i]!]!.base)]),
   ['barbarien', hexEnNombre(FACTIONS4[FACTION_BARBARE4]!.base)],
 ]);
+
+// ---------------------------------------------------------------------------
+// LOBBY-5 · D5 — LA PALETTE CHOISIE PILOTE L'ACCENT EN JEU. Aujourd'hui la
+// couleur suit l'INDEX du siège (p1 → J1…) ; désormais la palette de chaque
+// joueur est CELLE QU'IL A CHOISIE au lobby (paletteId, source accents.json).
+// `definirPalettesJoueurs` est appelée une fois par partie (GameCanvas, au
+// Welcome : engineId → paletteId) ; sans override (labos, parties anciennes),
+// le défaut reste l'index de siège — zéro changement des appelants.
+
+/** Override PAR PARTIE : engineId moteur (« p1 »..) → paletteId (factions4). */
+type PalettesJoueurs = Record<string, string>;
+let palettesJeu: PalettesJoueurs = {};
+
+/** Installe la table paletteId de la partie courante (null = réinitialise). */
+export function definirPalettesJoueurs(map: PalettesJoueurs | null): void {
+  palettesJeu = map ? { ...map } : {};
+}
+
+/** PaletteId (factions4) d'un propriétaire moteur : override de la partie
+ *  courante, sinon le défaut par index de siège ; le barbare garde sa
+ *  faction dédiée (barbare4). */
+export function paletteDe(owner: string): string {
+  const override = palettesJeu[owner];
+  if (override) return override;
+  if (owner === 'barbarien') return FACTION_BARBARE4;
+  const index = CLES_JOUEURS.indexOf(owner as (typeof CLES_JOUEURS)[number]);
+  return index >= 0 ? ORDRE_JOUEURS4[index]! : ORDRE_JOUEURS4[0]!;
+}
+
+/** Couleur de BASE (tonalité lisibilité) d'un propriétaire — table 4 tons. */
+export function couleurBaseJoueur(owner: string): number {
+  const f = FACTIONS4[paletteDe(owner)] ?? FACTIONS4[ORDRE_JOUEURS4[0]!]!;
+  return hexEnNombre(f.base);
+}
+
+/** Suffixe de fichier des variantes cuites pour UNE PALETTE : index dans
+ *  `ordre_joueurs4` → j1..j7 (les PNG cuits par le pipeline import_svg). */
+export function suffixeCuitPalette(paletteId: string): string {
+  const index = ORDRE_JOUEURS4.indexOf(paletteId);
+  return index >= 0 ? `j${index + 1}` : suffixeCuit('p1');
+}

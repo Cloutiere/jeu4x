@@ -26,6 +26,7 @@ import {
   applyMapEntities,
   migrateState,
   resolveTurn,
+  topographieParId,
   createTraceCollector,
   formaterTrace,
   // HANDOFF-TRACE-RESOLUTION · trace de résolution (vrai jeu — debug/admin).
@@ -47,7 +48,7 @@ import {
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, LoadedMap, Order, PlayerId, ProgenReport, UnitId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
-import type { ClientToServerMessage, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
+import type { ClientToServerMessage, ConfigPartie, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
 import { botPolicy, botTurnSeed } from './botPolicy.js';
@@ -64,9 +65,10 @@ const ENGINE_IDS: EnginePlayerId[] = ['p1', 'p2', 'p3', 'p4', 'p5'];
  * réveil à froid). Retourne aussi le rapport de génération (procedural-40
  * uniquement) à consigner dans `meta.progen` (dump admin).
  */
-/** Nombre de sièges visé (2-5, défaut 2 — parties existantes). */
+/** Nombre de sièges visé (2-5, défaut 2 — parties existantes). LOBBY-5 : les
+ *  parties nouvelle forme portent la config structurée (5 sièges). */
 export function siegesDe(settings: GameCreationSettings): number {
-  return Math.max(2, Math.min(5, Math.round(settings.playerCount ?? 2)));
+  return Math.max(2, Math.min(5, Math.round(settings.config?.sieges.length ?? settings.playerCount ?? 2)));
 }
 
 function loadMapForGame(settings: GameCreationSettings, seed: number): { map: LoadedMap; report?: ProgenReport } {
@@ -74,7 +76,14 @@ function loadMapForGame(settings: GameCreationSettings, seed: number): { map: Lo
     // CARTE-MULTI : le nombre de sièges pilote la stratégie de génération
     // (2 = miroir 1v1 historique, 3-5 = libre sans symétrie — même seed →
     // même carte, rejouable au réveil à froid).
-    const { map, report } = generateProceduralMap(seed, { playerCount: siegesDe(settings) });
+    // LOBBY-5 · D4 : la topographie choisie par le créateur (l'EXISTANT du
+    // progen — sélecteur `continents` du labo) est respectée par la
+    // génération ; parties sans config → défauts inchangés.
+    const topo = settings.config ? topographieParId(settings.config.topographie) : undefined;
+    const { map, report } = generateProceduralMap(seed, {
+      playerCount: siegesDe(settings),
+      ...(topo ? { continents: topo.continents } : {}),
+    });
     return { map, report };
   }
   // D3 : les cartes préfabriquées portent exactement 2 spawns — le lobby
@@ -97,6 +106,11 @@ export interface GamePlayer {
    *  ses ordres sont générés par le GameDO à la résolution (botPolicy, L1).
    *  Champ META uniquement (aucun champ GameState — pas de migration). */
   bot?: boolean;
+  /** LOBBY-5 · D2/D5 : palette d'accent 4 tons choisie au lobby — le client
+   *  la résout en variante cuite + couleur (accents.json, source unique). */
+  paletteId?: string;
+  /** LOBBY-5 : index du siège dans `config.sieges` (méta lobby). */
+  siege?: number;
 }
 
 export interface GameMeta {
@@ -445,6 +459,10 @@ export class GameDO {
         return this.handleInit(request);
       case '/internal/join':
         return this.handleJoin(request);
+      case '/internal/configurerJoueurs':
+        return this.handleConfigurerJoueurs(request);
+      case '/internal/leave':
+        return this.handleLeave(request);
       case '/internal/abandon':
         return this.handleAbandon(request);
       case '/internal/admin':
@@ -472,7 +490,7 @@ export class GameDO {
   private async handleInit(request: Request): Promise<Response> {
     const body = await this.readJson<{
       code: string;
-      host: { id: PlayerId; name: string; civId?: string };
+      host: { id: PlayerId; name: string; civId?: string; paletteId?: string; siege?: number };
       settings: GameCreationSettings;
       isPublic: boolean;
       seed: number;
@@ -494,6 +512,8 @@ export class GameDO {
         name: body.host.name,
         engineId: 'p1',
         ...(body.host.civId && CIVILIZATIONS.civs[body.host.civId] ? { civId: body.host.civId } : {}),
+        ...(body.host.paletteId ? { paletteId: body.host.paletteId } : {}),
+        ...(typeof body.host.siege === 'number' ? { siege: body.host.siege } : {}),
       }],
       settings: body.settings,
       seed: body.seed >>> 0,
@@ -508,7 +528,7 @@ export class GameDO {
    *  Chantier BOT-SOLO : le join peut porter le JOUEUR BOT (création solo —
    *  `bot: true`, id réservé 'bot', pas de session ni de socket). */
   private async handleJoin(request: Request): Promise<Response> {
-    const body = await this.readJson<{ player: { id: PlayerId; name: string; civId?: string; bot?: boolean } }>(request);
+    const body = await this.readJson<{ player: { id: PlayerId; name: string; civId?: string; bot?: boolean; paletteId?: string; siege?: number }; demarrageManuel?: boolean }>(request);
     if (!body?.player) return jsonResponse({ error: 'badRequest' }, 400);
     if (!this.meta) return jsonResponse({ error: 'notFound' }, 404);
     if (this.meta.status !== 'waiting') return jsonResponse({ error: 'gameFull' }, 409);
@@ -531,10 +551,14 @@ export class GameDO {
       engineId,
       ...(civId ? { civId } : {}),
       ...(body.player.bot === true ? { bot: true } : {}),
+      ...(body.player.paletteId ? { paletteId: body.player.paletteId } : {}),
+      ...(typeof body.player.siege === 'number' ? { siege: body.player.siege } : {}),
     });
     // La partie démarre au DERNIER siège rempli (1v1 : le premier join —
     // comportement inchangé ; multi : l'état n'est créé qu'à la fin).
-    if (this.meta.players.length >= siegesDe(this.meta.settings)) this.meta.status = 'active';
+    // LOBBY-5 · D6 : en salle d'attente structurée, le démarrage est l'ACTE
+    // DE L'HÔTE (StartGame) — un remplissage complet n'active pas la partie.
+    if (!body.demarrageManuel && this.meta.players.length >= siegesDe(this.meta.settings)) this.meta.status = 'active';
 
     if (this.meta.status !== 'active') {
       // CARTE-MULTI : salle d'attente incomplète — l'état moteur sera créé au
@@ -562,6 +586,47 @@ export class GameDO {
     await this.scheduleTimer();
     this.broadcast((playerId) => this.snapshotFor(playerId, null));
     return jsonResponse({ ok: true });
+  }
+
+  /**
+   * LOBBY-5 · StartGame étape 1 — le LobbyDO applique les civs finales
+   * (tirage seedé si `civsAleatoires`) et les palettes sur les joueurs DÉJÀ
+   * joints, AVANT que les bots ne remplissent leurs sièges (le dernier join
+   * crée l'état initial et consomme `civSetup`). Idempotent, `waiting` seul.
+   */
+  private async handleConfigurerJoueurs(request: Request): Promise<Response> {
+    const body = await this.readJson<{ joueurs: Array<{ id: PlayerId; civId?: string; paletteId?: string }>; config?: unknown }>(request);
+    if (!this.meta) return jsonResponse({ error: 'notFound' }, 404);
+    if (this.meta.status !== 'waiting') return jsonResponse({ error: 'badPhase' }, 409);
+    if (!Array.isArray(body?.joueurs)) return jsonResponse({ error: 'badRequest' }, 400);
+    // LOBBY-5 · D6 : l'hôte a pu éditer la config au lobby depuis la création
+    // (topographie…) — le GameDO aligne SA copie avant la création de l'état.
+    // (Le LobbyDO a déjà fait tourner le validateur dédié — confié.)
+    if (body.config && typeof body.config === 'object') {
+      this.meta.settings = { ...this.meta.settings, config: body.config as ConfigPartie };
+    }
+    for (const j of body.joueurs) {
+      const p = this.meta.players.find((q) => q.id === j.id);
+      if (!p) continue;
+      if (j.civId && CIVILIZATIONS.civs[j.civId]) p.civId = j.civId;
+      if (j.paletteId) p.paletteId = j.paletteId;
+    }
+    await this.state.storage.put({ meta: this.meta });
+    return jsonResponse({ ok: true });
+  }
+
+  /** LOBBY-5 · D6 — un invité quitte la salle d'attente : son siège redevient
+   *  libre (parties nouvelle forme uniquement ; l'abandon historique de la
+   *  partie entière reste géré par le LobbyDO). */
+  private async handleLeave(request: Request): Promise<Response> {
+    const body = await this.readJson<{ byPlayerId: PlayerId }>(request);
+    if (!this.meta) return jsonResponse({ error: 'notFound' }, 404);
+    if (this.meta.status !== 'waiting') return jsonResponse({ error: 'badPhase' }, 409);
+    if (body?.byPlayerId === this.meta.hostId) return jsonResponse({ error: 'badRequest' }, 400);
+    const avant = this.meta.players.length;
+    this.meta.players = this.meta.players.filter((p) => p.id !== body?.byPlayerId);
+    await this.state.storage.put({ meta: this.meta });
+    return jsonResponse({ ok: true, removed: avant - this.meta.players.length });
   }
 
   /**

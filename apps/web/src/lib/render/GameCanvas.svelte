@@ -20,6 +20,7 @@
   import type { Playback } from './playback.js';
   import { Camera } from './camera.js';
   import { loadTextures, playerColor } from './textures.js';
+  import { definirPalettesJoueurs, paletteDe } from './accents.js';
   import type { GameTextures } from './textures.js';
   import { HEX_SIZE, hexesInRect, mapBounds, screenToHex, poseVueVillePour, hexSousEcranVueVille, ZOOM_DEPART } from './hexView.js';
   import type { PoseVueVille } from './hexView.js';
@@ -394,6 +395,12 @@
     scene.state = v.state;
     scene.myId = myEngineId(v);
     scene.orders = v.orders;
+    // LOBBY-5 · D5 : la palette de CHAQUE joueur est celle qu'il a choisie
+    // au lobby (Welcome.players) — installée AVANT tout rebuild de sprites :
+    // unités cuites, barres PV, anneaux, frontières suivent la couleur.
+    definirPalettesJoueurs(
+      Object.fromEntries(v.players.filter((p) => p.paletteId).map((p) => [p.engineId, p.paletteId!])),
+    );
     // FLECHE-MOUVEMENT : le pathfinding de survol est caché PAR VUE — un
     // nouvel état (unités déplacées, fog évolué) purge le cache.
     hoverCache.purge();
@@ -822,9 +829,10 @@
         : textures!.units[type];
     if (!tex) return c; // type d'unité sans placeholder (ne devrait pas arriver en v1)
     const color = playerColor(owner);
-    // Variante CUITE par propriétaire (décision Erik 20/09 : ex. guerrier@p1,
-    // rouge cuit dans le PNG par import_svg) — sprite unique SANS teinte.
-    const cuite = textures!.cuites?.[`${type}@${owner}`];
+    // Variante CUITE PAR PALETTE (LOBBY-5 · D5 : ex. guerrier@bleu-saphir —
+    // la palette choisie par le propriétaire, plus l'index de siège) —
+    // sprite unique SANS teinte. Fallback clé historique `@pN` (compat).
+    const cuite = textures!.cuites?.[`${type}@${paletteDe(owner)}`] ?? textures!.cuites?.[`${type}@${owner}`];
     // CALIBRATION-UNITES : échelle par type — la hauteur écran vise
     // `hauteurUnitePx(HEX_SIZE)` × ajustement du type (calibre = guerrier
     // Recraft), quel que soit le ratio du PNG. Ancrage PIEDS (0.5,1)+PIEDS_Y.

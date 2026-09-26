@@ -1,14 +1,21 @@
 <script lang="ts">
-  // Page lobby (L6) : créer une partie, rejoindre par code ou via la liste,
-  // mes parties, abandon. Chantier BOT-SOLO : case « Partie solo (contre le
-  // bot) » — création avec p2 = bot, démarrage immédiat, badge « solo ».
+  /**
+   * Page lobby — LOBBY-5 (demande d'Erik du 24/09) : UNE SEULE voie de
+   * création, 5 sièges systématiques (humains/bots), nuancier des 7 palettes
+   * 4 tons, toggle « Civilisations aléatoires », topographie (l'existant du
+   * progen), timer et publique/privée. Les cartes préfabriquées/miroir 1v1
+   * quittent l'UI (accessibles au labo #/progen — D1). La jointure (liste
+   * publique ou code) passe par un panneau de choix couleur + civ.
+   */
   import { onDestroy } from 'svelte';
-  import type { MapId } from '@game/shared';
-  import { CIVILIZATIONS } from '@game/rules';
+  import type { ConfigPartie } from '@game/shared';
+  import { CIVILIZATIONS, TOPOGRAPHIES } from '@game/rules';
+  import { configPartieDefaut, SIEGES_PAR_PARTIE } from '@game/shared';
   import { createLobbyClient } from '../lib/lobbyClient.js';
   import { logout, session } from '../lib/session.js';
-  import CivPicker from '../components/CivPicker.svelte';
   import { civName } from '../lib/labels.js';
+  import ConfigPartieEditor from '../components/ConfigPartieEditor.svelte';
+  import Nuancier from '../components/Nuancier.svelte';
 
   const client = createLobbyClient();
   onDestroy(() => client.close());
@@ -17,42 +24,45 @@
   const status = client.status;
   const error = client.error;
 
-  // Phase 6b : la carte aléatoire procédurale devient le choix par défaut
-  // des parties (seed de partie → carte déterministe et rejouable).
-  let mapId = $state<MapId>('procedural-40');
   let timerMinutes = $state(60);
   let isPublic = $state(true);
   let joinCode = $state('');
-  // 7n · R-145 : choix de civilisation (hôte à la création, invité au join).
-  // Calibrage canon (Erik 06/09) : la Merveille Antique de l'Égypte est tirée
-  // par le moteur — plus aucun choix de merveille au lobby.
-  let hostCiv = $state<string | null>('amerique');
-  let joinCiv = $state<string | null>('rome');
-  let showCivPicker = $state(true);
-  // Chantier BOT-SOLO : partie solo (les bots remplissent TOUS les sièges
-  // vides, civ au choix — « aléatoire » = tirage seedé par la partie).
-  let solo = $state(false);
-  let botCiv = $state<string>('random');
-  // CARTE-MULTI : sièges 2-5 (2 = miroir 1v1 inchangé ; 3-5 = carte libre
-  // sans symétrie). Les cartes préfabriquées restent à 2 sièges (D3).
-  let sieges = $state(2);
-  const siegesVerrouilles = $derived(mapId !== 'procedural-40');
+  let config = $state<ConfigPartie>(configPartieDefaut('amerique'));
+
+  // Jointure : partie sélectionnée (liste publique ou code saisi) + choix.
+  let jointure = $state<{ code: string; civsAleatoires: boolean; prises: Record<string, string | undefined> } | null>(null);
+  let joinPalette = $state<string | null>(null);
+  let joinCiv = $state<string>('rome');
+
   const CIV_IDS = Object.keys(CIVILIZATIONS.civs).sort();
 
-  function createGame(): void {
+  function creerPartie(): void {
     client.createGame({
-      mapId,
+      mapId: 'procedural-40',
       turnTimerMinutes: timerMinutes > 0 ? timerMinutes : null,
       isPublic,
-      ...(sieges !== 2 && !siegesVerrouilles ? { playerCount: sieges } : {}),
-      ...(hostCiv ? { civId: hostCiv } : {}),
-      ...(solo ? { solo: true } : {}),
-      ...(solo && botCiv !== 'random' ? { botCivId: botCiv } : {}),
+      config: $state.snapshot(config) as ConfigPartie,
     });
   }
 
-  function joinWithCiv(code: string): void {
-    client.join(code, joinCiv ?? undefined);
+  /** Ouvre le panneau de jointure pour une partie : `prises` = paletteId →
+   *  nom du preneur (temps réel — nuancier grisant les couleurs occupées). */
+  function ouvrirJointure(code: string, civsAleatoires: boolean, prises: Record<string, string | undefined>): void {
+    jointure = { code, civsAleatoires, prises };
+    joinPalette = null;
+  }
+
+  function joindreCode(): void {
+    const code = joinCode.trim().toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(code)) return;
+    // Les palettes libres d'une partie privée ne sont pas connues : le
+    // serveur validera (refus explicite si prise entre-temps).
+    ouvrirJointure(code, false, {});
+  }
+
+  function confirmerJointure(): void {
+    if (!jointure || !joinPalette) return;
+    client.join(jointure.code, jointure.civsAleatoires ? undefined : joinCiv, joinPalette);
   }
 </script>
 
@@ -71,61 +81,52 @@
   </p>
 
   <section>
-    <h2>Créer une partie</h2>
-    <label>
-      Carte
-      <select bind:value={mapId}>
-        <option value="procedural-40">Carte aléatoire (seed de partie)</option>
-        <option value="variee-40">Variée 40×40</option>
-        <option value="pedagogique-40">Pédagogique 40×40</option>
-        <option value="pangee-40">Pangée 40×40</option>
-      </select>
-    </label>
-    <label>
-      Timer (minutes, 0 = aucun)
-      <input type="number" min="0" bind:value={timerMinutes} />
-    </label>
-    <label title={siegesVerrouilles ? 'Les cartes préfabriquées sont à 2 joueurs — la carte aléatoire porte 2 à 5 sièges.' : undefined}>
-      Sièges (2-5)
-      <select bind:value={sieges} disabled={siegesVerrouilles}>
-        {#each [2, 3, 4, 5] as n (n)}
-          <option value={n}>{n} joueurs{#if n === 2} (miroir 1v1){/if}{#if n >= 3} — carte libre{/if}</option>
-        {/each}
-      </select>
-    </label>
-    <label class="check">
-      <input type="checkbox" bind:checked={isPublic} />
-      Partie publique
-    </label>
-    <label class="check">
-      <input type="checkbox" bind:checked={solo} />
-      Partie solo (les {sieges - 1} sièges vides sont remplis de bots)
-    </label>
-    {#if solo}
+    <h2>Créer une partie — {SIEGES_PAR_PARTIE} sièges</h2>
+    <ConfigPartieEditor {config} editable onchange={(c) => (config = c)} />
+    <div class="options">
       <label>
-        Civilisation du bot
-        <select bind:value={botCiv}>
-          <option value="random">Aléatoire</option>
-          {#each CIV_IDS as id (id)}
-            <option value={id}>{civName(id)}</option>
-          {/each}
-        </select>
+        Timer (minutes, 0 = aucun)
+        <input type="number" min="0" bind:value={timerMinutes} />
       </label>
-    {/if}
-    <button type="button" onclick={createGame}>Créer</button>
-    <h3>Choisissez votre civilisation <em>(16 — 7n)</em></h3>
-    <CivPicker value={hostCiv} onchange={(civ) => { hostCiv = civ; }} />
+      <label class="check">
+        <input type="checkbox" bind:checked={isPublic} />
+        Partie publique
+      </label>
+      <button type="button" onclick={creerPartie}>Créer la partie</button>
+    </div>
+    <p class="note">
+      Le duel est une configuration : 2 humains + 3 bots. Les cartes préfabriquées
+      (miroir 1v1) restent disponibles au <a href="#/progen">labo</a>.
+    </p>
   </section>
 
   <section>
     <h2>Rejoindre par code</h2>
     <input bind:value={joinCode} placeholder="ABC123" maxlength={6} />
-    <button type="button" onclick={() => joinWithCiv(joinCode.toUpperCase())}>Rejoindre</button>
-    <details>
-      <summary>Choisir la civilisation de l'invité ({civName(joinCiv)})</summary>
-      <CivPicker value={joinCiv} onchange={(civ) => { joinCiv = civ; }} compact />
-    </details>
+    <button type="button" onclick={joindreCode}>Rejoindre</button>
   </section>
+
+  {#if jointure}
+    <section class="jointure">
+      <h2>Rejoindre {jointure.code}</h2>
+      <p>Choisissez votre couleur {jointure.civsAleatoires ? '(civs tirées au démarrage)' : 'et votre civilisation'} :</p>
+      <Nuancier value={joinPalette} prises={jointure.prises} onchange={(p) => (joinPalette = p)} />
+      {#if !jointure.civsAleatoires}
+        <label>
+          Civilisation
+          <select bind:value={joinCiv}>
+            {#each CIV_IDS as id (id)}
+              <option value={id}>{civName(id)}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
+      <div class="options">
+        <button type="button" onclick={confirmerJointure} disabled={!joinPalette}>Confirmer</button>
+        <button type="button" class="secondaire" onclick={() => (jointure = null)}>Annuler</button>
+      </div>
+    </section>
+  {/if}
 
   <section>
     <h2>Parties publiques en attente</h2>
@@ -134,9 +135,17 @@
     {:else}
       <ul>
         {#each $games.waiting as game (game.code)}
+          {@const cfg = game.settings.config}
+          {@const humainsLibres = cfg ? cfg.sieges.filter((s) => s.type === 'humain').length - game.players.length : 0}
+          {@const libres = (cfg ? cfg.sieges.length : game.settings.playerCount ?? 2) - game.players.length}
           <li>
-            <strong>{game.code}</strong> — hôte {game.players[0]?.name ?? '?'}{game.players[0]?.civId ? ` (${civName(game.players[0].civId)})` : ''} — {game.players.length}/{game.settings.playerCount ?? 2} sièges — timer {game.settings.turnTimerMinutes ?? '∞'}
-            <button type="button" onclick={() => client.join(game.code)}>Rejoindre</button>
+            <strong>{game.code}</strong> — hôte {game.players[0]?.name ?? '?'} — {game.players.length}/{cfg ? cfg.sieges.length : game.settings.playerCount ?? 2} sièges ({libres} libres{cfg ? `, dont ${Math.max(0, humainsLibres)} humain${humainsLibres > 1 ? 's' : ''}` : ''}) — {cfg ? TOPOGRAPHIES.find((t) => t.id === cfg.topographie)?.nom ?? cfg.topographie : 'carte historique'} — timer {game.settings.turnTimerMinutes ?? '∞'}
+            {#if cfg}
+              {@const prises = Object.fromEntries(game.players.filter((p) => p.paletteId).map((p) => [p.paletteId, p.name]))}
+              <button type="button" onclick={() => ouvrirJointure(game.code, cfg.civsAleatoires, prises)}>Rejoindre</button>
+            {:else}
+              <button type="button" onclick={() => client.join(game.code)}>Rejoindre</button>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -157,7 +166,11 @@
               {@const bots = game.players.filter((p) => p.bot)}
               — contre {bots.map((b) => `${b.name}${b.civId ? ` (${civName(b.civId)})` : ''}`).join(', ')}
             {/if}
-            <a href={`#/game/${game.code}`}>Ouvrir</a>
+            {#if game.status === 'waiting'}
+              <a href={`#/attente/${game.code}`}>Salle d'attente</a>
+            {:else}
+              <a href={`#/game/${game.code}`}>Ouvrir</a>
+            {/if}
             <button type="button" onclick={() => client.abandon(game.code)}>Abandonner</button>
           </li>
         {/each}
@@ -167,25 +180,24 @@
 </main>
 
 <style>
-  /* FENETRE-GRANDE (retour d'Erik du 22/09) : à 1920×1080 le texte du lobby
-     était trop petit — zoom de lisibilité global de la page (facile à régler). */
-  main { max-width: 56rem; margin: 2rem auto; font-family: system-ui, sans-serif; zoom: 1.25; }
-  h3 { margin: 0.8rem 0 0.4rem; font-size: 0.95rem; }
-  h3 em { color: #9db8a6; font-style: normal; font-weight: 400; }
+  /* FENETRE-GRANDE : zoom de lisibilité global (conservé). */
+  main { max-width: 62rem; margin: 2rem auto; font-family: system-ui, sans-serif; zoom: 1.25; }
+  h2 { margin: 0.2rem 0 0.6rem; }
   header { display: flex; gap: 1rem; align-items: center; }
-  section { border: 1px solid #ccc; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
+  section { border: 1px solid #4a5a4e; border-radius: 6px; padding: 1rem; margin: 1rem 0; background: #16221b; }
   label { display: flex; gap: 0.5rem; margin-right: 1rem; align-items: center; }
-  .error { color: #b00020; }
+  .options { display: flex; gap: 1rem; align-items: center; margin-top: 0.8rem; flex-wrap: wrap; }
+  .error { color: #ff8a80; }
   .progen-link { font-size: 0.9rem; }
+  .note { font-size: 0.78rem; color: #9db8a6; margin-top: 0.6rem; }
+  .jointure { border-color: #ffd54f; }
+  input, select { background: #14201a; color: #e8e8e8; border: 1px solid #3c7a52; border-radius: 4px; padding: 0.25rem 0.4rem; font: inherit; }
+  button { font: inherit; padding: 0.25rem 0.7rem; border-radius: 4px; border: 1px solid #3c7a52; background: #24402e; color: #e8e8e8; cursor: pointer; }
+  button:hover { border-color: #7fc79a; }
+  button.secondaire { background: transparent; }
   .badge {
-    display: inline-block;
-    padding: 0.05rem 0.45rem;
-    border-radius: 999px;
-    background: #2d5a3d;
-    color: #d9f2e3;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px;
+    background: #2d5a3d; color: #d9f2e3; font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase;
   }
 </style>
