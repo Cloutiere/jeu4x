@@ -236,19 +236,32 @@ export function generateProceduralMap(
   const strat = strategy ?? getStartPlacementStrategy(settings.startPlacement);
   const master = seed >>> 0;
   let lastCause = 'cause inconnue';
+  // LOBBY-5 (fix CI 26/09) : tolérance d'ÉQUIDISTANCE ÉVOLUTIVE (libreMulti).
+  // Certaines graines à 5 spawns n'atteignent JAMAIS l'écart pairwise 🔶 8 en
+  // 10 tentatives → ProgenGenerationError non rattrapée → le worker crashait.
+  // Désormais les 2 premières tentatives visent le calibrage d'Erik, puis la
+  // tolérance s'assouplit de +1 toutes les 2 tentatives (≤ +4 au total) :
+  // préférence pour les cartes équitables, échec quasi impossible, et
+  // DÉTERMINISME CONSERVÉ (même seed → même escalade → même carte).
+  const toleranceDe = (attempt: number): number =>
+    settings.librePairSpreadMax + Math.floor((attempt - 1) / 2);
 
     for (let attempt = 1; attempt <= settings.maxAttempts; attempt++) {
       const rng = createRng(attemptSeed(master, attempt));
+      const settingsTentative =
+        settings.startPlacement === 'libreMulti' && attempt > 1
+          ? { ...settings, librePairSpreadMax: toleranceDe(attempt) }
+          : settings;
       try {
-        const geoSize = strat.geoSize(settings);
+        const geoSize = strat.geoSize(settingsTentative);
         const geo: PhysicalMap = generateTerrain(
           rng,
-          settings,
+          settingsTentative,
           geoSize.width,
           geoSize.height,
           { openBottom: geoSize.openBottom ?? false },
         );
-      const out = strat.build({ rng, geo, settings });
+      const out = strat.build({ rng, geo, settings: settingsTentative });
       const data = assembleMapData(master, settings, out, strat);
       // Validation intégrale : le générateur passe par la MÊME porte que les
       // cartes préfabriquées (aucun changement du loader — critère #3).

@@ -114,7 +114,11 @@ describe('CARTE-MULTI · Génération libre (L2)', () => {
         const s = resolveProgenSettings({ playerCount: n });
         const multi = r.report.multi!;
         expect(multi).toBeDefined();
-        expect(multi.pairSpread).toBeLessThanOrEqual(s.librePairSpreadMax);
+        // Tolérance ÉVOLUTIVE (fix CI 26/09) : la tentative 1 vise le calibrage
+        // 🔶 8 ; en cas d'échec, +1 toutes les 2 tentatives (≤ 12) — le test
+        // suit le contrat escaladé selon le nombre de tentatives réellement
+        // consommées par la graine.
+        expect(multi.pairSpread).toBeLessThanOrEqual(s.librePairSpreadMax + Math.floor((r.report.attempts - 1) / 2));
         // distances pairwise ≥ minSpawnDistance (validation parseMap, all-pairs)
         for (const p of multi.pairwise) expect(p.distance).toBeGreaterThanOrEqual(s.minSpawnDistance);
         // chaque spawn à distance raisonnable du centre de carte
