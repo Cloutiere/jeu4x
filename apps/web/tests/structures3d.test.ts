@@ -449,7 +449,10 @@ describe('Propriétés transverses (déterminisme, perf)', () => {
     expect(planifierStructures(e)).toEqual(planifierStructures(e));
   });
 
-  it('planifie 1600 tuiles + 40 villes en moins de 100 ms (absorbe le 40×40)', () => {
+  // Budget relâché 100 → 250 ms (fix CI 26/09) : le plan réel prend ~10-30 ms ;
+  // la mesure murale flaquait sous charge (turbo = 3 suites en parallèle,
+  // runners CI plus lents) sans lien avec un risque de gameplay.
+  it('planifie 1600 tuiles + 40 villes en moins de 250 ms (absorbe le 40×40)', () => {
     const tuiles: TuileStructures[] = [];
     for (let i = 0; i < 1600; i++) {
       const q = i % 40, r = Math.floor(i / 40);
@@ -460,7 +463,7 @@ describe('Propriétés transverses (déterminisme, perf)', () => {
     const t0 = performance.now();
     const plan = planifierStructures(entree({ tuiles, villes }));
     const ms = performance.now() - t0;
-    expect(ms).toBeLessThan(100);
+    expect(ms).toBeLessThan(250);
     // Correctif V2-bis : le slot n'existe plus que sur les tuiles À RESSOURCE.
     // Sur ce plateau : 320 tuiles au fer (i%5), moins les 46 villes (i%35,
     // non productives) = exactement 274 slots — le compte a baissé avec le

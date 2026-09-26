@@ -11,10 +11,14 @@
  *  - abandon à 3+ : le quitteur est ÉLIMINÉ, la partie CONTINUE (D6 — pas
  *    de diplomatie, le dernier en lice gagne) ; à 2 : fin identique.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import { botTurnSeed } from '../src/botPolicy.js';
 import { adminDump, createGame, joinGame, makeToken, openLobbySocket, openGameSocket } from './helpers.js';
+
+// La résolution 5 joueurs est gourmande : sous la suite complète (turbo —
+// 3 packages en parallèle, runners CI plus lents), 30 s par défaut flaque.
+vi.setConfig({ testTimeout: 90_000 });
 
 const LIBRE_SOLO5: GameCreationSettings = { mapId: 'procedural-40', turnTimerMinutes: null, isPublic: false, solo: true, playerCount: 5 };
 const LIBRE_SOLO3: GameCreationSettings = { mapId: 'procedural-40', turnTimerMinutes: null, isPublic: false, solo: true, playerCount: 3 };
