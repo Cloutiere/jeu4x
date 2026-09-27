@@ -1,0 +1,27 @@
+{
+  "$comment": "LOBBY-PREMIUM D5 — mapping civId → banderole + logo or. 16 civs actives (civilizations.json) ; 6 nations en RÉSERVE (reserve:true — futures civs, jamais affichées, assets conservés). Les chemins pointent vers apps/web/public/interface/ (versions web compressées — les originaux d'Erik ne se committent pas).",
+  "nations": {
+    "amerique":  { "banderole": "/interface/banderoles/amerique.jpg",  "logo": "/interface/logos/amerique.svg" },
+    "arabie":    { "banderole": "/interface/banderoles/arabie.jpg",    "logo": "/interface/logos/arabie.svg" },
+    "azteques":  { "banderole": "/interface/banderoles/azteques.jpg",  "logo": "/interface/logos/azteques.svg" },
+    "chine":     { "banderole": "/interface/banderoles/chine.jpg",     "logo": "/interface/logos/chine.svg" },
+    "egypte":    { "banderole": "/interface/banderoles/egypte.jpg",    "logo": "/interface/logos/egypte.svg" },
+    "angleterre":{ "banderole": "/interface/banderoles/angleterre.jpg","logo": "/interface/logos/angleterre.svg" },
+    "france":    { "banderole": "/interface/banderoles/france.jpg",    "logo": "/interface/logos/france.svg" },
+    "allemagne": { "banderole": "/interface/banderoles/allemagne.jpg", "logo": "/interface/logos/allemagne.svg" },
+    "grece":     { "banderole": "/interface/banderoles/grece.jpg",     "logo": "/interface/logos/grece.svg" },
+    "inde":      { "banderole": "/interface/banderoles/inde.jpg",      "logo": "/interface/logos/inde.svg" },
+    "japon":     { "banderole": "/interface/banderoles/japon.jpg",     "logo": "/interface/logos/japon.svg" },
+    "mongolie":  { "banderole": "/interface/banderoles/mongolie.jpg",  "logo": "/interface/logos/mongolie.svg" },
+    "rome":      { "banderole": "/interface/banderoles/rome.jpg",      "logo": "/interface/logos/rome.svg" },
+    "russie":    { "banderole": "/interface/banderoles/russie.jpg",    "logo": "/interface/logos/russie.svg" },
+    "espagne":   { "banderole": "/interface/banderoles/espagne.jpg",   "logo": "/interface/logos/espagne.svg" },
+    "zoulous":   { "banderole": "/interface/banderoles/zoulous.jpg",   "logo": "/interface/logos/zoulous.svg" },
+    "babylone":  { "banderole": "/interface/banderoles/babylone.jpg",  "logo": null, "reserve": true },
+    "canada":    { "banderole": "/interface/banderoles/canada.jpg",    "logo": "/interface/logos/canada.svg", "reserve": true },
+    "celtes":    { "banderole": "/interface/banderoles/celtes.jpg",    "logo": "/interface/logos/celtes.svg", "reserve": true },
+    "danemark":  { "banderole": "/interface/banderoles/danemark.jpg",  "logo": "/interface/logos/danemark.svg", "reserve": true },
+    "portugal":  { "banderole": "/interface/banderoles/portugal.jpg",  "logo": "/interface/logos/portugal.svg", "reserve": true },
+    "suede":     { "banderole": "/interface/banderoles/suede.jpg",     "logo": "/interface/logos/suede.svg", "reserve": true }
+  }
+}

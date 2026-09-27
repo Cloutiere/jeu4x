@@ -5,13 +5,16 @@
    * « Lancer » et « Supprimer ». Vue INVITÉ : lecture seule + « Quitter »
    * (libère son siège). Statut des sièges en temps réel via la diffusion
    * GameList du LobbyDO ; au démarrage, tout le monde bascule en jeu.
+   * LOBBY-PREMIUM (27/09) — même cadre visuel que le lobby (CadreLobby :
+   * fonds d'Erik, en-tête or-sur-sombre, bouton or) ; logique intacte.
    */
   import { onDestroy } from 'svelte';
   import type { ConfigPartie } from '@game/shared';
   import { configPartieErreur } from '@game/shared';
   import { createLobbyClient } from '../lib/lobbyClient.js';
-  import { logout, session } from '../lib/session.js';
+  import { session } from '../lib/session.js';
   import { civName } from '../lib/labels.js';
+  import CadreLobby from '../components/CadreLobby.svelte';
   import ConfigPartieEditor from '../components/ConfigPartieEditor.svelte';
   import { TOPOGRAPHIES } from '@game/rules';
 
@@ -87,83 +90,99 @@
   }
 </script>
 
-<main class="attente">
-  <header>
-    <h1>Salle d'attente — {code}</h1>
-    <span>{$session ? `Connecté : ${$session.name}` : ''}</span>
-    <button type="button" onclick={logout}>Déconnexion</button>
-  </header>
+<CadreLobby>
+  <div class="bandeaus">
+    <div class="bandeau panneau">
+      <img class="icone-lobby" src="/interface/lobby.svg" alt="" />
+      <h2>Salle d'attente — {code}</h2>
+      {#if game}
+        <p class="statut">
+          <span class="point" class:ko={game.status !== 'waiting'} aria-hidden="true"></span>
+          {game.players.length}/{game.settings.config?.sieges.length ?? 5} sièges —
+          {TOPOGRAPHIES.find((t) => t.id === game.settings.config?.topographie)?.nom ?? '—'} —
+          timer {game.settings.turnTimerMinutes ?? '∞'} — {game.settings.isPublic ? 'publique' : 'privée'}
+        </p>
+      {/if}
+    </div>
+    <a class="carte-lien panneau" href="#/lobby">
+      <span class="texte">
+        <strong>Retour au lobby</strong>
+        <small>Code à partager : <strong class="code">{code}</strong></small>
+      </span>
+      <span class="chevron" aria-hidden="true">›</span>
+    </a>
+  </div>
 
   {#if $error}<p class="error">{$error}</p>{/if}
   {#if erreurLocale}<p class="error">{erreurLocale}</p>{/if}
 
   {#if !game}
-    <p>Recherche de la partie… (vous rejoignez peut-être une partie privée par lien — <a href="#/lobby">retour au lobby</a>)</p>
+    <section class="panneau recherche">
+      <p class="note">Recherche de la partie… (vous rejoignez peut-être une partie privée par lien — <a href="#/lobby">retour au lobby</a>)</p>
+    </section>
   {:else}
-    <p class="ligne">
-      {game.players.length}/{game.settings.config?.sieges.length ?? 5} sièges pris —
-      topographie {TOPOGRAPHIES.find((t) => t.id === game.settings.config?.topographie)?.nom ?? '—'} —
-      timer {game.settings.turnTimerMinutes ?? '∞'} — {game.settings.isPublic ? 'publique' : 'privée'}
-      — code à partager : <strong>{code}</strong>
-    </p>
-
     {#if cfgLocale}
-      <section>
+      <section class="panneau section">
         <h2>Configuration {estHote ? '(vous êtes l’hôte — modifiable jusqu’au démarrage)' : '(lecture seule)'}</h2>
-        <ConfigPartieEditor config={cfgLocale} occupants={occupantDe} editable={estHote} onchange={appliquerEdition} />
+        <ConfigPartieEditor config={cfgLocale} occupants={occupantDe} editable={estHote} banderoles onchange={appliquerEdition} />
       </section>
     {/if}
 
-    <section>
-      <h2>Joueurs</h2>
-      <ul>
-        {#each game.players as p (p.id)}
-          <li>
-            <strong>{p.name}</strong>
-            {#if p.bot}<span class="badge">bot</span>{/if}
-            {#if p.civId && !game.settings.config?.civsAleatoires} — {civName(p.civId)}{/if}
-            {#if p.id === moi}<em> (vous)</em>{/if}
-          </li>
-        {/each}
-      </ul>
-      {#if game.settings.config?.civsAleatoires}
-        <p class="note">Civilisations aléatoires : tirage seedé (16 distinctes) au démarrage, révélé à tous.</p>
-      {:else}
-        <p class="note">Les sièges bots sans civ reçoivent une civilisation tirée au démarrage.</p>
-      {/if}
-    </section>
+    <div class="duo">
+      <section class="panneau section">
+        <h2>Joueurs</h2>
+        <ul class="joueurs">
+          {#each game.players as p (p.id)}
+            <li>
+              <strong>{p.name}</strong>
+              {#if p.bot}<span class="badge">bot</span>{/if}
+              {#if p.civId && !game.settings.config?.civsAleatoires} — {civName(p.civId)}{/if}
+              {#if p.id === moi}<em> (vous)</em>{/if}
+            </li>
+          {/each}
+        </ul>
+        {#if game.settings.config?.civsAleatoires}
+          <p class="note">Civilisations aléatoires : tirage seedé (16 distinctes) au démarrage, révélé à tous.</p>
+        {:else}
+          <p class="note">Les sièges bots sans civ reçoivent une civilisation tirée au démarrage.</p>
+        {/if}
+      </section>
 
-    <div class="actions">
-      {#if estHote}
-        <button type="button" class="principal" onclick={lancer} disabled={humainVide >= 0} title={humainVide >= 0 ? `Le siège ${humainVide + 1} (humain) est vide — passez-le en bot ou attendez un joueur.` : undefined}>
-          Lancer la partie
-        </button>
-        {#if humainVide >= 0}<p class="error">Le siège {humainVide + 1} (humain) est vide — passez-le en bot ou attendez un joueur.</p>{/if}
-        <button type="button" onclick={quitterOuSupprimer}>Supprimer la partie</button>
-      {:else}
-        <button type="button" onclick={quitterOuSupprimer}>Quitter la partie</button>
-      {/if}
-      <a href="#/lobby">Retour au lobby</a>
+      <section class="panneau section actions">
+        <h2>Partie</h2>
+        {#if estHote}
+          <button type="button" class="bouton-or" onclick={lancer} disabled={humainVide >= 0} title={humainVide >= 0 ? `Le siège ${humainVide + 1} (humain) est vide — passez-le en bot ou attendez un joueur.` : undefined}>
+            <span>Lancer la partie</span>
+          </button>
+          {#if humainVide >= 0}<p class="error">Le siège {humainVide + 1} (humain) est vide — passez-le en bot ou attendez un joueur.</p>{/if}
+          <button type="button" class="secondaire" onclick={quitterOuSupprimer}>Supprimer la partie</button>
+        {:else}
+          <button type="button" class="bouton-or" onclick={quitterOuSupprimer}>
+            <span>Quitter la partie</span>
+          </button>
+        {/if}
+        <a href="#/lobby">Retour au lobby</a>
+      </section>
     </div>
   {/if}
-</main>
+</CadreLobby>
 
 <style>
-  main { max-width: 62rem; margin: 2rem auto; font-family: system-ui, sans-serif; zoom: 1.25; }
-  header { display: flex; gap: 1rem; align-items: center; }
-  section { border: 1px solid #4a5a4e; border-radius: 6px; padding: 1rem; margin: 1rem 0; background: #16221b; }
-  h2 { margin: 0.2rem 0 0.6rem; }
-  .ligne { color: #bfe8cc; font-size: 0.9rem; }
-  .error { color: #ff8a80; }
-  .note { font-size: 0.78rem; color: #9db8a6; }
-  .actions { display: flex; gap: 1rem; align-items: center; margin-top: 1rem; }
-  button, a { font: inherit; }
-  button { padding: 0.3rem 0.9rem; border-radius: 4px; border: 1px solid #3c7a52; background: #24402e; color: #e8e8e8; cursor: pointer; }
-  button:hover { border-color: #7fc79a; }
-  button.principal { background: #2d5a3d; font-weight: 700; }
-  .badge {
-    display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px;
-    background: #2d5a3d; color: #d9f2e3; font-size: 0.72rem; font-weight: 600;
-    letter-spacing: 0.04em; text-transform: uppercase;
+  .section { margin-top: 1rem; padding: 1.1rem 1.2rem; }
+  .duo { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; }
+  h2 { font-family: var(--serif-or); color: var(--or-clair); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin: 0.2rem 0 0.6rem; font-size: 1.05rem; }
+  .code { color: var(--or-clair); letter-spacing: 0.08em; }
+  .joueurs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+  .joueurs li {
+    border: 1px solid var(--panneau-bord-doux); border-radius: 8px; padding: 0.5rem 0.7rem;
+    background: var(--rangee); font-size: 0.88rem;
+  }
+  .joueurs strong { color: var(--or-clair); font-family: var(--serif-or); letter-spacing: 0.06em; }
+  .actions { display: flex; flex-direction: column; gap: 0.7rem; align-items: flex-start; }
+  .actions .bouton-or { align-self: stretch; justify-content: center; }
+
+  /* D7 — dégradé simple en dessous de 1920 : la grille passe en colonne. */
+  @media (max-width: 1200px) {
+    .duo { grid-template-columns: 1fr; }
   }
 </style>

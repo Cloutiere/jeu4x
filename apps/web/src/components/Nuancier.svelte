@@ -48,10 +48,11 @@
   .nuancier { display: flex; gap: 0.4rem; flex-wrap: wrap; }
   .pastille {
     position: relative; width: 2.4rem; height: 2.4rem; border-radius: 50%;
-    background: var(--c); border: 2px solid #2b2620; cursor: pointer; padding: 0;
+    background: var(--c); border: 2px solid rgba(13, 20, 32, 0.9); cursor: pointer; padding: 0;
+    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
   }
-  .pastille:hover { border-color: #ffd54f; }
-  .pastille.selected { border-color: #ffd54f; box-shadow: 0 0 0 2px #ffd54f; }
+  .pastille:hover { border-color: var(--or-clair, #ffd54f); }
+  .pastille.selected { border-color: var(--or-clair, #ffd54f); box-shadow: 0 0 0 2px var(--or-clair, #ffd54f); }
   .pastille.prise { opacity: 0.28; cursor: not-allowed; }
   .pastille.prise .nom {
     position: absolute; inset: auto -0.5rem -1.15rem -0.5rem; font-size: 0.58rem;

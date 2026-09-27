@@ -5,3 +5,96 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* LOBBY-PREMIUM — tokens du langage visuel or-sur-sombre (mockup gpt_V2.png
+   d'Erik). Réutilisés par le lobby, la salle d'attente, l'éditeur de config
+   et le nuancier. */
+:root {
+  --or: #c9a227;
+  --or-clair: #e8c96a;
+  --or-sombre: #8a6d1a;
+  --encre: #0d1420;           /* fond bleu-noir profond */
+  --panneau: rgba(13, 20, 32, 0.88);
+  --panneau-bord: rgba(201, 162, 39, 0.55);
+  --panneau-bord-doux: rgba(201, 162, 39, 0.25);
+  --rangee: rgba(16, 26, 42, 0.82);
+  --texte: #e9e4d3;
+  --texte-doux: #b6ad93;
+  --serif-or: Georgia, 'Palatino Linotype', 'Book Antiqua', 'Times New Roman', serif;
+}
+
+/* Composantes partagées lobby + salle d'attente (un seul langage visuel :
+   fonds d'Erik derrière des panneaux sombres à liseré or). */
+.page { position: relative; max-width: 98rem; margin: 0 auto; padding: 1.4rem 1.6rem 2.5rem; color: var(--texte); }
+.panneau {
+  background: var(--panneau);
+  border: 1px solid var(--panneau-bord-doux);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+.bandeaus { display: flex; gap: 1rem; margin-top: 1.1rem; align-items: stretch; }
+.bandeau { flex: 1; display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 1rem; }
+.icone-lobby { width: 2.6rem; height: 2.6rem; object-fit: contain; }
+.bandeau h2 {
+  margin: 0; font-family: var(--serif-or); text-transform: uppercase; letter-spacing: 0.14em;
+  font-size: 1.4rem; color: var(--or-clair); font-weight: 600;
+}
+.statut { margin: 0 0 0 auto; font-size: 0.82rem; color: var(--texte-doux); display: flex; align-items: center; gap: 0.4rem; }
+.point { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: #57c07a; box-shadow: 0 0 8px #57c07a; flex: none; }
+.point.ko { background: #d9776b; box-shadow: 0 0 8px #d9776b; }
+/* Carte-lien (Labo de cartes, Retour au lobby) — icône + titre + sous-ligne. */
+.carte-lien {
+  flex: 1; display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 1rem;
+  text-decoration: none; color: var(--texte);
+}
+.carte-lien:hover { border-color: var(--panneau-bord); }
+.carte-lien .texte { display: flex; flex-direction: column; }
+.carte-lien .texte strong { font-size: 0.95rem; letter-spacing: 0.04em; }
+.carte-lien .texte small { color: var(--texte-doux); font-size: 0.74rem; }
+.carte-lien .chevron { margin-left: auto; font-size: 1.6rem; color: var(--or); }
+.badge {
+  display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px;
+  background: rgba(201, 162, 39, 0.18); color: var(--or-clair); font-size: 0.72rem; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid var(--panneau-bord-doux);
+}
+.error { color: #ff8a80; }
+.note { font-size: 0.78rem; color: var(--texte-doux); }
+.note a { color: var(--or-clair); }
+a { color: var(--or-clair); }
+
+/* Champs + boutons du langage or/sombre (page lobby et salle d'attente ;
+   les pages de JEU gardent leurs styles propres). */
+.lobby input, .lobby select, .attente input, .attente select {
+  background: rgba(10, 16, 27, 0.95); color: var(--texte);
+  border: 1px solid var(--panneau-bord-doux); border-radius: 5px; padding: 0.3rem 0.5rem; font: inherit;
+}
+.lobby input:hover, .lobby select:hover, .attente input:hover, .attente select:hover { border-color: var(--panneau-bord); }
+.lobby button, .attente button {
+  font: inherit; padding: 0.3rem 0.8rem; border-radius: 5px;
+  border: 1px solid var(--panneau-bord-doux);
+  background: rgba(201, 162, 39, 0.12); color: var(--texte); cursor: pointer;
+}
+.lobby button:hover:not(:disabled), .attente button:hover:not(:disabled) {
+  border-color: var(--or-clair); box-shadow: 0 0 8px rgba(201, 162, 39, 0.3);
+}
+.lobby button:disabled, .attente button:disabled { opacity: 0.45; cursor: not-allowed; }
+.lobby button.secondaire, .attente button.secondaire { background: transparent; }
+/* Bouton or principal (Créer la partie / Lancer la partie). */
+.bouton-or {
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 0.55rem 1.6rem; border-radius: 8px;
+  border: 1px solid var(--or);
+  background: linear-gradient(180deg, rgba(232, 201, 106, 0.32), rgba(138, 109, 26, 0.28));
+  color: #f7ecc8; font-family: var(--serif-or); font-size: 1.15rem;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  box-shadow: 0 0 18px rgba(201, 162, 39, 0.25), inset 0 0 14px rgba(232, 201, 106, 0.15);
+}
+.bouton-or:hover:not(:disabled) {
+  box-shadow: 0 0 26px rgba(201, 162, 39, 0.5), inset 0 0 18px rgba(232, 201, 106, 0.25);
+}
+.bouton-or img { width: 1.8rem; height: 1.8rem; object-fit: contain; filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.6)); }
+
+/* D7 — dégradé simple en dessous de 1920 : les colonnes passent en pile. */
+@media (max-width: 1200px) {
+  .bandeaus { flex-direction: column; }
+}
