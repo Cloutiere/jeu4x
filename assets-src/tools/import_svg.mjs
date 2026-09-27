@@ -664,12 +664,19 @@ async function importer(nomProfil, options = {}) {
       // proportions ; on ne zoome que si la gate G2 détecte des trous (coins
       // arrondis de la source), par pas de 1 % jusqu'à couverture complète —
       // objectif Erik : ne jamais couper le haut des tuiles.
-      for (let f = 1.0; f <= 1.081; f += 0.01) {
-        resultat = await composerTuile(svgBuffer, cible, f);
-        const trousEssai = await gateTrous(resultat.base);
-        if (trousEssai.filter((t) => t.taille > AA_TROUS).length === 0) {
-          if (f > 1.0) console.log(`  (tuile : zoom cover ×${f.toFixed(2)} pour couvrir les coins)`);
-          break;
+      // cible.entite (NEW-OTHERS, 26/09) : sprite d'entité posé SUR une tuile —
+      // les trous intérieurs de l'art sont légitimes (le terrain se voit à
+      // travers), pas de zoom adaptatif ni de G2 décor-plein.
+      if (cible.entite) {
+        resultat = await composerTuile(svgBuffer, cible);
+      } else {
+        for (let f = 1.0; f <= 1.081; f += 0.01) {
+          resultat = await composerTuile(svgBuffer, cible, f);
+          const trousEssai = await gateTrous(resultat.base);
+          if (trousEssai.filter((t) => t.taille > AA_TROUS).length === 0) {
+            if (f > 1.0) console.log(`  (tuile : zoom cover ×${f.toFixed(2)} pour couvrir les coins)`);
+            break;
+          }
         }
       }
     } else {
@@ -690,8 +697,9 @@ async function importer(nomProfil, options = {}) {
         erreurs.push(`G2 trous : ${trous.length}+ px transparents de l'accent posés sur une base CLAIRE (zone blanche manquante, ex. ${JSON.stringify(trous[0])})`);
         await diagnostic(resultat.accent, trous, path.join(dirDiag, `diag-${variante.stem}-trous.png`));
       }
-    } else if (cible.mode === 'hex' || cible.mode === 'tuile') {
+    } else if ((cible.mode === 'hex' || cible.mode === 'tuile') && !cible.entite) {
       // pas de calque accent sur une tuile : le décor doit couvrir tout l'hexagone
+      // (sauf entite : sprite posé sur une tuile, trous intérieurs légitimes)
       const trous = await gateTrous(resultat.base);
       if (trous.length) {
         erreurs.push(`G2 hexagone : décor incomplet (${trous.length}+ trous)`);

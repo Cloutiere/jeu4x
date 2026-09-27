@@ -78,6 +78,8 @@ function texturesDeSecours(): GameTextures {
     colonFondation: null,
     yieldIcons: { food: null, production: null, commerce: null, gold: null, science: null },
     resources: {},
+    tuilesRessources: {},
+    tuilesCacher: {},
     px: Texture.WHITE,
   };
 }

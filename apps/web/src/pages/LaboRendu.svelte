@@ -12,7 +12,7 @@
   import { initialView } from '../lib/gameClient.js';
   import { createUiState } from '../lib/render/ui.js';
   import { Playback } from '../lib/render/playback.js';
-  import { makeState, recomputeVision } from '@game/rules';
+  import { makeState, recomputeVision, colRowToHex, tileKeyOf } from '@game/rules';
   import type { GameState, TerrainId } from '@game/rules';
   // PLACEMENT-MELEE (L3) : scénario mêlée — le labo pilote le store du
   // contexte (côtés d'entrée + stabilisée) que GameCanvas consomme.
@@ -103,6 +103,28 @@
       '7,0': 'prairie',
       '6,0': 'plaine',
     };
+    // TUILES-RESSOURCES (Erik 26/09) : rangée 8-9-10 — chaque ressource avec
+    // art posée RÉVÉLÉE sur son terrain (tuile-ressource pleine, plus de
+    // jeton) ; rangées miroir r+4 (12-14) — les MÊMES cases en état NON révélé
+    // (resource = « inconnue ») : tuile de terrain + jeton « ? », affichage
+    // actuel exact. Eau : baleine/poisson/teinture remplacent la tuile d'eau (D5).
+    const RESSOURCES_DEMO: Array<[string, string]> = [
+      ['betail', 'prairie'], ['boeufs', 'prairie'], ['ble', 'prairie'], ['encens', 'prairie'],
+      ['marbre', 'plaine'], ['soie', 'plaine'], ['vin', 'plaine'],
+      ['charbon', 'colline'], ['fer', 'colline'], ['aluminium', 'colline'],
+      ['gemmes', 'montagne'], ['or', 'montagne'], ['uranium', 'montagne'],
+      ['caoutchouc', 'foret'], ['chene', 'foret'], ['gibier', 'foret'],
+      ['epices', 'desert'], ['petrole', 'desert'], ['soufre', 'desert'],
+      ['baleine', 'eau'], ['poisson', 'eau'], ['teinture', 'eau'],
+    ];
+    RESSOURCES_DEMO.forEach(([res, terrain], i) => {
+      const col = i % 8;
+      const row = 8 + Math.floor(i / 8);
+      // La carte est indexée en axial (colRowToHex) — jamais de clé "q,r"
+      // littérale : le décalage des rangées impaires déplacerait les cases.
+      TERRAINS_DEMO[tileKeyOf(colRowToHex(col, row))] = terrain;
+      TERRAINS_DEMO[tileKeyOf(colRowToHex(col, row + 4))] = terrain; // miroir NON révélée
+    });
     const POS_DEMO = [
       ['0,2', 'p1'], ['1,2', 'p2'], ['2,2', 'p3'], ['3,2', 'p4'],
       ['4,2', 'p5'], ['5,2', 'p6'],
@@ -125,13 +147,45 @@
       units.push({ id: `d1${i + 1}`, owner, type: 'guerrier', q: 0, r: 6 });
     }
     // Barbare : unité peinte (owner « barbarien ») à côté de son camp.
-    units.push({ id: 'barb1', owner: 'barbarien', type: 'guerrier', q: 7, r: 0 });
-    const terrainOverrides: Record<string, TerrainId> = Object.fromEntries(
+    units.push({ id: 'barb1', owner: 'barbarien', type: 'guerrier', q: 7, r: 0 });    const terrainOverrides: Record<string, TerrainId> = Object.fromEntries(
       Object.entries(TERRAINS_DEMO).map(([k, t]) => [k, t as TerrainId]),
     );
     return makeState({
-      width: 8, height: 8, units, cities: [], terrainOverrides,
+      width: 8, height: 15, units, cities: [], terrainOverrides,
       villages: [{ q: 6, r: 0 }], // camp barbare (tuile_barbare d'Erik)
+      // NEW-OTHERS (26/09) : hutte peinte + les 6 artefacts non-dlc peints —
+      // vérification à l'œil de l'alignement hexagone (sommet bas à +64 px).
+      huts: [(() => { const h = colRowToHex(5, 0); return { q: h.q, r: h.r }; })()],
+      artefacts: [
+        'angkor_wat', 'arche_alliance', 'sept_cites_or',
+        'ecole_confucius', 'chevaliers_templiers', 'atlantide',
+      ].map((artefactId, i) => {
+        const h = colRowToHex(2 + i, 1);
+        return { artefactId, q: h.q, r: h.r };
+      }),
+    });
+  }
+
+  // TUILES-RESSOURCES : ressources posées APRÈS makeState (terrainOverrides ne
+  // porte pas les ressources) — révélées rangées 8-10 (tuile-ressource pleine),
+  // « inconnue » rangées 12-14 (tuile de terrain + jeton, affichage actuel).
+  function poserRessourcesDemo(state: GameState): void {
+    const RESSOURCES_DEMO: Array<[string, string]> = [
+      ['betail', 'prairie'], ['boeufs', 'prairie'], ['ble', 'prairie'], ['encens', 'prairie'],
+      ['marbre', 'plaine'], ['soie', 'plaine'], ['vin', 'plaine'],
+      ['charbon', 'colline'], ['fer', 'colline'], ['aluminium', 'colline'],
+      ['gemmes', 'montagne'], ['or', 'montagne'], ['uranium', 'montagne'],
+      ['caoutchouc', 'foret'], ['chene', 'foret'], ['gibier', 'foret'],
+      ['epices', 'desert'], ['petrole', 'desert'], ['soufre', 'desert'],
+      ['baleine', 'eau'], ['poisson', 'eau'], ['teinture', 'eau'],
+    ];
+    RESSOURCES_DEMO.forEach(([res], i) => {
+      const col = i % 8;
+      const row = 8 + Math.floor(i / 8);
+      const revelee = state.map[tileKeyOf(colRowToHex(col, row))];
+      if (revelee) (revelee as unknown as { resource: string }).resource = res;
+      const masquee = state.map[tileKeyOf(colRowToHex(col, row + 4))];
+      if (masquee) (masquee as unknown as { resource: string }).resource = 'inconnue';
     });
   }
 
@@ -158,6 +212,7 @@
     }
     if (stabiliseeIdx >= nbUnites) stabiliseeIdx = nbUnites - 1;
     const state = construireEtat();
+    poserRessourcesDemo(state);
     contexteMelee.set(contexteDuLabo());
     recomputeVision(state); // brouillard : le joueur local voit autour de ses unités
     // GUERRIER-4TONS : la démonstration pose des unités d'AUTRES nations

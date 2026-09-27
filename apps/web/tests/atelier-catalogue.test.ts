@@ -89,9 +89,10 @@ describe('atelier — catalogue L0', () => {
     }
     for (const id of Object.keys(RESOURCES)) attends.push(`res_${id}`);
     attends.push('res_inconnue');
-    // Miroir exact d'ARTEFACT_IDS (textures.ts) :
+    // Miroir exact d'ARTEFACT_IDS (textures.ts) — NEW-OTHERS (26/09) : art
+    // peint d'Erik, hexagones complets SANS accent (comme les barbares).
     for (const id of Object.keys(ARTEFACTS.pool).filter((k) => !ARTEFACTS.pool[k]!.dlcOnly).sort()) {
-      attends.push(`artefact_${id}`, `artefact_${id}_accent`);
+      attends.push(`artefact_${id}`);
     }
     // Barbares (décision Erik 12/09) : rouge CUIT dans la base, AUCUN accent —
     // village sans `_accent`, unités barbares cataloguées sans accent.
@@ -101,7 +102,7 @@ describe('atelier — catalogue L0', () => {
       'village_barbare',
       'unite_barbare_guerrier',
       'unite_barbare_archer',
-      'hutte', 'hutte_accent',
+      'hutte',
     );
     for (const stem of attends) {
       expect(stemsCatalogue.has(stem), `catalogue : ${stem}`).toBe(true);

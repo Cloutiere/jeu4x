@@ -500,17 +500,32 @@
       const tile = map[key];
       if (!tile) continue; // inexploré : AUCUN rendu (§4.4)
       wanted.add(key);
+      // TUILES-RESSOURCES (Erik 26/09) : une ressource RÉVÉLÉE avec art affiche
+      // la tuile-ressource ENTIÈRE (plus de jeton — D1). Ressource NON révélée
+      // (inconnue) → variante « cacher » du terrain (brume, vague 3) si l'art
+      // existe, sinon tuile de terrain ; le jeton « ? » reste par-dessus dans
+      // tous les cas de non-révélation (D2).
+      const inconnue = tile.resource === RESOURCE_UNKNOWN;
+      const resId =
+        tile.resource && !inconnue && textures.tuilesRessources[tile.resource]
+          ? tile.resource
+          : null;
+      const textureTuile = resId
+        ? textures.tuilesRessources[resId]!
+        : inconnue
+          ? (textures.tuilesCacher[tile.terrain] ?? textures.tiles[tile.terrain])
+          : textures.tiles[tile.terrain];
       let sprite = tileSprites.get(key);
       if (!sprite) {
-        sprite = new Sprite(textures.tiles[tile.terrain]);
+        sprite = new Sprite(textureTuile);
         sprite.anchor.set(0.5, 0.5);
         sprite.scale.set(0.5);
         const p = hexToPixel(hex, HEX_SIZE);
         sprite.position.set(p.x, p.y);
         tilesLayer.addChild(sprite);
         tileSprites.set(key, sprite);
-      } else if (sprite.texture !== textures.tiles[tile.terrain]) {
-        sprite.texture = textures.tiles[tile.terrain];
+      } else if (sprite.texture !== textureTuile) {
+        sprite.texture = textureTuile;
       }
       // Brouillard : visible = couleurs ; exploré-masqué = teinte atténuée.
       const target = scene.visible.has(key) ? 0xffffff : 0x70707e;
@@ -521,7 +536,10 @@
       // filtré diffuse l'id réel si l'identité est connue, ou le marqueur
       // « inconnue » (icône « ? ») tant que la tech manque — la présence est
       // toujours visible, jamais l'identité masquée.
-      if (tile.resource && textures.resources[tile.resource]) {
+      // TUILES-RESSOURCES : PAS de jeton quand la tuile-ressource pleine est
+      // affichée (resId non nul ci-dessus) — sinon jeton (inconnue ou art
+      // manquant, ex. une future ressource hors table).
+      if (tile.resource && !resId && textures.resources[tile.resource]) {
         wantedResources.add(key);
         let res = resourceSprites.get(key);
         if (!res) {
@@ -993,7 +1011,12 @@
   }
 
 
-  /** R-96 (rév. BARBARES-PILES) : village barbare (tente/camp, accent rouge sang) — sans PV. */
+  /** R-96 (rév. BARBARES-PILES) : village barbare — sans PV.
+   *  NEW-OTHERS (26/09) : l'art peint d'Erik est un HEXAGONE complet (gabarit
+   *  tuile 224×256) — ancré par son sommet bas (+64 px = exactement la tuile de
+   *  terrain en dessous, retour du « camp pas parfaitement placé »), sans
+   *  calque accent teinté (l'art porte ses couleurs ; accent = repli base).
+   *  Le tint brouillard continue de s'appliquer via rebuildEntities. */
   function buildVillageContainer(villageId: string): Container {
     const c = new Container();
     const tex = textures!.villageBarbare;
@@ -1001,19 +1024,21 @@
     base.label = 'base';
     base.anchor.set(0.5, 1);
     base.scale.set(0.5);
-    base.y = 58;
+    base.y = 64;
     const accent = new Sprite(tex.accent);
     accent.label = 'accent';
     accent.anchor.set(0.5, 1);
     accent.scale.set(0.5);
-    accent.y = 58;
-    accent.tint = playerColor(BARBARIAN_ID);
+    accent.y = 64;
+    accent.visible = tex.accent !== tex.base;
+    if (accent.visible) accent.tint = playerColor(BARBARIAN_ID);
     c.addChild(base, accent);
     c.label = villageId;
     return c;
   }
 
-  /** R-98 (Phase 7d) : hutte bonus (toit doré). */
+  /** R-98 (Phase 7d) : hutte bonus — art peint d'Erik (hexagone, NEW-OTHERS) ;
+   *  mêmes alignement et règle d'accent que le camp barbare. */
   function buildHutContainer(hutId: string): Container {
     const c = new Container();
     const tex = textures!.hutte;
@@ -1021,19 +1046,21 @@
     base.label = 'base';
     base.anchor.set(0.5, 1);
     base.scale.set(0.5);
-    base.y = 40;
+    base.y = 64;
     const accent = new Sprite(tex.accent);
     accent.label = 'accent';
     accent.anchor.set(0.5, 1);
     accent.scale.set(0.5);
-    accent.y = 40;
-    accent.tint = 0xd9a93f; // or : appelle la récompense
+    accent.y = 64;
+    accent.visible = tex.accent !== tex.base;
+    if (accent.visible) accent.tint = 0xd9a93f; // or : appelle la récompense
     c.addChild(base, accent);
     c.label = hutId;
     return c;
   }
 
-  /** 7o · R-153 : artefact (relique) — accent doré au rendu. */
+  /** 7o · R-153 : artefact (relique) — art peint d'Erik (hexagone, NEW-OTHERS) ;
+   *  mêmes alignement et règle d'accent que le camp barbare. */
   function buildArtefactContainer(artefactId: string): Container {
     const c = new Container();
     const tex = textures!.artefacts[artefactId] ?? textures!.hutte;
@@ -1041,13 +1068,14 @@
     base.label = 'base';
     base.anchor.set(0.5, 1);
     base.scale.set(0.5);
-    base.y = 46;
+    base.y = 64;
     const accent = new Sprite(tex.accent);
     accent.label = 'accent';
     accent.anchor.set(0.5, 1);
     accent.scale.set(0.5);
-    accent.y = 46;
-    accent.tint = 0xffd479; // or : relique précieuse
+    accent.y = 64;
+    accent.visible = tex.accent !== tex.base;
+    if (accent.visible) accent.tint = 0xffd479; // or : relique précieuse
     c.addChild(base, accent);
     c.label = artefactId;
     return c;
@@ -3186,6 +3214,8 @@
     onReady?.({ centerOnHex, centerOnUnit });
     // Debug console (dev uniquement) : état interne inspectable via la console.
     (window as unknown as Record<string, unknown>).__gameCanvas = {
+      /** App Pixi (debug : inspection de la scène). */
+      app: () => app,
       /** Centre la caméra sur une case (debug/tests). */
       centerOn(hex: Hex): void {
         centerOnHex(hex);

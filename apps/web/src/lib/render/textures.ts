@@ -68,6 +68,12 @@ export interface GameTextures {
   yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null; gold: Texture | null; science: Texture | null };
   /** R-91 : sprites des ressources (clé = id de resources.json, null si asset absent). */
   resources: Record<string, Texture | null>;
+  /** TUILES-RESSOURCES (Erik 26/09) : tuiles pleines par ressource — clé = id
+   *  de resources.json, null si l'art de la ressource est absent. */
+  tuilesRessources: Record<string, Texture | null>;
+  /** TUILES-CACHER (Erik 26/09) : terrains à ressource NON révélée (brume) —
+   *  null si l'art du terrain est absent (repli tuile de terrain). */
+  tuilesCacher: Partial<Record<TerrainId, Texture | null>>;
   /** Pixel blanc (barres de PV/progression, flashs). */
   px: Texture;
 }
@@ -635,6 +641,8 @@ export function createTextures(renderer: Renderer): GameTextures {
     ) as Record<string, EntityTexture>,
     yieldIcons,
     resources: {},
+    tuilesRessources: {},
+    tuilesCacher: {},
     px,
   };
 }
@@ -659,6 +667,69 @@ const TILE_ASSETS: Record<TerrainId, string> = {
   ville: 'tile_ville_sol',
   cratere: 'tile_cratere',
 };
+
+// TUILES-RESSOURCES (Erik 26/09, mission TUILES-RESSOURCES) : les 22 tuiles
+// pleines par ressource (art cuit tile_ressource_<id>.png, mode « tuile » du
+// pipeline). Une case dont la ressource est RÉVÉLÉE (identité diffusée par le
+// filtrage R-92) ET présente dans cette table affiche la tuile-ressource ENTIÈRE
+// (plus de jeton) ; tout autre cas (ressource inconnue, sans art) garde
+// l'affichage jeton sur tuile de terrain. D4 : l'art incluant son propre sol,
+// la variante remplace la tuile pour TOUS les terrains de la ressource (blé :
+// prairie ET plaine — art prairie seul). Table pure et testée
+// (tests/tuiles-ressources.test.ts) : ids valides de resources.json.
+export const TUILES_RESSOURCES: Readonly<Record<string, string>> = Object.freeze({
+  aluminium: 'tile_ressource_aluminium',
+  baleine: 'tile_ressource_baleine',
+  betail: 'tile_ressource_betail',
+  ble: 'tile_ressource_ble',
+  boeufs: 'tile_ressource_boeufs',
+  caoutchouc: 'tile_ressource_caoutchouc',
+  charbon: 'tile_ressource_charbon',
+  chene: 'tile_ressource_chene',
+  encens: 'tile_ressource_encens',
+  epices: 'tile_ressource_epices',
+  fer: 'tile_ressource_fer',
+  gemmes: 'tile_ressource_gemmes',
+  gibier: 'tile_ressource_gibier',
+  marbre: 'tile_ressource_marbre',
+  or: 'tile_ressource_or',
+  petrole: 'tile_ressource_petrole',
+  poisson: 'tile_ressource_poisson',
+  soie: 'tile_ressource_soie',
+  soufre: 'tile_ressource_soufre',
+  teinture: 'tile_ressource_teinture',
+  uranium: 'tile_ressource_uranium',
+  vin: 'tile_ressource_vin',
+});
+
+/** Sélection de texture pour la tuile d'une case (fonction pure, testée) :
+ *  ressource révélée avec art → la tuile-ressource ; ressource présente mais
+ *  NON révélée (inconnue) → la variante « cacher » du terrain (brume, Erik
+ *  26/09) ; sinon la tuile de terrain. Le jeton reste géré par GameCanvas. */
+export function nomTuilePour(terrain: TerrainId, ressource: string | null): string {
+  if (ressource && ressource !== RESOURCE_UNKNOWN) {
+    const art = TUILES_RESSOURCES[ressource];
+    if (art) return art;
+  }
+  if (ressource === RESOURCE_UNKNOWN) {
+    const cacher = TUILES_CACHER[terrain];
+    if (cacher) return cacher;
+  }
+  return TILE_ASSETS[terrain];
+}
+
+/** TUILES-CACHER (Erik 26/09, vague 3) : terrains avec ressource NON révélée —
+ *  brume centrale « quelque chose est caché ici ». Pas de variante océan :
+ *  aucune ressource ne spawn sur l'océan (resources.json : eau seule). */
+export const TUILES_CACHER: Readonly<Partial<Record<TerrainId, string>>> = Object.freeze({
+  prairie: 'tile_cacher_prairie',
+  plaine: 'tile_cacher_plaine',
+  colline: 'tile_cacher_colline',
+  montagne: 'tile_cacher_montagne',
+  desert: 'tile_cacher_desert',
+  foret: 'tile_cacher_foret',
+  eau: 'tile_cacher_eau',
+});
 
 // 7j · R-126 : les 6 classes canoniques ont un PLACEHOLDER dessiné ci-dessus
 // (unités illustres = alias du même Graphics). PILE-AFFICHÉE (retour d'Erik du
@@ -725,11 +796,19 @@ async function texOrFallback(name: string, fallback: Texture): Promise<Texture> 
 }
 
 async function entityOrFallback(base: string, fallback: EntityTexture): Promise<EntityTexture> {
-  const [b, a] = await Promise.all([
-    texOrFallback(base, fallback.base),
-    texOrFallback(`${base}_accent`, fallback.accent),
-  ]);
-  return { base: b, accent: a };
+  const b = await texOrFallback(base, fallback.base);
+  // Accent ABSENT (404) → repli sur la BASE chargée, jamais sur le placeholder
+  // painter : un état mixte (base cuite + accent placeholder) dessinait des
+  // formes fantômes (barre/croix/triangle) sous les entités. Les assets
+  // painter livrent toujours base+accent ; les arts peints d'Erik n'ont
+  // PAS d'accent (le rendu ne teinte que si accent !== base).
+  let accent: Texture;
+  try {
+    accent = avecMipmaps((await Assets.load(`/art/${base}_accent.png`)) as Texture);
+  } catch {
+    accent = b;
+  }
+  return { base: b, accent };
 }
 
 /** Charge les assets réels depuis /art/ — fallback placeholder fichier par fichier. */
@@ -740,9 +819,15 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   // R-91 : les 22 ressources de resources.json + le marqueur « inconnue »
   // (R-92, diffusion d'identité masquée) — optionnels, id → res_<id>.png.
   const resourceIds = [...Object.keys(RESOURCES).sort(), RESOURCE_UNKNOWN];
+  // TUILES-RESSOURCES (Erik 26/09) : chargement OPTIONNEL (art absent → null,
+  // la case garde l'affichage jeton) des tuiles pleines par ressource.
+  const tuileRessourceIds = Object.keys(TUILES_RESSOURCES).sort();
+  // TUILES-CACHER (Erik 26/09) : chargement optionnel des terrains à ressource
+  // non révélée (brume) — absent → repli tuile de terrain.
+  const tuileCacherIds = (Object.keys(TUILES_CACHER) as TerrainId[]).sort();
   // Phase 7d (R-95) : variantes barbares (accent de repli rouge sang — accents.json).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -778,6 +863,8 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     optionalIcon('icone_or'),
     optionalIcon('icone_science'),
     Promise.all(resourceIds.map((id) => optionalIcon(`res_${id}`).then((t) => [id, t] as const))),
+    Promise.all(tuileRessourceIds.map((id) => optionalIcon(TUILES_RESSOURCES[id]!).then((t) => [id, t] as const))),
+    Promise.all(tuileCacherIds.map((id) => optionalIcon(TUILES_CACHER[id]!).then((t) => [id, t] as const))),
   ]);
 
   // Fusion : placeholders dessinés (guerrier, colon, classes illustres et
@@ -819,6 +906,8 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     colonFondation,
     yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon, gold: goldIcon, science: scienceIcon },
     resources: Object.fromEntries(resourceIcons),
+    tuilesRessources: Object.fromEntries(tuilesRessourcesCuites),
+    tuilesCacher: Object.fromEntries(tuilesCacherCuites) as Partial<Record<TerrainId, Texture | null>>,
     px: fallback.px,
   };
 }

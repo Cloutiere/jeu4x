@@ -1,204 +1,608 @@
 {
-  "_commentaire": "Profils d'import SVG (Erik désigne explicitement chaque fichier). cible.mode = 'unite' (256×320, ancré bas) | 'hex' (tuile 224×256 clippée + contour #2B2620). margeX/Haut/Bas en px de la cible. remplacements (variante CUITE) : paires source→cible explicites, une seule sortie. remplacementsPalette (PALETTE OFFICIELLE, décision Erik 20/09 — HANDOFF-ACCENTS-7-FACTIONS) : source → TONALITÉ (reflet|base|ombre) ; UNE variante par faction de apps/web/src/lib/render/accents.json (7 joueurs + barbare = 8), stems <stem>_j1.._j7,_barbare, sans calque accent. IMPORTANT : Erik fournit, le pipeline n'importe QUE ces fichiers-là.",
-  "guerrier-6couleurs": {
-    "_doc": "ASSETS-6COULEURS (26/09) : un SVG PEINT par faction (mapping D1 : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise). Aucun recoloriage — la cuite = rendu direct du SVG. echelle 0,7765 = calibre guerrier (hauteur de contenu identique au maître).",
-    "svg": "new_units/guerrier/guerrier_bleu.svg",
-    "stem": "unite_guerrier",
-    "variantesFournies": {
-      "bleu-saphir": "new_units/guerrier/guerrier_bleu.svg",
-      "rouge-royal": "new_units/guerrier/guerrier_rouge.svg",
-      "vert-emeraude": "new_units/guerrier/guerrier_vert.svg",
-      "jaune-dor": "new_units/guerrier/guerrier_jaune.svg",
-      "cuivre-ardent": "new_units/guerrier/guerrier_orange.svg",
-      "ardoise": "new_units/guerrier/guerrier_ardoise.svg"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.8808
-    }
+ "_commentaire": "Profils d'import SVG (Erik désigne explicitement chaque fichier). cible.mode = 'unite' (256×320, ancré bas) | 'hex' (tuile 224×256 clippée + contour #2B2620). margeX/Haut/Bas en px de la cible. remplacements (variante CUITE) : paires source→cible explicites, une seule sortie. remplacementsPalette (PALETTE OFFICIELLE, décision Erik 20/09 — HANDOFF-ACCENTS-7-FACTIONS) : source → TONALITÉ (reflet|base|ombre) ; UNE variante par faction de apps/web/src/lib/render/accents.json (7 joueurs + barbare = 8), stems <stem>_j1.._j7,_barbare, sans calque accent. IMPORTANT : Erik fournit, le pipeline n'importe QUE ces fichiers-là.",
+ "guerrier-6couleurs": {
+  "_doc": "ASSETS-6COULEURS (26/09) : un SVG PEINT par faction (mapping D1 : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise). Aucun recoloriage — la cuite = rendu direct du SVG. echelle 0,7765 = calibre guerrier (hauteur de contenu identique au maître).",
+  "svg": "new_units/guerrier/guerrier_bleu.svg",
+  "stem": "unite_guerrier",
+  "variantesFournies": {
+   "bleu-saphir": "new_units/guerrier/guerrier_bleu.svg",
+   "rouge-royal": "new_units/guerrier/guerrier_rouge.svg",
+   "vert-emeraude": "new_units/guerrier/guerrier_vert.svg",
+   "jaune-dor": "new_units/guerrier/guerrier_jaune.svg",
+   "cuivre-ardent": "new_units/guerrier/guerrier_orange.svg",
+   "ardoise": "new_units/guerrier/guerrier_ardoise.svg"
   },
-  "guerrier-base": {
-    "_doc": "Sprite de base unite_guerrier (fallback + pile) : le SVG bleu d'Erik supplanté au maître saphir (consigné, maître conservé en assets-src/modeles/guerrier_ref.svg).",
-    "svg": "new_units/guerrier/guerrier_bleu.svg",
-    "stem": "unite_guerrier",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.8808
-    }
-  },
-  "archer-6couleurs": {
-    "_doc": "Archer d'Erik ×6 (clôt ARCHER-SVG suspendu) — même calibre que le guerrier (même hauteur de contenu à l'écran).",
-    "svg": "new_units/archer/archer_bleu.svg",
-    "stem": "unite_archer",
-    "variantesFournies": {
-      "bleu-saphir": "new_units/archer/archer_bleu.svg",
-      "rouge-royal": "new_units/archer/archer_rouge.svg",
-      "vert-emeraude": "new_units/archer/archer_vert.svg",
-      "jaune-dor": "new_units/archer/archer_jaune.svg",
-      "cuivre-ardent": "new_units/archer/archer_orange.svg",
-      "ardoise": "new_units/archer/archer_ardoise.svg"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-       "echelle": 0.8312
-    }
-  },
-  "archer-base": {
-    "_doc": "Sprite de base unite_archer : le SVG bleu d'Erik remplace le planche peintre (mission ARCHER-SVG clôturée).",
-    "svg": "new_units/archer/archer_bleu.svg",
-    "stem": "unite_archer",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-       "echelle": 0.8312
-    }
-  },
-  "barbare-unite": {
-    "_doc": "D4 : unit_barbare.svg d'Erik remplace le guerrier barbare (unite_barbare_guerrier) — sprite peint cuit tel quel, HORS système J1-J6, aucune variante.",
-    "svg": "new_barbares/unit_barbare.svg",
-    "stem": "unite_barbare_guerrier",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-       "echelle": 0.9674
-    }
-  },
-  "tuile-barbare": {
-    "_doc": "D4 : tuile du CAMP barbare (village_barbare) — la hutte bonus (hutte.png) est un asset distinct, intouchée. Mode tuile TUILES-SVG (hexagone + contour).",
-    "svg": "new_barbares/tuile_barbare.svg",
-    "stem": "village_barbare",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-prairie": {
-    "svg": "new_tiles/prairie_epuree.svg",
-    "stem": "tile_prairie",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-plaine": {
-    "svg": "new_tiles/plaine.svg",
-    "stem": "tile_plaine",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-colline": {
-    "svg": "new_tiles/colline.svg",
-    "stem": "tile_colline",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-montagne": {
-    "svg": "new_tiles/montagne.svg",
-    "stem": "tile_montagne",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-desert": {
-    "svg": "new_tiles/desert.svg",
-    "stem": "tile_desert",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-foret": {
-    "svg": "new_tiles/arbre_droit.svg",
-    "stem": "tile_foret",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-eau": {
-    "svg": "new_tiles/rivage.svg",
-    "stem": "tile_eau",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ocean": {
-    "svg": "new_tiles/ocean.svg",
-    "stem": "tile_ocean",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "icone-nourriture": {
-    "svg": "new_icones/icone_nourriture.svg",
-    "stem": "icone_nourriture",
-    "cible": { "mode": "icone", "w": 64, "h": 64 }
-  },
-  "icone-production": {
-    "svg": "new_icones/icone_production.svg",
-    "stem": "icone_production",
-    "cible": { "mode": "icone", "w": 64, "h": 64 }
-  },
-  "icone-or": {
-    "svg": "new_icones/icone_or.svg",
-    "stem": "icone_or",
-    "cible": { "mode": "icone", "w": 64, "h": 64 }
-  },
-  "icone-sciences": {
-    "svg": "new_icones/icone_sciences.svg",
-    "stem": "icone_science",
-    "cible": { "mode": "icone", "w": 64, "h": 64 }
-  },
-  "icone-balance": {
-    "svg": "new_icones/icone_balance.svg",
-    "stem": "icone_commerce",
-    "cible": { "mode": "icone", "w": 64, "h": 64 }
-  },
-  "icone-culture": {
-    "svg": "new_icones/icone_culture.svg",
-    "stem": "icone_culture",
-    "cible": { "mode": "icone", "w": 64, "h": 64 }
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8808
   }
+ },
+ "guerrier-base": {
+  "_doc": "Sprite de base unite_guerrier (fallback + pile) : le SVG bleu d'Erik supplanté au maître saphir (consigné, maître conservé en assets-src/modeles/guerrier_ref.svg).",
+  "svg": "new_units/guerrier/guerrier_bleu.svg",
+  "stem": "unite_guerrier",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8808
+  }
+ },
+ "archer-6couleurs": {
+  "_doc": "Archer d'Erik ×6 (clôt ARCHER-SVG suspendu) — même calibre que le guerrier (même hauteur de contenu à l'écran).",
+  "svg": "new_units/archer/archer_bleu.svg",
+  "stem": "unite_archer",
+  "variantesFournies": {
+   "bleu-saphir": "new_units/archer/archer_bleu.svg",
+   "rouge-royal": "new_units/archer/archer_rouge.svg",
+   "vert-emeraude": "new_units/archer/archer_vert.svg",
+   "jaune-dor": "new_units/archer/archer_jaune.svg",
+   "cuivre-ardent": "new_units/archer/archer_orange.svg",
+   "ardoise": "new_units/archer/archer_ardoise.svg"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8312
+  }
+ },
+ "archer-base": {
+  "_doc": "Sprite de base unite_archer : le SVG bleu d'Erik remplace le planche peintre (mission ARCHER-SVG clôturée).",
+  "svg": "new_units/archer/archer_bleu.svg",
+  "stem": "unite_archer",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8312
+  }
+ },
+ "barbare-unite": {
+  "_doc": "D4 : unit_barbare.svg d'Erik remplace le guerrier barbare (unite_barbare_guerrier) — sprite peint cuit tel quel, HORS système J1-J6, aucune variante.",
+  "svg": "new_others/unit_barbare.svg",
+  "stem": "unite_barbare_guerrier",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.9674
+  }
+ },
+ "tuile-barbare": {
+  "_doc": "D4 : tuile du CAMP barbare (village_barbare) — version peinte d'Erik (new_others, 26/09) supplantant new_barbares/ (dossier disparu). La hutte bonus reste un asset distinct. [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_barbare.svg",
+  "stem": "village_barbare",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "tuile-hutte": {
+  "_doc": "TUILES-RESSOURCES vague 2 (26/09) : hutte bonus peinte par Erik (new_others) — hexagone pré-clippé, remplace le painter. [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_hutte.svg",
+  "stem": "hutte",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-angkor-wat": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Angkor Wat.svg",
+  "stem": "artefact_angkor_wat",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-arche-alliance": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Ark of the Covenant.svg",
+  "stem": "artefact_arche_alliance",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-sept-cites-or": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Seven Cities of Gold.svg",
+  "stem": "artefact_sept_cites_or",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-ecole-confucius": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_School of Confucius.svg",
+  "stem": "artefact_ecole_confucius",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-chevaliers-templiers": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Knights Templar.svg",
+  "stem": "artefact_chevaliers_templiers",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-atlantide": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Lost City of Atlantis.svg",
+  "stem": "artefact_atlantide",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-grand-sphinx": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter (dlcOnly : jamais rendu aujourd’hui — cuit par complétude, consigné au rapport) [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Great Sphinx.svg",
+  "stem": "artefact_grand_sphinx",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "_tuiles-ressources-commentaire": "TUILES-RESSOURCES (26/09) : 22 tuiles pleines par ressource, art d'Erik new_ressources/ (NON commités). Remplacent la tuile de terrain SEULEMENT quand la ressource est révélée (rendu, mission TUILES-RESSOURCES). renames : alluminium→aluminium, boeuf→boeufs, gems→gemmes, poissons→poisson, souffre→soufre.",
+ "tuile-ressource-aluminium": {
+  "_doc": "TUILES-RESSOURCES : aluminium (rename alluminium→aluminium).",
+  "svg": "new_ressources/alluminium_colline.svg",
+  "stem": "tile_ressource_aluminium",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-baleine": {
+  "_doc": "TUILES-RESSOURCES : baleine (correspondance directe).",
+  "svg": "new_ressources/baleine_rivage.svg",
+  "stem": "tile_ressource_baleine",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-betail": {
+  "_doc": "TUILES-RESSOURCES : betail (correspondance directe).",
+  "svg": "new_ressources/betail_prairie.svg",
+  "stem": "tile_ressource_betail",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-ble": {
+  "_doc": "TUILES-RESSOURCES : ble (correspondance directe).",
+  "svg": "new_ressources/ble_prairie.svg",
+  "stem": "tile_ressource_ble",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-boeufs": {
+  "_doc": "TUILES-RESSOURCES : boeufs (rename boeuf→boeufs).",
+  "svg": "new_ressources/boeuf_prairie.svg",
+  "stem": "tile_ressource_boeufs",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-caoutchouc": {
+  "_doc": "TUILES-RESSOURCES : caoutchouc (correspondance directe).",
+  "svg": "new_ressources/caoutchouc_forest.svg",
+  "stem": "tile_ressource_caoutchouc",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-charbon": {
+  "_doc": "TUILES-RESSOURCES : charbon (correspondance directe).",
+  "svg": "new_ressources/charbon_colline.svg",
+  "stem": "tile_ressource_charbon",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-chene": {
+  "_doc": "TUILES-RESSOURCES : chene (correspondance directe).",
+  "svg": "new_ressources/chene_forest.svg",
+  "stem": "tile_ressource_chene",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-encens": {
+  "_doc": "TUILES-RESSOURCES : encens (correspondance directe).",
+  "svg": "new_ressources/encens_prairie.svg",
+  "stem": "tile_ressource_encens",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-epices": {
+  "_doc": "TUILES-RESSOURCES : epices (correspondance directe).",
+  "svg": "new_ressources/epices_desert.svg",
+  "stem": "tile_ressource_epices",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-fer": {
+  "_doc": "TUILES-RESSOURCES : fer (correspondance directe).",
+  "svg": "new_ressources/fer_colline.svg",
+  "stem": "tile_ressource_fer",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-gemmes": {
+  "_doc": "TUILES-RESSOURCES : gemmes (rename gems→gemmes).",
+  "svg": "new_ressources/gems_montagne.svg",
+  "stem": "tile_ressource_gemmes",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-gibier": {
+  "_doc": "TUILES-RESSOURCES : gibier (correspondance directe).",
+  "svg": "new_ressources/gibier_forest.svg",
+  "stem": "tile_ressource_gibier",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-marbre": {
+  "_doc": "TUILES-RESSOURCES : marbre (correspondance directe).",
+  "svg": "new_ressources/marbre_plaines.svg",
+  "stem": "tile_ressource_marbre",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-or": {
+  "_doc": "TUILES-RESSOURCES : or (correspondance directe).",
+  "svg": "new_ressources/or_montagne.svg",
+  "stem": "tile_ressource_or",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-petrole": {
+  "_doc": "TUILES-RESSOURCES : petrole (correspondance directe).",
+  "svg": "new_ressources/petrole_desert.svg",
+  "stem": "tile_ressource_petrole",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-poisson": {
+  "_doc": "TUILES-RESSOURCES : poisson (rename poissons→poisson).",
+  "svg": "new_ressources/poissons_rivage.svg",
+  "stem": "tile_ressource_poisson",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-soie": {
+  "_doc": "TUILES-RESSOURCES : soie (correspondance directe).",
+  "svg": "new_ressources/soie_plaines.svg",
+  "stem": "tile_ressource_soie",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-soufre": {
+  "_doc": "TUILES-RESSOURCES : soufre (rename souffre→soufre).",
+  "svg": "new_ressources/souffre_desert.svg",
+  "stem": "tile_ressource_soufre",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-teinture": {
+  "_doc": "TUILES-RESSOURCES : teinture (correspondance directe).",
+  "svg": "new_ressources/teinture_rivage.svg",
+  "stem": "tile_ressource_teinture",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-uranium": {
+  "_doc": "TUILES-RESSOURCES : uranium (correspondance directe).",
+  "svg": "new_ressources/uranium_montagne.svg",
+  "stem": "tile_ressource_uranium",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-vin": {
+  "_doc": "TUILES-RESSOURCES : vin (correspondance directe).",
+  "svg": "new_ressources/vin_plaines.svg",
+  "stem": "tile_ressource_vin",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-prairie": {
+  "svg": "new_tiles/prairie_epuree.svg",
+  "stem": "tile_prairie",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-plaine": {
+  "svg": "new_tiles/plaine.svg",
+  "stem": "tile_plaine",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-colline": {
+  "svg": "new_tiles/colline.svg",
+  "stem": "tile_colline",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-montagne": {
+  "svg": "new_tiles/montagne.svg",
+  "stem": "tile_montagne",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-desert": {
+  "svg": "new_tiles/desert.svg",
+  "stem": "tile_desert",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-foret": {
+  "svg": "new_tiles/arbre_droit.svg",
+  "stem": "tile_foret",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-eau": {
+  "svg": "new_tiles/rivage.svg",
+  "stem": "tile_eau",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-prairie": {
+  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
+  "svg": "new_tiles/prairie_cacher.svg",
+  "stem": "tile_cacher_prairie",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-plaine": {
+  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
+  "svg": "new_tiles/plaine_cacher.svg",
+  "stem": "tile_cacher_plaine",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-colline": {
+  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
+  "svg": "new_tiles/colline_cacher.svg",
+  "stem": "tile_cacher_colline",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-montagne": {
+  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
+  "svg": "new_tiles/montagne_cacher.svg",
+  "stem": "tile_cacher_montagne",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-desert": {
+  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
+  "svg": "new_tiles/desert_cacher.svg",
+  "stem": "tile_cacher_desert",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-foret": {
+  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
+  "svg": "new_tiles/arbre_cacher.svg",
+  "stem": "tile_cacher_foret",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-eau": {
+  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
+  "svg": "new_tiles/rivage_cacher.svg",
+  "stem": "tile_cacher_eau",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ocean": {
+  "svg": "new_tiles/ocean.svg",
+  "stem": "tile_ocean",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "icone-nourriture": {
+  "svg": "new_icones/icone_nourriture.svg",
+  "stem": "icone_nourriture",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-production": {
+  "svg": "new_icones/icone_production.svg",
+  "stem": "icone_production",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-or": {
+  "svg": "new_icones/icone_or.svg",
+  "stem": "icone_or",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-sciences": {
+  "svg": "new_icones/icone_sciences.svg",
+  "stem": "icone_science",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-balance": {
+  "svg": "new_icones/icone_balance.svg",
+  "stem": "icone_commerce",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-culture": {
+  "svg": "new_icones/icone_culture.svg",
+  "stem": "icone_culture",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ }
 }

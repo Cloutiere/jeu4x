@@ -4530,15 +4530,23 @@ def main():
         # Phase 7d - barbares & huttes (R-95..R-98)
         "unite_barbare_guerrier": (256, 320, unite_barbare_guerrier),
         "unite_barbare_archer": (256, 320, unite_barbare_archer),
-        "village_barbare": (224, 256, village_barbare),
-        "hutte": (224, 256, hutte),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "village_barbare": (224, 256, village_barbare),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "hutte": (224, 256, hutte),
         # Phase 7o — artefacts / reliques (RULES.md §7.10, R-151..R-156)
-        "artefact_angkor_wat": (224, 256, artefact_angkor_wat),
-        "artefact_arche_alliance": (224, 256, artefact_arche_alliance),
-        "artefact_sept_cites_or": (224, 256, artefact_sept_cites_or),
-        "artefact_ecole_confucius": (224, 256, artefact_ecole_confucius),
-        "artefact_chevaliers_templiers": (224, 256, artefact_chevaliers_templiers),
-        "artefact_atlantide": (224, 256, artefact_atlantide),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "artefact_angkor_wat": (224, 256, artefact_angkor_wat),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "artefact_arche_alliance": (224, 256, artefact_arche_alliance),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "artefact_sept_cites_or": (224, 256, artefact_sept_cites_or),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "artefact_ecole_confucius": (224, 256, artefact_ecole_confucius),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "artefact_chevaliers_templiers": (224, 256, artefact_chevaliers_templiers),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "artefact_atlantide": (224, 256, artefact_atlantide),
         # Phase 7e — unités terrestres complémentaires (Appendice A)
         "unite_piquier": (256, 320, unite_piquier),
         "unite_milice": (256, 320, unite_milice),
