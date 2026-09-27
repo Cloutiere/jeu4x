@@ -14,7 +14,7 @@
    */
   import { CIVILIZATIONS, TOPOGRAPHIES } from '@game/rules';
   import type { ConfigPartie } from '@game/shared';
-  import { nomPalette4, resoutConflitsPalettes } from '@game/shared';
+  import { resoutConflitsPalettes } from '@game/shared';
   import Nuancier from './Nuancier.svelte';
   import { nationDe } from '../lib/nations.js';
 
@@ -75,7 +75,9 @@
     <div class="rangee">
       <span class="num">{i + 1}</span>
       <label class="type">
-        <span class="icone" class:bot={siege.type === 'bot'} aria-hidden="true">{siege.type === 'bot' ? '🤖' : '👤'}</span>
+        <span class="icone" aria-hidden="true">
+        <img src={siege.type === 'bot' ? '/interface/bot.svg' : '/interface/humain.svg'} alt="" />
+      </span>
         <select
           value={siege.type}
           disabled={!editable || (occupants[i] !== undefined && siege.type === 'humain') || i === 0}
@@ -92,11 +94,12 @@
           ignore={siege.paletteId}
           onchange={(paletteId) => maj((c) => { c.sieges[i]!.paletteId = paletteId; })}
         />
-        <span class="nomPalette">{nomPalette4(siege.paletteId)}{occupants[i] ? ` — ${occupants[i]}` : ''}</span>
       </div>
       <div class="civ">
         {#if nation?.logo}
-          <img class="logo" src={nation.logo} alt="" />
+          <span class="logo-site" aria-hidden="true">
+            <img class="logo" style:width={`${5 * (nation.logoEchelle ?? 1.5)}rem`} style:height={`${5 * (nation.logoEchelle ?? 1.5)}rem`} src={nation.logo} alt="" />
+          </span>
         {/if}
         <select
           value={siege.civId ?? ''}
@@ -148,24 +151,32 @@
 </div>
 
 <style>
-  .editor { display: flex; flex-direction: column; gap: 0.55rem; color: var(--texte); }
+  .editor {
+    display: flex; flex-direction: column; gap: 0.55rem; color: var(--texte);
+    /* LOBBY-PREMIUM v2 (retour Erik 27/09) : la banderole 16:9 s'affiche EN
+       ENTIER — sa hauteur pilote celle des rangées ; calibrée pour que 5
+       rangées + options tiennent dans le 1080 sans défilement de page. */
+    --hauteur-rangee: 5.75rem;
+  }
   .entetes, .rangee {
     display: grid;
-    grid-template-columns: 2.2rem 7.5rem minmax(14rem, 1fr) minmax(11rem, 13rem);
+    grid-template-columns: 2.6rem 9rem minmax(11rem, 1fr) minmax(11rem, 13rem);
     gap: 0.7rem; align-items: center;
   }
   .avecBanderoles .entetes, .avecBanderoles .rangee {
-    grid-template-columns: 2.2rem 8.5rem minmax(13rem, 1fr) minmax(12rem, 14rem) minmax(13rem, 15rem);
+    grid-template-columns: 2.6rem 9rem minmax(10rem, 1fr) minmax(12rem, 17rem) calc(var(--hauteur-rangee) * 16 / 9);
   }
   /* Lobby : le type de siège a déjà sa colonne — les marqueurs « humain/bot »
      sous les pastilles du nuancier ne sont que du bruit visuel (mockup). */
   .avecBanderoles :global(.pastille .nom) { display: none; }
+  /* Pastilles 2 rem dans les rangées : 6 couleurs tiennent sur une ligne. */
+  .editor :global(.nuancier .pastille) { width: 2rem; height: 2rem; }
   .entetes {
     font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
     color: var(--texte-doux); padding: 0 0.6rem;
   }
   .rangee {
-    border: 1px solid var(--panneau-bord-doux); border-radius: 8px; padding: 0.5rem 0.7rem;
+    border: 1px solid var(--panneau-bord-doux); border-radius: 8px; padding: 0.35rem 0.7rem;
     background: var(--rangee);
   }
   .rangee:hover { border-color: var(--panneau-bord); }
@@ -174,19 +185,26 @@
     font-family: var(--serif-or); font-size: 1.05rem;
   }
   .type { display: flex; gap: 0.45rem; align-items: center; }
-  .icone { font-size: 1rem; opacity: 0.9; }
+  .icone { display: flex; align-items: center; justify-content: center; }
+  .icone img { width: 1.9rem; height: 1.9rem; object-fit: contain; }
   .couleur { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-  .nomPalette { font-size: 0.74rem; color: var(--texte-doux); }
   .civ { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
-  .logo { width: 2rem; height: 2rem; object-fit: contain; filter: drop-shadow(0 0 3px rgba(201, 162, 39, 0.5)); flex: none; }
-  /* D3 — bandeau neutre sombre tant qu'aucune nation n'est choisie. */
+  .civ select { flex: 1; min-width: 0; width: auto; }
+  /* Emplacement du logo à largeur CONSTANTE — les logos « gros de base »
+     sont simplement centrés plus petits, pour que le sélecteur de civ
+     garde la même largeur sur toutes les rangées (retour Erik 27/09). */
+  .logo-site { width: 7.5rem; height: 7.5rem; display: flex; align-items: center; justify-content: center; flex: none; margin-block: -1.25rem; }
+  .logo { object-fit: contain; filter: drop-shadow(0 0 3px rgba(201, 162, 39, 0.5)); }
+  /* D3 — bandeau neutre tant qu'aucune nation n'est choisie ; avec choix :
+     banderole 16:9 ENTIÈRE (pas de recadrage), hauteur = rangée. */
   .banderole {
-    height: 3.4rem; border-radius: 6px; overflow: hidden; border: 1px solid var(--panneau-bord-doux);
+    height: var(--hauteur-rangee); aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--panneau-bord-doux);
     background:
       repeating-linear-gradient(135deg, rgba(201, 162, 39, 0.05) 0 6px, transparent 6px 14px),
       linear-gradient(180deg, #131c2c, #0d1420);
   }
-  .banderole img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .banderole img { width: 100%; height: 100%; object-fit: fill; display: block; }
   .parametres { display: flex; gap: 1.2rem; flex-wrap: wrap; margin-top: 0.3rem; align-items: center; }
   label { display: flex; gap: 0.45rem; align-items: center; font-size: 0.86rem; }
   .check { flex: 1 1 100%; }

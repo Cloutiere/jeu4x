@@ -1,0 +1,9 @@
+{
+  "$comment": "LOBBY-PREMIUM v3 — pastilles des 6 palettes (SVG d'Erik du 27/09, versions allumée/éteinte). 🔶 vert.svg (allumé) non fourni : repli sur l'éteint.",
+  "rouge-royal":   { "allumee": "/interface/pastilles/rouge.svg",   "eteinte": "/interface/pastilles/rouge_eteint.svg" },
+  "bleu-saphir":   { "allumee": "/interface/pastilles/bleu.svg",    "eteinte": "/interface/pastilles/bleu_eteint.svg" },
+  "vert-emeraude": { "allumee": "/interface/pastilles/vert.svg",    "eteinte": "/interface/pastilles/vert_eteint.svg" },
+  "jaune-dor":     { "allumee": "/interface/pastilles/jaune.svg",   "eteinte": "/interface/pastilles/jaune_eteint.svg" },
+  "cuivre-ardent": { "allumee": "/interface/pastilles/orange.svg",  "eteinte": "/interface/pastilles/orange_eteint.svg" },
+  "ardoise":       { "allumee": "/interface/pastilles/ardoise.svg", "eteinte": "/interface/pastilles/ardoise_eteint.svg" }
+}

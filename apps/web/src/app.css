@@ -25,7 +25,6 @@ body {
 
 /* Composantes partagées lobby + salle d'attente (un seul langage visuel :
    fonds d'Erik derrière des panneaux sombres à liseré or). */
-.page { position: relative; max-width: 98rem; margin: 0 auto; padding: 1.4rem 1.6rem 2.5rem; color: var(--texte); }
 .panneau {
   background: var(--panneau);
   border: 1px solid var(--panneau-bord-doux);
@@ -34,7 +33,9 @@ body {
 }
 .bandeaus { display: flex; gap: 1rem; margin-top: 1.1rem; align-items: stretch; }
 .bandeau { flex: 1; display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 1rem; }
-.icone-lobby { width: 2.6rem; height: 2.6rem; object-fit: contain; }
+/* Le dessin de la planète est décentré vers le haut dans le canevas SVG
+   (encre y 272-615 sur 1024) — compensation pour un centrage vertical réel. */
+.icone-lobby { width: 13rem; height: 13rem; object-fit: contain; margin-block: -3.5rem; transform: translateY(0.875rem); }
 .bandeau h2 {
   margin: 0; font-family: var(--serif-or); text-transform: uppercase; letter-spacing: 0.14em;
   font-size: 1.4rem; color: var(--or-clair); font-weight: 600;

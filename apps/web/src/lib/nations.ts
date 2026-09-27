@@ -11,6 +11,11 @@ export interface Nation {
   banderole: string;
   logo: string | null;
   reserve?: boolean;
+  /** Taille d'affichage du logo en multiple de la base (5 rem) — les SVG
+   *  n'ont pas tous le même remplissage de canevas (demande Erik 27/09) :
+   *  1,5 par défaut, 1,25 pour les gros de base agrandis, 0,75 pour les
+   *  réduction explicites (Égypte, Espagne, Russie). */
+  logoEchelle?: number;
 }
 
 const table = brut.nations as unknown as Record<string, Nation>;
