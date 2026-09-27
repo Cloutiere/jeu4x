@@ -76,7 +76,7 @@ describe('atelier — catalogue L0', () => {
     // ASSETS-6COULEURS (26/09) : guerrier ET archer sont les SVG peints
     // d'Erik (un SVG par couleur, aucun calque accent) — base seule, comme
     // les barbares ci-dessous.
-    const SANS_ACCENT = new Set(['guerrier', 'archer']);
+    const SANS_ACCENT = new Set(['guerrier', 'archer', 'colon']);
     for (const id of Object.keys(UNIT_TYPES)) {
       if (!existsSync(path.join(ART_DIR, `unite_${id}.png`))) continue;
       attends.push(`unite_${id}`);
@@ -97,8 +97,9 @@ describe('atelier — catalogue L0', () => {
     // Barbares (décision Erik 12/09) : rouge CUIT dans la base, AUCUN accent —
     // village sans `_accent`, unités barbares cataloguées sans accent.
     attends.push(
-      'ville_settlement', 'ville_settlement_accent',
-      'ville_capitale', 'ville_capitale_accent',
+      // NEW-VILLES + colon (art d'Erik peint) : base seule, aucun accent.
+      'ville_settlement',
+      'ville_capitale',
       'village_barbare',
       'unite_barbare_guerrier',
       'unite_barbare_archer',

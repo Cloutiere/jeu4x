@@ -4512,9 +4512,12 @@ def main():
         # retour arrière = réactiver la ligne ET relancer generate.py, ou git
         # revert du commit d'import.
         # "unite_guerrier": (256, 320, unite_guerrier),
-        "unite_colon": (256, 320, unite_colon),
-        "ville_settlement": (224, 256, ville_settlement),
-        "ville_capitale": (224, 256, ville_capitale),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "unite_colon": (256, 320, unite_colon),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "ville_settlement": (224, 256, ville_settlement),
+        # IMPORT (art d'Erik, profils import_svg) — retour arrière : décommenter
+        # "ville_capitale": (224, 256, ville_capitale),
         "batiment_grenier": (224, 256, batiment_grenier),
         "batiment_atelier": (224, 256, batiment_atelier),
         "batiment_mine_de_fer": (224, 256, batiment_mine_de_fer),

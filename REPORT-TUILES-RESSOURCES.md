@@ -12,6 +12,14 @@ Erik a fourni 7 tuiles « cacher » (`new_tiles/*_cacher.svg` : prairie, plaine,
 - Captures refaites : `fiche-non-revelees-jeton-inconnue.png` montre les 7 terrains en état caché (brume + jeton).
 - Suite : **897 + 391 + 116 verts, typecheck 0 erreur**.
 
+## Vague 4 — colons + villes ancient + brume sans jeton (27/09 — EN ATTENTE DE VALIDATION ERIK, non commité)
+
+- **Brume sans jeton** (demande Erik) : le jeton « ? » n'apparaît plus sur les tuiles cacher — la brume seule signale la présence. Le jeton reste réservé aux ressources révélées SANS art.
+- **Colons** (`new_units/colon/`, 6 SVG peints par faction + base bleue) : profils `colon-6couleurs`/`colon-base` (mode unite, echelle 0,8808 = calibre guerrier), cuites `unite_colon_j1..j6` + `unite_colon`, branchées dans `textures.cuites` (`colon@<palette>` — mécanique guerrier/archer inchangée). Ancien `unite_colon_accent` painter supprimé, generate.py commenté. Taille écran : calibre guerrier (AJUST_HAUTEUR défaut 1.0 — à l'œil).
+- **Ville + capitale** (`new_villes/vile_ancient`, `capitale_ancient`) : UNE version pour toutes les époques et tous les joueurs (décision Erik — le contour de tuile porte la couleur), profils mode tuile + entite, stems `ville_settlement`/`ville_capitale`. buildCityContainer : ancrage +64 (comme le camp), pas de teinte (accent = repli base). Accents painter villes supprimés, generate.py commenté, catalogue/test adaptés. Les variantes industrielles/médiévales/modernes d'Erik (PNG déjà recoloriés) restent EN RÉSERVE — à cuire quand le visuel ancient est validé.
+- Captures : `captures-tuiles-ressources/cacher-brume-sans-jeton.png`, `colons-villes-ancient.png`, `colon-u2-cuite.png` (driver `driver-capture-colons-villes.mjs`). Labo : u2 = colon, ville (4,6) + capitale (6,6).
+- Suite : **897 + 391 + 116 verts, typecheck 0 erreur**.
+
 ## Vague 2 — NEW-OTHERS (26/09, retour d'Erik sur #/progen)
 
 Retour : le **camp barbare n'était pas placé parfaitement sur sa tuile**, et `new_others/` contient la **hutte** amicale + **7 merveilles** (artefacts) + une **nouvelle version du camp** + `unit_barbare.svg` (déjà intégré) à intégrer.

@@ -827,7 +827,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const tuileCacherIds = (Object.keys(TUILES_CACHER) as TerrainId[]).sort();
   // Phase 7d (R-95) : variantes barbares (accent de repli rouge sang — accents.json).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -857,6 +857,8 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     // ARCHER ×6 (ASSETS-6COULEURS, Erik 26/09) : mêmes variantes cuites par
     // palette que le guerrier (clôt la mission ARCHER-SVG suspendue).
     Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_archer_j${i + 1}`).then((t) => [pal, t] as const))),
+    // COLON ×6 (Erik 27/09) : mêmes variantes cuites par palette.
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_colon_j${i + 1}`).then((t) => [pal, t] as const))),
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
@@ -893,6 +895,9 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   });
   archersCuits.forEach(([pal, tex]) => {
     if (tex) cuites[`archer@${pal}`] = tex;
+  });
+  colonsCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`colon@${pal}`] = tex;
   });
 
   return {

@@ -74,6 +74,65 @@
    "echelle": 0.8312
   }
  },
+ "colon-6couleurs": {
+  "_doc": "COLONS d'Erik (27/09) : un SVG peint par faction (mapping ASSETS-6COULEURS : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise). Aucun recoloriage. echelle = calibre guerrier (même hauteur de contenu).",
+  "svg": "new_units/colon/colon_bleu.svg",
+  "stem": "unite_colon",
+  "variantesFournies": {
+   "bleu-saphir": "new_units/colon/colon_bleu.svg",
+   "rouge-royal": "new_units/colon/colon_rouge.svg",
+   "vert-emeraude": "new_units/colon/colon_vert.svg",
+   "jaune-dor": "new_units/colon/colon_jaune.svg",
+   "cuivre-ardent": "new_units/colon/colon_orange.svg",
+   "ardoise": "new_units/colon/colon_ardoise.svg"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8808
+  }
+ },
+ "colon-base": {
+  "_doc": "Sprite de base unite_colon (fallback + piles) : le SVG bleu d'Erik.",
+  "svg": "new_units/colon/colon_bleu.svg",
+  "stem": "unite_colon",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8808
+  }
+ },
+ "ville-settlement": {
+  "_doc": "VILLE (27/09) : ville ancient peinte par Erik (new_villes/vile_ancient) — UNE version pour toutes les époques et tous les joueurs (contour de tuile = couleur, décision Erik) ; hexagone pré-clippé, mode tuile + entite.",
+  "svg": "new_villes/vile_ancient/vile_ancient.svg",
+  "stem": "ville_settlement",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "ville-capitale": {
+  "_doc": "CAPITALE (27/09) : capitale ancient peinte par Erik — UNE version pour toutes les époques/joueurs ; hexagone pré-clippé, mode tuile + entite.",
+  "svg": "new_villes/capitale_ancient/capitale_ancient.svg",
+  "stem": "ville_capitale",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
  "barbare-unite": {
   "_doc": "D4 : unit_barbare.svg d'Erik remplace le guerrier barbare (unite_barbare_guerrier) — sprite peint cuit tel quel, HORS système J1-J6, aucune variante.",
   "svg": "new_others/unit_barbare.svg",

@@ -69,8 +69,8 @@
         // réunir en paquets compacts malgré l'ordre d'insertion.
         owner: NATIONS[i % nations]!,
         // PRÉVIEW VISUELLE (demande Erik 21/09, conservée) : u1 = archer,
-        // les suivantes = guerriers — pour comparer les sprites côte à côte.
-        type: i === 0 ? 'archer' : 'guerrier',
+        // u2 = colon (variante cuite, Erik 27/09), les suivantes = guerriers.
+        type: i === 0 ? 'archer' : i === 1 ? 'colon' : 'guerrier',
         // PRÉVIEW VISUELLE (demande Erik 21/09, conservée) : unités réparties
         // sur des tuiles VOISINES (archer en (0,0), guerriers en (1,0) et
         // suivants) — pas de cohabitation, lecture individuelle des sprites ;
@@ -150,8 +150,14 @@
     units.push({ id: 'barb1', owner: 'barbarien', type: 'guerrier', q: 7, r: 0 });    const terrainOverrides: Record<string, TerrainId> = Object.fromEntries(
       Object.entries(TERRAINS_DEMO).map(([k, t]) => [k, t as TerrainId]),
     );
+    // NEW-VILLES (Erik 27/09) : ville + capitale ancient pour la validation
+    // visuelle (une version toutes époques/joueurs, sans teinte).
+    const villes = [
+      { owner: 'p1', q: 4, r: 6, pop: 3 },
+      { owner: 'p2', q: 6, r: 6, pop: 5, capital: true },
+    ];
     return makeState({
-      width: 8, height: 15, units, cities: [], terrainOverrides,
+      width: 8, height: 15, units, cities: villes, terrainOverrides,
       villages: [{ q: 6, r: 0 }], // camp barbare (tuile_barbare d'Erik)
       // NEW-OTHERS (26/09) : hutte peinte + les 6 artefacts non-dlc peints —
       // vérification à l'œil de l'alignement hexagone (sommet bas à +64 px).

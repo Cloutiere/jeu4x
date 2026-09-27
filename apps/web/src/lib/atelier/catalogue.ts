@@ -244,8 +244,9 @@ function sprites2d(): AssetAtelier[] {
   // COLON-FONDATION : état « en train de fonder » du Colon (art d'Erik en
   // attente — PNG optionnel, badge provisoire au rendu tant qu'il manque).
   out.push(spriteAsset('unite_colonFondation', 'Colon « en train de fonder » (état, R-158)', `${SRC_GENERATEUR('render_entity')} — textures.ts (colonFondation)`, true));
-  out.push(spriteAsset('ville_settlement', 'Ville (settlement)', `${SRC_GENERATEUR('render_entity')} — textures.ts (cities.settlement)`, true));
-  out.push(spriteAsset('ville_capitale', 'Ville (capitale)', `${SRC_GENERATEUR('render_entity')} — textures.ts (cities.capital)`, true));
+  // NEW-VILLES (Erik 27/09) : arts peints (une version toutes époques/joueurs), base seule.
+  out.push(spriteAsset('ville_settlement', 'Ville (settlement)', `assets-src/tools/import_svg.mjs (profil ville-settlement, art d'Erik) — textures.ts (cities.settlement)`, false));
+  out.push(spriteAsset('ville_capitale', 'Ville (capitale)', `assets-src/tools/import_svg.mjs (profil ville-capitale, art d'Erik) — textures.ts (cities.capital)`, false));
   // rouge CUIT dans la base (décision Erik 12/09) — aucune variante d'accent
   out.push(spriteAsset('village_barbare', 'Village barbare (sprite 2D)', `assets-src/tools/import_svg.mjs (profil tuile-barbare, art d'Erik) — textures.ts (villageBarbare)`, false));
   out.push(spriteAsset('unite_barbare_guerrier', 'Guerrier barbare (sprite 2D)', `${SRC_GENERATEUR('render_entity')} (rouge cuit) — textures.ts (units, barbare_guerrier)`, false));

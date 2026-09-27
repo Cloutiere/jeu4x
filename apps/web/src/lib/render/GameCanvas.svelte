@@ -534,12 +534,13 @@
       // R-91/Phase 7c : la ressource d'une case explorée est dessinée sur la
       // case, comme du décor persistant (CivRev). R-92 (D1 révisée) : l'état
       // filtré diffuse l'id réel si l'identité est connue, ou le marqueur
-      // « inconnue » (icône « ? ») tant que la tech manque — la présence est
-      // toujours visible, jamais l'identité masquée.
+      // « inconnue » tant que la tech manque — la présence est toujours
+      // visible, jamais l'identité masquée.
       // TUILES-RESSOURCES : PAS de jeton quand la tuile-ressource pleine est
-      // affichée (resId non nul ci-dessus) — sinon jeton (inconnue ou art
-      // manquant, ex. une future ressource hors table).
-      if (tile.resource && !resId && textures.resources[tile.resource]) {
+      // affichée (resId non nul) ni sur la brume « cacher » (inconnue —
+      // retour Erik 27/09 : la brume SEULE signale la présence, retour Erik).
+      // Jeton réservé aux ressources révélées SANS art (ressource hors table).
+      if (tile.resource && !resId && !inconnue && textures.resources[tile.resource]) {
         wantedResources.add(key);
         let res = resourceSprites.get(key);
         if (!res) {
@@ -969,18 +970,22 @@
 
   function buildCityContainer(cityId: string, capital: boolean, owner: string): Container {
     const c = new Container();
+    // NEW-VILLES (Erik 27/09) : art peint UNE version (toutes époques/joueurs —
+    // le contour de tuile porte la couleur) : hexagone complet ancré au sommet
+    // bas de la tuile (+64), pas de calque teinté (accent = repli base).
     const tex = capital ? textures!.cities.capital : textures!.cities.settlement;
     const base = new Sprite(tex.base);
     base.label = 'base';
     base.anchor.set(0.5, 1);
     base.scale.set(0.5);
-    base.y = 58;
+    base.y = 64;
     const accent = new Sprite(tex.accent);
     accent.label = 'accent';
     accent.anchor.set(0.5, 1);
     accent.scale.set(0.5);
-    accent.y = 58;
-    accent.tint = playerColor(owner);
+    accent.y = 64;
+    accent.visible = tex.accent !== tex.base;
+    if (accent.visible) accent.tint = playerColor(owner);
     const prodFill = new Sprite(textures!.px);
     prodFill.label = 'prodFill';
     prodFill.height = 8;
