@@ -1,5 +1,47 @@
 {
  "_commentaire": "Profils d'import SVG (Erik désigne explicitement chaque fichier). cible.mode = 'unite' (256×320, ancré bas) | 'hex' (tuile 224×256 clippée + contour #2B2620). margeX/Haut/Bas en px de la cible. remplacements (variante CUITE) : paires source→cible explicites, une seule sortie. remplacementsPalette (PALETTE OFFICIELLE, décision Erik 20/09 — HANDOFF-ACCENTS-7-FACTIONS) : source → TONALITÉ (reflet|base|ombre) ; UNE variante par faction de apps/web/src/lib/render/accents.json (7 joueurs + barbare = 8), stems <stem>_j1.._j7,_barbare, sans calque accent. IMPORTANT : Erik fournit, le pipeline n'importe QUE ces fichiers-là.",
+ "gp-artiste-penseur": {
+  "_doc": "GP-ART (27/09) : Personnage Illustre peint par Erik (new_units/great people) — mapping D1 artist.svg → artiste_penseur. Sprite neutre SANS accent (GP jamais teintés, décision Erik). echelle = calibre guerrier (hauteur de contenu identique au PNG livré, 456 px (contenu du guerrier livré)).",
+  "svg": "assets-src/modeles/gp/artist.svg",
+  "stem": "unite_artiste_penseur",
+  "sansAccent": true,
+  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.7501 }
+ },
+ "gp-batisseur": {
+  "_doc": "GP-ART : builder.svg → batisseur (mapping D1). Calibre guerrier.",
+  "svg": "assets-src/modeles/gp/builder.svg",
+  "stem": "unite_batisseur",
+  "sansAccent": true,
+  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.7501 }
+ },
+ "gp-humanitaire": {
+  "_doc": "GP-ART : humanitaire.svg → humanitaire (mapping D1). Calibre guerrier.",
+  "svg": "assets-src/modeles/gp/humanitaire.svg",
+  "stem": "unite_humanitaire",
+  "sansAccent": true,
+  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.8176 }
+ },
+ "gp-explorateur": {
+  "_doc": "GP-ART : industrial.svg → explorateur (mapping D1, décision Erik « Explorateur = industriel »). Calibre guerrier.",
+  "svg": "assets-src/modeles/gp/industrial.svg",
+  "stem": "unite_explorateur",
+  "sansAccent": true,
+  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.7501 }
+ },
+ "gp-leader": {
+  "_doc": "GP-ART : leader.svg → leader (mapping D1). Calibre guerrier.",
+  "svg": "assets-src/modeles/gp/leader.svg",
+  "stem": "unite_leader",
+  "sansAccent": true,
+  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.8672 }
+ },
+ "gp-savant": {
+  "_doc": "GP-ART : scientist.svg → savant (mapping D1). Calibre guerrier.",
+  "svg": "assets-src/modeles/gp/scientist.svg",
+  "stem": "unite_savant",
+  "sansAccent": true,
+  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.7501 }
+ },
  "guerrier-6couleurs": {
   "_doc": "ASSETS-6COULEURS (26/09) : un SVG PEINT par faction (mapping D1 : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise). Aucun recoloriage — la cuite = rendu direct du SVG. echelle 0,7765 = calibre guerrier (hauteur de contenu identique au maître).",
   "svg": "new_units/guerrier/guerrier_bleu.svg",
@@ -469,7 +511,8 @@
   }
  },
  "tuile-prairie": {
-  "svg": "new_tiles/prairie_epuree.svg",
+  "_doc": "GP-ART addendum (27/09) : prairie_v2.svg d'Erik remplace l'ancienne prairie (prairie_epuree.svg).",
+  "svg": "new_tiles/prairie_v2.svg",
   "stem": "tile_prairie",
   "cible": {
    "mode": "tuile",
@@ -638,7 +681,8 @@
   }
  },
  "icone-sciences": {
-  "svg": "new_icones/icone_sciences.svg",
+  "_doc": "GP-ART (27/09) : icône sciences v2 d'Erik (icone_sciences2.svg) remplace la v1 — même stem icone_science, 64×64.",
+  "svg": "new_icones/icone_sciences2.svg",
   "stem": "icone_science",
   "cible": {
    "mode": "icone",

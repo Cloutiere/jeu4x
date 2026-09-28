@@ -200,7 +200,7 @@ function sprites2d(): AssetAtelier[] {
   const out: AssetAtelier[] = [];
   // Sprites IMPORTÉS (SVG Recraft d'Erik, pipeline import_svg.mjs) — le PNG
   // écrase celui du painter dans exports/ ; fiche A/B du painter conservée.
-  const IMPORTES = new Set(['unite_guerrier']);
+  const IMPORTES = new Set(['unite_guerrier', 'unite_artiste_penseur', 'unite_batisseur', 'unite_humanitaire', 'unite_explorateur', 'unite_leader', 'unite_savant']);
   // Tuiles IMPORTÉES (SVG d'Erik 22/09, import_svg.mjs mode tuile) — A/B
   // painter conservé (fichiers tile_<n>_avant.png) ; eau (rivage) et océan
   // ajoutées le soir. Ne reste au painter que tile_ville_sol.
@@ -210,11 +210,16 @@ function sprites2d(): AssetAtelier[] {
     const mention = TUILES_IMPORTES.has(id) ? ' — IMPORT SVG (Erik, import_svg.mjs mode tuile)' : '';
     out.push(spriteAsset(stem, `Tuile ${id}`, `${SRC_GENERATEUR('render_tile')} — consommé par textures.ts (tiles)${mention}` , false));
   }
+  // GP-ART (27/09) : les 6 classes de Personnages Illustres = SVG peints
+  // d'Erik (import_svg.mjs profils gp-*) — neutres, AUCUN accent (comme le
+  // guerrier/archer/colon peints) : la teinte joueur ne s'applique jamais.
+  const GP_SANS_ACCENT = new Set(['artiste_penseur', 'batisseur', 'humanitaire', 'explorateur', 'leader', 'savant']);
   for (const [id, u] of Object.entries(UNIT_TYPES)) {
     const mention = IMPORTES.has(`unite_${id}`)
       ? (id === 'guerrier' ? ' — IMPORT SVG 4 tons (Erik 23/09, import_svg.mjs guerrier-ref/guerrier-4tons)' : ' — IMPORT SVG (Recraft, import_svg.mjs)')
       : '';
-    out.push(spriteAsset(`unite_${id}`, `Unité ${u.name}`, `${SRC_GENERATEUR('render_entity')} — textures.ts (units)${mention}`, true));
+    const sansAccent = GP_SANS_ACCENT.has(id);
+    out.push(spriteAsset(`unite_${id}`, `Unité ${u.name}`, `${SRC_GENERATEUR('render_entity')} — textures.ts (units)${mention}`, !sansAccent));
   }
   // A/B : les anciennes tuiles peintres, conservées pour le verdict d'Erik
   // (fichiers tile_<n>_avant.png, issus du dernier generate.py painter).
@@ -224,6 +229,12 @@ function sprites2d(): AssetAtelier[] {
   // A/B : l'ancien sprite peintre du guerrier, conservé pour le verdict
   // d'Erik (fichiers unite_guerrier_avant*.png, issus du dernier generate.py).
   out.push(spriteAsset('unite_guerrier_avant', 'Guerrier (peintre, AVANT import — comparaison A/B)', `${SRC_GENERATEUR('unite_guerrier')} (référence A/B de l'import SVG) — textures.ts (units)`, true));
+  // A/B : les anciens sprites peintres des 6 classes de GP (GP-ART, 27/09),
+  // conservés pour le verdict d'Erik (fiches unite_<classe>_avant.png, extraits
+  // du HEAD — le painter est commenté dans generate.py).
+  for (const id of GP_SANS_ACCENT) {
+    out.push(spriteAsset(`unite_${id}_avant`, `Unité ${id} (peintre, AVANT import GP-ART — comparaison A/B)`, `${SRC_GENERATEUR('unite_' + id)} (référence A/B de l'import SVG) — textures.ts (units)`, false));
+  }
   // Variantes CUITES ×6 par unité — ASSETS-6COULEURS (décision Erik 26/09) :
   // un SVG PEINT par faction (plus de recoloriage pipeline) — import_svg.mjs
   // profils guerrier-6couleurs / archer-6couleurs (mode variantesFournies).
@@ -268,6 +279,9 @@ function sprites2d(): AssetAtelier[] {
   for (const icone of ICONES) {
     out.push(spriteAsset(`icone_${icone}`, `Icône ${icone}`, `${SRC_GENERATEUR('render_entity')} — textures.ts (yieldIcons/overlays)`, false));
   }
+  // A/B icône sciences v2 (GP-ART, 27/09) : l'ancienne v1 painter, extraite du
+  // HEAD, conservée pour le verdict d'Erik.
+  out.push(spriteAsset('icone_science_avant', 'Icône sciences (v1, AVANT import GP-ART — comparaison A/B)', `${SRC_GENERATEUR('icone_science')} (référence A/B de l'import SVG) — textures.ts (yieldIcons.science)`, false));
   return out;
 }
 

@@ -4592,14 +4592,17 @@ def main():
         "unite_scientifique": (256, 320, unite_scientifique),
         "unite_mogul": (256, 320, unite_mogul),
         "unite_ingenieur": (256, 320, unite_ingenieur),
-        "unite_leader": (256, 320, unite_leader),
+        # GP-ART (27/09) : les 6 classes canoniques = SVG d'Erik (import_svg.mjs,
+        # profils gp-*) — painter conservé, lignes commentées. Retour arrière :
+        # décommenter + python generate.py.
+        # "unite_leader": (256, 320, unite_leader),
         # Phase 7k — sprites DÉDIÉS des 6 classes canoniques de GP (R-126) :
         # fin des alias 7j (silhouettes réutilisées), un fichier par classe.
-        "unite_artiste_penseur": (256, 320, unite_artiste_penseur),
-        "unite_savant": (256, 320, unite_savant),
-        "unite_batisseur": (256, 320, unite_batisseur),
-        "unite_explorateur": (256, 320, unite_explorateur),
-        "unite_humanitaire": (256, 320, unite_humanitaire),
+        # "unite_artiste_penseur": (256, 320, unite_artiste_penseur),
+        # "unite_savant": (256, 320, unite_savant),
+        # "unite_batisseur": (256, 320, unite_batisseur),
+        # "unite_explorateur": (256, 320, unite_explorateur),
+        # "unite_humanitaire": (256, 320, unite_humanitaire),
     }
     icons = {
         "icone_or": icone_or,

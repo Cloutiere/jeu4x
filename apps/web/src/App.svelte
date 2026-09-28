@@ -20,6 +20,7 @@
   import Atelier from './pages/Atelier.svelte';
   import LaboCombat from './pages/LaboCombat.svelte';
   import LaboRendu from './pages/LaboRendu.svelte';
+  import LaboGP from './pages/LaboGP.svelte';
 
   type Route =
     | { page: 'login' }
@@ -32,7 +33,8 @@
     | { page: 'lab3d' }
     | { page: 'atelier' }
     | { page: 'labo-combat' }
-    | { page: 'labo-rendu' };
+    | { page: 'labo-rendu' }
+    | { page: 'labo-gp' };
 
   function parseHash(): Route {
     const hash = window.location.hash.replace(/^#/, '') || '/';
@@ -42,6 +44,7 @@
     if (hash === '/atelier') return { page: 'atelier' };
     if (hash === '/labo-combat') return { page: 'labo-combat' };
     if (hash === '/labo-rendu') return { page: 'labo-rendu' };
+    if (hash === '/labo-gp') return { page: 'labo-gp' };
     const attente = /^\/attente\/([A-Z0-9]{6})$/.exec(hash);
     if (attente) return { page: 'attente', code: attente[1]! };
     const game = /^\/game\/([A-Z0-9]{6})$/.exec(hash);
@@ -86,6 +89,10 @@
        client pur, cohabitations 1..7 unités / 1..7 nations sur une case (miroir
        #/progen, aucun appel /api). -->
   <LaboRendu />
+{:else if route.page === 'labo-gp'}
+  <!-- Labo GP-ART (27/09) : indépendant de la session — client pur, les 6
+       Personnages Illustres d'Erik à côté du guerrier (calibre), barbare + camp. -->
+  <LaboGP />
 {:else if $session === undefined}
   <p class="loading">Chargement…</p>
 {:else if route.page === 'progen'}

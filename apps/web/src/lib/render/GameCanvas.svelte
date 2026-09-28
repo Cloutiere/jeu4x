@@ -651,11 +651,16 @@
       const posee = positions.get(unit.id) ?? unit;
       const disp = poses.get(unit.id) ?? { dx: 0, dy: 0, echelle: 1, z: 0 };
       c.scale.set(disp.echelle);
+      const p = hexToPixel(posee, HEX_SIZE);
       // CALIBRATION-UNITES : profondeur dans le paquet — la première unité
       // d'une zone reste au premier plan, les suivantes passent derrière
       // (z négatif, tri du layer, cf. dispositionMelee).
-      c.zIndex = disp.z;
-      const p = hexToPixel(posee, HEX_SIZE);
+      // GP-ART (retour Erik 28/09) : la profondeur ENTRE TUILES suit la règle
+      // du dessin isométrique — une unité sur une tuile INFÉRIEURE se dessine
+      // PAR-DESSUS une unité (ou un sprite) posé plus haut : la position
+      // verticale des pieds domine, disp.z ne départage que le même paquet
+      // (écart ≤ qq unités, toujours < l'écart de rangée ×10).
+      c.zIndex = p.y * 10 + disp.z;
       const anim = playback.moveOf(unit.id);
       if (anim) {
         // poser3d et non position.set : le tampon monde (__wx/__wy) doit
@@ -714,7 +719,9 @@
       let c = citySprites.get(city.id);
       if (!c) {
         c = buildCityContainer(city.id, city.capital, city.owner);
-        c.zIndex = 50; // structures au-dessus des unités empilées (tri CALIBRATION-UNITES)
+        c.zIndex = -100; // RETOUR ERIK 28/09 (GP-ART) : villes, huttes et artefacts
+        // sont sur la COUCHE TUILE (comme le village barbare) — tout ce qui est
+        // posé sur la tuile ou en dessous se superpose à eux.
         entitiesLayer.addChild(c);
         citySprites.set(city.id, c);
       }
@@ -756,8 +763,8 @@
       if (!c) {
         c = buildVillageContainer(village.id);
         // RETOUR ERIK 26/09 (ASSETS-6COULEURS) : le camp barbare est un DÉCOR
-        // de fond — les personnages passent DEVANT (z des unités ≥ 0 ; les
-        // structures bâties restent à 50, au-dessus).
+        // de fond — les personnages passent DEVANT. RETOUR ERIK 28/09 : règle
+        // étendue à TOUTES les structures (villes, huttes, artefacts = -100).
         c.zIndex = -100;
         entitiesLayer.addChild(c);
         villageSprites.set(village.id, c);
@@ -791,7 +798,7 @@
       let c = hutSprites.get(hut.id);
       if (!c) {
         c = buildHutContainer(hut.id);
-        c.zIndex = 50;
+        c.zIndex = -100; // couche tuile (retour Erik 28/09, cf. villes)
         entitiesLayer.addChild(c);
         hutSprites.set(hut.id, c);
       }
@@ -822,6 +829,7 @@
       let c = artefactSprites.get(artefact.id);
       if (!c) {
         c = buildArtefactContainer(artefact.artefactId);
+        c.zIndex = -100; // couche tuile (retour Erik 28/09, cf. villes)
         entitiesLayer.addChild(c);
         artefactSprites.set(artefact.id, c);
       }
@@ -854,7 +862,13 @@
     // Variante CUITE PAR PALETTE (LOBBY-5 · D5 : ex. guerrier@bleu-saphir —
     // la palette choisie par le propriétaire, plus l'index de siège) —
     // sprite unique SANS teinte. Fallback clé historique `@pN` (compat).
-    const cuite = textures!.cuites?.[`${type}@${paletteDe(owner)}`] ?? textures!.cuites?.[`${type}@${owner}`];
+    // GP-ART (retour Erik 27/09) : JAMAIS pour le barbare — paletteDe('barbarien')
+    // = rouge-royal, et depuis les variantes cuites ×6 la clé
+    // `guerrier@rouge-royal` existe : le lookup écrasait le sprite barbare
+    // dédié (R-95, rouge cuit dans la base) par la guerrière rouge J2.
+    const cuite = owner === BARBARIAN_ID
+      ? undefined
+      : (textures!.cuites?.[`${type}@${paletteDe(owner)}`] ?? textures!.cuites?.[`${type}@${owner}`]);
     // CALIBRATION-UNITES : échelle par type — la hauteur écran vise
     // `hauteurUnitePx(HEX_SIZE)` × ajustement du type (calibre = guerrier
     // Recraft), quel que soit le ratio du PNG. Ancrage PIEDS (0.5,1)+PIEDS_Y.
@@ -876,12 +890,18 @@
       base.anchor.set(0.5, 1);
       base.scale.set(echelle);
       base.y = PIEDS_Y;
-      accent = new Sprite(tex.accent);
-      accent.label = 'accent';
-      accent.anchor.set(0.5, 1);
-      accent.scale.set(echelle);
-      accent.y = PIEDS_Y;
-      accent.tint = color;
+      // GP-ART (retour Erik 27/09) : les arts peints SANS calque accent
+      // (textures.ts : accent absent → repli sur la base, accent === base)
+      // ne doivent JAMAIS être teintés — le sprite est neutre. Calque accent
+      // (et teinte joueur) seulement si un vrai calque existe.
+      if (tex.accent !== tex.base) {
+        accent = new Sprite(tex.accent);
+        accent.label = 'accent';
+        accent.anchor.set(0.5, 1);
+        accent.scale.set(echelle);
+        accent.y = PIEDS_Y;
+        accent.tint = color;
+      }
     }
     const bg = new Sprite(textures!.px);
     bg.width = 80;

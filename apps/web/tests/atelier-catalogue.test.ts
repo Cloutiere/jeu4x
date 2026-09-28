@@ -76,7 +76,9 @@ describe('atelier — catalogue L0', () => {
     // ASSETS-6COULEURS (26/09) : guerrier ET archer sont les SVG peints
     // d'Erik (un SVG par couleur, aucun calque accent) — base seule, comme
     // les barbares ci-dessous.
-    const SANS_ACCENT = new Set(['guerrier', 'archer', 'colon']);
+    // GP-ART (27/09) : les 6 classes de Personnages Illustres = SVG peints
+    // d'Erik — neutres, SANS calque accent (les _accent painter retirés).
+    const SANS_ACCENT = new Set(['guerrier', 'archer', 'colon', 'artiste_penseur', 'batisseur', 'humanitaire', 'explorateur', 'leader', 'savant']);
     for (const id of Object.keys(UNIT_TYPES)) {
       if (!existsSync(path.join(ART_DIR, `unite_${id}.png`))) continue;
       attends.push(`unite_${id}`);
