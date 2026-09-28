@@ -43,7 +43,7 @@ import { classifyWaters } from './geo.js';
 import type { PhysicalMap } from './geo.js';
 import { fertilityScore, ringCells } from './fertility.js';
 import type { TerrainLookup } from './fertility.js';
-import { placeEntities, placeResources, spacingViolated, waterOnlyResourceIds } from './content.js';
+import { placeEntities, placeResources, spacingViolated, waterOnlyResourceIds, poseRessourcesSousCamps } from './content.js';
 import { ProgenPlacementError, forceSpawnNeighborhood, purgeResourcesNear, normalizeStartSite, spawnNeighborhoodComposition } from './mirror.js';
 import type { PlacementInput, PlacementOutput, PlacementReport, StartPlacementStrategy } from './mirror.js';
 import type { ProgenSettings } from './settings.js';
@@ -398,17 +398,20 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
         `libreMulti exige playerCount = 3..5 (reçu ${settings.playerCount}) — les parties à 2 restent sur mirror1v1 (D3)`,
       );
     }
-    return { width: 40, height: 40 };
+    // CARTE-50 · D2 : dimensions data-driven (défaut 50×40, réglables au labo).
+    return { width: settings.libreLargeur, height: settings.libreHauteur };
   },
 
-  fullSize(): { width: number; height: number } {
-    return { width: 40, height: 40 };
+  fullSize(settings: ProgenSettings): { width: number; height: number } {
+    return { width: settings.libreLargeur, height: settings.libreHauteur };
   },
 
   build({ rng, geo, settings }: PlacementInput): PlacementOutput {
     const n = settings.playerCount;
-    if (geo.width !== 40 || geo.height !== 40) {
-      throw new ProgenPlacementError(`grille géophysique ${geo.width}×${geo.height} incompatible avec la carte libre 40×40`);
+    if (geo.width !== settings.libreLargeur || geo.height !== settings.libreHauteur) {
+      throw new ProgenPlacementError(
+        `grille géophysique ${geo.width}×${geo.height} incompatible avec la carte libre ${settings.libreLargeur}×${settings.libreHauteur}`,
+      );
     }
     const terrain = geo.terrain;
     const centre = centreDeCarte(geo.width, geo.height);
@@ -478,7 +481,7 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
     for (const site of sites) {
       const siteScore = fertilityScore(lookupPost, site.hex, settings);
       try {
-        normalizeStartSite(lookupPost, site.hex, siteScore, threshold, settings, resources);
+        normalizeStartSite(lookupPost, site.hex, siteScore, threshold, settings, resources, { recheckSpacing: true });
         normalizedCount += 1;
       } catch (err) {
         if (!(err instanceof ProgenPlacementError)) throw err;
@@ -509,7 +512,12 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
 
     // 7. Villages & huttes : distances aux N spawns (brique placeEntities
     //    déjà générique — spawns: Hex[]), TOTAUX 1v1 (villagesPerHalf × 2 /
-    //    hutsPerHalf × 2 🔶 — densité de référence conservée, D5).
+    //    hutsPerHalf × 2 🔶) — CARTE-50 · D4 : densité PROPORTIONNELLE à
+    //    l'aire (réglage 🔶, pas une règle) : échelle (L×H)/1600 maintient la
+    //    densité par case (1,25 en 50×40 → 15+15) ; 40×40 inchangé (×1).
+    const echelleAire = (geo.width * geo.height) / (40 * 40);
+    const nbVillages = Math.round(settings.villagesPerHalf * 2 * echelleAire);
+    const nbHuttes = Math.round(settings.hutsPerHalf * 2 * echelleAire);
     const occupiedEntities = new Set<string>(capitalKeys);
     const spawnList = sites.map((s) => s.hex);
     const villagePositions: Hex[] = [];
@@ -523,7 +531,9 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
       other: [],
       minOther: 0,
       reserved: occupiedEntities,
-      count: settings.villagesPerHalf * 2,
+      resourcesFull: finalResources,
+      minResourceDistance: settings.minResourceDistance,
+      count: nbVillages,
     });
     const hutPositions: Hex[] = [];
     const huts: MapHut[] = placeEntities({
@@ -536,7 +546,23 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
       other: villagePositions,
       minOther: settings.hutVillageSpacing,
       reserved: occupiedEntities,
-      count: settings.hutsPerHalf * 2,
+      resourcesFull: finalResources,
+      minResourceDistance: settings.minResourceDistance,
+      count: nbHuttes,
+    });
+
+    // 7bis. CAMPS-RESSOURCES (demande d'Erik, 28/09 — canon CivRev) : chaque
+    //    village/hutte porte UNE ressource de son terrain (tirage pondéré
+    //    seedé) ; les camps ont été posés à ≥ minResourceDistance de toutes
+    //    les ressources et entre eux (spacings 7d) — la révélation après
+    //    destruction respecte R-108 par construction.
+    poseRessourcesSousCamps({
+      rng,
+      terrain,
+      resources: finalResources,
+      villages,
+      huts,
+      minResourceDistance: settings.minResourceDistance,
     });
 
     // 8. Rapport : fertilité PAR SPAWN (carte finale classifiée), R-157 par

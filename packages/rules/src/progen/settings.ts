@@ -143,6 +143,13 @@ export interface ProgenSettings {
   /** Tentatives maximales (connexité/seuil/validité) avant échec explicite. */
   maxAttempts: number;
   // --- CARTE-MULTI · mode libre (D1 : génération sans symétrie, 3-5 spawns) -
+  /** CARTE-50 · D1/D2 — dimensions du mode libre multi (data-driven : 50×40,
+   *  hauteur inchangée). Le 1v1 miroir reste 40×40 en dur (D2, intouché).
+   *  Les réglages calibrés pour 40 de large (spacing, tolérances) restent
+   *  IDENTIQUES (D4 : aucune règle relâchée) — le banc de conformité
+   *  décide s'ils tiennent en 50 de large. */
+  libreLargeur: number;
+  libreHauteur: number;
   /** Nombre de RESTARTS de l'échantillonnage farthest-point (départs tirés au
    *  RNG seedé), chacun suivi d'une passe d'amélioration locale 🔶. */
   libreAttempts: number;
@@ -205,6 +212,8 @@ export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   fertilityCommerceWeight: 1,
     fertilityMountainPenalty: 2,
     maxAttempts: 10,
+    libreLargeur: 50,
+    libreHauteur: 40,
     libreAttempts: 80,
     libreCandidatePool: 500,
     libreCenterWeight: 2,
@@ -267,6 +276,8 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
       Math.max(0, s.fertilityRingWeights[2]),
     ],
     maxAttempts: Math.min(25, Math.max(1, Math.round(s.maxAttempts))),
+    libreLargeur: Math.min(80, Math.max(30, Math.round(s.libreLargeur))),
+    libreHauteur: Math.min(60, Math.max(20, Math.round(s.libreHauteur))),
     libreAttempts: Math.min(200, Math.max(1, Math.round(s.libreAttempts))),
     libreCandidatePool: Math.min(600, Math.max(10, Math.round(s.libreCandidatePool))),
     libreCenterWeight: Math.max(0, s.libreCenterWeight),

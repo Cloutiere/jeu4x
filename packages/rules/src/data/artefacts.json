@@ -11,7 +11,7 @@
     "maxMainland": 2,
     "minDistanceToCapitals": 8,
     "atlantisMinLandDistance": 2,
-    "spacing": 4,
+    "spacing": 6,
     "septCitesOrByEra": { "ancienne": 200, "medievale": 250, "industrielle": 300, "moderne": 400 },
     "templiersUnitByEra": { "ancienne": "chevalier", "medievale": "chevalier", "industrielle": "canon", "moderne": "char_d_assaut" },
     "confuciusGpCount": 2,

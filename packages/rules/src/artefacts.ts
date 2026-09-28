@@ -28,6 +28,7 @@ import { TECHS, WONDERS, isUnitObsolete } from './techs.js';
 import { greatPersonRotationClass } from './culture.js';
 import { civHutGoldMultOf, uniqueReplacing } from './civilizations.js';
 import { freeSpawnTiles } from './barbares.js';
+import { ProgenPlacementError, mirroredHex } from './progen/mirror.js';
 
 /** Omit distributif (miroir turn.ts) : préserve l'union typée des événements. */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -58,6 +59,8 @@ const WONDERS_NOT_GRANTABLE = new Set(['nations_unies', 'banque_mondiale', 'proj
 
 interface LandComponentInfo {
   size: number;
+  /** Identifiant de composante (île SANS capitale — demande Erik 28/09). */
+  id: number;
 }
 
 /** Composantes connexes de terre (BFS sur cases passables) — clé → taille. */
@@ -89,8 +92,8 @@ function landComponents(terrain: Record<string, string>, width: number, height: 
     components.push({ keys });
   }
   const out = new Map<string, LandComponentInfo>();
-  for (const comp of components) {
-    for (const key of comp.keys) out.set(key, { size: comp.keys.length });
+  for (let id = 0; id < components.length; id++) {
+    for (const key of components[id]!.keys) out.set(key, { size: components[id]!.keys.length, id });
   }
   return out;
 }
@@ -126,6 +129,15 @@ function distanceToLand(terrain: Record<string, string>, width: number, height: 
   return dist;
 }
 
+/** ARTEFACTS-ILES (Erik 28/09) — plancher dur d'éloignement d'une île à
+ *  artefact : l'invariant déjà testé (dMin ≥ 4 — inaccessible au départ,
+ *  aucune case à moins de 4 cases hex d'une capitale). La préférence canon
+ *  🔶 8+ (`minDistanceToCapitals`) ordonne les cases ; sur les grilles où
+ *  tout point d'eau est à <8 d'une capitale (pangée à 5, mesuré), le plancher
+ *  4 garantit la règle SANS relâcher l'isolement (île sans spawn = zéro
+ *  accès terrestre). */
+const PLANCHER_DISTANCE_ILE = 4;
+
 /**
  * R-151/R-152 · Tirage et placement des artefacts d'une carte. PUR et
  * DÉTERMINISTE (R-80) : même carte + même seed → même résultat. Le tirage est
@@ -133,7 +145,11 @@ function distanceToLand(terrain: Record<string, string>, width: number, height: 
  * tirage 🔶 (défaut : toujours) ; le placement privilégie les îles isolées /
  * atolls, l'Atlantide en océan profond (R-152).
  */
-export function drawArtefacts(map: ArtefactMapInput, seed: number): MapArtefact[] {
+export function drawArtefacts(
+  map: ArtefactMapInput,
+  seed: number,
+  options?: { allowRepliContinental?: boolean },
+): MapArtefact[] {
   const p = ARTEFACTS.params;
   const rng = createRng((seed ^ ARTEFACT_SEED_SALT) >>> 0);
   const capitals = map.spawns.map((s) => s.capital);
@@ -164,7 +180,7 @@ export function drawArtefacts(map: ArtefactMapInput, seed: number): MapArtefact[
   const atlantisIn = poolIds.includes('atlantide') && p.atlantisAlwaysDrawn;
   const drawn: string[] = atlantisIn ? ['atlantide', ...shuffled.slice(0, Math.max(0, count - 1))] : shuffled.slice(0, count);
 
-  // ---- Candidats (R-152) --------------------------------------------------
+  // ---- Candidats (R-152 rév. ARTEFACTS-ILES — demande Erik 28/09) ---------
   const landComp = landComponents(map.terrain, map.width, map.height);
   const landDist = distanceToLand(map.terrain, map.width, map.height);
   const passableLand = (key: string): boolean => {
@@ -172,19 +188,43 @@ export function drawArtefacts(map: ArtefactMapInput, seed: number): MapArtefact[
     return !!t && t.passable;
   };
 
-  // Îles / atolls : composantes de taille ≤ islandMaxSize ; continent : le
-  // reste. Jamais sur une case interdite (capitale, village, hutte).
-  const islandSlots: Hex[] = [];
-  const mainlandSlots: Hex[] = [];
+  // ÎLES LIBRES : une composante terrestre qui ne contient AUCUNE capitale —
+  // inaccessible à pied au départ, entourée d'eau donc atteignable en bateau
+  // (Phase 7) quelle que soit la topographie. TOUT artefact terrestre y est
+  // posé ; le repli continental historique (maxMainland) est SUPPRIMÉ.
+  const capitalKeys = new Set(capitals.map(tileKeyOf));
+  const compIdsAvecCapitale = new Set<number>();
+  for (const key of capitalKeys) {
+    const info = landComp.get(key);
+    if (info) compIdsAvecCapitale.add(info.id);
+  }
+  // Groupe les cases éligibles par île (composante sans capitale).
+  const iles = new Map<number, Hex[]>();
   for (const key of Object.keys(map.terrain).sort()) {
     if (!passableLand(key) || occupied.has(key)) continue;
+    const comp = landComp.get(key);
+    if (!comp || compIdsAvecCapitale.has(comp.id)) continue; // masse des joueurs : interdite
     const [q, r] = key.split(',').map(Number) as [number, number];
     const hex = { q: q!, r: r! };
-    const comp = landComp.get(key);
-    if (comp && comp.size <= p.islandMaxSize) {
-      // R-152 : les îles candidates sont ÉLOIGNÉES des deux départs.
-      if (minDistToCapitals(hex) >= p.minDistanceToCapitals) islandSlots.push(hex);
-    } else mainlandSlots.push(hex);
+    // R-152 rév. (Erik 28/09) : îles libres, plancher dur 4 — le canon 8
+    // reste la PRÉFÉRENCE (tri par équidistance décroissante ci-dessous).
+    if (minDistToCapitals(hex) < PLANCHER_DISTANCE_ILE) continue;
+    const slots = iles.get(comp.id) ?? [];
+    slots.push(hex);
+    iles.set(comp.id, slots);
+  }
+  // Repli continental DE DERNIER RECOURS (options.allowRepliContinental —
+  // dernier essai d'une carte procédurale, ou carte préfabriquée sans
+  // alternative) : cartes sans aucun îlot possible (ex. pédagogique-40,
+  // presque toute terre). Les cases de la MASSE DES JOUEURS sont acceptées,
+  // les plus ÉLOIGNÉES des départs d'abord (tri ci-dessous).
+  const mainlandSlots: Hex[] = [];
+  if (options?.allowRepliContinental) {
+    for (const key of Object.keys(map.terrain).sort()) {
+      if (!passableLand(key) || occupied.has(key)) continue;
+      const [q, r] = key.split(',').map(Number) as [number, number];
+      mainlandSlots.push({ q: q!, r: r! });
+    }
   }
   // Classement par ÉQUIDISTANCE (min-distance aux deux départs, décroissante)
   // puis (q, r) — R-81. Interprétation 🔶 (R-152) : l'équité du miroir 6b
@@ -197,7 +237,17 @@ export function drawArtefacts(map: ArtefactMapInput, seed: number): MapArtefact[
     if (da !== db) return db - da; // le plus éloigné des deux départs d'abord
     return a.q - b.q || a.r - b.r;
   };
-  islandSlots.sort(byEquidistance);
+  // Îles triées R-81 : la plus éloignée des départs d'abord (meilleure case
+  // en tête), taille décroissante, id croissant — déterministe.
+  const ilesTriees = [...iles.entries()]
+    .map(([id, slots]) => ({ id, slots: slots.sort(byEquidistance) }))
+    .sort((a, b) => {
+      const da = minDistToCapitals(a.slots[0]!);
+      const db = minDistToCapitals(b.slots[0]!);
+      if (da !== db) return db - da;
+      if (a.slots.length !== b.slots.length) return b.slots.length - a.slots.length;
+      return a.id - b.id;
+    });
   mainlandSlots.sort(byEquidistance);
 
   // Atlantide : océan profond (distance à toute terre ≥ atlantisMinLandDistance).
@@ -231,42 +281,72 @@ export function drawArtefacts(map: ArtefactMapInput, seed: number): MapArtefact[
     atlantisSlots.push(...anyWater);
   }
 
-  // ---- Pose (R-152) -------------------------------------------------------
+  // ---- Pose (R-152 rév. ARTEFACTS-ILES) -----------------------------------
   const placed: MapArtefact[] = [];
+  // Espacement STRICT (rév. découverte Erik 28/09 : 3 artefacts à une case
+  // d'eau d'écart — le repli silencieux `spaced[0] ?? slots[0]` ignorait la
+  // contrainte). Une case sans espacement valide n'est JAMAIS prise, sauf au
+  // repli continental de dernier recours (mieux vaut un artefact visible
+  // qu'une carte sans artefact — documented 🔶).
   const farEnough = (h: Hex): boolean => placed.every((a) => hexDistance(a, h) >= p.spacing);
-  const takeSlot = (slots: Hex[]): Hex | null => {
-    const spaced = slots.filter(farEnough);
-    return (spaced[0] ?? slots[0]) ?? null;
-  };
+  const takeSlot = (slots: Hex[]): Hex | null => slots.find(farEnough) ?? null;
+  const takeSlotRelache = (slots: Hex[]): Hex | null => slots[0] ?? null;
   const takeFrom = (slots: Hex[], slot: Hex): void => {
     const idx = slots.findIndex((h) => h.q === slot.q && h.r === slot.r);
     if (idx >= 0) slots.splice(idx, 1);
   };
 
+  // Passe 1 — UN artefact par île libre (demande Erik : max 1 par île si
+  // possible) — la première île offrant une case ASSEZ ÉLOIGNÉE des artefacts
+  // déjà posés. Passe 2 — îles déjà utilisées (slots restants espacés).
+  // JAMAIS la masse des joueurs : si aucun emplacement n'existe, échec
+  // explicite → la tentative de génération suivante produit une nouvelle
+  // grille (mécanique ProgenPlacementError ; la pangée produit des
+  const ilesDisponibles = ilesTriees.filter((i) => i.slots.length > 0);
+  const ilesUtilisees: typeof ilesDisponibles = [];
   for (const id of drawn) {
     const data = ARTEFACTS.pool[id]!;
     if (data.activation === 'oceanAdjacent') {
-      // Atlantide : sa propre liste (haute mer — R-152).
-      const slot = atlantisSlots.shift();
+      // Atlantide : sa propre liste (haute mer — R-152, inchangée).
+      const slot = atlantisSlots.find(farEnough) ?? atlantisSlots[0] ?? null;
+      if (slot) takeFrom(atlantisSlots, slot);
       if (slot) placed.push({ artefactId: id, q: slot.q, r: slot.r });
       continue;
     }
-    // Terrestre : îles d'abord ; continent en dernier recours (rare — canon),
-    // au plus maxMainland SAUF si le nombre minimal canon l'exige (countMin
-    // prime : 3–6 artefacts par carte est un critère d'acceptation).
-    let slot = takeSlot(islandSlots);
-    if (slot) {
-      takeFrom(islandSlots, slot);
-    } else {
-      const mainlandPlaced = placed.filter((a) => passableLand(tileKeyOf(a))).length;
-      const mustReachMinimum = placed.length + islandSlots.length < p.countMin;
-      if (mainlandPlaced < p.maxMainland || mustReachMinimum) {
-        slot = takeSlot(mainlandSlots);
-        if (slot) takeFrom(mainlandSlots, slot);
+    let slot: Hex | null = null;
+    while (ilesDisponibles.length > 0 && !slot) {
+      const ile = ilesDisponibles.shift()!;
+      slot = takeSlot(ile.slots);
+      if (slot) {
+        takeFrom(ile.slots, slot);
+        ilesUtilisees.push(ile);
+      }
+      // Île sans case assez éloignée : elle reste en réserve pour la passe 2.
+      if (!slot) ilesUtilisees.push(ile);
+    }
+    if (!slot) {
+      // Passe 2 : réutilisation des îles déjà pourvues (slots restants espacés).
+      for (const util of ilesUtilisees) {
+        slot = takeSlot(util.slots);
+        if (slot) {
+          takeFrom(util.slots, slot);
+          break;
+        }
       }
     }
-    if (slot) placed.push({ artefactId: id, q: slot.q, r: slot.r });
-    // Aucune case du tout : artefact non posé (documenté R-152 — rare).
+    if (!slot && options?.allowRepliContinental) {
+      // Dernier recours (documenté 🔶) : la masse des joueurs, case la plus
+      // éloignée des départs d'abord — la contrainte « île » est inapplicable
+      // sur une carte sans aucune île possible. Espacement relâché ici seul.
+      slot = takeSlotRelache(mainlandSlots);
+      if (slot) takeFrom(mainlandSlots, slot);
+    }
+    if (!slot) {
+      throw new ProgenPlacementError(
+        `aucune île libre (sans capitale, à ≥ ${PLANCHER_DISTANCE_ILE} des départs, espacement 🔶 ${p.spacing}) pour l'artefact ${id} — tentative suivante`,
+      );
+    }
+    placed.push({ artefactId: id, q: slot.q, r: slot.r });
   }
 
   return placed.sort((a, b) => a.q - b.q || a.r - b.r);
@@ -764,7 +844,11 @@ export function revealWholeMapOnTech(st: GameState, playerId: PlayerId, techId: 
 
 /** R-151 · Liste des artefacts posés pour une carte + seed (création d'état,
  *  progen, dump admin). Ids 'a1'… affectés par (q, r) croissant (R-81). */
-export function artefactsForMap(map: LoadedMap, seed: number): Artefact[] {
+export function artefactsForMap(
+  map: LoadedMap,
+  seed: number,
+  options?: { allowRepliContinental?: boolean },
+): Artefact[] {
   return drawArtefacts(
     {
       terrain: map.terrain,
@@ -775,7 +859,154 @@ export function artefactsForMap(map: LoadedMap, seed: number): Artefact[] {
       huts: map.huts,
     },
     seed,
+    options,
   ).map((a, i) => ({ id: `a${i + 1}`, artefactId: a.artefactId, q: a.q, r: a.r }));
+}
+
+/**
+ * ARTEFACTS-ILES · tirage pour une carte SANS liste portée (préfabriquées —
+ * pas de tentatives de génération possibles) : garantit d'abord les îlots
+ * (bascule transparente, `garantirIlesLibresPourArtefacts`, paires miroir en
+ * 1v1) puis tire. Toute voie de création DOIT passer ici (map.ts, dump admin
+ * game.ts) pour que le tirage rejoué depuis la carte soit identique.
+ */
+export function artefactsPourCarteFraiche(map: LoadedMap, seed: number): Artefact[] {
+  if (map.artefacts.length === 0) {
+    garantirIlesLibresPourArtefacts(
+      {
+        terrain: map.terrain,
+        width: map.data.width,
+        height: map.data.height,
+        spawns: map.spawns,
+        villages: map.villages,
+        huts: map.huts,
+      },
+      seed,
+      { miroir: (h) => mirroredHex(h, map.data.width) },
+    );
+  }
+  // Repli continental autorisé : une préfabriquée ne peut pas re-générer.
+  return artefactsForMap(map, seed, { allowRepliContinental: true });
+}
+
+/**
+ * ARTEFACTS-ILES (demande Erik 28/09) — la « bascule » transparente : si la
+ * carte ne compte pas 🔶 `countMin` îles libres (composantes SANS capitale,
+ * à ≥ minDistanceToCapitals des départs), poser des îlots offshore
+ * déterministes (océan profond, jamais dans le rayon des départs) jusqu'à
+ * compter. `map.terrain` est MUTÉ (tuiles 'prairie') — appelé :
+ *  - par progen sur les tentatives TARDIVES (les premières restent pures) ;
+ *  - à la création d'état des cartes PRÉFABRIQUÉES (pas de tentatives
+ *    possibles — pedagogique-40/variee-40 n'ont aucune île sans spawn).
+ * `miroir` (cartes 1v1 symétriques) : chaque îlot est doublé par rotation
+ * 180° — équité de terrain préservée.
+ * Retour : nombre d'îlots posés (consigné).
+ */
+export function garantirIlesLibresPourArtefacts(
+  map: {
+    terrain: Record<string, string>;
+    width: number;
+    height: number;
+    spawns: MapPlayerSpawn[];
+    villages: Array<{ q: number; r: number }>;
+    huts: Array<{ q: number; r: number }>;
+  },
+  seed: number,
+  options?: { miroir?: (hex: Hex) => Hex },
+): number {
+  const p = ARTEFACTS.params;
+  const capitals = map.spawns.map((s) => s.capital);
+  const minDistToCapitals = (h: Hex): number =>
+    capitals.length === 0 ? Number.MAX_SAFE_INTEGER : Math.min(...capitals.map((c) => hexDistance(c, h)));
+  const passable = (key: string): boolean => {
+    const t = TERRAINS[map.terrain[key] ?? 'eau'];
+    return !!t && t.passable;
+  };
+  const occupied = new Set<string>(capitals.map(tileKeyOf));
+  for (const v of map.villages) occupied.add(tileKeyOf(v));
+  for (const h of map.huts) occupied.add(tileKeyOf(h));
+
+  // Vue recomputée à chaque itération : composantes + identifiants des îles
+  // libres (sans capitale) — les poses mutent le terrain.
+  let compsVue = landComponents(map.terrain, map.width, map.height);
+  let ilesLibres = new Set<number>();
+  let compsAvecCapitale = new Set<number>();
+  const rafraichirVue = (): void => {
+    compsVue = landComponents(map.terrain, map.width, map.height);
+    ilesLibres = new Set<number>();
+    compsAvecCapitale = new Set<number>();
+    for (const key of capitals.map(tileKeyOf)) {
+      const info = compsVue.get(key);
+      if (info) compsAvecCapitale.add(info.id);
+    }
+    for (const [key, info] of compsVue) {
+      if (compsAvecCapitale.has(info.id) || occupied.has(key)) continue;
+      const [q, r] = key.split(',').map(Number) as [number, number];
+      if (minDistToCapitals({ q, r }) >= PLANCHER_DISTANCE_ILE) ilesLibres.add(info.id);
+    }
+  };
+  const compteIles = (): number => {
+    rafraichirVue();
+    return ilesLibres.size;
+  };
+
+  const poseIlot = (hex: Hex): boolean => {
+    const key = tileKeyOf(hex);
+    if (passable(key) || occupied.has(key)) return false;
+    // L'îlot doit naître hors de portée à pied : AUCUNE voisine terrestre de
+    // la MASSE DES JOUEURS (une voisine d'île libre est OK — l'îlot l'agrandit
+    // ou la rend éligible ; crucial en archipel dense où l'océan isolé manque).
+    for (const n of neighbors(hex)) {
+      if (!inRectangle(n, map.width, map.height)) return false;
+      const nk = tileKeyOf(n);
+      if (!passable(nk)) continue;
+      const info = compsVue.get(nk);
+      if (!info || compsAvecCapitale.has(info.id)) return false;
+    }
+    map.terrain[key] = 'prairie';
+    return true;
+  };
+
+  let poses = 0;
+  const posees: Hex[] = [];
+  let garde = compteIles();
+  let rotations = 0;
+  while (garde < p.countMin && rotations < 24) {
+    rotations += 1;
+    const rng = createRng((seed ^ ARTEFACT_SEED_SALT ^ (0x1517 + rotations * 0x9e37)) >>> 0);
+    const candidats: Hex[] = [];
+    for (const key of Object.keys(map.terrain).sort()) {
+      if (passable(key) || occupied.has(key)) continue;
+      const [q, r] = key.split(',').map(Number) as [number, number];
+      const hex = { q: q!, r: r! };
+      if (minDistToCapitals(hex) < PLANCHER_DISTANCE_ILE) continue;
+      if (posees.some((p2) => hexDistance(p2, hex) < p.spacing)) continue;
+      candidats.push(hex);
+    }
+    // Le plus loin des départs d'abord, puis (q, r) — R-81.
+    candidats.sort((a, b) => {
+      const da = minDistToCapitals(a);
+      const db = minDistToCapitals(b);
+      if (da !== db) return db - da;
+      return a.q - b.q || a.r - b.r;
+    });
+    void rng; // le tri déterministe suffit ; RNG réserve pour calibrage 🔶
+    // Première candidate POSABLE (le tri préfère le loin des départs ; une
+    // candidate refusée par poseIlot n'arrête pas la recherche).
+    const centre = candidats.find((c) => poseIlot(c));
+    if (!centre) break; // plus aucune place au large : on rend ce qu'on peut
+    poses += 1;
+    posees.push(centre);
+    if (options?.miroir) {
+      const m = options.miroir(centre);
+      if (poseIlot(m)) {
+        poses += 1;
+        posees.push(m);
+      }
+    }
+    garde = compteIles();
+  }
+  return poses;
 }
 
 /** Données d'un artefact du pool (libellés UI — null si id inconnu). */

@@ -156,10 +156,14 @@ describe('CARTE-MULTI · Génération libre (L2)', () => {
     }
   }, 120000);
 
-  it('D5 · villages et huttes aux TOTAUX 1v1 (densité de référence 🔶), à distance des N spawns', () => {
+  it('D5 · villages et huttes aux TOTAUX 1v1 × échelle d\'aire (CARTE-50 : densité proportionnelle 🔶), à distance des N spawns', () => {
     const r = generateProceduralMap(42, { playerCount: 5 });
-    expect(r.map.villages.length).toBe(S5.villagesPerHalf * 2);
-    expect(r.map.huts.length).toBe(S5.hutsPerHalf * 2);
+    // CARTE-50 · D4 : les totaux 1v1 sont scalés par (L×H)/1600 — 50×40 =
+    // 2000/1600 = 1,25 → 15 villages + 15 huttes (densité par case inchangée).
+    const echelle = (r.report.settings.libreLargeur * r.report.settings.libreHauteur) / 1600;
+    expect(echelle).toBe(1.25);
+    expect(r.map.villages.length).toBe(Math.round(S5.villagesPerHalf * 2 * echelle));
+    expect(r.map.huts.length).toBe(Math.round(S5.hutsPerHalf * 2 * echelle));
     for (const v of r.map.villages) {
       for (const sp of r.map.spawns) expect(hexDistance(v, sp.capital)).toBeGreaterThanOrEqual(S5.minVillageDistance);
     }

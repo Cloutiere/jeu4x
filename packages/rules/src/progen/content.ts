@@ -182,6 +182,13 @@ export interface EntityPlacementInput {
   mirrorOf?: (hex: Hex) => Hex;
   /** Cases interdites sans condition de distance (capitales), clés "q,r". */
   reserved: Set<string>;
+  /** CAMPS-RESSOURCES (demande d'Erik, 28/09) : chaque village/hutte porte une
+   *  ressource (canon CivRev « villages always on top of a resource ») — pour
+   *  que la révélation APRÈS destruction respecte R-108, le camp est posé à
+   *  ≥ minResourceDistance de TOUTES les ressources (carte complète, images
+   *  miroir comprises). Non fourni = contrainte désactivée. */
+  resourcesFull?: Hex[];
+  minResourceDistance?: number;
   count: number;
 }
 
@@ -208,6 +215,12 @@ function entityCandidates(input: EntityPlacementInput): Hex[] {
       if (spawns.some((sp) => hexDistance(sp, hex) < minSpawnDistance)) continue;
       if (minSame > 1 && sameFull.some((p) => hexDistance(p, hex) < minSame)) continue;
       if (minOther > 1 && otherFull.some((p) => hexDistance(p, hex) < minOther)) continue;
+      // CAMPS-RESSOURCES : le futur emplacement de ressource respecte R-108.
+      if (
+        input.resourcesFull &&
+        input.resourcesFull.some((r) => hexDistance(r, hex) < (input.minResourceDistance ?? 2))
+      )
+        continue;
       // Auto-image : une pose et son reflet ne doivent jamais se toucher.
       if (mirrorOf && minSame > 1 && hexDistance(hex, mirrorOf(hex)) < minSame) continue;
       const passableNeighbors = neighbors(hex).filter((n) => {
@@ -234,6 +247,75 @@ export function placeEntities(input: EntityPlacementInput): Hex[] {
     placed.push({ q: hex.q, r: hex.r });
   }
   return placed;
+}
+
+/**
+ * CAMPS-RESSOURCES (demande d'Erik, 28/09) : chaque village barbare et chaque
+ * hutte porte UNE ressource de son terrain (« villages always on top of a
+ * resource » — CivRev, déjà consigné au miroir). Les cases de camp étaient
+ * posées à ≥ minResourceDistance de toutes les ressources (EntityPlacement
+ * .resourcesFull) : la ressource du camp respecte donc R-108 par construction,
+ * et la destruction du camp RÉVÈLE une ressource toujours conforme (la tuile
+ * est portée par le MapData — aucun changement d'état à l'exécution).
+ *
+ * Tirage pondéré par spawnWeight (R-91) au RNG seedé, terrains légaux
+ * uniquement (terrestres — les camps sont praticables). Une case de camp
+ * portant DÉJÀ une ressource (tirage 6b passé dessus) la GARDE (R-94 : une
+ * seule par case). Best-effort : terrain sans ressource éligible (aucun id
+ * terrestre) ou espacement impossible (appel direct sans exclusion amont) →
+ * camp nu, consigné au retour.
+ * Déterministe : camps triés (q, r) — R-81.
+ */
+export function poseRessourcesSousCamps(input: {
+  rng: SeededRng;
+  terrain: TerrainId[][];
+  /** Ressources de la CARTE COMPLÈTE — muté : les poses y sont ajoutées. */
+  resources: MapResource[];
+  villages: Array<{ q: number; r: number }>;
+  huts: Array<{ q: number; r: number }>;
+  minResourceDistance: number;
+  /** Paires miroir : la ressource tirée pour la demi est DOUBLÉE de son image
+   *  (équité parfaite — même id aux deux spawns). */
+  mirrorOf?: (hex: Hex) => Hex;
+}): MapResource[] {
+  const poses: MapResource[] = [];
+  const camps = [...input.villages, ...input.huts].sort((a, b) => a.r - b.r || a.q - b.q);
+  for (const camp of camps) {
+    const col = camp.q + Math.floor(camp.r / 2);
+    const t = input.terrain[camp.r]?.[col];
+    if (!t || isWaterTerrain(t)) continue;
+    const key = `${camp.q},${camp.r}`;
+    if (input.resources.some((r) => `${r.q},${r.r}` === key)) continue; // R-94 : déjà portée
+    const pool = Object.keys(RESOURCES)
+      .filter((id) => {
+        const d = RESOURCES[id]!;
+        return (d.spawnWeight ?? 0) > 0 && d.terrains.includes(t) && !isWaterTerrain(d.terrains[0]!);
+      })
+      .sort();
+    if (pool.length === 0) continue; // terrain stérile : camp nu (consigné)
+    const libre =
+      !input.resources.some((r) => hexDistance(r, camp) < input.minResourceDistance) &&
+      !poses.some((r) => hexDistance(r, camp) < input.minResourceDistance);
+    if (!libre) continue; // R-108 : jamais côte à côte (garde — exclusion amont)
+    const total = pool.reduce((acc, id) => acc + (RESOURCES[id]!.spawnWeight ?? 0), 0);
+    let roll = input.rng.next() * total;
+    let picked = pool[pool.length - 1]!;
+    for (const id of pool) {
+      const w = RESOURCES[id]!.spawnWeight ?? 0;
+      if (roll < w) {
+        picked = id;
+        break;
+      }
+      roll -= w;
+    }
+    poses.push({ id: picked as MapResource['id'], q: camp.q, r: camp.r });
+    if (input.mirrorOf) {
+      const m = input.mirrorOf(camp);
+      poses.push({ id: picked as MapResource['id'], q: m.q, r: m.r });
+    }
+  }
+  input.resources.push(...poses);
+  return poses;
 }
 
 export interface MarinePlacementInput {

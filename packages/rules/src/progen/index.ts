@@ -25,12 +25,12 @@ import type { LoadedMap, MapData, MapPlayerSpawn } from '../map.js';
 import { TERRAINS, isWaterTerrain } from '../data.js';
 import type { TerrainId } from '../types.js';
 import { createRng } from '../rng.js';
-import { artefactsForMap } from '../artefacts.js';
+import { artefactsForMap, garantirIlesLibresPourArtefacts } from '../artefacts.js';
 import { resolveProgenSettings } from './settings.js';
 import type { ProgenSettings } from './settings.js';
 import { generateTerrain } from './geo.js';
 import type { PhysicalMap } from './geo.js';
-import { getStartPlacementStrategy, attemptSeed, ProgenPlacementError, registerStrategy } from './mirror.js';
+import { getStartPlacementStrategy, attemptSeed, ProgenPlacementError, registerStrategy, mirroredHex } from './mirror.js';
 import type { StartPlacementStrategy, PlacementOutput, PlacementReport } from './mirror.js';
 import { LIBRE_MULTI } from './libre.js';
 
@@ -267,11 +267,35 @@ export function generateProceduralMap(
       // cartes préfabriquées (aucun changement du loader — critère #3).
       const map = parseMap(data);
 
-      // 7o · R-151/R-152 : tirage et placement des artefacts (déterministe —
-      // graine dédiée dérivée du seed de partie ; Atlantide en haute mer,
-      // priorité aux îles). Portés par le MapData (labo #/progen, dump admin)
-      // et repris tels quels par createInitialState.
-      const artefacts = artefactsForMap(map, master);
+      // 7o · R-151/R-152 (rév. ARTEFACTS-ILES — Erik 28/09) : tirage et
+      // placement des artefacts (déterministe — graine dédiée dérivée du seed
+      // de partie ; Atlantide en haute mer, JAMAIS la masse des joueurs —
+      // île sans capitale uniquement). BASCULE TRANSPARENTE : les tentatives
+      // 1-5 restent pures ; à partir de la 🔶 6e, des îlots offshore sont
+      // garantis (pangée sans îlot — mesuré : 17 % des grilles) ; en 1v1 les
+      // îlots sont posés par paires miroir (équité de terrain).
+      if (attempt >= 6) {
+        const pleine = strat.fullSize(settingsTentative);
+        garantirIlesLibresPourArtefacts(
+          {
+            terrain: map.terrain,
+            width: pleine.width,
+            height: pleine.height,
+            spawns: map.spawns,
+            villages: map.villages,
+            huts: map.huts,
+          },
+          master,
+          map.spawns.length === 2
+            ? { miroir: (h) => mirroredHex(h, pleine.width) }
+            : undefined,
+        );
+      }
+      // Repli continental AU DERNIER ESSAI SEULEMENT (carte pathologique sans
+      // aucune île possible) : les 9 premiers essais restent stricts.
+      const artefacts = artefactsForMap(map, master, {
+        allowRepliContinental: attempt === settingsTentative.maxAttempts,
+      });
       data.artefacts = artefacts.map((a) => ({ artefactId: a.artefactId, q: a.q, r: a.r }));
       const loaded: LoadedMap = { ...map, artefacts };
 
@@ -392,7 +416,7 @@ export { fertilityScore, tileFertility, ringCells } from './fertility.js';
 export type { TerrainLookup } from './fertility.js';
 export { generateTerrain, classifyWaters } from './geo.js';
 export type { PhysicalMap } from './geo.js';
-export { placeResources, placeEntities } from './content.js';
+export { placeResources, placeEntities, poseRessourcesSousCamps } from './content.js';
 export { isWaterTerrain } from '../data.js';
 export { countResourcesByTerrain, countTerrainTypes } from './counting.js';
 export type { ResourceTerrainCounts, TerrainCountRow } from './counting.js';

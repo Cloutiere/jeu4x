@@ -36,6 +36,10 @@
   // CARTE-MULTI : curseur de sièges — 2 = miroir 1v1 (inchangé), 3-5 =
   // génération LIBRE sans symétrie (recherche de spawns équidistants, D1).
   let sieges = $state(2);
+  // CARTE-50 : taille du mode libre multi (data-driven, D1/D2) — présets pour
+  // comparer 40×40 (héritage) et 50×40 (nouveau) à l'œil. Le 1v1 miroir reste
+  // 40×40 en dur (D2) — le sélecteur est sans effet à 2 sièges.
+  let taille = $state<'40x40' | '50x40'>(DEFAULT_PROGEN_SETTINGS.libreLargeur === 50 ? '50x40' : '40x40');
   let seedText = $state('20260902');
   let landRatio = $state(DEFAULT_PROGEN_SETTINGS.landRatio);
   let continents = $state<1 | 2 | 3>(DEFAULT_PROGEN_SETTINGS.continents);
@@ -114,6 +118,11 @@
     try {
       const result = generateProceduralMap(seed, {
         playerCount: sieges,
+        ...(sieges >= 3
+          ? taille === '50x40'
+            ? { libreLargeur: 50, libreHauteur: 40 }
+            : { libreLargeur: 40, libreHauteur: 40 }
+          : {}),
         landRatio,
         continents,
         rifts,
@@ -304,6 +313,13 @@
             {#each [2, 3, 4, 5] as n (n)}
               <option value={n}>{n} joueurs{#if n === 2} — miroir 1v1{/if}{#if n >= 3} — libre sans symétrie{/if}</option>
             {/each}
+          </select>
+        </label>
+        <label>
+          Taille (multi libre)
+          <select bind:value={taille} disabled={sieges === 2} title={sieges === 2 ? 'Le 1v1 miroir reste 40×40 (D2)' : 'Dimensions de la carte libre'}>
+            <option value="50x40">50×40 — large (défaut CARTE-50)</option>
+            <option value="40x40">40×40 — héritage CARTE-MULTI</option>
           </select>
         </label>
         <label>

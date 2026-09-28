@@ -36,7 +36,7 @@ import {
   applySetGovernment,
   applyAngkorChoice,
   angkorEligibleWonders,
-  artefactsForMap,
+  artefactsPourCarteFraiche,
   greatPersonThresholdFor,
   allKnownTechs,
   blocagesFinDeTour,
@@ -944,7 +944,7 @@ export class GameDO {
     const artefacts = game
       ? (() => {
           try {
-            const generated = artefactsForMap(loadMapForGame(this.meta!.settings, this.meta!.seed).map, this.meta!.seed);
+            const generated = artefactsPourCarteFraiche(loadMapForGame(this.meta!.settings, this.meta!.seed).map, this.meta!.seed);
             const restants = new Set(game.artefacts.map((a) => `${a.artefactId}@${a.q},${a.r}`));
             return {
               generes: generated.map((a) => ({ artefact: a.artefactId, at: { q: a.q, r: a.r } })),

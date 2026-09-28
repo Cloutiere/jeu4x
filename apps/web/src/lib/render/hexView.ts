@@ -13,8 +13,10 @@ import type { Hex } from '@game/rules';
 /** Rayon d'un hexagone (centre → sommet) en unités monde. SPEC-ART §3.1. */
 export const HEX_SIZE = 64;
 
-/** Bornes zoom caméra (× sur la taille de base) : 0.5× → case ≈ 56 px, 2.25× max. */
-export const ZOOM_MIN = 0.5;
+/** Bornes zoom caméra (× sur la taille de base) : 0.5× → case ≈ 56 px, 2.25× max.
+ *  CARTE-50 🔶 : plancher abaissé à 0.3× pour cadrer la carte libre 50×40 en
+ *  entier dans le labo (et permettre le dézoom large en jeu) — vetoable. */
+export const ZOOM_MIN = 0.3;
 export const ZOOM_MAX = 2.25;
 
 /** Pas d'un cran de molette (identique au handler onWheel). */

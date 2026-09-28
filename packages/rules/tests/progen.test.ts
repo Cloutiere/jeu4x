@@ -186,9 +186,10 @@ describe('Phase 6b · Générateur procédural — structure & validations', () 
 
   it('R-105 : densité des ressources suit resourceDensity (override du labo) — la garantie de couverture 6c reste active à densité 0', () => {
     // Densité 0 : plus AUCUNE pose aléatoire, mais la garantie de couverture
-    // (Phase 6c) maintient ≥ 1 ressource de chaque type par joueur.
+    // (Phase 6c) maintient ≥ 1 ressource de chaque type par joueur — et les
+    // camps (CAMPS-RESSOURCES, 28/09) portent chacun leur ressource.
     const none = generateProceduralMap(606, { resourceDensity: 0 });
-    expect(none.map.resources).toHaveLength(Object.keys(RESOURCES).length * 2);
+    expect(none.map.resources.length).toBeGreaterThanOrEqual(Object.keys(RESOURCES).length * 2);
     // Défaut 🔶 1.5 (Phase 6c) ; ×3 sature la capacité d'espacement (distance 2)
     // mais reste nettement au-dessus du défaut.
     const simple = generateProceduralMap(606);

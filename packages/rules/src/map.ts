@@ -28,7 +28,7 @@ import { CONVERSION_DEFAULT } from './conversion.js';
 import { autoAssignWorkedTiles } from './economy.js';
 import { hexesWithinRadius } from './hex.js';
 import { spawnInitialGarrisons } from './barbares.js';
-import { artefactsForMap } from './artefacts.js';
+import { artefactsPourCarteFraiche } from './artefacts.js';
 import { guerreUniverselle } from './state.js';
 import {
   eraOfTechCount,
@@ -561,7 +561,7 @@ export function createInitialState(
   const artefacts: Artefact[] =
     map.artefacts.length > 0
       ? [...map.artefacts].sort((a, b) => a.q - b.q || a.r - b.r).map((a, i) => ({ id: `a${i + 1}`, artefactId: a.artefactId, q: a.q, r: a.r }))
-      : artefactsForMap(map, rngSeed);
+      : artefactsPourCarteFraiche(map, rngSeed);
   state.artefacts = artefacts;
 
   // Vision initiale : rayon des unités (T-07, data-driven) + des villes (T-08).

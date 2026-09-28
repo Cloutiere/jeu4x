@@ -37,7 +37,7 @@ import type { PhysicalMap } from './geo.js';
 import { classifyWaters } from './geo.js';
 import { fertilityScore, ringCells } from './fertility.js';
 import type { TerrainLookup } from './fertility.js';
-import { placeResources, placeEntities, placeMarineResources, spacingViolated, waterOnlyResourceIds } from './content.js';
+import { placeResources, placeEntities, placeMarineResources, spacingViolated, waterOnlyResourceIds, poseRessourcesSousCamps } from './content.js';
 import type { ProgenSettings } from './settings.js';
 import { deriveSeed } from './noise.js';
 
@@ -296,7 +296,7 @@ export function normalizeStartSite(
   threshold: number,
   s: ProgenSettings,
   into: MapResource[],
-  options?: { mirrorOf?: (hex: Hex) => Hex },
+  options?: { mirrorOf?: (hex: Hex) => Hex; recheckSpacing?: boolean },
 ): { score: number; normalized: boolean } {
   let score = initialScore;
   let normalized = false;
@@ -314,6 +314,12 @@ export function normalizeStartSite(
   });
   for (const cell of injectable) {
     if (score >= threshold) break;
+    // CARTE-50 : le filtre ci-dessus est calculé AVANT la boucle — deux cases
+    // injectables adjacentes le long du bord de l'anneau 3 produisaient des
+    // ressources à distance 1 (manquement R-108, prouvé par le banc de
+    // conformité). Re-vérification à chaque pose — mode libre uniquement
+    // (recheckSpacing 🔶) : le miroir 1v1 reste BIT-IDENTIQUE.
+    if (options?.recheckSpacing && spacingViolated(cell, into, options?.mirrorOf, s.minResourceDistance)) continue;
     const t = lookup.terrainAt(cell)!;
     // Bétail sur prairie (le plus nourrissant : +3 food), blé sinon (+2).
     const id: ResourceId = t === 'prairie' ? 'betail' : 'ble';
@@ -633,6 +639,8 @@ export const MIRROR_1V1: StartPlacementStrategy = {
       minOther: 0,
       mirrorOf,
       reserved: occupiedEntities,
+      resourcesFull: finalResources,
+      minResourceDistance: settings.minResourceDistance,
       count: settings.villagesPerHalf,
     });
     const hutPositions: Hex[] = [];
@@ -647,6 +655,8 @@ export const MIRROR_1V1: StartPlacementStrategy = {
       minOther: settings.hutVillageSpacing,
       mirrorOf,
       reserved: occupiedEntities,
+      resourcesFull: finalResources,
+      minResourceDistance: settings.minResourceDistance,
       count: settings.hutsPerHalf,
     });
     // Chaque entité de la demi-carte est reflétée : villages 2×3, huttes 2×2,
@@ -655,6 +665,23 @@ export const MIRROR_1V1: StartPlacementStrategy = {
     villages.push(...villagesHalf.map((v) => mirroredHex(v, full.width)));
     const huts: MapHut[] = [...hutsHalf];
     huts.push(...hutsHalf.map((h) => mirroredHex(h, full.width)));
+
+    // 5bis. CAMPS-RESSOURCES (demande d'Erik, 28/09 — canon CivRev) : chaque
+    //    village/hutte porte UNE ressource de son terrain, tirée pondérée au
+    //    RNG seedé. Les camps étaient posés à ≥ minResourceDistance de toutes
+    //    les ressources (exclusion amont ci-dessus) et entre eux (spacings 7d)
+    //    : la révélation après destruction respecte R-108 par construction.
+    //    Tirage PAR PAIRE miroir (même id aux deux camps — équité parfaite,
+    //    checksum de composition inchangé).
+    poseRessourcesSousCamps({
+      rng,
+      terrain: geo.terrain,
+      resources: finalResources,
+      villages: villagesHalf,
+      huts: hutsHalf,
+      minResourceDistance: settings.minResourceDistance,
+      mirrorOf,
+    });
 
     // 6. Checksum d'équité : les DEUX fertilités sont mesurées sur la carte
     //    complète (miroir + eaux classifiées) — l'image doit scorer exactement

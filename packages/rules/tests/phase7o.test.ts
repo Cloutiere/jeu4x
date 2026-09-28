@@ -23,7 +23,7 @@ import {
   applyAngkorChoice,
   applyArtefactIndiceReward,
   artefactDataOf,
-  artefactsForMap,
+  artefactsPourCarteFraiche,
   drawArtefacts,
   wonderGrantIssue,
 } from '../src/artefacts.js';
@@ -109,9 +109,11 @@ describe('7o · R-156 · Données artefacts.json (doc fait foi)', () => {
 
 describe('7o · R-151 · Tirage sans remise, seedé, rejouable', () => {
   it('3–6 artefacts, Atlantide toujours tirée, aucun doublon (défaut 4)', () => {
-    const map = loadBuiltinMapSync('variee-40');
     for (const seed of [1, 2, 42, 999, 123456]) {
-      const drawn = artefactsForMap(map, seed);
+      // ARTEFACTS-ILES : la carte préfabriquée reçoit ses îlots au tirage
+      // (voie de production artefactsPourCarteFraiche — carte fraîche à chaque
+      // seed, le garant mute le terrain).
+      const drawn = artefactsPourCarteFraiche(loadBuiltinMapSync('variee-40'), seed);
       expect(drawn.length).toBeGreaterThanOrEqual(ARTEFACTS.params.countMin);
       expect(drawn.length).toBeLessThanOrEqual(ARTEFACTS.params.countMax);
       // Le défaut 🔶 est 4 ; une carte sans îles candidates peut retomber à 3
@@ -126,18 +128,16 @@ describe('7o · R-151 · Tirage sans remise, seedé, rejouable', () => {
   });
 
   it('même seed → même tirage et même placement (rejouable R-80) ; un autre seed varie', () => {
-    const map = loadBuiltinMapSync('variee-40');
-    const a = artefactsForMap(map, 777);
-    const b = artefactsForMap(map, 777);
+    const a = artefactsPourCarteFraiche(loadBuiltinMapSync('variee-40'), 777);
+    const b = artefactsPourCarteFraiche(loadBuiltinMapSync('variee-40'), 777);
     expect(a).toEqual(b);
-    const others = [778, 779, 780].map((s) => JSON.stringify(artefactsForMap(map, s)));
+    const others = [778, 779, 780].map((s) => JSON.stringify(artefactsPourCarteFraiche(loadBuiltinMapSync('variee-40'), s)));
     expect(others.some((x) => x !== JSON.stringify(a))).toBe(true);
   });
 
   it('les DLC ne sont jamais générés (R-151)', () => {
-    const map = loadBuiltinMapSync('pangee-40');
     for (let seed = 0; seed < 8; seed++) {
-      const drawn = artefactsForMap(map, seed);
+      const drawn = artefactsPourCarteFraiche(loadBuiltinMapSync('pangee-40'), seed);
       for (const a of drawn) {
         expect(ARTEFACTS.pool[a.artefactId]!.dlcOnly).toBe(false);
       }
@@ -166,8 +166,12 @@ describe('7o · R-152 · Placement insulaire + Atlantide en haute mer', () => {
         expect(t).not.toBe('ocean');
         expect(t).not.toBe('eau');
       }
-      for (const spawn of map.spawns) {
-        expect(hexDistance(a, spawn.capital)).toBeGreaterThanOrEqual(ARTEFACTS.params.minDistanceToCapitals);
+      // ARTEFACTS-ILES (Erik 28/09) : terrestre = île SANS spawn, plancher
+      // dur 🔶 4 des départs (le canon 8 reste une préférence de tri).
+      if (data.activation !== 'oceanAdjacent') {
+        for (const spawn of map.spawns) {
+          expect(hexDistance(a, spawn.capital)).toBeGreaterThanOrEqual(4);
+        }
       }
       // Jamais sur une case de village/hutte (au plus une entité — parseMap).
       expect(map.villages.some((v) => v.q === a.q && v.r === a.r)).toBe(false);
@@ -194,6 +198,8 @@ describe('7o · R-152 · Placement insulaire + Atlantide en haute mer', () => {
   it('carte préfabriquée : tirage par seed à la création (positions candidates dérivées du terrain commis — R-152)', () => {
     const map = loadBuiltinMapSync('pedagogique-40');
     const state = createInitialState(map, 31337);
+    // ≥ 3 : l'Atlantide n'est pas posée sur une carte sans océan (repli
+    // documenté R-152 — pédagogique-40 est presque toute terre).
     expect(state.artefacts.length).toBeGreaterThanOrEqual(3);
     for (const a of state.artefacts) {
       const key = tileKeyOf(a);
