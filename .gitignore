@@ -13,3 +13,7 @@ client_secret_*.json
 dev-logs/
 dump7j*.json (dumps debug locaux)
 jev.txt
+
+# sableuse JEV-POC
+sableuse/journaux/
+sableuse/node_modules/

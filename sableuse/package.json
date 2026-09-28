@@ -1,0 +1,20 @@
+{
+  "name": "sableuse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sableuse JEV-POC — partie headless Jev vs bot, hors ligne, journal JSONL. Ne fait partie NI du workspace NI des builds.",
+  "type": "module",
+  "scripts": {
+    "sonde": "tsx src/sonde.mjs",
+    "partie": "tsx src/cli.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@game/rules": "file:../packages/rules",
+    "@typesafe-ai/sdk": "^0.6.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.0"
+  }
+}

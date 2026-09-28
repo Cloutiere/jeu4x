@@ -1,0 +1,39 @@
+{
+  "_commentaire": "Questions du POC — premier jet VOLONTAIREMENT minimal (HANDOFF-JEV-POC D5). Erik les affine au calibrage. Chaque question vit ici, l'adapter les lit telles quelles.",
+  "questions": {
+    "posture": {
+      "primitive": "choice",
+      "instructions": "Choisir la posture prioritaire de l'empire pour ce tour.",
+      "criteria": {
+        "economique": "Développer l'économie : produire des colons, fonder des villes, croître.",
+        "militaire": "Produire des unités de combat et préparer la guerre.",
+        "tech": "Accélérer la recherche scientifique.",
+        "fortifier": "Renforcer la défense des villes existantes."
+      }
+    },
+    "menace": {
+      "primitive": "score",
+      "instructions": "Évaluer la sévérité du risque militaire imminent sur nos villes.",
+      "criteria": [
+        "Aucune unité ennemie connue à proximité de nos villes.",
+        "Des unités ennemies sont visibles dans la région mais loin de nos villes.",
+        "Des unités ennemies approchent de nos villes.",
+        "Des unités ennemies sont à côté de nos villes ou une guerre est active avec contact."
+      ]
+    },
+    "fonder": {
+      "primitive": "noul",
+      "instructions": "Faut-il fonder une nouvelle ville dès maintenant avec le colon disponible, au meilleur site proposé ?"
+    },
+    "attaquer": {
+      "primitive": "noul",
+      "instructions": "Faut-il engager notre meilleure unité de combat vers la cible ennemie proposée ?"
+    }
+  },
+  "seuils": {
+    "confianceMin": 0.65,
+    "fonderMin": 0.7,
+    "attaquerMin": 0.8,
+    "menaceMin": 2.0
+  }
+}
