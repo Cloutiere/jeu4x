@@ -12,14 +12,28 @@
  * que Jev ne fait qu'OVERRIDE par domaine (production capitale, colon,
  * attaquant) — donc un refus moteur retombe naturellement sur le plan bot.
  */
-import { TERRAINS, UNIT_TYPES, TECHS, canSetProduction, hexDistance } from '@game/rules';
+import { TERRAINS, UNIT_TYPES, canSetProduction, hexDistance } from '@game/rules';
 import { condenserEtat, sitesFondation, ciblesAttaque } from './condense.mjs';
 
-/** Traduit la config questions.json en questions SDK. */
-export function construireQuestions(config) {
+/** Traduit la config questions.json en questions SDK. Les specs marquées
+ * `criteresDynamiques` reçoivent leurs critères depuis le condensé du tour
+ * (candidats de production réels / techs réellement disponibles — les ids
+ * changent chaque tour). Une question dynamique sans candidat n'est PAS
+ * envoyée (critère vide = question indécidable, directive n°3). */
+export function construireQuestions(config, condense = null) {
   const q = {};
   for (const [cle, spec] of Object.entries(config.questions)) {
-    if (spec.primitive === 'choice') {
+    if (spec.criteresDynamiques) {
+      const cles =
+        spec.criteresDynamiques === 'candidatsProduction'
+          ? (condense?.candidats?.productionCapitale ?? []).map((c) => c.cle)
+          : spec.criteresDynamiques === 'techs'
+            ? (condense?.empire?.recherche?.candidates ?? []).map((t) => t.id)
+            : [];
+      if (cles.length === 0) continue;
+      const criteria = Object.fromEntries(cles.map((c) => [c, descriptionCle(spec, c, condense)]));
+      q[cle] = { instructions: spec.instructions, criteria, type: 'choice' };
+    } else if (spec.primitive === 'choice') {
       q[cle] = { instructions: spec.instructions, criteria: spec.criteria, type: 'choice' };
     } else if (spec.primitive === 'score') {
       q[cle] = { instructions: spec.instructions, criteria: spec.criteria, type: 'score' };
@@ -28,6 +42,19 @@ export function construireQuestions(config) {
     }
   }
   return q;
+}
+
+/** Description lisible d'un critère dynamique (littéral strict, directive n°1 :
+ * pas d'arithmétique — les tours estimés sont précalculés dans le condensé). */
+function descriptionCle(spec, cle, condense) {
+  if (spec.criteresDynamiques === 'candidatsProduction') {
+    const c = (condense?.candidats?.productionCapitale ?? []).find((x) => x.cle === cle);
+    if (!c) return cle;
+    const genre = c.colon ? 'un colon (fonde une ville)' : c.attaque > 0 ? 'une unité de combat' : 'un bâtiment';
+    return `${genre} — coût ${c.cout} marteaux, environ ${c.toursEst} tour(s) de production`;
+  }
+  const t = (condense?.empire?.recherche?.candidates ?? []).find((x) => x.id === cle);
+  return t ? `Technologie — coût ${t.cout} fioles` : cle;
 }
 
 function voisins(q, r) {
@@ -86,11 +113,12 @@ export function estimeJetons(objet) {
  *   actions: Array,             // actions immédiates traduites
  *   attentes: Array,            // vérifications post-résolution pour compter les rejets
  *   erreur: string|null
- * }}
+ * }} — `memo` (dernier argument) est la mémoire inter-tours du harnais :
+ *   le choix `rechercher` y est maintenu jusqu'à complétion (D2).
  */
-export async function tourJev(client, config, etatFiltre, moi) {
+export async function tourJev(client, config, etatFiltre, moi, memo = {}) {
   const condense = condenserEtat(etatFiltre, moi);
-  const questions = construireQuestions(config);
+  const questions = construireQuestions(config, condense);
   const seuils = config.seuils;
   const sortie = {
     condense,
@@ -131,10 +159,17 @@ export async function tourJev(client, config, etatFiltre, moi) {
   const probs = Object.values(posture?.probabilities ?? {});
   if (probs.length > 1 && probs.every((p) => Math.abs(p - 1 / probs.length) < 0.02)) sortie.plate = true;
 
-  // 1. Garde de confiance globale → repli bot complet (doc : < 0,65).
+  // 1. Routage à seuil PAR DOMAINE (v2) : chaque question porte son propre
+  //    seuil (produire/rechercher = confianceChoixMin ; fonder/attaquer =
+  //    noulMin ; posture ne pilote plus que fortifier). La posture indécise
+  //    ne jette plus les décisions de domaine confiantes — c'est le routage
+  //    confidence-gated par question du doc TypeSafe. Pour une config v1
+  //    (sans questions dynamiques), la posture garde son rôle de garde
+  //    global du POC : confidence < seuil → repli bot intégral.
+  const configV1 = !config.questions.produire;
   if (!posture || (posture.confidence ?? 0) < seuils.confianceMin) {
     sortie.repli = true;
-    return sortie;
+    if (configV1) return sortie;
   }
 
   const moiP = etatFiltre.players?.[moi];
@@ -143,30 +178,60 @@ export async function tourJev(client, config, etatFiltre, moi) {
   const mesVilles = Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner === moi);
   const capitale = mesVilles.find((v) => v.capital) ?? mesVilles[0] ?? null;
 
-  // 2. Posture → production de la capitale (candidats validés par canSetProduction).
-  if (capitale && (posture.choice === 'militaire' || posture.choice === 'economique')) {
-    const item =
-      posture.choice === 'militaire' ? meilleurAttaquantDisponible(techs) : colonProductible(techs);
-    if (item && canSetProduction({ kind: 'unit', id: item.id }, techs, capitale.buildings ?? [], moiP?.civId)) {
-      const ordre = { type: 'SetProduction', cityId: capitale.id, item: { kind: 'unit', id: item.id } };
-      sortie.ordres.push(ordre);
-      sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: `${ordre.item.kind}:${ordre.item.id}` });
+  // 2. Production de la capitale. v2 : la question `produire` (Choice parmi
+  //    les candidats réels, coûts compris) tranche ; sinon repli v1 : la
+  //    posture choisit colon/meilleur attaquant.
+  if (capitale) {
+    const produire = ans.produire;
+    const confianceProduire = produire?.confidence ?? 0;
+    const candidatValide =
+      produire?.choice &&
+      (condense.candidats.productionCapitale ?? []).some((c) => c.cle === produire.choice) &&
+      confianceProduire >= (seuils.confianceChoixMin ?? seuils.confianceMin);
+    if (candidatValide) {
+      const [kind, id] = produire.choice.split(':');
+      if (canSetProduction({ kind, id }, techs, capitale.buildings ?? [], moiP?.civId)) {
+        const ordre = { type: 'SetProduction', cityId: capitale.id, item: { kind, id } };
+        sortie.ordres.push(ordre);
+        sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: `${kind}:${id}` });
+      }
+    } else if (!produire && (posture.choice === 'militaire' || posture.choice === 'economique')) {
+      const item =
+        posture.choice === 'militaire' ? meilleurAttaquantDisponible(techs) : colonProductible(techs);
+      if (item && canSetProduction({ kind: 'unit', id: item.id }, techs, capitale.buildings ?? [], moiP?.civId)) {
+        const ordre = { type: 'SetProduction', cityId: capitale.id, item: { kind: 'unit', id: item.id } };
+        sortie.ordres.push(ordre);
+        sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: `${ordre.item.kind}:${ordre.item.id}` });
+      }
     }
   }
 
-  // 3. Tech → recherche de la tech disponible la moins chère (action immédiate).
-  if (posture.choice === 'tech') {
-    const dispo = Object.values(TECHS)
-      .filter((t) => !(moiP?.techsUnlocked ?? []).includes(t.id) && (t.prereqs ?? []).every((p) => (moiP?.techsUnlocked ?? []).includes(p)))
-      .sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0];
-    if (dispo) {
-      sortie.actions.push({ type: 'SetResearch', techId: dispo.id });
-      sortie.attentes.push({ genre: 'recherche', techId: dispo.id, joueur: moi });
+  // 3. Recherche TENUE (v2, D2) : le choix mémorisé est maintenu jusqu'à sa
+  //    complétion (le harnais re-émet SetResearch chaque tour pour garder le
+  //    dernier mot sur le bot, qui retire au hasard) — contrairement au bot
+  //    seul, Jev ne change pas de tech en cours de route. Une NOUVELLE
+  //    réponse n'est honorée que si aucune tech n'est tenue ou tenue finie.
+  const techTenue = memo.techRecherche;
+  const tenueIncomplete = techTenue && !techs.includes(techTenue);
+  if (tenueIncomplete) {
+    sortie.actions.push({ type: 'SetResearch', techId: techTenue });
+    sortie.attentes.push({ genre: 'recherche', techId: techTenue, joueur: moi });
+  } else {
+    const chercher = ans.rechercher;
+    if (
+      chercher?.choice &&
+      (condense.empire.recherche?.candidates ?? []).some((t) => t.id === chercher.choice) &&
+      (chercher.confidence ?? 1) >= (seuils.confianceChoixMin ?? seuils.confianceMin)
+    ) {
+      memo.techRecherche = chercher.choice;
+      sortie.actions.push({ type: 'SetResearch', techId: chercher.choice });
+      sortie.attentes.push({ genre: 'recherche', techId: chercher.choice, joueur: moi });
     }
   }
 
-  // 4. Fortifier → toutes les unités de combat proches de nos villes.
-  if (posture.choice === 'fortifier') {
+  // 4. Fortifier (posture, avec sa propre garde de confiance) → toutes les
+  //    unités de combat proches de nos villes.
+  if (posture.choice === 'fortifier' && (posture.confidence ?? 0) >= seuils.confianceMin) {
     for (const u of mesUnites) {
       if (!(UNIT_TYPES[u.type]?.canAttack ?? false)) continue;
       const presDe = mesVilles.some((v) => hexDistance(u, v) <= 2);
@@ -222,6 +287,9 @@ export async function tourJev(client, config, etatFiltre, moi) {
       }
     }
   }
+
+  // Repli (métrique journal) : AUCUN domaine n'a été traduit cette tour.
+  sortie.repli = sortie.ordres.length === 0 && sortie.actions.length === 0;
 
   return sortie;
 }

@@ -1,37 +1,48 @@
 {
-  "_commentaire": "Questions du POC — premier jet VOLONTAIREMENT minimal (HANDOFF-JEV-POC D5). Erik les affine au calibrage. Chaque question vit ici, l'adapter les lit telles quelles.",
+  "_commentaire": "Questions v2 (HANDOFF-JEV-QUESTIONS-V2 D2) — réécrites SUR les faits du condensé enrichi (rendements par ville, coûts, valeur des sites, rapport de puissance, état de recherche). Deux nouvelles questions dynamiques : produire et rechercher (critères injectés chaque tour par l'adapter depuis le condensé). v1 archivée dans questions.v1.json.",
   "questions": {
     "posture": {
       "primitive": "choice",
-      "instructions": "Choisir la posture prioritaire de l'empire pour ce tour.",
+      "instructions": "Choisir la posture prioritaire de l'empire pour ce tour. Les données du condensé décrivent : la nourriture et les marteaux de chaque ville (rendements), la production en cours (fileCouranteCapitale), l'or, la science, la recherche en cours (tours restants) et le rapport de puissance militaire avec les ennemis VISIBLES. Une posture 'economique' produit en priorité la croissance et la fondation de villes ; 'militaire' prépare la guerre quand le rapport de puissance est favorable ; 'tech' accélère la recherche quand la science par tour est faible ; 'fortifier' renforce les villes menacées.",
       "criteria": {
-        "economique": "Développer l'économie : produire des colons, fonder des villes, croître.",
-        "militaire": "Produire des unités de combat et préparer la guerre.",
-        "tech": "Accélérer la recherche scientifique.",
-        "fortifier": "Renforcer la défense des villes existantes."
+        "economique": "Croissance : rendements nourriture/production corrects, sites de fondation de bonne valeur disponibles, aucune menace forte.",
+        "militaire": "Préparer la guerre : puissance amie comparable ou supérieure à la puissance ennemie visible, ou ennemis proches de nos villes.",
+        "tech": "Recherche : science par tour faible, aucune menace forte, la tech en cours est loin d'être complétée.",
+        "fortifier": "Défense : des ennemis sont proches de nos villes et la puissance amie est inférieure à la puissance ennemie visible."
       }
     },
     "menace": {
       "primitive": "score",
-      "instructions": "Évaluer la sévérité du risque militaire imminent sur nos villes.",
+      "instructions": "Évaluer la sévérité du risque militaire imminent sur nos villes, à partir des unités ennemies VISIBLES (menaces : distance à la ville la plus proche), du rapport de puissance amie/ennemie visible, et des unités de combat disponibles.",
       "criteria": [
-        "Aucune unité ennemie connue à proximité de nos villes.",
-        "Des unités ennemies sont visibles dans la région mais loin de nos villes.",
-        "Des unités ennemies approchent de nos villes.",
-        "Des unités ennemies sont à côté de nos villes ou une guerre est active avec contact."
+        "Aucune unité ennemie visible à 5 cases ou moins de nos villes.",
+        "Des unités ennemies visibles dans le rayon mais à 3 cases ou plus de toute ville, et la puissance amie est au moins égale à la puissance ennemie visible.",
+        "Des unités ennemies visibles à 2 cases ou moins d'une ville, ou la puissance ennemie visible dépasse nettement la puissance amie.",
+        "Des unités ennemies visibles collées à une ville, ou plusieurs unités ennemies convergent vers une ville sans défense suffisante."
       ]
     },
     "fonder": {
       "primitive": "noul",
-      "instructions": "Faut-il fonder une nouvelle ville dès maintenant avec le colon disponible, au meilleur site proposé ?"
+      "instructions": "Faut-il fonder une nouvelle ville dès maintenant ? Le condensé décrit pour chaque site candidat sa valeur (somme des rendements du voisinage, distance au colon déjà soustraite) et la distance au colon. Comparez la valeur du meilleur site à la croissance en cours de la capitale : fonder est rentable si le meilleur site a une valeur notable et que la capitale continue de croître même en perdant le colon."
     },
     "attaquer": {
       "primitive": "noul",
-      "instructions": "Faut-il engager notre meilleure unité de combat vers la cible ennemie proposée ?"
+      "instructions": "Faut-il engager notre meilleure unité de combat vers la cible ennemie proposée ? Le condensé décrit la distance de la cible, le rapport de puissance amie/ennemie visible et le niveau de menace. Attaquer est justifié si la puissance amie est au moins égale à la puissance ennemie visible et que la menace est réelle (score 2 ou plus) ou que la cible est une ville ennemie faible."
+    },
+    "produire": {
+      "primitive": "choice",
+      "criteresDynamiques": "candidatsProduction",
+      "instructions": "Choisir l'item à produire dans la capitale ce tour. Chaque critère est un item réel avec son coût en marteaux et la durée estimée en tours. Règle de départage : si la menace est inférieure à 2 et qu'aucune guerre n'est active, produire le colon ; si la menace est 2 ou plus, ou la posture est militaire, produire l'unité de combat ; sinon, si l'empire a déjà plusieurs villes, produire le bâtiment le moins cher."
+    },
+    "rechercher": {
+      "primitive": "choice",
+      "criteresDynamiques": "techs",
+      "instructions": "Choisir la PROCHAINE technologie de l'empire. Ce choix est TENU par le harnais jusqu'à sa complétion (pas de changement en cours de route). Chaque critère est une technologie réellement disponible avec son coût en fioles."
     }
   },
   "seuils": {
     "confianceMin": 0.65,
+    "confianceChoixMin": 0.65,
     "fonderMin": 0.7,
     "attaquerMin": 0.8,
     "menaceMin": 2.0

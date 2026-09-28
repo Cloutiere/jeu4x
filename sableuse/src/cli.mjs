@@ -23,6 +23,8 @@ const seed = Number(arg('seed', Date.now() % 1_000_000));
 const tours = Number(arg('tours', 50));
 const budget = Number(arg('budget', 2));
 const faux = arg('faux', false) === true;
+const injection = arg('injection', false) === true;
+const fichierQuestions = typeof arg('questions', 'questions.json') === 'string' ? arg('questions', 'questions.json') : 'questions.json';
 
 let client;
 if (faux) {
@@ -35,13 +37,24 @@ if (faux) {
   console.log('VRAI client Jev (jev-latest)');
 }
 
-const config = JSON.parse(readFileSync(join(racine, 'questions.json'), 'utf8'));
+const config = JSON.parse(readFileSync(join(racine, fichierQuestions), 'utf8'));
 const horodatage = new Date().toISOString().replace(/[:.]/g, '-');
-const journal = new Journal(join(racine, 'journaux', `partie-${seed}-${horodatage}.jsonl`));
+const tag = [fichierQuestions.replace(/^questions-?|\.json$/g, '') || 'v2', injection ? 'injection' : null]
+  .filter(Boolean)
+  .join('-');
+const journal = new Journal(join(racine, 'journaux', `partie-${seed}-${tag}-${horodatage}.jsonl`));
 
-console.log(`Partie : seed ${seed}, plafond ${tours} tours, budget ${budget} $`);
+console.log(`Partie : seed ${seed}, plafond ${tours} tours, budget ${budget} $, questions ${fichierQuestions}${injection ? ', INJECTION menace (scenario:test)' : ''}`);
 const t0 = Date.now();
-const { etat, jev, coupeParBudget } = await jouerPartie({ client, config, seed, plafondTours: tours, journal, budgetUsd: budget });
+const { etat, jev, coupeParBudget } = await jouerPartie({
+  client,
+  config,
+  seed,
+  plafondTours: tours,
+  journal,
+  budgetUsd: budget,
+  scenario: injection ? { contact: true, injectionMenace: true } : null,
+});
 const duree = ((Date.now() - t0) / 1000).toFixed(1);
 
 console.log('----------------------------------------');

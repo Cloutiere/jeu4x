@@ -102,7 +102,34 @@ describe('traduction des décisions (D4)', () => {
     expect(d.ordres.some((o) => o.type === 'Move' || o.type === 'FoundCity')).toBe(true);
   });
 
-  it('confiance < 0,65 → repli bot complet, aucun ordre Jev', async () => {
+  it('config v1 : confiance < 0,65 → repli bot complet, aucun ordre Jev (sémantique POC)', async () => {
+    const { tourJev } = await import('../src/adapter-jev.mjs');
+    const { readFileSync } = await import('node:fs');
+    const { getFilteredState, createInitialState, generateProceduralMap } = await import('@game/rules');
+    const gen = generateProceduralMap(SEED);
+    const etat = createInitialState(gen.map, SEED);
+    const jev = Object.keys(etat.players).sort()[1];
+    const configV1 = JSON.parse(readFileSync(new URL('../questions.v1.json', import.meta.url), 'utf8'));
+    const clientStub = {
+      async systemOne() {
+        return {
+          model: 'stub',
+          answers: {
+            posture: { type: 'choice', choice: 'militaire', confidence: 0.4, probabilities: {} },
+            menace: { type: 'score', score: 3, confidence: 0.9, legend: {}, probabilities: {} },
+            fonder: { type: 'noul', noul: 0.99 },
+            attaquer: { type: 'noul', noul: 0.99 },
+          },
+          usage: { input_tokens: 100 },
+        };
+      },
+    };
+    const d = await tourJev(clientStub, configV1, getFilteredState(etat, jev), jev);
+    expect(d.repli).toBe(true);
+    expect(d.ordres).toHaveLength(0);
+  });
+
+  it('config v2 : posture indécise mais domaine confiant → la décision de domaine passe (routage par domaine)', async () => {
     const { tourJev } = await import('../src/adapter-jev.mjs');
     const { getFilteredState, createInitialState, generateProceduralMap } = await import('@game/rules');
     const gen = generateProceduralMap(SEED);
@@ -123,8 +150,9 @@ describe('traduction des décisions (D4)', () => {
       },
     };
     const d = await tourJev(clientStub, config, getFilteredState(etat, jev), jev);
-    expect(d.repli).toBe(true);
-    expect(d.ordres).toHaveLength(0);
+    // fonder 0,99 ≥ 0,7 : la fondation est traduite malgré la posture faible
+    expect(d.ordres.some((o) => o.type === 'FoundCity' || o.type === 'Move')).toBe(true);
+    expect(d.repli).toBe(false);
   });
 });
 
@@ -137,3 +165,4 @@ describe('rejouabilité depuis le journal (L3)', () => {
     expect(rejoue.gagnantRejoue).toBe(r.etat.winner);
   });
 });
+

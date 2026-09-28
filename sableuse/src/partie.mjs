@@ -12,6 +12,7 @@ import {
   createRng,
   generateProceduralMap,
   getFilteredState,
+  hexDistance,
   resolveTurn,
 } from '@game/rules';
 import { botPolicy, botTurnSeed } from '../../apps/server/src/botPolicy.js';
@@ -27,8 +28,11 @@ import { fusionnerPlan, tourJev } from './adapter-jev.mjs';
  * @param {object} opts.journal instance Journal
  * @param {number} [opts.budgetUsd=2] plafond D8 — la partie s'achève proprement au-delà
  * @param {string} [opts.engineJev] id moteur de la nation pilotée par Jev (défaut : 2e joueur)
+ * @param {object} [opts.scenario] scénario de test (HANDOFF-JEV-QUESTIONS-V2 D3) :
+ *   { injectionMenace: true } — injecte une unité ennemie FICTIVE dans le SEUL
+ *   condensé Jev (jamais dans l'état moteur). Étiqueté 'scenario:test'.
  */
-export async function jouerPartie({ client, config, seed, plafondTours = 50, journal, budgetUsd = 2, engineJev }) {
+export async function jouerPartie({ client, config, seed, plafondTours = 50, journal, budgetUsd = 2, engineJev, scenario = null }) {
   const gen = generateProceduralMap(seed);
   let etat = createInitialState(gen.map, seed);
   const joueurs = Object.keys(etat.players).sort();
@@ -41,8 +45,10 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     joueurs: joueurs.map((id) => ({ id, civId: etat.players[id].civId, pilote: id === jev ? 'jev' : 'bot' })),
     plafondTours,
     budgetUsd,
+    scenario: scenario ? 'scenario:test' : null,
   });
 
+  const memo = {}; // mémoire inter-tours Jev (tenue de la recherche, D2)
   let coupeParBudget = false;
   let erreurJev = 0;
 
@@ -68,7 +74,10 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     let decision = null;
     if (!etat.players[jev]?.defeated) {
       const filtre = getFilteredState(etat, jev);
-      decision = await tourJev(client, config, filtre, jev);
+      // D3 · scénario contact : unité ennemie FICTIVE dans le condensé SEULEMENT
+      // (l'état moteur n'est jamais touché — l'outil reste hors ligne).
+      if (scenario?.injectionMenace) injecterMenace(filtre, jev);
+      decision = await tourJev(client, config, filtre, jev, memo);
       if (decision.erreur) erreurJev += 1;
       // Ordres : les overrides Jev remplacent les ordres bot de même sujet.
       // Actions : appliquées APRÈS celles du bot (dernier mot à Jev).
@@ -87,6 +96,7 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
         jetonsEntree: decision.jetonsEntree,
         coutUsd: (decision.jetonsEntree ?? 0) * 0.042 / 1_000_000,
         erreur: decision.erreur,
+        scenarioTest: scenario?.injectionMenace ? true : undefined,
       });
       if (journal.budgetDepasse(budgetUsd)) {
         coupeParBudget = true;
@@ -134,6 +144,59 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     nationJev: jev,
   });
   return { etat, jev, coupeParBudget };
+}
+
+/** D3 · Injection de test (harnais uniquement, jamais le moteur) : place une
+ * unité ennemie fictive (guerrier, owner 'test') à 2-3 cases de la capitale
+ * de la nation Jev, sur une case explorée et libre. Le condensé la voit donc
+ * comme un ennemi visible ; le moteur, lui, n'en sait RIEN. */
+export function injecterMenace(filtre, moi) {
+  const villesMoi = Object.values(filtre.cities ?? {}).filter((v) => v.owner === moi);
+  const ancre = villesMoi.find((v) => v.capital) ?? villesMoi[0]
+    ?? Object.values(filtre.units ?? {}).find((u) => u.owner === moi && !u.aboard);
+  if (!ancre) return false;
+  const occupees = new Set(
+    Object.values(filtre.units ?? {}).filter((u) => !u.aboard).map((u) => `${u.q},${u.r}`),
+  );
+  for (let dist = 2; dist <= 3; dist++) {
+    for (let dq = -dist; dq <= dist; dq++) {
+      const rMin = Math.max(-dist, -dq - dist);
+      const rMax = Math.min(dist, -dq + dist);
+      for (let dr = rMin; dr <= rMax; dr++) {
+        const cle = `${ancre.q + dq},${ancre.r + dr}`;
+        const tuile = filtre.map?.[cle];
+        if (!tuile || tuile.terrain === 'ocean' || tuile.terrain === 'eau' || tuile.terrain === 'montagne') continue;
+        if (occupees.has(cle)) continue;
+        filtre.units[`u_test_menace`] = {
+          id: 'u_test_menace',
+          owner: 'test',
+          type: 'guerrier',
+          q: ancre.q + dq,
+          r: ancre.r + dr,
+          hp: 100,
+          mp: 0,
+          fortified: false,
+          aboard: false,
+        };
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** D3 · Cherche des seeds mirror1v1 à spawns proches (contact forcé).
+ * Retourne les `n` premières seeds ≥ départ dont la distance entre spawns est
+ * ≤ distanceMax — la sélection vit ICI, jamais dans le moteur. */
+export function trouverSeedsContact({ n = 2, depart = 1, distanceMax = 12, plafond = 5000 }) {
+  const seeds = [];
+  for (let s = depart; s < depart + plafond && seeds.length < n; s++) {
+    const spawns = generateProceduralMap(s).map.spawns;
+    if (spawns.length < 2) continue;
+    const d = hexDistance(spawns[0].capital, spawns[1].capital);
+    if (d <= distanceMax) seeds.push({ seed: s, distanceCapitales: d });
+  }
+  return seeds;
 }
 
 /** Vérifie, pour chaque ordre traduit de Jev, si le moteur l'a exécuté —

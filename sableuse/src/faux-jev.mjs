@@ -41,7 +41,20 @@ export function creerFauxJev({ graine = 42 } = {}) {
       for (const [cle, q] of Object.entries(questions ?? {})) {
         if (q.type === 'choice') {
           const cles = Object.keys(q.criteria);
-          const choix = menaceNiveau >= 2 && cles.includes('militaire') ? 'militaire' : cles.includes('economique') ? 'economique' : cles[0];
+          let choix;
+          if (cles.includes('economique') || cles.includes('militaire')) {
+            // posture : choix plausible selon la menace détectée
+            choix = menaceNiveau >= 2 && cles.includes('militaire') ? 'militaire' : cles.includes('economique') ? 'economique' : cles[0];
+          } else if (cles.some((c) => c.startsWith('unit:') || c.startsWith('building:'))) {
+            // produire : colon si dispo sinon premier item, unité de combat si menace
+            const combat = cles.find((c) => c.startsWith('unit:') && menaceNiveau >= 2);
+            choix = combat ?? cles.find((c) => c.includes('colon')) ?? cles[0];
+          } else if (q.criteria && Object.values(q.criteria).some((d) => typeof d === 'string' && d.startsWith('Technologie'))) {
+            // rechercher : la moins chère (première — les candidates sont pré-triées)
+            choix = cles[0];
+          } else {
+            choix = cles[Math.floor(rng() * cles.length)];
+          }
           const confiance = 0.7 + rng() * 0.25;
           const probabilities = Object.fromEntries(cles.map((c) => [c, c === choix ? confiance : ((1 - confiance) / Math.max(1, cles.length - 1))]));
           answers[cle] = { type: 'choice', choice: choix, confidence: confiance, probabilities };
