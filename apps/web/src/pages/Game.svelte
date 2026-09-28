@@ -115,11 +115,17 @@
   // ---------------------------------------------------------------------
   const vueVille = createVueVille();
   onDestroy(() => vueVille.set(null));
+  // VUE-VILLE-PERF · D3 : le menu de ville (CityView — $derived lourds) n'est
+  // MONTÉ qu'à la fin de l'animation d'entrée (signal `onVueVillePret` du
+  // canvas) ; la sortie le démonte immédiatement (comportement inchangé).
+  let vueVilleMontee = $state(false);
   function entrerVueVille(cityId: string): void {
+    vueVilleMontee = false;
     selectNothing(ui); // plus aucune sélection unité/ville pendant la vue
     vueVille.set(cityId);
   }
   function sortirVueVille(): void {
+    vueVilleMontee = false;
     vueVille.set(null);
   }
   const vueVilleActive = $derived($vueVille !== null);
@@ -786,14 +792,17 @@
           vueVilleId={$vueVille}
           onEnterVueVille={entrerVueVille}
           onExitVueVille={sortirVueVille}
+          onVueVillePret={() => (vueVilleMontee = true)}
           {etatReplay}
           {replayActif}
           onExitReplay={terminerReplay}
         />
-        {#if vueVilleActive && $view.state}
+        {#if vueVilleActive && vueVilleMontee && $view.state}
           <!-- MENU-VILLE : le menu dédié de la vue ville (les autres menus
                disparaissent pendant la vue — FUSION-MENU-VILLE : CityPanel
-               est supprimé, la vue ville EST le menu de ville). -->
+               est supprimé, la vue ville EST le menu de ville).
+               VUE-VILLE-PERF · D3 : montage DIFFÉRÉ à la fin de l'animation
+               d'entrée (signal onVueVillePret). -->
           <CityView view={$view} {client} cityId={$vueVille!} onClose={sortirVueVille} />
         {/if}
         {#if showIdleDialog}

@@ -29,6 +29,9 @@
   import { BADGE_FONDATION, etatFondationColon } from './fondation.js';
   import { BADGE_POPULATION } from './badge-population.js';
   import { iconeCommerceRendement } from './rendements.js';
+  // VUE-VILLE-PERF · D4b : pool des Text de rendement (aucun new Text par
+  // rebuild — réutilisation par clé texte+style, purge au démontage).
+  import { cleTexteRendement, PoolParCle } from './pool-textes.js';
   import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, dispositionsCohabitation, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable, pilesAffichees, positionAfficheeDe as positionAfficheeDeEtat } from './interaction.js';
   // PLACEMENT-MELEE : contexte de mêlée (côtés d'entrée, stabilisée au centre).
   import { contexteMelee } from '../melee.js';
@@ -98,8 +101,11 @@
     vueVilleId?: string | null;
     /** MENU-VILLE : double-clic sur une ville du joueur → entrée en vue ville. */
     onEnterVueVille?(cityId: string): void;
-    /** MENU-VILLE : sortie demandée par le canvas (Échap / double-clic hors ville). */
+    /** MENU-VILLE : sortie demandée par le canvas (Échap / double-clic hors de la ville). */
     onExitVueVille?(): void;
+    /** VUE-VILLE-PERF · D3 : l'animation d'ENTRÉE vient de se terminer — la
+     *  page peut monter le menu de ville (CityView) hors frame animée. */
+    onVueVillePret?(): void;
     /** REPLAY-RESOLUTION (L3) : état de relecture rendu À LA PLACE de l'état
      *  de la vue quand non null (le renderer n'y lit QUE des entités — même
      *  contrat que l'état filtré). Null = rendu normal. */
@@ -128,6 +134,7 @@
     vueVilleId = null,
     onEnterVueVille,
     onExitVueVille,
+    onVueVillePret,
     etatReplay = null,
     replayActif = false,
     onExitReplay,
@@ -217,6 +224,18 @@
   let rafId = 0;
   let fallbackInterval: ReturnType<typeof setInterval> | null = null;
 
+  // VUE-VILLE-PERF · D4b : pool des Text de rendement — style CONSTANT (le
+  // seul utilisé par les rendements), clé = texte ; les instances libres sont
+  // détruites au démontage (leurs textures meurent avec le renderer).
+  const poolTextesRendement = new PoolParCle<Text>(
+    () =>
+      new Text({
+        text: '',
+        style: { fontFamily: 'system-ui, sans-serif', fontSize: 15, fill: 0xffffff, fontWeight: '700', stroke: { color: 0x1b1b22, width: 3 } },
+      }),
+    (t) => t.destroy(true),
+  );
+
   // ---------------------------------------------------------------------
   // MENU-VILLE — vue ville (retour d'Erik du 13/09 v2 : ZOOM À PLAT)
   // Le conteneur monde est zoomé sur la ville, à l'échelle qui fait tenir
@@ -227,6 +246,10 @@
   // ---------------------------------------------------------------------
   let vuePose: PoseVueVille | null = null;
   let vueAnim: { from: PoseVueVille; to: PoseVueVille; t: number; entree: boolean } | null = null;
+  /** D4d : resize constaté en fin d'animation (dimensions DOM ≠ renderer) et
+   *  REPORTÉ à la première frame NON animée — jamais de framebuffer resize
+   *  dans une frame d'animation. */
+  let resizeReporte: { w: number; h: number } | null = null;
   /** Durée des animations d'entrée/sortie (ms). 🔶 calibrage à l'œil. */
   const VUE_VILLE_DUREE = 450;
 
@@ -255,29 +278,19 @@
   }
 
   // La bascule du store `vueVilleId` (page) pilote l'animation d'entrée/sortie.
-  /** Pose CIBLE de la vue ville pour la ville courante et les dimensions
-   *  ACTUELLES du canvas (recalculée au redimensionnement — la ville doit
-   *  rester centrée dans l'espace libre, retour d'Erik du 13/09). */
-  function poseVueVilleCible(): PoseVueVille | null {
+  /** Dimensions ACTUELLES du host (lues sur le DOM — jamais les dernières
+   *  valeurs du ResizeObserver, CORRECTIFS-VUE-VILLE). */
+  function dimsHost(): { w: number; h: number } {
+    return { w: Math.max(1, host?.clientWidth || vw), h: Math.max(1, host?.clientHeight || vh) };
+  }
+
+  /** Pose CIBLE de la vue ville pour la ville courante, calcul PURE (aucun
+   *  effet de bord) sur les dimensions données. */
+  function calcPoseVueVille(w: number, h: number): PoseVueVille | null {
     if (!vueVilleId || !scene.state) return null;
     const city = scene.state.cities[vueVilleId];
     if (!city) return null;
     const p = hexToPixel(city, HEX_SIZE);
-    // CORRECTIFS-VUE-VILLE : dimensions LUES SUR LE DOM, jamais les dernières
-    // valeurs du ResizeObserver — l'échelle doit être calculée sur l'espace
-    // réellement disponible (le masquage de la colonne de droite et le
-    // redimensionnement de la fenêtre doivent se voir immédiatement, même si
-    // l'observateur n'a pas encore délivré — piége viewport PILOT-HANDOFF §5).
-    const w = Math.max(1, host?.clientWidth || vw);
-    const h = Math.max(1, host?.clientHeight || vh);
-    if (w !== vw || h !== vh) {
-      vw = w;
-      vh = h;
-      // PLEIN-ÉCRAN NET : même logique que le ResizeObserver — la résolution
-      // suit le DPR effectif (le zoom letterbox de la coquille le change).
-      app?.renderer.resize(w, h, Math.min(4, window.devicePixelRatio || 1));
-      stage3d?.resize(w, h);
-    }
     // Retours d'Erik (19/09) : le double-clic doit montrer ENTIÈREMENT les
     // tuiles jusqu'à la DISTANCE 2 au minimum — le prochain anneau cultivable
     // (frontière culturelle en expansion) doit rester visible pour prévoir —
@@ -287,6 +300,26 @@
       frontierRadius(workRadiusOf(city.buildings), rayonCulturelDe(city.cultureCumulee)),
     );
     return poseVueVillePour(p.x, p.y, w, h, HEX_SIZE, rayonAffiche);
+  }
+
+  /** Redimensionne le renderer (résolution = DPR effectif, cf. ResizeObserver). */
+  function redimensionnerRenderer(w: number, h: number): void {
+    vw = w;
+    vh = h;
+    // PLEIN-ÉCRAN NET : même logique que le ResizeObserver — la résolution
+    // suit le DPR effectif (le zoom letterbox de la coquille le change).
+    app?.renderer.resize(w, h, Math.min(4, window.devicePixelRatio || 1));
+    stage3d?.resize(w, h);
+  }
+
+  /** Pose cible + resynchronisation du renderer si le host a bougé. À
+   *  n'appeler QUE hors frame animée ($effect d'entrée, ResizeObserver) —
+   *  D4d : jamais de `renderer.resize` pendant une frame d'animation ; la
+   *  fin d'animation utilise calcPoseVueVille et reporte le resize. */
+  function poseVueVilleCible(): PoseVueVille | null {
+    const { w, h } = dimsHost();
+    if (w !== vw || h !== vh) redimensionnerRenderer(w, h);
+    return calcPoseVueVille(w, h);
   }
 
   $effect(() => {
@@ -477,7 +510,11 @@
     if (!app || !textures || !scene.state) return;
     const { mapWidth, mapHeight, map } = scene.state;
     // Rect de culling : caméra 2D normale, ou transform inverse de la pose de
-    // vue ville (MENU-VILLE — zoom à plat).
+    // vue ville (MENU-VILLE — zoom à plat). VUE-VILLE-PERF · D4c : la pose
+    // courante PENDANT une transition n'est plus jamais vue par un rebuild
+    // (consommation différée D3) — en vue ville, ce rect est donc toujours
+    // calculé depuis la pose CIBLE (vuePose, fixée à la fin de l'animation),
+    // le pire cas « pose de départ = vue large » a disparu.
     const pose = poseVueCourante();
     const rect =
       vueVilleActif()
@@ -1129,7 +1166,14 @@
 
   /** Surcouche : sélection, brouillon de chemin, ordres soumis, possessions. */
   function rebuildOverlay(): void {
-    overlayLayer.removeChildren().forEach((child) => child.destroy({ children: true }));
+    // VUE-VILLE-PERF · D4b : les Text de rendement du pool sont RELÂCHÉS (et
+    // réutilisés au prochain rebuild) au lieu d'être détruits avec la couche.
+    for (const child of overlayLayer.children) {
+      const cle = (child as Text & { __poolCle?: string }).__poolCle;
+      if (cle !== undefined) poolTextesRendement.relacher(child as Text, cle);
+      else child.destroy({ children: true });
+    }
+    overlayLayer.removeChildren();
     hoverG = null; // détruit avec la couche — redessiné en fin de rebuild
     if (!scene.state) return;
 
@@ -1354,6 +1398,11 @@
       if (cityVue && scene.explored.has(tileKeyOf(cityVue))) {
         const rayon = workRadiusOf(cityVue.buildings);
         const couleurVue = playerColor(cityVue.owner);
+        // VUE-VILLE-PERF · D4a : l'état EFFECTIF et l'ensemble des cases
+        // cultivées sont calculés UNE FOIS (avant les boucles) — ils étaient
+        // recalculés PAR TUILE du rayon (O(tuiles × ordres) par rebuild).
+        const effVue = scene.view ? effectiveWorkedTiles(scene.view, cityVue) : { tiles: cityVue.workedTiles };
+        const cultiveesVue = new Set(effVue.tiles);
         const tuilesRayon: Hex[] = [];
         for (let dq = -rayon; dq <= rayon; dq++) {
           for (let dr = Math.max(-rayon, -dq - rayon); dr <= Math.min(rayon, -dq + rayon); dr++) {
@@ -1362,8 +1411,6 @@
             tuilesRayon.push(hex);
             const key = tileKeyOf(hex);
             if (hex.q === cityVue.q && hex.r === cityVue.r) continue; // case de ville : pas de remplissage
-            const effVue = scene.view ? effectiveWorkedTiles(scene.view, cityVue) : { tiles: cityVue.workedTiles };
-            const cultiveesVue = new Set(effVue.tiles);
             const gr = new Graphics();
             gr.poly(hexLocalPoints(HEX_SIZE - 4)).fill({ color: couleurVue, alpha: cultiveesVue.has(key) ? 0.08 : 0.16 });
             gr.position.copyFrom(hexToPixel(hex, HEX_SIZE));
@@ -1465,10 +1512,13 @@
         const rowH = 19;
         let rowY = p.y - ((rows.length - 1) * rowH) / 2 + HEX_SIZE * 0.38;
         for (const row of rows) {
-          const text = new Text({
-            text: String(row.count),
-            style: { fontFamily: 'system-ui, sans-serif', fontSize: 15, fill: 0xffffff, fontWeight: '700', stroke: { color: 0x1b1b22, width: 3 } },
-          });
+          // VUE-VILLE-PERF · D4b : Text issu du pool (clé = texte, le style
+          // est une constante du pool) — pas de re-création/rastérisation par
+          // rebuild ; l'instance est repositionnée et réutilisée telle quelle.
+          const cle = cleTexteRendement(String(row.count));
+          const text = poolTextesRendement.acquerir(cle);
+          (text as Text & { __poolCle?: string }).__poolCle = cle;
+          if (text.text !== String(row.count)) text.text = String(row.count);
           text.anchor.set(0, 0.5);
           text.alpha = 0.92;
           text.position.set(p.x + 4, rowY);
@@ -1976,6 +2026,26 @@
   let lastPlaybackActive = false;
   let lastFrame = performance.now();
   let frames = 0;
+  // VUE-VILLE-PERF (dev uniquement) : journal des durées — chaque frame
+  // (tickInner) et chaque rebuild, avec l'état de transition de vue ville
+  // (enTransit/t). Sert le protocole de mesure AVANT/APRÈS du chantier
+  // (dev-logs/perf-vue-ville) ; zéro coût en production.
+  interface PerfEvenement { a: number; label: string; ms: number; enTransit: boolean; t: number | null }
+  const perfEvenements: PerfEvenement[] = [];
+  const perfPush = (label: string, ms: number): void => {
+    if (!import.meta.env.DEV) return;
+    perfEvenements.push({ a: performance.now(), label, ms, enTransit: vueAnim !== null, t: vueAnim ? vueAnim.t : null });
+    if (perfEvenements.length > 600) perfEvenements.splice(0, perfEvenements.length - 600);
+  };
+  const mesurer = <T,>(label: string, fn: () => T): T => {
+    if (!import.meta.env.DEV) return fn();
+    const t0 = performance.now();
+    try {
+      return fn();
+    } finally {
+      perfPush(label, performance.now() - t0);
+    }
+  };
   // PLEIN-ÉCRAN NET (retour Erik 20/09 : « F11 après avoir démarré le jeu,
   // l'image du guerrier est floue ») : la coquille Electron letterboxe le
   // plein écran en multipliant le zoom Chromium (setZoomFactor = échelle
@@ -1987,39 +2057,89 @@
   // résolution au renderer (même borne 2 que l'init) — lecture d'un champ à
   // la frame, coût négligeable.
   let dernierDpr = Math.min(4, window.devicePixelRatio || 1);
+  /** D4d : DPR changé PENDANT une animation de vue ville — resize reporté. */
+  let dprReporte: number | null = null;
 
   function suivreDpr(): void {
     if (!app) return;
     const dpr = Math.min(4, window.devicePixelRatio || 1);
     if (dpr === dernierDpr) return;
     dernierDpr = dpr;
+    // D4d : jamais de resize de framebuffer dans une frame d'animation de
+    // vue ville — reporté à la première frame non animée.
+    if (vueAnim) {
+      dprReporte = dpr;
+      return;
+    }
     app.renderer.resize(vw, vh, dpr);
     tilesDirty = true;
     cameraChanged = true;
   }
 
+  // D2 — le ticker ne meurt plus : une erreur de la boucle est JOURNALISÉE
+  // (console + window.__tickError) et signalée par un bandeau discret, puis
+  // les calques sont re-invalidés (le rebuild suivant repart d'un état
+  // propre, même si la passe en erreur a laissé une couche à moitié faite).
+  // Avant ce blindage, le `throw` dans le callback rAF tuait la boucle
+  // (rAF + roue de secours annulés) : l'application restait figée.
+  let erreurTick = $state<{ message: string; compte: number } | null>(null);
+
+  function consignerErreurTick(err: unknown): void {
+    const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    (window as unknown as Record<string, unknown>).__tickError = message;
+    console.error('[GameCanvas] erreur dans la boucle de rendu — la boucle continue (bandeau affiché) :', err);
+    erreurTick = { message: err instanceof Error ? err.message : String(err), compte: (erreurTick?.compte ?? 0) + 1 };
+    // Resynchronisation propre : les trois calques et la caméra repartent
+    // sales — aucune couche à moitié construite ne subsiste à l'écran.
+    tilesDirty = true;
+    entitiesDirty = true;
+    overlayDirty = true;
+    cameraChanged = true;
+  }
+
+  /** Injection d'erreur de TEST (dev uniquement, via __game.injectTickError) :
+   *  la prochaine frame lève — preuve GUI que la boucle survit. */
+  let erreurTestEnAttente = false;
+
   function tick(tickerDeltaMs: number): void {
     frames += 1;
-    suivreDpr();
     try {
+      suivreDpr();
       tickInner(tickerDeltaMs);
     } catch (err) {
-      // Surface l'erreur une fois pour le débogage (dev) sans tuer la boucle.
-      (window as unknown as Record<string, unknown>).__tickError = err instanceof Error ? (err.stack ?? String(err)) : String(err);
-      if (rafId) cancelAnimationFrame(rafId);
-      if (fallbackInterval !== null) clearInterval(fallbackInterval);
-      rafId = 0;
-      fallbackInterval = null;
-      throw err;
+      consignerErreurTick(err);
     }
   }
 
   function tickInner(tickerDeltaMs: number): void {
+    const debutFrame = performance.now();
+    try {
+      tickInnerCorps(tickerDeltaMs);
+    } finally {
+      if (import.meta.env.DEV) perfPush('frame', performance.now() - debutFrame);
+    }
+  }
+
+  function tickInnerCorps(tickerDeltaMs: number): void {
+    if (erreurTestEnAttente) {
+      erreurTestEnAttente = false;
+      throw new Error('Erreur de test injectée (VUE-VILLE-PERF) — la boucle doit survivre');
+    }
     const now = performance.now();
     const dt = Math.min(100, now - lastFrame);
     lastFrame = now;
     playback.update(dt);
-    if (mode3dActif()) {
+    // VUE-VILLE-PERF · D3 : pendant l'animation d'entrée/sortie de la vue
+    // ville, la frame ne fait qu'INTERPOLER la pose du conteneur monde
+    // (comme la molette — prouvé fluide). Les flags d'invalidation restent
+    // posés et sont consommés APRÈS l'animation : aucun rebuild complet dans
+    // une frame de transition, et les calques « anciens » restent visibles
+    // pendant le mouvement (l'overlay final apparaît à l'arrivée — compromis
+    // D3, à l'œil d'Erik).
+    const enTransitVueVille = vueAnim !== null;
+    if (enTransitVueVille) {
+      // Rien à consommer : les rebuilds attendent la fin de la transition.
+    } else if (mode3dActif()) {
       // Terrain 3D : rebuild seulement quand les DONNÉES changent (tuiles
       // instanciées dessinées en entier quel que soit le zoom — bench L0).
       if (tilesDirty) {
@@ -2029,20 +2149,52 @@
       // V2 : structures 3D (cartes-ressources, Mainframe, huttes/villages,
       // cratère) — rebuild quand les tuiles OU les entités changent.
       if (tilesDirty || entitiesDirty) mettreAJourStructures3d();
-    } else if (tilesDirty || cameraChanged) {
-      rebuildTiles();
-      tilesDirty = false;
-    }
-    if (entitiesDirty) {
-      rebuildEntities();
-      entitiesDirty = false;
-    }
-    if (overlayDirty) {
-      rebuildOverlay();
-      overlayDirty = false;
-      // TRAVAIL-VILLE-3D : en 3D, les contours worked tiles/cultivation
-      // suivent le même cycle de invalidation que l'overlay (état + UI).
-      if (mode3dActif()) mettreAJourMarqueurs3d();
+      if (overlayDirty) {
+        mesurer('rebuildOverlay', rebuildOverlay);
+        overlayDirty = false;
+        // TRAVAIL-VILLE-3D : en 3D, les contours worked tiles/cultivation
+        // suivent le même cycle de invalidation que l'overlay (état + UI).
+        mettreAJourMarqueurs3d();
+      }
+    } else {
+      // D4d : les resize reportés (DPR ou dimensions DOM ≠ renderer, observateur
+      // paresseux) s'appliquent ICI — sur une frame NON animée, AVANT le
+      // budget — puis la pose suit les nouvelles dimensions.
+      if (dprReporte !== null && app) {
+        app.renderer.resize(vw, vh, dprReporte);
+        dprReporte = null;
+        tilesDirty = true;
+        cameraChanged = true;
+      }
+      if (resizeReporte) {
+        const { w, h } = resizeReporte;
+        resizeReporte = null;
+        redimensionnerRenderer(w, h);
+        if (vuePose) {
+          const cible = calcPoseVueVille(w, h);
+          if (cible) {
+            vuePose = cible;
+            appliquerPoseVue(cible);
+          }
+        }
+        tilesDirty = true; // le culling suit la nouvelle résolution
+        cameraChanged = true;
+      }
+      // 2D · D3 (budget par frame) : au plus UN rebuild complet par frame —
+      // tuiles, puis entités, puis surcouche se répartissent sur trois frames
+      // consécutives après une invalidation globale (fin de transition vue
+      // ville, nouvelle vue poussée). Aucune frame ne porte plus la facture
+      // des trois couches à la fois.
+      if (tilesDirty || cameraChanged) {
+        mesurer('rebuildTiles', rebuildTiles);
+        tilesDirty = false;
+      } else if (entitiesDirty) {
+        mesurer('rebuildEntities', rebuildEntities);
+        entitiesDirty = false;
+      } else if (overlayDirty) {
+        mesurer('rebuildOverlay', rebuildOverlay);
+        overlayDirty = false;
+      }
     }
     // MENU-VILLE : progression de l'animation d'entrée/sortie de la vue ville.
     // Hors animation, la pose est statique (posée une seule fois à la fin de
@@ -2055,16 +2207,25 @@
           // CORRECTIFS-VUE-VILLE : la pose cible a pu être calculée sur des
           // dimensions transitoires (colonne pas encore masquée, redim pendant
           // l'anim) — on recale la pose FINALE sur les dimensions actuelles.
-          vuePose = poseVueVilleCible() ?? vueAnim.to;
+          // VUE-VILLE-PERF · D4d : SANS resize ici (frame animée) — un écart
+          // de dimensions est reporté à la première frame non animée.
+          const dims = dimsHost();
+          vuePose = calcPoseVueVille(dims.w, dims.h) ?? vueAnim.to;
           appliquerPoseVue(vuePose);
+          if (dims.w !== vw || dims.h !== vh) resizeReporte = dims;
+          // VUE-VILLE-PERF · D3 : le menu de ville (CityView, composant Svelte
+          // aux $derived lourds) n'est monté qu'une fois l'animation finie —
+          // la page écoute ce signal.
+          onVueVillePret?.();
         } else {
           vuePose = null;
           cameraChanged = true; // rend la main à la caméra 2D normale
-          // CORRECTIFS-VUE-VILLE (retour d'Erik) : le rebuild des entités et
-          // de la surcouche a tourné PENDANT l'animation de sortie —
-          // vueVilleActif() y était encore vrai, donc les unités (et toute la
-          // surcouche de guerre) sont restées MASQUÉES après le retour carte.
-          // On ré-invalide : le rebuild rejoué à la pose finale repeuple.
+          // VUE-VILLE-PERF · D3/D5 : PLUS AUCUN rebuild n'a tourné pendant
+          // l'animation (consommation différée) — la seule re-invalidation
+          // de fin de sortie reste nécessaire (le dernier rebuild d'entités/
+          // surcouche datait de l'état vue ville : unités masquées, rendements
+          // confinés au rayon) et tombe maintenant HORS frame animée, étalée
+          // par le budget (tuiles → entités → surcouche sur 3 frames).
           entitiesDirty = true;
           overlayDirty = true;
         }
@@ -3153,6 +3314,13 @@
         unites: () => ({ total: unitSprites.size, visibles: [...unitSprites.values()].filter((c) => c.visible).length }),
         // MENU-VILLE : miroir du double-clic (entrée/sortie de vue ville).
         doubleClickAt: (x: number, y: number) => dblClickAtCanvas({ x, y }),
+        // VUE-VILLE-PERF : journal des durées (frames + rebuilds, état de
+        // transition vue ville comprise) — protocole AVANT/APRÈS du chantier.
+        perf: () => [...perfEvenements],
+        perfReset: () => { perfEvenements.length = 0; },
+        // D2 (test d'injection) : la prochaine frame lève une erreur — la
+        // boucle doit survivre, le bandeau apparaître, la frame suivante rendre.
+        injectTickError: () => { erreurTestEnAttente = true; },
         screenOf: (q: number, r: number) => {
           if (mode3dActif()) {
             const { x, z } = hexWorldPos({ q, r });
@@ -3215,11 +3383,21 @@
     lastFrame = performance.now();
     let lastRaf = lastFrame;
     const step = (): void => {
-      const now = performance.now();
-      tick(Math.min(100, now - lastFrame));
-      lastFrame = now;
-      stage3d?.render();
-      application2.renderer.render(application2.stage);
+      const t0Step = performance.now();
+      try {
+        const now = performance.now();
+        tick(Math.min(100, now - lastFrame));
+        lastFrame = now;
+        stage3d?.render();
+        application2.renderer.render(application2.stage);
+      } catch (err) {
+        // D2 : le rendu hors tick est blindé pareil — une erreur Pixi/Three
+        // ponctuelle (texture détruite en pleine transition…) ne doit pas
+        // tuer la boucle via une exception non interceptée dans le rAF.
+        consignerErreurTick(err);
+      } finally {
+        if (import.meta.env.DEV) perfPush('step(rendu compris)', performance.now() - t0Step);
+      }
     };
     const rafLoop = (): void => {
       lastRaf = performance.now();
@@ -3350,6 +3528,10 @@
       canvas3d.remove();
       canvas3d = null;
     }
+    // VUE-VILLE-PERF · D4b : les Text LIBRES du pool ne sont pas dans la
+    // scène — détruits ici, AVANT app.destroy (leurs textures appartiennent
+    // au renderer qui va mourir).
+    poolTextesRendement.purger();
     if (app) {
       const canvas = app.canvas;
       canvas.removeEventListener('pointerdown', onPointerDown);
@@ -3385,6 +3567,13 @@
 </script>
 
 <div class="canvas-host" bind:this={host} aria-label="Carte de partie">
+  {#if erreurTick}
+    <!-- D2 : marqueur visible discret — aucune erreur avalée en silence. -->
+    <div class="tick-error" role="alert">
+      <span>Erreur d'affichage ({erreurTick.compte}) — la partie continue. Détail en console (F12).</span>
+      <button type="button" aria-label="Masquer le bandeau d'erreur" onclick={() => (erreurTick = null)}>✕</button>
+    </div>
+  {/if}
   {#if tip}
     <div class="tile-tip" aria-hidden="true" style:left="{tip.x + 14}px" style:top="{tip.y + 14}px">
       {#each tip.lines as line, i (i)}
@@ -3423,5 +3612,31 @@
   .tile-tip .primary {
     font-weight: 600;
     color: #ffffff;
+  }
+  /* D2 — bandeau d'erreur du ticker : discret, coin haut-droit, non bloquant. */
+  .tick-error {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 26rem;
+    padding: 4px 8px;
+    background: rgba(64, 20, 20, 0.92);
+    color: #ffd9d9;
+    border: 1px solid rgba(255, 130, 130, 0.55);
+    border-radius: 4px;
+    font: 12px/1.4 system-ui, sans-serif;
+    pointer-events: auto;
+  }
+  .tick-error button {
+    background: none;
+    border: none;
+    color: #ffd9d9;
+    cursor: pointer;
+    padding: 0 2px;
+    font: inherit;
   }
 </style>
