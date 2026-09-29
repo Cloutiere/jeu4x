@@ -24,7 +24,7 @@
    * Zéro gameplay nouveau : les ordres SetProduction/SetWorkedTile/
    * SetConversion/RushBuy existants.
    */
-  import { unitType, BUILDINGS, WONDERS, tileYield, tileKeyOf, workRadiusOf, conversionGains, interiorCitizenFor, interiorCountOf, allKnownTechs, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, toursAvantCroissance, populationCap, isWonderObsolete, wonderProductionIssue, eraOfPlayer, civIdOf, neighbors, isWaterTerrain, cultureGains, empirePerCityBonus, effectsFor, rushBuyCostOf, isRushForbidden, RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
+  import { unitType, BUILDINGS, WONDERS, tileYield, tileKeyOf, workRadiusOf, conversionGains, interiorCitizenFor, interiorCountOf, allKnownTechs, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, toursAvantCroissance, populationCap, isWonderObsolete, wonderProductionIssue, eraOfPlayer, civIdOf, neighbors, isWaterTerrain, cultureGains, empirePerCityBonus, effectsFor, rushBuyCostOf, isRushForbidden, eraRushFactorForEra, RESOURCES, RESOURCE_UNKNOWN } from '@game/rules';
   import { civName, greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import type { ProductionItem } from '@game/rules';
   import type { Order } from '@game/shared';
@@ -112,13 +112,20 @@
     for (const b of city.buildings) factoryMult = Math.max(factoryMult, BUILDINGS[b]?.productionMult ?? 1);
     return Math.floor(raw * factoryMult * (1 + 0.25 * (city.pop - 1)));
   });
-  const prodItem = $derived(city?.production?.item ?? null);
   function itemCost(item: ProductionItem): number {
     return item.kind === 'unit' ? unitType(item.id).cost : (BUILDINGS[item.id]?.cost ?? Infinity);
   }
   function itemName(item: ProductionItem): string {
     return item.kind === 'unit' ? unitType(item.id).name : (BUILDINGS[item.id]?.name ?? item.id);
   }
+  const prodOrder = $derived(
+    city
+      ? (view.orders.find((o): o is Extract<Order, { type: 'SetProduction' }> => o.type === 'SetProduction' && o.cityId === city.id) ?? null)
+      : null,
+  );
+  // OR-RUSHBUY : l'item affiché (jauges, tooltip d'achat) inclut la production
+  // EN ATTENTE du tour (SetProduction résolu en Phase C avant le rush).
+  const prodItem = $derived(city?.production?.item ?? prodOrder?.item ?? null);
   const prodRatio = $derived(
     city && city.production && prodItem ? jaugeProduction(city.production.progress, itemCost(prodItem)) : 0,
   );
@@ -127,33 +134,40 @@
       ? Math.ceil((itemCost(prodItem) - city.production.progress) / prodPerTurn)
       : null,
   );
-  const prodOrder = $derived(
-    city
-      ? (view.orders.find((o): o is Extract<Order, { type: 'SetProduction' }> => o.type === 'SetProduction' && o.cityId === city.id) ?? null)
-      : null,
-  );
-
   // FUSION-MENU-VILLE — portage du flux RushBuy (R-135) : CityPanel était le
   // SEUL endroit où le joueur pouvait acheter instantanément — le flux est
   // porté, pas perdu. Coût et éligibilité = sources uniques moteur.
+  // OR-RUSHBUY (polissage) : la production EN ATTENTE (SetProduction du tour,
+  // appliqué en Phase C) est achetable le tour même — le moteur résout
+  // SetProduction AVANT RushBuy ; on calcule le coût sur cet item à progress 0.
   const rush = $derived.by(() => {
-    if (!city || !mine || !city.production || !view.state) return null;
-    const cost = rushBuyCostOf(view.state, city);
+    if (!city || !mine || !view.state) return null;
+    const production =
+      city.production ??
+      (prodOrder ? { item: prodOrder.item as ProductionItem, progress: 0 } : null);
+    if (!production) return null;
+    const cityVue = city.production ? city : { ...city, production };
+    const cost = rushBuyCostOf(view.state, cityVue);
     if (cost === null) {
-      return isRushForbidden(city.production.item)
+      return isRushForbidden(production.item)
         ? { cost: null, allowed: false, reason: 'achat interdit (merveille de victoire — R-135)' }
         : null;
     }
     const player = view.state.players[city.owner];
     const treasury = player?.treasury ?? 0;
     if (treasury < cost) return { cost, allowed: false, reason: `trésorerie insuffisante (${treasury} or)` };
-    if (city.production.item.kind === 'unit') {
+    // R-135 : 1 achat/ville/tour — un RushBuy déjà programmé (ordre en attente)
+    // désactive le bouton (le moteur dédoublonnerait silencieusement).
+    if (view.orders.some((o) => o.type === 'RushBuy' && o.cityId === city.id)) {
+      return { cost, allowed: false, reason: 'achat déjà programmé ce tour (1 achat/ville/tour — R-135)' };
+    }
+    if (production.item.kind === 'unit') {
       const occupied = Object.values(view.state.units).some(
         (u) => u.aboard === null && u.q === city.q && u.r === city.r,
       );
       if (occupied) return { cost, allowed: false, reason: 'case de ville occupée (pose impossible)' };
     }
-    return { cost, allowed: true, reason: null };
+    return { cost, allowed: true, facteur: eraRushFactorForEra(eraOfPlayer(player)), reason: null };
   });
   function rushNow(): void {
     if (!city || !rush?.allowed) return;
@@ -424,7 +438,7 @@
             class="rush"
             class:locked={!rush.allowed}
             disabled={!editable || !rush.allowed}
-            title={rush.reason ?? (prodItem ? `Acheter ${itemName(prodItem)} immédiatement pour ${rush.cost} or (marteaux restants × facteur d'ère — R-135)` : 'Achat instantané (R-135)')}
+            title={rush.reason ?? (prodItem ? `Acheter ${itemName(prodItem)} immédiatement pour ${rush.cost} or (marteaux restants × facteur d'ère ×${rush.facteur ?? 2} — R-135)` : 'Achat instantané (R-135)')}
             onclick={() => rushNow()}
           >
             ⚡ Acheter maintenant pour {rush.cost ?? '—'} or
