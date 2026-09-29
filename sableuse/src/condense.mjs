@@ -52,6 +52,13 @@ export const configCondense = {
     penaliteRisque: 3,
     /** Un gain net jugé « rentable » pour la question fonder (texte + faux client). */
     seuilRentable: 2,
+    /** V4 (HANDOFF-JEV-V4 D2) — facteur de maturité : la formule v3 surestimait
+     * ~×2 les rendements réels d'une ville JEUNE (les journaux du banc 2
+     * chiffrent l'écart). Les rendements des couronnes sont pondérés par la
+     * population attendue à court terme — facteur éditable, GELÉ avant le
+     * banc 3 ; cible : prédiction vs réel à ±50 %. */
+    facteurMaturite: 0.5,
+    actifMaturite: true,
   },
 };
 
@@ -110,9 +117,11 @@ export function gainNetSite(etatFiltre, moi, site) {
     if (u.owner === moi || u.aboard) continue;
     if (hexDistance({ q: site.q, r: site.r }, u) <= g.rayonRisque) ennemis += 1;
   }
+  // V4 D2 : rendements pondérés par la maturité (population attendue à court
+  // terme — une ville jeune ne travaille pas toutes ses tuiles).
+  const maturite = g.actifMaturite ? (g.facteurMaturite ?? 1) : 1;
   return arrondi(
-    g.partCouronne1 * couronne1 +
-      g.partCouronne2 * couronne2 -
+    maturite * (g.partCouronne1 * couronne1 + g.partCouronne2 * couronne2) -
       g.penaliteDistance * site.distance -
       g.penaliteRisque * ennemis,
   );
@@ -340,6 +349,9 @@ export function condenserEtat(etatFiltre, moi) {
         marteaux: marteauxParVille.get(v.id) ?? 0,
         rendements: economieVilles.find((e) => e.id === v.id) ?? null,
         batiments: v.buildings?.length ?? 0,
+        // V4 (D1) : orientation courante de la conversion or/science — le
+        // condensé est prêt pour la future question « convertir » de Jev.
+        conversion: v.conversion === 'science' ? 'science' : 'or',
       })),
       // D1 · v2 : état de la recherche (tech en cours, tours restants, candidates).
       recherche,

@@ -6,17 +6,22 @@
  * botPolicy (importé tel quel, exécuté hors serveur).
  */
 import {
+  allKnownTechs,
+  applySetConversion,
   applySetGovernment,
   applySetResearch,
+  cityEconomyInputs,
   createInitialState,
   createRng,
   generateProceduralMap,
   getFilteredState,
   hexDistance,
   resolveTurn,
+  UNIT_TYPES,
 } from '@game/rules';
 import { botPolicy, botTurnSeed } from '../../apps/server/src/botPolicy.js';
 import { fusionnerPlan, tourJev } from './adapter-jev.mjs';
+import { scoreEmpire } from './score.mjs';
 
 /**
  * Joue une partie complète.
@@ -44,23 +49,42 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
   const joueurs = Object.keys(etat.players).sort();
   const jev = sansJev ? null : (engineJev ?? joueurs[1]);
 
+  // D4 · V4 scénarios de victoire : injection locale DANS L'ÉTAT MOTEUR
+  // (harnais uniquement, hors ligne — le moteur revalide tout à la
+  // résolution). La fonction d'injection est rappelée à CHAQUE tour tant
+  // qu'elle retourne null (les capitales n'existent qu'au tour 1).
+  // Étiquetée dans le journal, jamais mélangée au banc.
+  let injectionFaite = false;
+
   journal.meta({
     seed,
     carte: { largeur: etat.mapWidth, hauteur: etat.mapHeight, placement: joueurs.length >= 3 ? 'libreMulti' : 'mirror1v1' },
     joueurs: joueurs.map((id) => ({ id, civId: etat.players[id].civId, pilote: id === jev ? 'jev' : 'bot' })),
     plafondTours,
     budgetUsd,
-    scenario: scenario ? 'scenario:test' : null,
+    scenario: scenario ? (scenario.etiquette ?? 'scenario:test') : null,
   });
 
   const memo = {}; // mémoire inter-tours Jev (tenue de la recherche, D2)
   let coupeParBudget = false;
   let erreurJev = 0;
   const guerres = new Set(); // §5 banc 2 : paires de nations ayant échangé des coups
+  const colonProduit = new Set(); // V4 D1 : joueurs ayant produit un colon
+  const regle = config?.regles?.conversion;
+  const poidsScore = config?.score ?? undefined;
 
   while (etat.winner === null && etat.turn <= plafondTours) {
     const tour = etat.turn;
     journal.tour(tour);
+
+    if (!injectionFaite && typeof scenario?.injection === 'function') {
+      const suivant = scenario.injection(etat, tour);
+      if (suivant) {
+        etat = suivant;
+        injectionFaite = true;
+        journal.ligne({ type: 'injection_scenario', etiquette: scenario.etiquette ?? 'scenario:victoire', tour });
+      }
+    }
 
     const ordres = {};
     const actionsAppliquees = [];
@@ -76,6 +100,26 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       for (const action of plan.actions) actionsAppliquees.push({ id, action });
     }
 
+    // D4 · scénario de production injectée : le bot re-émet un SetProduction
+    // chaque tour qui écraserait l'item injecté — on retire les siens CE tour.
+    if (injectionFaite && scenario?.proprietaireProduction) {
+      ordres[scenario.proprietaireProduction] = (ordres[scenario.proprietaireProduction] ?? []).filter(
+        (o) => o.type !== 'SetProduction',
+      );
+    }
+    // D4 · unités injectées pilotées par le scénario (le bot les tiendrait en
+    // réserve) + ordres additionnels du scénario.
+    if (injectionFaite && (scenario?.unitIdsPilotes?.length || scenario?.ordresSupplementaires)) {
+      for (const id of scenario.unitIdsPilotes ?? []) {
+        for (const pid of Object.keys(ordres)) {
+          ordres[pid] = (ordres[pid] ?? []).filter((o) => o.unitId !== id);
+        }
+      }
+      for (const { joueur, ordre } of scenario.ordresSupplementaires?.(etat) ?? []) {
+        ordres[joueur] = [...(ordres[joueur] ?? []), ordre];
+      }
+    }
+
     // 2. Décision Jev (1 appel/tour, sur l'état FILTRÉ fog).
     let decision = null;
     if (jev !== null && !etat.players[jev]?.defeated) {
@@ -89,6 +133,20 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       // Actions : appliquées APRÈS celles du bot (dernier mot à Jev).
       ordres[jev] = fusionnerPlan(ordres[jev] ?? [], decision.ordres, [], []).ordres;
       for (const action of decision.actions) actionsAppliquees.push({ id: jev, action });
+      // V4 D2 : mémorise la prédiction gainNet du site où Jev vient d'ordonner
+      // une fondation (le comparatif prédiction vs réel est journalisé à la
+      // CityFounded — la ville arrive différée, sur la case du colon).
+      for (const o of decision.ordres) {
+        if (o.type !== 'FoundCity') continue;
+        const u = etat.units?.[o.unitId];
+        if (!u) continue;
+        const cle = `${u.q},${u.r}`;
+        const site = (decision.condense?.candidats?.fondation ?? []).find((s) => s.case === cle);
+        if (site) {
+          memo.gainNetPredits = memo.gainNetPredits ?? new Map();
+          memo.gainNetPredits.set(cle, { gainNet: site.gainNet ?? null, tour });
+        }
+      }
       journal.decision({
         tour,
         condense: decision.condense,
@@ -123,6 +181,47 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       }
     }
 
+    // 3.5 · V4 D1 — règle de conversion (toutes nations, appliquée par le
+    // harnais à la place du défaut or R-90 ; la règle est la MÊME pour Jev,
+    // le bot et le contrôle — on mesure la civ, pas la règle). Journalisée
+    // uniquement aux changements ('regle:conversion').
+    if (regle?.actif) {
+      for (const changement of changementsConversion(etat, colonProduit, regle)) {
+        const r = applySetConversion(etat, changement.joueur, changement.ville, changement.vers);
+        if (r.ok) {
+          etat = r.state;
+          journal.ligne({ type: 'regle_conversion', source: 'regle:conversion', tour, ...changement });
+        }
+      }
+    }
+
+    // 3.6 · V4 D2 : relevé des rendements des villes jeunes (âge 10 tours) —
+    // l'échelle honnête pour comparer la prédiction gainNet « une fois
+    // peuplée » (les rendements FINAUX d'une ville de 150 tours, eux, incluent
+    // bâtiments et multiplicateurs et ne sont pas comparables).
+    if (memo.relevesJeunes?.length) {
+      const dues = memo.relevesJeunes.filter((r) => r.tour === tour);
+      if (dues.length) {
+        const techsTour = allKnownTechs(etat);
+        for (const r of dues) {
+          const v = etat.cities?.[r.ville];
+          if (!v) continue;
+          const e = cityEconomyInputs(etat, v, techsTour);
+          journal.ligne({
+            type: 'rendement_jeune',
+            tour,
+            ville: r.ville,
+            owner: v.owner,
+            age: 10,
+            pop: v.pop ?? 0,
+            gainNetPredite: r.gainNetPredite,
+            rendement: Math.round((e.food + e.production + e.science + (e.rawGold ?? 0) + (e.directGold ?? 0)) * 10) / 10,
+          });
+        }
+        memo.relevesJeunes = memo.relevesJeunes.filter((r) => r.tour !== tour);
+      }
+    }
+
     // 4. Résolution du tour (moteur — revalide tout). Le motif complet est
     //    journalisé : rejouer les mêmes ordres/actions reproduit la même fin.
     journal.ligne({
@@ -150,6 +249,28 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     }
     for (const ev of resultat.events) {
       journal.evenement(ev);
+      // V4 D1 : un colon produit = la capitale passe en science au tour suivant.
+      if (ev.type === 'UnitProduced' && UNIT_TYPES[ev.unitType]?.canFoundCity) colonProduit.add(ev.owner);
+      // V4 D2 : fondation réalisée → prédiction gainNet vs rendements réels.
+      if (ev.type === 'CityFounded') {
+        const cle = `${ev.at?.q},${ev.at?.r}`;
+        const predite = memo.gainNetPredits?.get(cle) ?? null;
+        journal.ligne({
+          type: 'fondation',
+          tour,
+          owner: ev.owner,
+          ville: ev.cityId,
+          case: cle,
+          capital: ev.capital ?? false,
+          piloteJev: ev.owner === jev,
+          gainNetPredite: predite?.gainNet ?? null,
+          tourPrediction: predite?.tour ?? null,
+        });
+        // relevé des rendements à 10 tours d'âge (ville JEUNE — l'échelle
+        // honnête pour comparer la prédiction « une fois peuplée »).
+        memo.relevesJeunes = memo.relevesJeunes ?? [];
+        memo.relevesJeunes.push({ ville: ev.cityId, owner: ev.owner, tour: tour + 10, gainNetPredite: predite?.gainNet ?? null });
+      }
       // §5 banc 2 : une guerre inter-nations = combat ou capture entre deux
       // nations NON barbares (les propriétaires sont lus sur l'état AVANT —
       // les unités mortes n'existent plus dans newState).
@@ -164,6 +285,27 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     etat = resultat.newState;
   }
 
+  // V4 D3 : score d'empire par joueur à horizon fixe (la métrique du
+  // classement des civs — ne remplace PAS le gagnant, consigné ci-dessus).
+  const scores = {};
+  for (const id of joueurs) scores[id] = scoreEmpire(etat, id, poidsScore);
+
+  // V4 D2 : rendements réels finaux par ville (comparés aux prédictions
+  // gainNet journalisées aux fondations — table prédiction vs réel).
+  const allTechsFinaux = allKnownTechs(etat);
+  const rendementsFinaux = Object.values(etat.cities ?? {}).map((c) => {
+    const e = cityEconomyInputs(etat, c, allTechsFinaux);
+    return {
+      ville: c.id,
+      owner: c.owner,
+      pop: c.pop ?? 0,
+      nourriture: Math.round(e.food * 10) / 10,
+      production: e.production,
+      science: e.science,
+      or: Math.round(((e.rawGold ?? 0) + (e.directGold ?? 0)) * 10) / 10,
+    };
+  });
+
   journal.fin({
     gagnant: etat.winner,
     toursJoues: etat.turn,
@@ -171,8 +313,40 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     erreursJev: erreurJev,
     nationJev: jev,
     guerresInterNations: [...guerres],
+    scores,
+    rendementsFinaux,
+    regleConversion: regle?.actif ? 'regle:conversion' : null,
   });
   return { etat, jev, coupeParBudget };
+}
+
+/** V4 D1 — règle de conversion déterministe (config.regles.conversion) :
+ * pour chaque nation, chaque ville qui A (bâtiment posé) ou TERMINE
+ * (production en cours) sa Bibliothèque — ou son Université, qui la remplace —
+ * passe en conversion science ; la capitale passe en science après le premier
+ * colon produit par le joueur. Retourne les changements à appliquer (un
+ * changement déjà en place n'est pas ré-émis — idempotent). */
+export function changementsConversion(etat, colonProduit, regle) {
+  const changements = [];
+  for (const [pid, joueur] of Object.entries(etat.players ?? {})) {
+    if (joueur.defeated) continue;
+    for (const ville of Object.values(etat.cities ?? {})) {
+      if (ville.owner !== pid) continue;
+      let cible = null;
+      const buildings = ville.buildings ?? [];
+      const enProduction = ville.production?.item;
+      const biblioPosee = buildings.includes('bibliotheque') || buildings.includes('universite');
+      const biblioEnCours =
+        enProduction?.kind === 'building' &&
+        (enProduction.id === 'bibliotheque' || enProduction.id === 'universite');
+      if (regle.bibliothequeVersScience !== false && (biblioPosee || biblioEnCours)) cible = 'science';
+      else if (regle.capitaleApresColon !== false && ville.capital && colonProduit.has(pid)) cible = 'science';
+      if (cible && (ville.conversion ?? 'gold') !== cible) {
+        changements.push({ joueur: pid, ville: ville.id, capitale: !!ville.capital, de: ville.conversion ?? 'gold', vers: cible });
+      }
+    }
+  }
+  return changements;
 }
 
 /** D3 · Injection de test (harnais uniquement, jamais le moteur) : place une

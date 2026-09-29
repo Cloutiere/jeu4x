@@ -70,7 +70,9 @@ describe('journal JSONL (D7)', () => {
       expect(typeof d.jetonsEntree).toBe('number');
     }
     // chaque ligne est un objet JSON avec un type connu
-    const types = new Set(['meta', 'tour', 'decision', 'evenement', 'motif', 'rejets', 'rejet_action', 'fin']);
+    // V4 : lignes additionnelles du harnais (règle de conversion, fondations
+    // prédites, injections de scénario).
+    const types = new Set(['meta', 'tour', 'decision', 'evenement', 'motif', 'rejets', 'rejet_action', 'fin', 'regle_conversion', 'fondation', 'injection_scenario']);
     for (const x of l) expect(types.has(x.type)).toBe(true);
   });
 });

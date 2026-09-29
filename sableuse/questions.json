@@ -46,5 +46,22 @@
     "fonderMin": 0.5,
     "attaquerMin": 0.8,
     "menaceMin": 2.0
+  },
+  "_commentaire_regles": "V4 (HANDOFF-JEV-V4 D1) — règle de conversion appliquée PAR LE HARNAIS à la place du défaut or (R-90), pour TOUTES les nations (même règle pour Jev, le bot et le contrôle) : une ville qui a OU TERMINE sa Bibliothèque (ou son Université, qui la remplace) passe en conversion science ; la capitale passe en science après le premier colon produit par le joueur. Journalisé 'regle:conversion'. La question 'convertir' (arbitrage or/science par Jev) reste une itération future.",
+  "regles": {
+    "conversion": {
+      "actif": true,
+      "source": "regle:conversion",
+      "bibliothequeVersScience": true,
+      "capitaleApresColon": true
+    }
+  },
+  "_commentaire_score": "V4 (HANDOFF-JEV-V4 D3) — score d'empire à horizon fixe (plafond 150 tours ou victoire) : villes×W1 + population×W2 + techs complétées×W3 + merveilles×W4 + trésorerie/W5. Ordre de grandeur : une ville ≈ une tech, une merveille pèse lourd, l'or en seconde classe. Le score NE REMPLACE PAS les victoires : il classe les parties non décidées.",
+  "score": {
+    "villes": 10,
+    "pop": 2,
+    "techs": 30,
+    "merveilles": 100,
+    "divTresorerie": 10
   }
 }

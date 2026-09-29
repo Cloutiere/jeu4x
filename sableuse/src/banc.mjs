@@ -16,6 +16,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { allKnownTechs, cityEconomyInputs } from '@game/rules';
 import { Journal } from './journal.mjs';
 import { jouerPartie } from './partie.mjs';
 import { creerFauxJev } from './faux-jev.mjs';
@@ -201,6 +202,17 @@ function metriquesPartie(chemin, entree) {
     } catch { /* ligne tronquée */ }
   }
   const gagnant = fin.gagnant ?? victoires.at(-1)?.winner ?? null;
+  // V4 D2 : prédictions gainNet des fondations Jev (comparées aux rendements
+  // réels finaux — table prédiction vs réel du rapport).
+  const fondationsPredites = [];
+  for (const l of lignes) {
+    if (!l.includes('"type":"fondation"')) continue;
+    try {
+      const f = JSON.parse(l);
+      if (f.gainNetPredite != null) fondationsPredites.push(f);
+    } catch { /* ligne tronquée */ }
+  }
+  const regleConversion = fin.regleConversion ?? null;
   return {
     idx: entree.idx, controle: entree.controle, seed: meta.seed, tournee: fin.toursJoues,
     coupeParBudget: fin.coupeParBudget ?? false,
@@ -209,11 +221,41 @@ function metriquesPartie(chemin, entree) {
     gagnantJev: gagnant ? joueurs[gagnant]?.pilote === 'jev' : false,
     civs: meta.joueurs.map((j) => ({ id: j.id, civId: j.civId, pilote: j.pilote })),
     villesFondees: villes, techs, fondationsJev,
+    scores: fin.scores ?? null,
+    scenario: meta.scenario ?? null,
+    regleConversion,
+    fondationsPredites,
     guerresInterNations: fin.guerresInterNations ?? [],
     replis: fin.replisTotaux ?? 0, appels: fin.appels ?? 0,
     coutUsd: fin.coutTotalUsd ?? 0,
     latenceMoyMs: fin.latenceMoyMs ?? null, latenceMaxMs: fin.latenceMaxMs ?? null,
   };
+}
+
+/** V4 : rendements réels finaux d'une partie — reconstruits depuis les lignes
+ * 'fondation' (prédictions) ; les rendements par ville à l'arrivée sont lus
+ * sur l'état final re-joué UNIQUEMENT via les journaux disponibles : ici on
+ * agrège les rendements par ville fournis dans la ligne 'fin' par le harnais. */
+function rendementsFinauxPartie(chemin) {
+  const lignes = readFileSync(chemin, 'utf8').trim().split('\n');
+  const fin = JSON.parse(lignes.reverse().find((l) => l.includes('"type":"fin"')));
+  return fin.rendementsFinaux ?? null;
+}
+
+/** V4 : relevés de rendements des villes jeunes (âge 10 tours) — la table
+ * prédiction vs réel honnête (le final d'une ville de 150 tours inclut les
+ * bâtiments/multiplicateurs et n'est PAS comparable à la prédiction). */
+function rendementsJeunesPartie(chemin) {
+  const lignes = readFileSync(chemin, 'utf8').split('\n').filter(Boolean);
+  const out = [];
+  for (const l of lignes) {
+    if (!l.includes('"type":"rendement_jeune"')) continue;
+    try {
+      const r = JSON.parse(l);
+      if (r.gainNetPredite != null) out.push(r);
+    } catch { /* ligne tronquée */ }
+  }
+  return out;
 }
 
 function pct(n, d) { return d ? (100 * n / d).toFixed(0) + ' %' : '—'; }
@@ -229,6 +271,8 @@ async function rapport() {
     const chemin = join(dossier, 'journaux', info.fichier ?? `partie-${String(idxStr).padStart(3, '0')}`);
     if (!existsSync(chemin)) continue;
     m.push(metriquesPartie(chemin, { idx: Number(idxStr), controle: plan.parties[Number(idxStr) - 1]?.controle }));
+    m[m.length - 1].rendementsFinaux = rendementsFinauxPartie(chemin);
+    m[m.length - 1].rendementsJeunes = rendementsJeunesPartie(chemin);
   }
   // Sidecar facultatif guerres.json (recalcul par rejou moteur, filtre
   // barbarien corrigé après-coup — ne touche jamais aux journaux bruts).
@@ -249,6 +293,71 @@ async function rapport() {
 
   const echecs = Object.entries(etatBanc.parties).filter(([, p]) => p.statut === 'echec' || p.statut === 'coupe-budget');
   if (echecs.length) out.push(`**Parties non abouties** : ${echecs.map(([i, p]) => `#${i} (${p.statut}${p.cause ? ' : ' + p.cause : ''})`).join(', ')}\n`);
+
+  // V4 D3 : CLASSEMENT des 16 civs par score moyen à horizon fixe (bras Jev
+  // et contrôle séparés + toutes parties) + distribution par composante.
+  const parCiv = {};
+  for (const x of m) {
+    if (!x.scores) continue;
+    for (const j of x.civs) {
+      const s = x.scores[j.id];
+      if (!s) continue;
+      const e = parCiv[j.civId] ?? (parCiv[j.civId] = { n: 0, nJ: 0, nC: 0, tot: 0, totJ: 0, totC: 0, comp: { villes: 0, pop: 0, techs: 0, merveilles: 0, tresorerie: 0 } });
+      e.n++; e.tot += s.total;
+      if (x.controle) { e.nC++; e.totC += s.total; } else { e.nJ++; e.totJ += s.total; }
+      for (const k of Object.keys(e.comp)) e.comp[k] += s.composantes[k] ?? 0;
+    }
+  }
+  const classement = Object.entries(parCiv)
+    .map(([civ, e]) => ({ civ, moy: e.tot / Math.max(1, e.n), moyJ: e.nJ ? e.totJ / e.nJ : null, moyC: e.nC ? e.totC / e.nC : null, n: e.n, nJ: e.nJ, nC: e.nC, comp: Object.fromEntries(Object.entries(e.comp).map(([k, v]) => [k, v / Math.max(1, e.n)])) }))
+    .sort((a, b) => b.moy - a.moy);
+  const configBanc = JSON.parse(readFileSync(join(racine, 'questions.json'), 'utf8'));
+  const poids = configBanc.score ?? {};
+  if (classement.length) {
+    out.push(`## V4 — Classement des civilisations par score moyen (horizon ${plan.plafondTours} tours)\n`);
+    out.push(`> Score = villes×${poids.villes ?? 10} + pop×${poids.pop ?? 2} + techs×${poids.techs ?? 30} + merveilles×${poids.merveilles ?? 100} + trésorerie/${poids.divTresorerie ?? 10}. Détection d'anomalies, PAS un verdict (D6).\n`);
+    out.push(`| Rang | Civ | Score moy | Jev | Contrôle | Parties | villes | pop | techs | merveilles | trésorerie |`);
+    out.push(`|---|---|---|---|---|---|---|---|---|---|---|`);
+    classement.forEach((c, i) => {
+      out.push(`| ${i + 1} | ${c.civ} | ${c.moy.toFixed(1)} | ${c.moyJ != null ? c.moyJ.toFixed(1) : '—'} | ${c.moyC != null ? c.moyC.toFixed(1) : '—'} | ${c.n} | ${c.comp.villes.toFixed(1)} | ${c.comp.pop.toFixed(1)} | ${c.comp.techs.toFixed(1)} | ${c.comp.merveilles.toFixed(1)} | ${c.comp.tresorerie.toFixed(0)} |`);
+    });
+    out.push('');
+    const médiane = classement[Math.floor(classement.length / 2)].moy;
+    const anomaliesV4 = [];
+    const ecrasante = classement[0];
+    if (ecrasante && médiane > 0 && ecrasante.moy >= 1.5 * médiane) {
+      anomaliesV4.push(`Civ candidate écrasante au score : **${ecrasante.civ}** (${ecrasante.moy.toFixed(1)} vs médiane ${médiane.toFixed(1)}) — banc de suivi ciblé recommandé.`);
+    }
+    const fantome = classement[classement.length - 1];
+    if (fantome && médiane > 0 && fantome.moy <= 0.5 * médiane) {
+      anomaliesV4.push(`Civ candidate fantôme au score : **${fantome.civ}** (${fantome.moy.toFixed(1)} vs médiane ${médiane.toFixed(1)}) — banc de suivi ciblé recommandé.`);
+    }
+    if (anomaliesV4.length) out.push(anomaliesV4.map((a) => `- ⚠️ ${a}`).join('\n') + '\n');
+  }
+
+  // V4 D2 : prédiction gainNet vs rendements réels des villes JEUNES (âge
+  // 10 tours, propriétaire Jev — échelle comparable à la formule).
+  const ecart = [];
+  for (const x of m) {
+    for (const r of x.rendementsJeunes ?? []) {
+      ecart.push({ predite: r.gainNetPredite, reel: r.rendement, ratio: r.gainNetPredite / Math.max(0.1, r.rendement), ville: r.ville, tour: r.tour });
+    }
+  }
+  if (ecart.length) {
+    const ratioMoy = ecart.reduce((s, e) => s + e.ratio, 0) / ecart.length;
+    const dans50 = ecart.filter((e) => e.ratio >= 0.5 && e.ratio <= 1.5).length;
+    out.push(`## V4 — Prédiction gainNet vs rendements réels (fondations Jev, villes JEUNES à 10 tours)\n`);
+    out.push(`- ${ecart.length} fondations comparées — ratio moyen prédit/réel : **${ratioMoy.toFixed(2)}×** (cible ±50 %), ${dans50}/${ecart.length} dans [0,5 ; 1,5].`);
+    out.push(`- Détail (prédite → réel) : ${ecart.slice(0, 12).map((e) => `${e.predite.toFixed(1)}→${e.reel.toFixed(1)}`).join(', ')}${ecart.length > 12 ? ' …' : ''}\n`);
+  }
+
+  // Science débloquée (V4 critère 1) : techs complétées par empire.
+  const techsParEmpire = m.map((x) => Object.values(x.techs).reduce((a, b) => a + b, 0) / Math.max(1, x.civs.length));
+  if (techsParEmpire.length) {
+    const moyTechs = techsParEmpire.reduce((a, b) => a + b, 0) / techsParEmpire.length;
+    out.push(`## V4 — Science débloquée (règle regle:conversion)\n`);
+    out.push(`- Techs complétées par empire : moyenne **${moyTechs.toFixed(1)}**, min ${Math.min(...techsParEmpire).toFixed(0)}, max ${Math.max(...techsParEmpire).toFixed(0)} (banc 2 : ~0). Parties sous le critère (≥ 2-3) : ${techsParEmpire.filter((t) => t < 2).length}/${m.length}.\n`);
+  }
 
   // Anomalies en tête (D6)
   const winByCiv = {};
