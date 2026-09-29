@@ -1,0 +1,530 @@
+{
+  "planSeed": 20260929,
+  "date": "2026-09-29T05:21:59.855Z",
+  "nJev": 30,
+  "nControle": 10,
+  "playerCount": 5,
+  "plafondTours": 150,
+  "parties": [
+    {
+      "idx": 1,
+      "seed": 1475946,
+      "controle": false,
+      "siegeJev": 1,
+      "civs": {
+        "p1": "rome",
+        "p2": "chine",
+        "p3": "mongolie",
+        "p4": "japon",
+        "p5": "angleterre"
+      }
+    },
+    {
+      "idx": 2,
+      "seed": 1483865,
+      "controle": false,
+      "siegeJev": 4,
+      "civs": {
+        "p1": "france",
+        "p2": "inde",
+        "p3": "azteques",
+        "p4": "arabie",
+        "p5": "rome"
+      }
+    },
+    {
+      "idx": 3,
+      "seed": 1491784,
+      "controle": false,
+      "siegeJev": 2,
+      "civs": {
+        "p1": "egypte",
+        "p2": "angleterre",
+        "p3": "chine",
+        "p4": "france",
+        "p5": "rome"
+      }
+    },
+    {
+      "idx": 4,
+      "seed": 1499703,
+      "controle": false,
+      "siegeJev": 5,
+      "civs": {
+        "p1": "grece",
+        "p2": "japon",
+        "p3": "rome",
+        "p4": "chine",
+        "p5": "allemagne"
+      }
+    },
+    {
+      "idx": 5,
+      "seed": 1507622,
+      "controle": false,
+      "siegeJev": 3,
+      "civs": {
+        "p1": "russie",
+        "p2": "arabie",
+        "p3": "azteques",
+        "p4": "grece",
+        "p5": "rome"
+      }
+    },
+    {
+      "idx": 6,
+      "seed": 1515541,
+      "controle": false,
+      "siegeJev": 1,
+      "civs": {
+        "p1": "japon",
+        "p2": "angleterre",
+        "p3": "russie",
+        "p4": "rome",
+        "p5": "grece"
+      }
+    },
+    {
+      "idx": 7,
+      "seed": 1523460,
+      "controle": false,
+      "siegeJev": 4,
+      "civs": {
+        "p1": "egypte",
+        "p2": "angleterre",
+        "p3": "rome",
+        "p4": "france",
+        "p5": "allemagne"
+      }
+    },
+    {
+      "idx": 8,
+      "seed": 1531379,
+      "controle": false,
+      "siegeJev": 2,
+      "civs": {
+        "p1": "inde",
+        "p2": "egypte",
+        "p3": "azteques",
+        "p4": "rome",
+        "p5": "chine"
+      }
+    },
+    {
+      "idx": 9,
+      "seed": 1539298,
+      "controle": false,
+      "siegeJev": 5,
+      "civs": {
+        "p1": "mongolie",
+        "p2": "egypte",
+        "p3": "amerique",
+        "p4": "rome",
+        "p5": "japon"
+      }
+    },
+    {
+      "idx": 10,
+      "seed": 1547217,
+      "controle": false,
+      "siegeJev": 3,
+      "civs": {
+        "p1": "grece",
+        "p2": "japon",
+        "p3": "allemagne",
+        "p4": "amerique",
+        "p5": "zoulous"
+      }
+    },
+    {
+      "idx": 11,
+      "seed": 1555136,
+      "controle": false,
+      "siegeJev": 1,
+      "civs": {
+        "p1": "allemagne",
+        "p2": "arabie",
+        "p3": "france",
+        "p4": "japon",
+        "p5": "inde"
+      }
+    },
+    {
+      "idx": 12,
+      "seed": 1563055,
+      "controle": false,
+      "siegeJev": 4,
+      "civs": {
+        "p1": "allemagne",
+        "p2": "rome",
+        "p3": "grece",
+        "p4": "arabie",
+        "p5": "zoulous"
+      }
+    },
+    {
+      "idx": 13,
+      "seed": 1570974,
+      "controle": false,
+      "siegeJev": 2,
+      "civs": {
+        "p1": "amerique",
+        "p2": "russie",
+        "p3": "inde",
+        "p4": "grece",
+        "p5": "arabie"
+      }
+    },
+    {
+      "idx": 14,
+      "seed": 1578893,
+      "controle": false,
+      "siegeJev": 5,
+      "civs": {
+        "p1": "egypte",
+        "p2": "russie",
+        "p3": "azteques",
+        "p4": "angleterre",
+        "p5": "rome"
+      }
+    },
+    {
+      "idx": 15,
+      "seed": 1586812,
+      "controle": false,
+      "siegeJev": 3,
+      "civs": {
+        "p1": "allemagne",
+        "p2": "arabie",
+        "p3": "russie",
+        "p4": "egypte",
+        "p5": "france"
+      }
+    },
+    {
+      "idx": 16,
+      "seed": 1594731,
+      "controle": false,
+      "siegeJev": 1,
+      "civs": {
+        "p1": "inde",
+        "p2": "france",
+        "p3": "allemagne",
+        "p4": "egypte",
+        "p5": "chine"
+      }
+    },
+    {
+      "idx": 17,
+      "seed": 1602650,
+      "controle": false,
+      "siegeJev": 4,
+      "civs": {
+        "p1": "inde",
+        "p2": "arabie",
+        "p3": "zoulous",
+        "p4": "allemagne",
+        "p5": "espagne"
+      }
+    },
+    {
+      "idx": 18,
+      "seed": 1610569,
+      "controle": false,
+      "siegeJev": 2,
+      "civs": {
+        "p1": "espagne",
+        "p2": "japon",
+        "p3": "amerique",
+        "p4": "rome",
+        "p5": "angleterre"
+      }
+    },
+    {
+      "idx": 19,
+      "seed": 1618488,
+      "controle": false,
+      "siegeJev": 5,
+      "civs": {
+        "p1": "chine",
+        "p2": "azteques",
+        "p3": "grece",
+        "p4": "amerique",
+        "p5": "japon"
+      }
+    },
+    {
+      "idx": 20,
+      "seed": 1626407,
+      "controle": false,
+      "siegeJev": 3,
+      "civs": {
+        "p1": "grece",
+        "p2": "france",
+        "p3": "chine",
+        "p4": "rome",
+        "p5": "inde"
+      }
+    },
+    {
+      "idx": 21,
+      "seed": 1634326,
+      "controle": false,
+      "siegeJev": 1,
+      "civs": {
+        "p1": "espagne",
+        "p2": "france",
+        "p3": "rome",
+        "p4": "chine",
+        "p5": "amerique"
+      }
+    },
+    {
+      "idx": 22,
+      "seed": 1642245,
+      "controle": false,
+      "siegeJev": 4,
+      "civs": {
+        "p1": "chine",
+        "p2": "mongolie",
+        "p3": "inde",
+        "p4": "rome",
+        "p5": "arabie"
+      }
+    },
+    {
+      "idx": 23,
+      "seed": 1650164,
+      "controle": false,
+      "siegeJev": 2,
+      "civs": {
+        "p1": "inde",
+        "p2": "grece",
+        "p3": "arabie",
+        "p4": "russie",
+        "p5": "espagne"
+      }
+    },
+    {
+      "idx": 24,
+      "seed": 1658083,
+      "controle": false,
+      "siegeJev": 5,
+      "civs": {
+        "p1": "mongolie",
+        "p2": "france",
+        "p3": "azteques",
+        "p4": "egypte",
+        "p5": "angleterre"
+      }
+    },
+    {
+      "idx": 25,
+      "seed": 1666002,
+      "controle": false,
+      "siegeJev": 3,
+      "civs": {
+        "p1": "espagne",
+        "p2": "inde",
+        "p3": "allemagne",
+        "p4": "egypte",
+        "p5": "japon"
+      }
+    },
+    {
+      "idx": 26,
+      "seed": 1673921,
+      "controle": false,
+      "siegeJev": 1,
+      "civs": {
+        "p1": "france",
+        "p2": "chine",
+        "p3": "espagne",
+        "p4": "russie",
+        "p5": "egypte"
+      }
+    },
+    {
+      "idx": 27,
+      "seed": 1681840,
+      "controle": false,
+      "siegeJev": 4,
+      "civs": {
+        "p1": "japon",
+        "p2": "france",
+        "p3": "grece",
+        "p4": "mongolie",
+        "p5": "arabie"
+      }
+    },
+    {
+      "idx": 28,
+      "seed": 1689759,
+      "controle": false,
+      "siegeJev": 2,
+      "civs": {
+        "p1": "amerique",
+        "p2": "angleterre",
+        "p3": "japon",
+        "p4": "allemagne",
+        "p5": "france"
+      }
+    },
+    {
+      "idx": 29,
+      "seed": 1697678,
+      "controle": false,
+      "siegeJev": 5,
+      "civs": {
+        "p1": "amerique",
+        "p2": "angleterre",
+        "p3": "arabie",
+        "p4": "inde",
+        "p5": "grece"
+      }
+    },
+    {
+      "idx": 30,
+      "seed": 1705597,
+      "controle": false,
+      "siegeJev": 3,
+      "civs": {
+        "p1": "japon",
+        "p2": "espagne",
+        "p3": "zoulous",
+        "p4": "france",
+        "p5": "mongolie"
+      }
+    },
+    {
+      "idx": 31,
+      "seed": 1575946,
+      "controle": true,
+      "siegeJev": null,
+      "civs": {
+        "p1": "inde",
+        "p2": "chine",
+        "p3": "russie",
+        "p4": "espagne",
+        "p5": "amerique"
+      }
+    },
+    {
+      "idx": 32,
+      "seed": 1583865,
+      "controle": true,
+      "siegeJev": null,
+      "civs": {
+        "p1": "mongolie",
+        "p2": "inde",
+        "p3": "azteques",
+        "p4": "zoulous",
+        "p5": "rome"
+      }
+    },
+    {
+      "idx": 33,
+      "seed": 1591784,
+      "controle": true,
+      "siegeJev": null,
+      "civs": {
+        "p1": "egypte",
+        "p2": "inde",
+        "p3": "arabie",
+        "p4": "mongolie",
+        "p5": "zoulous"
+      }
+    },
+    {
+      "idx": 34,
+      "seed": 1599703,
+      "controle": true,
+      "siegeJev": null,
+      "civs": {
+        "p1": "arabie",
+        "p2": "inde",
+        "p3": "azteques",
+        "p4": "amerique",
+        "p5": "japon"
+      }
+    },
+    {
+      "idx": 35,
+      "seed": 1607622,
+      "controle": true,
+      "siegeJev": null,
+      "civs": {
+        "p1": "chine",
+        "p2": "inde",
+        "p3": "grece",
+        "p4": "zoulous",
+        "p5": "arabie"
+      }
+    },
+    {
+      "idx": 36,
+      "seed": 1615541,
+      "controle": true,
+      "siegeJev": null,
+      "civs": {
+        "p1": "espagne",
+        "p2": "france",
+        "p3": "azteques",
+        "p4": "inde",
+        "p5": "chine"
+      }
+    },
+    {
+      "idx": 37,
+      "seed": 1623460,
+      "controle": true,
+      "siegeJev": null,
+      "civs": {
+        "p1": "azteques",
+        "p2": "rome",
+        "p3": "zoulous",
+        "p4": "russie",
+        "p5": "mongolie"
+      }
+    },
+    {
+      "idx": 38,
+      "seed": 1631379,
+      "controle": true,
+      "siegeJev": null,
+      "civs": {
+        "p1": "espagne",
+        "p2": "chine",
+        "p3": "azteques",
+        "p4": "japon",
+        "p5": "france"
+      }
+    },
+    {
+      "idx": 39,
+      "seed": 1639298,
+      "controle": true,
+      "siegeJev": null,
+      "civs": {
+        "p1": "egypte",
+        "p2": "mongolie",
+        "p3": "inde",
+        "p4": "france",
+        "p5": "grece"
+      }
+    },
+    {
+      "idx": 40,
+      "seed": 1647217,
+      "controle": true,
+      "siegeJev": null,
+      "civs": {
+        "p1": "allemagne",
+        "p2": "rome",
+        "p3": "espagne",
+        "p4": "france",
+        "p5": "japon"
+      }
+    }
+  ]
+}

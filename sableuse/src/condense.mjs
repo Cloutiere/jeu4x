@@ -38,6 +38,21 @@ export const configCondense = {
   maxCandidatsProduction: 8,
   /** Nombre max de techs candidates décrites. */
   maxTechsCandidates: 3,
+  /** v3 (HANDOFF-JEV-V3-BANC2 D1) — formule du GAIN NET d'un site de
+   * fondation, en rendements/tour estimés une fois la ville peuplée :
+   * gainNet = partCouronne1 × couronne1 + partCouronne2 × couronne2
+   *           − penaliteDistance × distance au colon
+   *           − penaliteRisque × ennemis connus à rayonRisque du site.
+   * Éditable sans toucher à la logique ; cible de calibrage banc 2. */
+  gainSite: {
+    partCouronne1: 0.5,
+    partCouronne2: 0.25,
+    penaliteDistance: 2,
+    rayonRisque: 4,
+    penaliteRisque: 3,
+    /** Un gain net jugé « rentable » pour la question fonder (texte + faux client). */
+    seuilRentable: 2,
+  },
 };
 
 function arrondi(x, d = 1) {
@@ -77,6 +92,30 @@ export function valeurSite(map, q, r, distance) {
   const couronne2 = sommeVoisinage(map, q, r, configCondense.rayonValeurSite) - sommeVoisinage(map, q, r, 1);
   const brute = couronne1 + configCondense.poidsCouronneLointaine * couronne2 - configCondense.penaliteDistanceSite * distance;
   return arrondi(Math.max(0, brute));
+}
+
+/** v3 D1 : gain net estimé d'un site de fondation, en rendements/tour une fois
+ * la ville peuplée (formule éditable configCondense.gainSite) :
+ * part des couronnes 1 et 2 − pénalité de distance au colon − pénalité par
+ * ennemi connu (fog respecté) à rayonRisque du site. Peut être négatif —
+ * un site sous risque ou trop loin est un MAUVAIS site, Jev doit le voir. */
+export function gainNetSite(etatFiltre, moi, site) {
+  const g = configCondense.gainSite;
+  const map = etatFiltre.map;
+  const centre = valeurTerrain(map?.[`${site.q},${site.r}`]);
+  const couronne1 = sommeVoisinage(map, site.q, site.r, 1) - centre;
+  const couronne2 = sommeVoisinage(map, site.q, site.r, configCondense.rayonValeurSite) - sommeVoisinage(map, site.q, site.r, 1);
+  let ennemis = 0;
+  for (const u of Object.values(etatFiltre.units ?? {})) {
+    if (u.owner === moi || u.aboard) continue;
+    if (hexDistance({ q: site.q, r: site.r }, u) <= g.rayonRisque) ennemis += 1;
+  }
+  return arrondi(
+    g.partCouronne1 * couronne1 +
+      g.partCouronne2 * couronne2 -
+      g.penaliteDistance * site.distance -
+      g.penaliteRisque * ennemis,
+  );
 }
 
 /** Rendements nets par tour de chaque ville (cityEconomyInputs du moteur,
@@ -135,24 +174,35 @@ export function candidatsProduction(filtre, ville, moi, max = 5) {
 }
 
 /** État de la recherche : tech en cours, coût, progression, tours restants
- * estimés, et les 2-3 candidates suivantes avec leur coût. */
+ * estimés, et les 2-3 candidates suivantes avec leur coût.
+ * Fix D4 (HANDOFF-JEV-V3-BANC2) : (a) `enCours` n'est affichée que si elle
+ * n'est PAS déjà débloquée (après complétion, le moteur supprime le progrès
+ * mais le harnais re-émet SetResearch — afficher « alphabet 0/20 » en boucle
+ * était trompeur) ; (b) la réserve `scienceStored` est montrée (l'ancien
+ * condensé lisait `me.science`, champ qui n'existe pas → toujours 0) ;
+ * (c) la vérité `scienceParTour` (souvent 0 au départ — conversion Or par
+ * défaut, canon R-90) est exposée pour que Jev voie pourquoi ça stagne. */
 export function etatRecherche(filtre, moi, scienceParTour) {
   const joueur = filtre.players?.[moi];
   if (!joueur) return null;
-  const encours = joueur.researching ? TECHS[joueur.researching] : null;
-  const progres = encours ? (joueur.scienceProgress?.[encours.id] ?? 0) + (joueur.scienceStored ?? 0) : joueur.scienceStored ?? 0;
+  const techs = joueur.techsUnlocked ?? [];
+  const brute = joueur.researching ? TECHS[joueur.researching] : null;
+  const encours = brute && !techs.includes(brute.id) ? brute : null;
+  const progres = encours ? (joueur.scienceProgress?.[encours.id] ?? 0) : 0;
   const candidates = availableTechs(joueur)
     .sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))
     .slice(0, configCondense.maxTechsCandidates)
     .map((t) => ({ id: t.id, cout: t.cost }));
-  const bloc = {
-    enCours: joueur.researching,
+  return {
+    enCours: encours?.id ?? null,
     cout: encours?.cost ?? null,
     progres: arrondi(progres, 0),
-    toursRestants: encours ? Math.ceil(Math.max(0, encours.cost - progres) / Math.max(1, scienceParTour)) : null,
+    reserve: joueur.scienceStored ?? 0,
+    scienceParTour: arrondi(scienceParTour, 1),
+    toursRestants: encours && scienceParTour > 0 ? Math.ceil(Math.max(0, encours.cost - progres) / scienceParTour) : null,
+    techsCompletees: techs.length,
     candidates,
   };
-  return bloc;
 }
 
 /** Puissance militaire connue : somme des attaques de MES unités vs celles
@@ -263,13 +313,18 @@ export function condenserEtat(etatFiltre, moi) {
     ? { item: `${capitale.production.item.kind}:${capitale.production.item.id}`, progres: capitale.production.progress }
     : null;
   const sites = sitesFondation(etatFiltre, moi).slice(0, configCondense.maxSitesValues);
+  // v3 D1 : gain net estimé (rendements/tour une fois peuplée) par site.
+  for (const s of sites) s.gainNet = gainNetSite(etatFiltre, moi, s);
   const recherche = etatRecherche(etatFiltre, moi, economieVilles.reduce((a, e) => a + e.science, 0));
 
   const condense = {
     tour: etatFiltre.turn,
     empire: {
       or: me?.treasury ?? 0,
-      science: me?.science ?? 0,
+      // Fix D4 : l'ancien champ `science` lisait `me.science` (inexistant).
+      // La science d'un joueur moteur vit dans `scienceStored` (réserve) —
+      // le flux par tour est dans empire.recherche.scienceParTour.
+      scienceReserve: me?.scienceStored ?? 0,
       ratioScience: me?.scienceRatio ?? 0.5,
       regime: me?.government ?? null,
       era: me?.era ?? null,

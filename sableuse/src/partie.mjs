@@ -31,17 +31,22 @@ import { fusionnerPlan, tourJev } from './adapter-jev.mjs';
  * @param {object} [opts.scenario] scénario de test (HANDOFF-JEV-QUESTIONS-V2 D3) :
  *   { injectionMenace: true } — injecte une unité ennemie FICTIVE dans le SEUL
  *   condensé Jev (jamais dans l'état moteur). Étiqueté 'scenario:test'.
+ * @param {number} [opts.playerCount=2] banc 5 nations (HANDOFF-JEV-BANC) :
+ *   2 (défaut) = mirror1v1 40×40 INCHANGÉ bit-à-bit ; 3-5 = libreMulti 50×40
+ *   (mêmes réglages que le serveur, cf. progen/settings + loadMapForGame).
+ * @param {object} [opts.civSetup] { engineId → { civId } } — R-150, identique
+ *   au serveur (avantages de départ déterministes).
+ * @param {boolean} [opts.sansJev=false] armée de contrôle D4 — zéro appel Jev.
  */
-export async function jouerPartie({ client, config, seed, plafondTours = 50, journal, budgetUsd = 2, engineJev, scenario = null }) {
-  const gen = generateProceduralMap(seed);
-  let etat = createInitialState(gen.map, seed);
+export async function jouerPartie({ client, config, seed, plafondTours = 50, journal, budgetUsd = 2, engineJev, scenario = null, playerCount = 2, civSetup = null, sansJev = false }) {
+  const gen = generateProceduralMap(seed, playerCount >= 3 ? { playerCount } : undefined);
+  let etat = createInitialState(gen.map, seed, civSetup ?? {});
   const joueurs = Object.keys(etat.players).sort();
-  const jev = engineJev ?? joueurs[1];
-  const bots = joueurs.filter((id) => id !== jev);
+  const jev = sansJev ? null : (engineJev ?? joueurs[1]);
 
   journal.meta({
     seed,
-    carte: { largeur: etat.mapWidth, hauteur: etat.mapHeight, placement: 'mirror1v1' },
+    carte: { largeur: etat.mapWidth, hauteur: etat.mapHeight, placement: joueurs.length >= 3 ? 'libreMulti' : 'mirror1v1' },
     joueurs: joueurs.map((id) => ({ id, civId: etat.players[id].civId, pilote: id === jev ? 'jev' : 'bot' })),
     plafondTours,
     budgetUsd,
@@ -51,6 +56,7 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
   const memo = {}; // mémoire inter-tours Jev (tenue de la recherche, D2)
   let coupeParBudget = false;
   let erreurJev = 0;
+  const guerres = new Set(); // §5 banc 2 : paires de nations ayant échangé des coups
 
   while (etat.winner === null && etat.turn <= plafondTours) {
     const tour = etat.turn;
@@ -72,7 +78,7 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
 
     // 2. Décision Jev (1 appel/tour, sur l'état FILTRÉ fog).
     let decision = null;
-    if (!etat.players[jev]?.defeated) {
+    if (jev !== null && !etat.players[jev]?.defeated) {
       const filtre = getFilteredState(etat, jev);
       // D3 · scénario contact : unité ennemie FICTIVE dans le condensé SEULEMENT
       // (l'état moteur n'est jamais touché — l'outil reste hors ligne).
@@ -131,8 +137,30 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     if (rejets.length > 0) {
       journal.ligne({ type: 'rejets', tour, details: rejets });
       journal.ordresRejetes += rejets.length;
+      // v3.1 : une fondation rejetée = case liste noire (ville ennemie
+      // invisible sous le fog, cohabitation…) — l'adaptateur ne re-propose
+      // plus cette case, sinon le colon ré-émet FoundCity au même endroit à
+      // l'infini (446 rejets observés sur le banc 2).
+      for (const r of rejets) {
+        if (r.genre === 'fondation' && r.case) {
+          memo.casesFondationEchouees = memo.casesFondationEchouees ?? new Set();
+          memo.casesFondationEchouees.add(r.case);
+        }
+      }
     }
-    for (const ev of resultat.events) journal.evenement(ev);
+    for (const ev of resultat.events) {
+      journal.evenement(ev);
+      // §5 banc 2 : une guerre inter-nations = combat ou capture entre deux
+      // nations NON barbares (les propriétaires sont lus sur l'état AVANT —
+      // les unités mortes n'existent plus dans newState).
+      if (ev.type === 'CombatExchange') {
+        const a = etat.units?.[ev.attackerId]?.owner;
+        const d = etat.units?.[ev.defenderId]?.owner;
+        if (a && d && a !== d && a !== 'barbarien' && d !== 'barbarien') guerres.add([a, d].sort().join('|'));
+      } else if (ev.type === 'CityCaptured') {
+        if (ev.fromOwner !== 'barbarien' && ev.toOwner !== 'barbarien') guerres.add([ev.fromOwner, ev.toOwner].sort().join('|'));
+      }
+    }
     etat = resultat.newState;
   }
 
@@ -142,6 +170,7 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     coupeParBudget,
     erreursJev: erreurJev,
     nationJev: jev,
+    guerresInterNations: [...guerres],
   });
   return { etat, jev, coupeParBudget };
 }

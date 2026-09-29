@@ -1,5 +1,5 @@
 {
-  "_commentaire": "Questions v3 (HANDOFF-JEV-V3-BANC2 D1) — 'fonder' devient décisionnable : chaque site candidat porte un gainNet chiffré par la sableuse (rendements/tour estimés une fois peuplée, distance et risque soustraits). Seuil fonderMin abaissé à 0,5 (point de départ du calibrage banc 2). v2 archivée dans questions.v2.json.",
+  "_commentaire": "Questions v2 (HANDOFF-JEV-QUESTIONS-V2 D2) — réécrites SUR les faits du condensé enrichi (rendements par ville, coûts, valeur des sites, rapport de puissance, état de recherche). Deux nouvelles questions dynamiques : produire et rechercher (critères injectés chaque tour par l'adapter depuis le condensé). v1 archivée dans questions.v1.json.",
   "questions": {
     "posture": {
       "primitive": "choice",
@@ -23,7 +23,7 @@
     },
     "fonder": {
       "primitive": "noul",
-      "instructions": "Faut-il fonder une nouvelle ville dès maintenant ? Le condensé décrit pour chaque site candidat son gainNet CHIFFRÉ : les rendements estimés par tour une fois la ville peuplée (couronnes de tuiles voisines), MOINS la pénalité de marche du colon vers le site, MOINS 3 points par ennemi connu à 4 cases du site. Exemple : 'gainNet 3, distance 2' = le site rapporte environ 3 par tour net, le colon y marche en 2 tours. Comparez au seuil de rentabilité : fonder est rentable si le meilleur site a un gainNet d'au moins 2 par tour (ou égal mais très proche et sûr), et si la capitale garde une nourriture positive sans le colon. Refusez si tous les gainNet sont négatifs ou ≤ 0, ou si un ennemi est collé au meilleur site."
+      "instructions": "Faut-il fonder une nouvelle ville dès maintenant ? Le condensé décrit pour chaque site candidat sa valeur (somme des rendements du voisinage, distance au colon déjà soustraite) et la distance au colon. Comparez la valeur du meilleur site à la croissance en cours de la capitale : fonder est rentable si le meilleur site a une valeur notable et que la capitale continue de croître même en perdant le colon."
     },
     "attaquer": {
       "primitive": "noul",
@@ -43,7 +43,7 @@
   "seuils": {
     "confianceMin": 0.65,
     "confianceChoixMin": 0.65,
-    "fonderMin": 0.5,
+    "fonderMin": 0.7,
     "attaquerMin": 0.8,
     "menaceMin": 2.0
   }

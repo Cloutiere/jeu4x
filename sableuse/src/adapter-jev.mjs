@@ -13,7 +13,9 @@
  * attaquant) — donc un refus moteur retombe naturellement sur le plan bot.
  */
 import { TERRAINS, UNIT_TYPES, canSetProduction, hexDistance } from '@game/rules';
-import { condenserEtat, sitesFondation, ciblesAttaque } from './condense.mjs';
+import { condenserEtat, gainNetSite, sitesFondation, ciblesAttaque } from './condense.mjs';
+
+const condenserGain = gainNetSite;
 
 /** Traduit la config questions.json en questions SDK. Les specs marquées
  * `criteresDynamiques` reçoivent leurs critères depuis le condensé du tour
@@ -242,12 +244,24 @@ export async function tourJev(client, config, etatFiltre, moi, memo = {}) {
   }
 
   // 5. Fondation (Noul ≥ seuil) → le colon vers le meilleur site candidat.
+  //    v3 : tri par gainNet (rendements/tour estimés), sites à gainNet ≤ 0
+  //    refusés — fonder un site non rentable n'est pas une décision.
   if (fonder >= seuils.fonderMin) {
     const colon = mesUnites.find((u) => UNIT_TYPES[u.type]?.canFoundCity);
-    const sites = sitesFondation(etatFiltre, moi);
+    const echouees = memo.casesFondationEchouees ?? new Set();
+    const sites = sitesFondation(etatFiltre, moi)
+      .map((s) => ({ ...s, gainNet: s.gainNet ?? condenserGain(etatFiltre, moi, s) }))
+      .filter((s) => s.gainNet > 0)
+      .filter((s) => !echouees.has(s.case))
+      .sort((a, b) => b.gainNet - a.gainNet || a.distance - b.distance);
     if (colon && sites.length > 0) {
       const site = sites[0];
-      if (site.distance === 0) {
+      // v3.1 : la case du colon elle-même peut être liste noire (ville ennemie
+      // invisible fondée sous nos pieds) — on ne re-tente JAMAIS FoundCity
+      // dessus, on marche vers le site suivant.
+      const caseColon = `${colon.q},${colon.r}`;
+      const fondable = site.distance === 0 && !echouees.has(caseColon);
+      if (fondable) {
         sortie.ordres.push({ type: 'FoundCity', unitId: colon.id });
         sortie.attentes.push({ genre: 'fondation', unitId: colon.id, case: `${colon.q},${colon.r}` });
       } else {

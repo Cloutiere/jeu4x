@@ -69,10 +69,12 @@ export function creerFauxJev({ graine = 42 } = {}) {
             probabilities: Object.fromEntries(q.criteria.map((_, i) => [String(i), i === score ? 0.7 : 0.3 / Math.max(1, n)])),
           };
         } else {
-          // Noul : fonder s'il y a des candidats et au moins une ville ; attaquer si menace forte.
+          // Noul : fonder selon le gainNet du meilleur site (v3) ; attaquer si menace forte.
+          const sites = state?.candidats?.fondation ?? [];
+          const meilleurGain = sites.length ? Math.max(...sites.map((s) => s.gainNet ?? 0)) : 0;
           const reponse =
             cle === 'fonder'
-              ? (state?.candidats?.fondation?.length ?? 0) > 0 && attaquantsAmis > 0
+              ? meilleurGain >= 2 && attaquantsAmis > 0
                 ? 0.75 + rng() * 0.2
                 : 0.3 + rng() * 0.2
               : menaceNiveau >= 2 && (state?.candidats?.attaque?.length ?? 0) > 0
