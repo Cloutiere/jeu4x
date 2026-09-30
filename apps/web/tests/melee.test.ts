@@ -16,7 +16,7 @@ import { makeState } from '@game/rules';
 import type { GameEvent, GameState } from '@game/rules';
 import { contexteMeleeVide, coteDepuisMouvement, reduceContexteMelee } from '../src/lib/melee.js';
 import type { ContexteMelee } from '../src/lib/melee.js';
-import { dispositionMelee, dispositionsCohabitation, ECHELLE_PILE, ECHELLE_CENTRE } from '../src/lib/render/interaction.js';
+import { dispositionMelee, dispositionsCohabitation, ECHELLE_PILE, ECHELLE_CENTRE, OFFSETS_COTES } from '../src/lib/render/interaction.js';
 
 // ---------------------------------------------------------------------------
 // coteDepuisMouvement — les 6 directions axiales (pointy-top)
@@ -287,5 +287,101 @@ describe('dispositionsCohabitation — routage par régime de la case', () => {
     const poses = dispositionsCohabitation(state, new Map(), null);
     expect(poses.get('u2')!.dx).toBeLessThan(0); // p1 à gauche (ancien schéma)
     expect(poses.get('u1')!.dx).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RETOUR ERIK 30/09 · contexteProgrammation — la cohabitation affichée en
+// programmation suit la règle de mêlée : occupante AU CENTRE, arrivante sur
+// l'arête face à sa provenance (la mémoire persistante seule ne voit jamais
+// les cohabitations programmées — elle n'est alimentée qu'à la résolution).
+// ---------------------------------------------------------------------------
+import { contexteProgrammation } from '../src/lib/melee.js';
+import type { ProgramPreview } from '@game/rules';
+
+describe('contexteProgrammation — aperçu de cohabitation (retour Erik 30/09)', () => {
+  /** A occupante (0,0) ; B à l'ouest (−1,0) programmée vers (0,0). */
+  function etat(): GameState {
+    return makeState({
+      width: 8,
+      height: 8,
+      units: [
+        { id: 'A', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
+        { id: 'B', type: 'guerrier', owner: 'p1', q: -1, r: 0 },
+      ],
+      cities: [],
+    });
+  }
+  const previewB: ProgramPreview = {
+    unitId: 'B', owner: 'p1',
+    path: [{ q: 0, r: 0 }],
+    destination: { q: 0, r: 0 },
+    final: null, disputed: false, disputedWinner: false,
+  };
+
+  it('l\'occupante devient le CENTRE, l\'arrivante reçoit son côté d\'entrée', () => {
+    const ctx = contexteProgrammation(etat(), [previewB], null);
+    expect(ctx.stabiliseeParCase.get('0,0')).toBe('A');
+    // B pénètre depuis l'ouest (delta +1,0) → côté OUEST.
+    expect(ctx.coteParUnite.get('B')).toMatchObject({ cote: 'O' });
+    // La disposition en découle : A centrée au cran intermédiaire (B affichée
+    // à sa destination optimiste — positionsDessinees).
+    const positions = new Map([['B', { q: 0, r: 0 }]]);
+    const poses = dispositionsCohabitation(etat(), positions, ctx);
+    expect(poses.get('A')).toMatchObject({ dx: 0, dy: 0, echelle: ECHELLE_CENTRE });
+    expect(poses.get('B')).toMatchObject({ dx: OFFSETS_COTES['O']!.x, echelle: ECHELLE_PILE });
+  });
+
+  it('multi-pas : le côté vient du DERNIER pas du chemin', () => {
+    const st = etat();
+    st.units['B']!.q = -2; st.units['B']!.r = 0;
+    const preview: ProgramPreview = {
+      unitId: 'B', owner: 'p1',
+      path: [{ q: -1, r: 0 }, { q: 0, r: 0 }],
+      destination: { q: 0, r: 0 },
+      final: null, disputed: false, disputedWinner: false,
+    };
+    const ctx = contexteProgrammation(st, [preview], null);
+    expect(ctx.coteParUnite.get('B')!.cote).toBe('O');
+  });
+
+  it('l\'occupante PARTANTE ne reste pas au centre (l\'autre occupante prend le centre)', () => {
+    const st = etat();
+    st.units['C'] = { id: 'C', type: 'guerrier', owner: 'p1', q: 0, r: 0, hp: 3, mp: 1, veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false };
+    const previewA: ProgramPreview = {
+      unitId: 'A', owner: 'p1',
+      path: [{ q: 1, r: 0 }],
+      destination: { q: 1, r: 0 },
+      final: null, disputed: false, disputedWinner: false,
+    };
+    const ctx = contexteProgrammation(st, [previewA, previewB], null);
+    // A part → C (non partante) prend le centre de la case programmatée.
+    expect(ctx.stabiliseeParCase.get('0,0')).toBe('C');
+    expect(ctx.coteParUnite.get('B')!.cote).toBe('O');
+  });
+
+  it('fusion : la stabilisée MÉMORISÉE vivante et sur place reste le centre', () => {
+    const st = etat();
+    const persistant: ContexteMelee = {
+      coteParUnite: new Map([['A', { cote: 'SE', ordre: 3 }]]),
+      stabiliseeParCase: new Map([['0,0', 'A']]),
+    };
+    const ctx = contexteProgrammation(st, [previewB], persistant);
+    expect(ctx.stabiliseeParCase.get('0,0')).toBe('A'); // inchangée
+    expect(ctx.coteParUnite.get('A')).toMatchObject({ cote: 'SE' }); // mémoire conservée
+    expect(ctx.coteParUnite.get('B')!.cote).toBe('O'); // aperçu ajouté
+  });
+
+  it('case VIDE visée : aucune entrée de centre, pas de cohabitation', () => {
+    const st = etat();
+    const preview: ProgramPreview = {
+      unitId: 'B', owner: 'p1',
+      path: [{ q: -1, r: 1 }],
+      destination: { q: -1, r: 1 },
+      final: null, disputed: false, disputedWinner: false,
+    };
+    const ctx = contexteProgrammation(st, [preview], null);
+    expect(ctx.stabiliseeParCase.size).toBe(0);
+    expect(ctx.coteParUnite.size).toBe(0);
   });
 });

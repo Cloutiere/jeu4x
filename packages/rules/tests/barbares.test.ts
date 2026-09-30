@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveTurn } from '../src/turn.js';
 import { makeState, pathBetween } from '../src/fixtures.js';
-import { barbarianOrders, barbarianUnitType, createBarbarianUnit, drawHutReward } from '../src/barbares.js';
+import { barbarianOrders, barbarianUnitType, createBarbarianUnit, drawHutReward, spawnInitialGarrisons } from '../src/barbares.js';
 import { BARBARIAN_ID, BARBARIANS, HUT_REWARDS, UNIT_TYPES, registerTestUnitType } from '../src/data.js';
 import { hexDistance, tileKeyOf, neighbors } from '../src/hex.js';
 import { createRng } from '../src/rng.js';
@@ -1200,5 +1200,94 @@ describe('BARBARES-PILES · migration v23 → v24', () => {
     }
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>) as unknown as typeof out;
     expect(JSON.stringify(twice.villages)).toBe(JSON.stringify(out.villages)); // idempotent
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RETOUR ERIK 30/09 · capture du camp à la mort du GARDIEN hors Phase B :
+// la mêlée pondérée (R-180) d'une survie mutuelle tuait le gardien SANS
+// détruire le camp (captureCamp branché sur la Phase B seule) — le camp
+// restait sur la carte, jamais pillé, toujours réengendrant. Règle R-96
+// (rév. 15/09) : le camp est détruit à la mort du dernier barbare de la
+// case, le vainqueur reçoit la récompense hutte ; un camp SANS défenseur
+// est capturé à l'entrée.
+// ---------------------------------------------------------------------------
+
+describe('RETOUR ERIK 30/09 · camp détruit à la mort du gardien (toute cause)', () => {
+  /** Retire TOUT barbare posé sur la case du camp (2,0) — makeState engendre
+   *  automatiquement la garde (spawnInitialGarrisons en fin de fixture). */
+  function purgerCamp(state: GameState, q = 2, r = 0): void {
+    for (const [id, u] of Object.entries(state.units)) {
+      if (u.owner === 'barbarien' && u.q === q && u.r === r) delete state.units[id];
+    }
+    for (const v of state.villages) {
+      if (v.q === q && v.r === r) v.spawnedUnits = [];
+    }
+  }
+
+  it('entrée sur un camp SANS gardien → capture IMMÉDIATE à l’entrée (Phase A)', () => {
+    const state = makeState({
+      width: 8, height: 8, rngSeed: 7,
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 1, r: 0 }],
+      villages: [{ q: 2, r: 0 }],
+    });
+    // Toute la garde est hors scénario (un satellite adjacent qui rentrerait
+    // sur la case défendrait le camp à la place du gardien — R-183).
+    for (const [id, u] of Object.entries(state.units)) {
+      if (u.owner === 'barbarien') delete state.units[id];
+    }
+    for (const v of state.villages) v.spawnedUnits = [];
+    const out = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 2, r: 0 }] }] }, 1);
+    const st = out.newState;
+    expect(st.villages.some((v) => v.q === 2 && v.r === 0)).toBe(false);
+    expect(out.events).toContainEqual(expect.objectContaining({ type: 'VillageDestroyed', byPlayer: 'p1' }));
+    expect(out.events).toContainEqual(expect.objectContaining({ type: 'VillageLooted', byPlayer: 'p1' }));
+    expect(st.units['u1']).toMatchObject({ q: 2, r: 0 }); // l'entrant occupe la case
+  });
+
+  it('gardien tué par la MÊLÉE de Phase E (survie mutuelle au tour 1) → camp DÉTRUIT + pillé au tour 2', () => {
+    // Cohabitation posée à la main (miroir de la survie mutuelle R-183) :
+    // u1 (attaquante, très forte — mêlée R-180 tranchée) + gardien blessé.
+    registerTestUnitType({
+      id: 'testeuse', name: 'Testeuse', attack: 99, defense: 3, movement: 2, hpMax: 3,
+      cost: 10, visionRadius: 2, canAttack: true, canFoundCity: false, isRanged: false,
+    });
+    const state = makeState({
+      width: 8, height: 8, rngSeed: 11,
+      units: [
+        { id: 'u1', type: 'testeuse', owner: 'p1', q: 2, r: 0 },
+        { id: 'u2', type: 'guerrier', owner: 'barbarien', q: 2, r: 0, hp: 1 },
+      ],
+      villages: [{ q: 2, r: 0 }],
+    });
+    // Garde auto-engendrée hors scénario : on la remplace par UN gardien
+    // blessé (1 PV) sur la case du camp — la mêlée le tue, la case ne porte
+    // plus aucun barbare et l'occupant civilisé capture le camp.
+    for (const [id, u] of Object.entries(state.units)) {
+      if (u.owner === 'barbarien') delete state.units[id];
+    }
+    for (const v of state.villages) v.spawnedUnits = [];
+    state.units['g1'] = { id: 'g1', type: 'guerrier', owner: 'barbarien', q: 2, r: 0, hp: 1, mp: 1, veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false };
+    const out = resolveTurn(state, {}, 2);
+    const st = out.newState;
+    console.log('DBG4', JSON.stringify(out.events));
+    expect(out.events.some((e) => e.type === 'MeleeResolved')).toBe(true);
+    expect(Object.values(st.units).some((u) => u.owner === 'barbarien' && u.q === 2 && u.r === 0)).toBe(false);
+    // Le camp est DÉTRUIT et PILLÉ par le vainqueur de la mêlée (occupant).
+    expect(st.villages.some((v) => v.q === 2 && v.r === 0)).toBe(false);
+    expect(out.events).toContainEqual(expect.objectContaining({ type: 'VillageDestroyed', byPlayer: 'p1' }));
+    expect(out.events).toContainEqual(expect.objectContaining({ type: 'VillageLooted', byPlayer: 'p1' }));
+  });
+
+  it('gardien VIVANT après l’assaut (survie mutuelle) → le camp RESTE (tour 1)', () => {
+    const state = makeState({
+      width: 8, height: 8, rngSeed: 1,
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 1, r: 0 }],
+      villages: [{ q: 2, r: 0 }],
+    });
+    const st1 = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 2, r: 0 }] }] }, 1).newState;
+    const gardienVivant = Object.values(st1.units).some((u) => u.owner === 'barbarien' && u.q === 2 && u.r === 0);
+    if (!gardienVivant) return; // variante : gardien mort dès la Phase B → camp capturé (autre test)
+    expect(st1.villages.some((v) => v.q === 2 && v.r === 0)).toBe(true); // cohabitation légale
   });
 });

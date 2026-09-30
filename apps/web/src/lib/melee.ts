@@ -15,6 +15,7 @@
  */
 import { writable } from 'svelte/store';
 import { tileKeyOf } from '@game/rules';
+import type { Hex, ProgramPreview } from '@game/rules';
 import type { GameEvent, GameState, ServerToClientMessage, UnitId } from '@game/shared';
 
 /** Les 6 côtés d'un hexagone pointy-top, nommés par direction d'entrée. */
@@ -141,4 +142,68 @@ function occupantes(state: GameState, key: string): Array<{ id: UnitId; stabiliz
     if (tileKeyOf(u) === key) out.push({ id: u.id, stabilized: u.stabilized });
   }
   return out;
+}
+
+/**
+ * RETOUR ERIK 30/09 (session debug visuel) — contexte de PROGRAMMATION :
+ * la mêlée réelle n'existe pas encore (la mémoire persistante n'est
+ * alimentée qu'à la résolution, `reduceContexteMelee`), mais l'aperçu de
+ * programmation affiche déjà la cohabitation à destination. Règle d'Erik :
+ * l'unité qui OCCUPAIT DÉJÀ la tuile reste AU CENTRE (cran intermédiaire),
+ * chaque unité programmée pour y pénétrer se pose sur l'ARÊTE face à sa
+ * tuile de provenance — la même règle qu'après la résolution.
+ *
+ * Fonction PURE : fusionne le contexte persistant avec une synthèse dérivée
+ * des aperçus (`previewPrograms`) — pour chaque destination occupée :
+ *  - l'occupante NON partante devient le centre (la stabilisée mémorisée
+ *    reste si elle vit, est sur la case et ne part pas) ;
+ *  - chaque unité programmée reçoit son côté d'entrée (dernier pas du
+ *    chemin → destination, `coteDepuisMouvement`), ordre = chronologie de
+ *    programmation (miroir R-159).
+ * Consommé par le rendu (GameCanvas) à la place du contexte brut — la
+ * mémoire persistante seule ne voit JAMAIS les cohabitations programmées.
+ */
+export function contexteProgrammation(
+  state: GameState,
+  previews: ProgramPreview[],
+  persistant: ContexteMelee | null,
+): ContexteMelee {
+  const coteParUnite = new Map(persistant?.coteParUnite ?? []);
+  const stabiliseeParCase = new Map(persistant?.stabiliseeParCase ?? []);
+  const partantes = new Set<UnitId>();
+  interface Arrivee { dest: Hex; cote: Cote; }
+  const arrivees = new Map<UnitId, Arrivee>();
+  previews.forEach((p) => {
+    if (!p.destination) return;
+    partantes.add(p.unitId);
+    // Côté d'entrée : le dernier pas du chemin (la provenance au sens
+    // géométrique) ; chemin d'un pas = la case de départ de l'unité.
+    const provenance =
+      p.path.length >= 2 ? p.path[p.path.length - 2]! : state.units[p.unitId] ?? p.path[0];
+    if (!provenance) return;
+    const cote = coteDepuisMouvement(provenance, p.destination);
+    if (cote) arrivees.set(p.unitId, { dest: p.destination, cote });
+  });
+  for (const [unitId, arrivee] of arrivees) {
+    const key = tileKeyOf(arrivee.dest);
+    const occupantes = Object.values(state.units).filter(
+      (u) => !u.aboard && u.id !== unitId && tileKeyOf(u) === key,
+    );
+    if (occupantes.length === 0) continue; // case vide : pas de cohabitation
+    // Centre : la stabilisée mémorisée reste SI elle vit sur la case et ne
+    // part pas ; sinon la première occupante non partante (ordre du state),
+    // repli première occupante.
+    const actuelle = stabiliseeParCase.get(key);
+    const actuelleValide = (() => {
+      if (!actuelle) return false;
+      const u = state.units[actuelle];
+      return !!u && !u.aboard && tileKeyOf(u) === key && !partantes.has(actuelle);
+    })();
+    if (!actuelleValide) {
+      const surPlace = occupantes.find((u) => !partantes.has(u.id));
+      stabiliseeParCase.set(key, (surPlace ?? occupantes[0]!).id);
+    }
+    coteParUnite.set(unitId, { cote: arrivee.cote, ordre: arrivees.size });
+  }
+  return { coteParUnite, stabiliseeParCase };
 }

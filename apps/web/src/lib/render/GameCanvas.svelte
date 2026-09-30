@@ -34,7 +34,8 @@
   import { cleTexteRendement, PoolParCle } from './pool-textes.js';
   import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, dispositionsCohabitation, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable, pilesAffichees, positionAfficheeDe as positionAfficheeDeEtat } from './interaction.js';
   // PLACEMENT-MELEE : contexte de mêlée (côtés d'entrée, stabilisée au centre).
-  import { contexteMelee } from '../melee.js';
+  import { contexteMelee, contexteProgrammation } from '../melee.js';
+  import type { ContexteMelee } from '../melee.js';
   import { get } from 'svelte/store';
   // CALIBRATION-UNITES : hauteur des unités seules (calibre guerrier Recraft),
   // constantes 🔶 éditables à l'œil dans calibration-unites.ts.
@@ -628,7 +629,7 @@
     // PLACEMENT-MELEE : les cases en mêlée (≥ 2 nations) passent par la
     // disposition par CÔTÉ D'ENTRÉE + stabilisée au centre (mémoires client,
     // lib/melee.ts — valides aussi en relecture, D6).
-    const poses = dispositionsCohabitation(state, positions, get(contexteMelee));
+    const poses = dispositionsCohabitation(state, positions, contexteEffectif());
     // COLON-FONDATION (M1) : dérivation de l'aperçu DÉJÀ calculé
     // (scenePreviews — ordre posé et chemin gelé compris), jamais recalculée
     // par frame. Annulation comme consommation font tomber l'aperçu, donc
@@ -1164,6 +1165,14 @@
     poser3d(artefactPingGlow, p.x, p.y);
   }
 
+  /**
+   * RETOUR ERIK 30/09 : l'anneau de sélection d'UNITÉ vit dans
+   * `entitiesLayer` (zIndex -90 : au-dessus des structures -100, sous les
+   * unités) — `entitiesLayer` n'est PAS vidé au rebuild : le Graphics
+   * précédent est détruit ici avant d'en redessiner un.
+   */
+  let anneauSelection: Graphics | null = null;
+
   /** Surcouche : sélection, brouillon de chemin, ordres soumis, possessions. */
   function rebuildOverlay(): void {
     // VUE-VILLE-PERF · D4b : les Text de rendement du pool sont RELÂCHÉS (et
@@ -1174,6 +1183,10 @@
       else child.destroy({ children: true });
     }
     overlayLayer.removeChildren();
+    // Vit dans entitiesLayer (non vidé par ce rebuild) — détruit puis
+    // redessiné si la sélection persiste. Cast : TS voit encore `null` ici.
+    (anneauSelection as Graphics | null)?.destroy({ children: true });
+    anneauSelection = null;
     hoverG = null; // détruit avec la couche — redessiné en fin de rebuild
     if (!scene.state) return;
 
@@ -1720,7 +1733,7 @@
       if (unit) {
         const positions = positionsDessinees();
         const posee = positions.get(unit.id) ?? unit;
-        const disp = dispositionsCohabitation(scene.state!, positions, get(contexteMelee)).get(unit.id) ?? { dx: 0, dy: 0, echelle: 1, z: 0 };
+        const disp = dispositionsCohabitation(scene.state!, positions, contexteEffectif()).get(unit.id) ?? { dx: 0, dy: 0, echelle: 1, z: 0 };
         const c = hexToPixel(posee, HEX_SIZE);
         const gr = new Graphics();
         const rx = 52 * disp.echelle;
@@ -1728,7 +1741,15 @@
         gr.ellipse(0, 6, rx, ry).stroke({ width: 5, color: 0xffe082 });
         gr.ellipse(0, 6, rx + 4, ry + 3).stroke({ width: 2, color: 0x2b2620, alpha: 0.6 });
         gr.position.set(c.x + disp.dx * HEX_SIZE, c.y + disp.dy * HEX_SIZE);
-        overlayLayer.addChild(gr);
+        // RETOUR ERIK 30/09 : l'anneau vivait dans `overlayLayer` (sous
+        // `entitiesLayer`) — les structures posées sur la couche tuile
+        // (villes/huttes, zIndex -100, retour GP-ART 28/09) le recouvraient.
+        // Il passe dans `entitiesLayer` à zIndex -90 : au-dessus des
+        // structures, sous toutes les unités (zIndex = p.y * 10 + z).
+        gr.zIndex = -90;
+        (anneauSelection as Graphics | null)?.destroy({ children: true });
+        anneauSelection = gr;
+        entitiesLayer.addChild(gr);
       }
     } else {
       const selectedTile: Hex | null = selectedTileOf();
@@ -2579,6 +2600,17 @@
   // tooltip « case disputée » (transparence pédagogique, L4.6) et, depuis les
   // CORRECTIFS-SELECTION, de la position optimiste des unités programmées.
   let scenePreviews: ProgramPreview[] = [];
+
+  /**
+   * RETOUR ERIK 30/09 : le contexte de mêlée EFFECTIF = mémoire persistante
+   * (résolution) + synthèse de PROGRAMMATION (contexteProgrammation) — les
+   * cohabitations affichées en aperçu (unité programmée vers une tuile
+   * occupée) suivent déjà la règle : occupante au centre, arrivante sur
+   * l'arête face à sa provenance.
+   */
+  function contexteEffectif(): ContexteMelee {
+    return scene.state ? contexteProgrammation(scene.state, scenePreviews, get(contexteMelee)) : get(contexteMelee);
+  }
 
   /**
    * CORRECTIFS-SELECTION : position AFFICHÉE d'une unité programmée —

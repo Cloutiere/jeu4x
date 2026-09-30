@@ -136,7 +136,8 @@ export const ECHELLE_CENTRE = HAUTEUR_UNITE_CENTRE / HAUTEUR_UNITE;
  * miroir des ZONES_HEX repositionnées par côté RÉEL d'entrée (E = droite,
  * O = gauche, NO/NE = haut, SO/SE = bas). Pointy-top.
  */
-const OFFSETS_COTES: Record<Cote, { x: number; y: number }> = {
+/** Exporté pour les tests (réglage calibrage, retour Erik 30/09). */
+export const OFFSETS_COTES: Record<Cote, { x: number; y: number }> = {
   O: { x: -0.62, y: 0 },
   E: { x: 0.62, y: 0 },
   NO: { x: -0.31, y: -0.54 },

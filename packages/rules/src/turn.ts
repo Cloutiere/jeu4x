@@ -1422,6 +1422,13 @@ function executeMoveOrder(
     if (campIci && gardienCamp) {
       // R-96 rév. ENGAGEMENT : entrer sur un camp GARDÉ = attaquer le gardien.
       board.planned.push({ kind: 'villageAttack', at: next, attackerId: unit.id, villageId: campIci.id });
+    } else if (campIci && unit.owner !== BARBARIAN_ID) {
+      // R-96 (rév. 15/09) : un camp SANS défenseur est capturé à l'entrée
+      // (aucun combat) — destruction + récompense hutte seedée. Miroir de
+      // captureCamp en Phase B ; couvre aussi le camp rendu gardien-mort par
+      // une mêlée/attaque d'un tour antérieur (RETOUR ERIK 30/09). Jamais un
+      // barbare : un satellite qui rentre chez lui ne pille pas son camp.
+      captureCamp(board, campIci, unit);
     } else if (defender) {
       board.planned.push({ kind: 'attack', at: next, attackerId: unit.id, defenderId: defender.id });
     }
@@ -4266,6 +4273,25 @@ function processStability(board: Board): void {
         winner.veteran = true; // R-32 : coup fatal
         recordCombatVictory(board, winner); // 7h · R-123 (T-31) + soin Aztèque
       }
+    }
+  }
+
+  // ---- 2bis · RETOUR ERIK 30/09 (R-96 rév. 15/09 × R-183) : le camp vit et
+  // meurt avec son GARDIEN. Sa mort hors Phase B (mêlée pondérée R-180 d'une
+  // survie mutuelle, tir d'archer, …) laissait le camp SUR LA CARTE sans
+  // gardien — jamais détruit, jamais pillé, et toujours réengendrant. Passes
+  // triées R-81 : un camp sans barbare sur sa case et occupé par une unité
+  // civilisée est CAPTURÉ par cet occupant (destruction + récompense hutte
+  // seedée — miroir exact de la capture en Phase B). Sans occupant : le camp
+  // reste, capturé à l'entrée (Phase A, cf. captureCamp d'entrée).
+  {
+    const parId = Object.keys(st.units).sort(compareUnitIds).map((id) => st.units[id]!);
+    for (const village of [...st.villages].sort((a, b) => (a.id < b.id ? -1 : 1))) {
+      const surCase = parId.filter((u) => !u.aboard && u.q === village.q && u.r === village.r);
+      if (surCase.some((u) => u.owner === BARBARIAN_ID)) continue; // gardien vivant
+      const occupant = surCase.find((u) => u.owner !== BARBARIAN_ID);
+      if (!occupant) continue; // case libre : capture à l'entrée (Phase A)
+      captureCamp(board, village, occupant);
     }
   }
 
