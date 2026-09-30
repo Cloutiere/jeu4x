@@ -102,6 +102,13 @@
       '0,6': 'prairie',
       '7,0': 'prairie',
       '6,0': 'plaine',
+      // SPRITES-GUERRIER-COLON (30/09) : rangée colon ×6 (r=16, q = col − 8)
+      '-8,16': 'prairie',
+      '-7,16': 'plaine',
+      '-6,16': 'colline',
+      '-5,16': 'desert',
+      '-4,16': 'foret',
+      '-3,16': 'montagne',
     };
     // TUILES-RESSOURCES (Erik 26/09) : rangée 8-9-10 — chaque ressource avec
     // art posée RÉVÉLÉE sur son terrain (tuile-ressource pleine, plus de
@@ -142,10 +149,23 @@
       const [q, r] = pos.split(',').map(Number);
       units.push({ id: `d2${i + 1}`, owner, type: 'archer', q, r });
     });
+    // SPRITES-GUERRIER-COLON (30/09) : colon ×6 (nouveaux SVG d'Erik) —
+    // même calibre guerrier.
+    const POS_COLONS = [
+      ['c0', 'p1'], ['c1', 'p2'], ['c2', 'p3'], ['c3', 'p4'],
+      ['c4', 'p5'], ['c5', 'p6'],
+    ] as const;
+    POS_COLONS.forEach(([pos, owner], i) => {
+      const h = colRowToHex(i, 16); // axial : q = col - floor(r/2)
+      units.push({ id: `d3${i + 1}`, owner, type: 'colon', q: h.q, r: h.r });
+    });
     // Cohabitation multi-nations (3 nations côte à côte, tuile prairie).
     for (const [i, owner] of ['p1', 'p3', 'p5'].entries()) {
       units.push({ id: `d1${i + 1}`, owner, type: 'guerrier', q: 0, r: 6 });
     }
+    // SPRITES-GUERRIER-COLON : cohabitation guerrier + colon (même nation).
+    units.push({ id: 'cg1', owner: 'p2', type: 'guerrier', q: 2, r: 6 });
+    units.push({ id: 'cg2', owner: 'p2', type: 'colon', q: 2, r: 6 });
     // Barbare : unité peinte (owner « barbarien ») à côté de son camp.
     units.push({ id: 'barb1', owner: 'barbarien', type: 'guerrier', q: 7, r: 0 });    const terrainOverrides: Record<string, TerrainId> = Object.fromEntries(
       Object.entries(TERRAINS_DEMO).map(([k, t]) => [k, t as TerrainId]),
@@ -157,7 +177,7 @@
       { owner: 'p2', q: 6, r: 6, pop: 5, capital: true },
     ];
     return makeState({
-      width: 8, height: 15, units, cities: villes, terrainOverrides,
+      width: 8, height: 17, units, cities: villes, terrainOverrides,
       villages: [{ q: 6, r: 0 }], // camp barbare (tuile_barbare d'Erik)
       // NEW-OTHERS (26/09) : hutte peinte + les 6 artefacts non-dlc peints —
       // vérification à l'œil de l'alignement hexagone (sommet bas à +64 px).

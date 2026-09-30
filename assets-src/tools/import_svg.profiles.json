@@ -43,16 +43,16 @@
   "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.7501 }
  },
  "guerrier-6couleurs": {
-  "_doc": "ASSETS-6COULEURS (26/09) : un SVG PEINT par faction (mapping D1 : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise). Aucun recoloriage — la cuite = rendu direct du SVG. echelle 0,7765 = calibre guerrier (hauteur de contenu identique au maître).",
-  "svg": "new_units/guerrier/guerrier_bleu.svg",
+  "_doc": "SPRITES-GUERRIER-COLON (30/09) : SVG v2 d'Erik, un PEINT par faction (mapping D1 : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise). Aucun recoloriage — la cuite = rendu direct du SVG. echelle 0,7765 = calibre guerrier (hauteur de contenu identique au maître).",
+  "svg": "assets-src/modeles/guerrier_v2_bleu.svg",
   "stem": "unite_guerrier",
   "variantesFournies": {
-   "bleu-saphir": "new_units/guerrier/guerrier_bleu.svg",
-   "rouge-royal": "new_units/guerrier/guerrier_rouge.svg",
-   "vert-emeraude": "new_units/guerrier/guerrier_vert.svg",
-   "jaune-dor": "new_units/guerrier/guerrier_jaune.svg",
-   "cuivre-ardent": "new_units/guerrier/guerrier_orange.svg",
-   "ardoise": "new_units/guerrier/guerrier_ardoise.svg"
+   "bleu-saphir": "assets-src/modeles/guerrier_v2_bleu.svg",
+   "rouge-royal": "assets-src/modeles/guerrier_v2_rouge.svg",
+   "vert-emeraude": "assets-src/modeles/guerrier_v2_vert.svg",
+   "jaune-dor": "assets-src/modeles/guerrier_v2_jaune.svg",
+   "cuivre-ardent": "assets-src/modeles/guerrier_v2_orange.svg",
+   "ardoise": "assets-src/modeles/guerrier_v2_ardoise.svg"
   },
   "cible": {
    "mode": "unite",
@@ -66,7 +66,7 @@
  },
  "guerrier-base": {
   "_doc": "Sprite de base unite_guerrier (fallback + pile) : le SVG bleu d'Erik supplanté au maître saphir (consigné, maître conservé en assets-src/modeles/guerrier_ref.svg).",
-  "svg": "new_units/guerrier/guerrier_bleu.svg",
+  "svg": "assets-src/modeles/guerrier_v2_bleu.svg",
   "stem": "unite_guerrier",
   "sansAccent": true,
   "cible": {
@@ -118,15 +118,15 @@
  },
  "colon-6couleurs": {
   "_doc": "COLONS d'Erik (27/09) : un SVG peint par faction (mapping ASSETS-6COULEURS : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise). Aucun recoloriage. echelle = calibre guerrier (même hauteur de contenu).",
-  "svg": "new_units/colon/colon_bleu.svg",
+  "svg": "assets-src/modeles/colon_v2_bleu.svg",
   "stem": "unite_colon",
   "variantesFournies": {
-   "bleu-saphir": "new_units/colon/colon_bleu.svg",
-   "rouge-royal": "new_units/colon/colon_rouge.svg",
-   "vert-emeraude": "new_units/colon/colon_vert.svg",
-   "jaune-dor": "new_units/colon/colon_jaune.svg",
-   "cuivre-ardent": "new_units/colon/colon_orange.svg",
-   "ardoise": "new_units/colon/colon_ardoise.svg"
+   "bleu-saphir": "assets-src/modeles/colon_v2_bleu.svg",
+   "rouge-royal": "assets-src/modeles/colon_v2_rouge.svg",
+   "vert-emeraude": "assets-src/modeles/colon_v2_vert.svg",
+   "jaune-dor": "assets-src/modeles/colon_v2_jaune.svg",
+   "cuivre-ardent": "assets-src/modeles/colon_v2_orange.svg",
+   "ardoise": "assets-src/modeles/colon_v2_ardoise.svg"
   },
   "cible": {
    "mode": "unite",
@@ -140,7 +140,7 @@
  },
  "colon-base": {
   "_doc": "Sprite de base unite_colon (fallback + piles) : le SVG bleu d'Erik.",
-  "svg": "new_units/colon/colon_bleu.svg",
+  "svg": "assets-src/modeles/colon_v2_bleu.svg",
   "stem": "unite_colon",
   "sansAccent": true,
   "cible": {
