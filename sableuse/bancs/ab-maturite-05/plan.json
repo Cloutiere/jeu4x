@@ -1,0 +1,49 @@
+{
+  "planSeed": 20260929,
+  "date": "2026-09-29T22:18:47.379Z",
+  "nJev": 3,
+  "nControle": 0,
+  "playerCount": 5,
+  "plafondTours": 150,
+  "parties": [
+    {
+      "idx": 1,
+      "seed": 1475946,
+      "controle": false,
+      "siegeJev": 1,
+      "civs": {
+        "p1": "rome",
+        "p2": "chine",
+        "p3": "mongolie",
+        "p4": "japon",
+        "p5": "angleterre"
+      }
+    },
+    {
+      "idx": 2,
+      "seed": 1483865,
+      "controle": false,
+      "siegeJev": 4,
+      "civs": {
+        "p1": "france",
+        "p2": "inde",
+        "p3": "azteques",
+        "p4": "arabie",
+        "p5": "rome"
+      }
+    },
+    {
+      "idx": 3,
+      "seed": 1491784,
+      "controle": false,
+      "siegeJev": 2,
+      "civs": {
+        "p1": "egypte",
+        "p2": "angleterre",
+        "p3": "chine",
+        "p4": "france",
+        "p5": "rome"
+      }
+    }
+  ]
+}

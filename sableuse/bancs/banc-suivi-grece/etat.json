@@ -1,0 +1,180 @@
+{
+  "parties": {
+    "1": {
+      "statut": "fait",
+      "fichier": "partie-001-jev-seed6161146.jsonl",
+      "coutUsd": 0.022589532000000002,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 35116
+    },
+    "2": {
+      "statut": "fait",
+      "fichier": "partie-002-jev-seed6169065.jsonl",
+      "coutUsd": 0.020389656000000003,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 35159
+    },
+    "3": {
+      "statut": "fait",
+      "fichier": "partie-003-jev-seed6176984.jsonl",
+      "coutUsd": 0.011705652000000002,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 23766
+    },
+    "4": {
+      "statut": "fait",
+      "fichier": "partie-004-jev-seed6184903.jsonl",
+      "coutUsd": 0.019149774,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 34184
+    },
+    "5": {
+      "statut": "fait",
+      "fichier": "partie-005-jev-seed6192822.jsonl",
+      "coutUsd": 0.008601768000000001,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 20156
+    },
+    "6": {
+      "statut": "fait",
+      "fichier": "partie-006-jev-seed6200741.jsonl",
+      "coutUsd": 0.022045380000000003,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 34850
+    },
+    "7": {
+      "statut": "fait",
+      "fichier": "partie-007-jev-seed6208660.jsonl",
+      "coutUsd": 0.020602512000000003,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 35553
+    },
+    "8": {
+      "statut": "fait",
+      "fichier": "partie-008-jev-seed6216579.jsonl",
+      "coutUsd": 0.005048820000000001,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 13556
+    },
+    "9": {
+      "statut": "fait",
+      "fichier": "partie-009-jev-seed6224498.jsonl",
+      "coutUsd": 0.015524334000000002,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 28406
+    },
+    "10": {
+      "statut": "fait",
+      "fichier": "partie-010-jev-seed6232417.jsonl",
+      "coutUsd": 0.021409038000000002,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 34032
+    },
+    "11": {
+      "statut": "fait",
+      "fichier": "partie-011-jev-seed6240336.jsonl",
+      "coutUsd": 0.022556982000000003,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 34665
+    },
+    "12": {
+      "statut": "fait",
+      "fichier": "partie-012-jev-seed6248255.jsonl",
+      "coutUsd": 0.020472228000000002,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 34313
+    },
+    "13": {
+      "statut": "fait",
+      "fichier": "partie-013-jev-seed6256174.jsonl",
+      "coutUsd": 0.021844284000000002,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 34486
+    },
+    "14": {
+      "statut": "fait",
+      "fichier": "partie-014-jev-seed6264093.jsonl",
+      "coutUsd": 0.0041405700000000005,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 10890
+    },
+    "15": {
+      "statut": "fait",
+      "fichier": "partie-015-jev-seed6272012.jsonl",
+      "coutUsd": 0.019335246000000004,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 32606
+    },
+    "16": {
+      "statut": "fait",
+      "fichier": "partie-016-jev-seed6279931.jsonl",
+      "coutUsd": 0.020794368000000004,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 32639
+    },
+    "17": {
+      "statut": "fait",
+      "fichier": "partie-017-controle-seed6261146.jsonl",
+      "coutUsd": 0,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 4047
+    },
+    "18": {
+      "statut": "fait",
+      "fichier": "partie-018-controle-seed6269065.jsonl",
+      "coutUsd": 0,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 3693
+    },
+    "19": {
+      "statut": "fait",
+      "fichier": "partie-019-controle-seed6276984.jsonl",
+      "coutUsd": 0,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 3840
+    },
+    "20": {
+      "statut": "fait",
+      "fichier": "partie-020-controle-seed6284903.jsonl",
+      "coutUsd": 0,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 3437
+    },
+    "21": {
+      "statut": "fait",
+      "fichier": "partie-021-controle-seed6292822.jsonl",
+      "coutUsd": 0,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 2706
+    },
+    "22": {
+      "statut": "fait",
+      "fichier": "partie-022-controle-seed6300741.jsonl",
+      "coutUsd": 0,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 3907
+    }
+  }
+}

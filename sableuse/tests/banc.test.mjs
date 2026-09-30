@@ -101,4 +101,27 @@ describe('banc de calibrage (faux client)', () => {
     expect(rapport).toContain('1 replis / 1 appels');
     expect(rapport).toContain('0.0000'); // détail coût
   });
+
+  it('D1 banc-suivi : siegeJev pilote le BON siège (4), et siegeJev 2 = comportement historique', async () => {
+    const dirSiege = join(mkdtempSync(join(tmpdir(), 'banc-siege-')), 'banc-s');
+    mkdirSync(join(dirSiege, 'journaux'), { recursive: true });
+    const civs = { p1: 'egypte', p2: 'rome', p3: 'chine', p4: 'zoulous', p5: 'mongolie' };
+    const parties = [
+      { idx: 1, seed: 42, controle: false, siegeJev: 4, civs },
+      { idx: 2, seed: 43, controle: false, siegeJev: 2, civs },
+    ];
+    writeFileSync(join(dirSiege, 'plan.json'), JSON.stringify({ planSeed: 2, nJev: 2, nControle: 0, playerCount: 5, plafondTours: 6, parties }));
+    writeFileSync(join(dirSiege, 'etat.json'), JSON.stringify({ parties: {} }));
+    execFileSync('node', ['--import', 'tsx', 'src/banc.mjs', '--plan', dirSiege, '--faux', '--base', '0'], { cwd: racine, timeout: 300_000 });
+    const etatBanc = JSON.parse(readFileSync(join(dirSiege, 'etat.json'), 'utf8'));
+    expect(etatBanc.parties[1].statut).toBe('fait');
+    expect(etatBanc.parties[2].statut).toBe('fait');
+    for (const idx of [1, 2]) {
+      const fichier = etatBanc.parties[idx].fichier;
+      const meta = JSON.parse(readFileSync(join(dirSiege, 'journaux', fichier), 'utf8').split('\n')[0]);
+      const pilotes = Object.fromEntries(meta.joueurs.map((j) => [j.id, j.pilote]));
+      expect(pilotes[`p${parties[idx - 1].siegeJev}`]).toBe('jev');
+      expect(Object.values(pilotes).filter((x) => x === 'jev')).toHaveLength(1);
+    }
+  }, 400_000);
 });

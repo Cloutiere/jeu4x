@@ -103,8 +103,9 @@ describe('V4 D1 — règle de conversion (regle:conversion)', () => {
 });
 
 describe('V4 D2 — facteur de maturité du gainNet', () => {
-  it('maturité 0,5 : les couronnes pèsent la moitié, distance et risque inchangés', async () => {
+  it('maturité (facteur gelé banc-suivi 29/09) : les couronnes pèsent facteurMaturite, distance et risque inchangés', async () => {
     const { gainNetSite, configCondense } = await import('../src/condense.mjs');
+    const facteur = configCondense.gainSite.facteurMaturite;
     const map = {};
     for (let dq = -5; dq <= 5; dq++)
       for (let dr = -5; dr <= 5; dr++) map[`${dq},${dr}`] = { terrain: 'plaine' };
@@ -122,12 +123,12 @@ describe('V4 D2 — facteur de maturité du gainNet', () => {
     configCondense.gainSite.actifMaturite = true;
     // avec = 0,5×positif − distance×2 ; sans = positif − distance×2 (ici distance 0)
     const positif = sans + configCondense.gainSite.penaliteDistance * site.distance;
-    expect(avec).toBe(Math.round(0.5 * positif * 10) / 10);
+    expect(avec).toBe(Math.round(facteur * positif * 10) / 10);
     // l'ordre est conservé : un bon site reste motivant (> 0) après maturité
     expect(avec).toBeGreaterThan(0);
     site.distance = 2;
     const avecDist = gainNetSite(filtre, 'p2', site);
-    expect(avecDist).toBe(avec - configCondense.gainSite.penaliteDistance * 2);
+    expect(avecDist).toBe(Math.round((avec - configCondense.gainSite.penaliteDistance * 2) * 10) / 10);
   });
 
   it('le condensé expose l\'orientation de conversion de chaque ville', async () => {

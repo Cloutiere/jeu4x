@@ -57,7 +57,7 @@ export const configCondense = {
      * chiffrent l'écart). Les rendements des couronnes sont pondérés par la
      * population attendue à court terme — facteur éditable, GELÉ avant le
      * banc 3 ; cible : prédiction vs réel à ±50 %. */
-    facteurMaturite: 0.5,
+    facteurMaturite: 0.65,
     actifMaturite: true,
   },
 };

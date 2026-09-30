@@ -1,0 +1,28 @@
+{
+  "parties": {
+    "1": {
+      "statut": "fait",
+      "fichier": "partie-001-jev-seed1475946.jsonl",
+      "coutUsd": 0.021919758000000004,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 29412
+    },
+    "2": {
+      "statut": "fait",
+      "fichier": "partie-002-jev-seed1483865.jsonl",
+      "coutUsd": 0.022642158000000003,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 31123
+    },
+    "3": {
+      "statut": "fait",
+      "fichier": "partie-003-jev-seed1491784.jsonl",
+      "coutUsd": 0.019284300000000004,
+      "tours": 151,
+      "gagnant": null,
+      "ms": 30710
+    }
+  }
+}

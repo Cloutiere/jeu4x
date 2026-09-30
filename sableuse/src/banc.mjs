@@ -149,6 +149,10 @@ async function executer() {
           playerCount: plan.playerCount,
           civSetup,
           sansJev: p.controle,
+          // D1 banc-suivi : le harnais consomme enfin la rotation des sièges
+          // du plan (V4 §5 — Jev jouait toujours p2). siegeJev null
+          // (contrôle) → défaut harnais inchangé (rétro-compat bancs).
+          engineJev: p.siegeJev ? `p${p.siegeJev}` : undefined,
         });
         const fin = { statut: coupeParBudget ? 'coupe-budget' : 'fait', fichier: basename(fichier), coutUsd: journal.coutUsd(), tours: etat.turn, gagnant: etat.winner, ms: Date.now() - t0 };
         etatBanc.parties[p.idx] = fin;
