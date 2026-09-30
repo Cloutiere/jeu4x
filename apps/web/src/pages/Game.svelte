@@ -317,7 +317,10 @@
   // ---------------------------------------------------------------------
 
   let showIdleDialog = $state(false);
-  let idleUnits = $state<Array<{ id: string; label: string; pos: string }>>([]);
+  // REGLAGES-CALIBRAGE (Erik 29/09) : le menu porte la position des unités
+  // pour Voir (centrage zoom préservé) et l'index courant pour Suivant.
+  let idleUnits = $state<Array<{ id: string; label: string; pos: string; q: number; r: number }>>([]);
+  let idleIndex = $state(0);
   // 7l · C7 · R-130 (rév.) : villes avec une RÉSERVE de marteaux sans projet —
   // le joueur DOIT choisir un projet (dialogue forcé, miroir « unités sans ordre »).
   let salvageCities = $state<Array<{ id: string; amount: number }>>([]);
@@ -372,10 +375,33 @@
     }
     idleUnits = ids.map((id) => {
       const u = v.state!.units[id]!;
-      return { id, label: u.type, pos: `(${u.q},${u.r})` };
+      return { id, label: u.type, pos: `(${u.q},${u.r})`, q: u.q, r: u.r };
     });
+    idleIndex = 0;
     salvageCities = salvage;
     showIdleDialog = true;
+  }
+
+  /**
+   * REGLAGES-CALIBRAGE (Erik 29/09) — boutons Voir / Suivant du menu
+   * « unités sans ordre » : sélectionne l'unité (même pipeline que le clic
+   * carte → panneau unité) et centre l'écran sur sa case via `centerOnHex`
+   * (journal cliquable REPLAY-RESOLUTION) — le zoom courant est PRÉSERVÉ.
+   * Liste recalculée à chaque ouverture (jamais stale) ; unité hors vision
+   * impossible (tout l'empire est visible). Ordre déterministe de la liste
+   * (R-81, `unitsWithoutOrders`).
+   */
+  function voirUniteSansOrdre(index: number): void {
+    const u = idleUnits[index];
+    if (!u) return;
+    idleIndex = index;
+    ui.set({ selectedUnitId: u.id, selectedCityId: null, draft: null });
+    canvasApi?.centerOnHex({ q: u.q, r: u.r });
+  }
+
+  function suivantUniteSansOrdre(): void {
+    if (idleUnits.length === 0) return;
+    voirUniteSansOrdre((idleIndex + 1) % idleUnits.length);
   }
 
   function confirmEndTurn(): void {
@@ -811,10 +837,20 @@
               <h2>Unités sans ordre</h2>
               <p>Ces unités n'ont aucun ordre pour ce tour :</p>
               <ul>
-                {#each idleUnits as u (u.id)}
-                  <li><strong>{u.id}</strong> — {u.label} {u.pos}</li>
+                {#each idleUnits as u, i (u.id)}
+                  <li>
+                    <strong>{u.id}</strong> — {u.label} {u.pos}
+                    <button type="button" onclick={() => voirUniteSansOrdre(i)}>Voir</button>
+                  </li>
                 {/each}
               </ul>
+              {#if idleUnits.length > 1}
+                <p>
+                  <button type="button" class="primary-btn" onclick={suivantUniteSansOrdre}>
+                    Suivant ({idleIndex + 1} / {idleUnits.length})
+                  </button>
+                </p>
+              {/if}
             {/if}
             {#if salvageCities.length > 0}
               <h2>Récupération de marteaux (7l · C7)</h2>

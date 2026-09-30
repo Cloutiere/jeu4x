@@ -90,6 +90,10 @@ export interface TerrainData {
   /** Hook naval : présent UNIQUEMENT sur les terrains d'eau (Mer = coast,
    *  Océan = ocean) — sert aussi de prédicat « est de l'eau » (data-driven). */
   navalAccess?: NavalAccess;
+  /** Réglage calibrage Erik 29/09 : bonus de VISION accordé aux unités
+   *  TERRESTRES non embarquées positionnées sur ce terrain (colline : +1).
+   *  Absent = aucun bonus. Ni barbares, ni embarquées, ni villes, ni aériens. */
+  bonusVision?: number;
 }
 
 /** R-66 · Bâtiment d'amélioration des terrains (data-driven : buildings.json).

@@ -37,6 +37,7 @@
     "name": "Colline",
     "defenseBonus": 0.5,
     "passable": true,
+    "bonusVision": 1,
     "yields": {
       "food": 0,
       "production": 1,

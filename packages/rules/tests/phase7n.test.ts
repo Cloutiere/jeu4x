@@ -34,6 +34,7 @@ import { applySetGovernment } from '../src/governments.js';
 import { rushBuyCostOf } from '../src/economyOr.js';
 import { UNIT_TYPES, registerTestUnitType } from '../src/data.js';
 import { canSetProduction, isProducible, isUnitObsolete, unitReplacementFor } from '../src/techs.js';
+import { GP_CLASSES } from '../src/culture.js';
 import { tileYield } from '../src/economy.js';
 import { createInitialState, loadBuiltinMapSync } from '../src/map.js';
 import { getFilteredState } from '../src/fog.js';
@@ -729,14 +730,16 @@ describe('CIV-CAPITALE-FONDEE · Bonus capital-dépendants appliqués à la FOND
     expect(a.events).toContainEqual(expect.objectContaining({ type: 'WonderCompleted', cityId: capitalA.id, wonder: capitalA.wonders[0] }));
   });
 
-  it('Amérique fonde sa capitale → GP gratuit posé (classe déterministe, rotation index 0)', () => {
+  it('Amérique fonde sa capitale → GP gratuit posé (classe TIRAGE SEEDÉ, même seed = même classe)', () => {
     const { newState, events } = found('amerique');
     const capital = foundedCity(newState);
     const gps = Object.values(newState.units).filter((u) => u.owner === 'p1' && UNIT_TYPES[u.type]!.greatPerson);
     expect(gps).toHaveLength(1);
-    // Même seed → même classe que le setup (rotation pure, index 0).
-    const setupGp = createInitialState(loadBuiltinMapSync('pedagogique-40'), 1234, { p1: { civId: 'egypte' }, p2: { civId: 'amerique' } });
+    // Réglage calibrage Erik 29/09 : tirage seedé uniforme sur les 6 classes —
+    // même seed (fondation ET setup au même rngSeed 42) → même classe.
+    const setupGp = createInitialState(loadBuiltinMapSync('pedagogique-40'), 42, { p1: { civId: 'egypte' }, p2: { civId: 'amerique' } });
     const setupGpType = Object.values(setupGp.units).find((u) => u.owner === 'p2' && UNIT_TYPES[u.type]!.greatPerson)!.type;
+    expect(GP_CLASSES).toContain(gps[0]!.type);
     expect(gps[0]!.type).toBe(setupGpType);
     expect(events).toContainEqual(expect.objectContaining({ type: 'GreatPersonSpawned', cityId: capital.id, owner: 'p1' }));
   });

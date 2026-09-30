@@ -13,13 +13,21 @@
  * le PREMIER élément du flux salé — même seed ⇒ même merveille, et le RNG de
  * résolution n'est PAS consommé (miroir artefacts R-151). Si la carte porte
  * déjà une Égypte préfabriquée, les deux tirent le même élément (documenté).
+ *
+ * Réglage calibrage Erik 29/09 : le GP gratuit Amérique n'est plus rotation
+ * index 0 (toujours artiste_penseur) mais un TIRAGE SEEDÉ UNIFORME sur les 6
+ * classes — RNG dédié `rngSeed ^ AMERICA_GP_SEED_SALT` (jamais le RNG de
+ * résolution), même seed ⇒ même classe. Octroi hors canal culture : SANS
+ * jalon culturel ; compte `greatPersonsObtained` / `greatPersonsByType` mis à
+ * jour comme pour tout GP d'octroi (miroir firstDiscovery — R-127 reste
+ * abrogée : octroi, pas ciblage).
  */
 import type { City, GameState, PlayerId } from './state.js';
 import type { GameEvent } from './events.js';
 import type { SeededRng } from './rng.js';
 import { createRng } from './rng.js';
 import { CIVILIZATIONS, civStartBuildings, civStartsAncientWonder, civStartsFreeGp, civIdOf } from './civilizations.js';
-import { greatPersonRotationClass } from './culture.js';
+import { GP_CLASSES } from './culture.js';
 import { TERRAINS, unitType } from './data.js';
 import { hexesWithinRadius, tileKeyOf } from './hex.js';
 import { nextId } from './state.js';
@@ -31,6 +39,10 @@ type GameEventInput = WithoutSeq<GameEvent>;
 /** Salt du RNG dédié au tirage de la Merveille Antique Égypte (setup ET
  *  fondation — valeur historique de map.ts, inchangée). */
 export const EGYPT_WONDER_SEED_SALT = 0x2a7f3b91;
+
+/** Salt du RNG dédié au tirage de classe du GP gratuit Amérique (réglage
+ *  calibrage Erik 29/09 — miroir Égypte/artefacts : seed ^ sel). */
+export const AMERICA_GP_SEED_SALT = 0x3f19c27a;
 
 export interface CapitalBonusOptions {
   /** RNG Égypte PARTAGÉ (setup : un seul flux pour toutes les Égyptes, dans
@@ -79,9 +91,11 @@ export function applyCapitalStartBonuses(st: GameState, playerId: PlayerId, city
   }
 
   // 3. Personnage illustre gratuit (Amérique) — posé sur la capitale, sinon
-  //    adjacente libre et praticable ; classe rotation index 0.
+  //    adjacente libre et praticable ; classe TIRÉE AU SORT seedé uniforme sur
+  //    les 6 (réglage calibrage Erik 29/09 — RNG dédié, même seed ⇒ même classe).
   if (civStartsFreeGp(civId) && !Object.values(st.units).some((u) => u.owner === playerId && unitType(u.type).greatPerson)) {
-    const gpType = greatPersonRotationClass(0);
+    const gpRng = createRng((st.rngSeed ^ AMERICA_GP_SEED_SALT) >>> 0);
+    const gpType = GP_CLASSES[gpRng.nextInt(GP_CLASSES.length)]!;
     const stats = unitType(gpType);
     const occupied = Object.values(st.units).some((u) => u.q === at.q && u.r === at.r);
     const spot = !occupied
@@ -111,6 +125,14 @@ export function applyCapitalStartBonuses(st: GameState, playerId: PlayerId, city
         stabilized: false, // ENGAGEMENT - R-173
       };
       emit({ type: 'GreatPersonSpawned', unitId: gpId, unitType: gpType, cityId: city.id, owner: playerId, at });
+      // Compteur d'octroi, miroir firstDiscovery (consomme une figure de la
+      // classe — chaque figure ne sort qu'une fois). SANS jalon culturel
+      // (hors canal culture) ; R-127 reste abrogée (octroi, pas ciblage).
+      const player = st.players[playerId];
+      if (player) {
+        player.greatPersonsByType[gpType] = (player.greatPersonsByType[gpType] ?? 0) + 1;
+        player.greatPersonsObtained += 1;
+      }
     }
   }
 }

@@ -9,18 +9,33 @@
  */
 import { hexesWithinRadius, tileKeyOf } from './hex.js';
 import type { GameState, PlayerId, TileKey } from './state.js';
-import { RESOURCES, unitType } from './data.js';
+import { isBarbarian } from './state.js';
+import { RESOURCES, TERRAINS, unitType } from './data.js';
 import { filteredResource } from './resources.js';
 import { VISION_RADIUS_CITY } from './constants.js';
 import { eventRefs } from './events.js';
 import type { GameEvent } from './events.js';
 
-/** Cases actuellement visibles par le joueur (unités + villes amies). */
+/** Cases actuellement visibles par le joueur (unités + villes amies).
+ *  Réglage calibrage Erik 29/09 : bonus de vision du TERRAIN de la case
+ *  (`TerrainData.bonusVision` — colline +1) pour les unités TERRESTRES non
+ *  embarquées (transport naval = vision du navire) ; jamais pour les
+ *  barbares (leurs spawns ne changent pas). */
+export function visionRadiusOf(state: GameState, unit: { type: string; q: number; r: number; aboard: string | null; owner: string }): number {
+  const stats = unitType(unit.type);
+  let radius = stats.visionRadius;
+  if (!stats.aquatic && !stats.aerial && unit.aboard === null && !isBarbarian(unit.owner)) {
+    const tile = state.map[tileKeyOf(unit)];
+    if (tile) radius += TERRAINS[tile.terrain]?.bonusVision ?? 0;
+  }
+  return radius;
+}
+
 export function computeVisibleTiles(state: GameState, playerId: PlayerId): Set<TileKey> {
   const visible = new Set<TileKey>();
   for (const unit of Object.values(state.units)) {
     if (unit.owner !== playerId) continue;
-    for (const h of hexesWithinRadius(unit, unitType(unit.type).visionRadius)) {
+    for (const h of hexesWithinRadius(unit, visionRadiusOf(state, unit))) {
       visible.add(tileKeyOf(h));
     }
   }
