@@ -37,6 +37,9 @@
   import { contexteMelee, contexteProgrammation } from '../melee.js';
   import type { ContexteMelee } from '../melee.js';
   import { get } from 'svelte/store';
+  // FULLSCREEN-PERF · L2 option (c) : plafond de DPR « Qualité de rendu »
+  // (curseur du calque dev ; 'auto' = PLEIN-ECRAN-NET inchangé).
+  import { dprEffectif, qualiteRendu } from '../qualiteRendu.js';
   // CALIBRATION-UNITES : hauteur des unités seules (calibre guerrier Recraft),
   // constantes 🔶 éditables à l'œil dans calibration-unites.ts.
   import { PIEDS_Y, echelleUnite, hauteurUnitePx, AJUST_HAUTEUR } from './calibration-unites.js';
@@ -338,7 +341,8 @@
     vh = h;
     // PLEIN-ÉCRAN NET : même logique que le ResizeObserver — la résolution
     // suit le DPR effectif (le zoom letterbox de la coquille le change).
-    app?.renderer.resize(w, h, Math.min(4, window.devicePixelRatio || 1));
+    // FULLSCREEN-PERF (c) : plafonné par le curseur « Qualité de rendu ».
+    app?.renderer.resize(w, h, dprEffectif(get(qualiteRendu), window.devicePixelRatio || 1));
     stage3d?.resize(w, h);
   }
 
@@ -2109,13 +2113,13 @@
   // On relit donc le DPR à chaque frame ; s'il bouge, on repasse la
   // résolution au renderer (même borne 2 que l'init) — lecture d'un champ à
   // la frame, coût négligeable.
-  let dernierDpr = Math.min(4, window.devicePixelRatio || 1);
+  let dernierDpr = dprEffectif(get(qualiteRendu), window.devicePixelRatio || 1);
   /** D4d : DPR changé PENDANT une animation de vue ville — resize reporté. */
   let dprReporte: number | null = null;
 
   function suivreDpr(): void {
     if (!app) return;
-    const dpr = Math.min(4, window.devicePixelRatio || 1);
+    const dpr = dprEffectif(get(qualiteRendu), window.devicePixelRatio || 1);
     if (dpr === dernierDpr) return;
     dernierDpr = dpr;
     // D4d : jamais de resize de framebuffer dans une frame d'animation de
@@ -3267,7 +3271,7 @@
     await application.init({
       ...(mode3d ? { backgroundAlpha: 0 } : { background: '#141a20' }),
       antialias: true,
-      resolution: Math.min(4, window.devicePixelRatio || 1),
+      resolution: dprEffectif(get(qualiteRendu), window.devicePixelRatio || 1),
       autoDensity: true,
       width: host.clientWidth || 800,
       height: host.clientHeight || 600,
@@ -3482,7 +3486,7 @@
       // PLEIN-ÉCRAN NET : au resize (navigateur), la résolution suit le DPR
       // effectif — le cas de la coquille (zoom letterbox sans resize) est
       // couvert par suivreDpr() dans le ticker.
-      const dpr = Math.min(4, window.devicePixelRatio || 1);
+      const dpr = dprEffectif(get(qualiteRendu), window.devicePixelRatio || 1);
       app.renderer.resize(vw, vh, dpr);
       marqueurs3d?.resize(vw, vh);
       if (stage3d) {

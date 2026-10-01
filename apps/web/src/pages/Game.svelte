@@ -32,6 +32,8 @@
   import RapportCombat from '../components/RapportCombat.svelte';
   // FULLSCREEN-PERF · L0 : mini HUD perf (FPS + résolution rendue), calque dev seulement.
   import HudPerf from '../components/HudPerf.svelte';
+  // FULLSCREEN-PERF · L2 (c) : curseur « Qualité de rendu » (calque dev).
+  import { QUALITES, changerQualiteRendu, qualiteDepuisValeur, qualiteRendu } from '../lib/qualiteRendu.js';
   import { createGameClient } from '../lib/gameClient.js';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { createUiState, selectNothing, createVueVille } from '../lib/render/ui.js';
@@ -989,6 +991,16 @@
             </button>
           {/if}
           {#if devMode}<a href={`#/debug/${code}`}>Debug</a>{/if}
+          <!-- FULLSCREEN-PERF · L2 (c) : curseur « Qualité de rendu » —
+               plafond du DPR effectif ('auto' = PLEIN-ECRAN-NET inchangé). -->
+          <label class="qualite" title="Qualité de rendu : plafond de la résolution (DPR) en plein écran. Auto = netteté maximale (comportement actuel) ; ×1/×1,5/×2 = plus fluide, image légèrement agrandie. Choix mémorisé.">
+            Qualité
+            <select value={String($qualiteRendu)} onchange={(e) => changerQualiteRendu(qualiteDepuisValeur(e.currentTarget.value))}>
+              {#each QUALITES as q}
+                <option value={String(q)}>{q === 'auto' ? 'Auto' : `×${q}`}</option>
+              {/each}
+            </select>
+          </label>
           <!-- FULLSCREEN-PERF · L0 : HUD perf (FPS + résolution rendue). -->
           <HudPerf />
         {/if}
@@ -1355,6 +1367,12 @@
     font-family: var(--serif-or, Georgia, serif); font-size: 0.62rem; letter-spacing: 0.18em;
     color: var(--or, #c9a227); border: 1px solid var(--or-sombre, #8a6d1a);
     border-radius: 3px; padding: 0.05rem 0.35rem;
+  }
+  /* FULLSCREEN-PERF · L2 (c) — curseur Qualité de rendu (calque dev). */
+  .qualite { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--texte-doux, #b6ad93); }
+  .qualite select {
+    background: #1f2a33; color: var(--texte, #e9e4d3); border: 1px solid #3c4a55;
+    border-radius: 6px; padding: 0.05rem 0.3rem; font: inherit; cursor: pointer;
   }
   /* D1 — engrenage discret (liseré or). */
   .engrenage {

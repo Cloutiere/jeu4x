@@ -1,6 +1,6 @@
-# REPORT-FULLSCREEN-PERF — Lag en plein écran F11 : mesures, verdict, arrêt pour approbation
+# REPORT-FULLSCREEN-PERF — Lag en plein écran F11 : mesures, verdict, option (c) livrée
 
-Mission : `HANDOFF-FULLSCREEN-PERF.md` (demande Erik 02/10). Client seul, zéro changement moteur/serveur/protocole. **Arrêt L4 : le correctif touche à la netteté → décision d'Erik requise.**
+Mission : `HANDOFF-FULLSCREEN-PERF.md` (demande Erik 02/10). Client seul, zéro changement moteur/serveur/protocole. Diagnostic livré en arrêt L4 ; **Erik a choisi l'option (c) — livrée le 01/10**.
 
 ## 1. Ce qui est livré (instrumentation L0, pur ajout, commitée)
 
@@ -37,18 +37,20 @@ Détail complet : `dev-logs/perf-fullscreen/` (campagne 1 + bissectrice, avec le
 
 **En un mot : le F11 rend en 4K native sur un GPU qui décroche en 4K dans les pires cas ; c'est un compromis netteté/fluidité à re-trancher.**
 
-## 5. ARRÊT L4 — options (aucune appliquée)
+## 5. Option (c) LIVRÉE (feu vert Erik 01/10) — « Qualité de rendu » dans le calque dev
 
-1. **(c) — recommandé — « Qualité de rendu » data-driven dans le calque dev** : curseur/bascule plafonnant le DPR effectif (1× / 1,5× / 2× / auto = statu quo). Défaut = statu quo (PLEIN-ECRAN-NET intact, zéro perte tant qu'Erik n'y touche pas) ; Erik ajuste en jeu chez lui, F11, avec le HUD perf visible pour trancher à l'œil. Mémorisé (localStorage) comme `calque-dev`.
-2. **(a) plafond dur 1920×1080 en plein écran** (upscale CSS) : fluide garanti, mais réintroduit le flou que PLEIN-ECRAN-NET avait éliminé — c'est LE trade-off qu'Erik avait tranché dans l'autre sens le 20/09.
-3. **(b) plafond intermédiaire (2560 de large)** : compromis fixe, même nature que (a).
-4. **(d) antialias conditionné** : désactiver MSAA au-delà d'un certain backing store (le MSAA ×4 multiplie le coût de remplissage ; à 4K son apport visuel est marginal sur des tuiles de 224×256 px texturées). Gain de fill sans baisser la résolution — mais à tester à l'œil (liserés sur contours).
+- **Curseur** dans la barre DEV (Ctrl+Alt+D) : `Auto` (défaut = PLEIN-ECRAN-NET inchangé) / `×1` / `×1.5` / `×2` = plafond du DPR effectif (backing store = CSS × plafond, l'image est agrandie par le navigateur). Mémorisé par machine (localStorage `qualite-rendu`).
+- Implémentation : `lib/qualiteRendu.ts` (store + `dprEffectif()` pur, testé) ; les 5 sites `min(4, dpr)` de GameCanvas (init, `suivreDpr`, ResizeObserver, `redimensionnerRenderer`) passent par `dprEffectif(get(qualiteRendu), dpr)` — le changement de curseur est appliqué À CHAUD par le chemin `suivreDpr` existant (resize + re-tuiles, report D4d pendant une animation de vue ville). La borne 4 reste le plafond en `auto`.
+- E2e réel : ×1 → backing 2487×1566 → 1550×976 à la volée, retour Auto → résolution réelle ; choix persisté. Captures `dev-logs/captures-fullscreen-perf/08-curseur-qualite-x1.png` / `09-...-auto.png` (locales).
+- Suites : web 467/467 (6 nouveaux tests `qualite-rendu.test.ts`), svelte-check 0 erreur.
+
+Les options (a) plafond 1080p, (b) plafond 2560 et (d) MSAA conditionné ne sont PAS implémentées — (c) les englobe fonctionnellement (Erik ajuste en jeu). Un futur chantier « options graphiques » de distribution (menu public + détection de la machine) réutilisera ce mécanisme.
 
 ## 6. Ce qu'Erik valide en ligne (F11 chez lui)
 
-1. `pnpm -C apps/web dev` (ou coquille) → partie → **Ctrl+Alt+D** → le HUD perf s'affiche dans la barre DEV.
-2. F11 → lire FPS + résolution rendue en plein écran ; me rapporter les deux lignes (fenêtré / F11) si les chiffres diffèrent des mesures ci-dessus.
-3. Choisir une option du §5 — j'implémente à la suite.
+1. `pnpm -C apps/web dev` (ou coquille) → partie → **Ctrl+Alt+D** → le HUD perf + le curseur Qualité s'affichent dans la barre DEV.
+2. F11 → si le lag apparaît, passer le curseur sur ×1.5 puis ×1 et garder ce qui est fluide À L'ŒIL (le HUD montre la résolution rendue).
+3. Ajustements/wording du curseur : me le dire, c'est une ligne.
 
 ## 7. 🔶 Ouverts
 
