@@ -1,8 +1,11 @@
 /**
- * Phase 6b L5 — Propriétés transverses du générateur procédural (fast-check).
+ * Phase 6b L5 — Propriétés transverses du générateur procédural (corpus fixe).
  *
- * Le handoff 6b exige 50+ seeds sans carte invalide : on balaye 60 graines
- * arbitraires uint32 et on vérifie à chaque fois (R-80/R-101..R-105) :
+ * CI-FLAKY (01/10) : le balayage fast-check à graines ALÉATOIRES rendait la
+ * CI intermittente (échec « villages 10 < 12 » sur ~0,1 % des seeds — seed
+ * 3714012 découverte par le banc devtmp/banc-ci-flaky.mjs, 1000 seeds). Le
+ * test balaye désormais un corpus FIXE de graines uint32 et vérifie à chaque
+ * fois (R-80/R-101..R-105) :
  *  - la carte passe la validation intégrale `parseMap` (porte commune aux
  *    cartes préfabriquées — aucun changement du loader) ;
  *  - spawns symétriques par miroir (rotation 180°) et à distance ≥ 12 ;
@@ -12,7 +15,6 @@
  *    réglementaire des spawns.
  */
 import { describe, it, expect } from 'vitest';
-import fc from 'fast-check';
 import {
   DEFAULT_PROGEN_SETTINGS,
   generateProceduralMap,
@@ -25,14 +27,20 @@ import { TERRAINS } from '../src/data.js';
 
 const W = 40;
 const H = 40;
-const MIN_RUNS = 60; // handoff : 50+ seeds
+/** Corpus FIXE (CI-FLAKY 01/10) : 60 graines arbitraires + les graines
+ *  historiquement fautives en non-régression (3714012 = « villages 10 < 12 »
+ *  découvert par le banc devtmp/banc-ci-flaky.mjs). Zéro RNG non contrôlé :
+ *  un échec CI futur est un vrai bug reproductible. */
+const SEEDS: number[] = [
+    ...Array.from({ length: 60 }, (_, i) => (i * 2654435761) >>> 0),
+    3714012, // CI-FLAKY : « villages 10 < 12 » (épuisement glouton, pré-correctif)
+  ];
 
-describe('Phase 6b · Propriétés du générateur procédural (fast-check, 60+ seeds)', () => {
+describe('Phase 6b · Propriétés du générateur procédural (corpus fixe, 61 seeds)', () => {
   // timeout porté à 30 s (ALIGNEMENT-CROISSANCE 13/09) : 60+ seeds dépassent
   // le défaut de 5 s quand la suite tourne en parallèle — échec flaky observé.
-  it('R-101..R-105 : toute graine uint32 produit une carte valide, symétrique, connectée et équitable', { timeout: 30_000 }, () => {
-    const property = fc.property(fc.uint32Array({ minLength: 1, maxLength: 1 }), (seeds) => {
-      const seed = seeds[0]!;
+  it('R-101..R-105 : toute graine du corpus produit une carte valide, symétrique, connectée et équitable', { timeout: 30_000 }, () => {
+    for (const seed of SEEDS) {
       const { map, report } = generateProceduralMap(seed);
       const s = resolveProgenSettings();
 
@@ -114,7 +122,6 @@ describe('Phase 6b · Propriétés du générateur procédural (fast-check, 60+ 
           expect(hexDistance(h, sp.capital)).toBeGreaterThanOrEqual(s.minHutDistance);
         }
       }
-    });
-    fc.assert(property, { numRuns: MIN_RUNS, verbose: true });
+    }
   });
 });

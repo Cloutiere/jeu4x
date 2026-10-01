@@ -19,6 +19,7 @@ import type { Hex } from '../hex.js';
 import type { MapResource } from '../map.js';
 import type { ResourceId, TerrainId } from '../types.js';
 import type { SeededRng } from '../rng.js';
+import { createRng } from '../rng.js';
 import { ProgenPlacementError } from './mirror.js';
 import type { ProgenSettings } from './settings.js';
 
@@ -236,17 +237,37 @@ function entityCandidates(input: EntityPlacementInput): Hex[] {
   return out.sort(compareHex);
 }
 
-/** Pose `count` entités (villages OU huttes) uniformément parmi les cases éligibles. */
+/** Pose `count` entités (villages OU huttes) uniformément parmi les cases éligibles.
+ *  CI-FLAKY (01/10) : le tirage glouton peut s'épuiser AVANT `count` sur de
+ *  rares grilles (ex. seed 3714012, « villages 10 < 12 » — chaque pose retire
+ *  ses voisines à spacing `minSame` et la demi-carte archipel offre peu de
+ *  cases) ALORS QU'UNE CONFIGURATION COMPLÈTE EXISTE (vérifié par
+ *  backtracking, devtmp/diag-faisabilite.mjs). Relances déterministes au RNG
+ *  DÉRIVÉ de l'état courant du flux (même seed → mêmes relances → même carte)
+ *  ; une graine qui réussit du premier coup consomme exactement le même flux
+ *  RNG qu'avant (cartes inchangées). Aucune valeur de règle touchée. */
 export function placeEntities(input: EntityPlacementInput): Hex[] {
+  const ancre = input.same.length;
   const placed: Hex[] = [];
+  placeEntitiesUneFois(input, input.rng, placed);
+  for (let tentative = 1; tentative <= 8 && placed.length < input.count; tentative++) {
+    input.same.length = ancre;
+    placed.length = 0;
+    const rngRelance = createRng((input.rng.state ^ Math.imul(0x9e3779b9, tentative)) >>> 0);
+    placeEntitiesUneFois(input, rngRelance, placed);
+  }
+  return placed;
+}
+
+/** Une passe de placement (glouton uniforme, cas vides = arrêt). */
+function placeEntitiesUneFois(input: EntityPlacementInput, rng: SeededRng, placed: Hex[]): void {
   for (let i = 0; i < input.count; i++) {
     const candidates = entityCandidates(input);
     if (candidates.length === 0) break; // plus de place : posés en nombre moindre (consigné)
-    const hex = candidates[input.rng.nextInt(candidates.length)]!;
+    const hex = candidates[rng.nextInt(candidates.length)]!;
     input.same.push(hex);
     placed.push({ q: hex.q, r: hex.r });
   }
-  return placed;
 }
 
 /**
