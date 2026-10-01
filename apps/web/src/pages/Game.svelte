@@ -41,6 +41,10 @@
   import { replayPair, cloneEtatReplay, appliquerEvenement } from '../lib/replay.js';
   import { config, rendu3dAutorise, bascule3dAutorisee } from '../lib/config.js';
   import GameCanvas from '../lib/render/GameCanvas.svelte';
+  // UI-JEU-T3 : minimap + filtres (panneau au-dessus, façon Civ VI) ; le
+  // bouton « Rendements » du calque dev a MIGRÉ dans le panneau (D4).
+  import Minimap from '../lib/render/Minimap.svelte';
+  import { filtresCarte, cycleRendements } from '../lib/filtresCarte.js';
   import UnitPanel from '../components/UnitPanel.svelte';
   import CityView from '../components/CityView.svelte';
   import ResearchPanel from '../components/ResearchPanel.svelte';
@@ -255,7 +259,7 @@
   // Actions (L3) : décision de clic pure → ordres soumis au serveur.
   // ---------------------------------------------------------------------
 
-  let canvasApi: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void; hexEcran(hex: Hex): { x: number; y: number } | null } | null = $state(null);
+  let canvasApi: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void; hexEcran(hex: Hex): { x: number; y: number } | null; centrerSurMonde(x: number, y: number): void; poseCamera(): { x: number; y: number; scale: number }; dimsVue(): { w: number; h: number }; bornesMonde(): { x: number; y: number; w: number; h: number } } | null = $state(null);
 
   // 7m · R-139 : ciblage d'ICBM — `nukeArmed` vit dans l'UiState (le clic
   // carte produit alors un `nukeTarget`) ; la cible pressentie attend la
@@ -633,12 +637,11 @@
     localStorage.setItem('rendu3d', rendu3d ? '1' : '0');
   }
 
-  let yieldMode = $state<0 | 1 | 2>(0);
-  const showYields = $derived(yieldMode > 0);
-  const hideEntities = $derived(yieldMode === 2);
-  function cycleYields(): void {
-    yieldMode = ((yieldMode + 1) % 3) as 0 | 1 | 2;
-  }
+  // UI-JEU-T3 · D4 : le cycle 3 états (Phase 7b) vit dans le store PERSISTANT
+  // filtresCarte (panneau de minimap) — le bouton du calque dev a disparu,
+  // la fonction est inchangée.
+  const showYields = $derived($filtresCarte.rendements > 0);
+  const hideEntities = $derived($filtresCarte.rendements === 2);
 
   // Phase 7a : menu de choix technologique (R-85).
   let showResearch = $state(false);
@@ -954,14 +957,8 @@
           <span class="net net-{$status}">{$status}</span>
           {#if $view.locked}<span class="chip locked">Verrouillé</span>{/if}
           <button type="button" onclick={() => client.resync()}>Resync</button>
-          <button
-            type="button"
-            class:active-toggle={showYields}
-            title="Rendements N/P/C sur les cases — 3e clic : masquer villes et armées pour les lire (Phase 7b)"
-            onclick={cycleYields}
-          >
-            Rendements{yieldMode === 1 ? ' ✓' : yieldMode === 2 ? ' (seuls)' : ''}
-          </button>
+          <!-- UI-JEU-T3 · D4 : le bouton « Rendements » a migré dans le panneau
+               de filtres au-dessus de la minimap (store persistant filtresCarte). -->
           {#if config.rendu3d}
             <button
               type="button"
@@ -994,6 +991,7 @@
           {playback}
           {showYields}
           {hideEntities}
+          montrerRessources={$filtresCarte.ressources}
           mode3d={rendu3d}
           onAction={handleAction}
           onRightClick={handleRightClick}
@@ -1030,6 +1028,9 @@
               {/if}
             </span>
           </div>
+          <!-- UI-JEU-T3 · D5 : minimap + panneau filtres bas-gauche (façon
+               Civ VI) — masquée en vue ville comme la colonne (D6). -->
+          <Minimap etat={$view.state} myId={$view.playerId} api={canvasApi} />
           <!-- UI-JEU-T1 · D5 : bouton de fin de tour circulaire (bas-droite,
                façon Civ VI). HANG-LOCAL UX (Erik 01/10 · option 1) : le
                bouton reste CLIQUABLE quand un blocage existe — le clic

@@ -99,7 +99,9 @@ describe('UI-JEU-T1 · câblage Game.svelte', () => {
   it('D1 — engrenage + raccourci branchés, éléments dev dans le calque', () => {
     expect(src).toContain('raccourciCalqueDev');
     expect(src).toContain('onclick={basculerCalqueDev}');
-    for (const element of ['← Lobby', 'client.resync()', 'cycleYields', 'État brut (debug)', 'net net-', 'Partie {code}']) {
+    // UI-JEU-T3 · D4 : « Rendements » a migré vers le panneau de minimap
+    // (store persistant filtresCarte — testé par ui-jeu-t3.test.ts).
+    for (const element of ['← Lobby', 'client.resync()', 'cycleRendements', 'État brut (debug)', 'net net-', 'Partie {code}']) {
       expect(src).toContain(element);
     }
     // l'état brut est DANS le calque ({#if $calqueDev} avant <details class="raw">)

@@ -23,7 +23,7 @@
   import { definirPalettesJoueurs, paletteDe } from './accents.js';
   import type { GameTextures } from './textures.js';
   import { HEX_SIZE, hexesInRect, mapBounds, screenToHex, poseVueVillePour, hexSousEcranVueVille, ZOOM_DEPART } from './hexView.js';
-  import type { PoseVueVille } from './hexView.js';
+  import type { PoseVueVille, Rect } from './hexView.js';
   import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
   import type { Point } from './arrows.js';
   import { BADGE_FONDATION, etatFondationColon } from './fondation.js';
@@ -81,7 +81,7 @@
     /** Soumission clavier (Entrée) d'un brouillon — optionnel depuis la soumission auto (Phase 5 L1). */
     onConfirmDraft?(): void;
     onCancelDraft(): void;
-    onReady?(api: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void; hexEcran(hex: Hex): { x: number; y: number } | null }): void;
+    onReady?(api: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void; hexEcran(hex: Hex): { x: number; y: number } | null; centrerSurMonde(x: number, y: number): void; poseCamera(): { x: number; y: number; scale: number }; dimsVue(): { w: number; h: number }; bornesMonde(): Rect }): void;
     /** Signal d'activité du playback (bannière « Relecture » côté page). */
     onPlaybackActive?(active: boolean): void;
     /** Phase 6 L3 : overlay des rendements N/P/C (bouton de bascule). */
@@ -120,6 +120,10 @@
     casesRapport?: Set<string> | null;
     /** RAPPORT-ENGAGEMENT (D1) : ouverture/bascule du rapport sur une case. */
     onRapport?(hex: Hex): void;
+    /** UI-JEU-T3 · D4 : filtre « Ressources » du panneau de minimap — false =
+     *  tuiles-ressources révélées remplacées par la tuile de base À
+     *  L'AFFICHAGE (gameplay/fog intouchés). Défaut true. */
+    montrerRessources?: boolean;
   }
 
   let {
@@ -146,6 +150,7 @@
     onExitReplay,
     casesRapport = null,
     onRapport,
+    montrerRessources = true,
   }: Props = $props();
 
   // La bascule de l'overlay de rendements reconstruit la surcouche ; le
@@ -162,6 +167,12 @@
   $effect(() => {
     void spawnGuarantee;
     overlayDirty = true;
+  });
+  $effect(() => {
+    // UI-JEU-T3 · D4 : bascule du filtre Ressources → invalidation des tuiles
+    // (les sprites tuile-ressource/jetons suivent au prochain rebuild — affichage seul).
+    void montrerRessources;
+    tilesDirty = true;
   });
   $effect(() => {
     entitiesLayer.visible = !hideEntities;
@@ -551,8 +562,10 @@
       // existe, sinon tuile de terrain ; le jeton « ? » reste par-dessus dans
       // tous les cas de non-révélation (D2).
       const inconnue = tile.resource === RESOURCE_UNKNOWN;
+      // UI-JEU-T3 · D4 : filtre Ressources OFF → tuile de base (affichage seul) ;
+      // la brume « cacher » (inconnue) et les jetons hors table suivent le même filtre.
       const resId =
-        tile.resource && !inconnue && textures.tuilesRessources[tile.resource]
+        montrerRessources && tile.resource && !inconnue && textures.tuilesRessources[tile.resource]
           ? tile.resource
           : null;
       const textureTuile = resId
@@ -585,7 +598,7 @@
       // affichée (resId non nul) ni sur la brume « cacher » (inconnue —
       // retour Erik 27/09 : la brume SEULE signale la présence, retour Erik).
       // Jeton réservé aux ressources révélées SANS art (ressource hors table).
-      if (tile.resource && !resId && !inconnue && textures.resources[tile.resource]) {
+      if (montrerRessources && tile.resource && !resId && !inconnue && textures.resources[tile.resource]) {
         wantedResources.add(key);
         let res = resourceSprites.get(key);
         if (!res) {
@@ -3193,6 +3206,25 @@
     return { x: p.x * pose.scale + pose.x, y: p.y * pose.scale + pose.y };
   }
 
+  // UI-JEU-T3 · D3 : clic/drag sur la minimap → recentrage caméra au point
+  // MONDE (zoom inchangé). API minimap (pose/dimensions/bornes) pour le rect
+  // de caméra et la conversion inverse.
+  function centrerSurMonde(worldX: number, worldY: number): void {
+    if (!app) return;
+    camera.centerOn(worldX, worldY, vw, vh);
+    camera.clamp(bounds, vw, vh);
+    cameraChanged = true;
+  }
+  function poseCamera(): { x: number; y: number; scale: number } {
+    return { x: camera.x, y: camera.y, scale: camera.scale };
+  }
+  function dimsVue(): { w: number; h: number } {
+    return { w: vw, h: vh };
+  }
+  function bornesMonde(): Rect {
+    return bounds;
+  }
+
   // ---------------------------------------------------------------------
   // Cycle de vie
   // ---------------------------------------------------------------------
@@ -3482,7 +3514,7 @@
     unsubscribes.push(client.view.subscribe(onNewView));
     unsubscribes.push(ui.subscribe(onNewUi));
     maybeCenter();
-    onReady?.({ centerOnHex, centerOnUnit, hexEcran });
+    onReady?.({ centerOnHex, centerOnUnit, hexEcran, centrerSurMonde, poseCamera, dimsVue, bornesMonde });
     // Debug console (dev uniquement) : état interne inspectable via la console.
     (window as unknown as Record<string, unknown>).__gameCanvas = {
       /** App Pixi (debug : inspection de la scène). */
