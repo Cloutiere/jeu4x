@@ -31,8 +31,26 @@ export type Order =
   /** Fortification permanente (R-33) — non consommé, annulé par tout autre ordre. */
   | { type: 'Fortify'; unitId: UnitId }
   /** File de production d'une ville (R-62) — progression conservée. Items :
-   *  unités ET bâtiments (R-66, Phase 6). */
+   *  unités ET bâtiments (R-66, Phase 6). MENU-VILLE-QUEUE · D2 : forme
+   *  HISTORIQUE conservée pour la compat (bot) — remplace la TÊTE et vide
+   *  la file ; l'UI programme via les trois ordres de file ci-dessous. */
   | { type: 'SetProduction'; cityId: CityId; item: ProductionItem }
+  /** MENU-VILLE-QUEUE · D1/D2 : ajoute un item EN QUEUE de file (profondeur
+   *  FILE_PRODUCTION_PROFONDEUR, tête comprise — au-delà l'ordre est ignoré).
+   *  Ville sans production : l'item devient la TÊTE (progression 0). La
+   *  validité métier (coût, tech, coastal, unicité merveille) est re-vérifiée
+   *  par le moteur à la résolution. Pas de dédoublonnage par sujet (plusieurs
+   *  QueueProduction par ville et par tour — miroir SetWorkedTile). */
+  | { type: 'QueueProduction'; cityId: CityId; item: ProductionItem }
+  /** MENU-VILLE-QUEUE · D1 : retire l'item d'indice `index` de la file
+   *  AFFICHÉE (0 = tête, 1.. = queue). Retirer la TÊTE entamée rend ses
+   *  marteaux à la réserve R-130 (`pendingSalvage`) et fait remonter l'item
+   *  suivant. Indice hors file : ordre ignoré. */
+  | { type: 'RemoveFromQueue'; cityId: CityId; index: number }
+  /** MENU-VILLE-QUEUE · D1 : déplace l'item d'indice `from` vers `to`
+   *  (indices de la file AFFICHÉE, tête comprise — miroir du panneau).
+   *  Indices invalides ou identiques : ordre ignoré. */
+  | { type: 'ReorderQueue'; cityId: CityId; from: number; to: number }
   /** R-60 (Phase 6) : assigne un citoyen à une case (rayon de travail, libre,
    *  travaillable) ; désassigner = cibler null. Un ciblage d'une case déjà
    *  travaillée par la MÊME ville est un échange (re-assignation). */
@@ -151,6 +169,13 @@ export interface CityProduction {
   progress: number;
 }
 
+/**
+ * MENU-VILLE-QUEUE · D1 : profondeur de la file d'attente de production,
+ * TÊTE COMPRISE (production courante + items en attente). Data-driven : une
+ * seule constante consommée par le moteur et l'UI.
+ */
+export const FILE_PRODUCTION_PROFONDEUR = 4;
+
 export interface City {
   id: CityId;
   q: number;
@@ -162,6 +187,11 @@ export interface City {
   /** Nourriture cumulée vers le prochain palier (R-63). */
   foodStored: number;
   production: CityProduction | null;
+  /** MENU-VILLE-QUEUE · D1/D2 : file d'attente de production — les items
+   *  APRES la tête (`production`). La complétion de la tête fait remonter
+   *  queue[0] (progression 0). Optionnel : les états pré-migration n'en
+   *  portent pas (migration 27 additif, [] ; le moteur tolère undefined). */
+  queue?: ProductionItem[];
   /** R-60 (Phase 6) : cases travaillées par les citoyens (≤ pop, sans le
    *  centre-ville, exploité gratuitement). Clés "q,r". */
   workedTiles: TileKey[];
@@ -429,7 +459,7 @@ export function guerreUniverselle(ids: PlayerId[]): Array<[PlayerId, PlayerId]> 
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 26;
+export const CURRENT_SCHEMA_VERSION = 27;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -1068,6 +1098,22 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
       migratedPlayers[id] = { defeated: false, ...players[id]! };
     }
     return { ...state, players: migratedPlayers };
+  },
+  /**
+   * MENU-VILLE-QUEUE · v26 → v27 — champ ADDITIF `queue: ProductionItem[]`
+   * sur CHAQUE ville : la production courante devient la TÊTE d'une file à
+   * 1 élément (la file d'attente proprement dite démarre vide). Les parties
+   * pré-migration sont reprises à l'identique. Idempotent (file déjà
+   * présente = inchangée).
+   */
+  27: (state) => {
+    const cities = (state.cities ?? {}) as Record<string, Record<string, unknown>>;
+    const migrated: Record<string, Record<string, unknown>> = {};
+    for (const id of Object.keys(cities).sort()) {
+      const c = cities[id]!;
+      migrated[id] = { queue: [], ...c };
+    }
+    return { ...state, cities: migrated };
   },
 };
 

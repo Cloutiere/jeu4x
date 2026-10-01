@@ -46,7 +46,11 @@
   import Minimap from '../lib/render/Minimap.svelte';
   import { filtresCarte, cycleRendements } from '../lib/filtresCarte.js';
   import UnitPanel from '../components/UnitPanel.svelte';
-  import CityView from '../components/CityView.svelte';
+  // MENU-VILLE-QUEUE · D4 : CityView (vue ville zoomée) est DORMANT — plus
+  // aucun montage ; le code reste réactivable. Le panneau de ville GAUCHE le
+  // remplace au clic simple (D3).
+  // import CityView from '../components/CityView.svelte';
+  import PanneauVille from '../components/PanneauVille.svelte';
   import ResearchPanel from '../components/ResearchPanel.svelte';
   import Journal from '../components/Journal.svelte';
   import Historique from '../components/Historique.svelte';
@@ -145,6 +149,11 @@
   // zoom incliné + tuiles + menu dédié (CityView) ; tous les menus actuels
   // disparaissent et les actions de carte sont inaccessibles. Sortie :
   // bouton fermer, Échap ou double-clic hors de la ville — retour animé.
+  // MENU-VILLE-QUEUE · D4 (décision d'Erik du 02/10) : la vue ville zoomée
+  // est ABANDONNÉE — le double-clic n'ouvre plus rien (même chose qu'un clic
+  // simple), le store ci-dessous n'est plus ALIMENTÉ ni branché au canvas
+  // (entrerVueVille/sortirVueVille/vueVille restent DORMANTS, réactivables ;
+  // le canvas garde ses props optionnelles onEnterVueVille/vueVilleId).
   // ---------------------------------------------------------------------
   const vueVille = createVueVille();
   onDestroy(() => vueVille.set(null));
@@ -874,7 +883,15 @@
 </script>
 
 <!-- UI-JEU-T1 · D1 : Ctrl+Alt+D bascule le calque de développement. -->
-<svelte:window onkeydown={raccourciCalqueDev} />
+<svelte:window
+  onkeydown={(e) => {
+    raccourciCalqueDev(e);
+    // MENU-VILLE-QUEUE · D3 : Échap ferme le panneau de ville (comme la
+    // vue ville avant elle). Les autres overlays gardent leurs propres
+    // fermetures (relecture, dialogues).
+    if (e.key === 'Escape' && get(ui).selectedCityId !== null) selectNothing(ui);
+  }}
+/>
 
 <main class="game">
   <header class="bar">
@@ -998,10 +1015,11 @@
           onCancelDraft={cancelDraft}
           onReady={(api) => (canvasApi = api)}
           onPlaybackActive={onPlaybackActiveChange}
-          vueVilleId={$vueVille}
-          onEnterVueVille={entrerVueVille}
-          onExitVueVille={sortirVueVille}
-          onVueVillePret={() => (vueVilleMontee = true)}
+          // MENU-VILLE-QUEUE · D4 : (débranché) vueVilleId={$vueVille}
+          //   onEnterVueVille={entrerVueVille} onExitVueVille={sortirVueVille}
+          //   onVueVillePret={() => (vueVilleMontee = true)}
+          // MENU-VILLE-QUEUE · D5 : rendements + zone cultivable du panneau.
+          villeRendementsId={$ui.selectedCityId}
           {etatReplay}
           {replayActif}
           onExitReplay={terminerReplay}
@@ -1029,8 +1047,14 @@
             </span>
           </div>
           <!-- UI-JEU-T3 · D5 : minimap + panneau filtres bas-gauche (façon
-               Civ VI) — masquée en vue ville comme la colonne (D6). -->
-          <Minimap etat={$view.state} myId={$view.playerId} api={canvasApi} />
+               Civ VI) — masquée en vue ville comme la colonne (D6).
+               MENU-VILLE-QUEUE (retour d'Erik) : la minimap et le panneau de
+               ville occupent la même position bas-gauche — l'un OU l'autre,
+               jamais les deux (la minimap s'efface quand le panneau est
+               ouvert, comme la vue ville avant elle). -->
+          {#if $ui.selectedCityId === null}
+            <Minimap etat={$view.state} myId={$view.playerId} api={canvasApi} />
+          {/if}
           <!-- UI-JEU-T1 · D5 : bouton de fin de tour circulaire (bas-droite,
                façon Civ VI). HANG-LOCAL UX (Erik 01/10 · option 1) : le
                bouton reste CLIQUABLE quand un blocage existe — le clic
@@ -1069,13 +1093,13 @@
             onFermer={() => (rapportHex = null)}
           />
         {/if}
-        {#if vueVilleActive && vueVilleMontee && $view.state}
-          <!-- MENU-VILLE : le menu dédié de la vue ville (les autres menus
-               disparaissent pendant la vue — FUSION-MENU-VILLE : CityPanel
-               est supprimé, la vue ville EST le menu de ville).
-               VUE-VILLE-PERF · D3 : montage DIFFÉRÉ à la fin de l'animation
-               d'entrée (signal onVueVillePret). -->
-          <CityView view={$view} {client} cityId={$vueVille!} onClose={sortirVueVille} />
+        {#if $ui.selectedCityId && $view.state}
+          <!-- MENU-VILLE-QUEUE · D3 : panneau de ville À GAUCHE au clic
+               simple (la colonne de droite T2 reste telle quel — sélection
+               inchangée). Fermeture : ×, Échap ou clic ailleurs (deselect
+               → selectNothing → selectedCityId null). D5 : la carte affiche
+               zone cultivable + rendements (villeRendementsId du canvas). -->
+          <PanneauVille view={$view} {client} cityId={$ui.selectedCityId} onFermer={() => selectNothing(ui)} />
         {/if}
         {#if showIdleDialog}
           <div class="victory idle-dialog">

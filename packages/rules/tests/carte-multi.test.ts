@@ -35,7 +35,7 @@ function makeState3(opts?: { units?: Array<{ id: string; owner: string; type: st
 
 describe('CARTE-MULTI · Migration v25 → v26', () => {
   it('CURRENT_SCHEMA_VERSION vaut 26 et MIGRATIONS[26] existe', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(26);
+    expect(CURRENT_SCHEMA_VERSION).toBe(27);
     expect(MIGRATIONS[26]).toBeDefined();
   });
 
@@ -43,7 +43,7 @@ describe('CARTE-MULTI · Migration v25 → v26', () => {
     const v25 = makeState({ players: ['p1', 'p2'] });
     const raw = { ...structuredClone(v25), schemaVersion: 25 } as unknown as Record<string, unknown>;
     const out = migrateState<GameState>(raw);
-    expect(out.schemaVersion).toBe(26);
+    expect(out.schemaVersion).toBe(27);
     expect(out.players['p1']!.defeated).toBe(false);
     expect(out.players['p2']!.defeated).toBe(false);
     const twice = migrateState(structuredClone(out) as unknown as Record<string, unknown>);

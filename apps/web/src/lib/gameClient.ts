@@ -95,6 +95,10 @@ export function appendJournalEvents(v: GameView, incoming: GameEvent[]): GameVie
  *  ils forment une file (désélection puis assignation dans le même tour,
  *  sémantique pop/push du moteur R-60). */
 export function sameSubject(a: Order, b: Order): boolean {
+  // MENU-VILLE-QUEUE · D2 (miroir du GameDO) : les opérations de file ne se
+  // remplacent PAS — commandes additives dans l'ordre de soumission.
+  if (a.type === 'QueueProduction' || a.type === 'RemoveFromQueue' || a.type === 'ReorderQueue') return false;
+  if (b.type === 'QueueProduction' || b.type === 'RemoveFromQueue' || b.type === 'ReorderQueue') return false;
   if (a.type === 'SetProduction' || b.type === 'SetProduction' || a.type === 'SetWorkedTile' || b.type === 'SetWorkedTile') {
     if (a.type === 'SetWorkedTile' && b.type === 'SetWorkedTile') return false;
     // Un seul brouillon de production par ville.
@@ -115,7 +119,8 @@ export function removeCancelledOrders(orders: Order[], unitId: UnitId | null, ci
   if (!unitId && !cityId) return orders;
   return orders.filter((o) => {
     if (unitId && ('unitId' in o ? o.unitId === unitId : o.type === 'FormArmy' && o.members.includes(unitId))) return false;
-    if (cityId && (o.type === 'SetProduction' || o.type === 'SetWorkedTile') && o.cityId === cityId) return false;
+    if (cityId && ((o.type === 'SetProduction' || o.type === 'SetWorkedTile' ||
+      o.type === 'QueueProduction' || o.type === 'RemoveFromQueue' || o.type === 'ReorderQueue') && o.cityId === cityId)) return false;
     return true;
   });
 }

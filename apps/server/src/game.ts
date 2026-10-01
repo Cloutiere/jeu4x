@@ -154,6 +154,12 @@ interface WsAttachment {
  *  file d'ordres (désélection puis assignation dans le même tour, retour
  *  d'Erik) ; le moteur applique pop/push dans l'ordre de soumission (R-60). */
 function sameSubject(a: Order, b: Order): boolean {
+  // MENU-VILLE-QUEUE · D2 : les opérations de file (QueueProduction /
+  // RemoveFromQueue / ReorderQueue) ne se remplacent PAS — commandes
+  // additives appliquées par le moteur dans l'ordre de soumission (miroir
+  // SetWorkedTile). SetProduction (forme historique bot) se remplace lui-même.
+  if (a.type === 'QueueProduction' || a.type === 'RemoveFromQueue' || a.type === 'ReorderQueue') return false;
+  if (b.type === 'QueueProduction' || b.type === 'RemoveFromQueue' || b.type === 'ReorderQueue') return false;
   if (a.type === 'SetProduction' || b.type === 'SetProduction' || a.type === 'SetWorkedTile' || b.type === 'SetWorkedTile') {
     if (a.type === 'SetWorkedTile' && b.type === 'SetWorkedTile') return false;
     // Un seul brouillon de production par ville.
@@ -217,6 +223,15 @@ export function upsertOrderPreservingPriority(list: Order[], order: Order): Orde
   return out;
 }
 
+/** MENU-VILLE-QUEUE : forme d'un item de production (SetProduction /
+ * QueueProduction — 7f : les merveilles R-116 sont un kind à part entière). */
+function productionItemShapeError(item: unknown): string | null {
+  const it = item as Record<string, unknown> | undefined;
+  if (!it || typeof it !== 'object') return 'item invalide';
+  if (it.kind !== 'unit' && it.kind !== 'building' && it.kind !== 'wonder') return 'kind d’item invalide';
+  return typeof it.id === 'string' ? null : 'id d’item invalide';
+}
+
 /** Validation structurelle côté serveur (le moteur re-valide tout à la résolution).
  *  Exportée pour tests — pure, aucune dépendance au GameDO. */
 export function orderShapeError(order: unknown): string | null {
@@ -252,12 +267,21 @@ export function orderShapeError(order: unknown): string | null {
         : 'membres/rendez-vous invalides';
     case 'SetProduction': {
       if (typeof o.cityId !== 'string') return 'ville invalide';
-      const item = o.item as Record<string, unknown> | undefined;
-      if (!item || typeof item !== 'object') return 'item invalide';
-      // 7f : les merveilles (R-116) sont un kind de production à part entière.
-      if (item.kind !== 'unit' && item.kind !== 'building' && item.kind !== 'wonder') return 'kind d’item invalide';
-      return typeof item.id === 'string' ? null : 'id d’item invalide';
+      return productionItemShapeError(o.item);
     }
+    // MENU-VILLE-QUEUE · D1/D2 : opérations de file — la forme est validée EN
+    // PREMIER (piège historique) ; la validité métier (possession, profondeur,
+    // éligibilité de l'item) est re-vérifiée par le moteur à la résolution.
+    case 'QueueProduction': {
+      if (typeof o.cityId !== 'string') return 'ville invalide';
+      return productionItemShapeError(o.item);
+    }
+    case 'RemoveFromQueue':
+      return typeof o.cityId === 'string' && Number.isInteger(o.index) ? null : 'ville/indice invalides';
+    case 'ReorderQueue':
+      return typeof o.cityId === 'string' && Number.isInteger(o.from) && Number.isInteger(o.to)
+        ? null
+        : 'ville/indices invalides';
     case 'SetWorkedTile':
       // tile : clé "q,r" ou null (désassignation) — la validité métier (rayon,
       // case libre, travaillable) est re-vérifiée par le moteur à la résolution.
@@ -335,6 +359,9 @@ export function orderOwnerErreur(
     case 'FormArmy':
       return order.members.every(ownsUnit) ? null : 'une des unités est inconnue ou non possédée';
     case 'SetProduction':
+    case 'QueueProduction':
+    case 'RemoveFromQueue':
+    case 'ReorderQueue':
     case 'SetWorkedTile':
       return cities[order.cityId]?.owner === engineId ? null : `ville ${order.cityId} inconnue ou non possédée`;
     case 'InstallPerson':

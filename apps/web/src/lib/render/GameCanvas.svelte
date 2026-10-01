@@ -100,6 +100,10 @@
     mode3d?: boolean;
     /** MENU-VILLE : id de la ville affichée en vue inclinée (null = carte). */
     vueVilleId?: string | null;
+    /** MENU-VILLE-QUEUE · D5 : ville dont le PANNEAU GAUCHE est ouvert — la
+     *  carte affiche zone cultivable (liseré accent + worked tiles) et
+     *  rendements du rayon (miroir vue ville, sans changement de pose). */
+    villeRendementsId?: string | null;
     /** MENU-VILLE : double-clic sur une ville du joueur → entrée en vue ville. */
     onEnterVueVille?(cityId: string): void;
     /** MENU-VILLE : sortie demandée par le canvas (Échap / double-clic hors de la ville). */
@@ -142,6 +146,7 @@
     spawnGuarantee = null,
     mode3d = false,
     vueVilleId = null,
+    villeRendementsId = null,
     onEnterVueVille,
     onExitVueVille,
     onVueVillePret,
@@ -158,6 +163,12 @@
   // sans reconstruction). Idem pour la heatmap du labo (Phase 6b).
   $effect(() => {
     void showYields;
+    overlayDirty = true;
+  });
+  // MENU-VILLE-QUEUE · D5 : l'ouverture/fermeture du panneau de ville
+  // reconstruit la surcouche (zone cultivable + rendements du rayon).
+  $effect(() => {
+    void villeRendementsId;
     overlayDirty = true;
   });
   $effect(() => {
@@ -1426,8 +1437,9 @@
     // entier (6/18 cases + centre) ceinturé d'un trait ACCENT JOUEUR comme en
     // vue monde, légèrement plus épais, avec les pointillés sombres par-dessus
     // (style ZONE-CULTIVEE). Géométrie pure (contourUnion — contours.ts).
-    if (vueVilleId && scene.state) {
-      const cityVue = scene.state.cities[vueVilleId];
+    const villeZoneId = vueVilleId ?? villeRendementsId; // MENU-VILLE-QUEUE · D5
+    if (villeZoneId && scene.state) {
+      const cityVue = scene.state.cities[villeZoneId];
       if (cityVue && scene.explored.has(tileKeyOf(cityVue))) {
         const rayon = workRadiusOf(cityVue.buildings);
         const couleurVue = playerColor(cityVue.owner);
@@ -1484,8 +1496,8 @@
     // commerce (potentiel), quelle que soit la conversion.
     let conversionVilleVue: 'gold' | 'science' | null = null;
     let rayonVilleVue: Set<string> | null = null;
-    if (vueVilleId && scene.state) {
-      const cityVue = scene.state.cities[vueVilleId];
+    if (villeZoneId && scene.state) {
+      const cityVue = scene.state.cities[villeZoneId];
       if (cityVue && scene.explored.has(tileKeyOf(cityVue))) {
         conversionVilleVue = cityVue.conversion;
         rayonVilleVue = new Set();
@@ -1500,7 +1512,7 @@
     const limiteRendements = showYields ? null : rayonVilleVue;
     // MENU-VILLE : les rendements sont affichés AUTOMATIQUEMENT en vue ville
     // (icônes de rendement sur tout le rayon cultivable, même hors assignation).
-    if (showYields || vueVilleId) {
+    if (showYields || villeZoneId) {
       // R-93 : le bonus de la ressource identifiée et accessible au joueur
       // s'ajoute aux rendements du terrain dans l'affichage, comme dans
       // tileYield. Le marqueur « inconnue » (R-92) n'est pas dans RESOURCES :

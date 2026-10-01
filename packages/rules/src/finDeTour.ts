@@ -57,8 +57,13 @@ export function blocagesFinDeTour(st: GameState, playerId: PlayerId, orders: rea
     .filter((c) => c.owner === playerId)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   for (const city of myCities) {
+    // MENU-VILLE-QUEUE · D2 : une file PROGRAMMÉE (QueueProduction en brouillon)
+    // débloque la ville comme un SetProduction — même sémantique R-184 (le
+    // blocage ne frappe qu'une file VIDE : ni production ni item en attente).
     const productionEnFile =
-      !!city.production || orders.some((o) => o.type === 'SetProduction' && o.cityId === city.id);
+      !!city.production ||
+      (city.queue?.length ?? 0) > 0 ||
+      orders.some((o) => (o.type === 'SetProduction' || o.type === 'QueueProduction') && o.cityId === city.id);
     if (productionEnFile) continue; // une production sélectionnée débloque la ville
     const inputs = cityEconomyInputs(st, city, allTechs);
     if (inputs.production > 0) {

@@ -24,7 +24,7 @@ import {
   tileKeyOf,
 } from './hex.js';
 import type { Hex } from './hex.js';
-import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId, allKnownTechs, activePlayerIds } from './state.js';
+import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId, allKnownTechs, activePlayerIds, FILE_PRODUCTION_PROFONDEUR } from './state.js';
 import type { BarbarianVillage, City, CityId, GameState, Order, Player, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
 import { BARBARIAN_ID, BARBARIANS, CULTURE, DEPLACEMENT, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, RESOURCES, isWaterTerrain, isSpyUnit } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable } from './economy.js';
@@ -1760,8 +1760,114 @@ function wonderSetProductionIssue(st: GameState, wonderId: string, playerId: Pla
   });
 }
 
+/** MENU-VILLE-QUEUE · D1 : file AFFICHÉE d'une ville — tête puis attente
+ *  (miroir exact du panneau UI ; les indices RemoveFromQueue/ReorderQueue y
+ *  font référence). Pur. */
+export function fileAffichee(city: City): ProductionItem[] {
+  return city.production ? [city.production.item, ...(city.queue ?? [])] : [...(city.queue ?? [])];
+}
+
+/** MENU-VILLE-QUEUE · D1 : à complétion (ou retrait de tête), l'item suivant
+ *  remonte en tête avec une progression NULLE. Retourne true si une tête a
+ *  été promue (l'appelant Phase C saute alors l'accumulation périmée du
+ *  projet COMPLÉTÉ). Déterministe. */
+function promoteQueueSuivante(city: City): boolean {
+  if (city.production) return false;
+  const next = city.queue?.shift();
+  if (!next) return false;
+  city.production = { item: next, progress: 0 };
+  return true;
+}
+
+/** Porte d'éligibilité commune SetProduction / QueueProduction (D2) — R-87
+ *  (coût connu, techs/prérequis, obsolète, GP, Palais, déjà possédé), R-148
+ *  (type effectif), R-117 (naval côtier), R-116 (unicité merveille + ONU).
+ *  `city` est supposée possédée par `playerId`. Pur. */
+function itemProductionRefuse(board: Board, playerId: PlayerId, city: City, item: ProductionItem): boolean {
+  if (productionItemCostOf(board.st, playerId, item) === null) return true;
+  // R-87 (étendue 7e) : item verrouillé refusé — tech non débloquée, non
+  // implémenté, unité OBSOLÈTE, GP (R-114), bâtiment fixe (Palais),
+  // prérequis de bâtiment manquant (Banque sans Marché) ou déjà possédé.
+  // 7n · R-148 : une unité standard remplacée par l'unique disponible de
+  // la civ est refusée (le menu propose l'unique — pattern R-111).
+  const research = board.st.players[playerId]!;
+  if (!canSetProduction(item, research.techsUnlocked, city.buildings, civIdOf(research))) return true;
+  // 7g · R-117 : une unité navale exige une ville côtière (accès à la mer).
+  // 7n · R-148 : la validation porte sur le type EFFECTIF (l'unique).
+  const effectiveItem = unitReplacementFor(item, civIdOf(research), research.techsUnlocked) ?? item.id;
+  if (
+    item.kind === 'unit' &&
+    unitType(effectiveItem).aquatic &&
+    !citySiteIsCoastal(board.st.map, { q: city.q, r: city.r })
+  ) {
+    return true;
+  }
+  // 7f · R-116 : unicité d'empire des merveilles + verrou/jalons de l'ONU.
+  if (item.kind === 'wonder' && wonderSetProductionIssue(board.st, item.id, playerId, city.id)) return true;
+  return false;
+}
+
+/** MENU-VILLE-QUEUE · D1/D2 — opérations de file, appliquées à la résolution
+ *  DANS l'ordre de soumission (joueurs par id croissant R-81, ordres dans
+ *  l'ordre de la liste) ; chaque opération voit le résultat de la précédente
+ *  (sémantique de commandes, miroir de l'aperçu UI). Un ordre invalide est
+ *  ignoré individuellement (miroir SetProduction — RULES.md §5).
+ *  - QueueProduction : ajoute en queue (profondeur FILE_PRODUCTION_PROFONDEUR
+ *    tête comprise, au-delà ignoré) ; ville sans production → devient tête.
+ *  - RemoveFromQueue : indice de la file AFFICHÉE (0 = tête). Retirer un item
+ *    ENTAILÉ (progression > 0 — la seule position entamée est la tête)
+ *    rend ses marteaux à la réserve permanente R-130 (pendingSalvage).
+ *  - ReorderQueue : indices DANS LA FILE D'ATTENTE uniquement (la tête est
+ *    entamée : elle ne se réordonne pas — la progression appartient au projet
+ *    en cours). Hors bornes / identiques : ignoré. */
+export function applyQueueOps(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
+  for (const playerId of Object.keys(ordersByPlayer).sort()) {
+    for (const order of ordersByPlayer[playerId] ?? []) {
+      if (order.type !== 'QueueProduction' && order.type !== 'RemoveFromQueue' && order.type !== 'ReorderQueue') continue;
+      const city = board.st.cities[order.cityId];
+      if (!city || city.owner !== playerId) continue;
+      if (order.type === 'QueueProduction') {
+        if (fileAffichee(city).length >= FILE_PRODUCTION_PROFONDEUR) continue;
+        if (itemProductionRefuse(board, playerId, city, order.item)) continue;
+        if (!city.production) city.production = { item: order.item, progress: 0 };
+        else city.queue = [...(city.queue ?? []), order.item];
+      } else if (order.type === 'RemoveFromQueue') {
+        const i = order.index;
+        const file = fileAffichee(city);
+        if (!Number.isInteger(i) || i < 0 || i >= file.length) continue;
+        if (i === 0 && city.production) {
+          // R-130 réutilisée telle quelle : les marteaux engagés du projet
+          // retiré rejoignent la réserve permanente ; l'item suivant remonte.
+          city.pendingSalvage += city.production.progress;
+          city.production = null;
+          promoteQueueSuivante(city);
+        } else {
+          // Item d'attente : jamais entamé (la progression n'existe que sur
+          // la tête) — retrait sans salvage.
+          city.queue = (city.queue ?? []).filter((_, k) => k !== i - 1);
+        }
+      } else {
+        const { from, to } = order;
+        const queue = city.queue ?? [];
+        if (
+          !Number.isInteger(from) || !Number.isInteger(to) ||
+          from === to || from < 0 || to < 0 || from >= queue.length || to >= queue.length
+        ) {
+          continue;
+        }
+        const next = [...queue];
+        const [item] = next.splice(from, 1);
+        next.splice(to, 0, item!);
+        city.queue = next;
+      }
+    }
+  }
+}
+
 /** R-62/R-66 : SetProduction — items unités ET bâtiments ; progression conservée.
- *  7f · R-116 : items MERVEILLES (unicité empire, jalons ONU — R-115/R-116). */
+ *  7f · R-116 : items MERVEILLES (unicité empire, jalons ONU — R-115/R-116).
+ *  MENU-VILLE-QUEUE · D2 : forme HISTORIQUE — remplace la tête ET VIDE la
+ *  file (le bot émet cette forme simple ; compat sans changement). */
 function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
   const setOrders: Array<Extract<Order, { type: 'SetProduction' }>> = [];
   for (const playerId of Object.keys(ordersByPlayer).sort()) {
@@ -1769,26 +1875,7 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
       if (order.type !== 'SetProduction') continue;
       const city = board.st.cities[order.cityId];
       if (!city || city.owner !== playerId) continue;
-      if (productionItemCostOf(board.st, playerId, order.item) === null) continue;
-      // R-87 (étendue 7e) : item verrouillé refusé — tech non débloquée, non
-      // implémenté, unité OBSOLÈTE, GP (R-114), bâtiment fixe (Palais),
-      // prérequis de bâtiment manquant (Banque sans Marché) ou déjà possédé.
-      // 7n · R-148 : une unité standard remplacée par l'unique disponible de
-      // la civ est refusée (le menu propose l'unique — pattern R-111).
-      const research = board.st.players[playerId]!;
-      if (!canSetProduction(order.item, research.techsUnlocked, city.buildings, civIdOf(research))) continue;
-      // 7g · R-117 : une unité navale exige une ville côtière (accès à la mer).
-      // 7n · R-148 : la validation porte sur le type EFFECTIF (l'unique).
-      const effectiveItem = unitReplacementFor(order.item, civIdOf(research), research.techsUnlocked) ?? order.item.id;
-      if (
-        order.item.kind === 'unit' &&
-        unitType(effectiveItem).aquatic &&
-        !citySiteIsCoastal(board.st.map, { q: city.q, r: city.r })
-      ) {
-        continue;
-      }
-      // 7f · R-116 : unicité d'empire des merveilles + verrou/jalons de l'ONU.
-      if (order.item.kind === 'wonder' && wonderSetProductionIssue(board.st, order.item.id, playerId, city.id)) continue;
+      if (itemProductionRefuse(board, playerId, city, order.item)) continue;
       setOrders.push(order);
     }
   }
@@ -1812,6 +1899,7 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
       progress = 0;
     }
     city.production = { item: order.item, progress };
+    city.queue = [];
   }
 }
 
@@ -1877,9 +1965,9 @@ function applyRushBuys(board: Board, ordersByPlayer: Record<PlayerId, Order[]>):
  * bâtiment ajouté (remplacement R-111), merveille via la complétion
  * canonique (R-129/R-130/R-131 + effets). La file est vidée (R-62).
  */
-function completeProductionNow(board: Board, city: City): void {
+function completeProductionNow(board: Board, city: City): boolean {
   const prod = city.production;
-  if (!prod) return;
+  if (!prod) return false;
   const item = prod.item;
   city.production = null;
   if (item.kind === 'unit') {
@@ -1929,6 +2017,8 @@ function completeProductionNow(board: Board, city: City): void {
   } else {
     grantBuildingToCity(board, city, item.id);
   }
+  promoteQueueSuivante(city); // MENU-VILLE-QUEUE : l'item suivant remonte (rush / réserve C7)
+  return true;
 }
 
 /**
@@ -2236,6 +2326,7 @@ function applyGreatPersonConsume(board: Board, unit: Unit, city: City): string |
         emit(board, { type: 'BuildingCompleted', cityId: city.id, owner: unit.owner, building: buildingId, at });
       }
       city.production = null;
+      promoteQueueSuivante(city); // MENU-VILLE-QUEUE : Bâtisseur — l'item suivant remonte
       return 'production achevée';
     }
     case 'savant': {
@@ -2900,6 +2991,7 @@ function eliminerJoueur(
     city.owner = invader.owner;
     city.pop = Math.max(1, city.pop - 1);
     city.production = null;
+    city.queue = []; // MENU-VILLE-QUEUE : la file programmée est perdue à la capture (comme les bâtiments)
     city.pendingSalvage = 0; // R-130 : les marteaux en récupération ne passent pas au captreur
     city.workedTiles = [];
     city.buildings = []; // R-66 : les bâtiments sont perdus à la capture (le captreur ne les récupère pas)
@@ -3786,6 +3878,10 @@ function processEconomy(board: Board): void {
     //  Interprétation 🔶 documentée : quand la réserve complète l'item, la
     //  production du tour (sans projet restant) est perdue — miroir « file
     //  vide » R-62 ; le surplus du doc (120 sur 200−80) est reproduit exactement.
+    // MENU-VILLE-QUEUE : une ville SANS tête mais avec une file (ex. tête
+    // tombée en réserve R-130 — merveille devancée) fait remonter son item
+    // suivant AVANT l'économie — la file programmée EST le projet choisi.
+    promoteQueueSuivante(city);
     if (city.production) {
       let cost = productionItemCostOf(board.st, city.owner, city.production.item);
       // 7j · R-126 · Settle · Bâtisseur : −50 % de marteaux sur tous les
@@ -3818,9 +3914,12 @@ function processEconomy(board: Board): void {
             }
           } else if (city.pendingSalvage >= cost) {
             // Non répétable : complété immédiatement depuis la réserve — le
-            // surplus RESTE en réserve (C7).
+            // surplus RESTE en réserve (C7). Une tête SUIVANTE éventuellement
+            // promue démarre à ZÉRO et ne reçoit PAS l'accumulation de CE tour
+            // (le `cost` local appartient au projet complété — tête sautée).
             city.pendingSalvage -= cost;
-            completeProductionNow(board, city);
+            const completeReserve = completeProductionNow(board, city);
+            if (completeReserve) continue;
           } else if (city.pendingSalvage > 0) {
             // Réserve < coût : versée dans la progression (accumulation
             // normale tour par tour ensuite).
@@ -3838,6 +3937,7 @@ function processEconomy(board: Board): void {
               // plafonnée au coût — excessif perdu, 🔶 conservé de 7i).
               if (produceUnitFromReserve(board, city, city.production.item.id, false)) {
                 city.production = null; // 🔶 file vidée après complétion
+                promoteQueueSuivante(city); // MENU-VILLE-QUEUE : l'item suivant remonte
               } else {
                 city.production.progress = cost; // en attente (case occupée ou pop insuffisante)
               }
@@ -3852,11 +3952,13 @@ function processEconomy(board: Board): void {
               // Bâtiment (R-66) : permanent, non duplicable, remplacement R-111.
               grantBuildingToCity(board, city, city.production.item.id);
               city.production = null;
+              promoteQueueSuivante(city); // MENU-VILLE-QUEUE : l'item suivant remonte
             }
           }
         }
       } else {
         city.production = null; // item inconnu : file purgée
+        city.queue = [];
       }
     }
   }
@@ -4700,6 +4802,7 @@ export function resolveTurn(
   board.tracePhase = 'C';
   applyLaunches(board, allOrders); // 7m · R-139 : frappes nucléaires (en tête de Phase C)
   applySetProduction(board, allOrders);
+  applyQueueOps(board, allOrders); // MENU-VILLE-QUEUE · D2 : après SetProduction (la forme historique remplace tout)
   applyRushBuys(board, allOrders); // 7l · R-135 : achat instantané (avant l'économie)
   applyGreatPersonActions(board, allOrders); // 7j · R-126 (alias InstallPerson R-115)
   applySpyMissions(board, allOrders); // 7g · R-119

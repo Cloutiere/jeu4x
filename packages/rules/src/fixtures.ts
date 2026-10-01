@@ -53,6 +53,8 @@ export interface CitySpec {
   capital?: boolean;
   foodStored?: number;
   production?: City['production'];
+  /** MENU-VILLE-QUEUE : file d'attente (tête exclue). */
+  queue?: City['queue'];
   /** Cases travaillées (R-60) — sinon [] (auto-assignées en Phase C). */
   workedTiles?: string[];
   /** Bâtiments possédés (R-66). */
@@ -207,6 +209,7 @@ export function makeState(opts: MakeStateOptions = {}): GameState {
       capital: spec.capital ?? false,
       foodStored: spec.foodStored ?? 0,
       production: spec.production ?? null,
+      queue: spec.queue ?? [], // MENU-VILLE-QUEUE
       workedTiles: spec.workedTiles ?? [],
       buildings: spec.buildings ?? [],
       conversion: spec.conversion ?? CONVERSION_DEFAULT,

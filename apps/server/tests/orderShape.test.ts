@@ -157,3 +157,46 @@ describe('orderOwnerErreur · MultiStep (correctif COLON-FONDATION)', () => {
     expect(orderOwnerErreur(units, cities, 'p1', { type: 'FoundCity', unitId: 'u2' })).not.toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// MENU-VILLE-QUEUE · D1/D2 — formes des opérations de file (validées EN
+// PREMIER, avant tout handler — leçon 7f).
+// ---------------------------------------------------------------------------
+describe('orderShapeError · opérations de file (MENU-VILLE-QUEUE)', () => {
+  const ITEM = { kind: 'unit', id: 'guerrier' };
+
+  it('QueueProduction : item valide accepté ; ville/item/index invalides refusés', () => {
+    expect(orderShapeError({ type: 'QueueProduction', cityId: 'c1', item: ITEM })).toBeNull();
+    expect(orderShapeError({ type: 'QueueProduction', cityId: 'c1', item: { kind: 'wonder', id: 'stonehenge' } })).toBeNull();
+    expect(orderShapeError({ type: 'QueueProduction', item: ITEM })).not.toBeNull();
+    expect(orderShapeError({ type: 'QueueProduction', cityId: 'c1' })).not.toBeNull();
+    expect(orderShapeError({ type: 'QueueProduction', cityId: 'c1', item: { kind: 'bidule', id: 'x' } })).not.toBeNull();
+  });
+
+  it('RemoveFromQueue : index entier exigé ; ReorderQueue : from/to entiers exigés', () => {
+    expect(orderShapeError({ type: 'RemoveFromQueue', cityId: 'c1', index: 0 })).toBeNull();
+    expect(orderShapeError({ type: 'RemoveFromQueue', cityId: 'c1', index: 1.5 })).not.toBeNull();
+    expect(orderShapeError({ type: 'RemoveFromQueue', cityId: 'c1' })).not.toBeNull();
+    expect(orderShapeError({ type: 'ReorderQueue', cityId: 'c1', from: 0, to: 1 })).toBeNull();
+    expect(orderShapeError({ type: 'ReorderQueue', cityId: 'c1', from: 0 })).not.toBeNull();
+    expect(orderShapeError({ type: 'ReorderQueue', cityId: 'c1', to: 1 })).not.toBeNull();
+    expect(orderShapeError({ type: 'ReorderQueue', cityId: 'c1', from: 'a', to: 1 })).not.toBeNull();
+  });
+
+  it('les opérations de file ne se REMPLACENT PAS entre elles (upsert sans dédoublonnage — miroir SetWorkedTile)', () => {
+    const list: Order[] = [];
+    list.push(...upsertOrderPreservingPriority(list, { type: 'QueueProduction', cityId: 'c1', item: { kind: 'unit', id: 'guerrier' } }));
+    const deux = upsertOrderPreservingPriority(list, { type: 'QueueProduction', cityId: 'c1', item: { kind: 'unit', id: 'colon' } });
+    expect(deux.filter((o) => o.type === 'QueueProduction')).toHaveLength(2); // appended, pas remplacé
+    const trois = upsertOrderPreservingPriority(deux, { type: 'RemoveFromQueue', cityId: 'c1', index: 0 });
+    expect(trois).toHaveLength(3);
+  });
+
+  it('SetProduction (forme historique bot) se remplace TOUJOURS par ville, même face à une op de file', () => {
+    const list: Order[] = [{ type: 'QueueProduction', cityId: 'c1', item: { kind: 'unit', id: 'colon' } }];
+    const out = upsertOrderPreservingPriority(list, { type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'guerrier' } });
+    expect(out).toHaveLength(2); // la file n'écrase pas le SetProduction du bot
+    const out2 = upsertOrderPreservingPriority(out, { type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'colon' } });
+    expect(out2.filter((o) => o.type === 'SetProduction')).toHaveLength(1);
+  });
+});
