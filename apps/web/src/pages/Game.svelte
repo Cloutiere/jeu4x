@@ -30,6 +30,8 @@
   import type { ResumeCase } from '../lib/rapport.js';
   import { playerColor } from '../lib/render/textures.js';
   import RapportCombat from '../components/RapportCombat.svelte';
+  // FULLSCREEN-PERF · L0 : mini HUD perf (FPS + résolution rendue), calque dev seulement.
+  import HudPerf from '../components/HudPerf.svelte';
   import { createGameClient } from '../lib/gameClient.js';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { createUiState, selectNothing, createVueVille } from '../lib/render/ui.js';
@@ -987,6 +989,8 @@
             </button>
           {/if}
           {#if devMode}<a href={`#/debug/${code}`}>Debug</a>{/if}
+          <!-- FULLSCREEN-PERF · L0 : HUD perf (FPS + résolution rendue). -->
+          <HudPerf />
         {/if}
       </div>
     {/if}

@@ -3430,6 +3430,26 @@
         // transition vue ville comprise) — protocole AVANT/APRÈS du chantier.
         perf: () => [...perfEvenements],
         perfReset: () => { perfEvenements.length = 0; },
+        // FULLSCREEN-PERF · L0 : résumé perf de la DERNIÈRE SECONDE (FPS,
+        // frame moyenne/max) + résolution réellement rendue (backing store).
+        // Lu par le HUD perf du calque dev et par les mesures scriptées.
+        perfResume: () => {
+          const now = performance.now();
+          const recentes = perfEvenements.filter((e) => e.label === 'frame' && now - e.a < 1000);
+          const ms = recentes.map((e) => e.ms);
+          const canvas = app?.canvas;
+          return {
+            fps: recentes.length,
+            frameMoyenneMs: ms.length ? +(ms.reduce((a, b) => a + b, 0) / ms.length).toFixed(2) : null,
+            frameMaxMs: ms.length ? +Math.max(...ms).toFixed(2) : null,
+            dpr: dernierDpr,
+            dprReel: window.devicePixelRatio || 1,
+            cssW: vw,
+            cssH: vh,
+            backingW: canvas ? canvas.width : null,
+            backingH: canvas ? canvas.height : null,
+          };
+        },
         // D2 (test d'injection) : la prochaine frame lève une erreur — la
         // boucle doit survivre, le bandeau apparaître, la frame suivante rendre.
         injectTickError: () => { erreurTestEnAttente = true; },
