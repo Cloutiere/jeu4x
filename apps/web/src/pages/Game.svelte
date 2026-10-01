@@ -23,6 +23,9 @@
   // HANG-LOCAL UX (Erik 01/10 · option 2) : ville à montrer à l'apparition
   // d'un blocage de fin de tour (miroir « unités sans ordre »).
   import { villeDuPremierBlocageProduction } from '../lib/blocages.js';
+  // UI-JEU-T1 (Erik 01/10) : calque dev (D1) + portrait de dirigeant (D4).
+  import { calqueDev, basculerCalqueDev, raccourciCalqueDev } from '../lib/calqueDev.js';
+  import { portraitDirigeant } from '../lib/dirigeants.js';
   import { resumesDeCase, casesDeCombat } from '../lib/rapport.js';
   import type { ResumeCase } from '../lib/rapport.js';
   import { playerColor } from '../lib/render/textures.js';
@@ -783,6 +786,17 @@
     return v.players.find((p) => p.id === v.playerId)?.name ?? '';
   });
 
+  // UI-JEU-T1 · D4 : portrait de dirigeant (civ du joueur) — portrait dessiné
+  // si disponible, sinon logo or de la nation (jamais de trou).
+  const myPortrait = $derived(portraitDirigeant(myCivId));
+  // UI-JEU-T1 · D5 : compteur d'unités en attente d'ordres (badge du bouton
+  // circulaire — même prédicat que le menu « unités sans ordre », R-81).
+  const attenteOrdres = $derived.by(() => {
+    const v = $view;
+    if (!v.state || v.phase !== 'orders' || v.locked || v.status !== 'active') return 0;
+    return unitsWithoutOrders(v).length;
+  });
+
   // 7h · R-124 : composants du Vaisseau spatial contrôlés par le joueur
   // (dérivés des bâtiments des villes — source unique moteur).
   const SHIP_COMPONENTS = $derived.by(() => {
@@ -826,94 +840,112 @@
   });
 </script>
 
+<!-- UI-JEU-T1 · D1 : Ctrl+Alt+D bascule le calque de développement. -->
+<svelte:window onkeydown={raccourciCalqueDev} />
+
 <main class="game">
   <header class="bar">
-    <a href="#/lobby">← Lobby</a>
-    <strong>Partie {code}</strong>
-    {#if !vueVilleActive}
-    <span>Tour <strong>{$view.turn}</strong></span>
-    <span class="chip" class:resolving={$view.phase === 'resolving'}>{$view.phase === 'resolving' ? 'Résolution…' : 'Ordres'}</span>
-    {#if $view.state}
-      <button
-        type="button"
-        class="civbadge"
-        title={myCivTooltip}
-        onclick={() => (showGovernment = !showGovernment)}
-      >
-        <span class="civname">{civName(myCivId)}</span>
-        <span class="eraname">{eraLabel(myEra)}{adversairesBadge}</span>
-      </button>
-    {/if}
-    <span class="res" title="Trésorerie d'empire (R-134) — zéro entretien ; + GPT net des villes focus Or (R-90)">
-      <img src="/art/icone_or.png" alt="Or" onerror={hideImg} />
-      {myEconomy.treasury.toLocaleString('fr-FR')}
-      <span class="gpt" class:negative={myEconomy.gpt < 0}>(+{myEconomy.gpt}/tour)</span>
-    </span>
-    {#if myEconomy.next}
-      <span
-        class="res milestone"
-        title="Prochain palier économique (R-136) — {myEconomy.next.label}"
-      >
-        Palier {myEconomy.next.threshold.toLocaleString('fr-FR')} or : {Math.min(100, Math.round((myEconomy.treasury / myEconomy.next.threshold) * 100))}%
-      </span>
-    {/if}
-    <span class="res" title={milestonesDetail}>
-      <img src="/art/icone_culture.png" alt="Jalons culturels" onerror={hideImg} />
-      {myCulture.milestones}/{MILESTONES_TARGET}
-    </span>
-    <button type="button" class="gov" class:anarchy={myInAnarchy} title="Gouvernement (R-121/R-122)" onclick={() => (showGovernment = !showGovernment)}>
-      <img src="/art/icone_gouvernement.png" alt="Gouvernement" onerror={hideImg} />
-      {GOVERNMENTS[myGovernment]?.name ?? myGovernment}
-    </button>
-    <button type="button" class="research" title="Choix technologique (R-85)" onclick={() => (showResearch = !showResearch)}>
-      <img src="/art/icone_science.png" alt="Science" onerror={hideImg} />
-      {#if myResearch.tech}
-        {TECHS[myResearch.tech]?.name ?? myResearch.tech}
-        <span class="minibar"><span class="minifill" style:width={`${myResearchRatio * 100}%`}></span></span>
-        {myResearch.progress}/{myResearch.cost}
-      {:else if myResearch.stored > 0}
-        <em class="reserve">Choisir… ({myResearch.stored} en attente)</em>
-      {:else}
-        Recherche
+    <!-- Barre supérieure AAA (D3) : chips de ressources à gauche, tour +
+         civ/ère au centre, joueur + engrenage à droite. -->
+    <div class="bar-zone bar-gauche">
+      {#if $view.state}
+        <span class="res" title="Trésorerie d'empire (R-134) — zéro entretien ; + GPT net des villes focus Or (R-90)">
+          <img src="/art/icone_or.png" alt="Or" onerror={hideImg} />
+          {myEconomy.treasury.toLocaleString('fr-FR')}
+          <span class="gpt" class:negative={myEconomy.gpt < 0}>(+{myEconomy.gpt}/tour)</span>
+        </span>
+        {#if myEconomy.next}
+          <span
+            class="res milestone"
+            title="Prochain palier économique (R-136) — {myEconomy.next.label}"
+          >
+            Palier {myEconomy.next.threshold.toLocaleString('fr-FR')} or : {Math.min(100, Math.round((myEconomy.treasury / myEconomy.next.threshold) * 100))}%
+          </span>
+        {/if}
+        <span class="res" title={milestonesDetail}>
+          <img src="/art/icone_culture.png" alt="Jalons culturels" onerror={hideImg} />
+          {myCulture.milestones}/{MILESTONES_TARGET}
+        </span>
+        <button type="button" class="research" title="Choix technologique (R-85)" onclick={() => (showResearch = !showResearch)}>
+          <img src="/art/icone_science.png" alt="Science" onerror={hideImg} />
+          {#if myResearch.tech}
+            {TECHS[myResearch.tech]?.name ?? myResearch.tech}
+            <span class="minibar"><span class="minifill" style:width={`${myResearchRatio * 100}%`}></span></span>
+            {myResearch.progress}/{myResearch.cost}
+          {:else if myResearch.stored > 0}
+            <em class="reserve">Choisir… ({myResearch.stored} en attente)</em>
+          {:else}
+            Recherche
+          {/if}
+        </button>
+        <button type="button" class="gov" class:anarchy={myInAnarchy} title="Gouvernement (R-121/R-122)" onclick={() => (showGovernment = !showGovernment)}>
+          <img src="/art/icone_gouvernement.png" alt="Gouvernement" onerror={hideImg} />
+          {GOVERNMENTS[myGovernment]?.name ?? myGovernment}
+        </button>
       {/if}
-    </button>
-    <span class="net net-{$status}">{$status}</span>
-    {#if $view.locked}<span class="chip locked">Verrouillé</span>{/if}
-    <!-- HANG-LOCAL UX (Erik 01/10 · option 1) : le bouton reste CLIQUABLE
-         quand un blocage existe — le clic affiche le toast du motif via
-         requestEndTurn (un bouton désactivé n'expliquait rien : « hang »). -->
-    <button
-      type="button"
-      class="primary"
-      class:blocage={myBlocages.length > 0}
-      disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active'}
-      title={myBlocages.length > 0 ? myBlocagesLabel : 'Terminer le tour (verrouillage des ordres)'}
-      onclick={requestEndTurn}
-    >
-      {myBlocages.length > 0 ? `Fin de tour bloquée (${myBlocages.length})` : 'Fin de tour'}
-    </button>
-    <button type="button" onclick={() => client.resync()}>Resync</button>
-    <button
-      type="button"
-      class:active-toggle={showYields}
-      title="Rendements N/P/C sur les cases — 3e clic : masquer villes et armées pour les lire (Phase 7b)"
-      onclick={cycleYields}
-    >
-      Rendements{yieldMode === 1 ? ' ✓' : yieldMode === 2 ? ' (seuls)' : ''}
-    </button>
-    {#if config.rendu3d}
+    </div>
+    <div class="bar-zone bar-centre">
+      {#if !vueVilleActive && $view.state}
+        <span class="tour-chip" title="Tour courant">Tour <strong>{$view.turn}</strong></span>
+        <button
+          type="button"
+          class="civbadge"
+          title={myCivTooltip}
+          onclick={() => (showGovernment = !showGovernment)}
+        >
+          <span class="civname">{civName(myCivId)}</span>
+          <span class="eraname">{eraLabel(myEra)}{adversairesBadge}</span>
+        </button>
+      {/if}
+      {#if vueVilleActive}<span class="chip">Vue ville — Échap ou double-clic hors de la ville pour sortir</span>{/if}
+    </div>
+    <div class="bar-zone bar-droite">
+      {#if $view.state && myName}<span class="me" title="Votre nom de joueur">Vous jouez : <strong>{myName}</strong></span>{/if}
+      <!-- UI-JEU-T1 · D1 : engrenage discret (liseré or) — miroir du
+           raccourci Ctrl+Alt+D pour le calque dev. -->
       <button
         type="button"
-        class:active-toggle={rendu3d}
-        title="Rendu 3D du terrain (chantier V1 — le rendu 2D reste disponible : ce bouton est un flag de repli)"
-        onclick={basculerRendu3d}
-      >
-        3D
-      </button>
+        class="engrenage"
+        class:actif={$calqueDev}
+        title="Interface de développement (Ctrl+Alt+D) — diagnostics, liens et outils ; caché par défaut"
+        aria-label="Basculer l'interface de développement"
+        onclick={basculerCalqueDev}
+      >⚙</button>
+    </div>
+    {#if $calqueDev}
+      <!-- UI-JEU-T1 · L1 — CALQUE DEV (inventaire D2) : éléments de
+           développement, gardent leur fonction quand affichés. -->
+      <div class="bar-dev">
+        <span class="dev-etiquette">DEV</span>
+        <a href="#/lobby">← Lobby</a>
+        <span class="chip">Partie {code}</span>
+        {#if $view.state}
+          <span class="chip" class:resolving={$view.phase === 'resolving'}>{$view.phase === 'resolving' ? 'Résolution…' : 'Ordres'}</span>
+          <span class="net net-{$status}">{$status}</span>
+          {#if $view.locked}<span class="chip locked">Verrouillé</span>{/if}
+          <button type="button" onclick={() => client.resync()}>Resync</button>
+          <button
+            type="button"
+            class:active-toggle={showYields}
+            title="Rendements N/P/C sur les cases — 3e clic : masquer villes et armées pour les lire (Phase 7b)"
+            onclick={cycleYields}
+          >
+            Rendements{yieldMode === 1 ? ' ✓' : yieldMode === 2 ? ' (seuls)' : ''}
+          </button>
+          {#if config.rendu3d}
+            <button
+              type="button"
+              class:active-toggle={rendu3d}
+              title="Rendu 3D du terrain (chantier V1 — le rendu 2D reste disponible : ce bouton est un flag de repli)"
+              onclick={basculerRendu3d}
+            >
+              3D
+            </button>
+          {/if}
+          {#if devMode}<a href={`#/debug/${code}`}>Debug</a>{/if}
+        {/if}
+      </div>
     {/if}
-    {#if devMode}<a href={`#/debug/${code}`}>Debug</a>{/if}
-    {/if}
-    {#if vueVilleActive}<span class="chip">Vue ville — Échap ou double-clic hors de la ville pour sortir</span>{/if}
   </header>
 
   {#if $view.status === 'waiting'}
@@ -948,6 +980,51 @@
           casesRapport={casesRapport}
           onRapport={ouvrirRapport}
         />
+        {#if !vueVilleActive && $view.state}
+          <!-- UI-JEU-T1 · D4 : médaillon du dirigeant (droite sous la barre,
+               façon Civ VI). Portrait dessiné si la civ en a un, sinon logo
+               or de la nation ; initiale or en dernier recours — jamais de
+               trou. Tooltip : nom du dirigeant. -->
+          <div class="portrait-site" title={myPortrait.titre}>
+            <span class="portrait-cadre" class:logo={!myPortrait.portrait}>
+              {#if myPortrait.src}
+                <img
+                  src={myPortrait.src}
+                  alt={myPortrait.titre}
+                  onerror={hideImg}
+                  style:width={myPortrait.portrait ? '100%' : `${4.6 * myPortrait.echelle}rem`}
+                  style:height={myPortrait.portrait ? '100%' : `${4.6 * myPortrait.echelle}rem`}
+                />
+              {:else}
+                <span class="portrait-initiale">{(civName(myCivId)[0] ?? '?').toUpperCase()}</span>
+              {/if}
+            </span>
+          </div>
+          <!-- UI-JEU-T1 · D5 : bouton de fin de tour circulaire (bas-droite,
+               façon Civ VI). HANG-LOCAL UX (Erik 01/10 · option 1) : le
+               bouton reste CLIQUABLE quand un blocage existe — le clic
+               affiche le toast du motif via requestEndTurn (un bouton
+               désactivé n'expliquait rien : « hang »). -->
+          <div class="fin-tour-site">
+            {#if attenteOrdres > 0 && myBlocages.length === 0}
+              <span class="fin-tour-attente">Unités en attente d'ordres ({attenteOrdres})</span>
+            {/if}
+            {#if myBlocages.length > 0}
+              <span class="fin-tour-libelle blocage-libelle">{`Fin de tour bloquée (${myBlocages.length})`}</span>
+            {/if}
+            <button
+              type="button"
+              class="primary fin-tour-rond"
+              class:blocage={myBlocages.length > 0}
+              class:occupe={$view.phase === 'resolving' || playbackActive}
+              disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active'}
+              title={myBlocages.length > 0 ? myBlocagesLabel : 'Terminer le tour (verrouillage des ordres)'}
+              onclick={requestEndTurn}
+            >
+              <img src="/art/icone_fin_tour.png" alt="" onerror={hideImg} />
+            </button>
+          </div>
+        {/if}
         {#if rapportHex && resumeRapport && posRapport}
           <!-- RAPPORT-ENGAGEMENT (D2/D4) : popover ancré à la case, fermé par
                clic ailleurs / Échap / × ( listeners du composant). -->
@@ -1104,7 +1181,7 @@
            toute la largeur et le panneau de ville flottant EST l'interface. -->
       {#if !vueVilleActive}
       <aside class="side">
-        {#if myName}<p class="me">Vous jouez : <strong>{myName}</strong></p>{/if}
+        <!-- UI-JEU-T1 : « Vous jouez : X » a migré dans la barre AAA (D2). -->
         <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onCancelOrder={handleCancelOrder} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onArmNuke={armNuke} onCancelNuke={cancelNuke} />
         {#if $view.state && myEngineId($view) && SHIP_COMPONENTS.some((c) => c.built)}
           <!-- RESOLUTION-DEPLACEMENTS §4 : la section « Course à l'espace »
@@ -1143,10 +1220,14 @@
           {replayActif ? '⏹ Quitter la relecture (Échap)' : '⟲ Rejouer la résolution'}
         </button>
         <Journal view={$view} onCentrerHex={(hex) => canvasApi?.centerOnHex(hex)} />
-        <details class="raw">
-          <summary>État brut (debug)</summary>
-          <pre>{JSON.stringify($view.state, null, 2)}</pre>
-        </details>
+        {#if $calqueDev}
+          <!-- UI-JEU-T1 · L1 : état brut = outil de dev (D2) — caché en mode
+               joueur, réaffichable via engrenage / Ctrl+Alt+D. -->
+          <details class="raw">
+            <summary>État brut (debug)</summary>
+            <pre>{JSON.stringify($view.state, null, 2)}</pre>
+          </details>
+        {/if}
       </aside>
       {/if}
     </div>
@@ -1172,11 +1253,57 @@
 
 <style>
   main.game { display: flex; flex-direction: column; height: 100vh; font-family: system-ui, sans-serif; color: #e3e8ec; background: #10151a; }
-  .bar { display: flex; gap: 0.9rem; align-items: center; flex-wrap: wrap; border-bottom: 2px solid #2c353d; padding: 0.45rem 0.9rem; background: #171e24; }
+  /* UI-JEU-T1 · D3 — barre supérieure AAA (tokens LOBBY-PREMIUM :
+     or-sur-sombre, serif des titres, ombres douces). */
+  .bar {
+    display: flex; gap: 0.9rem; align-items: center; flex-wrap: wrap;
+    border-bottom: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
+    background: linear-gradient(180deg, #1a1610 0%, #120f0a 100%);
+    padding: 0.4rem 0.9rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    position: relative;
+  }
+  .bar-zone { display: flex; gap: 0.7rem; align-items: center; }
+  .bar-gauche { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
+  .bar-centre { flex: 0 1 auto; justify-content: center; }
+  .bar-droite { flex: 1 1 auto; justify-content: flex-end; min-width: 0; }
+  /* Calque dev (L1) : rangée secondaire sous la barre, présentation sobre. */
+  .bar-dev {
+    flex-basis: 100%;
+    display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;
+    border-top: 1px dashed rgba(201, 162, 39, 0.25);
+    margin-top: 0.3rem; padding-top: 0.35rem;
+  }
+  .dev-etiquette {
+    font-family: var(--serif-or, Georgia, serif); font-size: 0.62rem; letter-spacing: 0.18em;
+    color: var(--or, #c9a227); border: 1px solid var(--or-sombre, #8a6d1a);
+    border-radius: 3px; padding: 0.05rem 0.35rem;
+  }
+  /* D1 — engrenage discret (liseré or). */
+  .engrenage {
+    background: rgba(201, 162, 39, 0.06); border: 1px solid var(--or-sombre, #8a6d1a);
+    color: var(--texte-doux, #b6ad93); border-radius: 6px; padding: 0.15rem 0.5rem;
+    font-size: 0.95rem; line-height: 1.2;
+  }
+  .engrenage:hover { color: var(--or-clair, #e8c96a); border-color: var(--or, #c9a227); }
+  .engrenage.actif { color: var(--or-clair, #e8c96a); background: rgba(201, 162, 39, 0.18); box-shadow: 0 0 8px rgba(201, 162, 39, 0.35); }
+  /* D3 — tour bien visible (serif or). */
+  .tour-chip {
+    font-family: var(--serif-or, Georgia, serif); font-size: 1rem; letter-spacing: 0.08em;
+    color: var(--texte, #e9e4d3);
+    border: 1px solid var(--panneau-bord, rgba(201, 162, 39, 0.55)); border-radius: 999px;
+    padding: 0.15rem 0.85rem; background: rgba(13, 20, 32, 0.72);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+    white-space: nowrap;
+  }
+  .tour-chip strong { color: var(--or-clair, #e8c96a); font-size: 1.1rem; }
   .bar a { color: #7fb3ff; }
   .chip { padding: 0.1rem 0.55rem; border-radius: 999px; border: 1px solid #3c4a55; font-size: 0.8rem; background: #1f2a33; }
   .chip.resolving { border-color: #8d6e63; background: #332a24; }
   .chip.locked { border-color: #7a5b3c; background: #2e251c; }
+  /* D2 — « Vous jouez : X » discret dans la barre. */
+  .bar .me { font-size: 0.82rem; color: var(--texte-doux, #b6ad93); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 16rem; }
+  .bar .me strong { color: var(--texte, #e9e4d3); }
   .research { display: inline-flex; align-items: center; gap: 0.35rem; }
   .research img { width: 16px; height: 16px; }
   .research .minibar { display: inline-block; width: 4rem; height: 7px; background: #12161a; border: 1px solid #3a4148; border-radius: 4px; overflow: hidden; }
@@ -1215,7 +1342,6 @@
   .body { display: flex; flex: 1; min-height: 0; }
   .map-area { position: relative; flex: 1; min-width: 0; }
   .side { width: 350px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem; padding: 0.6rem; border-left: 2px solid #2c353d; background: #141a20; }
-  .me { margin: 0; font-size: 0.85rem; color: #9aa7b2; }
   .banner { position: absolute; top: 0.7rem; left: 50%; transform: translateX(-50%); background: #000000cc; padding: 0.4rem 1rem; border-radius: 999px; font-size: 0.9rem; pointer-events: none; }
   .victory { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; background: #000000b8; text-align: center; }
   .victory h1 { font-size: 2.4rem; margin: 0; }
@@ -1242,4 +1368,80 @@
   .toast.bad { background: #54262a; }
   .raw summary { cursor: pointer; color: #8b98a5; font-size: 0.82rem; }
   .raw pre { max-height: 18rem; overflow: auto; font-size: 0.68rem; color: #93a1ad; }
+
+  /* ------------------------------------------------------------------
+     UI-JEU-T1 · D4 — médaillon du dirigeant (droite, sous la barre).
+     ------------------------------------------------------------------ */
+  .portrait-site {
+    position: absolute; top: 0.7rem; right: 0.8rem; z-index: 30;
+    pointer-events: auto;
+  }
+  .portrait-cadre {
+    display: flex; align-items: center; justify-content: center;
+    width: 5.6rem; height: 5.6rem; overflow: hidden;
+    border-radius: 50%;
+    border: 2px solid var(--or, #c9a227);
+    box-shadow: 0 0 0 2px rgba(13, 20, 32, 0.85), 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 14px rgba(201, 162, 39, 0.25);
+    background: radial-gradient(circle at 50% 32%, #2a2317 0%, #14110b 100%);
+  }
+  .portrait-cadre img { object-fit: cover; }
+  .portrait-cadre.logo img { object-fit: contain; padding: 0.5rem; filter: drop-shadow(0 0 4px rgba(201, 162, 39, 0.5)); }
+  .portrait-initiale {
+    font-family: var(--serif-or, Georgia, serif); font-size: 2.4rem;
+    color: var(--or-clair, #e8c96a);
+  }
+
+  /* ------------------------------------------------------------------
+     UI-JEU-T1 · D5 — bouton de fin de tour circulaire (bas-droite,
+     façon Civ VI) + badge d'attente + libellé de blocage.
+     ------------------------------------------------------------------ */
+  .fin-tour-site {
+    position: absolute; bottom: 1.1rem; right: 1.2rem; z-index: 30;
+    display: flex; flex-direction: column; align-items: center; gap: 0.45rem;
+  }
+  .fin-tour-attente, .fin-tour-libelle {
+    font-family: var(--serif-or, Georgia, serif); font-size: 0.8rem; letter-spacing: 0.05em;
+    color: var(--texte, #e9e4d3);
+    background: rgba(13, 20, 32, 0.88); border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
+    border-radius: 999px; padding: 0.18rem 0.7rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+  }
+  .fin-tour-libelle.blocage-libelle { color: #ffcc80; border-color: #a3703c; }
+  button.fin-tour-rond {
+    width: 5.4rem; height: 5.4rem; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    background: radial-gradient(circle at 50% 34%, #4a3c17 0%, #2a2310 62%, #1c170a 100%);
+    border: 2px solid var(--or, #c9a227);
+    box-shadow: 0 0 0 2px rgba(13, 20, 32, 0.85), 0 6px 18px rgba(0, 0, 0, 0.65), 0 0 16px rgba(201, 162, 39, 0.3);
+    transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+  }
+  button.fin-tour-rond img { width: 58%; height: 58%; object-fit: contain; filter: drop-shadow(0 0 5px rgba(232, 201, 106, 0.55)); }
+  button.fin-tour-rond:hover:enabled { transform: scale(1.05); box-shadow: 0 0 0 2px rgba(13, 20, 32, 0.85), 0 8px 22px rgba(0, 0, 0, 0.7), 0 0 26px rgba(201, 162, 39, 0.5); }
+  button.fin-tour-rond.blocage {
+    background: radial-gradient(circle at 50% 34%, #5c3a20 0%, #3a2712 62%, #241806 100%);
+    border-color: #a3703c;
+    box-shadow: 0 0 0 2px rgba(13, 20, 32, 0.85), 0 6px 18px rgba(0, 0, 0, 0.65), 0 0 16px rgba(163, 112, 60, 0.45);
+  }
+  button.fin-tour-rond.blocage img { filter: drop-shadow(0 0 5px rgba(255, 204, 128, 0.55)); }
+  button.fin-tour-rond.occupe:disabled { animation: fin-tour-pulse 1.1s ease-in-out infinite; }
+  button.fin-tour-rond:disabled { opacity: 0.6; }
+  @keyframes fin-tour-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(13, 20, 32, 0.85), 0 6px 18px rgba(0, 0, 0, 0.65), 0 0 10px rgba(201, 162, 39, 0.2); }
+    50% { box-shadow: 0 0 0 2px rgba(13, 20, 32, 0.85), 0 6px 18px rgba(0, 0, 0, 0.65), 0 0 28px rgba(201, 162, 39, 0.55); }
+  }
+
+  /* D7 — responsive minimal (cible 1920×1080 ; dégradation sans casse). */
+  @media (max-width: 1500px) {
+    .bar-zone { gap: 0.45rem; }
+    .bar .res { font-size: 0.88rem; }
+    .bar .res img { width: 15px; height: 15px; }
+    .tour-chip { font-size: 0.88rem; padding: 0.1rem 0.6rem; }
+    .civbadge .eraname { display: none; }
+    .bar .me { display: none; }
+    .portrait-cadre { width: 4.4rem; height: 4.4rem; }
+    .portrait-cadre.logo img { width: 3.6rem !important; height: 3.6rem !important; }
+    button.fin-tour-rond { width: 4.4rem; height: 4.4rem; }
+  }
 </style>
