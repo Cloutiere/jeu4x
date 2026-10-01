@@ -27,7 +27,7 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     expect(dump.barbares!.huts).toHaveLength(2); // R-98 : 2 huttes
     for (const v of dump.barbares!.villages) {
       expect((v as { hp?: number }).hp).toBeUndefined(); // BARBARES-PILES : camps sans PV
-      expect(v.spawnCountdown).toBe(10); // T-18 (POLISSAGE-1 C3)
+      expect(v.spawnCountdown).toBe(15); // T-18 rév. CALIBRAGE-BARBARES (02/10) : premier réengendrement au tour 15
       expect(v.unitésVivantes).toBe(3); // dotation initiale T-50 (rév. ENGAGEMENT : 1 gardien + 2 satellites)
     }
     expect(dump.state!.mapId).toBe('pangee-40');
@@ -121,7 +121,7 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     expect(dump.state!.villages).toHaveLength(3);
     expect(dump.state!.huts).toHaveLength(2);
     for (const v of dump.state!.villages!) {
-      expect(v.spawnCountdown).toBe(10); // T-18 (POLISSAGE-1 C3)
+      expect(v.spawnCountdown).toBe(15); // T-18 rév. CALIBRAGE-BARBARES (02/10) : premier réengendrement au tour 15
       // Dotation initiale T-50 (rév. ENGAGEMENT) : le gardien SUR le camp,
       // jusqu'à 2 satellites sur les cases adjacentes libres (des unités de
       // la partie peuvent occuper des cases du rayon — dotation partielle).
