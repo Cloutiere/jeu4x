@@ -245,12 +245,18 @@ function entityCandidates(input: EntityPlacementInput): Hex[] {
  *  backtracking, devtmp/diag-faisabilite.mjs). Relances déterministes au RNG
  *  DÉRIVÉ de l'état courant du flux (même seed → mêmes relances → même carte)
  *  ; une graine qui réussit du premier coup consomme exactement le même flux
- *  RNG qu'avant (cartes inchangées). Aucune valeur de règle touchée. */
+ *  RNG qu'avant (cartes inchangées). Aucune valeur de règle touchée.
+ *  VILLAGES-5SIEGES (01/10) : borne 8 → 64. En 5 sièges 50×40, 3 seeds
+ *  (110867, 649359, 760225) ont une offre de cases si serrée (10-26 % de
+ *  succès par passe, banc devtmp/calib-relances-5sieges.mjs) que 8 relances
+ *  échouaient ~40 % du temps ; 64 relances ramènent le résidu à ~0,1 %.
+ *  Faisabilité 15/15 prouvée par backtracking exact pour chacune
+ *  (devtmp/diag-faisabilite-villages-5sieges.mjs) — aucune règle relâchée. */
 export function placeEntities(input: EntityPlacementInput): Hex[] {
   const ancre = input.same.length;
   const placed: Hex[] = [];
   placeEntitiesUneFois(input, input.rng, placed);
-  for (let tentative = 1; tentative <= 8 && placed.length < input.count; tentative++) {
+  for (let tentative = 1; tentative <= 64 && placed.length < input.count; tentative++) {
     input.same.length = ancre;
     placed.length = 0;
     const rngRelance = createRng((input.rng.state ^ Math.imul(0x9e3779b9, tentative)) >>> 0);
