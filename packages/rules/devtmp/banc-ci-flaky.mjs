@@ -51,3 +51,38 @@ const violV = Object.entries(histoVillages).filter(([k]) => Number(k) < 2 * s.vi
 const violH = Object.entries(histoHuttes).filter(([k]) => Number(k) < 2 * s.hutsPerHalf).reduce((a, [, v]) => a + v, 0);
 console.log(`seeds fautives : ${fautives.length}/${N} (${((100 * fautives.length) / N).toFixed(1)} %) — villages<12 : ${violV}, huttes<12 : ${violH}`);
 if (fautives.length) console.log('SEEDS FAUTIVES :\n' + fautives.join('\n'));
+
+// --- CARTE-50 : parité banc 50×40 (3/4/5 sièges), mêmes assertions que
+// progen-carte-50.test.ts (totaux × échelle d'aire + distances réglementaires).
+const N50 = Number(process.argv[3] ?? Math.min(N, 100));
+const seeds50 = Array.from({ length: N50 }, (_, i) => 1 + i * 7919);
+const echelle = (50 * 40) / 1600;
+const fautives50 = [];
+let t50 = Date.now();
+for (const playerCount of [3, 4, 5]) {
+  const s50 = resolveProgenSettings({ playerCount });
+  const attendusV = Math.round(s50.villagesPerHalf * 2 * echelle);
+  const attendusH = Math.round(s50.hutsPerHalf * 2 * echelle);
+  for (const seed of seeds50) {
+    let map;
+    try {
+      ({ map } = generateProceduralMap(seed, { playerCount }));
+    } catch (e) {
+      fautives50.push(`s${playerCount} seed ${seed} : génération KO — ${e.message}`);
+      continue;
+    }
+    const raisons = [];
+    if (map.villages.length !== attendusV) raisons.push(`villages ${map.villages.length} ≠ ${attendusV}`);
+    if (map.huts.length !== attendusH) raisons.push(`huttes ${map.huts.length} ≠ ${attendusH}`);
+    for (const v of map.villages)
+      for (const sp of map.spawns)
+        if (hexDistance(v, sp.capital) < s50.minVillageDistance) raisons.push(`village trop proche spawn`);
+    for (const h of map.huts)
+      for (const sp of map.spawns)
+        if (hexDistance(h, sp.capital) < s50.minHutDistance) raisons.push(`hutte trop proche spawn`);
+    if (raisons.length) fautives50.push(`s${playerCount} seed ${seed} : ${raisons.join(' ; ')}`);
+  }
+}
+console.log(`=== CARTE-50 · banc ${N50} seeds × 3/4/5 sièges (50×40) — ${((Date.now() - t50) / 1000).toFixed(0)} s ===`);
+console.log(`seeds/sièges fautifs : ${fautives50.length}/${N50 * 3}`);
+if (fautives50.length) console.log('FAUTIFS :\n' + fautives50.join('\n'));

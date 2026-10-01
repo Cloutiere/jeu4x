@@ -24,7 +24,7 @@
  *  - R-80/R-82 : déterminisme (même seed → même carte bit à bit) ;
  *  - connexité : exigée hors archipel (index.ts:282-290).
  *
- * Temps borné CI : 60 seeds (20 × 3 nb de sièges) — le banc 500 seeds du
+ * Temps borné CI : 61 seeds (fixes, × 3 nb de sièges) — le banc 500 seeds du
  * rapport est le script jumeau `devtmp/banc-carte-50.mjs` (hors CI).
  */
 import { describe, expect, it } from 'vitest';
@@ -45,6 +45,7 @@ const SEEDS = [
   42, 99, 606, 777, 1234, 2718, 4242, 314159, 777777, 20260924,
   100003, 1000037, 65537, 123456789, 987654321, 8675309, 5150, 90210, 31337, 1337,
   20250101, 20250505, 20250909, 20251225, 20260101, 20260714, 20260928, 1999999, 3000001, 4294967295 - 7,
+  3714012, // CI-FLAKY : « villages 10 < 12 » en 1v1 (épuisement glouton pré-correctif) — non-régression, même modèle que progen-properties
 ];
 
 /** Compteurs de taux (affichés au rapport ; assertion = taux 100 % ou liste). */
@@ -73,7 +74,7 @@ describe('CARTE-50 · Banc de conformité exhaustif 50×40 (D3/D4)', () => {
   });
 
   it(
-    '100 % des seeds (60 × 3/4/5 sièges) : TOUTES les règles de placement satisfaites',
+    '100 % des seeds (61 × 3/4/5 sièges) : TOUTES les règles de placement satisfaites',
     { timeout: 900000 },
     () => {
       const manquements: string[] = [];
