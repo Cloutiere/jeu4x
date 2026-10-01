@@ -5,54 +5,102 @@
   "svg": "assets-src/modeles/gp/artist.svg",
   "stem": "unite_artiste_penseur",
   "sansAccent": true,
-  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.7501 }
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7501
+  }
  },
  "gp-batisseur": {
   "_doc": "GP-ART : builder.svg → batisseur (mapping D1). Calibre guerrier.",
   "svg": "assets-src/modeles/gp/builder.svg",
   "stem": "unite_batisseur",
   "sansAccent": true,
-  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.7501 }
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7501
+  }
  },
  "gp-humanitaire": {
   "_doc": "GP-ART : humanitaire.svg → humanitaire (mapping D1). Calibre guerrier.",
   "svg": "assets-src/modeles/gp/humanitaire.svg",
   "stem": "unite_humanitaire",
   "sansAccent": true,
-  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.8176 }
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8176
+  }
  },
  "gp-explorateur": {
   "_doc": "GP-ART : industrial.svg → explorateur (mapping D1, décision Erik « Explorateur = industriel »). Calibre guerrier.",
   "svg": "assets-src/modeles/gp/industrial.svg",
   "stem": "unite_explorateur",
   "sansAccent": true,
-  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.7501 }
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7501
+  }
  },
  "gp-leader": {
   "_doc": "GP-ART : leader.svg → leader (mapping D1). Calibre guerrier.",
   "svg": "assets-src/modeles/gp/leader.svg",
   "stem": "unite_leader",
   "sansAccent": true,
-  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.8672 }
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8672
+  }
  },
  "gp-savant": {
   "_doc": "GP-ART : scientist.svg → savant (mapping D1). Calibre guerrier.",
   "svg": "assets-src/modeles/gp/scientist.svg",
   "stem": "unite_savant",
   "sansAccent": true,
-  "cible": { "mode": "unite", "w": 512, "h": 640, "margeX": 28, "margeHaut": 12, "margeBas": 20, "echelle": 0.7501 }
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7501
+  }
  },
  "guerrier-6couleurs": {
-  "_doc": "SPRITES-GUERRIER-COLON (30/09) : SVG v2 d'Erik, un PEINT par faction (mapping D1 : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise). Aucun recoloriage — la cuite = rendu direct du SVG. echelle 0,7765 = calibre guerrier (hauteur de contenu identique au maître).",
-  "svg": "assets-src/modeles/guerrier_v2_bleu.svg",
+  "_doc": "ASSETS-4K (02/10) : dessins 4K d'Erik (new_units/new_guerrier, copies assets-src/modeles/4k, PNG _trsp fond transparent — JAMAIS les JPEG incrustés). Mapping D1 : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise (nommage irrégulier : guerrier_{couleur}4k_trsp.png, casse K variable — cf. rapport). Aucun recoloriage — la cuite = rendu direct. echelle 0,8808 = calibre guerrier (inchangé, D2). echelleParVariante : calibre variante par variante (hauteurs de contenu des SVG v2 conservées — les 4K changent de proportions par couleur). echelleParVariante (feu vert Erik 02/10) : j3/j4 recalés sur leur hauteur de contenu d'avant (les proportions des 4K diffèrent des SVG).",
+  "svg": "assets-src/modeles/4k/guerrier_bleu4k_trsp.png",
   "stem": "unite_guerrier",
   "variantesFournies": {
-   "bleu-saphir": "assets-src/modeles/guerrier_v2_bleu.svg",
-   "rouge-royal": "assets-src/modeles/guerrier_v2_rouge.svg",
-   "vert-emeraude": "assets-src/modeles/guerrier_v2_vert.svg",
-   "jaune-dor": "assets-src/modeles/guerrier_v2_jaune.svg",
-   "cuivre-ardent": "assets-src/modeles/guerrier_v2_orange.svg",
-   "ardoise": "assets-src/modeles/guerrier_v2_ardoise.svg"
+   "bleu-saphir": "assets-src/modeles/4k/guerrier_bleu4k_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/guerrier_rouge4k_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/guerrier_vert4K_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/guerrier_jaune4k_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/guerrier_orange4k_trsp.png",
+   "ardoise": "assets-src/modeles/4k/guerrier_ardoise4K_trsp.png"
   },
   "cible": {
    "mode": "unite",
@@ -62,11 +110,15 @@
    "margeHaut": 12,
    "margeBas": 20,
    "echelle": 0.8808
+  },
+  "echelleParVariante": {
+   "vert-emeraude": 0.9541,
+   "jaune-dor": 0.8394
   }
  },
  "guerrier-base": {
-  "_doc": "Sprite de base unite_guerrier (fallback + pile) : le SVG bleu d'Erik supplanté au maître saphir (consigné, maître conservé en assets-src/modeles/guerrier_ref.svg).",
-  "svg": "assets-src/modeles/guerrier_v2_bleu.svg",
+  "_doc": "Sprite de base unite_guerrier (fallback + pile) : le PNG 4K bleu d'Erik (ASSETS-4K, 02/10) supplanté au SVG v2 (consigné, SVG conservés en assets-src/modeles/guerrier_v2_*.svg).",
+  "svg": "assets-src/modeles/4k/guerrier_bleu4k_trsp.png",
   "stem": "unite_guerrier",
   "sansAccent": true,
   "cible": {
@@ -117,16 +169,16 @@
   }
  },
  "colon-6couleurs": {
-  "_doc": "COLONS d'Erik (27/09) : un SVG peint par faction (mapping ASSETS-6COULEURS : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise). Aucun recoloriage. echelle = calibre guerrier (même hauteur de contenu).",
-  "svg": "assets-src/modeles/colon_v2_bleu.svg",
+  "_doc": "ASSETS-4K (02/10) : dessins 4K d'Erik (new_units/new_colon, copies assets-src/modeles/4k, PNG _trsp — JAMAIS les JPEG incrustés ; nommage colon_trsp_4k_{couleur}.png). Mapping ASSETS-6COULEURS : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise. echelle = calibre guerrier (inchangé, D2).",
+  "svg": "assets-src/modeles/4k/colon_trsp_4k_bleu.png",
   "stem": "unite_colon",
   "variantesFournies": {
-   "bleu-saphir": "assets-src/modeles/colon_v2_bleu.svg",
-   "rouge-royal": "assets-src/modeles/colon_v2_rouge.svg",
-   "vert-emeraude": "assets-src/modeles/colon_v2_vert.svg",
-   "jaune-dor": "assets-src/modeles/colon_v2_jaune.svg",
-   "cuivre-ardent": "assets-src/modeles/colon_v2_orange.svg",
-   "ardoise": "assets-src/modeles/colon_v2_ardoise.svg"
+   "bleu-saphir": "assets-src/modeles/4k/colon_trsp_4k_bleu.png",
+   "rouge-royal": "assets-src/modeles/4k/colon_trsp_4k_rouge.png",
+   "vert-emeraude": "assets-src/modeles/4k/colon_trsp_4k_vert.png",
+   "jaune-dor": "assets-src/modeles/4k/colon_trsp_4k_jaune.png",
+   "cuivre-ardent": "assets-src/modeles/4k/colon_trsp_4k_orange.png",
+   "ardoise": "assets-src/modeles/4k/colon_trsp_4k_ardoise.png"
   },
   "cible": {
    "mode": "unite",
@@ -139,8 +191,8 @@
   }
  },
  "colon-base": {
-  "_doc": "Sprite de base unite_colon (fallback + piles) : le SVG bleu d'Erik.",
-  "svg": "assets-src/modeles/colon_v2_bleu.svg",
+  "_doc": "Sprite de base unite_colon (fallback + piles) : le PNG 4K bleu d'Erik (ASSETS-4K, 02/10).",
+  "svg": "assets-src/modeles/4k/colon_trsp_4k_bleu.png",
   "stem": "unite_colon",
   "sansAccent": true,
   "cible": {
@@ -176,8 +228,8 @@
   }
  },
  "barbare-unite": {
-  "_doc": "D4 : unit_barbare.svg d'Erik remplace le guerrier barbare (unite_barbare_guerrier) — sprite peint cuit tel quel, HORS système J1-J6, aucune variante.",
-  "svg": "new_others/unit_barbare.svg",
+  "_doc": "ASSETS-4K vague 2 : PNG 4K trsp d'Erik remplace le SVG (calibre echelle 0.9674 inchangé).",
+  "svg": "assets-src/modeles/4k/unit_barbare_4K_trsp.png",
   "stem": "unite_barbare_guerrier",
   "sansAccent": true,
   "cible": {
@@ -191,8 +243,8 @@
   }
  },
  "tuile-barbare": {
-  "_doc": "D4 : tuile du CAMP barbare (village_barbare) — version peinte d'Erik (new_others, 26/09) supplantant new_barbares/ (dossier disparu). La hutte bonus reste un asset distinct. [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
-  "svg": "new_others/tuile_barbare.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/tuile_barbare_4k_trsp.png",
   "stem": "village_barbare",
   "cible": {
    "mode": "tuile",
@@ -202,8 +254,8 @@
   }
  },
  "tuile-hutte": {
-  "_doc": "TUILES-RESSOURCES vague 2 (26/09) : hutte bonus peinte par Erik (new_others) — hexagone pré-clippé, remplace le painter. [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
-  "svg": "new_others/tuile_hutte.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/hutte_4k_trsp.png",
   "stem": "hutte",
   "cible": {
    "mode": "tuile",
@@ -291,8 +343,8 @@
  },
  "_tuiles-ressources-commentaire": "TUILES-RESSOURCES (26/09) : 22 tuiles pleines par ressource, art d'Erik new_ressources/ (NON commités). Remplacent la tuile de terrain SEULEMENT quand la ressource est révélée (rendu, mission TUILES-RESSOURCES). renames : alluminium→aluminium, boeuf→boeufs, gems→gemmes, poissons→poisson, souffre→soufre.",
  "tuile-ressource-aluminium": {
-  "_doc": "TUILES-RESSOURCES : aluminium (rename alluminium→aluminium).",
-  "svg": "new_ressources/alluminium_colline.svg",
+  "_doc": "ASSETS-4K vague 2 (complétée 02/10) : source PNG 4K trsp remplace le SVG.",
+  "svg": "assets-src/modeles/4k/alluminium_colline_4k_trsp.png",
   "stem": "tile_ressource_aluminium",
   "cible": {
    "mode": "tuile",
@@ -301,8 +353,8 @@
   }
  },
  "tuile-ressource-baleine": {
-  "_doc": "TUILES-RESSOURCES : baleine (correspondance directe).",
-  "svg": "new_ressources/baleine_rivage.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/baleine_rivage_4k_trsp.png",
   "stem": "tile_ressource_baleine",
   "cible": {
    "mode": "tuile",
@@ -311,8 +363,8 @@
   }
  },
  "tuile-ressource-betail": {
-  "_doc": "TUILES-RESSOURCES : betail (correspondance directe).",
-  "svg": "new_ressources/betail_prairie.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/betail_prairie_4K_trsp.png",
   "stem": "tile_ressource_betail",
   "cible": {
    "mode": "tuile",
@@ -321,8 +373,8 @@
   }
  },
  "tuile-ressource-ble": {
-  "_doc": "TUILES-RESSOURCES : ble (correspondance directe).",
-  "svg": "new_ressources/ble_prairie.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/ble_prairie_4K_trsp.png",
   "stem": "tile_ressource_ble",
   "cible": {
    "mode": "tuile",
@@ -331,8 +383,8 @@
   }
  },
  "tuile-ressource-boeufs": {
-  "_doc": "TUILES-RESSOURCES : boeufs (rename boeuf→boeufs).",
-  "svg": "new_ressources/boeuf_prairie.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/oxen_prairie_4k_trsp.png",
   "stem": "tile_ressource_boeufs",
   "cible": {
    "mode": "tuile",
@@ -341,8 +393,8 @@
   }
  },
  "tuile-ressource-caoutchouc": {
-  "_doc": "TUILES-RESSOURCES : caoutchouc (correspondance directe).",
-  "svg": "new_ressources/caoutchouc_forest.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/caoutchouc_forest_4k_trsp.png",
   "stem": "tile_ressource_caoutchouc",
   "cible": {
    "mode": "tuile",
@@ -351,8 +403,8 @@
   }
  },
  "tuile-ressource-charbon": {
-  "_doc": "TUILES-RESSOURCES : charbon (correspondance directe).",
-  "svg": "new_ressources/charbon_colline.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/charbon_colline_4k_trsp.png",
   "stem": "tile_ressource_charbon",
   "cible": {
    "mode": "tuile",
@@ -361,8 +413,8 @@
   }
  },
  "tuile-ressource-chene": {
-  "_doc": "TUILES-RESSOURCES : chene (correspondance directe).",
-  "svg": "new_ressources/chene_forest.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/chene_forest_4k_trsp.png",
   "stem": "tile_ressource_chene",
   "cible": {
    "mode": "tuile",
@@ -371,8 +423,8 @@
   }
  },
  "tuile-ressource-encens": {
-  "_doc": "TUILES-RESSOURCES : encens (correspondance directe).",
-  "svg": "new_ressources/encens_prairie.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/encens_prairie_4k_trsp.png",
   "stem": "tile_ressource_encens",
   "cible": {
    "mode": "tuile",
@@ -381,8 +433,8 @@
   }
  },
  "tuile-ressource-epices": {
-  "_doc": "TUILES-RESSOURCES : epices (correspondance directe).",
-  "svg": "new_ressources/epices_desert.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/epices_desert_4k_trsp.png",
   "stem": "tile_ressource_epices",
   "cible": {
    "mode": "tuile",
@@ -391,8 +443,8 @@
   }
  },
  "tuile-ressource-fer": {
-  "_doc": "TUILES-RESSOURCES : fer (correspondance directe).",
-  "svg": "new_ressources/fer_colline.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/fer_colline_4k_trsp.png",
   "stem": "tile_ressource_fer",
   "cible": {
    "mode": "tuile",
@@ -401,8 +453,8 @@
   }
  },
  "tuile-ressource-gemmes": {
-  "_doc": "TUILES-RESSOURCES : gemmes (rename gems→gemmes).",
-  "svg": "new_ressources/gems_montagne.svg",
+  "_doc": "ASSETS-4K vague 2 (complétée 02/10) : source PNG 4K trsp remplace le SVG.",
+  "svg": "assets-src/modeles/4k/gems_montagne_4k_trsp.png",
   "stem": "tile_ressource_gemmes",
   "cible": {
    "mode": "tuile",
@@ -411,8 +463,8 @@
   }
  },
  "tuile-ressource-gibier": {
-  "_doc": "TUILES-RESSOURCES : gibier (correspondance directe).",
-  "svg": "new_ressources/gibier_forest.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/gibier_forest_4k_trsp.png",
   "stem": "tile_ressource_gibier",
   "cible": {
    "mode": "tuile",
@@ -421,8 +473,8 @@
   }
  },
  "tuile-ressource-marbre": {
-  "_doc": "TUILES-RESSOURCES : marbre (correspondance directe).",
-  "svg": "new_ressources/marbre_plaines.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/marbre_plaines_4k_trsp.png",
   "stem": "tile_ressource_marbre",
   "cible": {
    "mode": "tuile",
@@ -431,8 +483,8 @@
   }
  },
  "tuile-ressource-or": {
-  "_doc": "TUILES-RESSOURCES : or (correspondance directe).",
-  "svg": "new_ressources/or_montagne.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/or_montagne_4k_trsp.png",
   "stem": "tile_ressource_or",
   "cible": {
    "mode": "tuile",
@@ -441,8 +493,8 @@
   }
  },
  "tuile-ressource-petrole": {
-  "_doc": "TUILES-RESSOURCES : petrole (correspondance directe).",
-  "svg": "new_ressources/petrole_desert.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/petrole_desert_4k_trsp.png",
   "stem": "tile_ressource_petrole",
   "cible": {
    "mode": "tuile",
@@ -451,8 +503,8 @@
   }
  },
  "tuile-ressource-poisson": {
-  "_doc": "TUILES-RESSOURCES : poisson (rename poissons→poisson).",
-  "svg": "new_ressources/poissons_rivage.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/poissons_rivage_4k_trsp.png",
   "stem": "tile_ressource_poisson",
   "cible": {
    "mode": "tuile",
@@ -461,8 +513,8 @@
   }
  },
  "tuile-ressource-soie": {
-  "_doc": "TUILES-RESSOURCES : soie (correspondance directe).",
-  "svg": "new_ressources/soie_plaines.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/soie_plaines_4k_trsp.png",
   "stem": "tile_ressource_soie",
   "cible": {
    "mode": "tuile",
@@ -471,8 +523,8 @@
   }
  },
  "tuile-ressource-soufre": {
-  "_doc": "TUILES-RESSOURCES : soufre (rename souffre→soufre).",
-  "svg": "new_ressources/souffre_desert.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/souffre_desert_4k_trsp.png",
   "stem": "tile_ressource_soufre",
   "cible": {
    "mode": "tuile",
@@ -481,8 +533,8 @@
   }
  },
  "tuile-ressource-teinture": {
-  "_doc": "TUILES-RESSOURCES : teinture (correspondance directe).",
-  "svg": "new_ressources/teinture_rivage.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/teinture_rivage_4k_trsp.png",
   "stem": "tile_ressource_teinture",
   "cible": {
    "mode": "tuile",
@@ -491,8 +543,8 @@
   }
  },
  "tuile-ressource-uranium": {
-  "_doc": "TUILES-RESSOURCES : uranium (correspondance directe).",
-  "svg": "new_ressources/uranium_montagne.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/uranium_montagne_4k_trsp.png",
   "stem": "tile_ressource_uranium",
   "cible": {
    "mode": "tuile",
@@ -501,8 +553,8 @@
   }
  },
  "tuile-ressource-vin": {
-  "_doc": "TUILES-RESSOURCES : vin (correspondance directe).",
-  "svg": "new_ressources/vin_plaines.svg",
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/vin_plaines_4k_trsp.png",
   "stem": "tile_ressource_vin",
   "cible": {
    "mode": "tuile",
@@ -511,8 +563,8 @@
   }
  },
  "tuile-prairie": {
-  "_doc": "GP-ART addendum (27/09) : prairie_v2.svg d'Erik remplace l'ancienne prairie (prairie_epuree.svg).",
-  "svg": "new_tiles/prairie_v2.svg",
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px).",
+  "svg": "assets-src/modeles/4k/prairie_4K.png",
   "stem": "tile_prairie",
   "cible": {
    "mode": "tuile",
@@ -521,62 +573,68 @@
   }
  },
  "tuile-plaine": {
-  "svg": "new_tiles/plaine.svg",
+  "svg": "assets-src/modeles/4k/plaine_4K.png",
   "stem": "tile_plaine",
   "cible": {
    "mode": "tuile",
    "w": 224,
    "h": 256
-  }
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
  },
  "tuile-colline": {
-  "svg": "new_tiles/colline.svg",
+  "svg": "assets-src/modeles/4k/colline_4K.png",
   "stem": "tile_colline",
   "cible": {
    "mode": "tuile",
    "w": 224,
    "h": 256
-  }
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
  },
  "tuile-montagne": {
-  "svg": "new_tiles/montagne.svg",
+  "svg": "assets-src/modeles/4k/montagne_4K.png",
   "stem": "tile_montagne",
   "cible": {
    "mode": "tuile",
    "w": 224,
    "h": 256
-  }
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
  },
  "tuile-desert": {
-  "svg": "new_tiles/desert.svg",
+  "svg": "assets-src/modeles/4k/desert_4K.png",
   "stem": "tile_desert",
   "cible": {
    "mode": "tuile",
    "w": 224,
    "h": 256
-  }
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
  },
  "tuile-foret": {
-  "svg": "new_tiles/arbre_droit.svg",
+  "svg": "assets-src/modeles/4k/arbre_4K.png",
   "stem": "tile_foret",
   "cible": {
    "mode": "tuile",
    "w": 224,
    "h": 256
-  }
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
  },
  "tuile-eau": {
-  "svg": "new_tiles/rivage.svg",
+  "svg": "assets-src/modeles/4k/rivage_4K.png",
   "stem": "tile_eau",
   "cible": {
    "mode": "tuile",
    "w": 224,
    "h": 256
-  }
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
  },
  "tuile-cacher-prairie": {
-  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
-  "svg": "new_tiles/prairie_cacher.svg",
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/prairie_4K_fog.png",
   "stem": "tile_cacher_prairie",
   "cible": {
    "mode": "tuile",
@@ -585,8 +643,8 @@
   }
  },
  "tuile-cacher-plaine": {
-  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
-  "svg": "new_tiles/plaine_cacher.svg",
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/plaine_4K_fog.png",
   "stem": "tile_cacher_plaine",
   "cible": {
    "mode": "tuile",
@@ -595,8 +653,8 @@
   }
  },
  "tuile-cacher-colline": {
-  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
-  "svg": "new_tiles/colline_cacher.svg",
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/colline_4K_fog.png",
   "stem": "tile_cacher_colline",
   "cible": {
    "mode": "tuile",
@@ -605,8 +663,8 @@
   }
  },
  "tuile-cacher-montagne": {
-  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
-  "svg": "new_tiles/montagne_cacher.svg",
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/montagne_4K_fog.png",
   "stem": "tile_cacher_montagne",
   "cible": {
    "mode": "tuile",
@@ -615,8 +673,8 @@
   }
  },
  "tuile-cacher-desert": {
-  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
-  "svg": "new_tiles/desert_cacher.svg",
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/desert_4K_fog.png",
   "stem": "tile_cacher_desert",
   "cible": {
    "mode": "tuile",
@@ -625,8 +683,8 @@
   }
  },
  "tuile-cacher-foret": {
-  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
-  "svg": "new_tiles/arbre_cacher.svg",
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/arbre_4K_fog.png",
   "stem": "tile_cacher_foret",
   "cible": {
    "mode": "tuile",
@@ -635,8 +693,8 @@
   }
  },
  "tuile-cacher-eau": {
-  "_doc": "TUILES-RESSOURCES vague 3 (26/09) : terrain avec ressource NON révélée — brume centrale (art d'Erik, new_tiles) ; pas de variante océan (aucune ressource n'y spawn).",
-  "svg": "new_tiles/rivage_cacher.svg",
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/rivage_4K_fog.png",
   "stem": "tile_cacher_eau",
   "cible": {
    "mode": "tuile",
@@ -645,13 +703,14 @@
   }
  },
  "tuile-ocean": {
-  "svg": "new_tiles/ocean.svg",
+  "svg": "assets-src/modeles/4k/ocean_4K.png",
   "stem": "tile_ocean",
   "cible": {
    "mode": "tuile",
    "w": 224,
    "h": 256
-  }
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
  },
  "icone-nourriture": {
   "svg": "new_icones/icone_nourriture.svg",

@@ -18,3 +18,6 @@ jev.txt
 sableuse/journaux/
 sableuse/node_modules/
 sableuse/bancs/
+
+# Sources 4K d'Erik (ASSETS-4K, décision 02/10 : SEULS les exports cuits sont committés)
+assets-src/modeles/4k/

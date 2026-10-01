@@ -40,7 +40,8 @@ const PROFILS = path.join(ROOT, 'assets-src', 'tools', 'import_svg.profiles.json
 // 7 joueurs + barbare × 3 teintes — source unique partagée avec le web.
 const PALETTE = path.join(ROOT, 'apps', 'web', 'src', 'lib', 'render', 'accents.json');
 const SS = 2;          // rastérisation 2× la cible puis LANCZOS (anti-aliasing)
-const POIDS_MAX = 300 * 1024;
+const POIDS_MAX = 400 * 1024; // 400 Ko (ASSETS-4K : le détail des 4K agrandies
+                              // dépasse l'ancien plafond de 300 Ko)
 const ENCRE = '#2B2620'; // contour hexagonal (identique generate.py INK)
 // seuil « encre » du painter (generate.py render_entity) : un pixel du rendu
 // complet plus sombre que cette luminance moyenne est un détail destiné à
@@ -64,6 +65,16 @@ function chargerSharp() {
 }
 
 const sharp = chargerSharp();
+
+// ASSETS-4K (Erik 02/10) : les sources peuvent être des RASTER (PNG/JPEG) en
+// plus des SVG — sharp lit tout, la chaîne de normalisation (rendu 2048² puis
+// LANCZOS vers la cible) est inchangée. Les JPEG étant sans couche alpha, une
+// source JPEG en mode « unite » (sprite à fond transparent requis) est REFUSÉE.
+const RE_RASTER = /\.(png|jpe?g)$/i;
+
+function estJpeg(chemin) {
+  return /\.jpe?g$/i.test(chemin);
+}
 
 // ---------------------------------------------------------------- profils
 
@@ -163,12 +174,17 @@ async function rasteriser(svgBuffer, taille) {
   return { data, w: info.width, h: info.height };
 }
 
-/** Boîte englobante du contenu opaque (alpha > 0) au pixel près. */
+/** Boîte englobante du contenu opaque (alpha > 0) au pixel près. SEUIL_BBOX :
+ *  les raster 4K d'Erik (ASSETS-4K) portent un fantôme alpha 1-8 sur tout le
+ *  canvas (jusqu'à 44 % des px du rivage) — sans seuil, la bbox devient le
+ *  canvas entier et le cadrage cover du mode tuile est faux. */
+const SEUIL_BBOX = 9;
+
 function bboxAlpha({ data, w, h }) {
   let x0 = w, y0 = h, x1 = -1, y1 = -1;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      if (data[(y * w + x) * 4 + 3] > 0) {
+      if (data[(y * w + x) * 4 + 3] >= SEUIL_BBOX) {
         if (x < x0) x0 = x;
         if (x > x1) x1 = x;
         if (y < y0) y0 = y;
@@ -562,7 +578,7 @@ async function importer(nomProfil, options = {}) {
   const svgPath = path.join(ROOT, profil.svg);
   const dossier = options.exports ?? EXPORTS;
   const dirDiag = options.diagnostics ?? path.join(ROOT, 'dev-logs', 'captures-import-svg');
-  const svgTextBrut = profil.variantesFournies || /\.(png)$/i.test(profil.svg) ? null : fs.readFileSync(svgPath, 'utf8');
+  const svgTextBrut = profil.variantesFournies || RE_RASTER.test(profil.svg) ? null : fs.readFileSync(svgPath, 'utf8');
   const cible = profil.cible;
 
   // Les variantes à produire. Deux modes de cuisson :
@@ -605,11 +621,18 @@ async function importer(nomProfil, options = {}) {
     // chemin de SVG ; le stem suit la position dans ordre_joueurs4 (j1..j6).
     // AUCUN remplacement : la cuite = rendu direct du SVG (gate cohérence =
     // re-rendu déterministe, cf. --check).
+    // ASSETS-4K : echelleParVariante (optionnel) recale UNE variante dont la
+    // source change de proportions (les 4K d'Erik n'ont pas le ratio des SVG
+    // v2) — le calibre à l'écran (hauteur de contenu) reste celui d'avant.
     const { ordre_joueurs4 } = lireFactions4();
     variantes = ordre_joueurs4.map((cle, i) => {
       const svg = profil.variantesFournies[cle];
       if (!svg) throw new Error(`variantesFournies — pas de SVG fourni pour « ${cle} »`);
-      return { stem: `${profil.stem}_j${i + 1}`, svg, remplacements: null, faction: cle };
+      const echelle = profil.echelleParVariante?.[cle];
+      if (echelle !== undefined && !(echelle > 0)) {
+        throw new Error(`echelleParVariante[${cle}] : facteur positif attendu, reçu « ${echelle} »`);
+      }
+      return { stem: `${profil.stem}_j${i + 1}`, svg, remplacements: null, faction: cle, echelle };
     });
   } else if (profil.remplacementsPalette) {
     const factions = lireFactions();
@@ -626,10 +649,13 @@ async function importer(nomProfil, options = {}) {
 
   for (const variante of variantes) {
     // Source de la variante : son SVG propre (variantesFournies) ou le SVG
-    // du profil ; un profil PNG (icônes de rendement) est lu en binaire.
+    // du profil ; une source RASTER (PNG/JPEG, ASSETS-4K) est lue en binaire.
     const sourceRelatif = variante.svg ?? profil.svg;
-    const estPng = sourceRelatif.toLowerCase().endsWith('.png');
-    if (estPng) {
+    const estRaster = RE_RASTER.test(sourceRelatif);
+    if (estRaster) {
+      if (cible.mode === 'unite' && estJpeg(sourceRelatif)) {
+        throw new Error(`« ${nomProfil} » : source JPEG refusée côté unités — un sprite exige la transparence d'un PNG (fond incrusté interdit)`);
+      }
       var svgBuffer = fs.readFileSync(path.join(ROOT, sourceRelatif));
     } else {
       const texte = variante.svg
@@ -637,7 +663,7 @@ async function importer(nomProfil, options = {}) {
         : svgTextBrut;
       var svgBuffer = Buffer.from(texte);
     }
-    let svgText = estPng || variante.svg ? null : svgTextBrut;
+    let svgText = estRaster || variante.svg ? null : svgTextBrut;
     let comptes = null;
     if (variante.remplacements) {
       const r = appliquerRemplacements(svgText, variante.remplacements);
@@ -653,6 +679,10 @@ async function importer(nomProfil, options = {}) {
       : extraireAccent(svgText);
 
     let resultat;
+    // override de calibre par variante (ASSETS-4K, cf. echelleParVariante)
+    const cibleVariante = variante.echelle !== undefined
+      ? { ...cible, echelle: variante.echelle }
+      : cible;
     if (cible.mode === 'icone') {
       // MODE « ICÔNE » (ASSETS-6COULEURS, D5) : source PNG d'Erik (1024²)
       // déscalée aux dimensions existantes du HUD (64×64), plein cadre.
@@ -670,7 +700,9 @@ async function importer(nomProfil, options = {}) {
       if (cible.entite) {
         resultat = await composerTuile(svgBuffer, cible);
       } else {
-        for (let f = 1.0; f <= 1.081; f += 0.01) {
+      // plafond ×1,16 (ASSETS-4K : les 4K raster ont des pointes légèrement
+      // plus taillées que les SVG, qui demandaient au plus ×1,03)
+      for (let f = 1.0; f <= 1.161; f += 0.01) {
           resultat = await composerTuile(svgBuffer, cible, f);
           const trousEssai = await gateTrous(resultat.base);
           if (trousEssai.filter((t) => t.taille > AA_TROUS).length === 0) {
@@ -680,7 +712,7 @@ async function importer(nomProfil, options = {}) {
         }
       }
     } else {
-      resultat = await composer(svgBuffer, accentSvg, cible);
+      resultat = await composer(svgBuffer, accentSvg, cibleVariante);
     }
 
     const erreurs = [];

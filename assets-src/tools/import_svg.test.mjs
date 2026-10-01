@@ -45,6 +45,24 @@ function ecrire(texte) {
   return rel;
 }
 
+/** Fixture RASTER (ASSETS-4K) : écrit un buffer image (png/jpeg) et renvoie
+ *  le chemin relatif, même convention que ecrire(). */
+function ecrireRaster(buf, ext) {
+  const rel = path.join('dev-logs', 'tmp-chk', `fixture-${Date.now()}-${compteur++}.${ext}`);
+  fs.mkdirSync(path.dirname(rel), { recursive: true });
+  fs.writeFileSync(path.join(ROOT, rel), buf);
+  return rel;
+}
+
+/** Sprite raster synthétique : silhouette opaque (bas de cadre) sur fond
+ *  transparent — l'équivalent PNG d'un SVG d'unité. */
+async function spritePng(taille = 128) {
+  return sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${taille}" height="${taille}">
+    <rect x="${taille * 0.3}" y="${taille * 0.2}" width="${taille * 0.4}" height="${taille * 0.7}" fill="#3366AA"/>
+    <circle cx="${taille / 2}" cy="${taille * 0.25}" r="${taille * 0.12}" fill="#C8A05A"/></svg>`))
+    .png().toBuffer();
+}
+
 test('extraireAccent : isole les paths blancs, garde le viewBox', () => {
   const { svg, nb } = extraireAccent(svgBlancPlein);
   assert.equal(nb, 1);
@@ -313,6 +331,81 @@ test('G5 gateTeintes : tolérance ±2 par canal, teinte absente signalée', asyn
   assert.deepEqual(await gateTeintes(png, ['#B84340']), ['#B84340']); // +7 bleu → refusé
 });
 
+// ---------------------------------------------------- sources raster (ASSETS-4K)
+
+test('source raster PNG acceptée en mode unite (ASSETS-4K, L1)', async () => {
+  const dossier = tmp();
+  const r = await importer('fixture-raster-unite', {
+    profil: {
+      svg: ecrireRaster(await spritePng(), 'png'),
+      stem: 'test_raster_unite',
+      sansAccent: true,
+      cible: { mode: 'unite', w: 128, h: 160, margeX: 8, margeHaut: 8, margeBas: 8 },
+    },
+    exports: dossier, diagnostics: dossier,
+  });
+  const meta = await sharp(path.join(dossier, 'test_raster_unite.png')).metadata();
+  assert.deepEqual([meta.width, meta.height], [128, 160]);
+  // fond transparent conservé, sprite ancré bas (frange AA tolérée : on
+  // cherche un pixel FRANCHEMENT opaque dans la bande basse centrale)
+  const { data, info } = await sharp(path.join(dossier, 'test_raster_unite.png')).raw().toBuffer({ resolveWithObject: true });
+  assert.equal(data[3], 0, 'coin haut-gauche transparent');
+  let opaqueBas = 0;
+  for (let y = info.height - 20; y < info.height - 6; y++) {
+    if (data[(y * info.width + (info.width >> 1)) * 4 + 3] > 200) opaqueBas++;
+  }
+  assert.ok(opaqueBas > 4, 'bas de silhouette opaque');
+});
+
+test('source JPEG refusée côté unités (pas de transparence)', async () => {
+  const jpeg = await sharp(await spritePng()).flatten({ background: '#FFFFFF' }).jpeg().toBuffer();
+  const dossier = tmp();
+  await assert.rejects(
+    () => importer('fixture-jpeg-unite', {
+      profil: {
+        svg: ecrireRaster(jpeg, 'jpeg'),
+        stem: 'test_jpeg_unite',
+        sansAccent: true,
+        cible: { mode: 'unite', w: 128, h: 160, margeX: 8, margeHaut: 8, margeBas: 8 },
+      },
+      exports: dossier, diagnostics: dossier,
+    }),
+    /JPEG refusée/,
+  );
+});
+
+test('source raster PNG acceptée en mode tuile (hexagone pré-clippé)', async () => {
+  // hexagone pointy-top raster : même fixture que le test SVG « mode tuile »
+  const w = 1024, hw = w * Math.sqrt(3) / 2, cx = w / 2;
+  const pts = [
+    [cx, 0], [cx + hw / 2, w / 4], [cx + hw / 2, 3 * w / 4],
+    [cx, w], [cx - hw / 2, 3 * w / 4], [cx - hw / 2, w / 4],
+  ].map(([x, y]) => `${x.toFixed(0)},${y.toFixed(0)}`).join(' ');
+  const png = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
+    <polygon points="${pts}" fill="#A8C86A"/></svg>`)).png().toBuffer();
+  const dossier = tmp();
+  await importer('fixture-raster-tuile', {
+    profil: {
+      svg: ecrireRaster(png, 'png'),
+      stem: 'tile_test_raster',
+      cible: { mode: 'tuile', w: 224, h: 256 },
+    },
+    exports: dossier, diagnostics: dossier,
+  });
+  const pngPath = path.join(dossier, 'tile_test_raster.png');
+  const meta = await sharp(pngPath).metadata();
+  assert.deepEqual([meta.width, meta.height], [224, 256]);
+  const { data, info } = await sharp(pngPath).raw().toBuffer({ resolveWithObject: true });
+  assert.equal(data[(4 * info.width + 2) * 4 + 3], 0, 'coin hors hexagone transparent');
+  assert.equal(data[(info.height / 2 * info.width + info.width / 2) * 4 + 3], 255, 'centre opaque');
+  let encre = false;
+  for (let y = 0; y < 4; y++) {
+    const i = (y * info.width + 112) * 4;
+    if (data[i] === 0x2b && data[i + 1] === 0x26 && data[i + 2] === 0x20) encre = true;
+  }
+  assert.ok(encre, 'contour #2B2620 tracé au sommet');
+});
+
 test('idempotence : deux imports du guerrier = mêmes octets', async () => {
   const d1 = tmp(), d2 = tmp();
   const prof = {
@@ -349,14 +442,18 @@ test('remplacementsPalette4 : 8 variantes 4 tons (J1-J7 + barbare=Rouge Royal), 
     exports: dossier,
     diagnostics: dossier,
   });
-  // 8 variantes : j1..j7 + barbare (ordre_joueurs4 de accents.json).
-  assert.deepEqual(r.variantes, ['j1', 'j2', 'j3', 'j4', 'j5', 'j6', 'j7', 'barbare'].map((s) => `test_p4_${s}`));
-  const { factions4, ordre_joueurs4, barbare4 } = JSON.parse(
+  // 6 variantes : ordre_joueurs4 (réaligné 02/10 — le test attendait encore
+  // les 8 variantes de l'ère 7 factions, périmé depuis le système 4 tons à 6
+  // joueurs ; échec préexistant à HEAD, hors suite CI) ; le barbare n'a une
+  // variante dédiée que si sa faction est HORS ordre (barbare4 = Rouge Royal
+  // = J2 → pas de variante).
+  const { factions4, ordre_joueurs4: ordre, barbare4 } = JSON.parse(
     fs.readFileSync(path.join(ROOT, 'apps', 'web', 'src', 'lib', 'render', 'accents.json'), 'utf8'),
   );
-  const cles = [...ordre_joueurs4, barbare4];
+  assert.deepEqual(r.variantes, ordre.map((_, i) => `test_p4_j${i + 1}`));
+  const cles = ordre.includes(barbare4) ? ordre : [...ordre, barbare4];
   for (const [i, cle] of cles.entries()) {
-    const suffixe = i === 7 ? 'barbare' : `j${i + 1}`;
+    const suffixe = ordre.includes(barbare4) ? `j${i + 1}` : (i === cles.length - 1 ? 'barbare' : `j${i + 1}`);
     const stem = `test_p4_${suffixe}`;
     assert.ok(fs.existsSync(path.join(dossier, `${stem}.png`)), stem);
     const f = factions4[cle];
@@ -368,14 +465,17 @@ test('remplacementsPalette4 : 8 variantes 4 tons (J1-J7 + barbare=Rouge Royal), 
       `${stem} : les 4 tons de ${cle} doivent être au pixel`,
     );
   }
-  // Décision Erik 23/09 : le barbare EST le Rouge Royal (identique à J2).
-  const lu = fs.readFileSync(path.join(dossier, 'test_p4_barbare.png'));
-  const j2 = fs.readFileSync(path.join(dossier, 'test_p4_j2.png'));
-  assert.equal(
-    crypto.createHash('sha256').update(lu).digest('hex'),
-    crypto.createHash('sha256').update(j2).digest('hex'),
-    'barbare (rouge royal) = pixels identiques à j2',
-  );
+  // Décision Erik 23/09 : le barbare EST le Rouge Royal — variante dédiée
+  // seulement si cette faction est hors ordre (sinon j2 la porte déjà).
+  if (!ordre.includes(barbare4)) {
+    const lu = fs.readFileSync(path.join(dossier, 'test_p4_barbare.png'));
+    const j2 = fs.readFileSync(path.join(dossier, 'test_p4_j2.png'));
+    assert.equal(
+      crypto.createHash('sha256').update(lu).digest('hex'),
+      crypto.createHash('sha256').update(j2).digest('hex'),
+      'barbare (rouge royal) = pixels identiques à j2',
+    );
+  }
   // Le maître n'a pas de calque accent : aucune sortie *_accent.
   assert.ok(!fs.existsSync(path.join(dossier, 'test_p4_accent.png')));
 });
