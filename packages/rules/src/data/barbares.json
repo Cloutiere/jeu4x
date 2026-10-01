@@ -1,6 +1,6 @@
 {
   "barbarianId": "barbarien",
-  "spawnInterval": 10,
+  "spawnInterval": 15,
   "aggroRadius": 2,
   "capPerVillage": 3,
   "gardeMinimale": 1,
