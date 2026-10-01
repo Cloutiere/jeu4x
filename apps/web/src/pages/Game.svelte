@@ -17,6 +17,13 @@
   import type { Hex } from '@game/rules';
   import { CULTURE, GOVERNMENTS, TECHS, WONDERS, angkorEligibleWonders, conversionGains, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, nextEconomyMilestone, allKnownTechs, interiorCitizenFor, activeTraitsOf, blocagesFinDeTour, libelleBlocageFinDeTour } from '@game/rules';
   import { civName, civLeader } from '../lib/labels.js';
+  // RAPPORT-ENGAGEMENT : libellés des types d'unités + id barbare.
+  import { BARBARIAN_ID, unitType } from '@game/rules';
+  import { nationDe } from '../lib/nations.js';
+  import { resumesDeCase, casesDeCombat } from '../lib/rapport.js';
+  import type { ResumeCase } from '../lib/rapport.js';
+  import { playerColor } from '../lib/render/textures.js';
+  import RapportCombat from '../components/RapportCombat.svelte';
   import { createGameClient } from '../lib/gameClient.js';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { createUiState, selectNothing, createVueVille } from '../lib/render/ui.js';
@@ -226,7 +233,7 @@
   // Actions (L3) : décision de clic pure → ordres soumis au serveur.
   // ---------------------------------------------------------------------
 
-  let canvasApi: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void } | null = $state(null);
+  let canvasApi: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void; hexEcran(hex: Hex): { x: number; y: number } | null } | null = $state(null);
 
   // 7m · R-139 : ciblage d'ICBM — `nukeArmed` vit dans l'UiState (le clic
   // carte produit alors un `nukeTarget`) ; la cible pressentie attend la
@@ -477,6 +484,100 @@
     playbackActive = active;
     if (!active && replayActif) terminerReplay();
   }
+
+  // ---------------------------------------------------------------------
+  // RAPPORT-ENGAGEMENT (L2) — popover « sommaire de case » (demande d'Erik
+  // du 30/09). Les cases à événements de combat du tour (paires pré-état de
+  // REPLAY-RESOLUTION — déjà filtrées fog) ouvrent le popover au clic, après
+  // résolution ET pendant la relecture. Agrégation calculée À L'OUVERTURE,
+  // mise en cache par tour (D7 — purge à chaque nouveau TurnResult).
+  // ---------------------------------------------------------------------
+  let rapportHex = $state<Hex | null>(null);
+  let cacheRapports = new Map<string, ResumeCase>();
+  let mapArea = $state<HTMLDivElement | null>(null);
+  // Nouveau tour résolu → cache périmé + popover fermé (les PV changent).
+  $effect(() => {
+    void $replayPair;
+    cacheRapports = new Map();
+    rapportHex = null;
+  });
+  const casesRapport = $derived(casesDeCombat($replayPair?.events ?? []));
+  const resumeRapport = $derived.by(() => {
+    if (!rapportHex) return null;
+    const paire = $replayPair;
+    if (!paire) return null;
+    const cle = `${rapportHex.q},${rapportHex.r}`;
+    let r: ResumeCase | null | undefined = cacheRapports.get(cle);
+    if (r === undefined) {
+      r = resumesDeCase(paire.events, rapportHex, paire.statePre, $view.state);
+      if (r) cacheRapports.set(cle, r);
+    }
+    return r;
+  });
+  /** Bascule : re-clic sur la même case = fermeture. */
+  function ouvrirRapport(hex: Hex): void {
+    rapportHex = rapportHex && rapportHex.q === hex.q && rapportHex.r === hex.r ? null : hex;
+  }
+  /** D3 — « ⟲ Rejouer ce combat » : recentrage (zoom préservé) + relecture ;
+   *  si la relecture est déjà active, recentrage seul. */
+  function rejouerCombat(): void {
+    if (!rapportHex) return;
+    canvasApi?.centerOnHex(rapportHex);
+    if (!replayActif) demarrerReplay();
+    rapportHex = null;
+  }
+  const peutRejouer = $derived(!!$replayPair);
+  /** Infos d'affichage par participant (logo or, faction, couleur, hpMax). */
+  const infosRapport = $derived.by(() => {
+    const map: Record<string, { nomUnite: string; nomFaction: string; logo: string | null; logoEchelle: number; couleur: string; hpMax: number }> = {};
+    if (!resumeRapport) return map;
+    for (const p of resumeRapport.participants) {
+      const barbare = p.owner === BARBARIAN_ID;
+      const civId = $view.state?.players[p.owner]?.civId;
+      const joueur = $view.players.find((x) => x.engineId === p.owner);
+      const faction = barbare
+        ? 'Barbare'
+        : civId && civId !== 'neutre'
+          ? civName(civId)
+          : (joueur?.name ?? p.owner);
+      const nation = nationDe(barbare ? 'barbare' : civId);
+      const connu = p.type !== '?';
+      map[p.unitId] = {
+        nomUnite: connu ? unitType(p.type).name : '?',
+        nomFaction: faction,
+        logo: nation?.logo ?? null,
+        logoEchelle: nation?.logoEchelle ?? 1,
+        couleur: `#${playerColor(p.owner).toString(16).padStart(6, '0')}`,
+        hpMax: connu ? unitType(p.type).hpMax : 3,
+      };
+    }
+    return map;
+  });
+  /** Ancrage du popover : centré sur la case, borné au viewport (flip si bas). */
+  const posRapport = $derived.by(() => {
+    if (!rapportHex || !canvasApi) return null;
+    const p = canvasApi.hexEcran(rapportHex);
+    if (!p) return null;
+    const LARG = 340;
+    const HAUT_EST = 320; // estimation — le flip exact est 🔶 à l'œil
+    const w = mapArea?.clientWidth ?? 800;
+    const h = mapArea?.clientHeight ?? 600;
+    const x = Math.max(8, Math.min(w - LARG - 8, p.x - LARG / 2));
+    const y = p.y + 30 + HAUT_EST <= h ? p.y + 30 : Math.max(8, p.y - 18 - HAUT_EST);
+    return { x, y };
+  });
+  // RAPPORT-ENGAGEMENT — hook de TEST (dev uniquement, miroir des hooks
+  // __game du canvas) : injecte une paire pré-état/événements forgée pour
+  // les vérifications GUI du popover (mêlée 3 nations, destruction…) sans
+  // dépendre d'un combat réel. Jamais en prod.
+  $effect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as Record<string, unknown>).__rapport = {
+      inject: (events: GameEvent[], preEtat: GameState, tour = 12) =>
+        replayPair.set({ statePre: preEtat, events, tour }),
+      purge: () => replayPair.set(null),
+    };
+  });
 
   // ---------------------------------------------------------------------
   // Dérivés d'affichage
@@ -802,7 +903,7 @@
     <div class="center"><p>Chargement de l'état…</p></div>
   {:else}
     <div class="body">
-      <div class="map-area">
+      <div class="map-area" bind:this={mapArea}>
         <GameCanvas
           {client}
           {ui}
@@ -822,7 +923,22 @@
           {etatReplay}
           {replayActif}
           onExitReplay={terminerReplay}
+          casesRapport={casesRapport}
+          onRapport={ouvrirRapport}
         />
+        {#if rapportHex && resumeRapport && posRapport}
+          <!-- RAPPORT-ENGAGEMENT (D2/D4) : popover ancré à la case, fermé par
+               clic ailleurs / Échap / × ( listeners du composant). -->
+          <RapportCombat
+            resume={resumeRapport}
+            x={posRapport.x}
+            y={posRapport.y}
+            infos={infosRapport}
+            peutRejouer={peutRejouer}
+            onRejouer={rejouerCombat}
+            onFermer={() => (rapportHex = null)}
+          />
+        {/if}
         {#if vueVilleActive && vueVilleMontee && $view.state}
           <!-- MENU-VILLE : le menu dédié de la vue ville (les autres menus
                disparaissent pendant la vue — FUSION-MENU-VILLE : CityPanel

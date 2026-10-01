@@ -81,7 +81,7 @@
     /** Soumission clavier (Entrée) d'un brouillon — optionnel depuis la soumission auto (Phase 5 L1). */
     onConfirmDraft?(): void;
     onCancelDraft(): void;
-    onReady?(api: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void }): void;
+    onReady?(api: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void; hexEcran(hex: Hex): { x: number; y: number } | null }): void;
     /** Signal d'activité du playback (bannière « Relecture » côté page). */
     onPlaybackActive?(active: boolean): void;
     /** Phase 6 L3 : overlay des rendements N/P/C (bouton de bascule). */
@@ -115,6 +115,11 @@
     replayActif?: boolean;
     /** REPLAY-RESOLUTION : sortie demandée par le canvas (Échap). */
     onExitReplay?(): void;
+    /** RAPPORT-ENGAGEMENT (D1) : clés "q,r" des cases portant un événement de
+     *  combat du tour — un clic dessus ouvre le popover de rapport. */
+    casesRapport?: Set<string> | null;
+    /** RAPPORT-ENGAGEMENT (D1) : ouverture/bascule du rapport sur une case. */
+    onRapport?(hex: Hex): void;
   }
 
   let {
@@ -139,6 +144,8 @@
     etatReplay = null,
     replayActif = false,
     onExitReplay,
+    casesRapport = null,
+    onRapport,
   }: Props = $props();
 
   // La bascule de l'overlay de rendements reconstruit la surcouche ; le
@@ -3032,8 +3039,15 @@
     dragging = false;
     if (wasDragging) return;
 
-    // Clic pendant le playback = accélérer (L4). Sinon : décision de clic pure.
+    // Clic pendant le playback = accélérer (L4) — SAUF pendant la relecture
+    // sur une case à rapport de combat : le rapport PRIME (RAPPORT-ENGAGEMENT
+    // D1 — décision tranchée, vetoable) ; ailleurs, accélération inchangée.
     if (playback.active) {
+      const hexR = replayActif ? hexSousEcran(p.x, p.y) : null;
+      if (hexR && casesRapport?.has(`${hexR.q},${hexR.r}`) && onRapport) {
+        onRapport(hexR);
+        return;
+      }
       playback.skip();
       return;
     }
@@ -3049,6 +3063,10 @@
     }
     const hex = hexSousEcran(p.x, p.y);
     if (!hex) return;
+    // RAPPORT-ENGAGEMENT (D1) : un clic gauche sur une case à événement de
+    // combat ouvre AUSSI le rapport — la sélection/désélection existante
+    // s'applique inchangée (le panneau unité reste accessible, 🔶 à l'œil).
+    if (casesRapport?.has(`${hex.q},${hex.r}`) && onRapport) onRapport(hex);
     onAction(clickAction(scene.view, scene.ui, hex, positionsDessinees()));
   }
 
@@ -3161,6 +3179,18 @@
   function centerOnUnit(unitId: string): void {
     const unit = scene.state?.units[unitId];
     if (unit) centerOnHex(unit);
+  }
+
+  /**
+   * RAPPORT-ENGAGEMENT (D4) : projection hex → écran (px CSS relatifs au
+   * canvas) pour ancrer le popover près de la case. Pose 2D courante (vue
+   * ville incluse) ; null hors montage.
+   */
+  function hexEcran(hex: Hex): { x: number; y: number } | null {
+    if (!app) return null;
+    const p = hexToPixel(hex, HEX_SIZE);
+    const pose = poseVueCourante();
+    return { x: p.x * pose.scale + pose.x, y: p.y * pose.scale + pose.y };
   }
 
   // ---------------------------------------------------------------------
@@ -3311,7 +3341,13 @@
     // sélection et accès caméra pour les vérifications GUI automatisées.
     if (import.meta.env.DEV) {
       (window as unknown as Record<string, unknown>).__game = {
-        clickHex: (q: number, r: number) => onAction(clickAction(scene.view!, scene.ui, { q, r }, positionsDessinees())),
+        clickHex: (q: number, r: number) => {
+          // RAPPORT-ENGAGEMENT : miroir du clic gauche réel (onPointerUp) —
+          // les vérifications GUI passent par le même chemin de rapport.
+          const hex = { q, r };
+          if (casesRapport?.has(`${q},${r}`) && onRapport) onRapport(hex);
+          onAction(clickAction(scene.view!, scene.ui, hex, positionsDessinees()));
+        },
         // PILE-AFFICHÉE (sonde debug) : positions dessinées + aperçus + piles.
         sondePile: () => {
           const positions = positionsDessinees();
@@ -3446,7 +3482,7 @@
     unsubscribes.push(client.view.subscribe(onNewView));
     unsubscribes.push(ui.subscribe(onNewUi));
     maybeCenter();
-    onReady?.({ centerOnHex, centerOnUnit });
+    onReady?.({ centerOnHex, centerOnUnit, hexEcran });
     // Debug console (dev uniquement) : état interne inspectable via la console.
     (window as unknown as Record<string, unknown>).__gameCanvas = {
       /** App Pixi (debug : inspection de la scène). */

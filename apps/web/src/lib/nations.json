@@ -110,6 +110,11 @@
       "banderole": "/interface/banderoles/suede.jpg",
       "logo": "/interface/logos/suede.svg",
       "reserve": true
+    },
+    "barbare": {
+      "banderole": "",
+      "logo": "/interface/logos/barbare.svg",
+      "logoEchelle": 1.25
     }
   }
 }
