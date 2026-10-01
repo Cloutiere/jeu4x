@@ -26,7 +26,7 @@
   // UI-JEU-T1 (Erik 01/10) : calque dev (D1) + portrait de dirigeant (D4).
   import { calqueDev, basculerCalqueDev, raccourciCalqueDev } from '../lib/calqueDev.js';
   import { portraitDirigeant } from '../lib/dirigeants.js';
-  import { resumesDeCase, casesDeCombat } from '../lib/rapport.js';
+  import { resumesDeCase, casesDeCombat, derniereCaseDeCombat } from '../lib/rapport.js';
   import type { ResumeCase } from '../lib/rapport.js';
   import { playerColor } from '../lib/render/textures.js';
   import RapportCombat from '../components/RapportCombat.svelte';
@@ -524,6 +524,14 @@
     rapportHex = null;
   });
   const casesRapport = $derived(casesDeCombat($replayPair?.events ?? []));
+  // UI-JEU-T2 · §1.6 : ligne « ⚔ n combats ce tour » du Journal — le clic
+  // ouvre le rapport (popover RAPPORT-ENGAGEMENT) de la DERNIÈRE case de
+  // combat du tour (même mécanique que le clic case, D4 : rien de nouveau).
+  const nbCombatsCeTour = $derived(casesRapport.size);
+  const derniereCombat = $derived(derniereCaseDeCombat($replayPair?.events ?? []));
+  function ouvrirDernierCombat(): void {
+    if (derniereCombat) ouvrirRapport(derniereCombat);
+  }
   const resumeRapport = $derived.by(() => {
     if (!rapportHex) return null;
     const paire = $replayPair;
@@ -702,6 +710,28 @@
       })
       .join(' · ');
     return ` · ${label} : ${noms}`;
+  });
+  // UI-JEU-T2 · §1.5 : détail compact des adversaires en panneau latéral
+  // (le badge de la barre reste inchangé — résumé ; ici une entrée par
+  // adversaire : nom, civilisation + dirigeant, ère — infos publiques).
+  const adversairesDetail = $derived.by(() => {
+    const id = myEngineId($view);
+    if (!id || !$view.state) return [];
+    return Object.keys($view.state.players)
+      .filter((p) => p !== id)
+      .sort()
+      .map((p) => {
+        const info = $view.players.find((x) => x.engineId === p);
+        const joueur = $view.state!.players[p];
+        const civ = joueur?.civId ?? 'neutre';
+        return {
+          id: p,
+          nom: info?.name ?? p,
+          bot: !!info?.bot,
+          civ,
+          era: joueur?.era ?? 'ancienne',
+        };
+      });
   });
 
   // 7l · R-134 : trésorerie + GPT net (somme des villes focus Or — miroir du
@@ -1206,7 +1236,9 @@
         <Historique />
         <!-- REPLAY-RESOLUTION (D4) : relecture du dernier tour résolu.
              Indisponible sans paire mémorisée (reconnexion/chargement : le
-             pré-état n'existe pas localement — L2, défaut sûr). -->
+             pré-état n'existe pas localement — L2, défaut sûr).
+             UI-JEU-T2 · D3 : bouton restylé (niveau du reste) — comportement
+             intact (relecture, indisponibilité, info-bulle). -->
         <button
           type="button"
           class="replay-btn"
@@ -1219,7 +1251,23 @@
         >
           {replayActif ? '⏹ Quitter la relecture (Échap)' : '⟲ Rejouer la résolution'}
         </button>
-        <Journal view={$view} onCentrerHex={(hex) => canvasApi?.centerOnHex(hex)} />
+        <Journal view={$view} onCentrerHex={(hex) => canvasApi?.centerOnHex(hex)} combats={nbCombatsCeTour} onOuvrirCombats={ouvrirDernierCombat} />
+        {#if adversairesDetail.length > 0}
+          <!-- UI-JEU-T2 · §1.5 : détail compact des adversaires (🔶 place :
+               panneau latéral — le badge civ de la barre reste inchangé). -->
+          <section class="adversaires" aria-label="Adversaires">
+            <h3>Adversaires</h3>
+            <ul>
+              {#each adversairesDetail as a (a.id)}
+                <li>
+                  <span class="adv-nom">{a.nom}{a.bot ? ' 🤖' : ''}</span>
+                  <span class="adv-civ">{civName(a.civ)}{civLeader(a.civ) ? ` — ${civLeader(a.civ)}` : ''}</span>
+                  <span class="adv-era">{eraLabel(a.era)}</span>
+                </li>
+              {/each}
+            </ul>
+          </section>
+        {/if}
         {#if $calqueDev}
           <!-- UI-JEU-T1 · L1 : état brut = outil de dev (D2) — caché en mode
                joueur, réaffichable via engrenage / Ctrl+Alt+D. -->
@@ -1313,12 +1361,6 @@
   .gov img { width: 16px; height: 16px; }
   .gov.anarchy { border-color: #a35b45; background: #3a2420; }
   .anarchy-banner { position: absolute; top: 3.2rem; left: 50%; transform: translateX(-50%); background: #3a2420e6; border: 1px solid #a35b45; padding: 0.4rem 1rem; border-radius: 999px; font-size: 0.9rem; font-weight: 600; color: #ffab91; }
-  .ship { border: 1px solid #3a4148; border-radius: 8px; padding: 0.6rem 0.8rem; background: #1d242b; }
-  .ship h3 { margin: 0 0 0.35rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa7b2; }
-  .ship ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.88rem; }
-  .ship li.done { color: #81c784; }
-  .ship .ready { color: #81c784; font-weight: 600; margin: 0.3rem 0 0; }
-  .ship .shiphint { color: #8b98a5; font-size: 0.8rem; margin: 0.3rem 0 0; }
   .civbadge {
     display: flex; flex-direction: column; align-items: flex-start; gap: 0;
     border: 1px solid #7fc79a; border-radius: 6px; background: #1d2b21;
@@ -1341,7 +1383,69 @@
   button.primary.blocage { background: #5c3a20; border-color: #a3703c; color: #ffcc80; }
   .body { display: flex; flex: 1; min-height: 0; }
   .map-area { position: relative; flex: 1; min-width: 0; }
-  .side { width: 350px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem; padding: 0.6rem; border-left: 2px solid #2c353d; background: #141a20; }
+  /* UI-JEU-T2 · D2/D3 — colonne de droite AAA : largeur conservée, scroll
+     interne, fond chaud sombre + liseré or (même langage que la barre T1). */
+  .side {
+    width: 350px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem;
+    padding: 0.6rem;
+    border-left: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
+    box-shadow: inset 3px 0 12px -6px rgba(0, 0, 0, 0.6);
+    background: linear-gradient(180deg, #171310 0%, #100d09 100%);
+  }
+  /* D3 — bouton « ⟲ Rejouer la résolution » au niveau du reste (comportement
+     intact). */
+  .side .replay-btn {
+    font-family: var(--serif-or, Georgia, serif);
+    font-size: 0.85rem; letter-spacing: 0.05em;
+    color: var(--or-clair, #e8c96a);
+    background: rgba(201, 162, 39, 0.08);
+    border: 1px solid var(--or-sombre, #8a6d1a);
+    border-radius: 8px;
+    padding: 0.4rem 0.7rem;
+  }
+  .side .replay-btn:hover:enabled { border-color: var(--or-clair, #e8c96a); box-shadow: 0 0 10px rgba(201, 162, 39, 0.35); }
+  .side .replay-btn.active-toggle { background: rgba(201, 162, 39, 0.22); border-color: var(--or, #c9a227); box-shadow: 0 0 12px rgba(201, 162, 39, 0.4); }
+  /* §1.5 — détail compact des adversaires (pied de colonne). */
+  .adversaires {
+    border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
+    border-radius: 10px; padding: 0.55rem 0.85rem;
+    background: linear-gradient(180deg, #241f16 0%, #1b1712 100%);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(201, 162, 39, 0.08);
+  }
+  .adversaires h3 {
+    margin: 0 0 0.4rem;
+    font-family: var(--serif-or, Georgia, serif);
+    font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--or-clair, #e8c96a);
+    border-bottom: 1px solid transparent;
+    border-image: linear-gradient(90deg, transparent, var(--or, #c9a227), transparent) 1;
+    padding-bottom: 0.3rem;
+  }
+  .adversaires ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+  .adversaires li { display: flex; flex-direction: column; gap: 0.05rem; border-left: 3px solid var(--or-sombre, #8a6d1a); padding-left: 0.5rem; }
+  .adv-nom { font-size: 0.85rem; color: var(--texte, #e9e4d3); }
+  .adv-civ { font-size: 0.78rem; color: var(--texte-doux, #b6ad93); }
+  .adv-era { font-size: 0.72rem; color: var(--or, #c9a227); letter-spacing: 0.04em; }
+  /* D3 — section Vaisseau dans le même langage (bloc chaleureux, serif). */
+  .ship {
+    border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
+    border-radius: 10px; padding: 0.6rem 0.8rem;
+    background: linear-gradient(180deg, #241f16 0%, #1b1712 100%);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(201, 162, 39, 0.08);
+  }
+  .ship h3 {
+    margin: 0 0 0.4rem;
+    font-family: var(--serif-or, Georgia, serif);
+    font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--or-clair, #e8c96a);
+    border-bottom: 1px solid transparent;
+    border-image: linear-gradient(90deg, transparent, var(--or, #c9a227), transparent) 1;
+    padding-bottom: 0.3rem;
+  }
+  .ship ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.88rem; color: var(--texte, #e9e4d3); }
+  .ship li.done { color: #a5d6a7; }
+  .ship .ready { color: #a5d6a7; font-weight: 600; margin: 0.3rem 0 0; }
+  .ship .shiphint { color: var(--texte-doux, #b6ad93); font-size: 0.8rem; margin: 0.3rem 0 0; }
   .banner { position: absolute; top: 0.7rem; left: 50%; transform: translateX(-50%); background: #000000cc; padding: 0.4rem 1rem; border-radius: 999px; font-size: 0.9rem; pointer-events: none; }
   .victory { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; background: #000000b8; text-align: center; }
   .victory h1 { font-size: 2.4rem; margin: 0; }

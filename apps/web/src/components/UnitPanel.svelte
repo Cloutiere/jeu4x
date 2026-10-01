@@ -322,7 +322,16 @@
       {#if stats?.spy && infiltratedCity}<span class="enemy" title="R-143 : infiltration — le menu d'actions est ouvert ci-dessous">🕵 Infiltré dans {infiltratedCity.id}</span>{/if}
       {#if !mine}<span class="enemy">Ennemi — {unit.owner}</span>{/if}
       {#if mine}
-        <span>PV <strong>{unit.hp}</strong> / {stats?.hpMax ?? '?'}</span>
+        <!-- UI-JEU-T2 · D3 : PV en barre à compartiments (même langage que la
+             barre 3 vies du canvas et le popover RAPPORT-ENGAGEMENT). -->
+        <span class="pv-ligne">
+          <span class="pv barre" aria-hidden="true">
+            {#each Array(stats?.hpMax ?? 3) as _, i (i)}
+              <span class="cellule" class:pleine={i < unit.hp} class:perte={i >= unit.hp}></span>
+            {/each}
+          </span>
+          <span class="pv-texte" class:blesse={unit.hp < (stats?.hpMax ?? 3)}>PV {unit.hp}/{stats?.hpMax ?? '?'}</span>
+        </span>
         <span>PM <strong>{unit.mp}</strong> / {stats?.movement ?? '?'}</span>
         {#if unit.order}<span class="frozen">Chemin gelé : {unit.order.type}</span>{/if}
       {/if}
@@ -569,28 +578,86 @@
 </section>
 
 <style>
-  .panel { border: 1px solid #3a4148; border-radius: 8px; padding: 0.7rem 0.85rem; background: #1d242b; }
-  h2 { margin: 0 0 0.4rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa7b2; }
-  .rows { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.4rem; }
-  .title { font-weight: 700; }
+  /* UI-JEU-T2 · D3 — habillage AAA de la colonne de droite (tokens
+     LOBBY-PREMIUM : or-sur-sombre, serif des titres, ombres douces —
+     mêmes tokens que la barre T1 et RapportCombat). Structure et
+     interactions inchangées (D1). */
+  .panel {
+    border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
+    border-radius: 10px;
+    padding: 0.7rem 0.85rem;
+    background: linear-gradient(180deg, #241f16 0%, #1b1712 100%);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(201, 162, 39, 0.08);
+  }
+  h2 {
+    margin: 0 0 0.5rem;
+    font-family: var(--serif-or, Georgia, serif);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--or-clair, #e8c96a);
+    border-bottom: 1px solid transparent;
+    border-image: linear-gradient(90deg, transparent, var(--or, #c9a227), transparent) 1;
+    padding-bottom: 0.3rem;
+  }
+  .rows { display: flex; flex-direction: column; gap: 0.22rem; margin-bottom: 0.45rem; }
+  .title {
+    font-family: var(--serif-or, Georgia, serif);
+    font-size: 1.02rem;
+    letter-spacing: 0.04em;
+    color: var(--texte, #e9e4d3);
+  }
+  /* PV en compartiments (barre 3 vies — RAPPORT-ENGAGEMENT). */
+  .pv-ligne { display: flex; align-items: center; gap: 0.45rem; margin: 0.1rem 0; }
+  .pv { display: inline-flex; gap: 2px; background: #14120d; padding: 2px; border-radius: 3px; border: 1px solid rgba(201, 162, 39, 0.2); }
+  .cellule { width: 1.15rem; height: 0.45rem; border-radius: 1px; background: #33302a; display: inline-block; }
+  .cellule.pleine { background: var(--or-clair, #e8c96a); box-shadow: 0 0 4px rgba(232, 201, 106, 0.35); }
+  .cellule.perte { background: #a8382c; }
+  .pv-texte { font-size: 0.78rem; color: var(--texte-doux, #b6ad93); }
+  .pv-texte.blesse { color: #f0a8a0; }
   .ranged { color: #ce93d8; font-weight: 600; font-size: 0.85rem; }
   .naval { color: #81d4fa; font-weight: 600; font-size: 0.85rem; }
   .enemy { color: #ef9a9a; }
   .frozen { color: #ffcc80; font-size: 0.85rem; }
   .fortified { color: #90caf9; font-weight: 600; font-size: 0.85rem; }
-  .order { margin: 0.25rem 0; color: #ffe082; font-size: 0.9rem; }
-  .hint { margin: 0.25rem 0; color: #8b98a5; font-size: 0.82rem; }
+  .order {
+    margin: 0.3rem 0;
+    color: var(--or-clair, #e8c96a);
+    font-size: 0.9rem;
+    background: rgba(201, 162, 39, 0.08);
+    border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
+    border-radius: 6px; padding: 0.2rem 0.5rem;
+  }
+  .hint { margin: 0.25rem 0; color: var(--texte-doux, #b6ad93); font-size: 0.8rem; opacity: 0.85; }
   .btns { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }
-  button { padding: 0.35rem 0.7rem; cursor: pointer; border-radius: 6px; border: 1px solid #46525c; background: #27313a; color: inherit; }
+  button {
+    padding: 0.35rem 0.7rem; cursor: pointer; border-radius: 6px;
+    border: 1px solid var(--panneau-bord, rgba(201, 162, 39, 0.55));
+    background: rgba(201, 162, 39, 0.08);
+    color: var(--texte, #e9e4d3);
+    font-size: 0.84rem;
+  }
+  button:hover:enabled { border-color: var(--or-clair, #e8c96a); box-shadow: 0 0 8px rgba(201, 162, 39, 0.3); }
   button:disabled { opacity: 0.45; cursor: default; }
-  button.primary { background: #2e5e3f; border-color: #3c7a52; }
-  button.danger { background: #5e2e2e; border-color: #7a3c3c; }
-  button.link { background: none; border: none; color: #7fb3ff; text-decoration: underline; padding: 0.2rem 0; font-size: 0.82rem; }
-  .odds { color: #ffe082; font-size: 0.8rem; }
+  button.primary { background: rgba(201, 162, 39, 0.22); border-color: var(--or, #c9a227); color: var(--or-clair, #e8c96a); }
+  button.danger { background: rgba(138, 58, 48, 0.28); border-color: #8a3a30; color: #f0a8a0; }
+  button.danger:hover:enabled { border-color: #c96a5a; box-shadow: 0 0 8px rgba(138, 58, 48, 0.5); }
+  button.link { background: none; border: none; color: var(--or-clair, #e8c96a); text-decoration: underline; padding: 0.2rem 0; font-size: 0.82rem; }
+  button.link:hover { box-shadow: none; }
+  .odds { color: var(--or-clair, #e8c96a); font-size: 0.8rem; }
   .oracle-note { color: #ce93d8; font-size: 0.8rem; margin: 0.2rem 0; }
   .found-warning { color: #ffcc80; font-size: 0.78rem; margin: 0.2rem 0; }
   .nuke-armed { color: #ffb74d; font-weight: 600; font-size: 0.85rem; margin: 0.25rem 0; }
-  .spy-title { margin: 0.4rem 0 0.1rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #ce93d8; }
+  .spy-title {
+    margin: 0.5rem 0 0.1rem;
+    font-family: var(--serif-or, Georgia, serif);
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: #ce93d8;
+  }
   .pick { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; }
-  .pick select { background: #27313a; color: inherit; border: 1px solid #46525c; border-radius: 6px; padding: 0.3rem; }
+  .pick select {
+    background: rgba(10, 16, 27, 0.95); color: var(--texte, #e9e4d3);
+    border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
+    border-radius: 5px; padding: 0.3rem;
+  }
 </style>

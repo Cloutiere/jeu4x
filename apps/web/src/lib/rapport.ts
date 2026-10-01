@@ -81,6 +81,19 @@ export function casesDeCombat(events: GameEvent[]): Set<string> {
   return out;
 }
 
+/**
+ * UI-JEU-T2 · §1.6 — dernière case de combat du tour (ordre chronologique) :
+ * cible de la ligne « ⚔ n combats ce tour » du Journal (ouvre le même
+ * popover que le clic case). null = aucun combat ce tour.
+ */
+export function derniereCaseDeCombat(events: GameEvent[]): Hex | null {
+  let hex: Hex | null = null;
+  for (const ev of events) {
+    for (const portee of portees(ev)) hex = portee.hex;
+  }
+  return hex;
+}
+
 const SORTS: Record<string, SortUnite> = {
   UnitDestroyed: 'detruit',
   UnitExpelled: 'expulse',

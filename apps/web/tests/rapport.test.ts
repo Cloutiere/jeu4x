@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { GameEvent, GameState, Unit } from '@game/shared';
-import { casesDeCombat, resumesDeCase } from '../src/lib/rapport.js';
+import { casesDeCombat, derniereCaseDeCombat, resumesDeCase } from '../src/lib/rapport.js';
 
 const HEX = { q: 3, r: -2 };
 const AUTRE = { q: 0, r: 0 };
@@ -146,5 +146,17 @@ describe('resumesDeCase', () => {
     expect(cases.has('3,-2')).toBe(true);
     expect(cases.has('0,0')).toBe(true);
     expect(cases.size).toBe(2);
+  });
+
+  it('derniereCaseDeCombat : dernière case de combat chronologique, null sans combat', () => {
+    // UI-JEU-T2 · §1.6 — cible de la ligne « ⚔ n combats ce tour » du Journal.
+    const aucun: GameEvent[] = [{ seq: 1, type: 'Move', unitId: 'u1', owner: 'p1', from: AUTRE, to: AUTRE }];
+    expect(derniereCaseDeCombat(aucun)).toBeNull();
+    const events: GameEvent[] = [
+      { seq: 1, type: 'Attack', attackerId: 'u1', defenderId: 'u2', at: HEX },
+      { seq: 2, type: 'MeleeResolved', at: AUTRE, participants: ['u1'], results: [{ unitId: 'u1', role: 'winner', hpAfter: 3 }] },
+      { seq: 3, type: 'Move', unitId: 'u1', owner: 'p1', from: AUTRE, to: AUTRE },
+    ];
+    expect(derniereCaseDeCombat(events)).toEqual(AUTRE);
   });
 });
