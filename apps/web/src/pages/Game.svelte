@@ -20,6 +20,9 @@
   // RAPPORT-ENGAGEMENT : libellés des types d'unités + id barbare.
   import { BARBARIAN_ID, unitType } from '@game/rules';
   import { nationDe } from '../lib/nations.js';
+  // HANG-LOCAL UX (Erik 01/10 · option 2) : ville à montrer à l'apparition
+  // d'un blocage de fin de tour (miroir « unités sans ordre »).
+  import { villeDuPremierBlocageProduction } from '../lib/blocages.js';
   import { resumesDeCase, casesDeCombat } from '../lib/rapport.js';
   import type { ResumeCase } from '../lib/rapport.js';
   import { playerColor } from '../lib/render/textures.js';
@@ -101,6 +104,22 @@
         const previous = get(view).orders;
         for (const f of unexecutedOrders(previous, message.events, message.state)) {
           pushErrorToast(`Ordre non exécuté (${f.unitId}) : ${f.label}`);
+        }
+        // HANG-LOCAL UX (Erik 01/10 · option 2) : apparition d'un blocage de
+        // fin de tour dans le nouvel état → orienter vers la ville fautive
+        // (miroir « unités sans ordre » : sélection + centrage, zoom
+        // préservé). Le motif s'affiche au clic du bouton (option 1) et en
+        // vue ville ; inutile pendant la vue ville (déjà sur place) ou la
+        // reconnexion (Snapshot, pas de nouvelle apparition).
+        const moi = myEngineId(get(view));
+        if (moi && get(vueVille) === null) {
+          const blocages = blocagesFinDeTour(message.state, moi, []);
+          const cityId = villeDuPremierBlocageProduction(blocages);
+          const ville = cityId ? message.state.cities[cityId] : undefined;
+          if (ville) {
+            ui.set({ selectedUnitId: null, selectedCityId: cityId, draft: null });
+            canvasApi?.centerOnHex({ q: ville.q, r: ville.r });
+          }
         }
       }
     },
@@ -860,11 +879,14 @@
     </button>
     <span class="net net-{$status}">{$status}</span>
     {#if $view.locked}<span class="chip locked">Verrouillé</span>{/if}
+    <!-- HANG-LOCAL UX (Erik 01/10 · option 1) : le bouton reste CLIQUABLE
+         quand un blocage existe — le clic affiche le toast du motif via
+         requestEndTurn (un bouton désactivé n'expliquait rien : « hang »). -->
     <button
       type="button"
       class="primary"
       class:blocage={myBlocages.length > 0}
-      disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active' || myBlocages.length > 0}
+      disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active'}
       title={myBlocages.length > 0 ? myBlocagesLabel : 'Terminer le tour (verrouillage des ordres)'}
       onclick={requestEndTurn}
     >
