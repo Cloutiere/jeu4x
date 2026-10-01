@@ -100,7 +100,7 @@ describe('R-99 · Données barbares.json / huttes.json', () => {
     expect(BARBARIANS.aggroRadius).toBe(2); // T-19 (C3 : était 6 — sortie à 2 cases ou moins)
     expect(BARBARIANS.capPerVillage).toBe(3); // T-22 (C3 : était 2)
     expect(BARBARIANS.gardeMinimale).toBe(1); // T-49 (rév. ENGAGEMENT : 1 GARDIEN par camp, le plus ancien SUR la case)
-    expect(BARBARIANS.initialUnits).toBe(3); // T-50 (rév. ENGAGEMENT : 1 gardien au camp + 2 satellites adjacents)
+    expect(BARBARIANS.initialUnits).toBe(1); // T-50 (calibrage Erik 02/10 : le GARDIEN seul, plus de satellites de dotation)
     expect(BARBARIANS.escalationTurn).toBe(15); // T-23 (inchangé — seul le RYTHME change)
     expect(BARBARIANS.barbarianId).toBe('barbarien'); // R-95
     // BARBARES-PILES : camps SANS PV — villageHP, villageDefense et
@@ -323,9 +323,11 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
   });
 
   it('ENGAGEMENT R-183 (rév. T-49) : le GARDIEN tient le camp, les SATELLITES sortent (aggro)', () => {
-    // Dotation ENGAGEMENT : 1 barbare SUR la case du camp (le gardien — le
-    // plus ancien), 2 satellites dans le rayon d'une case. Ennemi à distance
-    // 2 (aggro T-19) : le gardien ne SORT jamais ; les satellites avancent.
+    // Dotation calibrée (T-50, Erik 02/10) : 1 barbare SUR la case du camp
+    // (le gardien — le plus ancien), plus de satellites de dotation. Le
+    // comportement satellite est simulé par une unité barbare injectée dans
+    // le fixture (équivalent d'un réengendrement T-18). Ennemi à distance 2
+    // (aggro T-19) : le gardien ne SORT jamais ; le satellite avance.
     const state = makeState({
       width: 14,
       height: 12,
@@ -336,10 +338,13 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
     const gardien = state.units[v.spawnedUnits[0]!]!;
     expect(gardien.q).toBe(6);
     expect(gardien.r).toBe(5); // SUR la case du camp
+    // Satellite simulé : copie du gardien posée sur une case adjacente.
+    state.units['sat'] = { ...structuredClone(gardien), id: 'sat', q: 5, r: 5 };
+    v.spawnedUnits.push('sat');
     const orders = barbarianOrders(state);
     const moves = orders.filter((o) => o.type === 'Move');
     expect(moves).toHaveLength(1); // le satellite à distance 2 sort (aggro)
-    expect(moves[0]).toMatchObject({ unitId: v.spawnedUnits[1] }); // jamais le gardien
+    expect(moves[0]).toMatchObject({ unitId: 'sat' }); // jamais le gardien
     expect(orders.find((o) => o.type === 'Hold' && o.unitId === v.spawnedUnits[0])).toBeDefined(); // le gardien tient
   });
 
@@ -391,8 +396,8 @@ describe('R-96 · Villages barbares', () => {
 
   it('ENGAGEMENT R-183 · T-18 : premier RÉENGENDREMENT au tour 15 (spawnInterval, calibrage Erik) — camp occupé par le gardien → spawn ADJACENT, compteur réarmé', () => {
     const state = makeState({ width: 12, height: 10, villages: [{ q: 5, r: 5 }] });
-    // Réduit le camp au seul gardien (cap T-22 sinon atteint d'emblée : la
-    // dotation ENGAGEMENT est de 3 = cap).
+    // Le camp part sous le cap (dotation T-50 = 1 gardien, calibrage Erik
+    // 02/10) : le réengendrement du tour 15 est donc garanti.
     const v = state.villages[0]!;
     for (const id of v.spawnedUnits.slice(1)) delete state.units[id];
     v.spawnedUnits = [v.spawnedUnits[0]!];
@@ -413,22 +418,26 @@ describe('R-96 · Villages barbares', () => {
     const state = makeState({ width: 12, height: 10, villages: [{ q: 5, r: 5 }] });
     const { state: after, events } = resolveEmpty(state, 14);
     expect(events.filter((e) => e.type === 'BarbarianSpawned')).toHaveLength(0);
-    expect(barbarians(after)).toHaveLength(3); // la dotation initiale seule (T-50 : 1 gardien + 2 satellites)
+    expect(barbarians(after)).toHaveLength(1); // la dotation initiale seule (T-50 : le gardien)
     expect(after.turn).toBe(14);
   });
 
-  it('R-96/T-22 (rév. ENGAGEMENT) : la dotation (3) ATTEINT le cap — aucun spawn tant que rien ne meurt', () => {
+  it('R-96/T-22 (calibrage Erik 02/10) : la dotation (1) est SOUS le cap — réengendrements tours 15 et 30 → cap 3, puis plus rien sans mort', () => {
     const state = makeState({
       width: 14,
       height: 12,
       villages: [{ q: 5, r: 5 }],
       units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 9 }], // distance 4 > T-19 (2)
     });
-    const { state: after, events } = resolveEmpty(state, 25);
-    expect(events.filter((e) => e.type === 'BarbarianSpawned')).toHaveLength(0); // cap T-22 déjà atteint
-    expect(barbarians(after)).toHaveLength(3);
-    const { state: encore } = resolveEmpty(after, 10); // tour 35 : toujours le cap
-    expect(barbarians(encore)).toHaveLength(3);
+    const { state: t15, events: e15 } = resolveEmpty(state, 15);
+    expect(e15.filter((e) => e.type === 'BarbarianSpawned')).toHaveLength(1);
+    expect(barbarians(t15)).toHaveLength(2); // gardien + 1er réengendrement
+    const { state: t30, events: e30 } = resolveEmpty(t15, 15);
+    expect(e30.filter((e) => e.type === 'BarbarianSpawned')).toHaveLength(1);
+    expect(barbarians(t30)).toHaveLength(3); // cap T-22 ATTEINT par réengendrement
+    const { state: t45, events: e45 } = resolveEmpty(t30, 15); // tour 45 : cap atteint
+    expect(e45.filter((e) => e.type === 'BarbarianSpawned')).toHaveLength(0); // plus rien sans mort
+    expect(barbarians(t45)).toHaveLength(3);
   });
 
   it('R-96/T-22 + T-49 : cap 3 et garde 1 → au plus 2 barbares SORTENT simultanément (≥ 1 au camp)', () => {
@@ -995,9 +1004,9 @@ describe('L4.1 · Scénario e2e seedé (village → attaque → hutte → destru
       }
     };
 
-    // 1. Dotation initiale (T-50, rév. ENGAGEMENT) : 3 barbares par camp
-    // (gardien + 2 satellites).
-    expect(barbarians(state)).toHaveLength(9);
+    // 1. Dotation initiale (T-50, calibrage Erik 02/10) : LE GARDIEN seul
+    //    par camp (plus de satellites de dotation).
+    expect(barbarians(state)).toHaveLength(3);
     expect(state.turn).toBe(0);
     // La fixture re-trie les villages par (q, r) : résoudre l'id par position.
     const villageId = state.villages.find((v) => v.q === 5 && v.r === 5)!.id;
@@ -1046,8 +1055,10 @@ describe('L4.1 · Scénario e2e seedé (village → attaque → hutte → destru
     expect(events.some((e) => e.type === 'CityRazed' && e.cityId === 'c2')).toBe(true);
 
     // 5. La capitale c1 rasée à son tour : défaite de p1, victoire de p2.
+    //    (Dotation calibrée = 1 gardien/camp : les barbares convergent au
+    //    rythme des réengendrements T-18 — la marche prend ~25 tours.)
     guard = 0;
-    while (!state.winner && guard++ < 15) step();
+    while (!state.winner && guard++ < 40) step();
     expect(state.cities['c1']).toBeUndefined();
     expect(state.winner).toBe('p2'); // l’adversaire réel gagne — les barbares ne gagnent jamais
     expect(events.some((e) => e.type === 'Victory' && e.reason === 'razedCapital' && e.winner === 'p2')).toBe(true);
@@ -1127,13 +1138,10 @@ describe('R-96/R-98 · Placements villages/huttes dans les cartes', () => {
     for (const v of state.villages) {
       expect(v).toMatchObject({ spawnCountdown: BARBARIANS.spawnInterval });
       expect('hp' in v).toBe(false); // BARBARES-PILES : camps sans PV
-      // ENGAGEMENT R-183 · T-50 : dotation 3 — le gardien SUR le camp, les
-      // satellites dans le rayon d'une case.
-      expect(v.spawnedUnits).toHaveLength(3);
+      // ENGAGEMENT R-183 · T-50 (calibrage Erik 02/10) : dotation 1 — le
+      // gardien SUR le camp, plus de satellites de dotation.
+      expect(v.spawnedUnits).toHaveLength(1);
       expect(state.units[v.spawnedUnits[0]!]).toMatchObject({ owner: BARBARIAN_ID, q: v.q, r: v.r }); // le gardien sur le camp
-      for (const id of v.spawnedUnits.slice(1)) {
-        expect(Math.max(Math.abs(state.units[id]!.q - v.q), Math.abs(state.units[id]!.r - v.r))).toBe(1); // satellite adjacent
-      }
     }
     expect(state.mapId).toBe('variee-40');
   });

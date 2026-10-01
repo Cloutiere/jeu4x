@@ -28,7 +28,7 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     for (const v of dump.barbares!.villages) {
       expect((v as { hp?: number }).hp).toBeUndefined(); // BARBARES-PILES : camps sans PV
       expect(v.spawnCountdown).toBe(15); // T-18 rév. CALIBRAGE-BARBARES (02/10) : premier réengendrement au tour 15
-      expect(v.unitésVivantes).toBe(3); // dotation initiale T-50 (rév. ENGAGEMENT : 1 gardien + 2 satellites)
+      expect(v.unitésVivantes).toBe(1); // dotation initiale T-50 (calibrage Erik 02/10 : le gardien seul)
     }
     expect(dump.state!.mapId).toBe('pangee-40');
   });
@@ -49,8 +49,9 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     const t1 = (await alice.waitFor('TurnResult')) as TurnResult;
     expect(t1.turn).toBe(1);
 
-    // Tours 2 et 3 : les deux verrouillent (pas de forfait T-06) — au tour 3,
-    // les villages engendrent leurs premiers barbares (T-18, Phase C).
+    // Tours 2 et 3 : les deux verrouillent (pas de forfait T-06). Plus de
+    // spawn au tour 3 (T-18 = 15, calibrage Erik 02/10) : les barbares
+    // présents = la seule dotation initiale T-50.
     for (const socket of [alice, bob]) {
       socket.send({ type: 'EndTurn' });
       await socket.waitFor('OrderAck');
@@ -65,11 +66,11 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     const t3Bob = (await bob.waitFor('TurnResult')) as TurnResult;
     expect(t3Alice.turn).toBe(3);
 
-    // Les barbares existent côté serveur (3 villages, dotation T-50 : 3 chacun).
+    // Les barbares existent côté serveur (3 villages, dotation T-50 : le gardien seul).
     const dump = await adminDump(code);
     const barbares = Object.values(dump.state!.units).filter((u: { owner: string }) => u.owner === 'barbarien');
-    expect(barbares).toHaveLength(9);
-    expect(dump.barbares!.villages.every((v) => v.unitésVivantes === 3)).toBe(true);
+    expect(barbares).toHaveLength(3);
+    expect(dump.barbares!.villages.every((v) => v.unitésVivantes === 1)).toBe(true);
     // Anti-triche : AUCUN client ne voit les barbares (cases inexplorées, fog).
     expect(t3Alice.state.units['u4']).toBeUndefined();
     expect(Object.values(t3Alice.state.units).filter((u) => u.owner === 'barbarien')).toHaveLength(0);
@@ -84,7 +85,7 @@ describe('GameDO · Phase 7d (barbares & huttes)', () => {
     const t4 = (await alice.waitFor('TurnResult')) as TurnResult;
     expect(t4.turn).toBe(4);
     const dump4 = await adminDump(code);
-    expect(Object.values(dump4.state!.units).filter((u: { owner: string }) => u.owner === 'barbarien').length).toBeGreaterThanOrEqual(3);
+    expect(Object.values(dump4.state!.units).filter((u: { owner: string }) => u.owner === 'barbarien').length).toBeGreaterThanOrEqual(1);
     // Aucune unité barbare dans l'état filtré d'alice (brouillard).
     expect(Object.values(t4.state.units).filter((u) => u.owner === 'barbarien')).toHaveLength(0);
     // Les tours ont continué sans forfait (missedTurns remis à zéro par B tour 2/3).

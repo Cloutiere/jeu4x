@@ -240,7 +240,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 **R-96 · Villages barbares.** Entités de carte (`villages: [{q, r}]` dans les JSON de carte) — **3 villages sur chacune des cartes 40×40** (placements symétriques/équitables ; CivRev les pose sur des ressources, nos placements s'y ancrent). Chaque village :
 **R-96 · Villages barbares (rév. BARBARES-PILES — décision Erik du 15/09).** Entités de carte (`villages: [{q, r}]` dans les JSON de carte) — **3 villages sur chacune des cartes 40×40** (placements symétriques/équitables ; CivRev les pose sur des ressources, nos placements s'y ancrent). Chaque village :
 - **PILE sur la case du camp (rév. 15/09)** : les barbares d'un camp occupent **LA CASE MÊME du village** (1 à 3 sur la même tuile — régime spécial barbare, R-30 amendée : aucune autre unité ne s'empile) ;
-- **dotation initiale `T-50` = 1 (POLISSAGE-1 C3)** : **1 barbare dans le camp au début de la partie**, posé **sur la case du camp** (pile), inscrit dans `spawnedUnits` (il compte pour le cap et la garde) ;
+- **dotation initiale `T-50` = 1 (calibrage Erik 02/10 — plus de satellites de dotation)** : **le GARDIEN seul dans le camp au début de la partie**, posé **sur la case du camp** (pile), inscrit dans `spawnedUnits` (il compte pour le cap et la garde) ; les satellites restent possibles ensuite via le réengendrement `T-18`, jusqu'au cap `T-22` = 3 ;
 - **réengendrement** : +1 unité toutes les `T-18` 🔶 tours (compteur `spawnCountdown` initialisé à `T-18`, décrémenté à chaque résolution ; premier réengendrement au **tour 15** (calibrage Erik 02/10 — était 10)) tant que son **cap d'unités vivantes** `T-22` 🔶 (par village, suivi par `spawnedUnits`) n'est pas atteint — **le camp se régénère à 3 sans jamais le dépasser** ; l'unité apparaît **SUR LA CASE DU CAMP** (elle grossit la pile — rév. 15/09, remplace l'ancien spawn adjacent) ;
 - **camps SANS PV (rév. 15/09)** : `villageHP` et `villageDefense` sont **supprimés** — un camp n'est **plus une cible en soi** ; la cible du combat = les **barbares de la pile** sur sa case ; entrer sur un camp **défendu** = **assaut de la pile** : combats R-52 **un par un** (le meilleur DÉFENSEUR d'abord — R-52 rév. DÉFENSE-DE-PILE : défense décroissante, puis PV décroissants, puis R-81) tant que l'attaquant est vivant ; chaque échange est un combat complet (Overrun R-149 par garde, R-32/jalons applicables) ; survie mutuelle contre une garde → l'attaquant se replie (R-52/R-54) ; l'attaquant mort arrête la séquence ; une unité pacifique qui entre est capturée (R-43/I-4) ; un camp **sans défenseur** est capturé à l'entrée (aucun combat) ;
 - **capture (rév. 15/09)** : à la mort du **dernier** barbare de la pile, le **vainqueur occupe la case du camp** (mêlée ; une attaque à distance n'avance jamais, R-59-a — la case reste libre), le camp est **détruit** (disparaît définitivement) et le vainqueur reçoit la **récompense aléatoire des huttes** (table pondérée `huttes.json`, R-98 — tirage seedé au RNG de résolution ; **l'or fixe `T-20` est supprimé**, ainsi que `BootyGold` côté village) — événements `VillageDestroyed` + `VillageLooted` ;
@@ -840,8 +840,10 @@ Base documentaire : la spécification d'Erik [`Guide Civilisations Civilization 
 - **R-183 · Camps barbares (rév. ENGAGEMENT).** La pile de camp est ABROGÉE : le camp est
   tenu par son **GARDIEN** (le plus ancien barbare SUR la case, tri R-81) qui ne SORT jamais
   (Hold ou attaque adjacente DEPUIS sa case) ; les **SATELLITES** sont tenus dans le rayon
-  d'une case (cases adjacentes libres, freeSpawnTiles tri R-81). Dotation T-50 = **3**
-  (1 gardien + 2 satellites, barbares.json `initialUnits`), gardeMinimale T-49 = **1** ;
+  d'une case (cases adjacentes libres, freeSpawnTiles tri R-81). Dotation T-50 = **1**
+  (le gardien seul — calibrage Erik 02/10, plus de satellites de dotation ; barbares.json
+  `initialUnits` ; des satellites restent possibles via réengendrement T-18 jusqu'au cap
+  T-22 = 3), gardeMinimale T-49 = **1** ;
   rengendrement T-18 : sur le camp si libre, sinon case adjacente libre — cap T-22 = 3
   inchangé. La capture = attaque normale du gardien (plus d'assaut un par un) ; à sa mort le
   camp est capturé (récompense hutte seedée, R-96/R-98) ; survie mutuelle → cohabitation →
@@ -920,6 +922,8 @@ case ne porterait que des amies).
 | T-43 | `confuciusGpCount` · `atlantideTechCount` | **2** · 3 🔶 (R-154 — `artefacts.json` ; Confucius = 2 GP dataminés, HORS escalade T-27/T-30 — Calibrage 06/09) ; `indicePositionChance` = **0.15** (canon 15-20 %, borne basse) |
 | T-44 | `spawnRingForet` · `spawnRingPrairie` · `spawnRingEau` | 2 · 2 · 1 🔶 (R-157, SPAWN-START — `progen/settings.ts` ; composition forcée du voisinage du Colon) |
 | T-45 | `spawnPurgeRadius` | 2 🔶 (R-157, SPAWN-START — `progen/settings.ts` ; rayon hex sans ressource autour de chaque spawn) |
+| T-49 | `gardeMinimale` | 1 🔶 (R-183, ENGAGEMENT — `barbares.json` ; le gardien ne sort jamais) |
+| T-50 | `initialUnits` | **1** (calibrage Erik 02/10 — était 3, gardien + 2 satellites ; `barbares.json` — dotation = le gardien seul, satellites via réengendrement T-18 jusqu'au cap T-22 = 3) |
 | T-51 | `cultureExpansionThresholds` | 10 / 100 / 1 000 / 10 000 🔶 (R-162 — `culture.json` ; +1 anneau culturel par seuil de culture cumulée de la ville) |
 | T-52 | `cultureExpansionMaxRings` | 5 🔶 (R-162 — `culture.json`) |
 | T-54 | `meleeTauBonus` | 0.25 🔶 (R-180 — étau de mêlée, constants.ts) |

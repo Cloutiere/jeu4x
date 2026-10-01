@@ -29,7 +29,7 @@ import { resolveTurn } from '../src/turn.js';
 import { makeState, unit as unitOf, unitAt } from '../src/fixtures.js';
 import { migrateState, CURRENT_SCHEMA_VERSION } from '../src/state.js';
 import type { GameState, Order } from '../src/state.js';
-import { BARBARIAN_ID } from '../src/data.js';
+import { BARBARIAN_ID, BARBARIANS } from '../src/data.js';
 import { drawWeightedMelee, meleeTauMultiplier } from '../src/melee.js';
 import { createRng } from '../src/rng.js';
 
@@ -474,18 +474,18 @@ describe('R-182 · Unités pacifiques en instabilité', () => {
 });
 
 describe('R-183 · Camps barbares spatialisés (1 gardien + satellites adjacents)', () => {
-  it('dotation T-50 : 1 barbare SUR le camp, les autres sur des cases adjacentes libres', () => {
+  it('dotation T-50 (calibrage Erik 02/10) : le GARDIEN seul SUR le camp ; les satellites viennent du réengendrement T-18 (rayon 1 case)', () => {
     const s0 = makeState({
       width: 10,
       height: 10,
       villages: [{ q: 5, r: 5 }],
     });
     const barbares = Object.values(s0.units).filter((u) => u.owner === BARBARIAN_ID);
-    expect(barbares).toHaveLength(3);
-    const auCamp = barbares.filter((u) => u.q === 5 && u.r === 5);
-    expect(auCamp).toHaveLength(1);
+    expect(barbares).toHaveLength(BARBARIANS.initialUnits); // le gardien seul, plus de satellites de dotation
+    expect(barbares.filter((u) => u.q === 5 && u.r === 5)).toHaveLength(1);
+    // Les satellites (s'il y en a) restent dans le rayon d'une case.
     for (const u of barbares.filter((x) => x.q !== 5 || x.r !== 5)) {
-      expect(Math.max(Math.abs(u.q - 5), Math.abs(u.r - 5))).toBe(1); // rayon d'une case
+      expect(Math.max(Math.abs(u.q - 5), Math.abs(u.r - 5))).toBe(1);
     }
   });
 
@@ -496,8 +496,13 @@ describe('R-183 · Camps barbares spatialisés (1 gardien + satellites adjacents
       villages: [{ q: 5, r: 5 }],
       units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 3 }], // dans l'aggro des satellites
     });
-    const { newState } = resolveTurn(s0, AUCUN, 7);
-    const barbares = Object.values(newState.units).filter((u) => u.owner === BARBARIAN_ID);
+    // Dotation calibrée = gardien seul : on laisse venir le premier
+    // réengendrement (T-18, tour 15) pour avoir un satellite, puis un tour
+    // d'action.
+    let cur = s0;
+    for (let t = 0; t < 16; t++) cur = resolveTurn(cur, AUCUN, 100 + t).newState;
+    const final = cur;
+    const barbares = Object.values(final.units).filter((u) => u.owner === BARBARIAN_ID);
     const gardien = barbares.find((u) => u.q === 5 && u.r === 5);
     expect(gardien).toBeDefined(); // toujours au camp
     // au moins un satellite s'est rapproché/attaqué
@@ -528,7 +533,9 @@ describe('R-183 · Camps barbares spatialisés (1 gardien + satellites adjacents
     // le gardien est au camp → le spawn va sur une case adjacente
     const { newState } = resolveTurn(s0, AUCUN, 7);
     const spawns = Object.values(newState.units).filter((u) => u.owner === BARBARIAN_ID && u.id !== 'k1');
-    expect(spawns.length).toBe(3); // dotation + 1 spawn (cap 3 atteint → le spawn est refusé si déjà 3 ?)
+    expect(spawns.length).toBe(BARBARIANS.initialUnits + 1); // dotation (gardien seul) + 1 réengendrement
+    const nouveau = spawns.find((u) => u.q !== 5 || u.r !== 5)!;
+    expect(Math.max(Math.abs(nouveau.q - 5), Math.abs(nouveau.r - 5))).toBe(1); // camp occupé → case adjacente
     void spawns;
   });
 });
