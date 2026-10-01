@@ -14,10 +14,10 @@ import { CIVILIZATIONS } from '@game/rules';
 import { TOPOGRAPHIES } from '@game/rules';
 import accentsBrut from '../../../apps/web/src/lib/render/accents.json';
 
-/** Les 7 palettes 4 tons (clés de `factions4`) — l'ordre suit le JSON. */
+/** Les 6 palettes 4 tons (clés de `factions4`) — l'ordre suit le JSON. */
 export const CLES_PALETTES4: string[] = Object.keys(accentsBrut.factions4);
 
-/** Ordre officiel des palettes pour les joueurs (J1..J7 — `ordre_joueurs4`). */
+/** Ordre officiel des palettes pour les joueurs (J1..J6 — `ordre_joueurs4`). */
 export const ORDRE_PALETTES4: string[] = accentsBrut.ordre_joueurs4;
 
 export const nomPalette4 = (id: string): string =>
@@ -97,7 +97,7 @@ export function configPartieErreur(config: unknown): string | null {
 
 /** Première palette non prise — priorité à l'ordre officiel des joueurs
  *  (`ordre_joueurs4`), puis les autres. Null si tout est pris (impossible à
- *  5 sièges sur 7 palettes). */
+ *  5 sièges sur 6 palettes). */
 export function premierePaletteLibre(prises: Iterable<string>): string | null {
   const vues = prises instanceof Set ? prises : new Set(prises);
   for (const p of [...ORDRE_PALETTES4, ...CLES_PALETTES4]) {
@@ -125,7 +125,7 @@ export function resoutConflitsPalettes(config: ConfigPartie): ConfigPartie {
     if (s.type !== 'bot') continue;
     if (vues.has(s.paletteId)) {
       const libre = premierePaletteLibre(vues);
-      if (libre === null) break; // 7 palettes pour 5 sièges : inaccessible
+      if (libre === null) break; // 6 palettes pour 5 sièges : inaccessible
       s.paletteId = libre;
     }
     vues.add(s.paletteId);

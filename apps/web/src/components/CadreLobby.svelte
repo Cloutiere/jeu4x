@@ -39,7 +39,10 @@
 </main>
 
 <style>
-  .lobby { position: relative; min-height: 100vh; color: var(--texte); font-family: system-ui, sans-serif; }
+  .lobby {
+    position: relative; height: 100vh; color: var(--texte); font-family: system-ui, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
   .fond { position: fixed; inset: 0; z-index: -1; }
   .fond-haut, .fond-bas { position: absolute; left: 0; right: 0; background-size: cover; background-position: center; }
   .fond-haut { top: 0; height: 62%; background-image: url('/interface/up.jpg'); }
@@ -51,7 +54,11 @@
       linear-gradient(180deg, rgba(13, 20, 32, 0.35) 0%, rgba(13, 20, 32, 0.72) 45%, rgba(13, 20, 32, 0.85) 100%);
   }
 
-  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+  .page {
+    flex: 1; min-height: 0; display: flex; flex-direction: column;
+    max-width: 98rem; width: 100%; margin: 0 auto; padding: 1rem 1.6rem 1.2rem;
+  }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex: none; }
   .titre h1 {
     margin: 0; font-family: var(--serif-or); font-size: 2.6rem; letter-spacing: 0.06em;
     text-transform: uppercase;
