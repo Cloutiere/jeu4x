@@ -209,6 +209,13 @@ interface Board {
    */
   pendingFill: Set<CityId>;
   /**
+   * SUR-OCCUPATION-POSE · D1/D3 : arrivantes posées PENDANT CETTE résolution
+   * (production) — leur régularisation (Phase E) ne doit pas s'appliquer au
+   * tour de leur pose : le joueur dispose d'abord de son tour pour séparer
+   * les deux (D4). Interne au Board, jamais sérialisé.
+   */
+  arrivantesCeTour: Set<UnitId>;
+  /**
    * DEPLACEMENT-PLANIFIE · R-161 (D6) : unités ayant DÉJÀ entré une case
    * INCONNUE (non explorée) ce tour — la limite `fogUnknownEntriesPerTurn`
    * interdit une seconde entrée (l'unité s'arrête).
@@ -1941,7 +1948,10 @@ function applyRushBuys(board: Board, ordersByPlayer: Record<PlayerId, Order[]>):
       const stats = unitType(item.id);
       const popCost = populationCostOf(stats.populationCost ?? 0, player);
       if (city.pop < Math.max(1, popCost)) continue; // pop insuffisante (R-112)
-      if (occupiedByUnit(board, { q: city.q, r: city.r })) continue; // en attente
+      // SUR-OCCUPATION-POSE · D1 : seule une occupation ENNEMIE bloque encore
+      // l'achat — une case de ville portant une AMIE reçoit l'unité en
+      // cohabitation temporaire (miroir de la complétion normale).
+      if (occupants(board, { q: city.q, r: city.r }).some((u) => u.owner !== city.owner)) continue; // en attente (ennemi)
     } else if (item.kind === 'wonder') {
       const builtAnywhere = Object.values(board.st.cities).some((c) => c.wonders.includes(item.id));
       if (builtAnywhere) continue; // exclusivité mondiale (R-129)
@@ -1989,6 +1999,11 @@ function completeProductionNow(board: Board, city: City): boolean {
       });
     }
     const unitId = nextId(board.st.units, 'u');
+    // SUR-OCCUPATION-POSE · D1 (même parcours de production que la complétion
+    // normale — applyRushBuys n'a plus la garde « case amie occupée ») : la
+    // pose sur case de ville occupée par UNE amie marque l'arrivante.
+    const surPlaceRush = occupants(board, { q: city.q, r: city.r });
+    const arrivante = surPlaceRush.length === 1 && surPlaceRush[0]!.owner === city.owner;
     board.st.units[unitId] = {
       id: unitId,
       type: effectiveType,
@@ -2007,7 +2022,9 @@ function completeProductionNow(board: Board, city: City): boolean {
       fortified: false,
       aboard: null,
       cargo: null,
+      ...(arrivante ? { arrivanteSurCase: true } : {}),
     };
+    if (arrivante) board.arrivantesCeTour.add(unitId);
     emit(board, { type: 'UnitProduced', unitId, cityId: city.id, owner: city.owner, unitType: effectiveType, at: { q: city.q, r: city.r } });
   } else if (item.kind === 'wonder') {
     // La complétion canonique lit `city.production.progress` pour la
@@ -2052,10 +2069,12 @@ function grantBuildingToCity(board: Board, city: City, buildingId: string): void
 /**
  * 7l · C7 · R-130 (rév.) · Production d'une unité DEPUIS LA RÉSERVE de
  * marteaux (projet répétable — produit autant de fois que la réserve le
- * permet) OU complétion normale de la file. Pose : case de ville ;
- * `allowAdjacent` (production en série C7 uniquement) : les unités suivantes
- * passent sur une case adjacente libre (sinon la série s'arrête — R-30 rend
- * la case de ville unique). Coût pop R-112 (République : 1 — R-121).
+ * permet) OU complétion normale de la file. Pose : case de ville — y compris
+ * OCCUPÉE PAR UNE AMIE (SUR-OCCUPATION-POSE · D1, Erik 02/10 : cohabitation
+ * temporaire flaguée `arrivanteSurCase`, régularisée en tête de résolution
+ * suivante) ; `allowAdjacent` (production en série C7 uniquement) : repli
+ * case adjacente libre si la case de ville est multiple ou ennemie. Coût pop
+ * R-112 (République : 1 — R-121).
  * Retourne false si la pose est impossible (la réserve subsiste / en attente).
  */
 function produceUnitFromReserve(board: Board, city: City, unitTypeId: string, allowAdjacent: boolean): boolean {
@@ -2066,12 +2085,31 @@ function produceUnitFromReserve(board: Board, city: City, unitTypeId: string, al
   const popCost = populationCostOf(stats.populationCost ?? 0, player);
   if (city.pop < Math.max(1, popCost)) return false;
   const cityHex = { q: city.q, r: city.r };
-  const spot = !occupiedByUnit(board, cityHex)
-    ? cityHex
-    : allowAdjacent
-      ? (freeSpawnTiles(board.st, cityHex, 1)[0] ?? null)
-      : null;
-  if (!spot) return false;
+  // SUR-OCCUPATION-POSE · D1 (décision d'Erik du 02/10) : la case de ville
+  // occupée par UNE unité AMIE n'empêche plus la pose — l'unité produite y
+  // apparaît en cohabitation temporaire (flag `arrivanteSurCase`), à la
+  // manière des survivantes de mêlée ; la régularisation (relogement auto)
+  // intervient en tête de la résolution suivante si le joueur ne sépare pas
+  // les deux (D3). Plus jamais de plafonnement silencieux 20/20 (D5). Une
+  // pile AMIE déjà multiple (résidu de dispersion) ou une occupation
+  // ENNEMIE (D5bis — la ville serait de toute façon capturée en Phase C)
+  // conserve le repli historique : adjacente libre (série C7) ou refus.
+  const surPlace = occupants(board, cityHex);
+  const ennemiIci = surPlace.some((u) => u.owner !== city.owner);
+  let spot: { q: number; r: number };
+  let arrivante = false;
+  if (surPlace.length === 0) {
+    spot = cityHex;
+  } else if (!ennemiIci && surPlace.length === 1) {
+    spot = cityHex;
+    arrivante = true;
+  } else if (allowAdjacent) {
+    const libre = freeSpawnTiles(board.st, cityHex, 1)[0];
+    if (!libre) return false;
+    spot = libre;
+  } else {
+    return false;
+  }
   if (popCost > 0) {
     city.pop = Math.max(1, city.pop - popCost);
     city.workedTiles = city.workedTiles.slice(0, city.pop);
@@ -2101,7 +2139,9 @@ function produceUnitFromReserve(board: Board, city: City, unitTypeId: string, al
     fortified: false,
     aboard: null,
     cargo: null,
+    ...(arrivante ? { arrivanteSurCase: true } : {}),
   };
+  if (arrivante) board.arrivantesCeTour.add(unitId);
   emit(board, { type: 'UnitProduced', unitId, cityId: city.id, owner: city.owner, unitType: effectiveType, at: spot });
   return true;
 }
@@ -3897,7 +3937,9 @@ function processEconomy(board: Board): void {
     //    80 → produit ce tour, 120 restent) ; réserve < coût → versée dans la
     //    progression (accumulation normale tour par tour ensuite) ;
     //  - répétable (unité) : produite autant de fois que la réserve le permet
-    //    (case de ville libre exigée — en attente sinon, la réserve subsiste) ;
+    //    (première sur la case de ville — y compris occupée par une AMIE,
+    //    SUR-OCCUPATION-POSE D1 —, suivantes sur une adjacente libre ; en
+    //    attente seulement si AUCUNE pose possible, la réserve subsiste) ;
     //    le reliquat (< coût) rejoint la progression de l'unité suivante.
     //  Interprétation 🔶 documentée : quand la réserve complète l'item, la
     //  production du tour (sans projet restant) est perdue — miroir « file
@@ -3956,9 +3998,12 @@ function processEconomy(board: Board): void {
           city.production.progress += production;
           if (city.production.progress >= cost) {
             if (city.production.item.kind === 'unit') {
-              // Même pose que la réserve C7 : case de ville, coût pop R-112
-              // (République : 1 — R-121) ; en attente sinon (progression
-              // plafonnée au coût — excessif perdu, 🔶 conservé de 7i).
+              // Même pose que la réserve C7 : case de ville — y compris
+              // occupée par une AMIE (SUR-OCCUPATION-POSE D1, Erik 02/10 :
+              // arrivante régularisée à la résolution suivante) —, coût pop
+              // R-112 (République : 1 — R-121). En attente sinon (case
+              // ennemie ou pop insuffisante — progression plafonnée au coût,
+              // 🔶 conservé de 7i).
               if (produceUnitFromReserve(board, city, city.production.item.id, false)) {
                 city.production = null; // 🔶 file vidée après complétion
                 promoteQueueSuivante(city); // MENU-VILLE-QUEUE : l'item suivant remonte
@@ -4228,6 +4273,75 @@ function applyEconomyMilestone(
  * une par case et par tour) → captures de pacifiques à la stabilisation
  * (R-182) → marquage `stabilized` (R-173).
  */
+/**
+ * SUR-OCCUPATION-POSE · D3/D4 (décision d'Erik du 02/10) — régularisation
+ * des ARRIVANTES, appelée en tête de la Phase E (la MÊME FENÊTRE que la
+ * dispersion des cohabitations R-179-b, donc APRÈS les mouvements du joueur :
+ * s'il a séparé les deux pendant son tour, la sur-occupation a déjà disparu —
+ * D4). Pour chaque case de ville portant 2+ unités AMIES dont au moins une
+ * marquée `arrivanteSurCase` : la plus récente (unitId max — R-81) rejoint la
+ * première case adjacente libre (tri (q, r), miroir de la dispersion :
+ * entrable, libre, ni camp barbare ni ville ennemie). AUCUNE case adjacente
+ * libre : la pile PERSISTE et on réessaie à la résolution suivante — jamais
+ * de destruction, jamais de blocage. Une arrivante posée pendant CETTE
+ * résolution (`arrivantesCeTour`) attend le tour suivant. Fortification et
+ * stabilisation perdues au déplacement (R-175), comme toute dispersion.
+ */
+function regulariserArrivantes(board: Board): void {
+  const st = board.st;
+  const marquees = Object.values(st.units).filter((u) => u.arrivanteSurCase && !board.arrivantesCeTour.has(u.id));
+  if (marquees.length === 0) return;
+  // Une seule régularisation par case et par tour : l'arrivante la PLUS
+  // RÉCENTE (unitId max) part en premier ; les suivantes réessaieront.
+  const parCase = new Map<string, Unit[]>();
+  for (const u of marquees.sort((a, b) => compareUnitIds(a.id, b.id))) {
+    const key = `${u.q},${u.r}`;
+    const list = parCase.get(key) ?? [];
+    list.push(u);
+    parCase.set(key, list);
+  }
+  for (const key of [...parCase.keys()].sort()) {
+    const candidatesArrivante = parCase.get(key)!;
+    const u = candidatesArrivante[candidatesArrivante.length - 1]!;
+    if (!st.units[u.id]) continue; // morte entre-temps
+    const ici = occupants(board, { q: u.q, r: u.r });
+    // Miroir R-179-b (H2/H3) : une entrée ENNEMIE sur la case ou une mêlée
+    // différée suspend la régularisation — la pile demeure (flag conservé).
+    const entreesEtrangeres = [...(board.entrees.get(key as TileKey) ?? [])].some((o) => o !== u.owner);
+    if (entreesEtrangeres || board.meleeDifferees.has(key as TileKey)) {
+      decide(board, 'arrivante-suspendue', 'SUR-OCCUPATION D3', `${u.id} reste sur (${key}) — entrée ennemie ou mêlée différée sur la case : régularisation suspendue ce tour`, { unitId: u.id, case: key });
+      continue;
+    }
+    const surOccupation = ici.length >= 2 && ici.every((x) => x.owner === u.owner);
+    if (!surOccupation) {
+      delete u.arrivanteSurCase; // D4 : plus de sur-occupation → nettoyage
+      continue;
+    }
+    const destinations = neighbors({ q: u.q, r: u.r })
+      .filter((h) => canEnter(board, u, h))
+      .filter((h) => !occupiedByUnit(board, h))
+      .filter((h) => {
+        const city = cityAt(board, h);
+        return !villageAt(board, h) && (!city || city.owner === u.owner);
+      })
+      .sort((a, b) => compareHex(a, b));
+    const cible = destinations[0];
+    if (!cible) {
+      decide(board, 'arrivante-persiste', 'SUR-OCCUPATION D3', `${u.id} reste sur la case de ville (${key}) — aucune case adjacente libre : la pile persiste, nouvel essai à la résolution suivante`, { unitId: u.id, case: key });
+      continue; // flag conservé : nouvel essai à la résolution suivante
+    }
+    decide(board, 'arrivante-regularisee', 'SUR-OCCUPATION D3', `${u.id} (arrivante) quitte la case de ville (${key}) pour (${cible.q},${cible.r}) — première adjacente libre tri (q, r) parmi ${destinations.length} candidate(s)`, { unitId: u.id, case: key, destination: cible });
+    const from = { q: u.q, r: u.r };
+    u.q = cible.q;
+    u.r = cible.r;
+    u.fortified = false; // R-175 : perdu au déplacement
+    u.stabilized = false;
+    delete u.arrivanteSurCase; // consommé
+    board.moved.add(u.id); // a quitté sa case : pas de bonus de demeure
+    emit(board, { type: 'ArrivanteRegularisee', unitId: u.id, owner: u.owner, from, to: { ...cible } });
+  }
+}
+
 function processStability(board: Board): void {
   const st = board.st;
 
@@ -4259,6 +4373,10 @@ function processStability(board: Board): void {
   // proche (tie : (q, r) croissant). Sans case admissible : la pile persiste,
   // nouvel essai au tour suivant. La dispersée ne combat pas et n'ouvre pas
   // de hutte ; elle perd fortification et stabilisation (R-175).
+  // SUR-OCCUPATION-POSE · D3 : la régularisation des arrivantes (unités
+  // produites sur la case de ville occupée par une amie) partage cette
+  // fenêtre — voir regulariserArrivantes.
+  regulariserArrivantes(board);
   {
     const groups = parCase();
     for (const key of [...groups.keys()].sort()) {
@@ -4266,6 +4384,12 @@ function processStability(board: Board): void {
       if (here.length < 2) continue;
       const owners = new Set(here.map((u) => u.owner));
       if (owners.size !== 1) continue; // cohabitation ennemie → mêlée, pas de dispersion
+      // SUR-OCCUPATION-POSE · D1/D3 : une pile portant une ARRIVANTE (unité
+      // produite ce tour sur la case de ville occupée) n'est pas une
+      // dispersion — elle persiste ce tour (le joueur peut séparer les deux)
+      // et la régularisation de tête de résolution suivante reloge
+      // l'arrivante si besoin.
+      if (here.some((u) => u.arrivanteSurCase)) continue;
       const entreesEtrangeres = [...(board.entrees.get(key as TileKey) ?? [])].some(
         (o) => o !== here[0]!.owner,
       );
@@ -4514,6 +4638,7 @@ export function resolveTurn(
     fought: new Set(),
     formGroups: new Map(),
     pendingFill: new Set(),
+    arrivantesCeTour: new Set(),
     unknownEntered: new Set(),
     explored: new Map(),
     meleeDifferees: new Set(),

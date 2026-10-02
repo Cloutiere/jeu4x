@@ -162,6 +162,18 @@ export interface Unit {
    * chaque fin de tour ; perdu par tout déplacement.
    */
   stabilized: boolean;
+  /**
+   * SUR-OCCUPATION-POSE · D1 (décision d'Erik du 02/10) : unité produite
+   * posée sur la case de ville occupée par une unité AMIE (cohabitation
+   * temporaire, à la manière des survivantes de mêlée). Si le joueur ne
+   * sépare pas les deux pendant son tour, la résolution suivante reloge
+   * l'arrivante vers une case adjacente libre (régularisation en tête de
+   * résolution, D3). Consommé à la régularisation ; nettoyé si la
+   * sur-occupation a disparu (D4). Champ optionnel : absent (= false) sur
+   * toutes les unités antérieures — aucune migration (miroir `canal?` de
+   * GreatPersonSpawned, schemaVersion inchangée).
+   */
+  arrivanteSurCase?: boolean;
 }
 
 export interface CityProduction {

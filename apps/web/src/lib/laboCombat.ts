@@ -444,6 +444,8 @@ export function formatEvent(state: GameState, ev: { type: string } & Record<stri
       return `EXPULSION (cohabitation amie, R-179 — journal ancien) ${unitLabel(state, ev.unitId as UnitId)} : ${hexLabel(ev.from as { q: number; r: number })} → ${hexLabel(ev.to as { q: number; r: number })}`;
     case 'UnitDispersed':
       return `DISPERSION (pile amie, R-159 rév. B) ${unitLabel(state, ev.unitId as UnitId)} : ${hexLabel(ev.from as { q: number; r: number })} → ${hexLabel(ev.to as { q: number; r: number })}`;
+    case 'ArrivanteRegularisee':
+      return `RÉGULARISATION (arrivante sur case de ville occupée) ${unitLabel(state, ev.unitId as UnitId)} : ${hexLabel(ev.from as { q: number; r: number })} → ${hexLabel(ev.to as { q: number; r: number })}`;
     case 'Captured':
       return `CAPTURE ${unitLabel(state, ev.unitId as UnitId)} par ${nomCamp(ev.byPlayer as PlayerId)} (${ev.outcome})`;
     case 'CityFounded':

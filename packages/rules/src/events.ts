@@ -81,6 +81,13 @@ export type GameEvent =
    *  d'un tour où RIEN n'est physiquement entré sur la case (H2 : un tir à
    *  distance ne suspend pas la dispersion). Le restant se stabilise (R-173). */
   | { seq: number; type: 'UnitDispersed'; unitId: UnitId; owner: PlayerId; from: Hex; to: Hex }
+  /** SUR-OCCUPATION-POSE · D3/D6 (décision d'Erik du 02/10) : régularisation
+   *  d'une arrivante — l'unité produite sur la case de ville occupée par une
+   *  amie n'a pas été séparée par le joueur pendant son tour : elle est
+   *  relogée automatiquement (tête de la résolution suivante) vers la
+   *  première case adjacente libre (tri (q, r) — R-81). Sans case libre, la
+   *  pile persiste (aucun événement — nouvel essai à la résolution suivante). */
+  | { seq: number; type: 'ArrivanteRegularisee'; unitId: UnitId; owner: PlayerId; from: Hex; to: Hex }
   /**
    * Capture d'une unité pacifique (R-43). En guerre (v1) : outcome 'destroyed'
    * (+ BootyGold). En paix (Phase 7) : 'detained'.
@@ -414,6 +421,7 @@ export function eventRefs(event: GameEvent): EventRefs {
       break;
     case 'UnitExpelled':
     case 'UnitDispersed':
+    case 'ArrivanteRegularisee':
       refs.unitIds.push(event.unitId);
       refs.players.push(event.owner);
       hex(event.from);

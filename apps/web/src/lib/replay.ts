@@ -59,7 +59,8 @@ export function appliquerEvenement(etat: GameState, ev: GameEvent): void {
     case 'Move':
     case 'Retreat':
     case 'UnitExpelled':
-    case 'UnitDispersed': {
+    case 'UnitDispersed':
+    case 'ArrivanteRegularisee': {
       const u = etat.units[ev.unitId];
       if (u) {
         u.q = ev.to.q;

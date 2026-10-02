@@ -239,6 +239,8 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
       return `Ville ${event.cityId} prise par ${nameOf(event.toOwner)}${event.plunder ? ` — sac de ville : ${event.plunder.toLocaleString('fr-FR')} or pillés` : ''}`;
     case 'UnitProduced':
       return `${event.unitType} produit par ${event.cityId}`;
+    case 'ArrivanteRegularisee':
+      return `${event.unitId} (arrivante) relogée vers (${event.to.q},${event.to.r}) — la case de ville était occupée par une amie`;
     case 'TechResearched':
       return `Technologie complétée : ${event.tech} — déblocages disponibles !`;
     case 'FirstDiscovered':

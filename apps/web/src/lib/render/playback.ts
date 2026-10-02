@@ -64,6 +64,7 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   MeleeResolved: 480, // ENGAGEMENT R-180 : mêlée d'instabilité
   UnitExpelled: 300, // ENGAGEMENT R-179 : expulsion de cohabitation (journaux anciens)
   UnitDispersed: 300, // R-159 rév. B : dispersion de pile amie
+  ArrivanteRegularisee: 300, // SUR-OCCUPATION-POSE : relogement auto de l'arrivante
   Attack: 200,
   CombatExchange: 420,
   UnitDestroyed: 420,
@@ -123,6 +124,7 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   CityFounded: 'good',
   CityCaptured: 'bad',
   UnitProduced: 'info',
+  ArrivanteRegularisee: 'info',
   PopulationGrew: 'good',
   PopulationConsumed: 'info',
   FirstDiscovered: 'good',
@@ -306,7 +308,7 @@ export class Playback {
     cur.t += dtMs * this.speed;
 
     // Progression de l'interpolation visible (Move/Retreat courant).
-    if (cur.ev.type === 'Move' || cur.ev.type === 'Retreat') {
+    if (cur.ev.type === 'Move' || cur.ev.type === 'Retreat' || cur.ev.type === 'ArrivanteRegularisee') {
       const anim = this.moves.get(cur.ev.unitId);
       if (anim) anim.t = Math.min(1, cur.t / cur.dur);
     }
@@ -339,6 +341,7 @@ export class Playback {
     switch (ev.type) {
       case 'Move':
       case 'Retreat':
+      case 'ArrivanteRegularisee':
         this.moves.set(ev.unitId, { from: ev.from, to: ev.to, t: 0 });
         break;
       case 'CombatExchange':
@@ -433,6 +436,7 @@ export class Playback {
     switch (cur.ev.type) {
       case 'Move':
       case 'Retreat':
+      case 'ArrivanteRegularisee':
         this.moves.delete(cur.ev.unitId);
         break;
       case 'CombatExchange':

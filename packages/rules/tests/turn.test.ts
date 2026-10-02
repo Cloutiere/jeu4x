@@ -426,15 +426,23 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     expect(cityAt(newState, 0, 0)!.production).toBeNull();
   });
 
-  it('R-62 : case de ville occupée → en attente, progression plafonnée (🔶)', () => {
+  it('R-62 · SUR-OCCUPATION D1 : case de ville occupée par une AMIE → pose en cohabitation (arrivante flaguée)', () => {
     const state = cityState();
     state.units['u0'] = {
       id: 'u0', type: 'colon', owner: 'p1', q: 0, r: 0, hp: 3, mp: 2,
       veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false,
     };
     const { newState, events } = resolveTurn(state, {}, 1);
-    expect(events.some((e) => e.type === 'UnitProduced')).toBe(false);
-    expect(cityAt(newState, 0, 0)!.production).toEqual({ item: { kind: 'unit', id: 'guerrier' }, progress: 10 });
+    // D1 (Erik 02/10) : plus de plafonnement 20/20 — l'unité est posée sur
+    // la case de ville occupée, marquée arrivante (régularisée à la
+    // résolution suivante si le joueur ne sépare pas les deux).
+    const produced = events.find((e) => e.type === 'UnitProduced');
+    expect(produced).toBeDefined();
+    const surCase = Object.values(newState.units).filter((u) => u.q === 0 && u.r === 0);
+    expect(surCase).toHaveLength(2);
+    const arrivante = surCase.find((u) => u.id !== 'u0')!;
+    expect(arrivante.arrivanteSurCase).toBe(true);
+    expect(cityAt(newState, 0, 0)!.production).toBeNull();
   });
 
   it('R-62 : SetProduction remplace l’item en conservant la progression', () => {

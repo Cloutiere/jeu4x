@@ -58,8 +58,8 @@ export const contexteMeleeVide: ContexteMelee = { coteParUnite: new Map(), stabi
 export const contexteMelee = writable<ContexteMelee>(contexteMeleeVide);
 
 /** Événements porteurs d'une entrée de case (from → to). */
-function estMouvement(ev: GameEvent): ev is Extract<GameEvent, { type: 'Move' | 'Retreat' | 'UnitExpelled' | 'UnitDispersed' }> {
-  return ev.type === 'Move' || ev.type === 'Retreat' || ev.type === 'UnitExpelled' || ev.type === 'UnitDispersed';
+function estMouvement(ev: GameEvent): ev is Extract<GameEvent, { type: 'Move' | 'Retreat' | 'UnitExpelled' | 'UnitDispersed' | 'ArrivanteRegularisee' }> {
+  return ev.type === 'Move' || ev.type === 'Retreat' || ev.type === 'UnitExpelled' || ev.type === 'UnitDispersed' || ev.type === 'ArrivanteRegularisee';
 }
 
 /** Nations (propriétaires) des unités NON embarquées posées sur une case. */
