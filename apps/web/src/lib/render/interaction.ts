@@ -534,7 +534,18 @@ export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
   // l'état filtré) reste visable — l'unité y entre et s'arrête (un pas dans
   // l'inconnu, le moteur valide le terrain à la résolution).
   const toUnknown = !state.map[tileKeyOf(to)];
-  if (!enterableKnown(state, mover, from) || (!enterableKnown(state, mover, to) && !toUnknown)) return null;
+  // 7g · R-117 : la destination est aussi admise si elle porte un transport
+  // AMI à cargaison libre — y « entrer » = embarquer (l'eau est sinon
+  // infranchissable pour un terrestre ; l'occupant ami est vérifié par le
+  // moteur, qui tranche : embarquement ou arrêt sur la case précédente).
+  const destOccupant = unitAtHex(state, to);
+  const toBoardable =
+    !!mover && !unitType(mover.type).aquatic && !!destOccupant && boardableTransport(state, mover, destOccupant.id);
+  if (
+    !enterableKnown(state, mover, from) ||
+    (!enterableKnown(state, mover, to) && !toUnknown && !toBoardable)
+  )
+    return null;
   if (from.q === to.q && from.r === to.r) return [];
   // BFS avec voisinage trié (q, r) croissant — déterministe. 7g : le
   // voisinage est évalué pour l'unité elle-même (naval ⇒ eau entrable).
@@ -546,7 +557,11 @@ export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
   while (queue.length > 0) {
     const current = queue.shift()!;
     const nexts = neighbors(current)
-      .filter((h) => enterableKnown(state, mover, h) || (h.q === to.q && h.r === to.r && toUnknown))
+      .filter(
+        (h) =>
+          enterableKnown(state, mover, h) ||
+          (h.q === to.q && h.r === to.r && (toUnknown || toBoardable)),
+      )
       // pas d'étape intermédiaire sur une unité connue (alliée : R-30 ;
       // ennemie : s'y arrêter pour combattre est un choix explicite, pas un
       // transit) — SAUF la destination elle-même (INTERACTION-3D : occupée
