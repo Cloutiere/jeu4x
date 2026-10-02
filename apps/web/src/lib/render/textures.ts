@@ -64,8 +64,10 @@ export interface GameTextures {
    *  le badge provisoire. Dès que le PNG arrive, il s'affiche sans
    *  changement de code. */
   colonFondation: EntityTexture | null;
-  /** Icônes de rendement pour l'overlay N/P/C (null si asset absent). */
-  yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null; gold: Texture | null; science: Texture | null };
+  /** Icônes de rendement pour l'overlay N/P/C (null si asset absent).
+   *  CULTURE-RESSOURCES (02/10) : `culture` = l'icône des paliers T-27
+   *  (/art/icone_culture.png) — glyphe des ressources culturelles travaillées. */
+  yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null; gold: Texture | null; science: Texture | null; culture: Texture | null };
   /** R-91 : sprites des ressources (clé = id de resources.json, null si asset absent). */
   resources: Record<string, Texture | null>;
   /** TUILES-RESSOURCES (Erik 26/09) : tuiles pleines par ressource — clé = id
@@ -609,6 +611,7 @@ export function createTextures(renderer: Renderer): GameTextures {
     food: null,
     production: null,
     commerce: null,
+    culture: null,
   } as GameTextures['yieldIcons'];
 
   const barbarianUnits = buildBarbarianUnitGraphics();
@@ -827,7 +830,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const tuileCacherIds = (Object.keys(TUILES_CACHER) as TerrainId[]).sort();
   // Phase 7d (R-95) : variantes barbares (accent de repli rouge sang — accents.json).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -864,6 +867,9 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     optionalIcon('icone_commerce'),
     optionalIcon('icone_or'),
     optionalIcon('icone_science'),
+    // CULTURE-RESSOURCES (02/10) : l'icône des paliers T-27 sert de glyphe
+    // « +N culture » aux ressources culturelles travaillées (Encens/Soie).
+    optionalIcon('icone_culture'),
     Promise.all(resourceIds.map((id) => optionalIcon(`res_${id}`).then((t) => [id, t] as const))),
     Promise.all(tuileRessourceIds.map((id) => optionalIcon(TUILES_RESSOURCES[id]!).then((t) => [id, t] as const))),
     Promise.all(tuileCacherIds.map((id) => optionalIcon(TUILES_CACHER[id]!).then((t) => [id, t] as const))),
@@ -909,7 +915,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     hutte,
     artefacts: Object.fromEntries(artefactTextures) as Record<string, EntityTexture>,
     colonFondation,
-    yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon, gold: goldIcon, science: scienceIcon },
+    yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon, gold: goldIcon, science: scienceIcon, culture: cultureIcon },
     resources: Object.fromEntries(resourceIcons),
     tuilesRessources: Object.fromEntries(tuilesRessourcesCuites),
     tuilesCacher: Object.fromEntries(tuilesCacherCuites) as Partial<Record<TerrainId, Texture | null>>,

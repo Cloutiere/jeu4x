@@ -11,7 +11,7 @@
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, fondeAFinDuChemin, fondateursDe, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, fondeAFinDuChemin, fondateursDe, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius } from '@game/rules';
   import type { GameState, Hex, ProgramPreview } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -1522,6 +1522,12 @@
       // tileYield. Le marqueur « inconnue » (R-92) n'est pas dans RESOURCES :
       // jamais de bonus affiché pour une identité masquée.
       const viewerTechs = scene.myId ? (scene.state.players[scene.myId]?.techsUnlocked ?? []) : [];
+      const viewerCiv = scene.myId ? scene.state.players[scene.myId] : undefined;
+      // CULTURE-RESSOURCES · D2 : le glyphe culture exige une case TRAVAILLÉE.
+      const travaillees = new Set<string>();
+      for (const ville of Object.values(scene.state.cities)) {
+        for (const k of ville.workedTiles) travaillees.add(k);
+      }
       for (const [key, tile] of Object.entries(scene.state.map)) {
         if (!scene.explored.has(key)) continue;
         if (limiteRendements && !limiteRendements.has(key)) continue; // vue ville : rayon seul
@@ -1539,6 +1545,25 @@
           }
         }
         const rows: Array<{ icon: Texture | null; count: number; tint: number }> = [];
+        // CULTURE-RESSOURCES (décisions d'Erik du 02/10) : les canaux DIRECTS
+        // des ressources se lisent sur la tuile, en plus des rendements N/P/C :
+        //  - culture (D2) : ressources `culture > 0` (Encens +2, Soie +3) sur
+        //    une case TRAVAILLÉE, icône des jalons T-27, accessibilité R-93 ;
+        //  - or direct (addendum « or gem » — R-134) : Gemmes +2 / Or +3, glyphe
+        //    or, conditions = celles des rendements (accessible — caché avant
+        //    Monnaie = terrain seul). ⚠ cet or ne suit PAS la conversion R-90 :
+        //    il va à la trésorerie même si la ville convertit en science.
+        //  L'Inde (trait R-149 `toutesRessources`) ignore la tech d'accès.
+        const resData = tile.resource ? RESOURCES[tile.resource] : undefined;
+        if (resData) {
+          const accessible = resourceAccessible(resData, viewerTechs, civToutesRessources(viewerCiv));
+          if (resData.directGold && accessible) {
+            rows.push({ icon: textures!.yieldIcons.gold, count: resData.directGold, tint: 0xffffff });
+          }
+          if (resData.culture && accessible && travaillees.has(key)) {
+            rows.push({ icon: textures!.yieldIcons.culture, count: resData.culture, tint: 0xffffff });
+          }
+        }
         if (y.food !== 0) rows.push({ icon: textures!.yieldIcons.food, count: y.food, tint: 0xffffff });
         if (y.production !== 0) rows.push({ icon: textures!.yieldIcons.production, count: y.production, tint: 0xffffff });
         if (y.commerce !== 0) {

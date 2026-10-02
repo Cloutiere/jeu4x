@@ -130,7 +130,7 @@ import {
   traitEntriesOf,
   uniqueReplacing,
 } from './civilizations.js';
-import { resourceAccessible } from './resources.js';
+import { resourceAccessible, cultureRessourcesTravaillees } from './resources.js';
 import {
   barbarianOrders,
   barbarianUnitType,
@@ -3570,6 +3570,11 @@ interface CityEconomyInputs {
   /** 7l · R-134 · Or DIRECT des ressources travaillées (Gemmes +2, Or +3 —
    *  canal canon, correction du D3 de 7c) ; 0 en Anarchie (R-122 : or à zéro). */
   directGold: number;
+  /** CULTURE-RESSOURCES (décision d'Erik du 02/10) · Culture DIRECTE des
+   *  ressources culturelles TRAVAILLÉES (Encens +2, Soie +3 — canal R-114
+   *  générique, data-driven `culture > 0`, accessibilité R-93) ; 0 en
+   *  Anarchie (R-122 : culture à zéro). */
+  directCulture: number;
   /** Part OR brute de la conversion R-90 (0 en Anarchie) — les multiplicateurs
    *  merveilles/empire/Settle restent appliqués par la boucle Phase C. */
   rawGold: number;
@@ -3609,6 +3614,15 @@ export function cityEconomyInputs(st: GameState, city: City, allTechs: readonly 
   let rawProduction = center.production + empireBonus.production;
   let commerce = center.commerce + tier.commerce + empireBonus.commerce;
   let directGold = 0;
+  // CULTURE-RESSOURCES (02/10) : culture directe des ressources culturelles
+  // travaillées (Encens +2, Soie +3) — helper partagé moteur/UI, workedTiles
+  // seuls (le centre-ville suit le canon R-134 : exclu, voir RAPPORT 🔶).
+  const directCulture = cultureRessourcesTravaillees(
+    st.map,
+    city.workedTiles,
+    player.techsUnlocked,
+    civToutesRessources(player),
+  );
   for (const key of city.workedTiles) {
     // 7k · R-132 / 7l · C9 : les merveilles portent des bonus par terrain
     // travaillé (Cie des Indes : +1 Commerce par case d'EAU — côte incluse).
@@ -3624,7 +3638,11 @@ export function cityEconomyInputs(st: GameState, city: City, allTechs: readonly 
     // 7n · R-149 : l'Inde (`toutesRessources`) ignore la tech d'accès.
     const res = st.map[key]?.resource;
     const resData = res ? RESOURCES[res] : undefined;
-    if (resData?.directGold && (civToutesRessources(player) || resourceAccessible(resData, player.techsUnlocked))) {
+    // 7n · R-149 : l'Inde (`toutesRessources`) ignore la tech d'accès.
+    const resAccessible = resData
+      ? civToutesRessources(player) || resourceAccessible(resData, player.techsUnlocked)
+      : false;
+    if (resData?.directGold && resAccessible) {
       directGold += resData.directGold;
     }
   }
@@ -3672,6 +3690,7 @@ export function cityEconomyInputs(st: GameState, city: City, allTechs: readonly 
     production,
     commerce,
     directGold: anarchy ? 0 : directGold,
+    directCulture: anarchy ? 0 : directCulture,
     rawGold: rawGains.gold,
     science,
   };
@@ -3752,7 +3771,7 @@ function processEconomy(board: Board): void {
   for (const cityId of Object.keys(board.st.cities).sort()) {
     const city = board.st.cities[cityId]!;
     const player = board.st.players[city.owner]!;
-    const { anarchy, govEffects, empireBonus, food, production, commerce, directGold, rawGold, science } =
+    const { anarchy, govEffects, empireBonus, food, production, commerce, directGold, directCulture, rawGold, science } =
       economyInputs.get(cityId)!;
     // R-90 révisée (Phase 7b) : le commerce est converti en TOTALITÉ en or ou
     // en science selon le choix de la ville. 7e : Marché ×2 / Banque ×4 or,
@@ -3851,10 +3870,15 @@ function processEconomy(board: Board): void {
     // (Σ `cultureCumulee`) contre les paliers T-27 (processCulturePaliers, en
     // fin de processEconomy) ; l'expansion culturelle lit le même cumul
     // (rayonCulturelDe). Gelé en Anarchie (R-122).
+    // CULTURE-RESSOURCES (décision d'Erik du 02/10) : la culture DIRECTE des
+    // ressources culturelles travaillées (Encens +2, Soie +3 — canal générique
+    // `culture > 0`, accessibilité R-93) s'ajoute à la culture de la ville
+    // AVANT le multiplicateur GP installé (part de ville comme les autres).
     const gainCulture = anarchy
       ? 0
       : Math.round(
-          cultureGains(city, empireBonus.culture, allTechs, govEffects) * // M1/R-128 : union des techs
+          (cultureGains(city, empireBonus.culture, allTechs, govEffects) + // M1/R-128 : union des techs
+            directCulture) *
             settledGpMultiplier(city, 'artiste_penseur'),
         );
     city.cultureCumulee += gainCulture;

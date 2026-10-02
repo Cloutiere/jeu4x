@@ -21,6 +21,7 @@
   import LaboCombat from './pages/LaboCombat.svelte';
   import LaboRendu from './pages/LaboRendu.svelte';
   import LaboGP from './pages/LaboGP.svelte';
+  import LaboCulture from './pages/LaboCulture.svelte';
 
   type Route =
     | { page: 'login' }
@@ -34,7 +35,8 @@
     | { page: 'atelier' }
     | { page: 'labo-combat' }
     | { page: 'labo-rendu' }
-    | { page: 'labo-gp' };
+    | { page: 'labo-gp' }
+    | { page: 'labo-culture' };
 
   function parseHash(): Route {
     const hash = window.location.hash.replace(/^#/, '') || '/';
@@ -45,6 +47,7 @@
     if (hash === '/labo-combat') return { page: 'labo-combat' };
     if (hash === '/labo-rendu') return { page: 'labo-rendu' };
     if (hash === '/labo-gp') return { page: 'labo-gp' };
+    if (hash === '/labo-culture') return { page: 'labo-culture' };
     const attente = /^\/attente\/([A-Z0-9]{6})$/.exec(hash);
     if (attente) return { page: 'attente', code: attente[1]! };
     const game = /^\/game\/([A-Z0-9]{6})$/.exec(hash);
@@ -93,6 +96,11 @@
   <!-- Labo GP-ART (27/09) : indépendant de la session — client pur, les 6
        Personnages Illustres d'Erik à côté du guerrier (calibre), barbare + camp. -->
   <LaboGP />
+{:else if route.page === 'labo-culture'}
+  <!-- Labo CULTURE-RESSOURCES (02/10) : indépendant de la session — client
+       pur, capitale qui travaille l'encens (+2 culture/tour), soie cachée,
+       glyphe or direct ; bascule Rites funéraires pour avant/après. -->
+  <LaboCulture />
 {:else if $session === undefined}
   <p class="loading">Chargement…</p>
 {:else if route.page === 'progen'}

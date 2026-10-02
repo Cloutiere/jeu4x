@@ -76,7 +76,7 @@ function texturesDeSecours(): GameTextures {
     hutte: entite,
     artefacts: {},
     colonFondation: null,
-    yieldIcons: { food: null, production: null, commerce: null, gold: null, science: null },
+    yieldIcons: { food: null, production: null, commerce: null, gold: null, science: null, culture: null },
     resources: {},
     tuilesRessources: {},
     tuilesCacher: {},

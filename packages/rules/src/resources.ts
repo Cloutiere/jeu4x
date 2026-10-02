@@ -79,3 +79,27 @@ export function resourcesRevealedBy(techId: string): ResourceData[] {
     .filter((r) => r.revealedByTech === techId)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
+
+/**
+ * CULTURE-RESSOURCES (décision d'Erik du 02/10) · Culture DIRECTE des
+ * ressources culturelles TRAVAILLÉES d'une ville (Encens +2, Soie +3 —
+ * canal générique `culture > 0`, miroir EXACT de `cityEconomyInputs` :
+ * workedTiles seuls, centre-ville exclu comme l'or direct R-134 ;
+ * accessibilité R-93, `bypassTech` = trait Indien R-149). Pur — source
+ * unique partagée moteur (turn.ts) et UI (miroirs CityView/PanneauVille).
+ */
+export function cultureRessourcesTravaillees(
+  map: Readonly<Record<string, { resource?: string | null } | undefined>>,
+  workedTiles: readonly string[],
+  techsUnlocked: readonly string[],
+  bypassTech = false,
+): number {
+  let culture = 0;
+  for (const key of workedTiles) {
+    const res = map[key]?.resource;
+    const resData = res ? RESOURCES[res as keyof typeof RESOURCES] : undefined;
+    if (!resData) continue;
+    if (resData.culture && resourceAccessible(resData, techsUnlocked, bypassTech)) culture += resData.culture;
+  }
+  return culture;
+}

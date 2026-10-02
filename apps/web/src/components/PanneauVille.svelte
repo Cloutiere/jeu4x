@@ -17,7 +17,7 @@
    * Zéro gameplay nouveau : les ordres existants, la file se programme comme
    * la production actuelle (même contrat de résolution).
    */
-  import { unitType, BUILDINGS, WONDERS, tileYield, tileKeyOf, workRadiusOf, conversionGains, interiorCitizenFor, interiorCountOf, allKnownTechs, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, toursAvantCroissance, populationCap, isWonderObsolete, wonderProductionIssue, eraOfPlayer, civIdOf, neighbors, isWaterTerrain, cultureGains, empirePerCityBonus, effectsFor, rushBuyCostOf, isRushForbidden, eraRushFactorForEra, RESOURCES, RESOURCE_UNKNOWN, FILE_PRODUCTION_PROFONDEUR } from '@game/rules';
+  import { unitType, BUILDINGS, WONDERS, tileYield, tileKeyOf, workRadiusOf, conversionGains, interiorCitizenFor, interiorCountOf, allKnownTechs, cityGoldMultOf, empireGoldMultOf, settledGpMultiplier, toursAvantCroissance, populationCap, isWonderObsolete, wonderProductionIssue, eraOfPlayer, civIdOf, neighbors, isWaterTerrain, cultureGains, empirePerCityBonus, effectsFor, rushBuyCostOf, isRushForbidden, eraRushFactorForEra, RESOURCES, RESOURCE_UNKNOWN, FILE_PRODUCTION_PROFONDEUR, cultureRessourcesTravaillees, civToutesRessources } from '@game/rules';
   import type { ProductionItem } from '@game/rules';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, effectiveWorkedTiles } from '../lib/render/interaction.js';
@@ -199,7 +199,17 @@
     if (!city || !view.state || !engine) return 0;
     const empireBonus = empirePerCityBonus(view.state, engine);
     const govEffects = effectsFor(view.state.players[city.owner]!);
-    return cultureGains(city, empireBonus.culture, allTechs, govEffects);
+    // CULTURE-RESSOURCES (décisions d'Erik du 02/10) : + la culture DIRECTE
+    // des ressources culturelles travaillées (Encens +2, Soie +3 — miroir du
+    // moteur, même accessibilité R-93).
+    const joueurVille = view.state.players[city.owner];
+    const cultureRess = cultureRessourcesTravaillees(
+      view.state.map,
+      city.workedTiles,
+      joueurVille?.techsUnlocked ?? [],
+      civToutesRessources(joueurVille),
+    );
+    return cultureGains(city, empireBonus.culture, allTechs, govEffects) + cultureRess;
   });
   const frontiereEta = $derived(
     city && frontiere.prochainSeuil !== null ? toursAvantSeuil(city.cultureCumulee, frontiere.prochainSeuil, culturePerTurn) : null,
