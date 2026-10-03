@@ -247,9 +247,15 @@ function sprites2d(): AssetAtelier[] {
     ['j5', 'Joueur 5 (cuivre ardent)'],
     ['j6', 'Joueur 6 (ardoise)'],
   ] as const;
-  for (const [type, label] of [['unite_guerrier', 'Guerrier'], ['unite_archer', 'Archer']] as const) {
+  for (const [type, label, profil, doc] of [
+    ['unite_guerrier', 'Guerrier', 'guerrier', 'SVG d\'Erik peints par IA sous sa direction'],
+    ['unite_archer', 'Archer', 'archer', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE2)'],
+    ['unite_colon', 'Colon', 'colon', 'PNG 4K d\'Erik (ASSETS-4K)'],
+    ['unite_croiseur', 'Croiseur', 'croiseur', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE2)'],
+    ['unite_cuirasse', 'Cuirassé', 'cuirasse', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE2)'],
+  ] as const) {
     for (const [suffixe, nom] of VARIANTES_CUITES) {
-      out.push(spriteAsset(`${type}_${suffixe}`, `${label} — variante fournie ${nom} (SVG peint par Erik, 6 couleurs)`, `assets-src/tools/import_svg.mjs (profil ${type === 'unite_guerrier' ? 'guerrier' : 'archer'}-6couleurs, variantesFournies) — SVG d'Erik peints par IA sous sa direction`, false));
+      out.push(spriteAsset(`${type}_${suffixe}`, `${label} — variante fournie ${nom} (art d'Erik, 6 couleurs)`, `assets-src/tools/import_svg.mjs (profil ${profil}-6couleurs, variantesFournies) — ${doc}`, false));
     }
   }
   // COLON-FONDATION : état « en train de fonder » du Colon (art d'Erik en
