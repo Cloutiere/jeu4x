@@ -99,27 +99,31 @@ describe('picking vue ville — la tuile cliquée est la même qu\'à plat (zoom
 });
 
 describe('clickActionVueVille — tuiles cliquables (même file d\'ordres SetWorkedTile)', () => {
-  /** Ville p1 pop 2 en (0,0), une tuile déjà travaillée (1,0). */
+  /** Ville p1 pop 2 en (0,0), une tuile déjà travaillée (1,0), une unité p1 posée sur (0,1) (rayon 1). */
   function etatVille(): GameState {
     return makeState({
-      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 2, r: 0 }],
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 1 }],
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: [tileKey(1, 0)], buildings: ['palais'] }],
     });
   }
 
   it('clic sur une tuile libre du rayon = assignation ; re-clic sur une tuile assignée = DÉSÉLECTION EXACTE de CETTE tuile', () => {
     const view = viewOf(etatVille());
-    expect(hexDistance({ q: 0, r: 0 }, { q: 0, r: 1 })).toBeLessThanOrEqual(1);
-    expect(clickActionVueVille(view, 'c1', { q: 0, r: 1 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: tileKey(0, 1) });
+    expect(hexDistance({ q: 0, r: 0 }, { q: 1, r: 0 })).toBeLessThanOrEqual(1);
+    expect(clickActionVueVille(view, 'c1', { q: 1, r: 0 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: tileKey(1, 0) });
     // R-60 rév. WORKED-TILE-EXACT : l'ordre porte CETTE case (plus de tile:null)
     expect(clickActionVueVille(view, 'c1', { q: 1, r: 0 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: tileKey(1, 0) });
   });
 
-  it('hors du rayon de travail, sur la case de ville, ou sur une case occupée : aucun effet', () => {
+  it('hors du rayon de travail ou sur la case de ville : aucun effet', () => {
     const view = viewOf(etatVille());
     expect(clickActionVueVille(view, 'c1', { q: 0, r: 3 })).toEqual({ kind: 'none' }); // hors rayon (6 cases)
     expect(clickActionVueVille(view, 'c1', { q: 0, r: 0 })).toEqual({ kind: 'none' }); // case de ville
-    expect(clickActionVueVille(view, 'c1', { q: 2, r: 0 })).toEqual({ kind: 'none' }); // unité posée dessus
+  });
+
+  it('TUILE-OCCUPEE D3 : tuile du rayon occupée par une unité = cliquable (miroir du moteur)', () => {
+    const view = viewOf(etatVille());
+    expect(clickActionVueVille(view, 'c1', { q: 0, r: 1 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: tileKey(0, 1) });
   });
 
   it('ville pleine à l\'état effectif : pas d\'assignation supplémentaire', () => {

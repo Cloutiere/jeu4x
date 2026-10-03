@@ -278,6 +278,78 @@ describe('clickAction (L3)', () => {
 
 
 
+  // -------------------------------------------------------------------------
+  // TUILE-OCCUPEE (D1/D1bis, décisions Erik 02/10) : ville amie sélectionnée —
+  // la tuile prime sur l'unité dans le rayon de travail ; le repli est la
+  // sélection de l'unité seulement quand la culture est impossible.
+  // -------------------------------------------------------------------------
+  /** Ville p1 pop 2 en (2,1) ; u1 guerrier p1 en (1,1) (rayon 1, prairie). */
+  function etatVilleSel(): GameState {
+    return makeState({
+      width: 8,
+      height: 8,
+      units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 1, r: 1 }],
+      cities: [{ id: 'c1', owner: 'p1', q: 2, r: 1, pop: 2, capital: true, workedTiles: [] }],
+    });
+  }
+
+  it('TUILE-OCCUPEE D1 : ville sélectionnée + unité amie sur tuile libre du rayon → setWorkedTile', () => {
+    const view = viewOf(etatVilleSel());
+    const ui = uiOf({ selectedCityId: 'c1' });
+    expect(clickAction(view, ui, { q: 1, r: 1 })).toEqual({ kind: 'setWorkedTile', cityId: 'c1', tile: '1,1' });
+  });
+
+  it('TUILE-OCCUPEE D1 : tuile déjà travaillée et occupée → désélection exacte de CETTE tuile', () => {
+    const state = etatVilleSel();
+    state.cities['c1']!.workedTiles = ['1,1'];
+    const view = viewOf(state);
+    expect(clickAction(view, uiOf({ selectedCityId: 'c1' }), { q: 1, r: 1 })).toEqual({
+      kind: 'setWorkedTile',
+      cityId: 'c1',
+      tile: '1,1',
+    });
+  });
+
+  it('TUILE-OCCUPEE D1 : unité ENNEMIE visible sur tuile libre du rayon → setWorkedTile', () => {
+    const state = etatVilleSel();
+    state.units['u1']!.owner = 'p2';
+    const view = viewOf(state);
+    expect(clickAction(view, uiOf({ selectedCityId: 'c1' }), { q: 1, r: 1 })).toEqual({
+      kind: 'setWorkedTile',
+      cityId: 'c1',
+      tile: '1,1',
+    });
+  });
+
+  it('TUILE-OCCUPEE D1bis : tuile occupée + ville PLEINE → repli sélection de l\'unité', () => {
+    const state = etatVilleSel();
+    state.cities['c1']!.workedTiles = ['0,1', '1,0']; // pop 2 : pleine
+    const view = viewOf(state);
+    expect(clickAction(view, uiOf({ selectedCityId: 'c1' }), { q: 1, r: 1 })).toEqual({
+      kind: 'selectUnit',
+      unitId: 'u1',
+      mine: true,
+    });
+  });
+
+  it('TUILE-OCCUPEE D1 : case de ville occupée → sélection de l\'unité (inchangé, hors culture)', () => {
+    const state = etatVilleSel();
+    state.cities['c2'] = { id: 'c2', q: 3, r: 1, owner: 'p1', pop: 1, capital: false, foodStored: 0, production: null, workedTiles: [] };
+    state.units['u2'] = { id: 'u2', type: 'guerrier', owner: 'p1', q: 3, r: 1 };
+    const view = viewOf(state);
+    // Ville c1 sélectionnée : le clic sur la case de c2 (occupée) reste une sélection.
+    expect(clickAction(view, uiOf({ selectedCityId: 'c1' }), { q: 3, r: 1 })).toEqual({
+      kind: 'selectUnit',
+      unitId: 'u2',
+      mine: true,
+    });
+  });
+
+  it('TUILE-OCCUPEE D2 : re-clic sur l\'unité DÉJÀ sélectionnée (règle 0) → cycle/désélection inchangés, même au-dessus d\'une tuile cultivable', () => {
+    const view = viewOf(etatVilleSel());
+    expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 1, r: 1 })).toEqual({ kind: 'deselect' });
+  });
+
   it('passableKnown refuse l\'eau et les cases absentes du JSON filtré', () => {
     const state = makeBattleState();
     expect(passableKnown(state, { q: 4, r: 4 })).toBe(false); // eau

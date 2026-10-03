@@ -397,7 +397,12 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex, positions?: P
     const selCity = state.cities[ui.selectedCityId];
     if (selCity && selCity.owner === myEngineId(view)) {
       const key = tileKeyOf(hex);
-      if (!unit && !city) {
+      // TUILE-OCCUPEE (D1, Erik 02/10) : la case de VILLE reste hors culture
+      // (règle 0b re-clic = désélection, règle 2 = sélection) ; une tuile du
+      // rayon reçoit le clic MÊME OCCUPÉE par une unité (amie/ennemie, au sens
+      // dessiné) — miroir du moteur (applySetWorkedTile ne vérifie jamais
+      // l'occupation). Le repli est la sélection de l'unité (D1bis).
+      if (!city) {
         const effective = effectiveWorkedTiles(view, selCity);
         if (effective.tiles.includes(key)) {
           // R-60 rév. WORKED-TILE-EXACT : CETTE tuile précise sort des
@@ -414,7 +419,10 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex, positions?: P
           !Object.values(state.cities).some((c) => c.id !== selCity.id && c.workedTiles.includes(key)) &&
           effective.tiles.length < selCity.pop;
         if (free) return { kind: 'setWorkedTile', cityId: selCity.id, tile: key };
-        return { kind: 'none' };
+        // D1bis : culture impossible sur une tuile occupée (ville pleine, tuile
+        // prise par une autre ville) → repli SÉLECTION de l'unité (règle 2).
+        // Tuile vide non cultivable : refus honnête, inchangé.
+        if (!unit) return { kind: 'none' };
       }
     }
   }
@@ -465,7 +473,8 @@ export function clickActionVueVille(view: GameView, cityId: CityId, hex: Hex): C
   const workable = !!state.map[key] && !!TERRAINS[state.map[key].terrain]?.yields;
   const free =
     workable &&
-    !unitAtHex(state, hex) &&
+    // TUILE-OCCUPEE (D3, Erik 02/10) : plus de veto d'occupation — miroir
+    // exact du moteur, qui accepte l'ordre sur tuile occupée.
     !Object.values(state.cities).some((c) => c.q === hex.q && c.r === hex.r) &&
     !Object.values(state.cities).some((c) => c.id !== city.id && c.workedTiles.includes(key)) &&
     effective.tiles.length < city.pop;
