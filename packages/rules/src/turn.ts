@@ -402,6 +402,9 @@ function tenterDepose(board: Board, transport: Unit): boolean {
       transportId: transport.id,
       at: { ...cible },
     });
+    // ARTEFACT-ARCHE · D2 : une pose SANS pas de mouvement active aussi
+    // (miroir openHutAt — R-153 amendée). Le balayage D1 reste en redondance.
+    activateArtefactAt(artefactCtxOf(board), passager, cible);
     return true;
   }
   return false;
@@ -672,6 +675,24 @@ function artefactCtxOf(board: Board): ArtefactActivationContext {
     freeSpawnTile: (center) => freeSpawnTiles(board.st, center, 1)[0] ?? null,
     occupiedByUnit: (hex) => occupants(board, hex).length > 0,
   };
+}
+
+/**
+ * ARTEFACT-ARCHE · D1 : balayage de tête de Phase A — toute unité debout
+ * (hors embarquée) sur la case d'un artefact l'active (les barbares n'activent
+ * pas — R-95, déjà filtré par activateArtefactAt). Ordre unitId croissant
+ * (R-81) : la première au tri est l'activatrice si plusieurs cohabitent.
+ * L'Atlantide navale adjacente est couverte par activateArtefactAt elle-même.
+ */
+function balayerArtefacts(board: Board): void {
+  const st = board.st;
+  if (st.artefacts.length === 0) return;
+  const ctx = artefactCtxOf(board);
+  for (const id of sortUnitIds(board)) {
+    const u = st.units[id];
+    if (!u || u.aboard || isBarbarian(u.owner)) continue;
+    activateArtefactAt(ctx, u, { q: u.q, r: u.r });
+  }
 }
 
 function inMapAndPassable(board: Board, hex: Hex): boolean {
@@ -4471,6 +4492,9 @@ function regulariserArrivantes(board: Board): void {
     delete u.arrivanteSurCase; // consommé
     board.moved.add(u.id); // a quitté sa case : pas de bonus de demeure
     emit(board, { type: 'ArrivanteRegularisee', unitId: u.id, owner: u.owner, from, to: { ...cible } });
+    // ARTEFACT-ARCHE · D2 : la pose par régularisation active aussi (R-153
+    // amendée) — le balayage D1 reste en redondance.
+    activateArtefactAt(artefactCtxOf(board), u, cible);
   }
 }
 
@@ -4816,6 +4840,12 @@ export function resolveTurn(
 
   // ---- Phase A : fortification R-33 (avant les mouvements : un Move donné
   // à un fortifié l'annule et s'exécute ; un Fortify efface tout chemin).
+  // ARTEFACT-ARCHE · D1 : balayage de tête de Phase A — TOUTE unité des
+  // civilisations debout sur la case d'un artefact l'active, même si elle y
+  // est arrivée SANS pas de mouvement (dépose, régularisation, repli, rally,
+  // tout déplacement synthétique — couvre aussi les résidus anciens). Idempotent
+  // par nature : l'artefact est retiré à l'activation (R-153).
+  balayerArtefacts(board);
   applyFortifyOrders(board, allOrders);
   // mouvements (R-40..R-43), ordre unitId croissant (R-41) — barbares compris.
   // R-158 (D5) : un ordre composite MultiStep enchaîne déplacement(s) puis
