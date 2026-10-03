@@ -57,8 +57,13 @@
   import PanneauVille from '../components/PanneauVille.svelte';
   import ResearchPanel from '../components/ResearchPanel.svelte';
   import Journal from '../components/Journal.svelte';
-  import Historique from '../components/Historique.svelte';
-  import { pushHistory, resetHistory } from '../lib/eventHistory.js';
+  // HANDOFF-CHRONIQUES · L2 : la Chronique unifiée remplace Historique +
+  // Journal dans la colonne droite (le Journal de débogue migre dans le
+  // menu Paramètres — D6).
+  import Chroniques from '../components/Chroniques.svelte';
+  import { chargerChronique, entreesChronique, oublierCleChronique, pousserEntrees, pousserInfo, resetChronique } from '../lib/chronique.js';
+  import type { ContexteChronique } from '../lib/chronique.js';
+  import { tileKeyOf } from '@game/rules';
   import GovernmentPanel from '../components/GovernmentPanel.svelte';
 
   let { code }: { code: string } = $props();
@@ -82,27 +87,23 @@
   const toasts = playback.toasts;
   let errorToasts = $state<Array<{ id: number; text: string; kind: 'good' | 'bad' | 'info' }>>([]);
   let errorToastId = 1;
-  // RESOLUTION-DEPLACEMENTS §4 : tout toast affiché alimente l'historique
-  // d'événements persistant du menu de droite (zéro gameplay — présentation).
+  // HANDOFF-CHRONIQUES · D1 : les toasts UTILES hors événements (refus
+  // d'ordre, avertissements du conseiller, erreurs réseau) alimentent aussi la
+  // Chronique (entrées « monde » info/bad). Les événements du moteur, eux,
+  // sont chroniqués une seule fois via le mapping (subcription vue ci-dessous).
   function pushErrorToast(text: string, kind: 'good' | 'bad' | 'info' = 'bad'): void {
-    pushHistory(text, kind, get(view)?.turn ?? 0);
+    pousserInfo(text, kind, get(view)?.turn ?? 0);
     const id = errorToastId++;
     errorToasts = [...errorToasts, { id, text, kind }];
     setTimeout(() => {
       errorToasts = errorToasts.filter((t) => t.id !== id);
     }, 5000);
   }
-  let dernierToastVu = 0;
-  resetHistory(); // une partie = un historique (la SPA survit au changement de partie)
-  onDestroy(
-    toasts.subscribe((list) => {
-      for (const t of list) {
-        if (t.id <= dernierToastVu) continue;
-        dernierToastVu = t.id;
-        pushHistory(t.text, t.kind, get(view)?.turn ?? 0);
-      }
-    }),
-  );
+  // D7 : une partie = une Chronique persistante (charge à l'entrée, purge le
+  // store global — la SPA survit au changement de partie).
+  oublierCleChronique();
+  resetChronique();
+  chargerChronique(code);
 
   const client: GameClient = createGameClient(code, {
     onMessage(message) {
@@ -202,6 +203,36 @@
   // côté réducteur — cf. gameClient.ts). 7f : annonces ONU disponible /
   // suspendue au passage du seuil de jalons (R-116).
   let lastMilestones = -1;
+  // HANDOFF-CHRONIQUES · D1/D3 : contexte de résolution des noms — le pré-état
+  // (replayPair, mis à jour AVANT la vue au TurnResult) nomme les unités
+  // détruites ; la vision nomme les cases cliquables (D3).
+  function contexteChronique(v: GameView): ContexteChronique {
+    const moi = myEngineId(v) ?? '';
+    const etatPre = get(replayPair)?.statePre ?? null;
+    const unite = (id: string) => etatPre?.units[id] ?? v.state?.units[id] ?? null;
+    const visibles = new Set<string>(
+      moi && v.state ? (v.state.players[moi]?.vision?.visible ?? []) : [],
+    );
+    return {
+      moi,
+      nomJoueur: (id) => nomJoueur(id),
+      civDe: (id) => v.state?.players[id]?.civId ?? null,
+      ville: (cityId) => {
+        const c = v.state?.cities[cityId];
+        return c ? { nom: c.name ?? c.id, q: c.q, r: c.r, owner: c.owner } : null;
+      },
+      villes: () =>
+        Object.values(v.state?.cities ?? {})
+          .filter((c) => c.owner === moi || visibles.has(tileKeyOf(c)))
+          .map((c) => ({ nom: c.name ?? c.id, q: c.q, r: c.r, owner: c.owner })),
+      unite: (id) => {
+        const u = unite(id);
+        return u ? { type: u.type, owner: u.owner } : null;
+      },
+      visible: (hex) => visibles.has(tileKeyOf(hex)),
+    };
+  }
+
   const unsubReplay = view.subscribe((v) => {
     const target = CULTURE.milestonesTarget;
     const pid = myEngineId(v);
@@ -223,6 +254,9 @@
     const fresh = v.events.filter((e) => e.seq > lastReplayedSeq);
     if (fresh.length === 0) return;
     lastReplayedSeq = fresh[fresh.length - 1]!.seq;
+    // HANDOFF-CHRONIQUES · D1 : mapping des événements → Chronique (même
+    // garde `lastReplayedSeq` que le playback — chaque événement une fois).
+    pousserEntrees(entreesChronique(fresh, contexteChronique(v), v.turn));
     // 7h · R-122/R-124 : annonces conseiller (tech de gouvernement),
     // changement de régime et lancement du vaisseau.
     for (const e of fresh) {
@@ -565,6 +599,15 @@
   function ouvrirRapport(hex: Hex): void {
     rapportHex = rapportHex && rapportHex.q === hex.q && rapportHex.r === hex.r ? null : hex;
   }
+  // HANDOFF-CHRONIQUES · D5 : clic d'une entrée combat de la Chronique —
+  // recentrage (zoom préservé) puis ouverture du popover RAPPORT-ENGAGEMENT.
+  function ouvrirCombatChronique(hex: Hex): void {
+    canvasApi?.centerOnHex(hex);
+    rapportHex = hex;
+  }
+  // HANDOFF-CHRONIQUES · D6 : menu Paramètres — héberge le journal de
+  // débogue (Journal.svelte, coordonnées et centrage conservés TEL QUEL).
+  let showParametres = $state(false);
   /** D3 — « ⟲ Rejouer ce combat » : recentrage (zoom préservé) + relecture ;
    *  si la relecture est déjà active, recentrage seul. */
   function rejouerCombat(): void {
@@ -623,6 +666,18 @@
       inject: (events: GameEvent[], preEtat: GameState, tour = 12) =>
         replayPair.set({ statePre: preEtat, events, tour }),
       purge: () => replayPair.set(null),
+    };
+    // HANDOFF-CHRONIQUES · L3 : hook de TEST (dev uniquement, miroir
+    // __rapport) — injecte des événements forgés dans le mapping de la
+    // Chronique (vérifications GUI des catégories sans partie longue).
+    // Jamais en prod.
+    (window as unknown as Record<string, unknown>).__chroniques = {
+      inject: (events: GameEvent[]) => {
+        const entrees = entreesChronique(events, contexteChronique(get(view)), get(view).turn);
+        pousserEntrees(entrees);
+        return entrees.map((e) => e.id);
+      },
+      purge: () => resetChronique(),
     };
   });
 
@@ -965,6 +1020,14 @@
         aria-label="Basculer l'interface de développement"
         onclick={basculerCalqueDev}
       >⚙</button>
+      <!-- HANDOFF-CHRONIQUES · D6 : accès au journal de débogue (Paramètres). -->
+      <button
+        type="button"
+        class="parametres"
+        title="Paramètres — journal de débogue (coordonnées)"
+        aria-label="Ouvrir les paramètres"
+        onclick={() => (showParametres = !showParametres)}
+      >☰</button>
     </div>
     {#if $calqueDev}
       <!-- UI-JEU-T1 · L1 — CALQUE DEV (inventaire D2) : éléments de
@@ -1274,7 +1337,11 @@
             {/if}
           </section>
         {/if}
-        <Historique />
+        <!-- HANDOFF-CHRONIQUES · L2 : la Chronique unifiée remplace
+             Historique + Journal (D1). Un combat cliqué ouvre le rapport
+             RAPPORT-ENGAGEMENT (D5) — recentrage (zoom préservé) puis
+             popover, même mécanique que le clic case. -->
+        <Chroniques view={$view} onCentrerHex={(hex) => canvasApi?.centerOnHex(hex)} onOuvrirCombat={ouvrirCombatChronique} />
         <!-- REPLAY-RESOLUTION (D4) : relecture du dernier tour résolu.
              Indisponible sans paire mémorisée (reconnexion/chargement : le
              pré-état n'existe pas localement — L2, défaut sûr).
@@ -1292,7 +1359,8 @@
         >
           {replayActif ? '⏹ Quitter la relecture (Échap)' : '⟲ Rejouer la résolution'}
         </button>
-        <Journal view={$view} onCentrerHex={(hex) => canvasApi?.centerOnHex(hex)} combats={nbCombatsCeTour} onOuvrirCombats={ouvrirDernierCombat} />
+        <!-- HANDOFF-CHRONIQUES · D6 : le Journal (débogue — coordonnées et
+             centrage) a migré dans le menu Paramètres (bouton ☰ de la barre). -->
         {#if adversairesDetail.length > 0}
           <!-- UI-JEU-T2 · §1.5 : détail compact des adversaires (🔶 place :
                panneau latéral — le badge civ de la barre reste inchangé). -->
@@ -1328,6 +1396,21 @@
 
   {#if showGovernment && $view.state}
     <GovernmentPanel view={$view} {client} onClose={() => (showGovernment = false)} />
+  {/if}
+
+  {#if showParametres}
+    <!-- HANDOFF-CHRONIQUES · D6 : le journal de débogue (Journal.svelte,
+         migré TEL QUEL — coordonnées, ligne ⚔ et centrage conservés). -->
+    <div class="parametres-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) showParametres = false; }}>
+      <div class="parametres-boite">
+        <div class="parametres-tete">
+          <h2>Paramètres</h2>
+          <button type="button" class="fermer" aria-label="Fermer" onclick={() => (showParametres = false)}>×</button>
+        </div>
+        <p class="parametres-hint">Journal de débogue — coordonnées brutes du dernier tour (outil de développement).</p>
+        <Journal view={$view} onCentrerHex={(hex) => canvasApi?.centerOnHex(hex)} combats={nbCombatsCeTour} onOuvrirCombats={ouvrirDernierCombat} />
+      </div>
+    </div>
   {/if}
 
   <div class="toasts" role="status">
@@ -1382,6 +1465,38 @@
   }
   .engrenage:hover { color: var(--or-clair, #e8c96a); border-color: var(--or, #c9a227); }
   .engrenage.actif { color: var(--or-clair, #e8c96a); background: rgba(201, 162, 39, 0.18); box-shadow: 0 0 8px rgba(201, 162, 39, 0.35); }
+  /* HANDOFF-CHRONIQUES · D6 — bouton Paramètres (même gabarit que l'engrenage). */
+  .parametres {
+    background: rgba(201, 162, 39, 0.06); border: 1px solid var(--or-sombre, #8a6d1a);
+    color: var(--texte-doux, #b6ad93); border-radius: 6px; padding: 0.15rem 0.5rem;
+    font-size: 0.95rem; line-height: 1.2;
+  }
+  .parametres:hover { color: var(--or-clair, #e8c96a); border-color: var(--or, #c9a227); }
+  /* D6 — modale Paramètres (journal de débogue). */
+  .parametres-overlay {
+    position: fixed; inset: 0; z-index: 400;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .parametres-boite {
+    width: min(680px, 92vw); max-height: 80vh; overflow: auto;
+    background: linear-gradient(180deg, #241f16 0%, #1b1712 100%);
+    border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.35));
+    border-radius: 12px; padding: 1rem 1.2rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(201, 162, 39, 0.12);
+  }
+  .parametres-tete { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem; }
+  .parametres-tete h2 {
+    margin: 0;
+    font-family: var(--serif-or, Georgia, serif); font-size: 1rem;
+    text-transform: uppercase; letter-spacing: 0.12em; color: var(--or-clair, #e8c96a);
+  }
+  .parametres-boite .fermer {
+    background: transparent; border: 1px solid var(--or-sombre, #8a6d1a); border-radius: 6px;
+    color: var(--texte-doux, #b6ad93); font-size: 1rem; line-height: 1; padding: 0.15rem 0.5rem; cursor: pointer;
+  }
+  .parametres-boite .fermer:hover { color: var(--or-clair, #e8c96a); border-color: var(--or, #c9a227); }
+  .parametres-hint { color: var(--texte-doux, #b6ad93); font-size: 0.8rem; margin: 0 0 0.6rem; }
   /* D3 — tour bien visible (serif or). */
   .tour-chip {
     font-family: var(--serif-or, Georgia, serif); font-size: 1rem; letter-spacing: 0.08em;
