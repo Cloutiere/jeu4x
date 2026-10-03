@@ -279,14 +279,16 @@ describe('Phase 7g · R-118 — soutien naval', () => {
 // ---------------------------------------------------------------------------
 
 describe('Phase 7g · R-117 — transport', () => {
-  it('embarquement sur un transport ami à cargaison libre, position miroir, chemin gelé conservé', () => {
+  it('embarquement sur un transport ami, position miroir — D4 : le tour de l’unité est terminé, chemin ANNULÉ (rev. EMBARQUEMENT-PROGRAMME 03/10)', () => {
     const state = coastalState({
       units: [
         { id: 'u1', type: 'guerrier', owner: 'p1', q: H(0, 2).q, r: H(0, 2).r },
         { id: 'u2', type: 'galere', owner: 'p1', q: H(0, 3).q, r: H(0, 3).r },
       ],
     });
-    // Chemin [navire, pleine mer, rive sud] : embarquement ce tour, le reste gèle.
+    // Chemin [navire, pleine mer, rive sud] : embarquement ce tour ; D4 —
+    // PM épuisés et chemin restant ANNULÉ (la dépose se programme au tour
+    // suivant, l'ancien gel « pour débarquer » est abrogé).
     const result = resolveTurn(
       state,
       { p1: [{ type: 'Move', unitId: 'u1', path: [H(0, 3), H(0, 4), H(0, 5)] }] },
@@ -298,8 +300,8 @@ describe('Phase 7g · R-117 — transport', () => {
     expect(guerrier.aboard).toBe('u2');
     expect(guerrier).toMatchObject({ q: H(0, 3).q, r: H(0, 3).r }); // miroir du transport
     expect(getUnit(result.newState, 'u2').cargo).toBe('u1');
-    // Le reste du chemin est gelé pour le débarquement d'un tour suivant.
-    expect(result.newState.units['u1']!.order).toEqual({ type: 'Move', unitId: 'u1', path: [H(0, 4), H(0, 5)] });
+    // D4 (EMBARQUEMENT-PROGRAMME) : plus aucun chemin gelé à bord.
+    expect(result.newState.units['u1']!.order).toBeNull();
   });
 
   it('débarquement : premier pas terrestre libre adjacent au transport, sinon l’unité reste à bord', () => {
@@ -522,7 +524,7 @@ describe('Phase 7g · e2e naval + espionnage', () => {
       state,
       {
         p1: [
-          { type: 'Move', unitId: 'u1', path: [H(0, 3)] }, // embarque (u2 traité ensuite)
+          { type: 'Move', unitId: 'u1', path: [H(0, 4)] }, // embarque à l'ARRÊT de la galère (rev. EMBARQUEMENT-PROGRAMME)
           { type: 'Move', unitId: 'u2', path: [H(0, 4)] }, // la galère avance, cargaison miroir
           { type: 'SpyMission', unitId: 'u4', cityId: 'c4', mission: 'stealGreatPerson' },
         ],

@@ -313,8 +313,11 @@ export function enterableKnown(state: GameState, unit: { type: string } | null, 
   }
 }
 
-/** 7g · R-117 : l'entité occupant la case est-elle un transport ami EMBARQUABLE
- *  pour cette unité terrestre (cargaison libre, capacité > 0) ? */
+/** 7g · R-117 (rev. EMBARQUEMENT-PROGRAMME · D7) : l'entité occupant la case
+ *  est-elle un transport ami EMBARQUABLE pour cette unité terrestre ? La
+ *  capacité est INFINIE (décision d'Erik du 02/10) — `cargo` ne dit plus
+ *  rien ; D5 : une case de VILLE n'est jamais une destination d'embarquement
+ *  (entrer dans la ville = garnison). */
 export function boardableTransport(
   state: GameState,
   unit: { id: UnitId; owner: string; type: string },
@@ -322,13 +325,40 @@ export function boardableTransport(
 ): boolean {
   if (unitType(unit.type).aquatic) return false;
   const occupant = state.units[occupantId];
-  return (
-    !!occupant &&
-    occupant.owner === unit.owner &&
-    !occupant.isArmy &&
-    !occupant.cargo &&
-    cargoCapacityOf(occupant) > 0
-  );
+  if (!occupant || occupant.owner !== unit.owner || occupant.isArmy || cargoCapacityOf(occupant) <= 0) {
+    return false;
+  }
+  // D5 : JAMAIS une destination d'embarquement sur une case de ville.
+  return !cityAtHex(state, occupant);
+}
+
+/**
+ * EMBARQUEMENT-PROGRAMME · D1-B (décisions d'Erik du 03/10) — cases où un
+ * transport AMI est embarquable pour la prochaine résolution : sa case
+ * courante ET toute case de son chemin programmé (ordre soumis ce tour,
+ * sinon chemin gelé — R-158 ; départ, pas intermédiaire, arrêt). D5 : JAMAIS
+ * une case de ville (entrer dans la ville = garnison). Pur, testé.
+ */
+export function destinationsEmbarquement(
+  state: GameState,
+  orders: GameView['orders'],
+  owner: string,
+): Set<string> {
+  const cases = new Set<string>();
+  for (const u of Object.values(state.units)) {
+    if (u.aboard || u.owner !== owner || u.isArmy || cargoCapacityOf(u) <= 0) continue;
+    if (!unitType(u.type).aquatic) continue;
+    const ajouter = (h: Hex): void => {
+      if (!cityAtHex(state, h)) cases.add(tileKeyOf(h));
+    };
+    ajouter(u);
+    const frais = orders.find(
+      (o) => 'unitId' in o && o.unitId === u.id && (o.type === 'Move' || o.type === 'MultiStep'),
+    ) as { path: Hex[] } | undefined;
+    const gele = u.order && (u.order.type === 'Move' || u.order.type === 'MultiStep') ? u.order.path : [];
+    for (const h of (frais ? frais.path : gele)) ajouter(h);
+  }
+  return cases;
 }
 
 /** L'ordre peut-il être modifié (phase « orders », non verrouillé, partie active) ? */
@@ -536,7 +566,7 @@ export function effectiveWorkedTiles(
  * ville vide R-57/R-65). Retourne le chemin SANS l'origine, ou null si
  * aucune case de départ/arrivée invalide ou inatteignable.
  */
-export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
+export function pathTo(state: GameState, from: Hex, to: Hex, embarquables?: Set<string>): Hex[] | null {
   const fromUnit = unitAtHex(state, from);
   const mover = fromUnit ? state.units[fromUnit.id] ?? null : null;
   // DEPLACEMENT-PLANIFIE · R-161 (D6) : la case d'arrivée INCONNUE (absente de
@@ -544,12 +574,16 @@ export function pathTo(state: GameState, from: Hex, to: Hex): Hex[] | null {
   // l'inconnu, le moteur valide le terrain à la résolution).
   const toUnknown = !state.map[tileKeyOf(to)];
   // 7g · R-117 : la destination est aussi admise si elle porte un transport
-  // AMI à cargaison libre — y « entrer » = embarquer (l'eau est sinon
-  // infranchissable pour un terrestre ; l'occupant ami est vérifié par le
-  // moteur, qui tranche : embarquement ou arrêt sur la case précédente).
+  // AMI (capacité infinie — D7) — y « entrer » = embarquer — ou si elle est
+  // une case du chemin PROGRAMMÉ d'un transport ami (EMBARQUEMENT-PROGRAMME ·
+  // D1-B : embarquement à la volée, là où le navire SERA ; jamais une case de
+  // ville — D5 — déjà exclue par `destinationsEmbarquement`).
   const destOccupant = unitAtHex(state, to);
   const toBoardable =
-    !!mover && !unitType(mover.type).aquatic && !!destOccupant && boardableTransport(state, mover, destOccupant.id);
+    !!mover &&
+    !unitType(mover.type).aquatic &&
+    ((!!destOccupant && boardableTransport(state, mover, destOccupant.id)) ||
+      !!embarquables?.has(tileKeyOf(to)));
   if (
     !enterableKnown(state, mover, from) ||
     (!enterableKnown(state, mover, to) && !toUnknown && !toBoardable)
@@ -645,15 +679,16 @@ export function jalonsDeTours(path: Hex[], mpParTour: number): Array<{ hex: Hex;
  * (l'état — unités, fog — a changé). Pur : testable et benché.
  */
 export function creeCacheChemins(): {
-  chemin(state: GameState, from: Hex, cible: Hex): Hex[] | null;
+  chemin(state: GameState, from: Hex, cible: Hex, embarquables?: Set<string>): Hex[] | null;
   purge(): void;
   taille(): number;
 } {
   const cache = new Map<string, Hex[] | null>();
   return {
-    chemin(state, from, cible) {
-      const key = `${from.q},${from.r}|${cible.q},${cible.r}`;
-      if (!cache.has(key)) cache.set(key, pathTo(state, from, cible));
+    chemin(state, from, cible, embarquables) {
+      const cleEmb = embarquables ? [...embarquables].sort().join(';') : '';
+      const key = `${from.q},${from.r}|${cible.q},${cible.r}|${cleEmb}`;
+      if (!cache.has(key)) cache.set(key, pathTo(state, from, cible, embarquables));
       return cache.get(key)!;
     },
     purge: () => cache.clear(),
@@ -676,9 +711,49 @@ export function rightClickAction(view: GameView, ui: UiState, hex: Hex): ClickAc
   if (!state || !ordersEditable(view)) return { kind: 'none' };
   const selected = ui.selectedUnitId ? state.units[ui.selectedUnitId] : null;
   if (!selected || selected.owner !== myEngineId(view)) return { kind: 'none' };
-  const path = pathTo(state, selected, hex);
+  // EMBARQUEMENT-PROGRAMME · D3-A : une CARGAISON sélectionnée ne se déplace
+  // pas elle-même — son clic droit terrestre est un ordre de DÉPOSE « débarque
+  // ici » (un pas ; le moteur la déposera au premier pas d'où c'est possible).
+  if (selected.aboard) {
+    if (deposeValide(state, view, selected, hex)) {
+      return { kind: 'moveDraft', path: [hex], unitId: selected.id };
+    }
+    return { kind: 'cancelOrder', unitId: selected.id };
+  }
+  // EMBARQUEMENT-PROGRAMME · D1-B : les cases du chemin programmé des
+  // transports amis sont des destinations d'embarquement légales.
+  const embarquables = destinationsEmbarquement(state, view.orders, selected.owner);
+  const path = pathTo(state, selected, hex, embarquables);
   if (path && path.length > 0) return { kind: 'moveDraft', path, unitId: selected.id };
   return { kind: 'cancelOrder', unitId: selected.id };
+}
+
+/**
+ * EMBARQUEMENT-PROGRAMME · D3-A — validation locale d'une dépose, MIROIR
+ * EXACTE du moteur (tenterDepose) : cible terrestre ENTRABLE et LIBRE,
+ * adjacente à au moins un pas du chemin programmé du transport — ou à sa
+ * position courante (contrôle initial, navire à quai). Pur, testé.
+ */
+export function deposeValide(
+  state: GameState,
+  view: GameView,
+  cargo: { id: UnitId; aboard: string | null; type: string },
+  hex: Hex,
+): boolean {
+  const transport = cargo.aboard ? state.units[cargo.aboard] : null;
+  if (!transport) return false;
+  if (unitAtHex(state, hex)) return false; // libre au sens dessiné (miroir occupants)
+  if (!enterableKnown(state, cargo, hex)) return false;
+  const adjacente = (h: Hex): boolean => hexDistance(h, hex) === 1;
+  if (adjacente(transport)) return true;
+  const frais = view.orders.find(
+    (o) => 'unitId' in o && o.unitId === transport.id && (o.type === 'Move' || o.type === 'MultiStep'),
+  ) as { path: Hex[] } | undefined;
+  const gele =
+    transport.order && (transport.order.type === 'Move' || transport.order.type === 'MultiStep')
+      ? transport.order.path
+      : [];
+  return (frais ? frais.path : gele).some(adjacente);
 }
 
 /**

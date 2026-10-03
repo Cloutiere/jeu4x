@@ -1253,7 +1253,7 @@
       {#if !vueVilleActive}
       <aside class="side">
         <!-- UI-JEU-T1 : « Vous jouez : X » a migré dans la barre AAA (D2). -->
-        <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onCancelOrder={handleCancelOrder} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onArmNuke={armNuke} onCancelNuke={cancelNuke} />
+        <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onCancelOrder={handleCancelOrder} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onSelectUnit={(id) => ui.set({ selectedUnitId: id, selectedCityId: null, draft: null })} onArmNuke={armNuke} onCancelNuke={cancelNuke} />
         {#if $view.state && myEngineId($view) && SHIP_COMPONENTS.some((c) => c.built)}
           <!-- RESOLUTION-DEPLACEMENTS §4 : la section « Course à l'espace »
                n'apparaît qu'à la PREMIÈRE complétion d'un composant du

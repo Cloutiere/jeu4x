@@ -32,7 +32,7 @@
   // VUE-VILLE-PERF · D4b : pool des Text de rendement (aucun new Text par
   // rebuild — réutilisation par clé texte+style, purge au démontage).
   import { cleTexteRendement, PoolParCle } from './pool-textes.js';
-  import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, dispositionsCohabitation, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable, pilesAffichees, positionAfficheeDe as positionAfficheeDeEtat } from './interaction.js';
+  import { arretProchaineResolution, arriveeSurEnnemi, arriveesPartagees, clickAction, clickActionVueVille, creeCacheChemins, destinationsEmbarquement, dispositionsCohabitation, effectiveWorkedTiles, jalonsDeTours, myEngineId, ordersEditable, pilesAffichees, positionAfficheeDe as positionAfficheeDeEtat } from './interaction.js';
   // PLACEMENT-MELEE : contexte de mêlée (côtés d'entrée, stabilisée au centre).
   import { contexteMelee, contexteProgrammation } from '../melee.js';
   import type { ContexteMelee } from '../melee.js';
@@ -2846,7 +2846,7 @@
     const selectedId = scene.ui.selectedUnitId;
     const unit = editable && selectedId ? state!.units[selectedId] : undefined;
     if (unit && unit.owner === scene.myId) {
-      const path = hoverCache.chemin(state!, unit, hex); // unit = position moteur (Hex structurel)
+      const path = hoverCache.chemin(state!, unit, hex, destinationsEmbarquement(state!, scene.view!.orders, unit.owner)); // unit = position moteur (Hex structurel)
       // Destination déjà programmée pour cette unité : la flèche d'ordre
       // solide la montre — pas de doublon pointillé par-dessus.
       const posee = scenePreviews.find((pv) => pv.unitId === unit.id);

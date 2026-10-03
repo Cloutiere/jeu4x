@@ -221,6 +221,13 @@ interface Board {
    * interdit une seconde entrée (l'unité s'arrête).
    */
   unknownEntered: Set<UnitId>;
+  /**
+   * EMBARQUEMENT-PROGRAMME · D3-A : unités DÉPOSÉES ce tour par leur
+   * transport (tenterDepose) — leur tour est terminé (D4) et leur ordre de
+   * dépose est consommé : la passe terrestre ne doit ni les exécuter ni
+   * re-geler leur ordre. Interne au Board, jamais sérialisé.
+   */
+  deposees: Set<UnitId>;
   /** R-161 : cases explorées par joueur en début de tour (référence du fog). */
   explored: Map<PlayerId, Set<TileKey>>;
   /**
@@ -331,6 +338,90 @@ function occupants(board: Board, hex: Hex, except?: UnitId): Unit[] {
 
 function occupiedByUnit(board: Board, hex: Hex, except?: UnitId): boolean {
   return occupants(board, hex, except).length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// EMBARQUEMENT-PROGRAMME (décisions d'Erik du 03/10 — D1-B..D7)
+// ---------------------------------------------------------------------------
+
+/** D7 : capacité de chargement infinie — la pile à bord se lit par `aboard`
+ *  (le champ `cargo` ne garde que le PREMIER passager, compat schéma 27). */
+function passagersDuTransport(board: Board, transport: Unit): Unit[] {
+  const out: Unit[] = [];
+  for (const id of sortUnitIds(board)) {
+    const u = board.st.units[id];
+    if (u && u.aboard === transport.id) out.push(u);
+  }
+  return out;
+}
+
+/** Transport naval actif (Galère/Galion — une armée navale ne transporte rien). */
+function estTransport(unit: Unit): boolean {
+  return !unit.isArmy && cargoCapacityOf(unit) > 0;
+}
+
+/**
+ * D2-A/D3-A : dépose de la cargaison AU PREMIER PAS d'où elle est possible —
+ * cible = premier pas du chemin (frais ou gelé) d'un passager, case TERRESTRE
+ * libre adjacente à la position COURANTE du navire (contrôle initial compris,
+ * à chaque pas du chemin programmé). D4 : la déposée termine son tour (PM 0,
+ * chemin annulé, AUCUNE attaque) ; D2-A : le navire ne paie rien et poursuit.
+ */
+function tenterDepose(board: Board, transport: Unit): boolean {
+  for (const passager of passagersDuTransport(board, transport)) {
+    const ordre = passager.order;
+    if (!ordre || (ordre.type !== 'Move' && ordre.type !== 'MultiStep') || ordre.path.length === 0) continue;
+    const cible = ordre.path[0]!;
+    const deposable =
+      hexDistance(transport, cible) === 1 && canEnter(board, passager, cible) && occupants(board, cible).length === 0;
+    if (!deposable) continue;
+    passager.aboard = null;
+    passager.q = cible.q;
+    passager.r = cible.r;
+    passager.mp = 0;
+    passager.order = null;
+    board.deposees.add(passager.id);
+    if (transport.cargo === passager.id) {
+      transport.cargo = passagersDuTransport(board, transport)[0]?.id ?? null;
+    }
+    board.steps.set(passager.id, (board.steps.get(passager.id) ?? 0) + 1);
+    board.moved.add(passager.id);
+    emit(board, {
+      type: 'Disembark',
+      unitId: passager.id,
+      owner: passager.owner,
+      transportId: transport.id,
+      at: { ...cible },
+    });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * D1-B(b) : ramassage — le navire programmé ENTRE sur une case où des unités
+ * terrestres AMIES sont debout : toute la pile embarque (D7), ordres annulés
+ * et PM 0 (D4). Les ennemis suivent les règles normales — aucun ramassage.
+ */
+function ramasser(board: Board, transport: Unit, hex: Hex): void {
+  for (const u of occupants(board, hex)) {
+    if (u.owner !== transport.owner || unitType(u.type).aquatic) continue;
+    u.aboard = transport.id;
+    u.q = transport.q;
+    u.r = transport.r;
+    u.mp = 0;
+    u.order = null;
+    if (!transport.cargo) transport.cargo = u.id;
+    board.steps.set(u.id, (board.steps.get(u.id) ?? 0) + 1);
+    board.moved.add(u.id);
+    emit(board, {
+      type: 'Embark',
+      unitId: u.id,
+      owner: u.owner,
+      transportId: transport.id,
+      at: { q: transport.q, r: transport.r },
+    });
+  }
 }
 
 /**
@@ -662,12 +753,11 @@ function moveUnit(board: Board, unit: Unit, to: Hex): void {
   emit(board, { type: 'Move', unitId: unit.id, owner: unit.owner, from, to });
   // 7g · R-117 : la cargaison miroite la position de son transport (aucun
   // événement propre — elle n'est plus une entité de carte).
-  if (unit.cargo) {
-    const cargo = board.st.units[unit.cargo];
-    if (cargo) {
-      cargo.q = to.q;
-      cargo.r = to.r;
-    }
+  // EMBARQUEMENT-PROGRAMME · D7 : capacité infinie — TOUTE la pile à bord
+  // (unités `aboard === transport.id`) miroite le transport.
+  for (const passager of passagersDuTransport(board, unit)) {
+    passager.q = to.q;
+    passager.r = to.r;
   }
 }
 
@@ -683,9 +773,9 @@ function kill(board: Board, unit: Unit, cause: DestructionCause, byUnitId: UnitI
   });
   // 7g · R-117 : la destruction d'un transport entraîne celle de sa cargaison
   // (naufrage — la position miroir fait que l'événement tombe sur la même case).
-  if (unit.cargo) {
-    const cargo = board.st.units[unit.cargo];
-    if (cargo) kill(board, cargo, 'sunk', byUnitId);
+  // EMBARQUEMENT-PROGRAMME · D7 : toute la pile à bord sombre.
+  for (const passager of passagersDuTransport(board, unit)) {
+    kill(board, passager, 'sunk', byUnitId);
   }
   // CARTE-MULTI : dernière entité perdue → élimination par annihilation.
   verifierAnnihilation(board, unit.owner);
@@ -1176,52 +1266,33 @@ function executeMoveOrder(
       break;
     }
 
-    // 7g · R-117 : unité EMBARQUÉE — débarquement. Le premier pas doit être
-    // une case TERRESTRE libre adjacente au transport ; l'unité poursuit
-    // ensuite normalement (le reste du chemin suit les règles R-42).
+    // EMBARQUEMENT-PROGRAMME · D2-A/D3-A : à CHAQUE position du navire
+    // (contrôle initial compris), dépose éventuelle de la cargaison — le
+    // navire poursuit ensuite son chemin (il ne paie aucun PM pour la dépose).
+    if (estTransport(unit)) tenterDepose(board, unit);
+
+    // 7g · R-117 (rev. EMBARQUEMENT-PROGRAMME D4) : une unité EMBARQUÉE
+    // n'exécute plus JAMAIS son propre chemin — son ordre de Move est une
+    // instruction de DÉPOSE traitée par son transport en passe navale
+    // (tenterDepose) ; les chemins gelés historiques gardent le même rôle.
     if (unit.aboard) {
-      const transport = board.st.units[unit.aboard];
-      if (!transport) {
-        // Sécurité (le naufrage coule toujours sa cargaison) : plus à bord.
-        unit.aboard = null;
-        continue;
-      }
-      const dismountable =
-        hexDistance(transport, next) === 1 &&
-        canEnter(board, unit, next) &&
-        occupants(board, next).length === 0;
-      if (unit.mp > 0 && dismountable) {
-        path.shift();
-        unit.mp -= 1;
-        transport.cargo = null;
-        unit.aboard = null;
-        unit.q = next.q;
-        unit.r = next.r;
-        board.steps.set(unit.id, (board.steps.get(unit.id) ?? 0) + 1);
-        board.moved.add(unit.id);
-        emit(board, {
-          type: 'Disembark',
-          unitId: unit.id,
-          owner: unit.owner,
-          transportId: transport.id,
-          at: { ...next },
-        });
-        continue; // la suite du chemin suit les règles normales (attaque incluse)
-      }
-      path = []; // débarquement impossible : chemin effacé, l'unité reste à bord
+      path = [];
       break;
     }
 
-    // 7g · R-117 : EMBARQUEMENT — pas d'une unité terrestre vers un transport
-    // ami à cargaison libre (Galère/Galion : 1 unité — décision d'Erik).
+    // 7g · R-117 (rev. EMBARQUEMENT-PROGRAMME D4/D5/D7) : EMBARQUEMENT — pas
+    // d'une unité terrestre vers un transport AMI (capacité infinie — le
+    // champ `cargo` ne garde que le premier passager). D5 : JAMAIS sur une
+    // case de ville (entrer dans la ville = garnison, R-30). D4 : le tour de
+    // l'unité est TERMINÉ — PM 0, chemin annulé.
     if (unit.mp > 0 && !unitType(unit.type).aquatic) {
       const transport = occupants(board, next).find(
-        (u) => u.owner === unit.owner && u.cargo === null && cargoCapacityOf(u) > 0,
+        (u) => u.owner === unit.owner && cargoCapacityOf(u) > 0,
       );
-      if (transport) {
-        path.shift();
-        unit.mp -= 1;
-        transport.cargo = unit.id;
+      if (transport && !cityAt(board, next)) {
+        path = [];
+        unit.mp = 0;
+        if (!transport.cargo) transport.cargo = unit.id;
         unit.aboard = transport.id;
         unit.q = transport.q;
         unit.r = transport.r;
@@ -1234,7 +1305,7 @@ function executeMoveOrder(
           transportId: transport.id,
           at: { q: transport.q, r: transport.r },
         });
-        continue; // le reste du chemin (gelé) servira au débarquement du tour suivant
+        break;
       }
     }
 
@@ -1285,6 +1356,23 @@ function executeMoveOrder(
       moveUnit(board, unit, next);
       openHutAt(board, next, unit); // R-98 : ouverture à l'entrée (Phase A)
       activateArtefactAt(artefactCtxOf(board), unit, next); // 7o · R-153 : entrée sur la case / Atlantide adjacente
+      continue;
+    }
+    // EMBARQUEMENT-PROGRAMME · D1-B(b) : ramassage en marche — le transport
+    // programmé ENTRE sur une case portant des unités terrestres AMIES
+    // (ville portuaire comprise) : toute la pile embarque (D7 — ordres
+    // annulés, PM 0, D4) et le navire POURSUIT son chemin (D2-A). Les
+    // ennemis suivent les règles normales (mêlée/capture — jamais un
+    // ramassage ennemi).
+    if (
+      estTransport(unit) &&
+      here.length > 0 &&
+      here.every((u) => u.owner === unit.owner && !unitType(u.type).aquatic)
+    ) {
+      path.shift();
+      unit.mp -= 1;
+      moveUnit(board, unit, next);
+      ramasser(board, unit, next);
       continue;
     }
     // 7m · R-143 · INFILTRATION : un espion ENTRE dans une ville (amie :
@@ -1443,6 +1531,9 @@ function executeMoveOrder(
     break;
   }
   if (!board.st.units[unit.id]) return; // capturée en cours de route
+  // EMBARQUEMENT-PROGRAMME · D2-A/D3-A : dépose à la position d'ARRÊT du
+  // navire (dernière position courante, chemin épuisé ou bloqué).
+  if (estTransport(unit)) tenterDepose(board, unit);
   // Le chemin gelé conserve la FORME de l'ordre source (Move pour le bot et
   // les clients simples, MultiStep pour un composite — R-158) avec son
   // action finale si le composite n'a pas atteint son terme.
@@ -1578,6 +1669,13 @@ function collectMoveOrders(
   }
   for (const group of byDestination.values()) {
     if (group.length < 2) continue;
+    // EMBARQUEMENT-PROGRAMME · D1-B/D7 : une destination qui est le TERMINUS
+    // d'un transport ami programmé n'est pas une dispute — les unités
+    // terrestres qui la visent y EMBARQUENT (capacité infinie), le navire
+    // y termine sa passe navale (l'arbitrage se fait à l'exécution).
+    if (group.some((a) => unitType(a.unit.type).aquatic && !a.unit.isArmy && cargoCapacityOf(a.unit) > 0)) {
+      continue;
+    }
     // R-159 rév. B : la co-destination amie est LÉGALE quand un ennemi peut se
     // trouver sur la case à la résolution — pas de troncature (l'arbitrage se
     // fait à l'exécution, à l'heure de chaque entrée).
@@ -4640,6 +4738,7 @@ export function resolveTurn(
     pendingFill: new Set(),
     arrivantesCeTour: new Set(),
     unknownEntered: new Set(),
+    deposees: new Set(),
     explored: new Map(),
     meleeDifferees: new Set(),
     entrees: new Map(),
@@ -4683,8 +4782,27 @@ export function resolveTurn(
   // R-158 (D5) : un ordre composite MultiStep enchaîne déplacement(s) puis
   // UNE action finale ; l'action est exécutée en Phase C si l'unité a atteint
   // le terme du chemin, vivante, avec les PM requis (deplacement.json).
-  for (const { unit, path, source, final, priority } of collectMoveOrders(board, allOrders)) {
+  // EMBARQUEMENT-PROGRAMME · D6 (R-41 amendée) : DEUX passes en ordre
+  // unitId croissant — NAVALE d'abord (les navires exécutent leur chemin
+  // programmé : déposes et ramassages en marche), puis TERRESTRE (règles
+  // inchangées ; l'embarquement y rencontre le navire LÀ OÙ IL EST à
+  // l'issue de la passe navale — départ ou arrêt programmé). Barbares
+  // compris : leurs ordres sont déjà fusionnés dans allOrders.
+  const affectations = collectMoveOrders(board, allOrders);
+  const navales = affectations.filter((a) => unitType(a.unit.type).aquatic);
+  const terrestres = affectations.filter((a) => !unitType(a.unit.type).aquatic);
+  for (const { unit, path, source, final, priority } of [...navales, ...terrestres]) {
     if (!st.units[unit.id] || unit.detainedBy) continue;
+    // EMBARQUEMENT-PROGRAMME : une unité EMBARQUÉE n'exécute pas son ordre —
+    // son Move est une instruction de dépose portée par son transport (passe
+    // navale) ; le chemien gelé éventuel reste tel quel pour la dépose.
+    if (unit.aboard) continue;
+    // EMBARQUEMENT-PROGRAMME · D4 : une cargaison DÉPOSÉE en passe navale a
+    // terminé son tour — ni exécution, ni re-gel de l'ordre consommé.
+    if (board.deposees.has(unit.id)) {
+      unit.order = null;
+      continue;
+    }
     const plannedLength = path.length; // executeMoveOrder consomme le tableau
     executeMoveOrder(board, unit, path, source, priority);
     if (!final || final !== 'foundCity') continue;
@@ -4699,6 +4817,31 @@ export function resolveTurn(
     const mpRequired = DEPLACEMENT.mpCostOfFinalAction;
     if (after.mp < mpRequired) continue; // PM insuffisants : action annulée, mouvement conservé
     board.finalActions.set(after.id, 'foundCity');
+  }
+  // EMBARQUEMENT-PROGRAMME · D3-A : contrôle initial de dépose des navires
+  // SANS chemin (à quai) — et dépose résiduelle au terme de la passe navale.
+  for (const id of sortUnitIds(board)) {
+    const u = st.units[id];
+    if (u && estTransport(u)) tenterDepose(board, u);
+  }
+  // EMBARQUEMENT-PROGRAMME · D3-A : les ordres de dépose jamais déclenchés
+  // (cible jamais adjacente à un pas du chemin du transport) sont ignorés
+  // proprement — la cargaison reste à bord, consigné dans le journal.
+  for (const id of sortUnitIds(board)) {
+    const u = st.units[id];
+    if (!u || !u.aboard) continue;
+    const o = u.order;
+    if (o && (o.type === 'Move' || o.type === 'MultiStep') && o.path.length > 0) {
+      const transport = u.aboard ? st.units[u.aboard] : null;
+      decide(
+        board,
+        'depose-impossible',
+        'R-117 (EMBARQUEMENT-PROGRAMME)',
+        `${id} reste À BORD de ${u.aboard} — dépose impossible : ${o.path[0]!.q},${o.path[0]!.r} jamais adjacente à un pas du chemin du transport${transport ? '' : ' (transport introuvable)'}`,
+        { unitId: id, transportId: u.aboard, cible: o.path[0] },
+      );
+      u.order = null;
+    }
   }
   // R-158 : les actions finales foundCity sont injectées comme ordres
   // FoundCity synthétiques — processFoundCity re-applique TOUTES les

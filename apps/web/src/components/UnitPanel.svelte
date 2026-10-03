@@ -21,13 +21,15 @@
     onCancelOrder(unitId: string): void;
     onConfirmDraft?(): void;
     onCenterUnit(unitId: string): void;
+    /** EMBARQUEMENT-PROGRAMME · D3-A : sélection de la cargaison depuis le navire. */
+    onSelectUnit?(unitId: string): void;
     /** 7m · R-139 : arme le mode ciblage d'ICBM (toute case cliquée devient
      *  une cible pressentie, confirmée par modale côté page avant l'ordre). */
     onArmNuke?(unitId: string): void;
     onCancelNuke?(): void;
   }
 
-  let { view, ui, client, onCancelDraft, onCancelOrder, onConfirmDraft, onCenterUnit, onArmNuke, onCancelNuke }: Props = $props();
+  let { view, ui, client, onCancelDraft, onCancelOrder, onConfirmDraft, onCenterUnit, onSelectUnit, onArmNuke, onCancelNuke }: Props = $props();
 
   const unit = $derived(view.state && ui.selectedUnitId ? view.state.units[ui.selectedUnitId] : null);
   const mine = $derived(!!unit && unit.owner === myEngineId(view));
@@ -181,6 +183,13 @@
 
   /** 7g · R-117 : infos de transport — le navire sélectionné porte-t-il une
    *  cargaison ? L'unité sélectionnée est-elle embarquée ? */
+  // EMBARQUEMENT-PROGRAMME · D7 : capacité infinie — la pile à bord se lit
+  // par `aboard` (le champ `cargo` ne garde que le premier passager).
+  const passagers = $derived(
+    unit && view.state
+      ? Object.values(view.state.units).filter((u) => u.aboard === unit.id)
+      : [],
+  );
   const cargoUnit = $derived(
     unit && unit.cargo && view.state ? view.state.units[unit.cargo] ?? null : null,
   );
@@ -552,8 +561,24 @@
         </div>
         <p class="hint">R-144 : si un espion ennemi est en garnison, un duel précède toute action hostile (50 % isolé vs isolé 🔶) — sans garnison, succès automatique.</p>
       {/if}
+      {#if passagers.length > 0}
+        <p class="hint">🚢 Charge ({passagers.length}) — cliquez un passager pour le sélectionner, puis clic droit sur une case terrestre LIBRE adjacente au navire (ou à un pas de son chemin programmé) = « débarque ici ».</p>
+        <div class="btns">
+          {#each passagers as p (p.id)}
+            <button
+              type="button"
+              class="primary"
+              disabled={!editable || !onSelectUnit}
+              title="EMBARQUEMENT-PROGRAMME · D3-A : sélectionner la cargaison depuis le navire"
+              onclick={() => onSelectUnit?.(p.id)}
+            >
+              {p.type} ({p.id}){ui.selectedUnitId === p.id ? ' ✓' : ''}
+            </button>
+          {/each}
+        </div>
+      {/if}
       {#if cargoUnit}
-        <p class="hint">🚢 Charge : {cargoUnit.type} ({cargoUnit.id}) — débarquez-le ci-dessous ou via un Move terrestre.</p>
+        <p class="hint">Débarquement immédiat de {cargoUnit.type} ({cargoUnit.id}) — D4 : le tour de l'unité est TERMINÉ après un débarquement (ni poursuite, ni attaque).</p>
         {#if disembarkTiles.length > 0}
           <div class="btns">
             {#each disembarkTiles as h (h.q + ',' + h.r)}
@@ -561,7 +586,7 @@
                 type="button"
                 class="primary"
                 disabled={!editable}
-                title="R-117 : débarquement — coût 1 PM, la cargaison reprend sa marche ensuite"
+                title="R-117 (rev. EMBARQUEMENT-PROGRAMME · D4) : débarquement — l'unité termine son tour sur la case cible"
                 onclick={() => disembark(h)}
               >
                 Débarquer en ({h.q},{h.r})

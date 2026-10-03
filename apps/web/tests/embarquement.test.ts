@@ -92,12 +92,12 @@ describe('embarquement · client pathTo/clic droit (le geste d\'Erik)', () => {
     expect(pathTo(state, MER_FROM, MER_TO)).toEqual([MER_TO]);
   });
 
-  it('cargaison PLEINE : refus propre — pas de chemin, cancelOrder', () => {
+  it('cargaison À BORD : capacité INFINIE (D7) — le chemin passe quand même', () => {
     const state = merState([{ id: 'u2', type: 'colon', owner: 'p1', ...H(4, 1) }]);
     state.units['u2']!.aboard = 'g1';
     state.units['g1']!.cargo = 'u2';
-    expect(pathTo(state, MER_FROM, MER_TO)).toBeNull();
-    expect(rightClickAction(viewOf(state), uiOf('u1'), MER_TO).kind).toBe('cancelOrder');
+    expect(pathTo(state, MER_FROM, MER_TO)).toEqual([MER_TO]);
+    expect(rightClickAction(viewOf(state), uiOf('u1'), MER_TO).kind).toBe('moveDraft');
   });
 
   it('transport ENNEMI : pas embarquable — pas de chemin vers l\'eau', () => {
@@ -147,13 +147,13 @@ describe('embarquement · moteur pur (resolveTurn)', () => {
     expect(eventsOf(res.events, 'Embark')).toHaveLength(1);
   });
 
-  it('cargaison pleine : refus propre — pas d\'embarquement, pas de déplacement', () => {
+  it('cargaison à bord : capacité INFINIE (D7) — la pile embarque quand même', () => {
     const state = merState([{ id: 'u2', type: 'colon', owner: 'p1', ...H(4, 1) }]);
     state.units['u2']!.aboard = 'g1';
     state.units['g1']!.cargo = 'u2';
     const res = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [MER_TO] }] }, 1);
-    expect(res.newState.units['u1']).toMatchObject({ q: MER_FROM.q, r: MER_FROM.r, aboard: null });
-    expect(eventsOf(res.events, 'Embark')).toHaveLength(0);
+    expect(res.newState.units['u1']).toMatchObject({ aboard: 'g1', q: MER_TO.q, r: MER_TO.r });
+    expect(eventsOf(res.events, 'Embark')).toHaveLength(1);
   });
 
   it('débarquement : premier pas sur une case terrestre libre → Disembark', () => {
@@ -180,9 +180,10 @@ describe('embarquement · moteur pur (resolveTurn)', () => {
     expect(t1.newState.units['u1']!.order).not.toBeNull(); // le reste est gelé
     const t2 = resolveTurn(t1.newState, {}, 2);
     expect(t2.newState.units['u1']!.aboard).toBe('g1'); // embarquement (R-117)
+    // D4 (rev. EMBARQUEMENT-PROGRAMME) : le gel post-embarquement est abrogé —
+    // T3 sans ordre de dépose : l'unité RESTE à bord.
     const t3 = resolveTurn(t2.newState, {}, 3);
-    expect(t3.newState.units['u1']!.aboard).toBeNull();
-    expect(t3.newState.units['u1']).toMatchObject({ q: H(1, 1).q, r: H(1, 1).r });
+    expect(t3.newState.units['u1']!.aboard).toBe('g1');
   });
 
   it('transversal post-PLACEMENT-MELEE : même tour, arrivée case amie terrestre ET embarquement coexistent', () => {
