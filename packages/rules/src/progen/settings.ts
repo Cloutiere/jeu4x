@@ -184,10 +184,10 @@ export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   hillDensity: 0.5,
   forestDensity: 0.5, // calibrage atelier Erik 02/10 (36 → 50)
   desertDensity: 0.35,
-  prairieDensity: 0.25, // calibrage atelier Erik 02/10 (20 → 25)
-  terrainPatchScale: 0.3,
+  prairieDensity: 0.1, // calibrage atelier Erik 03/10 (25 → 10)
+  terrainPatchScale: 0.3, // plage basse ouverte 03/10 : clamp min 0.05 (défaut inchangé)
   humidity: 0.5,
-  resourceDensity: 1.5,
+  resourceDensity: 1.2, // calibrage atelier Erik 03/10 (1.5 → 1.2)
   minResourceDistance: 2,
   minPerResourceType: 1,
   villagesPerHalf: 6,
@@ -249,7 +249,7 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
     forestDensity: clamp01(s.forestDensity),
     desertDensity: clamp01(s.desertDensity),
     prairieDensity: clamp01(s.prairieDensity),
-    terrainPatchScale: Math.min(1.5, Math.max(0.25, s.terrainPatchScale)),
+    terrainPatchScale: Math.min(1.5, Math.max(0.05, s.terrainPatchScale)),
     humidity: clamp01(s.humidity),
     resourceDensity: Math.min(4, Math.max(0, s.resourceDensity)),
     minResourceDistance: Math.min(4, Math.max(1, Math.round(s.minResourceDistance))),

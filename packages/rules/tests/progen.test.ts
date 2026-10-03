@@ -668,16 +668,28 @@ describe('Phase 6c · Calibrage par type de tuile (mosaïque, déserts, prairies
     expect(countOf(plaineHeavy.map, 'plaine')).toBeGreaterThan(countOf(prairieHeavy.map, 'plaine'));
   });
 
-  it("les valeurs de base d'Erik (02/09, forêts/prairies recalées 02/10) sont les défauts 🔶", () => {
-    expect(DEFAULT_PROGEN_SETTINGS.resourceDensity).toBe(1.5);
+  it("les valeurs de base d'Erik (02/09, forêts/prairies 02/10, prairies/ressources 03/10) sont les défauts 🔶", () => {
+    expect(DEFAULT_PROGEN_SETTINGS.resourceDensity).toBe(1.2);
     expect(DEFAULT_PROGEN_SETTINGS.villagesPerHalf).toBe(6);
     expect(DEFAULT_PROGEN_SETTINGS.hutsPerHalf).toBe(6);
     expect(DEFAULT_PROGEN_SETTINGS.forestDensity).toBe(0.5);
     expect(DEFAULT_PROGEN_SETTINGS.desertDensity).toBe(0.35);
-    expect(DEFAULT_PROGEN_SETTINGS.prairieDensity).toBe(0.25);
+    expect(DEFAULT_PROGEN_SETTINGS.prairieDensity).toBe(0.1);
     expect(DEFAULT_PROGEN_SETTINGS.terrainPatchScale).toBe(0.3);
     expect(DEFAULT_PROGEN_SETTINGS.rifts).toBe(2);
     expect(DEFAULT_PROGEN_SETTINGS.riftDepth).toBe(48);
+  });
+
+  it('D2 CALIBRAGE-CARTE-2 : la Mosaïque est clampée à 0.05 minimum (plage ouverte en bas)', () => {
+    expect(resolveProgenSettings({ terrainPatchScale: 0.01 }).terrainPatchScale).toBe(0.05);
+    expect(resolveProgenSettings({ terrainPatchScale: 2 }).terrainPatchScale).toBe(1.5);
+  });
+
+  it('D3 CALIBRAGE-CARTE-2 : une génération à Mosaïque 0.05 produit une carte valide (non dégénérée)', () => {
+    const { map } = generateProceduralMap(42, { terrainPatchScale: 0.05 });
+    expect(Object.keys(map.terrain).length).toBe(map.data.width * map.data.height);
+    expect(countTerrainTypes(map).find((c) => c.id === 'eau')?.count ?? 0).toBeGreaterThan(0);
+    expect(map.spawns.length).toBeGreaterThanOrEqual(2);
   });
 
   it('R-105 : poisson favorisé sur les côtes (extraSpawnScale eau ×1.5 ≈ présence ×4)', () => {

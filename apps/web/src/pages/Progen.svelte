@@ -368,7 +368,7 @@
         </label>
         <label>
           Mosaïque (taille des zones) : ×{terrainPatchScale.toFixed(2)}
-          <input type="range" min="0.25" max="1.5" step="0.05" bind:value={terrainPatchScale} />
+          <input type="range" min="0.05" max="1.5" step="0.01" bind:value={terrainPatchScale} />
         </label>
         <label>
           Densité ressources : ×{resourceDensity.toFixed(1)}
