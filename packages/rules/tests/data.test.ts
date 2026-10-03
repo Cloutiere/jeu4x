@@ -102,11 +102,11 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
     });
   });
 
-  it('« eau » garde son id mais devient la Mer productive 0/0/2 (travaillable, non praticable)', () => {
+  it('« eau » garde son id mais devient la Mer productive 0/0/3 (travaillable, non praticable — rév. SCIENCE-EAU 03/10)', () => {
     expect(terrainTable['eau']!.id).toBe('eau');
     expect(terrainTable['eau']!.name).toBe('Mer');
     expect(terrainTable['eau']!.passable).toBe(false);
-    expect(terrainTable['eau']!.yields).toEqual({ food: 0, production: 0, commerce: 2 });
+    expect(terrainTable['eau']!.yields).toEqual({ food: 0, production: 0, commerce: 3 });
   });
 
   it('montagne : infranchissable mais travaillable (rendements 0/1/0)', () => {
@@ -217,24 +217,24 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
 });
 
 describe('Données Phase 6c — côte vs océan (décisions d\'Erik du 02/09)', () => {
-  it('ocean : nouveau terrain infranchissable, rendements 0/0/2 (identiques à la côte), navalAccess "ocean"', () => {
+  it('ocean : nouveau terrain infranchissable, rendements 0/0/3 (identiques à la côte — rév. SCIENCE-EAU 03/10), navalAccess "ocean"', () => {
     expect(terrainTable['ocean']).toMatchObject({
       id: 'ocean',
       name: 'Océan',
       defenseBonus: 0,
       passable: false,
       navalAccess: 'ocean',
-      yields: { food: 0, production: 0, commerce: 2 },
+      yields: { food: 0, production: 0, commerce: 3 },
     });
   });
 
-  it('eau = mer côtière : rendements 0/0/2 inchangés, navalAccess "coast" (hook naval Phase 7)', () => {
+  it('eau = mer côtière : rendements 0/0/3 (rév. SCIENCE-EAU 03/10), navalAccess "coast" (hook naval Phase 7)', () => {
     expect(terrainTable['eau']).toMatchObject({
       id: 'eau',
       name: 'Mer',
       passable: false,
       navalAccess: 'coast',
-      yields: { food: 0, production: 0, commerce: 2 },
+      yields: { food: 0, production: 0, commerce: 3 },
     });
   });
 

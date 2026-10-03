@@ -243,19 +243,19 @@ describe('7k · R-132 — effets des merveilles restantes (valeurs du doc, table
   });
 
   it("Cie des Indes : +1 Commerce sur chaque case d'eau exploitée — océan (modèle R-66 ; C9 : côte incluse, testée en 7l)", () => {
-    // Une ville côtière travaillant une case d'océan (rendement 0/0/2 → 0/0/3).
+    // Une ville côtière travaillant une case d'océan (rendement 0/0/3).
     const state = makeState({
       terrainOverrides: { '3,2': 'ocean' },
       cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 1, workedTiles: ['3,2'], wonders: ['compagnie_des_indes'] }],
     });
     const out = resolveTurn(state, {}, 42).newState;
     // Centre pop 1 = 0 C (ALIGNEMENT-CROISSANCE — socle abrogé, tranche
-    // Ouvrier 0) ; océan 2 C (+1 Cie des Indes) = 3 or/tour ;
-    // sans la merveille : 2 or.
-    expect(out.players['p1']!.treasury).toBe(3);
+    // Ouvrier 0) ; océan 3 C (+1 Cie des Indes) = 4 or/tour ;
+    // sans la merveille : 3 or.
+    expect(out.players['p1']!.treasury).toBe(4);
     const sans = structuredClone(state);
     sans.cities['c1']!.wonders = [];
-    expect(resolveTurn(sans, {}, 42).newState.players['p1']!.treasury).toBe(2);
+    expect(resolveTurn(sans, {}, 42).newState.players['p1']!.treasury).toBe(3);
   });
 
   it('Atelier de Léonard : met à niveau gratuitement les unités obsolètes (R-111 — guerrier → legion), EMPIRE du propriétaire', () => {

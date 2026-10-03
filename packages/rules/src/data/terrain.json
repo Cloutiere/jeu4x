@@ -75,7 +75,7 @@
     "yields": {
       "food": 0,
       "production": 0,
-      "commerce": 2
+      "commerce": 3
     }
   },
   "ocean": {
@@ -87,7 +87,7 @@
     "yields": {
       "food": 0,
       "production": 0,
-      "commerce": 2
+      "commerce": 3
     }
   },
   "ville": {

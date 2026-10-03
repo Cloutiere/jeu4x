@@ -325,7 +325,7 @@ describe('Phase 6b · Stratégie injectable (ajout d\'Erik — pérennité multi
 
 // ---------------------------------------------------------------------------
 // Phase 6c — côte vs océan (décisions d'Erik du 02/09 : navalAccess coast/ocean,
-// rendements 0/0/2 identiques, marines sur les deux eaux, coastWidth 🔶 1)
+// rendements 0/0/3 identiques (rév. SCIENCE-EAU 03/10), marines sur les deux eaux, coastWidth 🔶 1)
 // ---------------------------------------------------------------------------
 
 /** Distance hex minimale d'une case (col, row) à une case de terre de la grille. */

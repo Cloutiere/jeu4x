@@ -83,7 +83,7 @@ describe('R-121 · Modificateurs économiques (avant/après, même seed)', () =>
     expect(conversionGains(4, 'science', [], { scienceMult: 1.5 })).toEqual({ gold: 0, science: 6 });
     // e2e même seed : le trésor démocratique dépasse celui du despotisme
     // 7i · R-66 (rév.) : le commerce du centre suit la tranche (0 pop ≤ 6) —
-    // une case d'eau travaillée (0/0/2) porte le commerce.
+    // une case d'eau travaillée (0/0/3) porte le commerce.
     const base = {
       terrainOverrides: { '2,1': 'eau' } as const,
       cities: [{ owner: 'p1', q: 2, r: 2, capital: true, workedTiles: ['2,1'] }],

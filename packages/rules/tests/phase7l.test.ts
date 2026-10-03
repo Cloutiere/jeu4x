@@ -99,9 +99,9 @@ describe('7l · Bloc 0 · C9 — Cie des Indes : toutes les cases d\'eau, CÔTE 
       '1,0': { terrain: 'eau', resource: null }, // côte
       '0,1': { terrain: 'ocean', resource: null }, // océan
     };
-    expect(tileYield(map, [], '1,0', [], ['compagnie_des_indes'])).toEqual({ food: 0, production: 0, commerce: 3 }); // 2 + 1
-    expect(tileYield(map, [], '0,1', [], ['compagnie_des_indes'])).toEqual({ food: 0, production: 0, commerce: 3 });
-    expect(tileYield(map, [], '1,0', [], [])).toEqual({ food: 0, production: 0, commerce: 2 }); // sans la merveille
+    expect(tileYield(map, [], '1,0', [], ['compagnie_des_indes'])).toEqual({ food: 0, production: 0, commerce: 4 }); // 3 + 1
+    expect(tileYield(map, [], '0,1', [], ['compagnie_des_indes'])).toEqual({ food: 0, production: 0, commerce: 4 });
+    expect(tileYield(map, [], '1,0', [], [])).toEqual({ food: 0, production: 0, commerce: 3 }); // sans la merveille
   });
 });
 

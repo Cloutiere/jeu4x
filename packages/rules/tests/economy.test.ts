@@ -45,7 +45,7 @@ describe('economy.ts · rendements et rayon (R-60/R-66)', () => {
       '-1,1': { terrain: 'prairie', resource: null },
     } as never;
     const assigned = autoAssignWorkedTiles(m, [{ q: 0, r: 0 }], { q: 0, r: 0, pop: 6, buildings: [] });
-    // priorité nourriture : la prairie (2 N) d'abord, puis mer (0/0/2 — commerce
+    // priorité nourriture : la prairie (2 N) d'abord, puis mer (0/0/3 — commerce
     // en dernier critère mais présence), montagne (0/1/0)…
     expect(assigned[0]).toBe('-1,1'); // nourriture maximale
     expect(assigned).toContain('0,1');
