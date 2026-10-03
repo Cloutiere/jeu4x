@@ -954,5 +954,185 @@
       "margeBas": 20,
       "echelle": 1.0337
     }
+  },
+  "cavalier-6couleurs": {
+    "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Cavalier 4K d'Erik (new_units/new_cavalier, canvas 4096×3072 rembourré en 4096² transparent à la copie — le pipeline suppose du carré). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 267 px @256 → 534 @512). Ardoise recalée à 1.1228 (limite largeur 512, l'art déborde de 1 px à la hauteur d'avant exacte).",
+    "svg": "assets-src/modeles/4k/cavalier_bleu_trsp.png",
+    "stem": "unite_cavalier",
+    "variantesFournies": {
+      "bleu-saphir": "assets-src/modeles/4k/cavalier_bleu_trsp.png",
+      "rouge-royal": "assets-src/modeles/4k/cavalier_rouge_trsp.png",
+      "vert-emeraude": "assets-src/modeles/4k/cavalier_vert_trsp.png",
+      "jaune-dor": "assets-src/modeles/4k/cavalier_jaune_trsp.png",
+      "cuivre-ardent": "assets-src/modeles/4k/cavalier_orange_trsp.png",
+      "ardoise": "assets-src/modeles/4k/cavalier_ardoise_trsp.png"
+    },
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 1.0457
+    },
+    "echelleParVariante": {
+      "bleu-saphir": 1.0457,
+      "rouge-royal": 1.0517,
+      "vert-emeraude": 0.9662,
+      "jaune-dor": 1.0142,
+      "cuivre-ardent": 0.9843,
+      "ardoise": 1.1228
+    }
+  },
+  "chevalier-6couleurs": {
+    "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Chevalier 4K d'Erik (new_units/new_chevalier, suffixe _trsp sans 4K). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (233 px @256 → 466 @512).",
+    "svg": "assets-src/modeles/4k/chevalier_bleu_trsp.png",
+    "stem": "unite_chevalier",
+    "variantesFournies": {
+      "bleu-saphir": "assets-src/modeles/4k/chevalier_bleu_trsp.png",
+      "rouge-royal": "assets-src/modeles/4k/chevalier_rouge_trsp.png",
+      "vert-emeraude": "assets-src/modeles/4k/chevalier_vert_trsp.png",
+      "jaune-dor": "assets-src/modeles/4k/chevalier_jaune_trsp.png",
+      "cuivre-ardent": "assets-src/modeles/4k/chevalier_orange_trsp.png",
+      "ardoise": "assets-src/modeles/4k/chevalier_ardoise_trsp.png"
+    },
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 0.9657
+    },
+    "echelleParVariante": {
+      "bleu-saphir": 0.9657,
+      "rouge-royal": 0.901,
+      "vert-emeraude": 0.9761,
+      "jaune-dor": 0.9682,
+      "cuivre-ardent": 0.8782,
+      "ardoise": 0.9401
+    }
+  },
+  "legion-6couleurs": {
+    "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Légion 4K d'Erik (new_units/new_legion). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (215 px @256 → 430 @512).",
+    "svg": "assets-src/modeles/4k/legion_bleu_trsp.png",
+    "stem": "unite_legion",
+    "variantesFournies": {
+      "bleu-saphir": "assets-src/modeles/4k/legion_bleu_trsp.png",
+      "rouge-royal": "assets-src/modeles/4k/legion_rouge_trsp.png",
+      "vert-emeraude": "assets-src/modeles/4k/legion_vert_trsp.png",
+      "jaune-dor": "assets-src/modeles/4k/legion_jaune_trsp.png",
+      "cuivre-ardent": "assets-src/modeles/4k/legion_orange_trsp.png",
+      "ardoise": "assets-src/modeles/4k/legion_ardoise_trsp.png"
+    },
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 0.897
+    },
+    "echelleParVariante": {
+      "bleu-saphir": 0.897,
+      "rouge-royal": 0.8202,
+      "vert-emeraude": 0.8234,
+      "jaune-dor": 0.7721,
+      "cuivre-ardent": 0.9185,
+      "ardoise": 0.7921
+    }
+  },
+  "catapulte-6couleurs": {
+    "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Catapulte 4K d'Erik (new_units/new_catapult, nom moteur catapulte). Rendu direct. ART QUASI CARRÉ : figer la hauteur d'avant (542 @512) ferait déborder la largeur (545 > 512, rognage 16 px/côté) — echelle 1 = largeur calée sur l'avant (456), hauteur résultante ~454 (−16 % vs avant, consigné 🔶 pour l'œil d'Erik).",
+    "svg": "assets-src/modeles/4k/catapulte_bleu_trsp.png",
+    "stem": "unite_catapulte",
+    "variantesFournies": {
+      "bleu-saphir": "assets-src/modeles/4k/catapulte_bleu_trsp.png",
+      "rouge-royal": "assets-src/modeles/4k/catapulte_rouge_trsp.png",
+      "vert-emeraude": "assets-src/modeles/4k/catapulte_vert_trsp.png",
+      "jaune-dor": "assets-src/modeles/4k/catapulte_jaune_trsp.png",
+      "cuivre-ardent": "assets-src/modeles/4k/catapulte_orange_trsp.png",
+      "ardoise": "assets-src/modeles/4k/catapulte_ardoise_trsp.png"
+    },
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 1.0
+    },
+    "echelleParVariante": {
+      "bleu-saphir": 1.0,
+      "rouge-royal": 1.0,
+      "vert-emeraude": 1.0,
+      "jaune-dor": 1.0,
+      "cuivre-ardent": 1.0,
+      "ardoise": 1.0
+    }
+  },
+  "cavalier-base": {
+    "_doc": "Sprite de base unite_cavalier : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
+    "svg": "assets-src/modeles/4k/cavalier_bleu_trsp.png",
+    "stem": "unite_cavalier",
+    "sansAccent": true,
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 1.0457
+    }
+  },
+  "chevalier-base": {
+    "_doc": "Sprite de base unite_chevalier : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
+    "svg": "assets-src/modeles/4k/chevalier_bleu_trsp.png",
+    "stem": "unite_chevalier",
+    "sansAccent": true,
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 0.9657
+    }
+  },
+  "legion-base": {
+    "_doc": "Sprite de base unite_legion : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
+    "svg": "assets-src/modeles/4k/legion_bleu_trsp.png",
+    "stem": "unite_legion",
+    "sansAccent": true,
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 0.897
+    }
+  },
+  "catapulte-base": {
+    "_doc": "Sprite de base unite_catapulte : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
+    "svg": "assets-src/modeles/4k/catapulte_bleu_trsp.png",
+    "stem": "unite_catapulte",
+    "sansAccent": true,
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 1.0
+    }
   }
 }

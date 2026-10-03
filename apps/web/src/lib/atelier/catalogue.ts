@@ -255,6 +255,10 @@ function sprites2d(): AssetAtelier[] {
     ['unite_cuirasse', 'Cuirassé', 'cuirasse', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE2)'],
     ['unite_galere', 'Galère', 'galere', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE3)'],
     ['unite_galion', 'Galion', 'galion', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE3)'],
+    ['unite_cavalier', 'Cavalier', 'cavalier', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE4)'],
+    ['unite_chevalier', 'Chevalier', 'chevalier', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE4)'],
+    ['unite_legion', 'Légion', 'legion', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE4)'],
+    ['unite_catapulte', 'Catapulte', 'catapulte', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE4)'],
   ] as const) {
     for (const [suffixe, nom] of VARIANTES_CUITES) {
       out.push(spriteAsset(`${type}_${suffixe}`, `${label} — variante fournie ${nom} (art d'Erik, 6 couleurs)`, `assets-src/tools/import_svg.mjs (profil ${profil}-6couleurs, variantesFournies) — ${doc}`, false));
