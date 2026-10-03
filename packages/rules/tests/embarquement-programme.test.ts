@@ -278,7 +278,7 @@ describe('EMBARQUEMENT-PROGRAMME · limites du modèle programmé', () => {
     expect(getUnit(result.newState, 'u2')).toMatchObject({ q: H(1, 3).q, r: H(1, 3).r, cargo: null });
   });
 
-  it('unité vers un pas INTERMÉDIAIRE déjà franchi → elle ne rencontre rien, elle s’arrête (limite consignée §4.5)', () => {
+  it('unité vers un pas INTERMÉDIAIRE déjà franchi → elle embarque sur le navire là où il se trouve (rev. Erik 03/10, rendez-vous virtuel)', () => {
     const state = coastalState({
       units: [
         { id: 'u1', type: 'guerrier', owner: 'p1', q: H(1, 5).q, r: H(1, 5).r },
@@ -286,7 +286,8 @@ describe('EMBARQUEMENT-PROGRAMME · limites du modèle programmé', () => {
       ],
     });
     // La galère franchit (0,4) (intermédiaire) et s'arrête à (1,4) ; le
-    // guerrier visait (0,4) — déjà quitté : aucune rencontre, arrêt sur place.
+    // guerrier visait (0,4) — la case a été TRAVERSÉE ce tour : il embarque
+    // (position miroir de l'arrêt du navire).
     const result = resolveTurn(
       state,
       {
@@ -297,8 +298,32 @@ describe('EMBARQUEMENT-PROGRAMME · limites du modèle programmé', () => {
       },
       1,
     );
-    expect(eventsOf(result.events, 'Embark')).toHaveLength(0);
-    expect(getUnit(result.newState, 'u1')).toMatchObject({ q: H(1, 5).q, r: H(1, 5).r, aboard: null });
+    expect(eventsOf(result.events, 'Embark')).toHaveLength(1);
+    expect(getUnit(result.newState, 'u1')).toMatchObject({ aboard: 'u2', q: H(1, 4).q, r: H(1, 4).r, order: null });
+    expect(getUnit(result.newState, 'u2').cargo).toBe('u1');
+  });
+
+  it('unité vers la case de DÉPART du navire déjà quittée → embarquement (rev. Erik 03/10)', () => {
+    const state = coastalState({
+      units: [
+        { id: 'u1', type: 'guerrier', owner: 'p1', q: H(0, 2).q, r: H(0, 2).r },
+        { id: 'u2', type: 'galere', owner: 'p1', q: H(0, 3).q, r: H(0, 3).r },
+      ],
+    });
+    // La galère part de (0,3) vers (0,4) ; le guerrier visait le DÉPART (0,3),
+    // déjà quitté — la route du tour l'inclut : embarquement.
+    const result = resolveTurn(
+      state,
+      {
+        p1: [
+          { type: 'Move', unitId: 'u2', path: [H(0, 4)] },
+          { type: 'Move', unitId: 'u1', path: [H(0, 3)] },
+        ],
+      },
+      1,
+    );
+    expect(eventsOf(result.events, 'Embark')).toHaveLength(1);
+    expect(getUnit(result.newState, 'u1')).toMatchObject({ aboard: 'u2', q: H(0, 4).q, r: H(0, 4).r });
   });
 
   it('naufrage après dépose : la déposée a quitté le bord, elle SURVIT au naufrage du transport', () => {

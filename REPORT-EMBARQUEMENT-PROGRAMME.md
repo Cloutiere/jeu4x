@@ -55,3 +55,13 @@
 ## Périmètre respecté
 
 `cargoCapacity` non re-tranché (D7 infinie, dossier séparé) ; combat naval R-118 intact ; pas d'aérien ; pas de pause-and-resume ; pas de 3D ; `schemaVersion` 27 inchangée ; aucun fichier non tracké d'Erik commité.
+
+## Addendum — rév. du 03/10 (constat d'Erik en jeu, décision immédiate)
+
+**Constat** : galère programmée à portée, guerrier programmé sur l'arrêt, puis galère prolongée plus loin → le pas visé par le guerrier devient INTERMÉDIAIRE ; à la résolution le navire l'a déjà franchi, le guerrier entre sur une eau vide → « Déplacement impossible ». C'était la limite §4.5 consignée au handoff.
+
+**Décision d'Erik** : « le moteur doit permettre ce type de mouvement » — le guerrier DOIT embarquer.
+
+**Implémenté — rendez-vous virtuel** : le moteur enregistre la ROUTE RÉELLEMENT TRAVERSÉE ce tour par chaque transport (`board.routesNavales`, départ + chaque case d'entrée, interne au Board) ; la branche d'embarquement de la passe terrestre admet désormais une destination qui est un pas de cette route même si le navire ne s'y trouve plus — l'unité embarque, position miroit le navire là où il est (départ quitté, pas intermédiaire franchi, arrêt : les trois cas marchent). Un bateau bloqué avant le pas n'a jamais rallongé sa route jusqu'à la case → aucune rencontre (test inchangé, toujours vert). Le client n'a pas besoin de retouche : le geste était déjà offert (`destinationsEmbarquement` inclut tous les pas) — seul le moteur refusait la rencontre.
+
+**Tests** : le test « limite §4.5 » est réécrit (intermédiaire → embarquement, motif R-62) + un nouveau cas « départ déjà quitté → embarquement » ; bancs rules **969/969**, web **495/495**, server **120/120**.

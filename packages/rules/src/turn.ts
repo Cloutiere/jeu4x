@@ -228,6 +228,15 @@ interface Board {
    * re-geler leur ordre. Interne au Board, jamais sérialisé.
    */
   deposees: Set<UnitId>;
+  /**
+   * EMBARQUEMENT-PROGRAMME · rév. 03/10 (décision d'Erik) : route réellement
+   * TRAVERSÉE ce tour par chaque transport naval (position de départ + chaque
+   * case d'entrée) — une unité terrestre dont la destination est un pas de
+   * cette route (pas intermédiaire DÉJÀ FRANCHI compris) embarque au moment
+   * de sa passe (rendez-vous virtuel ; bateau bloqué avant le pas → route
+   * absente → pas d'embarquement). Interne au Board, jamais sérialisé.
+   */
+  routesNavales: Map<UnitId, Hex[]>;
   /** R-161 : cases explorées par joueur en début de tour (référence du fog). */
   explored: Map<PlayerId, Set<TileKey>>;
   /**
@@ -750,6 +759,9 @@ function moveUnit(board: Board, unit: Unit, to: Hex): void {
   }
   board.steps.set(unit.id, (board.steps.get(unit.id) ?? 0) + 1);
   board.moved.add(unit.id);
+  // EMBARQUEMENT-PROGRAMME · rév. 03/10 : chaque case d'entrée d'un transport
+  // rallonge sa route du tour (rendez-vous virtuel des embarquements).
+  if (estTransport(unit)) board.routesNavales.get(unit.id)?.push({ ...to });
   emit(board, { type: 'Move', unitId: unit.id, owner: unit.owner, from, to });
   // 7g · R-117 : la cargaison miroite la position de son transport (aucun
   // événement propre — elle n'est plus une entité de carte).
@@ -1286,9 +1298,31 @@ function executeMoveOrder(
     // case de ville (entrer dans la ville = garnison, R-30). D4 : le tour de
     // l'unité est TERMINÉ — PM 0, chemin annulé.
     if (unit.mp > 0 && !unitType(unit.type).aquatic) {
-      const transport = occupants(board, next).find(
+      let transport = occupants(board, next).find(
         (u) => u.owner === unit.owner && cargoCapacityOf(u) > 0,
       );
+      // EMBARQUEMENT-PROGRAMME · rév. 03/10 (décision d'Erik) : rendez-vous
+      // VIRTUEL — la destination est une case d'eau TRAVERSÉE CE TOUR par un
+      // transport ami (pas intermédiaire DÉJÀ FRANCHI compris) : l'unité y
+      // embarque au moment de sa passe, sa position miroite le navire là où
+      // il se trouve. Un bateau bloqué AVANT le pas n'a jamais rallongé sa
+      // route jusqu'à lui → aucune rencontre (comportement inchangé).
+      if (!transport) {
+        for (const idT of sortUnitIds(board)) {
+          const t = board.st.units[idT];
+          const route = board.routesNavales.get(idT);
+          if (
+            t &&
+            route &&
+            t.owner === unit.owner &&
+            cargoCapacityOf(t) > 0 &&
+            route.some((h) => h.q === next.q && h.r === next.r)
+          ) {
+            transport = t;
+            break;
+          }
+        }
+      }
       if (transport && !cityAt(board, next)) {
         path = [];
         unit.mp = 0;
@@ -4739,6 +4773,7 @@ export function resolveTurn(
     arrivantesCeTour: new Set(),
     unknownEntered: new Set(),
     deposees: new Set(),
+    routesNavales: new Map(),
     explored: new Map(),
     meleeDifferees: new Set(),
     entrees: new Map(),
@@ -4760,6 +4795,10 @@ export function resolveTurn(
     const u = st.units[id]!;
     board.origin.set(id, { q: u.q, r: u.r });
     board.steps.set(id, 0);
+    // EMBARQUEMENT-PROGRAMME · rév. 03/10 : la route d'un transport commence
+    // à sa case de départ (embarquement possible sur le départ, l'intermédiaire
+    // et l'arrêt — D1-B(a)).
+    if (estTransport(u)) board.routesNavales.set(id, [{ q: u.q, r: u.r }]);
   }
   for (const playerId of Object.keys(st.players).sort()) {
     // R-161 (D6) : référence du fog — les cases explorées en DÉBUT de tour
