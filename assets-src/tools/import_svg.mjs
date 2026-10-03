@@ -40,8 +40,9 @@ const PROFILS = path.join(ROOT, 'assets-src', 'tools', 'import_svg.profiles.json
 // 7 joueurs + barbare × 3 teintes — source unique partagée avec le web.
 const PALETTE = path.join(ROOT, 'apps', 'web', 'src', 'lib', 'render', 'accents.json');
 const SS = 2;          // rastérisation 2× la cible puis LANCZOS (anti-aliasing)
-const POIDS_MAX = 400 * 1024; // 400 Ko (ASSETS-4K : le détail des 4K agrandies
-                              // dépasse l'ancien plafond de 300 Ko)
+const POIDS_MAX = 450 * 1024; // 450 Ko (ASSETS-4K : le détail des 4K agrandies
+                              // dépasse l'ancien plafond de 300 Ko ; VAGUE3 :
+                              // le galion à echelle >1 culmine à 435 Ko)
 const ENCRE = '#2B2620'; // contour hexagonal (identique generate.py INK)
 // seuil « encre » du painter (generate.py render_entity) : un pixel du rendu
 // complet plus sombre que cette luminance moyenne est un détail destiné à

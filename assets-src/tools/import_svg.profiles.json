@@ -864,5 +864,95 @@
       "margeBas": 20,
       "echelle": 0.7947
     }
+  },
+  "galere-6couleurs": {
+    "_doc": "ASSETS-UNITS-4K VAGUE3 (03/10) : Galère 4K d'Erik (new_units/new_galere, copies assets-src/modeles/4k/galere_*_trsp.png — transparence fournie cette fois). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 212 px @256 → 424 @512).",
+    "svg": "assets-src/modeles/4k/galere_bleu_trsp.png",
+    "stem": "unite_galere",
+    "variantesFournies": {
+      "bleu-saphir": "assets-src/modeles/4k/galere_bleu_trsp.png",
+      "rouge-royal": "assets-src/modeles/4k/galere_rouge_trsp.png",
+      "vert-emeraude": "assets-src/modeles/4k/galere_vert_trsp.png",
+      "jaune-dor": "assets-src/modeles/4k/galere_jaune_trsp.png",
+      "cuivre-ardent": "assets-src/modeles/4k/galere_orange_trsp.png",
+      "ardoise": "assets-src/modeles/4k/galere_ardoise_trsp.png"
+    },
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 0.934
+    },
+    "echelleParVariante": {
+      "bleu-saphir": 0.934,
+      "rouge-royal": 0.9893,
+      "vert-emeraude": 0.9268,
+      "jaune-dor": 0.9271,
+      "cuivre-ardent": 0.9319,
+      "ardoise": 0.9577
+    }
+  },
+  "galere-base": {
+    "_doc": "Sprite de base unite_galere : PNG 4K bleu (VAGUE3). Remplace la planche peintre (repli barbare/fallback).",
+    "svg": "assets-src/modeles/4k/galere_bleu_trsp.png",
+    "stem": "unite_galere",
+    "sansAccent": true,
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 0.934
+    }
+  },
+  "galion-6couleurs": {
+    "_doc": "ASSETS-UNITS-4K VAGUE3 (03/10) : Galion 4K d'Erik (new_units/new_galion, copies assets-src/modeles/4k/galion_*_trsp.png). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 234 px @256 → 468 @512).",
+    "svg": "assets-src/modeles/4k/galion_bleu_trsp.png",
+    "stem": "unite_galion",
+    "variantesFournies": {
+      "bleu-saphir": "assets-src/modeles/4k/galion_bleu_trsp.png",
+      "rouge-royal": "assets-src/modeles/4k/galion_rouge_trsp.png",
+      "vert-emeraude": "assets-src/modeles/4k/galion_vert_trsp.png",
+      "jaune-dor": "assets-src/modeles/4k/galion_jaune_trsp.png",
+      "cuivre-ardent": "assets-src/modeles/4k/galion_orange_trsp.png",
+      "ardoise": "assets-src/modeles/4k/galion_ardoise_trsp.png"
+    },
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 1.0337
+    },
+    "echelleParVariante": {
+      "bleu-saphir": 1.0337,
+      "rouge-royal": 1.0256,
+      "vert-emeraude": 1.0225,
+      "jaune-dor": 1.034,
+      "cuivre-ardent": 1.019,
+      "ardoise": 1.0256
+    }
+  },
+  "galion-base": {
+    "_doc": "Sprite de base unite_galion : PNG 4K bleu (VAGUE3). Remplace la planche peintre (repli barbare/fallback).",
+    "svg": "assets-src/modeles/4k/galion_bleu_trsp.png",
+    "stem": "unite_galion",
+    "sansAccent": true,
+    "cible": {
+      "mode": "unite",
+      "w": 512,
+      "h": 640,
+      "margeX": 28,
+      "margeHaut": 12,
+      "margeBas": 20,
+      "echelle": 1.0337
+    }
   }
 }

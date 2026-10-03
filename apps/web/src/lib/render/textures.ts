@@ -830,7 +830,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const tuileCacherIds = (Object.keys(TUILES_CACHER) as TerrainId[]).sort();
   // Phase 7d (R-95) : variantes barbares (accent de repli rouge sang — accents.json).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, croiseursCuits, cuirassesCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, croiseursCuits, cuirassesCuits, galeresCuits, galionsCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -866,6 +866,10 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     // variantes cuites par palette que les unités terrestres.
     Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_croiseur_j${i + 1}`).then((t) => [pal, t] as const))),
     Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_cuirasse_j${i + 1}`).then((t) => [pal, t] as const))),
+    // GALÈRE/GALION ×6 (ASSETS-UNITS-4K VAGUE3, Erik 03/10) : mêmes variantes
+    // cuites par palette que les autres unités importées.
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_galere_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_galion_j${i + 1}`).then((t) => [pal, t] as const))),
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
@@ -914,6 +918,12 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   });
   cuirassesCuits.forEach(([pal, tex]) => {
     if (tex) cuites[`cuirasse@${pal}`] = tex;
+  });
+  galeresCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`galere@${pal}`] = tex;
+  });
+  galionsCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`galion@${pal}`] = tex;
   });
 
   return {
