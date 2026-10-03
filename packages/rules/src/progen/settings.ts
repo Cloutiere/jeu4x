@@ -182,9 +182,9 @@ export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   coastWidth: 1,
   mountainDensity: 0.5,
   hillDensity: 0.5,
-  forestDensity: 0.36,
+  forestDensity: 0.5, // calibrage atelier Erik 02/10 (36 → 50)
   desertDensity: 0.35,
-  prairieDensity: 0.2,
+  prairieDensity: 0.25, // calibrage atelier Erik 02/10 (20 → 25)
   terrainPatchScale: 0.3,
   humidity: 0.5,
   resourceDensity: 1.5,

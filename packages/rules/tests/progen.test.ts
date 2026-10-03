@@ -668,13 +668,13 @@ describe('Phase 6c · Calibrage par type de tuile (mosaïque, déserts, prairies
     expect(countOf(plaineHeavy.map, 'plaine')).toBeGreaterThan(countOf(prairieHeavy.map, 'plaine'));
   });
 
-  it("les valeurs de base d'Erik (02/09) sont les défauts 🔶", () => {
+  it("les valeurs de base d'Erik (02/09, forêts/prairies recalées 02/10) sont les défauts 🔶", () => {
     expect(DEFAULT_PROGEN_SETTINGS.resourceDensity).toBe(1.5);
     expect(DEFAULT_PROGEN_SETTINGS.villagesPerHalf).toBe(6);
     expect(DEFAULT_PROGEN_SETTINGS.hutsPerHalf).toBe(6);
-    expect(DEFAULT_PROGEN_SETTINGS.forestDensity).toBe(0.36);
+    expect(DEFAULT_PROGEN_SETTINGS.forestDensity).toBe(0.5);
     expect(DEFAULT_PROGEN_SETTINGS.desertDensity).toBe(0.35);
-    expect(DEFAULT_PROGEN_SETTINGS.prairieDensity).toBe(0.2);
+    expect(DEFAULT_PROGEN_SETTINGS.prairieDensity).toBe(0.25);
     expect(DEFAULT_PROGEN_SETTINGS.terrainPatchScale).toBe(0.3);
     expect(DEFAULT_PROGEN_SETTINGS.rifts).toBe(2);
     expect(DEFAULT_PROGEN_SETTINGS.riftDepth).toBe(48);
