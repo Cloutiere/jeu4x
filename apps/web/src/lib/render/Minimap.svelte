@@ -11,7 +11,9 @@
    */
   import { onDestroy } from 'svelte';
   import type { GameState } from '@game/rules';
-  import { rendreMinimap, rectCameraMinimap, mondeSousMinimap, poseMinimap, pxCellule } from './minimap.js';
+  import { hexToPixel } from '@game/rules';
+  import { HEX_SIZE } from './hexView.js';
+  import { rendreMinimap, rectsCameraMinimap, caseSousMinimap, poseMinimap, pxCellule } from './minimap.js';
   import {
     filtresCarte,
     cycleRendements,
@@ -76,14 +78,18 @@
     const ctx = rect.getContext('2d');
     if (!ctx || !api) return;
     const { w: vw, h: vh } = api.dimsVue();
-    const r = rectCameraMinimap(api.poseCamera(), vw, vh, pose);
-    const cle = `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.w)},${Math.round(r.h)}`;
+    // CARTE-RONDE T2 (D4) : viewport à cheval sur la couture = DEUX rects
+    // (fin du monde + raccord) ; sinon un seul, inchangé.
+    const rects = rectsCameraMinimap(api.poseCamera(), vw, vh, pose, etat.mapWidth);
+    const cle = rects.map((r) => `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.w)},${Math.round(r.h)}`).join('|');
     if (cle === dernierRect) return; // D1 : rien à faire si la caméra n'a pas bougé
     dernierRect = cle;
     ctx.clearRect(0, 0, rect.width, rect.height);
     ctx.strokeStyle = '#e8c96a';
     ctx.lineWidth = 2;
-    ctx.strokeRect(r.x + 1, r.y + 1, Math.max(3, r.w - 2), Math.max(3, r.h - 2));
+    for (const r of rects) {
+      ctx.strokeRect(r.x + 1, r.y + 1, Math.max(3, r.w - 2), Math.max(3, r.h - 2));
+    }
   }
 
   function boucleRect(): void {
@@ -104,11 +110,14 @@
   });
   onDestroy(() => cancelAnimationFrame(rafId));
 
-  /** Clic/drag (D3) : recentre la caméra au point monde — zoom inchangé. */
+  /** Clic/drag (D3) : recentre la caméra au point monde — zoom inchangé.
+   *  CARTE-RONDE T2 (D4) : la colonne est normalisée (couture cliquable) et
+   *  le centre vise la case canonique. */
   function aller(px: number, py: number): void {
     if (!api) return;
-    const monde = mondeSousMinimap(px, py, pose);
-    api.centrerSurMonde(monde.x, monde.y);
+    const hex = caseSousMinimap(px, py, pose, HEX_SIZE, etat.mapWidth);
+    const pMonde = hexToPixel(hex, HEX_SIZE);
+    api.centrerSurMonde(pMonde.x, pMonde.y);
   }
   function pointerVersLocal(e: PointerEvent): { x: number; y: number } {
     const b = rect.getBoundingClientRect();

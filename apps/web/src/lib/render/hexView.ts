@@ -9,6 +9,7 @@
  */
 import { colRowToHex, hexToPixel, inRectangle, pixelToHex } from '@game/rules';
 import type { Hex } from '@game/rules';
+import { colonneVirtuelle } from './wrap.js';
 
 /** Rayon d'un hexagone (centre → sommet) en unités monde. SPEC-ART §3.1. */
 export const HEX_SIZE = 64;
@@ -73,6 +74,41 @@ export function hexesInRect(rect: Rect, size: number, width: number, height: num
     for (let col = colMin; col <= colMax; col++) {
       const hex = colRowToHex(col, row);
       if (inRectangle(hex, width, height)) out.push(hex);
+    }
+  }
+  return out;
+}
+
+/**
+ * CARTE-RONDE T2 (D1/D2) — culling du monde CYLINDRIQUE : les colonnes
+ * virtuelles (copies au voisinage de la couture) sont admises, puis repliées
+ * sur la carte : chaque entrée porte la case CANONIQUE (tileKeyOf direct) et
+ * l'indice de copie k — position d'affichage = pixel + k·P (P = √3·size·W).
+ * P = Infinity (monde plat / 3D) → exactement `hexesInRect`.
+ */
+export function hexesInRectW(
+  rect: Rect,
+  size: number,
+  width: number,
+  height: number,
+  P: number,
+): Array<{ hex: Hex; k: number }> {
+  const out: Array<{ hex: Hex; k: number }> = [];
+  const rowH = 1.5 * size;
+  const rowMin = Math.max(0, Math.floor(rect.y / rowH) - 1);
+  const rowMax = Math.min(height - 1, Math.ceil((rect.y + rect.h) / rowH) + 1);
+  const xScale = Math.sqrt(3) * size;
+  const wrapActif = Number.isFinite(P);
+  for (let row = rowMin; row <= rowMax; row++) {
+    const qMin = Math.floor(rect.x / xScale - row / 2) - 1;
+    const qMax = Math.ceil((rect.x + rect.w) / xScale - row / 2) + 1;
+    const colMinVirt = qMin + Math.floor(row / 2);
+    const colMaxVirt = qMax + Math.floor(row / 2);
+    for (let colVirt = colMinVirt; colVirt <= colMaxVirt; colVirt++) {
+      const { col, k } = wrapActif ? colonneVirtuelle(colVirt, width) : { col: colVirt, k: 0 };
+      if (col < 0 || col >= width) continue;
+      const hex = colRowToHex(col, row);
+      if (inRectangle(hex, width, height)) out.push({ hex, k });
     }
   }
   return out;

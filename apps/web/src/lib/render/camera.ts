@@ -54,4 +54,23 @@ export class Camera {
     this.x = viewW / 2 - cx * this.scale;
     this.y = viewH / 2 - cy * this.scale;
   }
+
+  /**
+   * CARTE-RONDE T2 (D1) — caméra bouclante : horizontalement, le centre est
+   * REPLIÉ dans la bande canonique [0, P) (un saut de ±P est invisible, la
+   * scène étant dessinée périodiquement) ; verticalement, la borne 30 % de
+   * `clamp` s'applique inchangée. P = Infinity (monde plat / 3D) → repli
+   * strictement identique à `clamp` sans la borne X.
+   */
+  wrapClamp(bounds: Rect, viewW: number, viewH: number, P: number): void {
+    const marginY = bounds.h * 0.3;
+    const centerY = (viewH / 2 - this.y) / this.scale;
+    const cy = Math.min(Math.max(centerY, bounds.y - marginY), bounds.y + bounds.h + marginY);
+    this.y = viewH / 2 - cy * this.scale;
+    if (Number.isFinite(P)) {
+      const centerX = (viewW / 2 - this.x) / this.scale;
+      const k = Math.floor(centerX / P);
+      if (k !== 0) this.x += k * P * this.scale;
+    }
+  }
 }

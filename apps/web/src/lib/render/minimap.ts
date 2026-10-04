@@ -9,7 +9,7 @@
  * Aucun canvas ici : le composant Svelte peint le résultat (invalide seulement,
  * jamais par frame — D1).
  */
-import { pixelToHex, RESOURCE_UNKNOWN, tileKeyOf } from '@game/rules';
+import { normalizeHexW, pixelToHex, RESOURCE_UNKNOWN, SANS_WRAP, tileKeyOf } from '@game/rules';
 import type { GameState, Hex } from '@game/rules';
 import { mapBounds, HEX_SIZE } from './hexView.js';
 import type { Rect } from './hexView.js';
@@ -173,8 +173,59 @@ export function rectCameraMinimap(
   return { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
 }
 
-/** Case sous un pixel de la minimap (le composant centre la caméra dessus). */
-export function caseSousMinimap(px: number, py: number, pose: PoseMinimap, size: number): Hex {
+/**
+ * CARTE-RONDE T2 (D4) — rects du viewport sur la minimap d'un monde
+ * cylindrique : quand le viewport chevauche la couture, il est DÉCOUPÉ en
+ * deux morceaux (la fin du monde + son raccord au début). Un seul rect sinon.
+ * Le périodique est déduit de la géométrie : P_px = √3·HEX_SIZE·largeur·kx.
+ */
+export function rectsCameraMinimap(
+  camera: { x: number; y: number; scale: number },
+  vw: number,
+  vh: number,
+  pose: PoseMinimap,
+  mapWidth: number,
+): Rect[] {
+  const monde = {
+    x: -camera.x / camera.scale,
+    y: -camera.y / camera.scale,
+    w: vw / camera.scale,
+    h: vh / camera.scale,
+  };
+  const sx = (wx: number): number => (wx - pose.bx) * pose.kx;
+  const sy = (wy: number): number => (wy - pose.by) * pose.ky;
+  const y0 = Math.min(pose.mh, Math.max(0, sy(monde.y)));
+  const y1 = Math.min(pose.mh, sy(monde.y + monde.h));
+  const h = Math.max(0, y1 - y0);
+  const ppx = Math.sqrt(3) * HEX_SIZE * mapWidth * pose.kx; // période en px minimap
+  const piece = (xa: number, xb: number): Rect | null => {
+    const x0 = Math.max(0, xa);
+    const x1 = Math.min(pose.mw, xb);
+    return x1 - x0 > 2 ? { x: x0, y: y0, w: x1 - x0, h } : null;
+  };
+  const out: Rect[] = [];
+  const brut0 = sx(monde.x);
+  const brut1 = sx(monde.x + monde.w);
+  // Morceau canonique…
+  const p0 = piece(brut0, brut1);
+  if (p0) out.push(p0);
+  // …et son raccord de l'autre côté de la couture (viewport à cheval).
+  if (Number.isFinite(ppx) && ppx > 0) {
+    const pGauche = piece(brut0 + ppx, brut1 + ppx); // débordement côté Ouest (x<0)
+    if (pGauche) out.push(pGauche);
+    const pDroite = piece(brut0 - ppx, brut1 - ppx); // débordement côté Est (x>P)
+    if (pDroite) out.push(pDroite);
+  }
+  return out;
+}
+
+/** Case sous un pixel de la minimap — CARTE-RONDE T2 (D4) : la colonne est
+ *  normalisée (couture cliquable : un clic sur le raccord vise la vraie
+ *  case), le centre caméra reçu reste un point monde canonique. `mapWidth`
+ *  absent (appel historique) → comportement plat inchangé. */
+export function caseSousMinimap(px: number, py: number, pose: PoseMinimap, size: number, mapWidth?: number): Hex {
   const monde = mondeSousMinimap(px, py, pose);
-  return pixelToHex(monde.x, monde.y, size);
+  const hex = pixelToHex(monde.x, monde.y, size);
+  if (!mapWidth || mapWidth <= 0 || mapWidth >= SANS_WRAP) return hex;
+  return normalizeHexW(hex, mapWidth);
 }

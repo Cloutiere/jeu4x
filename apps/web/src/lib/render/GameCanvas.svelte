@@ -11,7 +11,7 @@
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, fondeAFinDuChemin, fondateursDe, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, fondeAFinDuChemin, fondateursDe, colOf, colRowToHex, hexesWithinRadiusW, normalizeHexW, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius } from '@game/rules';
   import type { GameState, Hex, ProgramPreview } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -22,8 +22,12 @@
   import { loadTextures, playerColor } from './textures.js';
   import { definirPalettesJoueurs, paletteDe } from './accents.js';
   import type { GameTextures } from './textures.js';
-  import { HEX_SIZE, hexesInRect, mapBounds, screenToHex, poseVueVillePour, hexSousEcranVueVille, ZOOM_DEPART } from './hexView.js';
+  import { HEX_SIZE, hexesInRectW, mapBounds, poseVueVillePour, mondeSousEcranVueVille, ZOOM_DEPART } from './hexView.js';
   import type { PoseVueVille, Rect } from './hexView.js';
+  // CARTE-RONDE T2 — transformation wrap (monde cylindrique) : période,
+  // copies au voisinage de la couture, dépliage des chemins, picking
+  // canonique. PURE (wrap.ts, testée) — le rendu n'en est qu'un consommateur.
+  import { copiesDe, copiesPolyline, copieLaPlusProche, centreMondeDe, deplierPoints, hexCanoniqueSousPoint, periodeHorizontale, pointProcheDe } from './wrap.js';
   import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
   import type { Point } from './arrows.js';
   import { BADGE_FONDATION, etatFondationColon } from './fondation.js';
@@ -68,7 +72,7 @@
   import type { UniteGLBEntree } from '../render3d/unites3d.js';
   // TRAVAIL-VILLE-3D — contours en vraie 3D : cadres des cases travaillées +
   // rayon de cultivation, posés sur le relief (géométrie pure dans contours.ts).
-  import { contourHexTile, contourRegion, contourUnion } from '../render3d/contours.js';
+  import { contourHexTile, contourUnion } from '../render3d/contours.js';
   import type { PointContour } from '../render3d/contours.js';
   import { Marqueurs3D } from '../render3d/marqueurs3d.js';
   import type { ContourDef } from '../render3d/marqueurs3d.js';
@@ -232,6 +236,126 @@
   let vw = 1;
   let vh = 1;
 
+  // ---------------------------------------------------------------------
+  // CARTE-RONDE T2 — monde cylindrique (rendu). P = période horizontale
+  // (√3·size·largeur) : une case rendue à x et à x+kP est LA MÊME case. Le
+  // centre caméra vit dans la bande canonique [0, P) (Camera.wrapClamp) ; au
+  // voisinage de la couture, TOUT calque dessine des COPIES décalées de ±P
+  // (transformation d'affichage — D2/D6 : aucune recréation de données).
+  // Hors wrap (mode 3D, monde plat) : P = Infinity, comportement plat exact.
+  // ---------------------------------------------------------------------
+  let periode = Infinity;
+  const periodeActive = (): number => (mode3dActif() ? Infinity : periode);
+  /** Fenêtre monde courante (élargie de deux cases) qui décide des copies —
+   *  rafraîchie en tête de chaque rebuild ; le PAN ne change pas la
+   *  demi-largeur, seule la position (les copies déjà posées restent justes,
+   *  le pan sur la couture re-invalide — cf. wrapSurSeam). */
+  let copieFen = { vx0: 0, vx1: 1, P: Infinity };
+  function fenetreCopies(): void {
+    const pose = poseVueCourante();
+    const enVille = vueVilleActif();
+    const scale = enVille ? pose.scale : camera.scale;
+    const x = enVille ? -pose.x / scale : -camera.x / scale;
+    const largeur = vw / scale;
+    const marge = HEX_SIZE * 2;
+    copieFen = { vx0: x - marge, vx1: x + largeur + marge, P: periodeActive() };
+  }
+  /** Dessine l'item via `dessiner(dx)` pour CHAQUE copie visible (dx = k·P). */
+  function avecCopies(x: number, dessiner: (dx: number) => void): void {
+    for (const k of copiesDe(x, copieFen.vx0, copieFen.vx1, copieFen.P)) dessiner(k * copieFen.P);
+  }
+  /** Étend une liste de cases canoniques aux copies visibles (colonnes
+   *  virtuelles) : les contours (bandes culturelles, zones cultivables)
+   *  chaînent À TRAVERS la couture au lieu d'être coupés. */
+  function hexesCopies(hexes: Array<Hex>, xReference?: number): Array<Hex> {
+    const P = copieFen.P;
+    if (!Number.isFinite(P) || !scene.state) return hexes;
+    const W = scene.state.mapWidth;
+    const out: Array<Hex> = [];
+    for (const h of hexes) {
+      const ks = copiesDe(xReference ?? hexToPixel(h, HEX_SIZE).x, copieFen.vx0, copieFen.vx1, P);
+      const col = colOf(h);
+      for (const k of ks) out.push(k === 0 ? h : colRowToHex(col + k * W, h.r));
+    }
+    return out;
+  }
+  /** Terrain d'une case VIRTUELLE (copies comprises) — normalisation colonne. */
+  function terrainDe(hex: Hex): string | undefined {
+    if (!scene.state) return undefined;
+    return scene.state.map[tileKeyOf(normalizeHexW(hex, scene.state.mapWidth))]?.terrain;
+  }
+  /** Vrai quand le viewport touche la couture : le PAN re-invalide entités +
+   *  surcouche pour y rafraîchir les copies (ailleurs, pan sans rebuild —
+   *  VUE-VILLE-PERF inchangée). */
+  function panSurSeam(): boolean {
+    const P = periodeActive();
+    if (!Number.isFinite(P)) return false;
+    const r = camera.worldRect(vw, vh);
+    const marge = HEX_SIZE * 1.5;
+    return r.x < marge || r.x + r.w > P - marge;
+  }
+  /** Synchronise un conteneur COPIE sur sa base (position décalée de dx) :
+   *  pose, échelle, tri, visibilité et sous-enfants (barres PV, labels) —
+   *  les copies sont des reflets d'affichage, jamais des données. */
+  function syncCopie(base: Container, copie: Container, dx: number): void {
+    copie.position.set(base.x + dx, base.y);
+    copie.scale.copyFrom(base.scale);
+    copie.zIndex = base.zIndex;
+    copie.alpha = base.alpha;
+    copie.visible = base.visible;
+    const n = Math.min(base.children.length, copie.children.length);
+    for (let i = 0; i < n; i++) {
+      const a = base.children[i]!;
+      const b = copie.children[i]!;
+      b.visible = a.visible;
+      b.alpha = a.alpha;
+      if (a instanceof Text) {
+        const tb = b as Text;
+        if (tb.text !== a.text) tb.text = a.text;
+      } else if (a instanceof Sprite) {
+        const sb = b as Sprite;
+        sb.width = a.width;
+        sb.height = a.height;
+        sb.tint = a.tint;
+      }
+    }
+  }
+
+  /** Crée/rafraîchit les COPIES d'affichage d'une entité (k ≠ 0) — reflets
+   *  synchronisés sur la base ; `vus` porte les clés vivantes (prune ensuite). */
+  function gererCopies(
+    copies: Map<string, Container>,
+    base: Container,
+    baseId: string,
+    construire: () => Container,
+    vus: Set<string>,
+  ): void {
+    const P = copieFen.P;
+    for (const k of copiesDe(base.x, copieFen.vx0, copieFen.vx1, P)) {
+      if (k === 0) continue;
+      const ck = `${baseId}@${k}`;
+      let cp = copies.get(ck);
+      if (!cp) {
+        cp = construire();
+        cp.zIndex = base.zIndex;
+        entitiesLayer.addChild(cp);
+        copies.set(ck, cp);
+      }
+      syncCopie(base, cp, k * P);
+      vus.add(ck);
+    }
+  }
+
+  /** Détruit les copies dont la base a disparu ou qui ont quitté la fenêtre. */
+  function prunerCopies(copies: Map<string, Container>, vus: Set<string>): void {
+    for (const [ck, cp] of copies) {
+      if (!vus.has(ck)) {
+        cp.destroy({ children: true });
+        copies.delete(ck);
+      }
+    }
+  }
+
   const tileSprites = new Map<string, Sprite>();
   const resourceSprites = new Map<string, Sprite>();
   const unitSprites = new Map<string, Container>();
@@ -243,6 +367,14 @@
   const artefactSprites = new Map<string, Container>();
   /** 7o · R-155 : lueur de survol (ping de présence sous le brouillard 🔶). */
   let artefactPingGlow: Graphics | null = null;
+  // CARTE-RONDE T2 (D2) : COPIES d'affichage au voisinage de la couture (clé
+  // `id@k`) — reflets synchronisés sur les sprites de base (syncCopie),
+  // jamais des données ; détruits/prunés à chaque rebuild d'entités.
+  const unitCopies = new Map<string, Container>();
+  const cityCopies = new Map<string, Container>();
+  const villageCopies = new Map<string, Container>();
+  const hutCopies = new Map<string, Container>();
+  const artefactCopies = new Map<string, Container>();
 
   let tilesDirty = true;
   let entitiesDirty = true;
@@ -332,7 +464,11 @@
       2,
       frontierRadius(workRadiusOf(city.buildings), rayonCulturelDe(city.cultureCumulee)),
     );
-    return poseVueVillePour(p.x, p.y, w, h, HEX_SIZE, rayonAffiche);
+    // CARTE-RONDE T2 (D5) : la vue vise la COPIE de la ville la plus proche du
+    // viewport courant — l'animation d'entrée ne balaie jamais le monde.
+    const P = periodeActive();
+    const villeX = p.x + copieLaPlusProche(p.x, centreMondeDe(camera.x, camera.scale, vw), P) * P;
+    return poseVueVillePour(villeX, p.y, w, h, HEX_SIZE, rayonAffiche);
   }
 
   /** Redimensionne le renderer (résolution = DPR effectif, cf. ResizeObserver). */
@@ -480,7 +616,8 @@
     // Bornes du monde : connues seulement à l'arrivée du premier état.
     if (v.state) {
       bounds = mapBounds(HEX_SIZE, v.state.mapWidth, v.state.mapHeight);
-      camera.clamp(bounds, vw, vh);
+      periode = periodeHorizontale(HEX_SIZE, v.state.mapWidth);
+      camera.wrapClamp(bounds, vw, vh, periodeActive());
       if (stage3d) stage3d.cam.bounds = mapBoundsWorld(v.state.mapWidth, v.state.mapHeight);
     }
     if (v.state && mode3d) rendement = contexteRendement(v.state, scene.myId);
@@ -518,7 +655,7 @@
       appliquerZoomDepart();
     } else {
       camera.centerOn(hexToPixel(focus, HEX_SIZE).x, hexToPixel(focus, HEX_SIZE).y, vw, vh);
-      camera.clamp(bounds, vw, vh);
+      camera.wrapClamp(bounds, vw, vh, periodeActive());
       appliquerZoomDepart();
     }
     cameraChanged = true;
@@ -532,7 +669,7 @@
       : camera.zoomAt(vw / 2, vh / 2, ZOOM_DEPART);
     if (change) {
       if (mode3dActif()) stage3d!.cam.clamp(vw, vh);
-      else camera.clamp(bounds, vw, vh);
+      else camera.wrapClamp(bounds, vw, vh, periodeActive());
     }
   }
 
@@ -543,6 +680,8 @@
   function rebuildTiles(): void {
     if (!app || !textures || !scene.state) return;
     const { mapWidth, mapHeight, map } = scene.state;
+    fenetreCopies();
+    const P = periodeActive();
     // Rect de culling : caméra 2D normale, ou transform inverse de la pose de
     // vue ville (MENU-VILLE — zoom à plat). VUE-VILLE-PERF · D4c : la pose
     // courante PENDANT une transition n'est plus jamais vue par un rebuild
@@ -566,11 +705,15 @@
 
     const wanted = new Set<string>();
     const wantedResources = new Set<string>();
-    for (const hex of hexesInRect(rect, HEX_SIZE, mapWidth, mapHeight)) {
+    // CARTE-RONDE T2 : culling CYLINDRIQUE — les colonnes virtuelles (copies
+    // au voisinage de la couture) sont repliées sur la carte ; clé de sprite
+    // `key` (copie canonique) ou `key@k` (copie décalée de k·P).
+    for (const { hex, k } of hexesInRectW(rect, HEX_SIZE, mapWidth, mapHeight, P)) {
       const key = tileKeyOf(hex);
       const tile = map[key];
       if (!tile) continue; // inexploré : AUCUN rendu (§4.4)
-      wanted.add(key);
+      const cleSprite = k === 0 ? key : `${key}@${k}`;
+      wanted.add(cleSprite);
       // TUILES-RESSOURCES (Erik 26/09) : une ressource RÉVÉLÉE avec art affiche
       // la tuile-ressource ENTIÈRE (plus de jeton — D1). Ressource NON révélée
       // (inconnue) → variante « cacher » du terrain (brume, vague 3) si l'art
@@ -588,15 +731,15 @@
         : inconnue
           ? (textures.tuilesCacher[tile.terrain] ?? textures.tiles[tile.terrain])
           : textures.tiles[tile.terrain];
-      let sprite = tileSprites.get(key);
+      let sprite = tileSprites.get(cleSprite);
       if (!sprite) {
         sprite = new Sprite(textureTuile);
         sprite.anchor.set(0.5, 0.5);
         sprite.scale.set(0.5);
         const p = hexToPixel(hex, HEX_SIZE);
-        sprite.position.set(p.x, p.y);
+        sprite.position.set(p.x + k * P, p.y);
         tilesLayer.addChild(sprite);
-        tileSprites.set(key, sprite);
+        tileSprites.set(cleSprite, sprite);
       } else if (sprite.texture !== textureTuile) {
         sprite.texture = textureTuile;
       }
@@ -614,8 +757,8 @@
       // retour Erik 27/09 : la brume SEULE signale la présence, retour Erik).
       // Jeton réservé aux ressources révélées SANS art (ressource hors table).
       if (montrerRessources && tile.resource && !resId && !inconnue && textures.resources[tile.resource]) {
-        wantedResources.add(key);
-        let res = resourceSprites.get(key);
+        wantedResources.add(cleSprite);
+        let res = resourceSprites.get(cleSprite);
         if (!res) {
           res = new Sprite(textures.resources[tile.resource]!);
           res.anchor.set(0.5, 0.5);
@@ -623,7 +766,7 @@
           res.position.copyFrom(sprite.position);
           res.y -= 6;
           resourceLayer.addChild(res);
-          resourceSprites.set(key, res);
+          resourceSprites.set(cleSprite, res);
         }
         if (res.tint !== target) res.tint = target;
       }
@@ -646,6 +789,12 @@
   function rebuildEntities(): void {
     if (!app || !textures || !scene.state) return;
     const state = scene.state;
+    fenetreCopies();
+    const vusCopiesUnits = new Set<string>();
+    const vusCopiesVilles = new Set<string>();
+    const vusCopiesVillages = new Set<string>();
+    const vusCopiesHuttes = new Set<string>();
+    const vusCopiesArtefacts = new Set<string>();
     // V2 : en 3D, le Mainframe remplace le marqueur 2D des villes et les
     // structures 3D remplacent huttes/villages (sprites base/accent cachés ;
     // les infos UI — pop, barre de production, PV — restent projetées).
@@ -739,8 +888,10 @@
         // poser3d et non position.set : le tampon monde (__wx/__wy) doit
         // toujours exister, sinon la reprojection 3D ignore l'enfant
         // (continue) et le sprite reste à ses px bruts = hors champ.
+        // CARTE-RONDE T2 : l'arrivée est dépliée au voisinage du départ —
+        // l'interpolation passe PAR LA COUTURE, pas à travers le monde.
         const a = hexToPixel(anim.from, HEX_SIZE);
-        const b = hexToPixel(anim.to, HEX_SIZE);
+        const b = pointProcheDe(a, hexToPixel(anim.to, HEX_SIZE), periodeActive());
         poser3d(c, a.x + (b.x - a.x) * anim.t + disp.dx * HEX_SIZE, a.y + (b.y - a.y) * anim.t + disp.dy * HEX_SIZE);
       } else {
         poser3d(c, p.x + disp.dx * HEX_SIZE, p.y + disp.dy * HEX_SIZE);
@@ -773,6 +924,8 @@
           unitType(unit.type).spy === true &&
           Object.values(state.cities).some((c) => c.q === unit.q && c.r === unit.r);
       }
+      // CARTE-RONDE T2 (D2) : copies d'affichage au voisinage de la couture.
+      gererCopies(unitCopies, c, unit.id, () => buildUnitContainer(unit.id, unit.type, unit.owner), vusCopiesUnits);
     }
     for (const [id, c] of unitSprites) {
       if (!seenUnits.has(id)) {
@@ -780,6 +933,7 @@
         unitSprites.delete(id);
       }
     }
+    prunerCopies(unitCopies, vusCopiesUnits);
 
     // ENGAGEMENT (R-173) : le drapeau d'empilement est RETIRÉ du rendu —
     // l'empilement n'est plus un régime : les cohabitations (instables) sont
@@ -817,6 +971,8 @@
         prodFill.visible = false;
       }
       popText.text = String(city.pop);
+      // CARTE-RONDE T2 (D2) : copie au voisinage de la couture.
+      gererCopies(cityCopies, c, city.id, () => buildCityContainer(city.id, city.capital, city.owner), vusCopiesVilles);
     }
     for (const [id, c] of citySprites) {
       if (!seenCities.has(id)) {
@@ -824,6 +980,7 @@
         citySprites.delete(id);
       }
     }
+    prunerCopies(cityCopies, vusCopiesVilles);
 
     // R-96 (Phase 7d) : villages barbares — entités ennemies statiques,
     // diffusées dès que la case est explorée (fog). Teinte atténuée hors du
@@ -855,6 +1012,7 @@
       if (base) base.tint = tint;
       // ENGAGEMENT : le camp n'a plus de PV — sa force se lit sur ses unités
       // (gardien au camp + satellites adjacents).
+      gererCopies(villageCopies, c, village.id, () => buildVillageContainer(village.id), vusCopiesVillages);
     }
     for (const [id, c] of villageSprites) {
       if (!seenVillages.has(id)) {
@@ -862,6 +1020,7 @@
         villageSprites.delete(id);
       }
     }
+    prunerCopies(villageCopies, vusCopiesVillages);
 
     // R-98 (Phase 7d) : huttes bonus — même traitement de fog que les villages.
     const seenHuts = new Set<string>();
@@ -886,6 +1045,7 @@
       if (accent) accent.tint = tint;
       const base = c.getChildByLabel('base') as Sprite;
       if (base) base.tint = tint;
+      gererCopies(hutCopies, c, hut.id, () => buildHutContainer(hut.id), vusCopiesHuttes);
     }
     for (const [id, c] of hutSprites) {
       if (!seenHuts.has(id)) {
@@ -893,6 +1053,7 @@
         hutSprites.delete(id);
       }
     }
+    prunerCopies(hutCopies, vusCopiesHuttes);
     // 7o · R-153 : artefacts — visibles dès que la case est explorée (comme
     // les huttes) ; un artefact inexploré n'existe pas dans l'état filtré.
     const seenArtefacts = new Set<string>();
@@ -913,6 +1074,7 @@
       if (accent) accent.tint = scene.visible.has(key) ? 0xffd479 : tint;
       const base = c.getChildByLabel('base') as Sprite;
       if (base) base.tint = tint;
+      gererCopies(artefactCopies, c, artefact.id, () => buildArtefactContainer(artefact.artefactId), vusCopiesArtefacts);
     }
     for (const [id, c] of artefactSprites) {
       if (!seenArtefacts.has(id)) {
@@ -920,6 +1082,7 @@
         artefactSprites.delete(id);
       }
     }
+    prunerCopies(artefactCopies, vusCopiesArtefacts);
   }
 
   function buildUnitContainer(unitId: string, type: string, owner: string): Container {
@@ -1188,15 +1351,17 @@
       if (artefactPingGlow) artefactPingGlow.visible = false;
       return;
     }
-    if (!artefactPingGlow) {
-      artefactPingGlow = new Graphics();
-      for (const [r, alpha] of [[52, 0.10], [38, 0.16], [26, 0.24]] as const) {
-        artefactPingGlow.circle(0, 0, r).fill({ color: 0xd9a93f, alpha });
-      }
-      effectsLayer.addChild(artefactPingGlow);
-    }
-    artefactPingGlow.visible = true;
+    // CARTE-RONDE T2 : la lueur est redessinée par survol (rare) avec ses
+    // copies au voisinage de la couture.
+    artefactPingGlow?.destroy();
+    artefactPingGlow = new Graphics();
     const p = hexToPixel(hex, HEX_SIZE);
+    avecCopies(p.x, (dx) => {
+      for (const [r, alpha] of [[52, 0.10], [38, 0.16], [26, 0.24]] as const) {
+        artefactPingGlow!.circle(dx, 0, r).fill({ color: 0xd9a93f, alpha });
+      }
+    });
+    effectsLayer.addChild(artefactPingGlow);
     poser3d(artefactPingGlow, p.x, p.y);
   }
 
@@ -1206,7 +1371,7 @@
    * unités) — `entitiesLayer` n'est PAS vidé au rebuild : le Graphics
    * précédent est détruit ici avant d'en redessiner un.
    */
-  let anneauSelection: Graphics | null = null;
+  let anneauSelection: Container | null = null;
 
   /** Surcouche : sélection, brouillon de chemin, ordres soumis, possessions. */
   function rebuildOverlay(): void {
@@ -1220,10 +1385,13 @@
     overlayLayer.removeChildren();
     // Vit dans entitiesLayer (non vidé par ce rebuild) — détruit puis
     // redessiné si la sélection persiste. Cast : TS voit encore `null` ici.
-    (anneauSelection as Graphics | null)?.destroy({ children: true });
+    (anneauSelection as Container | null)?.destroy({ children: true });
     anneauSelection = null;
     hoverG = null; // détruit avec la couche — redessiné en fin de rebuild
     if (!scene.state) return;
+    fenetreCopies();
+    const wrapW = scene.state.mapWidth;
+    const wrapH = scene.state.mapHeight;
 
     // Phase 6b (labo #/progen) : heatmap de fertilité, dessinée en FOND de
     // surcouche (sous les frontières/rendements) — vert = riche, rouge = pauvre.
@@ -1238,10 +1406,13 @@
         if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
         const t = (score - min) / span;
         const color = (Math.round(220 * (1 - t)) << 16) | (Math.round(220 * t) << 8);
-        const gr = new Graphics();
-        gr.poly(hexLocalPoints(HEX_SIZE - 4)).fill({ color, alpha: 0.4 });
-        gr.position.copyFrom(hexToPixel({ q, r }, HEX_SIZE));
-        overlayLayer.addChild(gr);
+        const p = hexToPixel({ q, r }, HEX_SIZE);
+        avecCopies(p.x, (dx) => {
+          const gr = new Graphics();
+          gr.poly(hexLocalPoints(HEX_SIZE - 4)).fill({ color, alpha: 0.4 });
+          gr.position.set(p.x + dx, p.y);
+          overlayLayer.addChild(gr);
+        });
       }
     }
 
@@ -1254,10 +1425,13 @@
           if (!scene.explored.has(key)) continue;
           const [q, r] = key.split(',').map(Number);
           if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
-          const gr = new Graphics();
-          gr.poly(hexLocalPoints(HEX_SIZE - inset)).stroke({ width, color, alpha });
-          gr.position.copyFrom(hexToPixel({ q, r }, HEX_SIZE));
-          overlayLayer.addChild(gr);
+          const p = hexToPixel({ q, r }, HEX_SIZE);
+          avecCopies(p.x, (dx) => {
+            const gr = new Graphics();
+            gr.poly(hexLocalPoints(HEX_SIZE - inset)).stroke({ width, color, alpha });
+            gr.position.set(p.x + dx, p.y);
+            overlayLayer.addChild(gr);
+          });
         }
       };
       drawRing(spawnGuarantee.ring1, 0x00b4d8, 4, 6, 0.95);
@@ -1270,10 +1444,13 @@
     if (!mode3dActif()) {
       for (const city of Object.values(scene.state.cities)) {
         if (!scene.explored.has(tileKeyOf(city))) continue;
-        const gr = new Graphics();
-        gr.poly(hexLocalPoints(HEX_SIZE - 6)).stroke({ width: 4, color: playerColor(city.owner), alpha: 0.9 });
-        gr.position.copyFrom(hexToPixel(city, HEX_SIZE));
-        overlayLayer.addChild(gr);
+        const p = hexToPixel(city, HEX_SIZE);
+        avecCopies(p.x, (dx) => {
+          const gr = new Graphics();
+          gr.poly(hexLocalPoints(HEX_SIZE - 6)).stroke({ width: 4, color: playerColor(city.owner), alpha: 0.9 });
+          gr.position.set(p.x + dx, p.y);
+          overlayLayer.addChild(gr);
+        });
       }
     }
 
@@ -1326,6 +1503,8 @@
         // cultivée ne reçoit que ses hexagones). Palier 2+ : bande =
         // disque(frontierRadius) MOINS zone cultivée. Le décalage
         // (paliers − 1) est centralisé dans frontierRadius (règles).
+        // CARTE-RONDE T2 : disque wrap-aware (hexesWithinRadiusW) puis
+        // EXTENSION AUX COPIES — le contour chaîne À TRAVERS la couture.
         const bande: Hex[] = [];
         if (paliers === 1) {
           for (const key of cultivees) {
@@ -1334,17 +1513,14 @@
             bande.push({ q, r });
           }
         } else {
-          const rayonCulturel = frontierRadius(workRadiusOf(city.buildings), paliers);
-          for (let dq = -rayonCulturel; dq <= rayonCulturel; dq++) {
-            for (let dr = Math.max(-rayonCulturel, -dq - rayonCulturel); dr <= Math.min(rayonCulturel, -dq + rayonCulturel); dr++) {
-              const hex = { q: city.q + dq, r: city.r + dr };
-              const key = tileKeyOf(hex);
-              if (!scene.explored.has(key) || cultivees.has(key)) continue; // fog : rien n'est inventé
-              bande.push(hex);
-            }
+          const rayonCulture = frontierRadius(workRadiusOf(city.buildings), paliers);
+          for (const hex of hexesWithinRadiusW(city, rayonCulture, wrapW, wrapH)) {
+            const key = tileKeyOf(hex);
+            if (!scene.explored.has(key) || cultivees.has(key)) continue; // fog : rien n'est inventé
+            bande.push(hex);
           }
         }
-        const boucles = contourUnion(bande, HEX_SIZE, (hex) => elevationDe(scene.state!.map[tileKeyOf(hex)]?.terrain));
+        const boucles = contourUnion(hexesCopies(bande, hexToPixel(city, HEX_SIZE).x), HEX_SIZE, (hex) => elevationDe(terrainDe(hex)));
         if (boucles.length === 0) continue;
         // Aire signée (shoelace) : le chaînage wall-follower longe toujours la
         // région du même côté — les boucles EXTERIEURES de la bande et ses
@@ -1408,11 +1584,14 @@
         for (const key of eff.tiles) {
           const [q, r] = key.split(',').map(Number);
           if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
-          const gr = new Graphics();
-          gr.poly(hexLocalPoints(HEX_SIZE - 14)).stroke({ width: 3, color, alpha: 0.9 });
-          gr.poly(hexLocalPoints(HEX_SIZE - 22)).stroke({ width: 1.5, color, alpha: 0.5 });
-          gr.position.copyFrom(hexToPixel({ q, r }, HEX_SIZE));
-          overlayLayer.addChild(gr);
+          const p = hexToPixel({ q, r }, HEX_SIZE);
+          avecCopies(p.x, (dx) => {
+            const gr = new Graphics();
+            gr.poly(hexLocalPoints(HEX_SIZE - 14)).stroke({ width: 3, color, alpha: 0.9 });
+            gr.poly(hexLocalPoints(HEX_SIZE - 22)).stroke({ width: 1.5, color, alpha: 0.5 });
+            gr.position.set(p.x + dx, p.y);
+            overlayLayer.addChild(gr);
+          });
         }
       }
       // Rayon de cultivation (TRAVAIL-VILLE-3D · M3 → ZONE-CULTIVEE) : la
@@ -1452,21 +1631,24 @@
         // recalculés PAR TUILE du rayon (O(tuiles × ordres) par rebuild).
         const effVue = scene.view ? effectiveWorkedTiles(scene.view, cityVue) : { tiles: cityVue.workedTiles };
         const cultiveesVue = new Set(effVue.tiles);
+        // CARTE-RONDE T2 : rayon wrap-aware + extension copies (remplissages
+        // et contour à travers la couture).
+        const tuilesRayonW = hexesWithinRadiusW(cityVue, rayon, wrapW, wrapH);
         const tuilesRayon: Hex[] = [];
-        for (let dq = -rayon; dq <= rayon; dq++) {
-          for (let dr = Math.max(-rayon, -dq - rayon); dr <= Math.min(rayon, -dq + rayon); dr++) {
-            const hex = { q: cityVue.q + dq, r: cityVue.r + dr };
-            if (!scene.explored.has(tileKeyOf(hex))) continue; // fog : rien n'est inventé
-            tuilesRayon.push(hex);
-            const key = tileKeyOf(hex);
-            if (hex.q === cityVue.q && hex.r === cityVue.r) continue; // case de ville : pas de remplissage
+        for (const hex of tuilesRayonW) {
+          if (!scene.explored.has(tileKeyOf(hex))) continue; // fog : rien n'est inventé
+          tuilesRayon.push(hex);
+          if (hex.q === cityVue.q && hex.r === cityVue.r) continue; // case de ville : pas de remplissage
+          const key = tileKeyOf(hex);
+          const p = hexToPixel(hex, HEX_SIZE);
+          avecCopies(p.x, (dx) => {
             const gr = new Graphics();
             gr.poly(hexLocalPoints(HEX_SIZE - 4)).fill({ color: couleurVue, alpha: cultiveesVue.has(key) ? 0.08 : 0.16 });
-            gr.position.copyFrom(hexToPixel(hex, HEX_SIZE));
+            gr.position.set(p.x + dx, p.y);
             overlayLayer.addChild(gr);
-          }
+          });
         }
-        const boucles = contourUnion(tuilesRayon, HEX_SIZE, (hex) => elevationDe(scene.state!.map[tileKeyOf(hex)]?.terrain));
+        const boucles = contourUnion(hexesCopies(tuilesRayon, hexToPixel(cityVue, HEX_SIZE).x), HEX_SIZE, (hex) => elevationDe(terrainDe(hex)));
         const contour = new Graphics();
         for (const boucle of boucles) {
           contour.moveTo(boucle[0]!.x, boucle[0]!.y);
@@ -1506,10 +1688,8 @@
         conversionVilleVue = cityVue.conversion;
         rayonVilleVue = new Set();
         const rayon = workRadiusOf(cityVue.buildings);
-        for (let dq = -rayon; dq <= rayon; dq++) {
-          for (let dr = Math.max(-rayon, -dq - rayon); dr <= Math.min(rayon, -dq + rayon); dr++) {
-            rayonVilleVue.add(tileKeyOf({ q: cityVue.q + dq, r: cityVue.r + dr }));
-          }
+        for (const hex of hexesWithinRadiusW(cityVue, rayon, scene.state.mapWidth, scene.state.mapHeight)) {
+          rayonVilleVue.add(tileKeyOf(hex));
         }
       }
     }
@@ -1583,30 +1763,33 @@
         const [q, r] = key.split(',').map(Number);
         if (q === undefined || r === undefined || Number.isNaN(q) || Number.isNaN(r)) continue;
         const p = hexToPixel({ q, r }, HEX_SIZE);
-        const rowH = 19;
-        let rowY = p.y - ((rows.length - 1) * rowH) / 2 + HEX_SIZE * 0.38;
-        for (const row of rows) {
-          // VUE-VILLE-PERF · D4b : Text issu du pool (clé = texte, le style
-          // est une constante du pool) — pas de re-création/rastérisation par
-          // rebuild ; l'instance est repositionnée et réutilisée telle quelle.
-          const cle = cleTexteRendement(String(row.count));
-          const text = poolTextesRendement.acquerir(cle);
-          (text as Text & { __poolCle?: string }).__poolCle = cle;
-          if (text.text !== String(row.count)) text.text = String(row.count);
-          text.anchor.set(0, 0.5);
-          text.alpha = 0.92;
-          text.position.set(p.x + 4, rowY);
-          overlayLayer.addChild(text);
-          if (row.icon) {
-            const icon = new Sprite(row.icon);
-            icon.anchor.set(1, 0.5);
-            icon.scale.set(0.36);
-            icon.alpha = 0.95;
-            icon.position.set(p.x - 1, rowY);
-            overlayLayer.addChild(icon);
+        // CARTE-RONDE T2 (D2) : rendements dupliqués au voisinage de la couture.
+        avecCopies(p.x, (dx) => {
+          const rowH = 19;
+          let rowY = p.y - ((rows.length - 1) * rowH) / 2 + HEX_SIZE * 0.38;
+          for (const row of rows) {
+            // VUE-VILLE-PERF · D4b : Text issu du pool (clé = texte, le style
+            // est une constante du pool) — pas de re-création/rastérisation par
+            // rebuild ; l'instance est repositionnée et réutilisée telle quelle.
+            const cle = cleTexteRendement(String(row.count));
+            const text = poolTextesRendement.acquerir(cle);
+            (text as Text & { __poolCle?: string }).__poolCle = cle;
+            if (text.text !== String(row.count)) text.text = String(row.count);
+            text.anchor.set(0, 0.5);
+            text.alpha = 0.92;
+            text.position.set(p.x + dx + 4, rowY);
+            overlayLayer.addChild(text);
+            if (row.icon) {
+              const icon = new Sprite(row.icon);
+              icon.anchor.set(1, 0.5);
+              icon.scale.set(0.36);
+              icon.alpha = 0.95;
+              icon.position.set(p.x + dx - 1, rowY);
+              overlayLayer.addChild(icon);
+            }
+            rowY += rowH;
           }
-          rowY += rowH;
-        }
+        });
       }
     }
 
@@ -1649,10 +1832,13 @@
     }
     if (!vueActif) for (const order of scene.orders) {
       if (order.type === 'Attack') {
-        const gr = new Graphics();
-        drawCross(gr, 18, 0xd64545);
-        gr.position.copyFrom(hexToPixel(order.target, HEX_SIZE));
-        overlayLayer.addChild(gr);
+        const p = hexToPixel(order.target, HEX_SIZE);
+        avecCopies(p.x, (dx) => {
+          const gr = new Graphics();
+          drawCross(gr, 18, 0xd64545);
+          gr.position.set(p.x + dx, p.y);
+          overlayLayer.addChild(gr);
+        });
       }
     }
     // Cases DISPUTÉES (R-160/D1) : surlignage rouge + point de la gagnante.
@@ -1668,16 +1854,18 @@
       }
       for (const g of groups.values()) {
         const pos = hexToPixel(g, HEX_SIZE);
-        const dis = new Graphics();
-        dis.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 4, color: 0xff6b6b, alpha: 0.9 });
-        dis.position.copyFrom(pos);
-        overlayLayer.addChild(dis);
-        if (g.winner) {
-          const win = new Graphics();
-          win.circle(0, 0, 7).fill({ color: 0xffe082 });
-          win.position.set(pos.x, pos.y - HEX_SIZE * 0.42);
-          overlayLayer.addChild(win);
-        }
+        avecCopies(pos.x, (dx) => {
+          const dis = new Graphics();
+          dis.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 4, color: 0xff6b6b, alpha: 0.9 });
+          dis.position.set(pos.x + dx, pos.y);
+          overlayLayer.addChild(dis);
+          if (g.winner) {
+            const win = new Graphics();
+            win.circle(0, 0, 7).fill({ color: 0xffe082 });
+            win.position.set(pos.x + dx, pos.y - HEX_SIZE * 0.42);
+            overlayLayer.addChild(win);
+          }
+        });
       }
     }
     // ARRIVEE-ENNEMIE (M2/M3) : par tuile d'arrivée à ennemi visible —
@@ -1699,24 +1887,26 @@
       }
       for (const d of parTuile.values()) {
         const pos = hexToPixel(d.hex, HEX_SIZE);
-        // Anneau rouge : la destination est occupée par un ennemi visible.
-        const anneau = new Graphics();
-        anneau.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 4, color: COULEUR_ARRIVEE_ENNEMIE, alpha: 0.9 });
-        anneau.poly(hexLocalPoints(HEX_SIZE - 12)).stroke({ width: 1.5, color: 0x2b2620, alpha: 0.5 });
-        poser3d(anneau, pos.x, pos.y);
-        overlayLayer.addChild(anneau);
-        // Fantôme translucide réduit, décalé vers le bord d'arrivée — posé
-        // SOUS le sprite ennemi (entitiesLayer est au-dessus de l'overlay).
-        dessinerFantomeArrivee(overlayLayer, d.unitId, d.hex, d.dirX, d.dirY);
-        if (d.pile >= 2) {
-          const badge = new Text({
-            text: `×${d.pile}`,
-            style: { fontFamily: 'sans-serif', fontSize: 15, fill: 0xffffff, fontWeight: 'bold', stroke: { color: 0x1d242b, width: 3 } },
-          });
-          badge.anchor.set(0.5);
-          poser3d(badge, pos.x + HEX_SIZE * 0.3, pos.y - HEX_SIZE * 0.42);
-          overlayLayer.addChild(badge);
-        }
+        avecCopies(pos.x, (dx) => {
+          // Anneau rouge : la destination est occupée par un ennemi visible.
+          const anneau = new Graphics();
+          anneau.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 4, color: COULEUR_ARRIVEE_ENNEMIE, alpha: 0.9 });
+          anneau.poly(hexLocalPoints(HEX_SIZE - 12)).stroke({ width: 1.5, color: 0x2b2620, alpha: 0.5 });
+          poser3d(anneau, pos.x + dx, pos.y);
+          overlayLayer.addChild(anneau);
+          // Fantôme translucide réduit, décalé vers le bord d'arrivée — posé
+          // SOUS le sprite ennemi (entitiesLayer est au-dessus de l'overlay).
+          dessinerFantomeArrivee(overlayLayer, d.unitId, d.hex, d.dirX, d.dirY, dx);
+          if (d.pile >= 2) {
+            const badge = new Text({
+              text: `×${d.pile}`,
+              style: { fontFamily: 'sans-serif', fontSize: 15, fill: 0xffffff, fontWeight: 'bold', stroke: { color: 0x1d242b, width: 3 } },
+            });
+            badge.anchor.set(0.5);
+            poser3d(badge, pos.x + dx + HEX_SIZE * 0.3, pos.y - HEX_SIZE * 0.42);
+            overlayLayer.addChild(badge);
+          }
+        });
       }
     }
     // Chemins gelés : reste de chemin qui s'exécutera à la prochaine
@@ -1758,29 +1948,28 @@
       overlayLayer.addChild(jalonsC);
     }
 
-    // Brouillon de chemin en construction (L3).
+    // Brouillon de chemin en construction (L3). CARTE-RONDE T2 (D3) : déplié
+    // (continu à travers la couture) et dupliqué aux copies visibles.
     if (scene.ui.draft && scene.ui.draft.path.length > 0 && !vueActif) {
       const draft = scene.ui.draft;
-      const gr = new Graphics();
       const origin = originOfDraft(draft.unitId);
-      if (origin) gr.moveTo(origin.x, origin.y);
-      for (const step of draft.path) {
-        const p = hexToPixel(step, HEX_SIZE);
-        gr.lineTo(p.x, p.y);
-      }
-      gr.stroke({ width: 6, color: 0xffe082, alpha: 0.75 });
       if (origin) {
-        (gr as Suivable).__suivi3d = {
-          points: [origin, ...draft.path.map((step) => hexToPixel(step, HEX_SIZE))],
-          width: 6, color: 0xffe082, alpha: 0.75,
-        };
-      }
-      overlayLayer.addChild(gr);
-      for (const step of draft.path) {
-        const dot = new Graphics();
-        dot.circle(0, 0, 9).fill({ color: 0xffe082 }).stroke({ width: 3, color: 0x2b2620 });
-        dot.position.copyFrom(hexToPixel(step, HEX_SIZE));
-        overlayLayer.addChild(dot);
+        const points = deplierPoints([origin, ...draft.path.map((step) => hexToPixel(step, HEX_SIZE))], copieFen.P);
+        for (const k of copiesPolyline(points, copieFen.vx0, copieFen.vx1, copieFen.P)) {
+          const pts = k === 0 ? points : points.map((p) => ({ x: p.x + k * copieFen.P, y: p.y }));
+          const gr = new Graphics();
+          gr.moveTo(pts[0]!.x, pts[0]!.y);
+          for (const p of pts.slice(1)) gr.lineTo(p.x, p.y);
+          gr.stroke({ width: 6, color: 0xffe082, alpha: 0.75 });
+          (gr as Suivable).__suivi3d = { points: pts, width: 6, color: 0xffe082, alpha: 0.75 };
+          overlayLayer.addChild(gr);
+          for (const p of pts.slice(1)) {
+            const dot = new Graphics();
+            dot.circle(0, 0, 9).fill({ color: 0xffe082 }).stroke({ width: 3, color: 0x2b2620 });
+            dot.position.copyFrom(p);
+            overlayLayer.addChild(dot);
+          }
+        }
       }
     }
 
@@ -1796,30 +1985,38 @@
         const posee = positions.get(unit.id) ?? unit;
         const disp = dispositionsCohabitation(scene.state!, positions, contexteEffectif()).get(unit.id) ?? { dx: 0, dy: 0, echelle: 1, z: 0 };
         const c = hexToPixel(posee, HEX_SIZE);
-        const gr = new Graphics();
-        const rx = 52 * disp.echelle;
-        const ry = 22 * disp.echelle;
-        gr.ellipse(0, 6, rx, ry).stroke({ width: 5, color: 0xffe082 });
-        gr.ellipse(0, 6, rx + 4, ry + 3).stroke({ width: 2, color: 0x2b2620, alpha: 0.6 });
-        gr.position.set(c.x + disp.dx * HEX_SIZE, c.y + disp.dy * HEX_SIZE);
+        const anneau = new Container();
+        // CARTE-RONDE T2 (D2) : l'anneau suit l'unité et ses copies à la couture.
+        avecCopies(c.x + disp.dx * HEX_SIZE, (dx) => {
+          const gr = new Graphics();
+          const rx = 52 * disp.echelle;
+          const ry = 22 * disp.echelle;
+          gr.ellipse(0, 6, rx, ry).stroke({ width: 5, color: 0xffe082 });
+          gr.ellipse(0, 6, rx + 4, ry + 3).stroke({ width: 2, color: 0x2b2620, alpha: 0.6 });
+          gr.position.set(c.x + disp.dx * HEX_SIZE + dx, c.y + disp.dy * HEX_SIZE);
+          anneau.addChild(gr);
+        });
         // RETOUR ERIK 30/09 : l'anneau vivait dans `overlayLayer` (sous
         // `entitiesLayer`) — les structures posées sur la couche tuile
         // (villes/huttes, zIndex -100, retour GP-ART 28/09) le recouvraient.
         // Il passe dans `entitiesLayer` à zIndex -90 : au-dessus des
         // structures, sous toutes les unités (zIndex = p.y * 10 + z).
-        gr.zIndex = -90;
+        anneau.zIndex = -90;
         (anneauSelection as Graphics | null)?.destroy({ children: true });
-        anneauSelection = gr;
-        entitiesLayer.addChild(gr);
+        anneauSelection = anneau;
+        entitiesLayer.addChild(anneau);
       }
     } else {
       const selectedTile: Hex | null = selectedTileOf();
       if (selectedTile && !mode3dActif() && !vueActif) {
-        const gr = new Graphics();
-        gr.poly(hexLocalPoints(HEX_SIZE - 8)).stroke({ width: 5, color: 0xffe082 });
-        gr.poly(hexLocalPoints(HEX_SIZE - 16)).stroke({ width: 2, color: 0x2b2620, alpha: 0.6 });
-        gr.position.copyFrom(hexToPixel(selectedTile, HEX_SIZE));
-        overlayLayer.addChild(gr);
+        const pSel = hexToPixel(selectedTile, HEX_SIZE);
+        avecCopies(pSel.x, (dx) => {
+          const gr = new Graphics();
+          gr.poly(hexLocalPoints(HEX_SIZE - 8)).stroke({ width: 5, color: 0xffe082 });
+          gr.poly(hexLocalPoints(HEX_SIZE - 16)).stroke({ width: 2, color: 0x2b2620, alpha: 0.6 });
+          gr.position.set(pSel.x + dx, pSel.y);
+          overlayLayer.addChild(gr);
+        });
       }
     }
 
@@ -1908,14 +2105,13 @@
     if (!state || !scene.ui.selectedCityId) return null;
     const city = state.cities[scene.ui.selectedCityId];
     if (!city || !scene.explored.has(tileKeyOf(city))) return null;
-    const rayon = workRadiusOf(city.buildings);
-    const boucles = contourRegion(
-      city,
-      rayon,
-      HEX_SIZE,
-      (hex) => elevationDe(state.map[tileKeyOf(hex)]?.terrain),
-    );
-    return { boucles, color: playerColor(city.owner) };
+      const rayon = workRadiusOf(city.buildings);
+      const boucles = contourUnion(
+        hexesCopies(hexesWithinRadiusW(city, rayon, state.mapWidth, state.mapHeight), hexToPixel(city, HEX_SIZE).x),
+        HEX_SIZE,
+        (hex) => elevationDe(terrainDe(hex)),
+      );
+      return { boucles, color: playerColor(city.owner) };
   }
 
   /** Pousse les contours 3D (worked tiles + cultivation) dans le calque
@@ -1984,39 +2180,49 @@
     dashed: boolean,
     pointesIntermediaires = false,
   ): void {
-    const points: Point[] = [origin, ...path.map((h) => hexToPixel(h, HEX_SIZE))];
-    const segs = segmentsOf(points);
-    if (segs.length === 0) return;
-    const [lastFrom, lastTo] = segs[segs.length - 1]!;
-    const gr = new Graphics();
-    for (const [a, b] of dashed ? segs.flatMap(([a, b]) => dashSegments(a, b)) : segs) gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
-    gr.stroke({ width: 6, color, alpha });
-    // Pastille discrète à l'origine (départ lisible même sur un chemin court).
-    gr.circle(points[0]!.x, points[0]!.y, 8).fill({ color, alpha });
-    // RAFFINEMENT-MOUVEMENT : petite pointe sur CHAQUE case traversée (sens
-    // de lecture du parcours tuile par tuile) + grande pointe d'arrivée.
-    if (pointesIntermediaires) {
-      for (let i = 1; i < points.length - 1; i++) {
-        gr.poly(arrowHeadPoints(points[i - 1]!, points[i]!, 16).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
+    // CARTE-RONDE T2 (D3) : la polyligne est DÉPLIÉE (un chemin qui sort par
+    // la droite repart à gauche, continu à travers la couture) puis dessinée
+    // pour chaque copie visible.
+    const P = copieFen.P;
+    const points = deplierPoints([origin, ...path.map((h) => hexToPixel(h, HEX_SIZE))], P);
+    for (const k of copiesPolyline(points, copieFen.vx0, copieFen.vx1, P)) {
+      const pts = k === 0 ? points : points.map((p) => ({ x: p.x + k * P, y: p.y }));
+      const segs = segmentsOf(pts);
+      if (segs.length === 0) continue;
+      const [lastFrom, lastTo] = segs[segs.length - 1]!;
+      const gr = new Graphics();
+      for (const [a, b] of dashed ? segs.flatMap(([a, b]) => dashSegments(a, b)) : segs) gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
+      gr.stroke({ width: 6, color, alpha });
+      // Pastille discrète à l'origine (départ lisible même sur un chemin court).
+      gr.circle(pts[0]!.x, pts[0]!.y, 8).fill({ color, alpha });
+      // RAFFINEMENT-MOUVEMENT : petite pointe sur CHAQUE case traversée (sens
+      // de lecture du parcours tuile par tuile) + grande pointe d'arrivée.
+      if (pointesIntermediaires) {
+        for (let i = 1; i < pts.length - 1; i++) {
+          gr.poly(arrowHeadPoints(pts[i - 1]!, pts[i]!, 16).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
+        }
       }
+      gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
+      (gr as Suivable).__suivi3d = { points: pts, width: 6, color, alpha, dashed, tete: true, pastille: true };
+      overlayLayer.addChild(gr);
     }
-    gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
-    (gr as Suivable).__suivi3d = { points, width: 6, color, alpha, dashed, tete: true, pastille: true };
-    overlayLayer.addChild(gr);
   }
 
   /** RAFFINEMENT-MOUVEMENT — badge rond de tour (style Civ 7) : petit cercle
    *  numéroté posé au centre d'une case étape. Estampillé `poser3d` pour
-   *  suivre la reprojection 3D comme les autres surcouches. */
+   *  suivre la reprojection 3D comme les autres surcouches. CARTE-RONDE T2 :
+   *  dupliqué au voisinage de la couture. */
   function badgeTour(parent: Container, hex: Hex, tour: number, color: number): void {
     const pos = hexToPixel(hex, HEX_SIZE);
-    const g = new Graphics();
-    g.circle(0, 0, 11).fill({ color: 0x1d242b, alpha: 0.85 }).stroke({ width: 2.5, color });
-    const t = new Text({ text: String(tour), style: { fontFamily: 'sans-serif', fontSize: 13, fill: 0xffe08a, fontWeight: 'bold', stroke: { color: 0x1d242b, width: 2 } } });
-    t.anchor.set(0.5);
-    g.addChild(t);
-    poser3d(g, pos.x, pos.y);
-    parent.addChild(g);
+    avecCopies(pos.x, (dx) => {
+      const g = new Graphics();
+      g.circle(0, 0, 11).fill({ color: 0x1d242b, alpha: 0.85 }).stroke({ width: 2.5, color });
+      const t = new Text({ text: String(tour), style: { fontFamily: 'sans-serif', fontSize: 13, fill: 0xffe08a, fontWeight: 'bold', stroke: { color: 0x1d242b, width: 2 } } });
+      t.anchor.set(0.5);
+      g.addChild(t);
+      poser3d(g, pos.x + dx, pos.y);
+      parent.addChild(g);
+    });
   }
 
   /** CORRECTIFS-SELECTION : chemin en POLYLINE 3D ouverte posée sur le relief
@@ -2059,43 +2265,50 @@
   /** Effets de playback (flashs, destructions) — reconstruits par frame. */
   function rebuildEffects(): void {
     effectsLayer.removeChildren().forEach((child) => child.destroy({ children: true }));
+    fenetreCopies();
     // Phase annonce (Phase 5.5 L2) : lignes prévues de TOUS les movers du
     // tour (y compris ennemis visibles dans le journal — le fog a filtré),
     // colorées à l'accent du propriétaire, avant tout mouvement animé.
+    // CARTE-RONDE T2 (D3) : segment déplié (continu à travers la couture),
+    // dessiné pour chaque copie visible.
     for (const line of playback.announce) {
       const color = playerColor(line.owner);
-      const a = hexToPixel(line.from, HEX_SIZE);
-      const b = hexToPixel(line.to, HEX_SIZE);
-      const gr = new Graphics();
-      gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
-      gr.stroke({ width: 7, color, alpha: 0.85 });
-      gr.circle(a.x, a.y, 9).fill({ color, alpha: 0.85 });
-      gr.poly(arrowHeadPoints(a, b, 36).flatMap((p) => [p.x, p.y])).fill({ color, alpha: 0.95 });
-      (gr as Suivable).__suivi3d = { points: [a, b], width: 7, color, alpha: 0.85, tete: true, pastille: true };
-      effectsLayer.addChild(gr);
+      const points = deplierPoints([hexToPixel(line.from, HEX_SIZE), hexToPixel(line.to, HEX_SIZE)], copieFen.P);
+      for (const k of copiesPolyline(points, copieFen.vx0, copieFen.vx1, copieFen.P)) {
+        const [a, b] = points.map((p) => (k === 0 ? p : { x: p.x + k * copieFen.P, y: p.y })) as [Point, Point];
+        const gr = new Graphics();
+        gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
+        gr.stroke({ width: 7, color, alpha: 0.85 });
+        gr.circle(a.x, a.y, 9).fill({ color, alpha: 0.85 });
+        gr.poly(arrowHeadPoints(a, b, 36).flatMap((p) => [p.x, p.y])).fill({ color, alpha: 0.95 });
+        (gr as Suivable).__suivi3d = { points: [a, b], width: 7, color, alpha: 0.85, tete: true, pastille: true };
+        effectsLayer.addChild(gr);
+      }
     }
     for (const fx of playback.fxList) {
       const p = hexToPixel(fx.at, HEX_SIZE);
       const progress = 1 - (fx.t + fx.dur - playback.clock) / fx.dur; // 0→1
-      const gr = new Graphics();
-      if (fx.kind === 'combat') {
-        gr.circle(0, 0, 18 + 30 * progress).stroke({ width: 5, color: 0xff7043, alpha: 1 - progress });
-        gr.circle(0, 0, 10).fill({ color: 0xffffff, alpha: 0.9 * (1 - progress) });
-      } else if (fx.kind === 'destroy') {
-        gr.circle(0, 0, 14 + 46 * progress).stroke({ width: 6, color: 0x61555b, alpha: 1 - progress });
-        gr.poly(hexLocalPoints(HEX_SIZE - 12)).fill({ color: 0x000000, alpha: 0.35 * (1 - progress) });
-      } else if (fx.kind === 'nuke') {
-        // 7m · R-139 🔶 : détonation nucléaire — double onde de choc + flash.
-        gr.circle(0, 0, 20 + 90 * progress).stroke({ width: 7, color: 0xff8f00, alpha: 1 - progress });
-        gr.circle(0, 0, 12 + 60 * progress).stroke({ width: 5, color: 0xff5252, alpha: (1 - progress) * 0.9 });
-        gr.circle(0, 0, 8 + 30 * progress).fill({ color: 0xfff59d, alpha: 0.85 * (1 - progress) });
-      } else if (fx.kind === 'good') {
-        gr.circle(0, 0, 12 + 26 * progress).stroke({ width: 5, color: 0x9be27a, alpha: 1 - progress });
-      } else {
-        gr.circle(0, 0, 12 + 26 * progress).stroke({ width: 5, color: 0xef5350, alpha: 1 - progress });
-      }
-      gr.position.copyFrom(p);
-      effectsLayer.addChild(gr);
+      avecCopies(p.x, (dx) => {
+        const gr = new Graphics();
+        if (fx.kind === 'combat') {
+          gr.circle(0, 0, 18 + 30 * progress).stroke({ width: 5, color: 0xff7043, alpha: 1 - progress });
+          gr.circle(0, 0, 10).fill({ color: 0xffffff, alpha: 0.9 * (1 - progress) });
+        } else if (fx.kind === 'destroy') {
+          gr.circle(0, 0, 14 + 46 * progress).stroke({ width: 6, color: 0x61555b, alpha: 1 - progress });
+          gr.poly(hexLocalPoints(HEX_SIZE - 12)).fill({ color: 0x000000, alpha: 0.35 * (1 - progress) });
+        } else if (fx.kind === 'nuke') {
+          // 7m · R-139 🔶 : détonation nucléaire — double onde de choc + flash.
+          gr.circle(0, 0, 20 + 90 * progress).stroke({ width: 7, color: 0xff8f00, alpha: 1 - progress });
+          gr.circle(0, 0, 12 + 60 * progress).stroke({ width: 5, color: 0xff5252, alpha: (1 - progress) * 0.9 });
+          gr.circle(0, 0, 8 + 30 * progress).fill({ color: 0xfff59d, alpha: 0.85 * (1 - progress) });
+        } else if (fx.kind === 'good') {
+          gr.circle(0, 0, 12 + 26 * progress).stroke({ width: 5, color: 0x9be27a, alpha: 1 - progress });
+        } else {
+          gr.circle(0, 0, 12 + 26 * progress).stroke({ width: 5, color: 0xef5350, alpha: 1 - progress });
+        }
+        gr.position.set(p.x + dx, p.y);
+        effectsLayer.addChild(gr);
+      });
     }
   }
 
@@ -2328,8 +2541,10 @@
       for (const [unitId, anim] of playback.moves) {
         const c = unitSprites.get(unitId);
         if (!c) continue;
+        // CARTE-RONDE T2 : interpolation DÉPLIÉE — l'unité passe par la
+        // couture au lieu de retraverser le monde.
         const a = hexToPixel(anim.from, HEX_SIZE);
-        const b = hexToPixel(anim.to, HEX_SIZE);
+        const b = pointProcheDe(a, hexToPixel(anim.to, HEX_SIZE), periodeActive());
         poser3d(c, a.x + (b.x - a.x) * anim.t, a.y + (b.y - a.y) * anim.t);
       }
       // V2-unités3D : le calque 3D suit l'interpolation du playback (positions
@@ -2543,15 +2758,23 @@
   }
 
   /** Hex sous un point écran — 3D : picking analytique partagé ; 2D : mapping
-   *  linéaire ; VUE VILLE : transform inverse de la pose (zoom à plat). */
+   *  linéaire ; VUE VILLE : transform inverse de la pose (zoom à plat).
+   *  CARTE-RONDE T2 (D3) : le point monde est replié dans la bande canonique
+   *  avant conversion — une tuile à cheval sur la couture se pick toujours
+   *  comme sa case canonique (les deux candidats sont LA même case). */
   function hexSousEcran(x: number, y: number): Hex | null {
     if (mode3dActif()) {
       return pickHex3D(x, y, vw, vh, stage3d!.cam, (hex) => scene.state?.map[tileKeyOf(hex)]?.terrain ?? null);
     }
+    if (!scene.state) return null;
+    const P = periodeActive();
     if (vueVilleActif()) {
-      return hexSousEcranVueVille(x, y, poseVueCourante(), HEX_SIZE);
+      const w = mondeSousEcranVueVille(x, y, poseVueCourante());
+      return hexCanoniqueSousPoint(w.x, w.y, HEX_SIZE, scene.state.mapWidth, P);
     }
-    return screenToHex(x, y, camera, HEX_SIZE);
+    const worldX = (x - camera.x) / camera.scale;
+    const worldY = (y - camera.y) / camera.scale;
+    return hexCanoniqueSousPoint(worldX, worldY, HEX_SIZE, scene.state.mapWidth, P);
   }
 
   /** Reprojecte chaque frame les couches PixiJS (entités, ressources,
@@ -2783,7 +3006,7 @@
    *  copie base+accent du sprite, alpha et taille réduits (constantes 🔶),
    *  décalée vers le bord d'arrivée, posée SOUS le sprite ennemi (l'overlay
    *  est sous `entitiesLayer`) et estampillée `poser3d` (reprojection 3D). */
-  function dessinerFantomeArrivee(parent: Container, unitId: string, hex: Hex, dirX: number, dirY: number): void {
+  function dessinerFantomeArrivee(parent: Container, unitId: string, hex: Hex, dirX: number, dirY: number, dx = 0): void {
     const unit = scene.state?.units[unitId];
     if (!textures || !unit) return;
     const tex =
@@ -2804,7 +3027,7 @@
     const c = hexToPixel(hex, HEX_SIZE);
     // Décalage vers le bord D'OÙ l'unité arrive (côté origine — cohérent avec
     // la flèche qui y mène) : direction origine→arrivée INVERSÉE.
-    poser3d(fantome, c.x - dirX * FANTOME_DECAL * HEX_SIZE, c.y - dirY * FANTOME_DECAL * HEX_SIZE + 6);
+    poser3d(fantome, c.x + dx - dirX * FANTOME_DECAL * HEX_SIZE, c.y - dirY * FANTOME_DECAL * HEX_SIZE + 6);
     parent.addChild(fantome);
   }
 
@@ -2892,27 +3115,34 @@
           )
         : null;
     const couleurCible = ennemiVise ? COULEUR_ARRIVEE_ENNEMIE : COULEUR_SURVOL;
-    const anneau = new Graphics();
-    anneau.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 3, color: couleurCible, alpha: 0.9 });
-    anneau.poly(hexLocalPoints(HEX_SIZE - 12)).stroke({ width: 1.5, color: 0x2b2620, alpha: 0.5 });
-    anneau.position.copyFrom(hexToPixel(cible, HEX_SIZE));
-    cont.addChild(anneau);
+    // CARTE-RONDE T2 (D2/D3) : encadré et flèche dépliés et dupliqués à la couture.
+    const cibleP = hexToPixel(cible, HEX_SIZE);
+    avecCopies(cibleP.x, (dx) => {
+      const anneau = new Graphics();
+      anneau.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 3, color: couleurCible, alpha: 0.9 });
+      anneau.poly(hexLocalPoints(HEX_SIZE - 12)).stroke({ width: 1.5, color: 0x2b2620, alpha: 0.5 });
+      anneau.position.set(cibleP.x + dx, cibleP.y);
+      cont.addChild(anneau);
+    });
     if (droitMaintenu) {
-      const points: Point[] = [hexToPixel(unit, HEX_SIZE), ...hoverPath.map((h) => hexToPixel(h, HEX_SIZE))];
-      const segs = segmentsOf(points);
-      if (segs.length > 0) {
+      const P = copieFen.P;
+      const points = deplierPoints([hexToPixel(unit, HEX_SIZE), ...hoverPath.map((h) => hexToPixel(h, HEX_SIZE))], P);
+      for (const k of copiesPolyline(points, copieFen.vx0, copieFen.vx1, P)) {
+        const pts = k === 0 ? points : points.map((p) => ({ x: p.x + k * P, y: p.y }));
+        const segs = segmentsOf(pts);
+        if (segs.length === 0) continue;
         const gr = new Graphics();
         for (const [a, b] of segs.flatMap(([a, b]) => dashSegments(a, b))) gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
         gr.stroke({ width: 4, color: COULEUR_SURVOL, alpha: ALPHA_SURVOL });
         // Petite pointe sur chaque case traversée + grande pointe d'arrivée.
-        for (let i = 1; i < points.length - 1; i++) {
-          gr.poly(arrowHeadPoints(points[i - 1]!, points[i]!, 16).flatMap((p) => [p.x, p.y])).fill({ color: COULEUR_SURVOL, alpha: Math.min(1, ALPHA_SURVOL + 0.1) });
+        for (let i = 1; i < pts.length - 1; i++) {
+          gr.poly(arrowHeadPoints(pts[i - 1]!, pts[i]!, 16).flatMap((p) => [p.x, p.y])).fill({ color: COULEUR_SURVOL, alpha: Math.min(1, ALPHA_SURVOL + 0.1) });
         }
         const [lastFrom, lastTo] = segs[segs.length - 1]!;
         gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color: COULEUR_SURVOL, alpha: Math.min(1, ALPHA_SURVOL + 0.1) });
         cont.addChild(gr);
       }
-      // Préview multi-tours : badges (1), (2)…
+      // Préview multi-tours : badges (1), (2)… (badgeTour wrap lui-même.)
       for (const j of jalonsDeTours(hoverPath, unitType(unit.type).movement)) badgeTour(cont, j.hex, j.tour, COULEUR_SURVOL);
     }
     hoverG = cont;
@@ -3061,7 +3291,13 @@
         stage3d!.cam.clamp(vw, vh);
       } else {
         camera.panBy(dx, dy);
-        camera.clamp(bounds, vw, vh);
+        camera.wrapClamp(bounds, vw, vh, periodeActive());
+        // CARTE-RONDE T2 : pan sur la couture — les copies d'entités/surcouche
+        // y sont rafraîchies (ailleurs, pan sans rebuild — VUE-VILLE-PERF).
+        if (panSurSeam()) {
+          entitiesDirty = true;
+          overlayDirty = true;
+        }
       }
       cameraChanged = true;
     }
@@ -3136,7 +3372,13 @@
       : camera.zoomAt(p.x, p.y, factor);
     if (changed) {
       if (mode3dActif()) stage3d!.cam.clamp(vw, vh);
-      else camera.clamp(bounds, vw, vh);
+      else {
+        camera.wrapClamp(bounds, vw, vh, periodeActive());
+        // Zoom : la demi-largeur du viewport change → recopie complète des
+        // calques dépendant de la fenêtre (tuiles suivent via cameraChanged).
+        entitiesDirty = true;
+        overlayDirty = true;
+      }
       cameraChanged = true;
     }
   }
@@ -3225,9 +3467,14 @@
       return;
     }
     const p = hexToPixel(hex, HEX_SIZE);
+    // CARTE-RONDE T2 (D5) : centrage canonique + repli du centre caméra dans
+    // la bande [0, P) — le saut éventuel de ±P est invisible (scène
+    // périodique) ; les copies de la destination sont reconstruites.
     camera.centerOn(p.x, p.y, vw, vh);
-    camera.clamp(bounds, vw, vh);
+    camera.wrapClamp(bounds, vw, vh, periodeActive());
     cameraChanged = true;
+    entitiesDirty = true;
+    overlayDirty = true;
   }
 
   function centerOnUnit(unitId: string): void {
@@ -3244,7 +3491,10 @@
     if (!app) return null;
     const p = hexToPixel(hex, HEX_SIZE);
     const pose = poseVueCourante();
-    return { x: p.x * pose.scale + pose.x, y: p.y * pose.scale + pose.y };
+    // CARTE-RONDE T2 (D5) : la copie la plus proche du viewport courant.
+    const centre = centreMondeDe(pose.x, pose.scale, vw);
+    const x = p.x + copieLaPlusProche(p.x, centre, periodeActive()) * periodeActive();
+    return { x: x * pose.scale + pose.x, y: p.y * pose.scale + pose.y };
   }
 
   // UI-JEU-T3 · D3 : clic/drag sur la minimap → recentrage caméra au point
@@ -3253,8 +3503,10 @@
   function centrerSurMonde(worldX: number, worldY: number): void {
     if (!app) return;
     camera.centerOn(worldX, worldY, vw, vh);
-    camera.clamp(bounds, vw, vh);
+    camera.wrapClamp(bounds, vw, vh, periodeActive());
     cameraChanged = true;
+    entitiesDirty = true;
+    overlayDirty = true;
   }
   function poseCamera(): { x: number; y: number; scale: number } {
     return { x: camera.x, y: camera.y, scale: camera.scale };
@@ -3395,6 +3647,7 @@
     vw = host.clientWidth || 800;
     vh = host.clientHeight || 600;
     bounds = scene.state ? mapBounds(HEX_SIZE, scene.state.mapWidth, scene.state.mapHeight) : { x: 0, y: 0, w: 1, h: 1 };
+    periode = scene.state ? periodeHorizontale(HEX_SIZE, scene.state.mapWidth) : Infinity;
 
     const canvas = application.canvas;
     canvas.addEventListener('pointerdown', onPointerDown);
@@ -3494,7 +3747,10 @@
           const w = hexToPixel({ q, r }, HEX_SIZE);
           // MENU-VILLE : la pose courante (vue ville comprise — zoom à plat).
           const pose = poseVueCourante();
-          return { x: w.x * pose.scale + pose.x, y: w.y * pose.scale + pose.y };
+          // CARTE-RONDE T2 : copie la plus proche du viewport courant.
+          const centre = centreMondeDe(pose.x, pose.scale, vw);
+          const x = w.x + copieLaPlusProche(w.x, centre, periodeActive()) * periodeActive();
+          return { x: x * pose.scale + pose.x, y: w.y * pose.scale + pose.y };
         },
         // V2 : statistiques de la couche structures 3D (vérifications GUI/e2e) —
         // détail par pool (unités 3D visibles ? cf. unites3d). Fonderie T3 :
@@ -3518,9 +3774,11 @@
         stage3d.resize(vw, vh);
         stage3d.cam.clamp(vw, vh);
       }
-      camera.clamp(bounds, vw, vh);
+      camera.wrapClamp(bounds, vw, vh, periodeActive());
       cameraChanged = true;
       tilesDirty = true;
+      entitiesDirty = true;
+      overlayDirty = true;
       // MENU-VILLE : la pose de vue ville suit les nouvelles dimensions —
       // la ville reste centrée dans l'espace libre, tout le rayon tient.
       if (vueVilleActif()) {
@@ -3716,6 +3974,11 @@
     villageSprites.clear();
     hutSprites.clear();
     artefactSprites.clear();
+    unitCopies.clear();
+    cityCopies.clear();
+    villageCopies.clear();
+    hutCopies.clear();
+    artefactCopies.clear();
     artefactPingGlow = null;
     textures = null;
     world = new Container();
