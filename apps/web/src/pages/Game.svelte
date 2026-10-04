@@ -782,9 +782,10 @@
       .join(' · ');
     return ` · ${label} : ${noms}`;
   });
-  // UI-JEU-T2 · §1.5 : détail compact des adversaires en panneau latéral
-  // (le badge de la barre reste inchangé — résumé ; ici une entrée par
-  // adversaire : nom, civilisation + dirigeant, ère — infos publiques).
+  // UI-JEU-T2 · §1.5 → RÉVISION CHRONIQUES (Erik 04/10) : le détail des
+  // adversaires quitte le panneau de la colonne pour les PASTILLES de
+  // nations à gauche du médaillon (survol = détail ; régime + élimination
+  // ajoutés). Ordre stable par engineId.
   const adversairesDetail = $derived.by(() => {
     const id = myEngineId($view);
     if (!id || !$view.state) return [];
@@ -801,6 +802,8 @@
           bot: !!info?.bot,
           civ,
           era: joueur?.era ?? 'ancienne',
+          government: joueur?.government ?? 'despotisme',
+          defeated: joueur?.defeated === true,
         };
       });
   });
@@ -1109,9 +1112,38 @@
           <!-- UI-JEU-T1 · D4 : médaillon du dirigeant (droite sous la barre,
                façon Civ VI). Portrait dessiné si la civ en a un, sinon logo
                or de la nation ; initiale or en dernier recours — jamais de
-               trou. Tooltip : nom du dirigeant. -->
-          <div class="portrait-site" title={myPortrait.titre}>
-            <span class="portrait-cadre" class:logo={!myPortrait.portrait}>
+               trou. Tooltip : nom du dirigeant.
+               RÉVISION CHRONIQUES (Erik 04/10) : les nations ADVERSES
+               apparaissent en PASTILLES à gauche du médaillon (même rangée)
+               — logo or de la nation, éliminée = grisée + barrée ; le
+               survol ouvre le détail (nom/bot, civ — dirigeant, ère,
+               régime). Tranchages Erik : survol SEUL, éliminés visibles. -->
+          <div class="portrait-site">
+            {#each adversairesDetail as a (a.id)}
+              <div class="pastille" class:elimine={a.defeated} tabindex="0" aria-label={`${a.nom} — ${civName(a.civ)}`}>
+                <span class="pastille-cadre" class:logo={!nationDe(a.civ)?.logo}>
+                  {#if nationDe(a.civ)?.logo}
+                    <img
+                      src={nationDe(a.civ)?.logo ?? ''}
+                      alt={civName(a.civ)}
+                      onerror={hideImg}
+                      style:width={`${3.2 * (nationDe(a.civ)?.logoEchelle ?? 1)}rem`}
+                      style:height={`${3.2 * (nationDe(a.civ)?.logoEchelle ?? 1)}rem`}
+                    />
+                  {:else}
+                    <span class="pastille-initiale">{(civName(a.civ)[0] ?? '?').toUpperCase()}</span>
+                  {/if}
+                </span>
+                <span class="pastille-detail" role="tooltip">
+                  <strong>{a.nom}{a.bot ? ' 🤖' : ''}</strong>
+                  <span>{civName(a.civ)}{civLeader(a.civ) ? ` — ${civLeader(a.civ)}` : ''}</span>
+                  <span>{eraLabel(a.era)}</span>
+                  <span>{GOVERNMENTS[a.government]?.name ?? a.government}</span>
+                  {#if a.defeated}<span class="elimine-mention">Éliminé</span>{/if}
+                </span>
+              </div>
+            {/each}
+            <span class="portrait-cadre" class:logo={!myPortrait.portrait} title={myPortrait.titre}>
               {#if myPortrait.src}
                 <img
                   src={myPortrait.src}
@@ -1360,23 +1392,10 @@
           {replayActif ? '⏹ Quitter la relecture (Échap)' : '⟲ Rejouer la résolution'}
         </button>
         <!-- HANDOFF-CHRONIQUES · D6 : le Journal (débogue — coordonnées et
-             centrage) a migré dans le menu Paramètres (bouton ☰ de la barre). -->
-        {#if adversairesDetail.length > 0}
-          <!-- UI-JEU-T2 · §1.5 : détail compact des adversaires (🔶 place :
-               panneau latéral — le badge civ de la barre reste inchangé). -->
-          <section class="adversaires" aria-label="Adversaires">
-            <h3>Adversaires</h3>
-            <ul>
-              {#each adversairesDetail as a (a.id)}
-                <li>
-                  <span class="adv-nom">{a.nom}{a.bot ? ' 🤖' : ''}</span>
-                  <span class="adv-civ">{civName(a.civ)}{civLeader(a.civ) ? ` — ${civLeader(a.civ)}` : ''}</span>
-                  <span class="adv-era">{eraLabel(a.era)}</span>
-                </li>
-              {/each}
-            </ul>
-          </section>
-        {/if}
+             centrage) a migré dans le menu Paramètres (bouton ☰ de la barre).
+             RÉVISION CHRONIQUES (Erik 04/10) : le panneau « Adversaires »
+             est SUPPRIMÉ de la colonne — les nations adverses deviennent des
+             pastilles à gauche du médaillon (détail au survol). -->
         {#if $calqueDev}
           <!-- UI-JEU-T1 · L1 : état brut = outil de dev (D2) — caché en mode
                joueur, réaffichable via engrenage / Ctrl+Alt+D. -->
@@ -1553,6 +1572,10 @@
     border-left: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
     box-shadow: inset 3px 0 12px -6px rgba(0, 0, 0, 0.6);
     background: linear-gradient(180deg, #171310 0%, #100d09 100%);
+    /* RÉVISION CHRONIQUES (Erik 04/10) : containment de peinture — la
+       colonne se repeint proprement au scroll (artefact GPU « menus
+       superposés » observé en coquille sur GTX 1060). */
+    contain: paint;
   }
   /* D3 — bouton « ⟲ Rejouer la résolution » au niveau du reste (comportement
      intact). */
@@ -1567,27 +1590,9 @@
   }
   .side .replay-btn:hover:enabled { border-color: var(--or-clair, #e8c96a); box-shadow: 0 0 10px rgba(201, 162, 39, 0.35); }
   .side .replay-btn.active-toggle { background: rgba(201, 162, 39, 0.22); border-color: var(--or, #c9a227); box-shadow: 0 0 12px rgba(201, 162, 39, 0.4); }
-  /* §1.5 — détail compact des adversaires (pied de colonne). */
-  .adversaires {
-    border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
-    border-radius: 10px; padding: 0.55rem 0.85rem;
-    background: linear-gradient(180deg, #241f16 0%, #1b1712 100%);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(201, 162, 39, 0.08);
-  }
-  .adversaires h3 {
-    margin: 0 0 0.4rem;
-    font-family: var(--serif-or, Georgia, serif);
-    font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--or-clair, #e8c96a);
-    border-bottom: 1px solid transparent;
-    border-image: linear-gradient(90deg, transparent, var(--or, #c9a227), transparent) 1;
-    padding-bottom: 0.3rem;
-  }
-  .adversaires ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-  .adversaires li { display: flex; flex-direction: column; gap: 0.05rem; border-left: 3px solid var(--or-sombre, #8a6d1a); padding-left: 0.5rem; }
-  .adv-nom { font-size: 0.85rem; color: var(--texte, #e9e4d3); }
-  .adv-civ { font-size: 0.78rem; color: var(--texte-doux, #b6ad93); }
-  .adv-era { font-size: 0.72rem; color: var(--or, #c9a227); letter-spacing: 0.04em; }
+  /* RÉVISION CHRONIQUES (Erik 04/10) — le panneau « Adversaires » est
+     supprimé de la colonne : les nations adverses sont des PASTILLES à
+     gauche du médaillon (détail au survol, CSS .pastille ci-dessous). */
   /* D3 — section Vaisseau dans le même langage (bloc chaleureux, serif). */
   .ship {
     border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25));
@@ -1637,11 +1642,56 @@
 
   /* ------------------------------------------------------------------
      UI-JEU-T1 · D4 — médaillon du dirigeant (droite, sous la barre).
+     RÉVISION CHRONIQUES (Erik 04/10) : le site porte AUSSI les pastilles
+     des nations adverses (à gauche du médaillon, même rangée).
      ------------------------------------------------------------------ */
   .portrait-site {
     position: absolute; top: 0.7rem; right: 0.8rem; z-index: 30;
     pointer-events: auto;
+    display: flex; align-items: center; gap: 0.5rem;
   }
+  /* Pastille d'une nation adverse : rond or ~3,2rem (≈ 60 % du médaillon),
+     logo de la nation ; éliminée = grisée + barrée (tranchage Erik). */
+  .pastille { position: relative; display: flex; }
+  .pastille-cadre {
+    display: flex; align-items: center; justify-content: center;
+    width: 3.4rem; height: 3.4rem; overflow: hidden;
+    border-radius: 50%;
+    border: 2px solid var(--or, #c9a227);
+    box-shadow: 0 0 0 2px rgba(13, 20, 32, 0.85), 0 3px 10px rgba(0, 0, 0, 0.55);
+    background: radial-gradient(circle at 50% 32%, #2a2317 0%, #14110b 100%);
+  }
+  .pastille-cadre img { object-fit: cover; }
+  .pastille-cadre.logo img { object-fit: contain; padding: 0.3rem; filter: drop-shadow(0 0 4px rgba(201, 162, 39, 0.5)); }
+  .pastille-initiale {
+    font-family: var(--serif-or, Georgia, serif); font-size: 1.4rem;
+    color: var(--or-clair, #e8c96a);
+  }
+  .pastille.elimine .pastille-cadre { filter: grayscale(1) brightness(0.75); opacity: 0.7; }
+  .pastille.elimine .pastille-cadre::after {
+    content: ''; position: absolute; inset: -2px; border-radius: 50%;
+    background: linear-gradient(45deg, transparent 44%, #8a3a30 44%, #8a3a30 56%, transparent 56%);
+  }
+  /* Détail au survol (survol SEUL — tranchage Erik) : panneau AAA sous la
+     pastille, aligné à droite ; visible aussi au focus clavier. */
+  .pastille-detail {
+    display: none;
+    position: absolute; top: calc(100% + 0.5rem); right: 0;
+    width: max-content; max-width: 15rem;
+    flex-direction: column; gap: 0.12rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.35));
+    border-radius: 10px;
+    background: linear-gradient(180deg, #241f16 0%, #1b1712 100%);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(201, 162, 39, 0.12);
+    z-index: 40;
+    pointer-events: none; /* le survol traverse — le panneau ne « colle » pas */
+    font-size: 0.82rem; color: var(--texte, #e9e4d3);
+  }
+  .pastille-detail strong { font-family: var(--serif-or, Georgia, serif); color: var(--or-clair, #e8c96a); letter-spacing: 0.04em; }
+  .pastille:hover .pastille-detail, .pastille:focus-within .pastille-detail { display: flex; }
+  .pastille.elimine .pastille-detail .elimine-mention { color: #ef9a9a; font-weight: 600; }
+  .pastille-cadre { position: relative; }
   .portrait-cadre {
     display: flex; align-items: center; justify-content: center;
     width: 5.6rem; height: 5.6rem; overflow: hidden;

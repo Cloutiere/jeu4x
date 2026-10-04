@@ -78,3 +78,19 @@ libellés des unités résolus via le pré-état (les détruites restent nommée
   recherche bloquée sans SetConversion science — R-90 défaut Or, cf. OR-RUSHBUY) : les catégories
   combat/merveille/artefact sont validées par injection forgée (hook dev, même pipeline que les
   tours réels) + tests unitaires ; à confirmer sur une vraie partie longue.
+
+## Révision (Erik, 04/10) — superposition de la colonne + panneau Adversaires
+
+- **Superposition constatée en coquille** (Chronique/Adversaires/état brut peints l'un sur
+  l'autre) : la géométrie CSS est saine (flux flex, aucun chevauchement mesuré, vérif
+  programmatique) → artefact de rendu GPU (vieux frames au scroll, GTX 1060). Défense ajoutée :
+  `contain: paint` sur la colonne `.side` (repeint propre au scroll). Si l'artefact persiste
+  en coquille, c'est la piste FULLSCREEN-PERF (qualité de rendu ×1) qu'il faudra retester.
+- **Panneau « Adversaires » SUPPRIMÉ** de la colonne (Erik : « je ne le veux plus ») ; remplacé
+  par des **pastilles de nations à gauche du médaillon** (en haut à droite, même rangée) :
+  logo or de la nation (~60 % du médaillon, échelle logoEchelle respectée, initiale en
+  dernier recours), ordre stable par engineId. **Survol seul** (tranchage Erik) = panneau de
+  détail : `Bot 🤖 / Rome — Jules César / Ère Ancienne / Despotisme` ; nation éliminée =
+  pastille grisée + barre diagonale + mention « Éliminé » (tranchage Erik : visibles).
+  `adversairesDetail` étendu (gouvernement, defeated). Captures 6-9 de `captures-chroniques/`.
+- Suites vertes : web 506, svelte-check 0 erreur (17 warnings de la famille déjà acceptée).
