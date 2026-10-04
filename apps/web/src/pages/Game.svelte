@@ -484,6 +484,25 @@
     voirUniteSansOrdre((idleIndex + 1) % idleUnits.length);
   }
 
+  /**
+   * RÉVISION (Erik 04/10) — badge « Unités en attente d'ordres » cliquable :
+   * chaque clic sélectionne l'unité SUIVANTE sans ordre (ordre déterministe
+   * R-81, recalculé à chaque clic — jamais stale) et centre l'écran sur sa
+   * case SANS changer le zoom (centerOnHex). Liste vide = no-op (le badge
+   * n'est de toute façon rendu que si `attenteOrdres > 0`).
+   */
+  let attenteCyclable = 0;
+  function cyclerUniteAttente(): void {
+    const v = get(view);
+    const ids = unitsWithoutOrders(v);
+    if (ids.length === 0 || !v.state) return;
+    const index = attenteCyclable % ids.length;
+    const u = v.state.units[ids[index]!]!;
+    attenteCyclable = (index + 1) % ids.length;
+    ui.set({ selectedUnitId: u.id, selectedCityId: null, draft: null });
+    canvasApi?.centerOnHex({ q: u.q, r: u.r });
+  }
+
   function confirmEndTurn(): void {
     showIdleDialog = false;
     client.endTurn();
@@ -1173,7 +1192,17 @@
                désactivé n'expliquait rien : « hang »). -->
           <div class="fin-tour-site">
             {#if attenteOrdres > 0 && myBlocages.length === 0}
-              <span class="fin-tour-attente">Unités en attente d'ordres ({attenteOrdres})</span>
+              <!-- RÉVISION (Erik 04/10) : le badge est CLIQUABLE — chaque clic
+                   sélectionne l'unité suivante sans ordre et centre l'écran
+                   dessus SANS changer le zoom (même pipeline que le menu
+                   « unités sans ordre » : sélection + centerOnHex). Ordre
+                   déterministe R-81 (unitsWithoutOrders). -->
+              <button
+                type="button"
+                class="fin-tour-attente"
+                title="Sélectionner la prochaine unité en attente d'ordres (centre l'écran, zoom préservé)"
+                onclick={cyclerUniteAttente}
+              >Unités en attente d'ordres ({attenteOrdres})</button>
             {/if}
             {#if myBlocages.length > 0}
               <span class="fin-tour-libelle blocage-libelle">{`Fin de tour bloquée (${myBlocages.length})`}</span>
@@ -1724,6 +1753,10 @@
     white-space: nowrap;
   }
   .fin-tour-libelle.blocage-libelle { color: #ffcc80; border-color: #a3703c; }
+  /* RÉVISION (Erik 04/10) : le badge d'attente est un BOUTON — chaque clic
+     sélectionne + centre la prochaine unité sans ordre (zoom préservé). */
+  button.fin-tour-attente { cursor: pointer; }
+  button.fin-tour-attente:hover { color: var(--or-clair, #e8c96a); border-color: var(--or, #c9a227); box-shadow: 0 2px 10px rgba(201, 162, 39, 0.35); }
   button.fin-tour-rond {
     width: 5.4rem; height: 5.4rem; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
