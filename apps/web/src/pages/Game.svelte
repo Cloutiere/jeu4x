@@ -22,7 +22,7 @@
   import { nationDe } from '../lib/nations.js';
   // HANG-LOCAL UX (Erik 01/10 · option 2) : ville à montrer à l'apparition
   // d'un blocage de fin de tour (miroir « unités sans ordre »).
-  import { villeDuPremierBlocageProduction } from '../lib/blocages.js';
+  import { villeDuPremierBlocageProduction, menuAOuvrir, villeVoisine } from '../lib/blocages.js';
   // UI-JEU-T1 (Erik 01/10) : calque dev (D1) + portrait de dirigeant (D4).
   import { calqueDev, basculerCalqueDev, raccourciCalqueDev } from '../lib/calqueDev.js';
   import { portraitDirigeant } from '../lib/dirigeants.js';
@@ -425,6 +425,54 @@
     angkorDismissed = true;
     angkorWonder = null;
     angkorCity = null;
+  }
+
+  /**
+   * BLOCAGE-NAVIGATION (Erik 05/10 · D1/D2) — le clic sur le bouton bloqué
+   * « Fin de tour bloquée (n) » OUVRE le menu fautif : ResearchPanel si un
+   * blocage recherche existe, sinon PanneauVille de la première ville
+   * fautive (tri R-81 par id — menuAOuvrir). « Les deux → Recherche
+   * d'abord. » Le motif pédagogique (toasts) reste affiché en complément
+   * (option 1 HANG-LOCAL conservée). D4 : la résolution ne passe PAS ici —
+   * le comportement actuel (sélection + centrage, pas d'ouverture) est
+   * inchangé.
+   */
+  function ouvrirMenuBlocage(): void {
+    const v = get(view);
+    const id = myEngineId(v);
+    const blocages = v.state && id ? blocagesFinDeTour(v.state, id, v.orders) : [];
+    for (const b of blocages) pushErrorToast(libelleBlocageFinDeTour(v.state!, b), 'bad');
+    const cible = menuAOuvrir(blocages);
+    if (!cible) return;
+    if (cible.kind === 'recherche') {
+      showResearch = true;
+      return;
+    }
+    const ville = v.state?.cities[cible.cityId];
+    if (!ville) return;
+    ui.set({ selectedUnitId: null, selectedCityId: ville.id, draft: null });
+    canvasApi?.centerOnHex({ q: ville.q, r: ville.r });
+  }
+
+  /**
+   * BLOCAGE-NAVIGATION (Erik 05/10 · D3) — flèches ⟵ ⟶ de l'en-tête de
+   * PanneauVille : ville suivante/précédente de l'empire (ordre R-81 par
+   * id, cyclique — villeVoisine), recentrage caméra SANS changer le zoom.
+   * Utilisable en permanence (blocage ou non) ; depuis n'importe quelle
+   * ville affichée (les flèches suivent la sélection au clic carte).
+   */
+  function naviguerVille(delta: 1 | -1): void {
+    const v = get(view);
+    const id = myEngineId(v);
+    if (!v.state || !id) return;
+    const ids = Object.values(v.state.cities)
+      .filter((c) => c.owner === id)
+      .map((c) => c.id);
+    const cibleId = villeVoisine(ids, get(ui).selectedCityId ?? '', delta);
+    const ville = cibleId ? v.state.cities[cibleId] : undefined;
+    if (!ville) return;
+    ui.set({ selectedUnitId: null, selectedCityId: ville.id, draft: null });
+    canvasApi?.centerOnHex({ q: ville.q, r: ville.r });
   }
 
   function requestEndTurn(): void {
@@ -1214,7 +1262,7 @@
               class:occupe={$view.phase === 'resolving' || playbackActive}
               disabled={$view.locked || $view.phase !== 'orders' || $view.status !== 'active'}
               title={myBlocages.length > 0 ? myBlocagesLabel : 'Terminer le tour (verrouillage des ordres)'}
-              onclick={requestEndTurn}
+              onclick={myBlocages.length > 0 ? ouvrirMenuBlocage : requestEndTurn}
             >
               <img src="/art/icone_fin_tour.png" alt="" onerror={hideImg} />
             </button>
@@ -1239,7 +1287,7 @@
                inchangée). Fermeture : ×, Échap ou clic ailleurs (deselect
                → selectNothing → selectedCityId null). D5 : la carte affiche
                zone cultivable + rendements (villeRendementsId du canvas). -->
-          <PanneauVille view={$view} {client} cityId={$ui.selectedCityId} onFermer={() => selectNothing(ui)} />
+          <PanneauVille view={$view} {client} cityId={$ui.selectedCityId} onFermer={() => selectNothing(ui)} onNaviguer={naviguerVille} />
         {/if}
         {#if showIdleDialog}
           <div class="victory idle-dialog">

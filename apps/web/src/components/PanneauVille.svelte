@@ -31,14 +31,30 @@
     client: GameClient;
     cityId: string;
     onFermer(): void;
+    /** BLOCAGE-NAVIGATION · D3 : ville suivante (1) / précédente (−1) de
+     *  l'empire — branché par Game.svelte (sélection + recentrage caméra). */
+    onNaviguer?(delta: 1 | -1): void;
   }
 
-  let { view, client, cityId, onFermer }: Props = $props();
+  let { view, client, cityId, onFermer, onNaviguer }: Props = $props();
 
   const city = $derived(view.state?.cities[cityId] ?? null);
   const mine = $derived(!!city && city.owner === myEngineId(view));
   const editable = $derived(ordersEditable(view));
   const engine = $derived(myEngineId(view));
+
+  // ---- BLOCAGE-NAVIGATION · D3 : flèches ⟵ ⟶ de l'en-tête ----------------
+  // Présentes dès ≥ 2 villes de MON empire, uniquement sur une ville à moi ;
+  // l'ordre R-81 (id croissant, cyclique) vit dans lib/blocages.ts, la
+  // sélection + recentrage dans Game.svelte (naviguerVille).
+  const mesVilles = $derived(
+    view.state && engine
+      ? Object.values(view.state.cities)
+          .filter((c) => c.owner === engine)
+          .map((c) => c.id)
+      : ([] as string[]),
+  );
+  const navigable = $derived(!!onNaviguer && mine && mesVilles.length >= 2);
 
   // ---- Nom (nom porté — VilleN ou table de civ — fallback id) -------------
   const displayName = $derived(city ? (city.name ?? city.id) : '');
@@ -328,7 +344,18 @@
 <aside class="panneau-ville" aria-label="Panneau de ville">
   <header>
     <div>
-      <h1>{displayName}</h1>
+      <h1>
+        {#if navigable}
+          <!-- BLOCAGE-NAVIGATION · D3 : ville précédente/suivante de l'empire
+               (ordre R-81 cyclique) — clic = sélection + recentrage caméra
+               (Game.svelte naviguerVille), panneau mis à jour. -->
+          <button type="button" class="nav-ville" title="Ville précédente de l'empire" aria-label="Ville précédente de l'empire" onclick={() => onNaviguer?.(-1)}>⟵</button>
+        {/if}
+        {displayName}
+        {#if navigable}
+          <button type="button" class="nav-ville" title="Ville suivante de l'empire" aria-label="Ville suivante de l'empire" onclick={() => onNaviguer?.(1)}>⟶</button>
+        {/if}
+      </h1>
       <span class="sub">
         {#if city?.capital}Capitale · {/if}
         {#if cityCivLabel}{cityCivLabel} · {/if}
@@ -565,7 +592,10 @@
     box-shadow: 0 6px 24px #000000a0;
   }
   header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.4rem; }
-  h1 { margin: 0; font-family: var(--serif-or, Georgia, serif); font-size: 1.3rem; color: var(--or-clair, #e8c96a); letter-spacing: 0.02em; }
+  h1 { margin: 0; font-family: var(--serif-or, Georgia, serif); font-size: 1.3rem; color: var(--or-clair, #e8c96a); letter-spacing: 0.02em; display: flex; align-items: center; gap: 0.35rem; }
+  /* BLOCAGE-NAVIGATION · D3 — flèches d'en-tête (même langage AAA or-sur-sombre) */
+  .nav-ville { padding: 0 0.4rem; border-radius: 6px; border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25)); background: transparent; color: var(--texte-doux, #b6ad93); cursor: pointer; font-size: 0.85rem; line-height: 1.4; }
+  .nav-ville:hover { color: var(--or-clair, #e8c96a); border-color: var(--or, #c9a227); }
   .sub { color: var(--texte-doux, #b6ad93); font-size: 0.78rem; }
   .fermer { padding: 0.25rem 0.6rem; border-radius: 6px; border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25)); background: transparent; color: var(--texte-doux, #b6ad93); cursor: pointer; font-size: 0.9rem; }
   .fermer:hover { color: var(--or-clair, #e8c96a); border-color: var(--or, #c9a227); }

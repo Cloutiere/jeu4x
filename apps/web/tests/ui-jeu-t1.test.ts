@@ -137,9 +137,11 @@ describe('UI-JEU-T1 · câblage Game.svelte', () => {
     expect(src).toContain("icone_fin_tour.png");
     expect(src).toContain("Unités en attente d'ordres ({attenteOrdres})");
     expect(src).toContain('`Fin de tour bloquée (${myBlocages.length})`');
-    // le bouton circulaire appelle bien requestEndTurn (comportements intacts)
+    // le bouton circulaire appelle bien requestEndTurn hors blocage ; depuis
+    // BLOCAGE-NAVIGATION (Erik 05/10 · D1), un clic BLOQUÉ ouvre le menu
+    // fautif (ouvrirMenuBlocage) — requestEndTurn reste le chemin libre.
     const rond = src.slice(src.indexOf('fin-tour-rond'), src.indexOf('fin-tour-rond') + 700);
-    expect(rond).toContain('onclick={requestEndTurn}');
+    expect(rond).toContain('onclick={myBlocages.length > 0 ? ouvrirMenuBlocage : requestEndTurn}');
     expect(rond).toContain('disabled={$view.locked || $view.phase !== \'orders\' || $view.status !== \'active\'}');
   });
 });
