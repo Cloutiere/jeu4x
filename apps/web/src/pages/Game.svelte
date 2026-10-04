@@ -1253,7 +1253,15 @@
               >Unités en attente d'ordres ({attenteOrdres})</button>
             {/if}
             {#if myBlocages.length > 0}
-              <span class="fin-tour-libelle blocage-libelle">{`Fin de tour bloquée (${myBlocages.length})`}</span>
+              <!-- BLOCAGE-NAVIGATION (retour d'Erik 04/10) : le LIBELLÉ est
+                   cliquable LUI AUSSI — même ouverture du menu fautif que le
+                   bouton rond (Erik a cliqué le texte, pas le sablier). -->
+              <button
+                type="button"
+                class="fin-tour-libelle blocage-libelle"
+                title={myBlocagesLabel}
+                onclick={ouvrirMenuBlocage}
+              >{`Fin de tour bloquée (${myBlocages.length})`}</button>
             {/if}
             <button
               type="button"
@@ -1801,6 +1809,10 @@
     white-space: nowrap;
   }
   .fin-tour-libelle.blocage-libelle { color: #ffcc80; border-color: #a3703c; }
+  /* BLOCAGE-NAVIGATION (retour d'Erik 04/10) : le libellé de blocage est un
+     BOUTON — même ouverture du menu fautif que le bouton rond. */
+  button.blocage-libelle { cursor: pointer; }
+  button.blocage-libelle:hover { color: #ffe0b2; border-color: var(--or, #c9a227); box-shadow: 0 2px 10px rgba(201, 162, 39, 0.35); }
   /* RÉVISION (Erik 04/10) : le badge d'attente est un BOUTON — chaque clic
      sélectionne + centre la prochaine unité sans ordre (zoom préservé). */
   button.fin-tour-attente { cursor: pointer; }
