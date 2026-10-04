@@ -405,6 +405,8 @@ function tenterDepose(board: Board, transport: Unit): boolean {
     // ARTEFACT-ARCHE · D2 : une pose SANS pas de mouvement active aussi
     // (miroir openHutAt — R-153 amendée). Le balayage D1 reste en redondance.
     activateArtefactAt(artefactCtxOf(board), passager, cible);
+    // HUTTE-POSE · miroir R-98 amendée : la dépose ouvre une hutte aussi.
+    openHutAt(board, cible, passager);
     return true;
   }
   return false;
@@ -692,6 +694,22 @@ function balayerArtefacts(board: Board): void {
     const u = st.units[id];
     if (!u || u.aboard || isBarbarian(u.owner)) continue;
     activateArtefactAt(ctx, u, { q: u.q, r: u.r });
+  }
+}
+
+/**
+ * HUTTE-POSE · balayage de tête de Phase A (miroir de balayerArtefacts) :
+ * toute unité debout (hors embarquée) sur une hutte l'ouvre — les barbares
+ * n'ouvrent pas (R-95, déjà filtré par openHutAt). Ordre unitId croissant
+ * (R-81) ; idempotent (la hutte est retirée à l'ouverture).
+ */
+function balayerHuttes(board: Board): void {
+  const st = board.st;
+  if (st.huts.length === 0) return;
+  for (const id of sortUnitIds(board)) {
+    const u = st.units[id];
+    if (!u || u.aboard || isBarbarian(u.owner)) continue;
+    openHutAt(board, { q: u.q, r: u.r }, u);
   }
 }
 
@@ -4495,6 +4513,8 @@ function regulariserArrivantes(board: Board): void {
     // ARTEFACT-ARCHE · D2 : la pose par régularisation active aussi (R-153
     // amendée) — le balayage D1 reste en redondance.
     activateArtefactAt(artefactCtxOf(board), u, cible);
+    // HUTTE-POSE · miroir R-98 amendée : la régularisation ouvre une hutte aussi.
+    openHutAt(board, cible, u);
   }
 }
 
@@ -4846,6 +4866,10 @@ export function resolveTurn(
   // tout déplacement synthétique — couvre aussi les résidus anciens). Idempotent
   // par nature : l'artefact est retiré à l'activation (R-153).
   balayerArtefacts(board);
+  // HUTTE-POSE · balayage de tête de Phase A (miroir R-98 amendée) : toute
+  // unité des civilisations debout sur une hutte l'ouvre, même posée SANS pas
+  // de mouvement (rattrape les poses passées, présentes et futures).
+  balayerHuttes(board);
   applyFortifyOrders(board, allOrders);
   // mouvements (R-40..R-43), ordre unitId croissant (R-41) — barbares compris.
   // R-158 (D5) : un ordre composite MultiStep enchaîne déplacement(s) puis
