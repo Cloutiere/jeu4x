@@ -65,7 +65,8 @@ test('procedural-40 : création, join, dump admin complet et symétrique', async
   const units = state.units as unknown as Record<string, { q: number; r: number; type: string }>;
   const colon1 = units.u1!;
   const colon2 = units.u3!;
-  const Wp = state.mapWidth;
+  // (le type Snapshot du dump ne porte pas mapWidth — cast local)
+  const Wp = (state as unknown as { mapWidth: number }).mapWidth;
   const colOf = (h: { q: number; r: number }) => h.q + Math.floor(h.r / 2);
   const dcRaw = Math.abs(colOf(colon1) - colOf(colon2)) % Wp;
   const dCol = Math.min(dcRaw, Wp - dcRaw);
