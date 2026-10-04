@@ -104,9 +104,11 @@ describe('clickAction (L3)', () => {
     const state = makeBattleState();
     delete (state.map as Record<string, unknown>)[tileKey(-1, 1)]; // voisine de u1 mais hors état filtré
     const view = viewOf(state);
+    // MONDE CYLINDRIQUE : le clic hors bornes (q=−1) est replié en col 7 —
+    // la case canonique est reflétée dans le chemin soumis (D1).
     expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: -1, r: 1 })).toEqual({
       kind: 'moveDraft',
-      path: [{ q: -1, r: 1 }],
+      path: [{ q: 7, r: 1 }],
       unitId: 'u1',
     });
   });
@@ -116,7 +118,10 @@ describe('clickAction (L3)', () => {
     delete (state.map as Record<string, unknown>)[tileKey(6, 6)]; // loin de u1, hors état filtré
     const view = viewOf(state);
     expect(clickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 6, r: 6 }).kind).toBe('deselect');
-    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 6, r: 6 }).kind).toBe('cancelOrder');
+    // MONDE CYLINDRIQUE : (6,6) est à distance wrap 2 de u1, jointe PAR LA
+    // COUTURE via les colonnes 7-0 connues — le clic droit programme (le pas
+    // final inconnu reste encadré par R-161 côté moteur).
+    expect(rightClickAction(view, uiOf({ selectedUnitId: 'u1' }), { q: 6, r: 6 }).kind).toBe('moveDraft');
   });
 
   it('jalonsDeTours (préview multi-tours) : un badge par tour de PM, style Civ 7', () => {

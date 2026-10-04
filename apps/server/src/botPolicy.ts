@@ -35,7 +35,7 @@ import {
   canSetProduction,
   compareCityIds,
   compareUnitIds,
-  hexDistance,
+  hexDistanceW,
   rushBuyCostOf,
   wonderTreasuryLocked,
 } from '@game/rules';
@@ -393,7 +393,7 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng):
       const parts = key.split(',');
       const q = Number(parts[0]);
       const r = Number(parts[1]);
-      const d = hexDistance({ q, r }, { q: city.q, r: city.r });
+      const d = hexDistanceW({ q, r }, { q: city.q, r: city.r }, state.mapWidth);
       return d >= 1 && d <= 2;
     });
     if (candidates.length === 0) continue;
@@ -436,7 +436,7 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng):
   // REMPLACE l'ordre aléatoire déjà donné à ce GP (sémantique same-subject).
   for (const unit of mine) {
     if (!UNIT_TYPES[unit.type]?.greatPerson) continue;
-    const target = myCities.find((c) => hexDistance({ q: unit.q, r: unit.r }, { q: c.q, r: c.r }) <= 1);
+    const target = myCities.find((c) => hexDistanceW({ q: unit.q, r: unit.r }, { q: c.q, r: c.r }, state.mapWidth) <= 1);
     if (!target) continue;
     const existing = orders.findIndex((o) => 'unitId' in o && o.unitId === unit.id);
     const settle: Order = { type: 'GreatPersonAction', unitId: unit.id, action: 'settle', cityId: target.id };

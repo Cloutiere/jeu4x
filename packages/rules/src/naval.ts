@@ -11,7 +11,7 @@
  *  - Galère/Galion transportent 1 unité terrestre (`cargoCapacity`) ;
  *  - le soutien naval (R-118) s'ajoute à S_att (MAX d'un seul navire adjacent).
  */
-import { neighbors, tileKeyOf } from './hex.js';
+import { neighborsW, tileKeyOf, SANS_WRAP } from './hex.js';
 import type { Hex } from './hex.js';
 import { TERRAINS, isWaterTerrain, unitType } from './data.js';
 import type { TerrainId, UnitTypeData } from './types.js';
@@ -41,17 +41,17 @@ export function canEnterTerrain(
 }
 
 /** R-117 · La case hex porte-t-elle une ville côtière (adjacente à l'eau) ? */
-export function isCoastalCityHex(map: NavalMap, hex: Hex): boolean {
+export function isCoastalCityHex(map: NavalMap, hex: Hex, width: number = SANS_WRAP): boolean {
   if (map[tileKeyOf(hex)]?.terrain !== 'ville') return false;
-  return neighbors(hex).some((h) => {
+  return neighborsW(hex, width).some((h) => {
     const t = map[tileKeyOf(h)]?.terrain;
     return !!t && isWaterTerrain(t);
   });
 }
 
 /** R-117 · La ville produite depuis cette case est-elle côtière (accès mer) ? */
-export function citySiteIsCoastal(map: NavalMap, hex: Hex): boolean {
-  return neighbors(hex).some((h) => {
+export function citySiteIsCoastal(map: NavalMap, hex: Hex, width: number = SANS_WRAP): boolean {
+  return neighborsW(hex, width).some((h) => {
     const t = map[tileKeyOf(h)]?.terrain;
     return !!t && isWaterTerrain(t);
   });
@@ -92,10 +92,11 @@ export function navalSupportFor(
   attackerOwner: string,
   combatTile: Hex,
   unitAt: (hex: Hex) => SupportUnitRef | undefined,
+  width: number = SANS_WRAP,
 ): number {
   if (attackerStats.aquatic) return 0;
   let best = 0;
-  for (const hex of neighbors(combatTile)) {
+  for (const hex of neighborsW(combatTile, width)) {
     const t = map[tileKeyOf(hex)]?.terrain;
     if (!t || !isWaterTerrain(t)) continue; // « en mer » : pas depuis un port
     const u = unitAt(hex);

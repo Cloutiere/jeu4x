@@ -9,7 +9,7 @@
  *
  * R-81/R-82 : aucun Math.random(), aucun Date.now(), tris explicites partout.
  */
-import { hexDistance, inRectangle, neighbors, tileKeyOf } from './hex.js';
+import { hexDistanceW, inRectangle, neighborsW, normalizeHexW, tileKeyOf, wrapColDelta, SANS_WRAP } from './hex.js';
 import type { Hex } from './hex.js';
 import { BARBARIAN_ID, BARBARIANS, HUT_REWARDS, TERRAINS, unitType } from './data.js';
 import type { GameState, Order, Unit } from './state.js';
@@ -142,7 +142,7 @@ export function barbarianOrders(state: GameState): Order[] {
 
     // (1) attaque adjacente — voisins déjà triés (q, r) croissant.
     let acted = false;
-    for (const next of neighbors(here)) {
+    for (const next of neighborsW(here, state.mapWidth)) {
       const defender = unitAt(state, next);
       const city = cityAt(state, next);
       const enemyOnTile = defender && defender.owner !== BARBARIAN_ID;
@@ -165,7 +165,7 @@ export function barbarianOrders(state: GameState): Order[] {
 
     // (2) avancer d'un pas vers l'entité ennemie la plus proche dans T-19.
     const inAggro = targets
-      .map((t) => ({ t, d: hexDistance(here, t) }))
+      .map((t) => ({ t, d: hexDistanceW(here, t, state.mapWidth) }))
       .filter(({ d }) => d >= 1 && d <= BARBARIANS.aggroRadius)
       .sort((a, b) => a.d - b.d || a.t.q - b.t.q || a.t.r - b.t.r);
     const target = inAggro[0]?.t;
@@ -226,15 +226,20 @@ function advanceStep(state: GameState, here: Hex, target: Hex): Hex | null {
     const u = unitAt(state, h);
     return !!u && u.owner === BARBARIAN_ID;
   };
-  const d = hexDistance(here, target);
+  // Monde cylindrique : la cible est ramenée à son représentant le plus
+  // proche (couture comprise) avant toute interpolation de ligne.
+  const w = state.mapWidth;
+  const dc = wrapColDelta(target.q - here.q, w);
+  const cible = dc === target.q - here.q ? target : { q: here.q + dc, r: target.r };
+  const d = hexDistanceW(here, target, w);
   if (d <= 0) return null;
   // Premier pas de la ligne hexagonale (arrondi cube, même convention que hex.ts).
   const t = 1 / d;
-  const first = roundHex(here.q + (target.q - here.q) * t, here.r + (target.r - here.r) * t);
+  const first = normalizeHexW(roundHex(here.q + (cible.q - here.q) * t, here.r + (cible.r - here.r) * t), w);
   if (first.q !== here.q || first.r !== here.r) {
     if (passable(state, first) && !friendlyBlocks(first)) return first;
   }
-  const better = neighbors(here).filter((h) => hexDistance(h, target) < d);
+  const better = neighborsW(here, w).filter((h) => hexDistanceW(h, target, w) < d);
   return better.find((h) => passable(state, h) && !friendlyBlocks(h)) ?? null;
 }
 
@@ -306,7 +311,7 @@ export function freeSpawnTiles(state: GameState, center: Hex, count: number): He
   // (une unité qui y APPARAÎT n'active pas — seule l'entrée active, R-153).
   const artefactKeys = new Set(state.artefacts?.map((a) => tileKeyOf(a)) ?? []);
   const out: Hex[] = [];
-  for (const h of neighbors(center)) {
+  for (const h of neighborsW(center, state.mapWidth)) {
     if (out.length >= count) break;
     const key = tileKeyOf(h);
     if (!passable(state, h)) continue;

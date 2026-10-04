@@ -45,6 +45,7 @@ import {
   wonderTreasuryLocked,
   WONDERS,
   isWonderObsolete,
+  normalizeHexW,
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, LoadedMap, Order, PlayerId, ProgenReport, UnitId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
@@ -232,7 +233,31 @@ function productionItemShapeError(item: unknown): string | null {
   return typeof it.id === 'string' ? null : 'id d’item invalide';
 }
 
+/**
+ * CARTE-RONDE T1 · D1 : replie les cases d'un ordre (chemins, cibles,
+ * rendez-vous) dans [0, largeur). Pure ; largeur 0 (= partie absente) →
+ * identité. Les cibles ATTENDUES hors carte restent rejetées par le moteur.
+ */
+export function normaliserOrdre(order: Order, width: number): Order {
+  if (width <= 0) return order;
+  const n = (h: { q: number; r: number }) => normalizeHexW(h, width);
+  switch (order.type) {
+    case 'Move':
+    case 'MultiStep':
+      return { ...order, path: order.path.map(n) } as Order;
+    case 'Attack':
+    case 'Launch':
+      return { ...order, target: n(order.target) } as Order;
+    case 'FormArmy':
+      return { ...order, rally: n(order.rally) } as Order;
+    default:
+      return order;
+  }
+}
+
 /** Validation structurelle côté serveur (le moteur re-valide tout à la résolution).
+ *  CARTE-RONDE T1 : un q hors bornes est ACCEPTÉ ici (forme) — il est
+ *  normalisé à l'entrée (`normaliserOrdre`) et re-validé par le moteur.
  *  Exportée pour tests — pure, aucune dépendance au GameDO. */
 export function orderShapeError(order: unknown): string | null {
   if (typeof order !== 'object' || order === null) return 'ordre absent';
@@ -1179,6 +1204,10 @@ export class GameDO {
   private async handleOrder(ws: WebSocket, playerId: PlayerId, order: Order): Promise<void> {
     const shapeError = orderShapeError(order);
     if (shapeError) return this.sendOrderRejection(ws, shapeError);
+    // CARTE-RONDE T1 · D1 : normalisation canonique des cases d'ordres — un
+    // q hors bornes (client à l'Ouest de la couture) est replié dans
+    // [0, largeur) AVANT stockage ; le moteur re-vérifie tout à la résolution.
+    order = normaliserOrdre(order, this.game?.mapWidth ?? 0);
     if (!this.game || !this.meta || this.meta.status !== 'active' || this.game.phase !== 'orders') {
       return this.sendOrderRejection(ws, 'ordres non modifiables (résolution ou partie terminée)');
     }

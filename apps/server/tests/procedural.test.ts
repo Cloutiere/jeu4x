@@ -28,11 +28,13 @@ test('procedural-40 : création, join, dump admin complet et symétrique', async
   const progen = dump.meta?.progen;
   expect(progen).toBeDefined();
   expect(progen!.seed).toBe(dump.meta!.seed);
-  expect(progen!.strategy).toBe('mirror1v1');
+  expect(progen!.strategy).toBe('rotationnel1v1');
   // Archipel (défaut 6c) : ratio terre effectif ≈ 55 % × 0.7 ≈ 38.5 %.
   expect(progen!.landRatio).toBeGreaterThan(0.33);
   expect(progen!.landRatio).toBeLessThan(0.45);
-  expect(progen!.fertility.delta).toBe(0); // équité parfaite par miroir
+  // MONDE CYLINDRIQUE (T1, D3) : équité STATISTIQUE — delta 🔶 plafonné
+  // (plus de checksum nul par miroir).
+  expect(progen!.fertility.delta).toBeLessThanOrEqual(15);
   expect(progen!.fertility.p1).toBeGreaterThanOrEqual(progen!.fertility.threshold);
   // Archipel (défaut 6c) : connexité terrestre non requise (îles) — la
   // valeur du rapport est informative (peut être true par hasard).
@@ -58,15 +60,19 @@ test('procedural-40 : création, join, dump admin complet et symétrique', async
   expect(unitTypes.u3!.type).toBe('colon');
   expect(unitTypes.u3!.owner).toBe('p2');
 
-  // Phase 6c (Erik) : sans capitale, la symétrie se vérifie sur les COLONS
-  // (u1 = site p1, u3 = site p2 — l'un est l'image de l'autre, distance ≥ 12).
+  // MONDE CYLINDRIQUE (T1) : l'adversaire est à l'OPPOSÉ DU CYLINDRE
+  // (|Δcolonne wrap − W/2| ≤ 🔶 tolérance 4), distance wrap ≥ 12.
   const units = state.units as unknown as Record<string, { q: number; r: number; type: string }>;
   const colon1 = units.u1!;
   const colon2 = units.u3!;
-  expect(colon2.q).toBe(20 - colon1.q);
-  expect(colon2.r).toBe(39 - colon1.r);
-  const dq = colon2.q - colon1.q;
-  const dr = colon2.r - colon1.r;
+  const Wp = state.mapWidth;
+  const colOf = (h: { q: number; r: number }) => h.q + Math.floor(h.r / 2);
+  const dcRaw = Math.abs(colOf(colon1) - colOf(colon2)) % Wp;
+  const dCol = Math.min(dcRaw, Wp - dcRaw);
+  expect(dCol).toBeGreaterThanOrEqual(Wp / 2 - 4);
+  expect(dCol).toBeLessThanOrEqual(Wp / 2 + 4);
+  const dr = colon1.r - colon2.r;
+  const dq = dCol - (Math.floor(colon1.r / 2) - Math.floor(colon2.r / 2));
   expect((Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2).toBeGreaterThanOrEqual(12);
 });
 

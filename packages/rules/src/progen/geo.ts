@@ -27,7 +27,7 @@ import type { TerrainId } from '../types.js';
 import type { SeededRng } from '../rng.js';
 import { createNoise2d } from './noise.js';
 import { isWaterTerrain } from '../data.js';
-import { colRowToHex, neighbors } from '../hex.js';
+import { colRowToHex, neighborsW } from '../hex.js';
 import type { ProgenSettings } from './settings.js';
 
 /** Résultat de la couche géophysique : terrains + champs de debug (altitude,
@@ -141,11 +141,13 @@ export function generateTerrain(
     const x = col * baseFreq;
     const y = row * baseFreq;
     let alt = nAlt.fbm(x, y) * 100;
-    // Océan de bordure : l'altitude décroît vers les bords (PDF §Continents),
-    // SAUF le bord bas ouvert (frontière de découpage de la stratégie).
-    const edge = openBottom
-      ? Math.min(col, width - 1 - col, row)
-      : Math.min(col, width - 1 - col, row, height - 1 - row);
+    // Océan de bordure NORD/SUD seulement : l'altitude décroît vers les bords
+    // haut/bas (PDF §Continents), SAUF le bord bas ouvert (frontière de
+    // découpage). MONDE CYLINDRIQUE (CARTE-RONDE T1) : les bords EST/OUEST ne
+    // sont PAS des bords — aucune déclinaison en colonne, la terre peut
+    // toucher la couture et le monde se traverse à pied (décision Erik 04/10).
+    void col;
+    const edge = openBottom ? row : Math.min(row, height - 1 - row);
     const falloff = 0.3 + 0.7 * smoothstep((edge - 1) / 3.5);
     alt *= falloff;
     // Rifts : abaissement gaussien autour de l'axe ondulé.
@@ -297,10 +299,9 @@ export function classifyWaters(terrain: TerrainId[][], coastWidth: number): Terr
     const { col, row } = queue[head++]!;
     const d = dist[row]![col]!;
     if (d >= coastWidth) continue; // au-delà, les voisins dépasseraient coastWidth
-    for (const n of neighbors(colRowToHex(col, row))) {
+    for (const n of neighborsW(colRowToHex(col, row), width, height)) {
       const nCol = n.q + Math.floor(n.r / 2);
       const nRow = n.r;
-      if (nRow < 0 || nRow >= height || nCol < 0 || nCol >= width) continue;
       if (dist[nRow]![nCol]! > d + 1) {
         dist[nRow]![nCol] = d + 1;
         queue.push({ col: nCol, row: nRow });

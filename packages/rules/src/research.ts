@@ -14,7 +14,7 @@ import type { FirstDiscoveredPayload, GameEvent } from './events.js';
 import type { GameState, PlayerId, TileKey } from './state.js';
 import { applyFirstToDiscover } from './firstDiscovery.js';
 import { tileWorkable, tileYield, workRadiusOf } from './economy.js';
-import { hexDistance, hexesWithinRadius, tileKeyOf } from './hex.js';
+import { hexDistanceW, hexesWithinRadiusW, tileKeyOf } from './hex.js';
 import { revealWholeMapOnTech } from './artefacts.js';
 
 /** Événement TechResearched (sans seq — séquencé par l'appelant). */
@@ -109,8 +109,8 @@ function appendFillWorkedTiles(st: GameState, cityId: string): void {
     for (const key of c.workedTiles) taken.add(key);
     taken.add(`${c.q},${c.r}`);
   }
-  const candidates = hexesWithinRadius(cityHex, radius)
-    .filter((h) => hexDistance(cityHex, h) >= 1)
+  const candidates = hexesWithinRadiusW(cityHex, radius, st.mapWidth)
+    .filter((h) => hexDistanceW(cityHex, h, st.mapWidth) >= 1)
     .map((h) => ({ key: tileKeyOf(h), hex: h }))
     .filter(({ key }) => tileWorkable(st.map, key) && !taken.has(key) && !city.workedTiles.includes(key))
     .map(({ key, hex }) => ({ key, hex, y: tileYield(st.map, city.buildings, key, st.players[city.owner]?.techsUnlocked ?? [])! }))

@@ -11,10 +11,13 @@ import { filterEventsForPlayer, getFilteredState } from '../src/fog.js';
 import type { GameState, Order } from '../src/state.js';
 import type { GameEvent } from '../src/events.js';
 
-/** Fixture de campagne : deux capitales, unités des deux côtés, carte 14×8. */
+/** Fixture de campagne : deux capitales, unités des deux côtés, carte 30×8.
+ *  MONDE CYLINDRIQUE : assez large pour que le théâtre (cols 0-6 vs 13) ne
+ *  soit pas adjacent PAR LA COUTURE — le scénario teste la campagne, pas le
+ *  wrap (voir carte-ronde.test.ts). */
 function campagne(): GameState {
   return makeState({
-    width: 14,
+    width: 30,
     height: 8,
     terrainOverrides: { '6,1': 'foret', '5,2': 'colline' },
     cities: [

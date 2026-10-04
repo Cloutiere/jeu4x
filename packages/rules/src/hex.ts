@@ -123,3 +123,84 @@ export function inRectangle(hex: Hex, width: number, height: number): boolean {
   const col = hex.q + Math.floor(hex.r / 2);
   return row >= 0 && row < height && col >= 0 && col < width;
 }
+
+// ---------------------------------------------------------------------------
+// Monde cylindrique — enroulement Est↔Ouest (CARTE-RONDE T1, RULES.md §2bis).
+// Le repli se fait en espace COLONNE (col = q + ⌊r/2⌋) : la disposition
+// rectangulaire L3 décale q d'une demi-case par rangée, un wrap sur q brut
+// casserait la couture en biais. Nord/Sud restent des bords (r jamais replié).
+// ---------------------------------------------------------------------------
+
+/**
+ * Largeur « plate » : passée aux variantes W quand le contexte n'a PAS de
+ * carte (fixtures, helpers purs optionnels) — les replis deviennent des
+ * no-ops et les fonctions W coïncident avec leurs versions plates.
+ */
+export const SANS_WRAP = 1 << 30;
+
+/** Colonne rectangulaire d'une case : col = q + ⌊r/2⌋. */
+export function colOf(hex: Hex): number {
+  return hex.q + Math.floor(hex.r / 2);
+}
+
+/** Colonne repliée dans [0, width). */
+export function wrapCol(col: number, width: number): number {
+  if (width >= SANS_WRAP) return col; // sentinelle « plate » : identité stricte
+  return ((col % width) + width) % width;
+}
+
+/** Plus court delta en colonnes sur le cylindre, dans ]−width/2, width/2]. */
+export function wrapColDelta(dc: number, width: number): number {
+  if (width >= SANS_WRAP) return dc;
+  const m = wrapCol(dc, width);
+  return m > width / 2 ? m - width : m;
+}
+
+/**
+ * D1 — Normalisation canonique : colonne repliée dans [0, width), rangée
+ * intacte. Toute case stockée (unités, villes, ordres, entités) est normalisée.
+ * SANS_WRAP : identité stricte (les q négatifs sont conservés).
+ */
+export function normalizeHexW(hex: Hex, width: number): Hex {
+  if (width >= SANS_WRAP) return hex;
+  return colRowToHex(wrapCol(colOf(hex), width), hex.r);
+}
+
+/** Distance cylindre : dq ajusté du repli Est↔Ouest, couture comprise. */
+export function hexDistanceW(a: Hex, b: Hex, width: number): number {
+  const dc = wrapColDelta(colOf(a) - colOf(b), width);
+  const dr = a.r - b.r;
+  const dq = dc - (Math.floor(a.r / 2) - Math.floor(b.r / 2));
+  return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+}
+
+/**
+ * Voisinage cylindre : les voisins Est↔Ouest d'une case de bord ressortent de
+ * l'autre côté ; les rangées hors [0, height) sont exclues (height fourni —
+ * bord Nord/Sud). Dédupliqué (rayons ≥ largeur/2 peuvent replier deux fois
+ * la même case) et trié (q, r) — R-81.
+ */
+export function neighborsW(hex: Hex, width: number, height?: number): Hex[] {
+  const out = new Map<string, Hex>();
+  for (const d of DIRECTIONS) {
+    const n = normalizeHexW({ q: hex.q + d.q, r: hex.r + d.r }, width);
+    if (height !== undefined && (n.r < 0 || n.r >= height)) continue;
+    out.set(tileKeyOf(n), n);
+  }
+  return [...out.values()].sort(compareHex);
+}
+
+/** Cases à distance ≤ radius du centre sur le cylindre, dédupliquées, triées. */
+export function hexesWithinRadiusW(center: Hex, radius: number, width: number, height?: number): Hex[] {
+  const out = new Map<string, Hex>();
+  for (let dq = -radius; dq <= radius; dq++) {
+    const rMin = Math.max(-radius, -dq - radius);
+    const rMax = Math.min(radius, -dq + radius);
+    for (let dr = rMin; dr <= rMax; dr++) {
+      const h = normalizeHexW({ q: center.q + dq, r: center.r + dr }, width);
+      if (height !== undefined && (h.r < 0 || h.r >= height)) continue;
+      out.set(tileKeyOf(h), h);
+    }
+  }
+  return [...out.values()].sort(compareHex);
+}

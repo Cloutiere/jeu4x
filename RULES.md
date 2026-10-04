@@ -17,6 +17,17 @@
 - ~~Aucune unité à distance en v1~~ — **7e : R-59 implémentée réellement** (Catapulte, Canon, Artillerie, §7.8).
 - Hors v1 (Phase 7) : ~~arbre technologique~~ (entré en 7a, **complété en 7e** — §8.1), ~~autres unités terrestres~~ (entrées en 7e), ~~naval & espionnage~~ (entrés en 7g — §8.6), ~~gouvernements, GP restants, victoire scientifique~~ (entrés en 7h — §8.7), merveilles (7f/7h), grandes personnes (culture 7f — R-114 ; combat 7h — R-123 ; ~~or/science/production 7h~~ **RETRAIT-GP-ACCUMULATEURS 14/09 : les accumulateurs R-123 sont ABROGÉS**). *(Barbares & huttes : entrés en v1 en Phase 7d — §7.9.)*
 
+## 2bis. Monde cylindrique — enroulement Est↔Ouest (CARTE-RONDE T1, ajouté le 04/10/2026 — décision d'Erik)
+
+Le monde est un **CYLINDRE** : on sort par l'Est et on ressort par l'Ouest. Le Nord et le Sud restent des bords. C'est LA règle pour tous les modes.
+
+- **R-C1 · Géométrie wrap** : la distance hexagonale, le voisinage, les rayons (`hexesWithinRadius`), les chemins, le brouillard, les portées de tir, les distances de villages/huttes/artefacts et les contraintes d'espacement comptent **à travers la couture** Est↔Ouest (distance la plus courte, couture comprise). Le repli se fait en espace **colonne** (`col = q + ⌊r/2⌋` mod largeur) — jamais sur `q` brut (décalage axial des rangées impaires).
+- **R-C2 · Normalisation canonique (D1)** : toute case stockée a sa colonne dans [0, largeur). Les entrées (ordres, poses, régularisations) normalisent ; le serveur replie les cases des ordres à la réception (`normaliserOrdre`) et le moteur normalise chaque pas de chemin consommé — un `q = −1` à l'Ouest de la couture est exécuté comme la colonne `largeur − 1`.
+- **R-C3 · Bordures terrestres** : la génération ne peint plus d'océan de bordure Est/Ouest (le déclin d'altitude vers les bords ne porte plus que sur Nord/Sud) — le monde se traverse à pied. Les cartes préfabriquées COMMISES gardent leur océan de bordure (données d'Erik, non rétro-modifiées 🔶) : la couture y reste navigable au naval.
+- **R-C4 · Symétrie rotationnelle 1v1 (D3)** : l'ancienne stratégie `mirror1v1` (demi-carte + réflexion 180°) est **ABROGÉE**. Le 1v1 (`rotationnel1v1`) génère la carte ENTIÈRE (40×40) et pose l'adversaire **à l'OPPOSÉ du cylindre** : |Δcolonne wrap − largeur/2| ≤ 🔶 `oppositionTolerance` (défaut 4), distance wrap ≥ T-09. Équité STATISTIQUE (garanties par joueur : anneaux SPAWN-START, couverture de ressources 6c, purge rayon 2) — le checksum de fertilité nul par miroir est remplacé par un delta 🔶 plafonné (consigné au rapport, tolérance escaladée). L'id historique `mirror1v1` reste enregistré comme alias de la stratégie rotationnelle.
+- **R-C5 · Équidistance multi** : à 3-5 sièges, les distances pairwise sont wrap ; la tolérance d'équidistance 🔶 évolue de +3 par tentative de génération (plafond 8 + 27 = 35) — les spawns peuvent être de VRAIS opposés.
+- **R-C6 · Rendu (TRANCHE 2, hors périmètre T1)** : la carte s'affiche en bande avec ses deux bords visibles ; caméra bouclante, double affichage, flèches traversant la couture et minimap bouclante viendront en tranche 2.
+
 ## 2. Terrains (révision économique du 30/08 — décision d'Erik, modèle Civ Revolution)
 
 | Terrain | Passable (unités) | Bonus défensif | Rendement de base (N/P/C) | Bâtiment d'amélioration | Bonus du bâtiment |

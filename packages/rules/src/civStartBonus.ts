@@ -29,7 +29,7 @@ import { createRng } from './rng.js';
 import { CIVILIZATIONS, civStartBuildings, civStartsAncientWonder, civStartsFreeGp, civIdOf } from './civilizations.js';
 import { GP_CLASSES } from './culture.js';
 import { TERRAINS, unitType } from './data.js';
-import { hexesWithinRadius, tileKeyOf } from './hex.js';
+import { hexesWithinRadiusW, tileKeyOf } from './hex.js';
 import { nextId } from './state.js';
 
 /** Événement sans `seq` (le journal du Board l'assigne à l'émission — turn.ts). */
@@ -100,7 +100,7 @@ export function applyCapitalStartBonuses(st: GameState, playerId: PlayerId, city
     const occupied = Object.values(st.units).some((u) => u.q === at.q && u.r === at.r);
     const spot = !occupied
       ? at
-      : hexesWithinRadius(at, 1).find((h) => {
+      : hexesWithinRadiusW(at, 1, st.mapWidth).find((h) => {
           const t = st.map[tileKeyOf(h)];
           if (!t || !TERRAINS[t.terrain]!.passable) return false;
           return !Object.values(st.units).some((u) => u.q === h.q && u.r === h.r);

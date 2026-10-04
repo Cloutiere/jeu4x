@@ -18,7 +18,7 @@
  * dérive une sous-graine (deriveSeed). Une partie « procedural-40 » est donc
  * rejouable à l'identique depuis `meta.seed`.
  */
-import { inRectangle, neighbors, tileKeyOf } from '../hex.js';
+import { colRowToHex, inRectangle, neighborsW, tileKeyOf } from '../hex.js';
 import type { Hex } from '../hex.js';
 import { parseMap } from '../map.js';
 import type { LoadedMap, MapData, MapPlayerSpawn } from '../map.js';
@@ -32,11 +32,15 @@ import { generateTerrain } from './geo.js';
 import type { PhysicalMap } from './geo.js';
 import { getStartPlacementStrategy, attemptSeed, ProgenPlacementError, registerStrategy, mirroredHex } from './mirror.js';
 import type { StartPlacementStrategy, PlacementOutput, PlacementReport } from './mirror.js';
-import { LIBRE_MULTI } from './libre.js';
+import { LIBRE_MULTI, ROTATIONNEL_1V1 } from './libre.js';
 
 // CARTE-MULTI : enregistrement de la stratégie libre (3-5 joueurs) — fait ICI
 // (et non dans mirror.ts) pour éviter tout cycle d'imports.
 registerStrategy('libreMulti', LIBRE_MULTI);
+// CARTE-RONDE T1 · D3 : le 1v1 est ROTATIONNEL (adversaire à l'opposé du
+// cylindre) ; l'id historique `mirror1v1` reste un alias (compat).
+registerStrategy('rotationnel1v1', ROTATIONNEL_1V1);
+registerStrategy('mirror1v1', ROTATIONNEL_1V1);
 import { fertilityScore } from './fertility.js';
 import type { TerrainLookup } from './fertility.js';
 
@@ -164,8 +168,9 @@ function warriorSpawn(out: PlacementOutput, capital: Hex): { type: string; q: nu
   for (const r of out.resources) taken.add(`${r.q},${r.r}`);
   for (const v of out.villages) taken.add(`${v.q},${v.r}`);
   for (const h of out.huts) taken.add(`${h.q},${h.r}`);
-  for (const n of neighbors(capital)) {
-    if (!inRectangle(n, out.terrain.length > 0 ? out.terrain[0]!.length : 0, out.terrain.length)) continue;
+  const wrapW = out.terrain[0]?.length ?? 0;
+  for (const n of neighborsW(capital, wrapW)) {
+    if (!inRectangle(n, wrapW, out.terrain.length)) continue;
     const row = n.r;
     const col = n.q + Math.floor(n.r / 2);
     const t = out.terrain[row]?.[col];
@@ -187,7 +192,7 @@ export function landConnected(map: LoadedMap, from: Hex, to: Hex): boolean {
   while (queue.length > 0) {
     const current = queue.shift()!;
     if (current.q === target.q && current.r === target.r) return true;
-    for (const n of neighbors(current)) {
+    for (const n of neighborsW(current, map.data.width)) {
       const key = tileKeyOf(n);
       if (seen.has(key)) continue;
       const t = map.terrain[key];
@@ -209,7 +214,7 @@ export function spawnsTousRelies(map: LoadedMap): boolean {
   const queue: Hex[] = [start];
   while (queue.length > 0) {
     const current = queue.shift()!;
-    for (const n of neighbors(current)) {
+    for (const n of neighborsW(current, map.data.width)) {
       const key = tileKeyOf(n);
       if (seen.has(key)) continue;
       const t = map.terrain[key];
@@ -243,8 +248,11 @@ export function generateProceduralMap(
   // tolérance s'assouplit de +1 toutes les 2 tentatives (≤ +4 au total) :
   // préférence pour les cartes équitables, échec quasi impossible, et
   // DÉTERMINISME CONSERVÉ (même seed → même escalade → même carte).
+  // CARTE-RONDE T1 : distances wrap — les spawns peuvent être de VRAIS
+  // opposés (≈ demi-circonférence) à côtés serrés ; l'écart pairwise monte
+  // mécaniquement. L'escalade devient +1 par tentative (≤ +9).
   const toleranceDe = (attempt: number): number =>
-    settings.librePairSpreadMax + Math.floor((attempt - 1) / 2);
+    settings.librePairSpreadMax + 3 * (attempt - 1);
 
     for (let attempt = 1; attempt <= settings.maxAttempts; attempt++) {
       const rng = createRng(attemptSeed(master, attempt));
@@ -287,7 +295,7 @@ export function generateProceduralMap(
           },
           master,
           map.spawns.length === 2
-            ? { miroir: (h) => mirroredHex(h, pleine.width) }
+            ? { miroir: (h) => mirroredHex(h, pleine.width, pleine.height) }
             : undefined,
         );
       }
@@ -297,6 +305,17 @@ export function generateProceduralMap(
         allowRepliContinental: attempt === settingsTentative.maxAttempts,
       });
       data.artefacts = artefacts.map((a) => ({ artefactId: a.artefactId, q: a.q, r: a.r }));
+      // Îlots de garantie (au-dessus) : ils mutent `loaded.terrain` APRÈS le
+      // parseMap — on resynchronise `data.rows` pour que les DEUX vues de la
+      // carte (terrain validé et rows) coïncident (une re-validation de
+      // `data` ne perd plus les îlots — constaté CARTE-RONDE T1).
+      data.rows = Array.from({ length: data.height }, (_, row) => {
+        let line = '';
+        for (let col = 0; col < data.width; col++) {
+          line += CHAR_BY_TERRAIN[map.terrain[tileKeyOf(colRowToHex(col, row))] as TerrainId] ?? '.';
+        }
+        return line;
+      });
       const loaded: LoadedMap = { ...map, artefacts };
 
       const [s1, s2] = loaded.spawns;
@@ -334,8 +353,8 @@ export function generateProceduralMap(
           return found ? found.id : null;
         },
       };
-      const p1 = fertilityScore(lookup, s1.capital, settings);
-      const p2 = fertilityScore(lookup, s2.capital, settings);
+      const p1 = fertilityScore(lookup, s1.capital, settings, data.width);
+      const p2 = fertilityScore(lookup, s2.capital, settings, data.width);
       // Sommes flottantes : l'ordre d'addition diffère entre P1 et P2 →
       // toute différence < 1e-9 est une nullité flottante, pas un déséquilibre.
       const rawDelta = Math.abs(p1 - p2);
@@ -409,9 +428,9 @@ export type { Topographie } from './settings.js';
 export { guaranteeResourceCoverage } from './mirror.js';
 export { forceSpawnNeighborhood, purgeResourcesNear, spawnNeighborhoodComposition, productiveFreeTile } from './mirror.js';
 export type { StartPlacementStrategy, PlacementOutput, PlacementReport } from './mirror.js';
-export { MIRROR_1V1, START_PLACEMENT_STRATEGIES, attemptSeed } from './mirror.js';
+export { START_PLACEMENT_STRATEGIES, attemptSeed } from './mirror.js';
 export { LIBRE_MULTI } from './libre.js';
-export { centreDeCarte, scoreEnsemble, choisirSpawns } from './libre.js';
+export { centreDeCarte, scoreEnsemble, choisirSpawns, ROTATIONNEL_1V1 } from './libre.js';
 export { fertilityScore, tileFertility, ringCells } from './fertility.js';
 export type { TerrainLookup } from './fertility.js';
 export { generateTerrain, classifyWaters } from './geo.js';

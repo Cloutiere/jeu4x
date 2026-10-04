@@ -12,16 +12,18 @@ import { RESOURCES, TERRAINS, isWaterTerrain } from '../src/data.js';
 import { BARBARIANS } from '../src/data.js';
 import type { TerrainId } from '../src/types.js';
 
-/** Petite carte valide 14×3 de prairie, capitales à distance 13 ≥ 12.
+/** Petite carte valide 26×3 de prairie, capitales à distance 13 ≥ 12 —
+ *  MONDE CYLINDRIQUE : distance wrap (couture Est↔Ouest comprise), la carte
+ *  doit donc être assez large (≥ 25) pour satisfaire T-09 des deux côtés.
  *  Démarrage conforme (décision d'Erik du 01/09) : 1 Guerrier adjacent. */
 function validSmallMap(): MapData {
   return {
     id: 'test',
     name: 'Carte de test',
-    width: 14,
+    width: 26,
     height: 3,
     legend: { g: 'prairie', w: 'eau' },
-    rows: ['g'.repeat(14), 'g'.repeat(14), 'g'.repeat(14)],
+    rows: ['g'.repeat(26), 'g'.repeat(26), 'g'.repeat(26)],
     players: [
       {
         id: 'p1',
@@ -41,7 +43,7 @@ describe('L3 · Loader de cartes — validation', () => {
   it('accepte une carte valide et expose le terrain par clé "q,r"', () => {
     const loaded = parseMap(validSmallMap());
     expect(loaded.terrain[tileKeyOf({ q: 0, r: 0 })]).toBe('prairie');
-    expect(Object.keys(loaded.terrain)).toHaveLength(14 * 3);
+    expect(Object.keys(loaded.terrain)).toHaveLength(26 * 3);
   });
 
   it('rejette une rangée trop courte', () => {
@@ -52,7 +54,7 @@ describe('L3 · Loader de cartes — validation', () => {
 
   it('rejette un caractère absent de la légende et un terrain inconnu (terrains connus)', () => {
     const m1 = validSmallMap();
-    m1.rows[0] = 'x' + 'g'.repeat(13);
+    m1.rows[0] = 'x' + 'g'.repeat(25);
     expect(() => parseMap(m1)).toThrow(/caractère inconnu/);
 
     const m2 = validSmallMap();
@@ -73,14 +75,9 @@ describe('L3 · Loader de cartes — validation', () => {
     expect(() => parseMap(m)).toThrow(/hors carte/);
 
     const m2 = validSmallMap();
-    m2.rows[0] = 'g'.repeat(13) + 'w';
-    m2.players[1]!.units = [{ type: 'guerrier', q: 12, r: 1 }]; // (12,1) reste praticable
+    m2.rows[1] = 'g'.repeat(12) + 'w' + 'g'.repeat(13);
+    m2.players[1]!.units = [{ type: 'guerrier', q: 12, r: 1 }]; // sur l'eau (12,1)
     expect(() => parseMap(m2)).toThrow(/infranchissable/);
-
-    const m3 = validSmallMap();
-    m3.rows[1] = 'g'.repeat(12) + 'w' + 'g';
-    m3.players[1]!.units = [{ type: 'guerrier', q: 12, r: 1 }]; // sur l'eau
-    expect(() => parseMap(m3)).toThrow(/infranchissable/);
   });
 
   it('démarrage conforme (décision d’Erik 01/09) : exactement 1 Guerrier adjacent à la capitale', () => {

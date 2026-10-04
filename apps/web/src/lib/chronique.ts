@@ -12,7 +12,7 @@
  */
 import { writable } from 'svelte/store';
 import type { GameEvent } from '@game/shared';
-import { BUILDINGS, TECHS, UNIT_TYPES, WONDERS, hexDistance } from '@game/rules';
+import { BUILDINGS, TECHS, UNIT_TYPES, WONDERS, hexDistanceW, SANS_WRAP } from '@game/rules';
 import type { Hex } from '@game/rules';
 import { artefactEffectLabel, civName, greatPersonLabel, hutRewardLabel } from './labels.js';
 
@@ -141,7 +141,8 @@ function sujetNation(playerId: string, ctx: ContexteChronique): { sujet: string;
 function presDe(hex: Hex, ctx: ContexteChronique): string {
   let meilleure: { nom: string; d: number } | null = null;
   for (const v of ctx.villes()) {
-    const d = hexDistance(hex, { q: v.q, r: v.r });
+    // Localisation cosmétique 🔶 : distance plate (le wrap ne change le nommage qu'à la couture).
+    const d = hexDistanceW(hex, { q: v.q, r: v.r }, SANS_WRAP);
     if (d <= 4 && (meilleure === null || d < meilleure.d)) meilleure = { nom: v.nom, d };
   }
   return meilleure ? ` près de ${meilleure.nom}` : '';

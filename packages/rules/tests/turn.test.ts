@@ -371,13 +371,16 @@ describe('Phase B · R-57 · bonus défensif de la case de ville (T-02)', () => 
 describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () => {
   it('R-60 : auto-assignation À LA FONDATION — priorité nourriture, tie-break (q, r)', () => {
     const state = makeState({
-      terrainOverrides: { '1,0': 'foret' }, // 0/2/0 : la forêt perd face aux prairies 2/0/0 (nourriture d'abord)
+      // MONDE CYLINDRIQUE (8 de large) : la prairie (7,0) — col 7, voisine de
+      // (0,0) PAR LA COUTURE — participe au rayon de travail ; 0/2/0 comme les
+      // autres prairies : elle gagne le tie-break (q, r) sur la forêt (1,0).
+      terrainOverrides: { '1,0': 'foret' },
       units: [{ id: 'u1', type: 'colon', owner: 'p1', q: 0, r: 0 }],
     });
     const { newState } = resolveTurn(state, { p1: [{ type: 'FoundCity', unitId: 'u1' }] }, 1);
     // 7i · D3 · R-64 (rév.) : la ville fondée démarre à pop 2 — 2 citoyens
     // auto-assignés (la forêt (1,0) perd face aux prairies — nourriture d'abord)
-    expect(cityAt(newState, 0, 0)!.workedTiles).toEqual(['0,1', '1,0']);
+    expect(cityAt(newState, 0, 0)!.workedTiles).toEqual(['0,1', '7,0']);
   });
 
   it('R-60 : une ville existante sans réassignation ne se re-remplit pas (désassignation respectée)', () => {

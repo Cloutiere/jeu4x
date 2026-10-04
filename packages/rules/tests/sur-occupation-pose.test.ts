@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveTurn } from '../src/turn.js';
 import { makeState, cityAt } from '../src/fixtures.js';
-import { neighbors } from '../src/hex.js';
+import { neighborsW, neighbors } from '../src/hex.js';
 import type { GameState } from '../src/state.js';
 
 /** Colon p1 posé sur la case de ville — l'occupante du scénario d'Erik. */
@@ -119,7 +119,8 @@ describe('SUR-OCCUPATION-POSE · D3/D4 — régularisation à la résolution sui
     const { state } = apresPose();
     const colonId = idArrivante(state);
     // Toutes les adjacentes EXISTANTES de (0,0) sont occupées par des amies.
-    const voisins = neighbors({ q: 0, r: 0 }).filter((h) => state.map[`${h.q},${h.r}`]);
+    // MONDE CYLINDRIQUE : bloquer AUSSI les voisines de la couture (wrap).
+    const voisins = neighborsW({ q: 0, r: 0 }, state.mapWidth).filter((h) => state.map[`${h.q},${h.r}`]);
     for (const [i, h] of voisins.entries()) {
       state.units[`b${i}`] = { id: `b${i}`, type: 'guerrier', owner: 'p1', q: h.q, r: h.r, hp: 3, mp: 0, veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false };
     }

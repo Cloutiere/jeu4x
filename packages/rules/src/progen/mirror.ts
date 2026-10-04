@@ -27,7 +27,7 @@
  * interface (partitionnement régional + fertilité multi-anneaux +
  * normalisation, PDF §AssignStartingPlots) SANS toucher à la géophysique.
  */
-import { colRowToHex, hexDistance, hexesWithinRadius, inRectangle, neighbors, compareHex } from '../hex.js';
+import { colRowToHex, hexDistance, hexDistanceW, hexesWithinRadius, inRectangle, neighbors, neighborsW, compareHex, tileKeyOf, wrapCol, SANS_WRAP } from '../hex.js';
 import type { Hex } from '../hex.js';
 import type { MapResource, MapVillage, MapHut } from '../map.js';
 import type { ResourceId, TerrainId } from '../types.js';
@@ -116,9 +116,16 @@ export interface StartPlacementStrategy {
  *  atteint après normalisation…). */
 export class ProgenPlacementError extends Error {}
 
-/** Image d'une case axiale par la rotation 180° de la carte W×H. */
-export function mirroredHex(hex: Hex, fullWidth: number): Hex {
-  return { q: fullWidth / 2 - hex.q, r: fullWidth - 1 - hex.r };
+/**
+ * Image d'une case par la DEMI-TOUR DU CYLINDRE (CARTE-RONDE T1, D3) :
+ * translation de demi-largeur en colonne, rangée inchangée — isométrie exacte
+ * du cylindre ET du rectangle fini. Sert au jumelage des îlots offshore en
+ * 1v1 (équité de terrain à l'opposé). Le nom historique `mirroredHex` est
+ * conservé (API, rapports, bancs) ; l'ancienne réflexion 180° est ABROGÉE.
+ */
+export function mirroredHex(hex: Hex, fullWidth: number, _fullHeight?: number): Hex {
+  const col = wrapCol(hex.q + Math.floor(hex.r / 2) + Math.floor(fullWidth / 2), fullWidth);
+  return colRowToHex(col, hex.r);
 }
 
 /** Cherche le meilleur site de capitale de la demi-carte. */
@@ -152,8 +159,9 @@ export function halfMapLookup(
     let col = r.q + Math.floor(r.r / 2);
     let row = r.r;
     if (row >= halfH) {
-      col = fullWidth - 1 - col;
-      row = 2 * halfH - 1 - row;
+      // Pré-image rotationnelle : (col − W/2 mod W, row − H/2).
+      col = wrapCol(col - Math.floor(fullWidth / 2), fullWidth);
+      row -= halfH;
     }
     resourceMap.set(`${col},${row}`, r.id);
   }
@@ -161,9 +169,9 @@ export function halfMapLookup(
     const row = hex.r;
     const col = hex.q + Math.floor(hex.r / 2);
     if (row < halfH) return { col, row };
-    // Miroir : la carte complète W×(2·halfH) reflète (col, row) →
-    // (W−1−col, 2·halfH−1−row).
-    return { col: fullWidth - 1 - col, row: 2 * halfH - 1 - row };
+    // Symétrie rotationnelle : la carte complète W×(2·halfH) ramène
+    // (col, row ≥ halfH) à sa pré-image (col − W/2 mod W, row − H/2).
+    return { col: wrapCol(col - Math.floor(fullWidth / 2), fullWidth), row: row - halfH };
   };
   return {
     terrainAt(hex: Hex): TerrainId | undefined {
@@ -272,9 +280,10 @@ export function purgeResourcesNear(
 export function spawnNeighborhoodComposition(
   terrainAt: (h: Hex) => TerrainId | undefined,
   capital: Hex,
+  width: number = SANS_WRAP,
 ): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const n of neighbors(capital)) {
+  for (const n of neighborsW(capital, width)) {
     const t = terrainAt(n);
     if (t === undefined) continue;
     counts[t] = (counts[t] ?? 0) + 1;
@@ -296,7 +305,7 @@ export function normalizeStartSite(
   threshold: number,
   s: ProgenSettings,
   into: MapResource[],
-  options?: { mirrorOf?: (hex: Hex) => Hex; recheckSpacing?: boolean },
+  options?: { mirrorOf?: (hex: Hex) => Hex; recheckSpacing?: boolean; width?: number },
 ): { score: number; normalized: boolean } {
   let score = initialScore;
   let normalized = false;
@@ -310,7 +319,7 @@ export function normalizeStartSite(
     if (t !== 'prairie' && t !== 'plaine') return false; // contrainte R-91 (blé/bétail)
     if (lookup.resourceAt(c) !== null) return false;
     // Phase 6c : les injections respectent l'espacement des ressources aussi.
-    return !spacingViolated(c, into, options?.mirrorOf, s.minResourceDistance);
+    return !spacingViolated(c, into, options?.mirrorOf, s.minResourceDistance, options?.width);
   });
   for (const cell of injectable) {
     if (score >= threshold) break;
@@ -319,7 +328,7 @@ export function normalizeStartSite(
     // ressources à distance 1 (manquement R-108, prouvé par le banc de
     // conformité). Re-vérification à chaque pose — mode libre uniquement
     // (recheckSpacing 🔶) : le miroir 1v1 reste BIT-IDENTIQUE.
-    if (options?.recheckSpacing && spacingViolated(cell, into, options?.mirrorOf, s.minResourceDistance)) continue;
+    if (options?.recheckSpacing && spacingViolated(cell, into, options?.mirrorOf, s.minResourceDistance, options?.width)) continue;
     const t = lookup.terrainAt(cell)!;
     // Bétail sur prairie (le plus nourrissant : +3 food), blé sinon (+2).
     const id: ResourceId = t === 'prairie' ? 'betail' : 'ble';
@@ -359,6 +368,8 @@ export function guaranteeResourceCoverage(input: {
   /** Sous-ensemble à garantir (Phase 6c : ressources terrestres ici — les
    *  marines sont posées après classification des eaux). Absent = toutes. */
   onlyIds?: Set<string>;
+  /** MONDE CYLINDRIQUE : largeur de la carte complète (distances wrap). */
+  width?: number;
 }): void {
   const min = input.s.minPerResourceType;
   if (min <= 0) return;
@@ -396,7 +407,7 @@ export function guaranteeResourceCoverage(input: {
           const hex = colRowToHex(col, row);
           const key = `${hex.q},${hex.r}`;
           if (input.exclude.has(key) || occupied.has(key)) continue;
-          if (spacingViolated(hex, input.resources, input.mirrorOf, input.s.minResourceDistance)) continue;
+          if (spacingViolated(hex, input.resources, input.mirrorOf, input.s.minResourceDistance, input.width)) continue;
           candidates.push(hex);
         }
       }
@@ -413,7 +424,7 @@ export function guaranteeResourceCoverage(input: {
       const hex = candidates.reduce((best, c) => {
         const slack = (h: Hex): number => {
           let d = Number.POSITIVE_INFINITY;
-          for (const p of input.resources) d = Math.min(d, hexDistance(h, p));
+          for (const p of input.resources) d = Math.min(d, hexDistanceW(h, p, input.width ?? SANS_WRAP));
           return d;
         };
         const sBest = slack(best);
@@ -432,313 +443,20 @@ export function guaranteeResourceCoverage(input: {
  * MIROIR 1v1 : demi-carte géophysique → contenu → meilleur site →
  * normalisation → rotation 180° → carte complète symétrique.
  */
-export const MIRROR_1V1: StartPlacementStrategy = {
-  id: 'mirror1v1',
-
-  geoSize(settings: ProgenSettings): { width: number; height: number; openBottom?: boolean } {
-    if (settings.playerCount !== 2) {
-      // La stratégie miroir est 1v1 par construction — le multi-joueurs
-      // 2-5 attendra la stratégie regionalMulti (même interface).
-      throw new ProgenPlacementError(
-        `mirror1v1 exige playerCount = 2 (reçu ${settings.playerCount}) — le multi-joueurs passera par la stratégie regionalMulti`,
-      );
-    }
-    return { width: 40, height: 20, openBottom: true };
-  },
-
-  fullSize(): { width: number; height: number } {
-    return { width: 40, height: 40 };
-  },
-
-  build({ rng, geo, settings }: PlacementInput): PlacementOutput {
-    const halfW = geo.width; // 40
-    const halfH = geo.height; // 20
-    const full = this.fullSize(settings);
-    if (halfW !== full.width || halfH * 2 !== full.height) {
-      throw new ProgenPlacementError(`demi-carte ${halfW}×${halfH} incompatible avec la carte finale ${full.width}×${full.height}`);
-    }
-    // Image d'une case par la rotation 180° — partagée par l'espacement des
-    // ressources (contrainte sur la carte COMPLÈTE, Phase 6c).
-    const mirrorOf: (hex: Hex) => Hex = (hex) => mirroredHex(hex, full.width);
-
-    // 1. Ressources posées sur la demi-carte AVANT le choix du site (la
-    //    fertilité des candidats en tient compte) — handoff L2-1. Espacement
-    //    🔶 minResourceDistance sur la carte complète (miroir compris).
-    //    Phase 6c : la garantie de couverture passe AVANT le tirage aléatoire —
-    //    chaque type a déjà sa case réservée, le tirage ne peut pas saturer un
-    //    terrain avant elle.
-    const waterOnly = new Set(waterOnlyResourceIds());
-    const landOnly = new Set(Object.keys(RESOURCES).filter((id) => !waterOnly.has(id)));
-    // Pré-garantie : TERRE uniquement (les marines attendent la classification
-    // des eaux — l'océan leur est interdit et la demi-carte ne connaît pas
-    // encore côte/océan).
-    const guaranteed: MapResource[] = [];
-    guaranteeResourceCoverage({
-      rng,
-      terrain: geo.terrain,
-      resources: guaranteed,
-      exclude: new Set<string>(),
-      s: settings,
-      mirrorOf,
-      onlyIds: landOnly,
-    });
-    const resPlacement = placeResources(rng, geo.terrain, settings, { mirrorOf, alreadyPlaced: guaranteed, skipIds: waterOnly });
-    // La liste `resources` reste DEMI-carte uniquement (l'étape 4 reflète tout)
-    // : les poses garanties — générées en paires déjà reflétées — sont
-    // repliées sur leur moitié (r < halfH), leur image sera recalculée à
-    // l'identique par la rotation 180°.
-    const resources: MapResource[] = [
-      ...guaranteed.filter((r) => r.r < halfH),
-      ...resPlacement.resources,
-    ];
-
-    // 2. Candidats de capitale sur la demi-carte (scores = carte complète,
-    //    via le lookup étendu au miroir).
-    const lookup = halfMapLookup(geo.terrain, resources, full.width);
-    const candidates: SiteCandidate[] = [];
-    for (let row = 0; row < halfH; row++) {
-      for (let col = 0; col < halfW; col++) {
-        const t = geo.terrain[row]![col]!;
-        if (!TERRAINS[t]!.passable) continue;
-        // Bord de carte ≥ 6 (handoff L1-2) ; axe de miroir ≥ T-09.
-        if (row < settings.startMinEdgeDistance) continue;
-        if (row >= halfH - settings.startMinMirrorDistance) continue;
-        if (col < settings.startMinEdgeDistance || col >= halfW - settings.startMinEdgeDistance) continue;
-        const hex = colRowToHex(col, row);
-        // Distance aux DEUX capitales ≥ minSpawnDistance : le site ET son
-        // image (la validation parseMap exige ≥ 12 entre les capitales).
-        const mirror = mirroredHex(hex, full.width);
-        if (hexDistance(hex, mirror) < settings.minSpawnDistance) continue;
-        // Le guerrier doit se poser sur un voisin praticable.
-        const freeNeighbor = neighbors(hex).some((n) => {
-          const nt = lookup.terrainAt(n);
-          return nt !== undefined && TERRAINS[nt]!.passable && lookup.resourceAt(n) === null;
-        });
-        if (!freeNeighbor) continue;
-        // SPAWN-START (demande d'Erik 05/09) : la composition de l'anneau de
-        // départ n'est plus un critère de FILTRAGE (2F/2P/1E n'existe pas
-        // naturellement partout) — le site choisi voit son voisinage FORCÉ
-        // (re-paint) puis son rayon purgé des ressources, ci-dessous.
-        candidates.push({ hex, score: fertilityScore(lookup, hex, settings) });
-      }
-    }
-    if (candidates.length === 0) {
-      throw new ProgenPlacementError('aucun site de capitale éligible sur la demi-carte');
-    }
-
-    // Tri déterministe : score décroissant, tie-break (q, r) croissant (R-81).
-    const ranked = [...candidates].sort((a, b) => b.score - a.score || compareHex(a.hex, b.hex));
-    const topCount = Math.min(settings.normalizationTopSites, ranked.length);
-    const top = ranked.slice(0, topCount);
-    const topAverage = top.reduce((acc, c) => acc + c.score, 0) / topCount;
-    const threshold = topAverage * settings.normalizationFactor;
-
-    // 3. Meilleur site → SPAWN-START : le placement d'ABORD, la carte ENSUITE.
-    //    a) le voisinage du site est FORCÉ (re-paint 2F/2P/1E + 1 libre 🔶) —
-    //    le miroir (étape 4) reproduira le re-paint à l'identique pour p2 ;
-    //    b) les ressources du rayon 🔶 spawnPurgeRadius sont purgées (anneaux
-    //    1 et 2 — la demi-liste suffit : toute image miroir d'une case du
-    //    rayon du site est dans le rayon du site miroir) ;
-    //    c) normalisation (PDF §NormalizeStartLocation) — injections en
-    //    anneau 3 désormais (les anneaux 1-2 sont réservés par la garantie).
-    const best = ranked[0]!;
-    forceSpawnNeighborhood(geo.terrain, best.hex, settings);
-    const sitePurge = purgeResourcesNear(resources, [best.hex], settings.spawnPurgeRadius);
-    resources.length = 0;
-    resources.push(...sitePurge.kept);
-    for (const r of sitePurge.purged) lookup.deleteResource({ q: r.q, r: r.r });
-    const siteScore = fertilityScore(lookup, best.hex, settings);
-    const norm = normalizeStartSite(lookup, best.hex, siteScore, threshold, settings, resources, { mirrorOf });
-    const site: SiteCandidate = { hex: best.hex, score: norm.score };
-
-    // 4. Miroir : rotation 180° des terrains et des ressources.
-    const fullTerrain: TerrainId[][] = [];
-    for (let row = 0; row < full.height; row++) {
-      const srcRow = row < halfH ? row : full.height - 1 - row;
-      const line: TerrainId[] = [];
-      for (let col = 0; col < full.width; col++) {
-        const srcCol = row < halfH ? col : full.width - 1 - col;
-        line.push(geo.terrain[srcRow]![srcCol]!);
-      }
-      fullTerrain.push(line);
-    }
-    // 4bis. Phase 6c : classification des eaux sur la CARTE COMPLÈTE —
-    // côte (eau adjacente à de la terre, à ≤ coastWidth cases) vs océan
-    // profond. Le calcul sur la demi-carte serait faux le long de son bord
-    // ouvert (axe de miroir) : on reflète d'abord, on classifie ensuite.
-    const classified = classifyWaters(fullTerrain, settings.coastWidth);
-    const mirror = mirroredHex(site.hex, full.width);
-    const allResources: MapResource[] = [...resources];
-    for (const r of resources) {
-      const m = mirroredHex({ q: r.q, r: r.r }, full.width);
-      allResources.push({ id: r.id, q: m.q, r: m.r });
-    }
-    // Aucune ressource sur une case de capitale (validation parseMap) — la
-    // ressource du site n'entre pas dans son score (anneaux 1..3, case
-    // centrale exclue) : le retrait ne fausse pas le checksum.
-    const capitalKeys = new Set([`${site.hex.q},${site.hex.r}`, `${mirror.q},${mirror.r}`]);
-    const finalResources = allResources.filter((r) => !capitalKeys.has(`${r.q},${r.r}`));
-    // 4ter. Phase 6c (demande d'Erik) : garantie de couverture — au moins
-    //    `minPerResourceType` 🔶 pose de CHAQUE type de ressource par joueur
-    //    (demi-carte miroir : pérenne pour le multi-joueurs), espacement
-    //    compris, capitales exclues.
-    // L'anneau 1 des DEUX capitales reste sans ressource (Phase 6c) ET, depuis
-    // SPAWN-START, tout le rayon 🔶 spawnPurgeRadius (anneaux 1 + 2) : la
-    // garantie de couverture ne peut plus y poser quoi que ce soit.
-    const spawnExclusion = new Set<string>(capitalKeys);
-    for (const cap of [site.hex, mirror]) {
-      for (const h of hexesWithinRadius(cap, settings.spawnPurgeRadius)) spawnExclusion.add(`${h.q},${h.r}`);
-    }
-    guaranteeResourceCoverage({
-      rng,
-      terrain: geo.terrain,
-      resources: finalResources,
-      exclude: spawnExclusion,
-      s: settings,
-      mirrorOf,
-      onlyIds: landOnly,
-    });
-    // Ressources MARINES : posées sur la grille CLASSIFIÉE (côte seule —
-    // l'océan reste stérile), garantie puis tirage, par paires miroir.
-    placeMarineResources({
-      rng,
-      terrain: classified,
-      resources: finalResources,
-      exclude: spawnExclusion,
-      s: settings,
-      mirrorOf,
-      halfHeight: halfH,
-    });
-    // SPAWN-START · ceinture et bretelles : AUCUNE ressource dans le rayon 🔶
-    // des deux spawns sur la liste finale (l'exclusion ci-dessus devrait déjà
-    // suffire — le filtre reste la garantie dure, fail-safe déterministe).
-    const finalPurge = purgeResourcesNear(finalResources, [site.hex, mirror], settings.spawnPurgeRadius);
-    finalResources.length = 0;
-    finalResources.push(...finalPurge.kept);
-
-    // 5. Villages (≥ 6 des deux spawns — leçon 7d) et huttes (≥ 3 🔶), posés
-    //    sur la demi-carte puis reflétés : chaque entité existe deux fois,
-    //    à l'identique pour chaque joueur (équité parfaite — handoff L2-2).
-    //    Une ressource SOUS un village/hutte reste permise (parseMap, CivRev
-    //    « villages always on top of a resource ») ; seules les collisions
-    //    village/hutte/capitale sont exclues.
-    const occupiedEntities = new Set<string>(capitalKeys);
-    const spawnList = [site.hex, mirror];
-    // Phase 6c : trois distances indépendantes 🔶 — villages entre eux
-    // (villageSpacing), huttes entre elles (hutSpacing), huttes ↔ villages
-    // (hutVillageSpacing : pas À CÔTÉ d'un village, mais plus près autorisé).
-    const villagePositions: Hex[] = [];
-    const villagesHalf = placeEntities({
-      rng,
-      terrain: geo.terrain,
-      spawns: spawnList,
-      minSpawnDistance: settings.minVillageDistance,
-      same: villagePositions,
-      minSame: settings.villageSpacing,
-      other: [],
-      minOther: 0,
-      mirrorOf,
-      reserved: occupiedEntities,
-      resourcesFull: finalResources,
-      minResourceDistance: settings.minResourceDistance,
-      count: settings.villagesPerHalf,
-    });
-    const hutPositions: Hex[] = [];
-    const hutsHalf = placeEntities({
-      rng,
-      terrain: geo.terrain,
-      spawns: spawnList,
-      minSpawnDistance: settings.minHutDistance,
-      same: hutPositions,
-      minSame: settings.hutSpacing,
-      other: villagePositions,
-      minOther: settings.hutVillageSpacing,
-      mirrorOf,
-      reserved: occupiedEntities,
-      resourcesFull: finalResources,
-      minResourceDistance: settings.minResourceDistance,
-      count: settings.hutsPerHalf,
-    });
-    // Chaque entité de la demi-carte est reflétée : villages 2×3, huttes 2×2,
-    // répartis à l'identique pour les deux joueurs (équité par miroir).
-    const villages: MapVillage[] = [...villagesHalf];
-    villages.push(...villagesHalf.map((v) => mirroredHex(v, full.width)));
-    const huts: MapHut[] = [...hutsHalf];
-    huts.push(...hutsHalf.map((h) => mirroredHex(h, full.width)));
-
-    // 5bis. CAMPS-RESSOURCES (demande d'Erik, 28/09 — canon CivRev) : chaque
-    //    village/hutte porte UNE ressource de son terrain, tirée pondérée au
-    //    RNG seedé. Les camps étaient posés à ≥ minResourceDistance de toutes
-    //    les ressources (exclusion amont ci-dessus) et entre eux (spacings 7d)
-    //    : la révélation après destruction respecte R-108 par construction.
-    //    Tirage PAR PAIRE miroir (même id aux deux camps — équité parfaite,
-    //    checksum de composition inchangé).
-    poseRessourcesSousCamps({
-      rng,
-      terrain: geo.terrain,
-      resources: finalResources,
-      villages: villagesHalf,
-      huts: hutsHalf,
-      minResourceDistance: settings.minResourceDistance,
-      mirrorOf,
-    });
-
-    // 6. Checksum d'équité : les DEUX fertilités sont mesurées sur la carte
-    //    complète (miroir + eaux classifiées) — l'image doit scorer exactement
-    //    pareil (les sommes flottantes ne diffèrent que par l'ordre
-    //    d'addition : on annule les différences < 1e-9, invisibles au gameplay).
-    const fullLookup = halfMapLookup(classified, finalResources, full.width);
-    const p1 = fertilityScore(fullLookup, site.hex, settings);
-    const p2 = fertilityScore(fullLookup, mirror, settings);
-    const rawDelta = Math.abs(p1 - p2);
-
-    // 6bis. SPAWN-START · checksum étendu : la composition des deux voisinages
-    //    (re-peints + eaux classifiées) doit être IDENTIQUE — par construction
-    //    du miroir c'est le cas ; l'assertion fail-loud protège tout futur
-    //    changement qui casserait la symétrie.
-    const terrainAtFull = (h: Hex): TerrainId | undefined => classified[h.r]?.[h.q + Math.floor(h.r / 2)];
-    const compositionP1 = spawnNeighborhoodComposition(terrainAtFull, site.hex);
-    const compositionP2 = spawnNeighborhoodComposition(terrainAtFull, mirror);
-    const canon = (c: Record<string, number>): string =>
-      Object.entries(c).sort(([a], [b]) => (a < b ? -1 : 1)).map(([t, n]) => `${t}:${n}`).join(',');
-    if (canon(compositionP1) !== canon(compositionP2)) {
-      throw new ProgenPlacementError(
-        `composition de voisinage déséquilibrée entre les deux spawns : {${canon(compositionP1)}} vs {${canon(compositionP2)}}`,
-      );
-    }
-
-    const report: PlacementReport = {
-      p1,
-      p2,
-      delta: rawDelta < 1e-9 ? 0 : rawDelta,
-      topAverage,
-      threshold,
-      normalized: norm.normalized,
-      candidates: candidates.length,
-      spawn: {
-        purgeRadius: settings.spawnPurgeRadius,
-        purged: finalPurge.purged.length,
-        compositionP1,
-        compositionP2,
-      },
-    };
-
-    return {
-      terrain: classified,
-      resources: finalResources,
-      villages,
-      huts,
-      capitals: [site.hex, mirror],
-      report,
-    };
-  },
-};
+/**
+ * MONDE CYLINDRIQUE (CARTE-RONDE T1, D3) : l'ancienne stratégie MIROIR 1v1
+ * (demi-carte + réflexion 180°) est ABROGÉE. Le 1v1 est porté par
+ * `ROTATIONNEL_1V1` (libre.ts) : terrain généré entier, adversaire à
+ * l'OPPOSÉ du cylindre (|Δcolonne wrap − W/2| ≤ 🔶 oppositionTolerance),
+ * garanties de départ PAR JOUEUR. L'id historique `mirror1v1` reste
+ * enregistré ci-dessous comme alias (compat des configurations). Les aides
+ * ci-dessus (forceSpawnNeighborhood, purgeResourcesNear, normalisation,
+ * garantie de couverture) restent les briques communes des stratégies.
+ */
 
 /** Registre des stratégies injectables (aujourd'hui : mirror1v1 uniquement ;
  *  regionalMulti s'ajoutera ICI sans toucher à la géophysique). */
-export const START_PLACEMENT_STRATEGIES: Record<string, StartPlacementStrategy> = {
-  mirror1v1: MIRROR_1V1,
-};
+export const START_PLACEMENT_STRATEGIES: Record<string, StartPlacementStrategy> = {};
 
 export function getStartPlacementStrategy(id: string): StartPlacementStrategy {
   const s = START_PLACEMENT_STRATEGIES[id];
@@ -753,10 +471,9 @@ export function registerStrategy(id: string, strategy: StartPlacementStrategy): 
   START_PLACEMENT_STRATEGIES[id] = strategy;
 }
 
-/** Utilitaire interne : appartenance d'une case à la carte finale (réexport test). */
-export function hexInFullMap(hex: Hex, s: ProgenSettings): boolean {
-  const size = MIRROR_1V1.fullSize(s);
-  return inRectangle(hex, size.width, size.height);
+/** Utilitaire interne : appartenance d'une case à la carte 40×40 (réexport test). */
+export function hexInFullMap(hex: Hex, _s: ProgenSettings): boolean {
+  return inRectangle(hex, 40, 40);
 }
 
 /** Sous-graine de tentative : dérivation déterministe du seed de partie. */

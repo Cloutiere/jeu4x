@@ -2,7 +2,7 @@
  * Helpers de fixtures pour construire des états de test (L2).
  * Code pur (aucune IO) : utilisable depuis les tests et les futurs bots.
  */
-import { tileKey, tileKeyOf, colRowToHex, neighbors, hexDistance } from './hex.js';
+import { tileKey, tileKeyOf, colRowToHex, neighborsW, hexDistanceW, SANS_WRAP } from './hex.js';
 import type { Hex } from './hex.js';
 import type {
   City,
@@ -300,7 +300,7 @@ export function cityAt(state: GameState, q: number, r: number): City | null {
 
 /** Premier voisin libre et praticable d'une case, tri (q, r) — pratique pour placer. */
 export function freeNeighbor(state: GameState, hex: Hex): Hex | null {
-  const candidates = neighbors(hex).filter((h) => {
+  const candidates = neighborsW(hex, state.mapWidth).filter((h) => {
     const tile = state.map[tileKeyOf(h)];
     if (!tile || !TERRAINS[tile.terrain]?.passable) return false;
     if (unitAt(state, h.q, h.r)) return false;
@@ -314,14 +314,15 @@ export function expectWar(state: GameState, a: PlayerId, b: PlayerId): void {
   if (!areAtWar(state, a, b)) throw new Error(`Fixture : ${a} et ${b} devraient être en guerre`);
 }
 
-/** Chemin orthogonal simple de `from` vers `to` (suit une ligne hexagonale, terrain non vérifié). */
-export function pathBetween(from: Hex, to: Hex): Hex[] {
+/** Chemin orthogonal simple de `from` vers `to` (suit une ligne hexagonale, terrain non vérifié).
+ *  Monde cylindrique : `width` passé = distance wrap ; défaut SANS_WRAP (fixtures historiques). */
+export function pathBetween(from: Hex, to: Hex, width: number = SANS_WRAP): Hex[] {
   const path: Hex[] = [];
   let cur = from;
-  while (hexDistance(cur, to) > 0) {
-    const next = neighbors(cur)
-      .filter((h) => hexDistance(h, to) < hexDistance(cur, to))
-      .sort((a, b) => hexDistance(a, to) - hexDistance(b, to) || a.q - b.q || a.r - b.r)[0]!;
+  while (hexDistanceW(cur, to, width) > 0) {
+    const next = neighborsW(cur, width)
+      .filter((h) => hexDistanceW(h, to, width) < hexDistanceW(cur, to, width))
+      .sort((a, b) => hexDistanceW(a, to, width) - hexDistanceW(b, to, width) || a.q - b.q || a.r - b.r)[0]!;
     path.push(next);
     cur = next;
   }

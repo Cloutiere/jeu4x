@@ -5,7 +5,7 @@
  * l'état filtré autorise (entités présentes = visibles ; cases connues =
  * présentes dans `state.map`). La validation métier reste côté serveur.
  */
-import { hexDistance, hexToPixel, neighbors, TERRAINS, tileKeyOf, unitType, workRadiusOf, canEnterTerrain, isCoastalCityHex, cargoCapacityOf } from '@game/rules';
+import { hexDistanceW, hexToPixel, neighborsW, normalizeHexW, TERRAINS, tileKeyOf, unitType, workRadiusOf, canEnterTerrain, isCoastalCityHex, cargoCapacityOf } from '@game/rules';
 import type { Hex } from '@game/rules';
 import type { CityId, GameState, UnitId } from '@game/shared';
 import type { GameView } from '../gameClient.js';
@@ -439,7 +439,7 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex, positions?: P
           // terrains cultivés (l'ordre porte la case, plus tile:null).
           return { kind: 'setWorkedTile', cityId: selCity.id, tile: key };
         }
-        const dist = hexDistance(selCity, hex);
+        const dist = hexDistanceW(selCity, hex, state.mapWidth);
         const workable = !!state.map[key] && !!TERRAINS[state.map[key].terrain]?.yields;
         const free =
           workable &&
@@ -493,7 +493,7 @@ export function clickActionVueVille(view: GameView, cityId: CityId, hex: Hex): C
   if (!state || !city || !ordersEditable(view)) return { kind: 'none' };
   const key = tileKeyOf(hex);
   if (hex.q === city.q && hex.r === city.r) return { kind: 'none' };
-  const dist = hexDistance(city, hex);
+  const dist = hexDistanceW(city, hex, state.mapWidth);
   if (dist < 1 || dist > workRadiusOf(city.buildings)) return { kind: 'none' };
   // État EFFECTIF (ordres SetWorkedTile en attente appliqués) — miroir du
   // prédicat de clic hors vue : re-clic sur une case assignée = DÉSÉLECTION
@@ -589,6 +589,11 @@ export function pathTo(state: GameState, from: Hex, to: Hex, embarquables?: Set<
     (!enterableKnown(state, mover, to) && !toUnknown && !toBoardable)
   )
     return null;
+  // CARTE-RONDE T1 : cases comparées en canonique (col repliée) — un clic à
+  // l'Ouest de la couture depuis l'Est est adjacent PAR LE CYLINDRE.
+  const Wd = state.mapWidth;
+  from = normalizeHexW(from, Wd);
+  to = normalizeHexW(to, Wd);
   if (from.q === to.q && from.r === to.r) return [];
   // BFS avec voisinage trié (q, r) croissant — déterministe. 7g : le
   // voisinage est évalué pour l'unité elle-même (naval ⇒ eau entrable).
@@ -599,7 +604,7 @@ export function pathTo(state: GameState, from: Hex, to: Hex, embarquables?: Set<
   const queue: Hex[] = [from];
   while (queue.length > 0) {
     const current = queue.shift()!;
-    const nexts = neighbors(current)
+    const nexts = neighborsW(current, Wd)
       .filter(
         (h) =>
           enterableKnown(state, mover, h) ||
@@ -744,7 +749,7 @@ export function deposeValide(
   if (!transport) return false;
   if (unitAtHex(state, hex)) return false; // libre au sens dessiné (miroir occupants)
   if (!enterableKnown(state, cargo, hex)) return false;
-  const adjacente = (h: Hex): boolean => hexDistance(h, hex) === 1;
+  const adjacente = (h: Hex): boolean => hexDistanceW(h, hex, state.mapWidth) === 1;
   if (adjacente(transport)) return true;
   const frais = view.orders.find(
     (o) => 'unitId' in o && o.unitId === transport.id && (o.type === 'Move' || o.type === 'MultiStep'),

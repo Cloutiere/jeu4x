@@ -15,7 +15,7 @@
  *  n'est plus recherchée du tout ») : génération LIBRE sans AUCUNE symétrie,
  *  3-5 spawns équidistants choisis par recherche seedée sur critère d'équité
  *  (l'équité vient du PLACEMENT, pas de la géométrie). */
-export type StartPlacementId = 'mirror1v1' | 'libreMulti';
+export type StartPlacementId = 'rotationnel1v1' | 'mirror1v1' | 'libreMulti';
 
 /** LOBBY-5 · D4 — topographies proposées à la création : l'EXISTANT du mode
  *  libre multi (le sélecteur `continents` du labo #/progen, rien de nouveau).
@@ -169,11 +169,16 @@ export interface ProgenSettings {
    *  pairwise extrêmes (max − min, en cases hex) — porte d'acceptation d'un
    *  jeu de spawns ; sinon nouvelle tentative (nouvelle sous-graine). */
   librePairSpreadMax: number;
+  /** CARTE-RONDE T1 · D3 : en 1v1 (rotationnel), l'adversaire est posé À
+   *  L'OPPOSÉ du cylindre : |Δcolonne wrap − largeur/2| ≤ 🔶 tolérance. */
+  oppositionCylindre: boolean;
+  /** Tolérance 🔶 de l'opposition (en colonnes hex). */
+  oppositionTolerance: number;
 }
 
 export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
   playerCount: 2,
-  startPlacement: 'mirror1v1',
+  startPlacement: 'rotationnel1v1',
   continents: 3,
   landRatio: 0.55,
   archipelagoLandScale: 0.7,
@@ -220,6 +225,8 @@ export const DEFAULT_PROGEN_SETTINGS: ProgenSettings = {
     libreFertilityWeight: 1,
     libreSpreadWeight: 4,
     librePairSpreadMax: 8,
+    oppositionCylindre: false,
+    oppositionTolerance: 4,
   };
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
@@ -234,10 +241,10 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
   return {
     ...s,
     playerCount,
-    // CARTE-MULTI · D1/D3 : 2 sièges = miroir 1v1 TOUJOURS (inchangé — même
-    // byte de carte) ; 3-5 sièges = génération libre (le libre à 2 retombe
-    // sur le miroir : la stratégie n'est pas définie en dessous de 3).
-    startPlacement: playerCount >= 3 ? 'libreMulti' : 'mirror1v1',
+    // CARTE-RONDE T1 · D3 : 2 sièges = rotationnel 1v1 (adversaire à
+    // l'opposé du cylindre — l'ancien miroir 1v1 est ABROGÉ) ; 3-5 sièges =
+    // génération libre.
+    startPlacement: playerCount >= 3 ? 'libreMulti' : 'rotationnel1v1',
     continents: s.continents === 2 ? 2 : s.continents === 3 ? 3 : 1,
     archipelagoLandScale: Math.min(1, Math.max(0.4, s.archipelagoLandScale)),
     landRatio: Math.min(0.75, Math.max(0.25, s.landRatio)),
@@ -284,5 +291,7 @@ export function resolveProgenSettings(overrides?: Partial<ProgenSettings>): Prog
     libreFertilityWeight: Math.max(0, s.libreFertilityWeight),
     libreSpreadWeight: Math.max(0, s.libreSpreadWeight),
     librePairSpreadMax: Math.max(0, Math.round(s.librePairSpreadMax)),
+    oppositionCylindre: s.oppositionCylindre === true,
+    oppositionTolerance: Math.min(10, Math.max(0, Math.round(s.oppositionTolerance))),
   };
 }

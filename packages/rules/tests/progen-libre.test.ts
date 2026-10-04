@@ -17,7 +17,7 @@ import {
   DEFAULT_PROGEN_SETTINGS,
   generateProceduralMap,
   resolveProgenSettings,
-  MIRROR_1V1,
+  ROTATIONNEL_1V1,
   LIBRE_MULTI,
 } from '../src/progen/index.js';
 import { hexDistance, hexesWithinRadius, neighbors, tileKeyOf } from '../src/hex.js';
@@ -57,11 +57,11 @@ function checkR157(
 }
 
 describe('CARTE-MULTI · Réglages data-driven (L1)', () => {
-  it('la stratégie est choisie par le nombre de sièges : 2 = miroir (D3), 3-5 = libre (D1)', () => {
-    expect(resolveProgenSettings({ playerCount: 2 }).startPlacement).toBe('mirror1v1');
+  it('la stratégie est choisie par le nombre de sièges : 2 = rotationnel (T1), 3-5 = libre (D1)', () => {
+    expect(resolveProgenSettings({ playerCount: 2 }).startPlacement).toBe('rotationnel1v1');
     expect(resolveProgenSettings({ playerCount: 3 }).startPlacement).toBe('libreMulti');
     expect(resolveProgenSettings({ playerCount: 5 }).startPlacement).toBe('libreMulti');
-    expect(resolveProgenSettings().startPlacement).toBe('mirror1v1'); // défaut historique
+    expect(resolveProgenSettings().startPlacement).toBe('rotationnel1v1'); // défaut historique
   });
 
   it('libreMulti refuse 2 sièges et 6 sièges (bornes 3-5)', () => {
@@ -114,11 +114,11 @@ describe('CARTE-MULTI · Génération libre (L2)', () => {
         const s = resolveProgenSettings({ playerCount: n });
         const multi = r.report.multi!;
         expect(multi).toBeDefined();
-        // Tolérance ÉVOLUTIVE (fix CI 26/09) : la tentative 1 vise le calibrage
-        // 🔶 8 ; en cas d'échec, +1 toutes les 2 tentatives (≤ 12) — le test
-        // suit le contrat escaladé selon le nombre de tentatives réellement
-        // consommées par la graine.
-        expect(multi.pairSpread).toBeLessThanOrEqual(s.librePairSpreadMax + Math.floor((r.report.attempts - 1) / 2));
+        // Tolérance ÉVOLUTIVE (fix CI 26/09, rév. MONDE CYLINDRIQUE T1) : la
+        // tentative 1 vise le calibrage 🔶 8 ; en cas d'échec, +3 par
+        // tentative (≤ 35) — le test suit le contrat escaladé selon le nombre
+        // de tentatives réellement consommées par la graine.
+        expect(multi.pairSpread).toBeLessThanOrEqual(s.librePairSpreadMax + 3 * (r.report.attempts - 1));
         // distances pairwise ≥ minSpawnDistance (validation parseMap, all-pairs)
         for (const p of multi.pairwise) expect(p.distance).toBeGreaterThanOrEqual(s.minSpawnDistance);
         // chaque spawn à distance raisonnable du centre de carte
@@ -146,13 +146,22 @@ describe('CARTE-MULTI · Génération libre (L2)', () => {
     }
   }, 120000);
 
-  it('D3 · NON-RÉGRESSION 1v1 : la carte 2 sièges est IDENTIQUE au miroir historique', () => {
+  it('D3 · CARTE-RONDE T1 : la stratégie explicite du 1v1 est le ROTATIONNEL, porteur du champ multi', () => {
     for (const seed of [1, 42, 20260924, 777, 31337]) {
       const parDefaut = generateProceduralMap(seed);
-      const explicite = generateProceduralMap(seed, { playerCount: 2 }, MIRROR_1V1);
+      const explicite = generateProceduralMap(seed, { playerCount: 2 }, ROTATIONNEL_1V1);
       expect(JSON.stringify(parDefaut.map)).toBe(JSON.stringify(explicite.map));
-      // le rapport miroir ne porte PAS le champ multi
-      expect(parDefaut.report.multi).toBeUndefined();
+      // le 1v1 rotationnel passe par la machinerie libre : rapport multi présent
+      expect(parDefaut.report.multi).toBeDefined();
+      expect(parDefaut.report.multi!.joueurCount).toBe(2);
+      // et l'adversaire est à l'opposé du cylindre (toutes les seeds)
+      const [p1, p2] = parDefaut.map.spawns;
+      const colOf = (h: { q: number; r: number }) => h.q + Math.floor(h.r / 2);
+      const W = parDefaut.map.data.width;
+      const dc = Math.abs(colOf(p1!.capital) - colOf(p2!.capital));
+      const d = Math.min(dc % W, W - (dc % W));
+      expect(d).toBeGreaterThanOrEqual(W / 2 - parDefaut.report.settings.oppositionTolerance);
+      expect(d).toBeLessThanOrEqual(W / 2 + parDefaut.report.settings.oppositionTolerance);
     }
   }, 120000);
 

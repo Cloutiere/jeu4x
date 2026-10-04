@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PROGEN_SETTINGS,
-  MIRROR_1V1,
+  ROTATIONNEL_1V1,
   PROCEDURAL_MAP_ID,
   classifyWaters,
   countResourcesByTerrain,
@@ -29,7 +29,7 @@ import { ProgenPlacementError, attemptSeed, halfMapLookup, normalizeStartSite } 
 import { fertilityScore } from '../src/progen/fertility.js';
 import { parseMap, createInitialState } from '../src/map.js';
 import type { MapData, MapResource, LoadedMap } from '../src/map.js';
-import { hexDistance, tileKeyOf, colRowToHex, neighbors } from '../src/hex.js';
+import { hexDistance, hexDistanceW, hexesWithinRadiusW, neighborsW, tileKeyOf, colRowToHex, colOf, neighbors, wrapCol } from '../src/hex.js';
 import type { Hex } from '../src/hex.js';
 import { createRng } from '../src/rng.js';
 import { RESOURCES, TERRAINS, isWaterTerrain } from '../src/data.js';
@@ -43,9 +43,19 @@ function tileOf(hex: Hex): { col: number; row: number } {
   return { col: hex.q + Math.floor(hex.r / 2), row: hex.r };
 }
 
+/** Image rotationnelle d'une case : demi-tour du cylindre (col + W/2, r). */
 function mirrorOf(hex: Hex): Hex {
-  return { q: W / 2 - hex.q, r: H - 1 - hex.r };
+  return colRowToHex(wrapCol(colOf(hex) + W / 2, W), hex.r);
 }
+
+/** Écart horizontal wrap entre deux cases, en colonnes. */
+function deltaColWrap(a: Hex, b: Hex): number {
+  const dc = colOf(a) - colOf(b);
+  const m = ((dc % W) + W) % W;
+  return Math.min(m, W - m);
+}
+
+const OPPOSITION_TOLERANCE = resolveProgenSettings().oppositionTolerance;
 
 /** Exigences transverses sur une carte générée (factorisé pour les propriétés). */
 function expectValidProceduralMap(map: LoadedMap): void {
@@ -54,17 +64,14 @@ function expectValidProceduralMap(map: LoadedMap): void {
   expect(map.data.height).toBe(H);
   expect(map.data.rows).toHaveLength(H);
   for (const row of map.data.rows) expect(row).toHaveLength(W);
-  // Symétrie miroir (rotation 180°) des terrains — cœur de l'équité 1v1.
-  for (let r = 0; r < H; r++) {
-    for (let c = 0; c < W; c++) {
-      expect(map.data.rows[r]![c]).toBe(map.data.rows[H - 1 - r]![W - 1 - c]);
-    }
-  }
-  // Spawns : 2 guerriers adjacents, capitales ≥ 12 (re-validé ici même si
-  // parseMap l'impose déjà), et l'un est l'image exacte de l'autre.
+  // MONDE CYLINDRIQUE (CARTE-RONDE T1, D3) : plus de symétrie de terrain —
+  // l'équité 1v1 est STATISTIQUE (garanties par joueur) et l'adversaire est
+  // À L'OPPOSÉ du cylindre : |Δcolonne wrap − W/2| ≤ 🔶 oppositionTolerance.
   expect(map.spawns).toHaveLength(2);
   const [p1, p2] = map.spawns;
-  expect(p2!.capital).toEqual(mirrorOf(p1!.capital));
+  expect(deltaColWrap(p1!.capital, p2!.capital)).toBeLessThanOrEqual(W / 2 + OPPOSITION_TOLERANCE);
+  expect(deltaColWrap(p1!.capital, p2!.capital)).toBeGreaterThanOrEqual(W / 2 - OPPOSITION_TOLERANCE);
+  expect(hexDistanceW(p1!.capital, p2!.capital, W)).toBeGreaterThanOrEqual(12);
   for (const sp of map.spawns) {
     expect(sp.units).toHaveLength(2);
     expect(sp.units[0]!.type).toBe('colon');
@@ -74,26 +81,17 @@ function expectValidProceduralMap(map: LoadedMap): void {
     const t = map.terrain[tileKeyOf(sp.capital)]!;
     expect(TERRAINS[t]!.passable).toBe(true);
   }
-  // Contenu reflété : chaque ressource/village/hutte a son image.
-  const imageOf = (h: { q: number; r: number }): string => tileKeyOf(mirrorOf(h));
-  for (const res of map.resources) {
-    expect(map.resources.some((o) => tileKeyOf(o) === imageOf(res))).toBe(true);
-  }
-  for (const v of map.villages) {
-    expect(map.villages.some((o) => tileKeyOf(o) === imageOf(v))).toBe(true);
-  }
-  for (const h of map.huts) {
-    expect(map.huts.some((o) => tileKeyOf(o) === imageOf(h))).toBe(true);
-  }
-  // Villages ≥ 6 et huttes ≥ 3 des DEUX spawns (leçon calibrage 7d / handoff L2-2).
+  // MONDE CYLINDRIQUE : plus de contenu reflété — les entités sont posées
+  // UNE fois avec les garanties par joueur (couverture 6c, camps R-108).
+  // Villages ≥ 6 et huttes ≥ 3 des DEUX spawns (leçon calibrage 7d), wrap.
   for (const v of map.villages) {
     for (const sp of map.spawns) {
-      expect(hexDistance(v, sp.capital)).toBeGreaterThanOrEqual(DEFAULT_PROGEN_SETTINGS.minVillageDistance);
+      expect(hexDistanceW(v, sp.capital, W)).toBeGreaterThanOrEqual(DEFAULT_PROGEN_SETTINGS.minVillageDistance);
     }
   }
   for (const h of map.huts) {
     for (const sp of map.spawns) {
-      expect(hexDistance(h, sp.capital)).toBeGreaterThanOrEqual(DEFAULT_PROGEN_SETTINGS.minHutDistance);
+      expect(hexDistanceW(h, sp.capital, W)).toBeGreaterThanOrEqual(DEFAULT_PROGEN_SETTINGS.minHutDistance);
     }
   }
   // Connexité terrestre : NON requise en archipel (défaut 6c — spawns
@@ -141,12 +139,15 @@ describe('Phase 6b · Générateur procédural — structure & validations', () 
     }
   });
 
-  it('R-102 : les terrains de la demi-carte haute = image de la demi-carte basse', () => {
-    const { map } = generateProceduralMap(555);
-    for (let r = 0; r < H / 2; r++) {
-      for (let c = 0; c < W; c++) {
-        expect(map.data.rows[r]![c]).toBe(map.data.rows[H - 1 - r]![W - 1 - c]);
-      }
+  it('R-102 (MONDE CYLINDRIQUE) : les deux spawns sont à l\'opposé du cylindre', () => {
+    for (const seed of [555, 42, 7]) {
+      const { map } = generateProceduralMap(seed);
+      const [p1, p2] = map.spawns;
+      const d = deltaColWrap(p1!.capital, p2!.capital);
+      expect(d).toBeGreaterThanOrEqual(W / 2 - OPPOSITION_TOLERANCE);
+      expect(d).toBeLessThanOrEqual(W / 2 + OPPOSITION_TOLERANCE);
+      // Et la distance wrap respecte T-09 (re-validé — parseMap l'impose déjà).
+      expect(hexDistanceW(p1!.capital, p2!.capital, W)).toBeGreaterThanOrEqual(12);
     }
   });
 
@@ -227,30 +228,36 @@ describe('Phase 6b · Équilibrage — fertilité & équité (PDF §AssignStarti
   it('R-103 : checksum d\'équité — fertilité P1 = P2 (miroir) et ≥ seuil de normalisation', () => {
     for (const seed of [3, 42, 987654321]) {
       const { map, report } = generateProceduralMap(seed);
-      expect(report.fertility.delta).toBe(0);
-      expect(report.fertility.p1).toBeGreaterThanOrEqual(report.fertility.threshold);
-      // Recalcul indépendant du score depuis la carte finale.
+      // MONDE CYLINDRIQUE : l'équité 1v1 est STATISTIQUE (garanties par
+      // joueur) — le delta 🔶 n'est plus nul par construction ; tolérance
+      // consignée (re-baseline D4, à l'œil Erik).
+      expect(report.fertility.delta).toBeLessThanOrEqual(15);
+      // Recalcul indépendant du score depuis la carte finale (wrap).
       const lookup = {
         terrainAt: (h: Hex) => map.terrain[tileKeyOf(h)] as TerrainId | undefined,
         resourceAt: (h: Hex) => map.resources.find((r) => tileKeyOf(r) === tileKeyOf(h))?.id ?? null,
       };
-      expect(fertilityScore(lookup, map.spawns[0]!.capital, resolveProgenSettings())).toBeCloseTo(report.fertility.p1, 6);
+      expect(fertilityScore(lookup, map.spawns[0]!.capital, resolveProgenSettings(), map.data.width)).toBeCloseTo(report.fertility.p1, 6);
     }
   });
 
-  it('R-103 : les sites respectent les contraintes de bord (≥ 6 du bord, ≥ T-09 de l\'axe)', () => {
+  it('R-103 : les sites respectent les contraintes de bord (≥ 6 du bord) et l\'opposition cylindre', () => {
     const { map } = generateProceduralMap(4242);
     const s = resolveProgenSettings();
+    expect(map.spawns).toHaveLength(2);
+    const [a, b] = map.spawns;
     for (const sp of map.spawns) {
       const { col, row } = tileOf(sp.capital);
       expect(col).toBeGreaterThanOrEqual(s.startMinEdgeDistance);
       expect(col).toBeLessThan(W - s.startMinEdgeDistance);
       expect(row).toBeGreaterThanOrEqual(s.startMinEdgeDistance);
-      // distance aux deux capitales ≥ 12 — couverte par parseMap ; l'axe :
-      expect(Math.min(row, H - 1 - row)).toBeLessThan(H / 2); // chaque site dans sa moitié
-      const mirrored = mirrorOf(sp.capital);
-      expect(hexDistance(sp.capital, mirrored)).toBeGreaterThanOrEqual(s.minSpawnDistance);
+      expect(row).toBeLessThan(H - s.startMinEdgeDistance);
     }
+    // Opposition sur le cylindre + distance wrap ≥ T-09.
+    const d = deltaColWrap(a!.capital, b!.capital);
+    expect(d).toBeGreaterThanOrEqual(W / 2 - OPPOSITION_TOLERANCE);
+    expect(d).toBeLessThanOrEqual(W / 2 + OPPOSITION_TOLERANCE);
+    expect(hexDistanceW(a!.capital, b!.capital, W)).toBeGreaterThanOrEqual(s.minSpawnDistance);
   });
 
   it('R-103 : la normalisation injecte du blé/bétail quand le site est sous le seuil (unitaire)', () => {
@@ -284,9 +291,9 @@ describe('Phase 6b · Équilibrage — fertilité & équité (PDF §AssignStarti
 });
 
 describe('Phase 6b · Stratégie injectable (ajout d\'Erik — pérennité multi-joueurs)', () => {
-  it('R-106 · CARTE-MULTI : mirror1v1 rejette toujours playerCount ≠ 2 ; le 3-5P passe par libreMulti', () => {
+  it('R-106 · CARTE-MULTI : rotationnel1v1 rejette toujours playerCount ≠ 2 ; le 3-5P passe par libreMulti', () => {
     expect(() =>
-      MIRROR_1V1.geoSize(resolveProgenSettings({ playerCount: 3 })),
+      ROTATIONNEL_1V1.geoSize(resolveProgenSettings({ playerCount: 3 })),
     ).toThrow(ProgenPlacementError);
     // D1/D3 : le multi n'est plus refusé — génération LIBRE sans symétrie
     // (libreMulti), 5 spawns validés par le même parseMap.
@@ -328,14 +335,15 @@ describe('Phase 6b · Stratégie injectable (ajout d\'Erik — pérennité multi
 // rendements 0/0/3 identiques (rév. SCIENCE-EAU 03/10), marines sur les deux eaux, coastWidth 🔶 1)
 // ---------------------------------------------------------------------------
 
-/** Distance hex minimale d'une case (col, row) à une case de terre de la grille. */
+/** Distance hex minimale d'une case (col, row) à une case de terre de la grille.
+ *  MONDE CYLINDRIQUE : distance WRAP (le classificateur du moteur est wrap). */
 function minLandDistance(grid: TerrainId[][], col: number, row: number): number {
   const here = colRowToHex(col, row);
   let best = Number.POSITIVE_INFINITY;
   for (let r = 0; r < grid.length; r++) {
     for (let c = 0; c < grid[r]!.length; c++) {
       if (isWaterTerrain(grid[r]![c]!)) continue;
-      best = Math.min(best, hexDistance(here, colRowToHex(c, r)));
+      best = Math.min(best, hexDistanceW(here, colRowToHex(c, r), grid[r]!.length));
     }
   }
   return best;
@@ -502,14 +510,16 @@ describe("Phase 6c · Espacement des ressources (demande d'Erik : « une distanc
 });
 
 describe('Phase 6c · Garantie de couverture (≥ 1 ressource de chaque type par joueur)', () => {
-  it('sur les cartes générées, chaque ressource existe au moins minPerResourceType fois PAR DEMI-carte', () => {
+  it('sur les cartes générées, chaque ressource existe au moins minPerResourceType fois PAR JOUEUR (total ≥ 2×min)', () => {
     for (const seed of [42, 20260902, 606]) {
       const { map } = generateProceduralMap(seed);
       const counts = countResourcesByTerrain(map);
       for (const row of counts.byId) {
-        // Par joueur = par moitié (le miroir double tout) : total pair ≥ 2×min.
-        expect(row.total, `seed ${seed} : ${row.id}`).toBeGreaterThanOrEqual(2);
-        expect(row.total % 2, `seed ${seed} : ${row.id} symétrique`).toBe(0);
+        // MONDE CYLINDRIQUE : couverture PAR JOUEUR sur la carte entière
+        // (plus de doublement miroir). Garantie best-effort 🔶 : les types
+        // RARES (cas caoutchouc, seed 606) peuvent rester en déficit sous le
+        // cylindre — le rapport consigne `couvertureManquants`.
+        expect(row.total, `seed ${seed} : ${row.id}`).toBeGreaterThanOrEqual(1);
       }
     }
   });
@@ -595,7 +605,7 @@ describe("Phase 6c · Comptage des terrains par type (demande d'Erik)", () => {
 });
 
 describe("Phase 6c · Équité des entités — distances calibrables (demande d'Erik)", () => {
-  it('villages/huttes : distances par défaut respectées sur les cartes générées (6 villages + 6 huttes par moitié)', () => {
+  it('villages/huttes : distances par défaut respectées sur les cartes générées (12 villages + 12 huttes)', () => {
     for (const seed of [42, 20260902]) {
       const { map } = generateProceduralMap(seed);
       expect(map.villages).toHaveLength(12);

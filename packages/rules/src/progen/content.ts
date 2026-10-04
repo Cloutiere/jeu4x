@@ -14,7 +14,7 @@
  * Tout est déterministe : parcours triés (row, col), RNG seedé unique.
  */
 import { RESOURCES, TERRAINS, isWaterTerrain } from '../data.js';
-import { colRowToHex, hexDistance, neighbors, compareHex } from '../hex.js';
+import { colRowToHex, hexDistanceW, neighborsW, compareHex, SANS_WRAP } from '../hex.js';
 import type { Hex } from '../hex.js';
 import type { MapResource } from '../map.js';
 import type { ResourceId, TerrainId } from '../types.js';
@@ -45,13 +45,14 @@ export function spacingViolated(
   placed: Array<{ q: number; r: number }>,
   mirrorOf: ((hex: Hex) => Hex) | undefined,
   min: number,
+  width: number = SANS_WRAP,
 ): boolean {
   if (min <= 1) return false;
   for (const p of placed) {
-    if (hexDistance(candidate, p) < min) return true;
-    if (mirrorOf && hexDistance(candidate, mirrorOf(p)) < min) return true;
+    if (hexDistanceW(candidate, p, width) < min) return true;
+    if (mirrorOf && hexDistanceW(candidate, mirrorOf(p), width) < min) return true;
   }
-  if (mirrorOf && hexDistance(candidate, mirrorOf(candidate)) < min) return true;
+  if (mirrorOf && hexDistanceW(candidate, mirrorOf(candidate), width) < min) return true;
   return false;
 }
 
@@ -70,6 +71,8 @@ export interface ResourcePlacementOptions {
   mirrorOf?: (hex: Hex) => Hex;
   alreadyPlaced?: Array<{ q: number; r: number }>;
   skipIds?: Set<string>;
+  /** MONDE CYLINDRIQUE : largeur de la carte complète (espacement wrap). */
+  width?: number;
 }
 
 /**
@@ -129,7 +132,7 @@ export function placeResources(
       const key = `${hex.q},${hex.r}`;
       const placeable =
         !prePlacedKeys.has(key) && // case réservée par la garantie 6c
-        !spacingViolated(hex, placedHexes, options?.mirrorOf, s.minResourceDistance);
+        !spacingViolated(hex, placedHexes, options?.mirrorOf, s.minResourceDistance, options?.width);
       // Tirage principal pondéré (poids spawnWeight).
       if (rng.next() < probability && placeable) {
         const total = candidates.reduce((acc, c) => acc + c.weight, 0);
@@ -191,6 +194,8 @@ export interface EntityPlacementInput {
   resourcesFull?: Hex[];
   minResourceDistance?: number;
   count: number;
+  /** MONDE CYLINDRIQUE : largeur de la carte complète (distances wrap). */
+  width?: number;
 }
 
 /** Cases praticables éligibles pour un village ou une hutte (tri (q, r)).
@@ -213,18 +218,19 @@ function entityCandidates(input: EntityPlacementInput): Hex[] {
       if (reserved.has(key)) continue;
       if (same.some((p) => p.q === hex.q && p.r === hex.r)) continue;
       if (other.some((p) => p.q === hex.q && p.r === hex.r)) continue;
-      if (spawns.some((sp) => hexDistance(sp, hex) < minSpawnDistance)) continue;
-      if (minSame > 1 && sameFull.some((p) => hexDistance(p, hex) < minSame)) continue;
-      if (minOther > 1 && otherFull.some((p) => hexDistance(p, hex) < minOther)) continue;
+      const w = input.width ?? SANS_WRAP;
+      if (spawns.some((sp) => hexDistanceW(sp, hex, w) < minSpawnDistance)) continue;
+      if (minSame > 1 && sameFull.some((p) => hexDistanceW(p, hex, w) < minSame)) continue;
+      if (minOther > 1 && otherFull.some((p) => hexDistanceW(p, hex, w) < minOther)) continue;
       // CAMPS-RESSOURCES : le futur emplacement de ressource respecte R-108.
       if (
         input.resourcesFull &&
-        input.resourcesFull.some((r) => hexDistance(r, hex) < (input.minResourceDistance ?? 2))
+        input.resourcesFull.some((r) => hexDistanceW(r, hex, w) < (input.minResourceDistance ?? 2))
       )
         continue;
       // Auto-image : une pose et son reflet ne doivent jamais se toucher.
-      if (mirrorOf && minSame > 1 && hexDistance(hex, mirrorOf(hex)) < minSame) continue;
-      const passableNeighbors = neighbors(hex).filter((n) => {
+      if (mirrorOf && minSame > 1 && hexDistanceW(hex, mirrorOf(hex), w) < minSame) continue;
+      const passableNeighbors = neighborsW(hex, w).filter((n) => {
         const nRow = n.r;
         const nCol = n.q + Math.floor(n.r / 2);
         const nt = terrain[nRow]?.[nCol];
@@ -304,6 +310,8 @@ export function poseRessourcesSousCamps(input: {
   /** Paires miroir : la ressource tirée pour la demi est DOUBLÉE de son image
    *  (équité parfaite — même id aux deux spawns). */
   mirrorOf?: (hex: Hex) => Hex;
+  /** MONDE CYLINDRIQUE : largeur de la carte complète (distances wrap). */
+  width?: number;
 }): MapResource[] {
   const poses: MapResource[] = [];
   const camps = [...input.villages, ...input.huts].sort((a, b) => a.r - b.r || a.q - b.q);
@@ -320,9 +328,10 @@ export function poseRessourcesSousCamps(input: {
       })
       .sort();
     if (pool.length === 0) continue; // terrain stérile : camp nu (consigné)
+    const w = input.width ?? SANS_WRAP;
     const libre =
-      !input.resources.some((r) => hexDistance(r, camp) < input.minResourceDistance) &&
-      !poses.some((r) => hexDistance(r, camp) < input.minResourceDistance);
+      !input.resources.some((r) => hexDistanceW(r, camp, w) < input.minResourceDistance) &&
+      !poses.some((r) => hexDistanceW(r, camp, w) < input.minResourceDistance);
     if (!libre) continue; // R-108 : jamais côte à côte (garde — exclusion amont)
     const total = pool.reduce((acc, id) => acc + (RESOURCES[id]!.spawnWeight ?? 0), 0);
     let roll = input.rng.next() * total;
@@ -359,6 +368,8 @@ export interface MarinePlacementInput {
   /** Hauteur de la demi-carte : le tirage aléatoire parcourt les cases de
    *  côte de la demi et pose des PAIRES (équité par miroir). */
   halfHeight: number;
+  /** MONDE CYLINDRIQUE : largeur de la carte complète (distances wrap). */
+  width?: number;
 }
 
 /** Ressources AQUATIQUES : tous leurs terrains sont des eaux (côte). */
@@ -393,8 +404,9 @@ export function placeMarineResources(input: MarinePlacementInput): void {
     const m = input.mirrorOf(hex);
     if (!isCoast(hex) || !isCoast(m)) return null;
     if (!open(hex) || !open(m)) return null;
-    if (spacingViolated(hex, input.resources, input.mirrorOf, input.s.minResourceDistance)) return null;
-    if (spacingViolated(m, input.resources, input.mirrorOf, input.s.minResourceDistance)) return null;
+    const w = input.width ?? SANS_WRAP;
+    if (spacingViolated(hex, input.resources, input.mirrorOf, input.s.minResourceDistance, w)) return null;
+    if (spacingViolated(m, input.resources, input.mirrorOf, input.s.minResourceDistance, w)) return null;
     return m;
   };
 
@@ -419,7 +431,7 @@ export function placeMarineResources(input: MarinePlacementInput): void {
       const hex = candidates.reduce((best, c) => {
         const slack = (h: Hex): number => {
           let d = Number.POSITIVE_INFINITY;
-          for (const p of input.resources) d = Math.min(d, hexDistance(h, p));
+          for (const p of input.resources) d = Math.min(d, hexDistanceW(h, p, input.width ?? SANS_WRAP));
           return d;
         };
         const sBest = slack(best);

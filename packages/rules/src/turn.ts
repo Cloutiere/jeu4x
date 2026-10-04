@@ -18,9 +18,13 @@ import type { SeededRng } from './rng.js';
 import {
   compareHex,
   hexDistance,
+  hexDistanceW,
   hexesWithinRadius,
+  hexesWithinRadiusW,
   inRectangle,
   neighbors,
+  neighborsW,
+  normalizeHexW,
   tileKeyOf,
 } from './hex.js';
 import type { Hex } from './hex.js';
@@ -380,9 +384,9 @@ function tenterDepose(board: Board, transport: Unit): boolean {
   for (const passager of passagersDuTransport(board, transport)) {
     const ordre = passager.order;
     if (!ordre || (ordre.type !== 'Move' && ordre.type !== 'MultiStep') || ordre.path.length === 0) continue;
-    const cible = ordre.path[0]!;
+    const cible = normalizeHexW(ordre.path[0]!, board.st.mapWidth);
     const deposable =
-      hexDistance(transport, cible) === 1 && canEnter(board, passager, cible) && occupants(board, cible).length === 0;
+      hexDistanceW(transport, cible, board.st.mapWidth) === 1 && canEnter(board, passager, cible) && occupants(board, cible).length === 0;
     if (!deposable) continue;
     passager.aboard = null;
     passager.q = cible.q;
@@ -530,7 +534,7 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
     const legal =
       !cityAt(board, hex) &&
       TERRAINS[board.st.map[tileKeyOf(hex)]?.terrain ?? 'eau']!.passable &&
-      !Object.values(board.st.cities).some((c) => hexDistance(c, hex) < MIN_CITY_DISTANCE);
+      !Object.values(board.st.cities).some((c) => hexDistanceW(c, hex, board.st.mapWidth) < MIN_CITY_DISTANCE);
     if (legal) {
       const ownerHasCity = Object.values(board.st.cities).some((c) => c.owner === opener.owner);
       const cityId = nextId(board.st.cities, 'c');
@@ -627,7 +631,7 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
       // final est assuré par recomputeVision (Phase D).
       {
         const explored = new Set(player.vision.explored);
-        for (const h of hexesWithinRadius(hut, reward.radius)) {
+        for (const h of hexesWithinRadiusW(hut, reward.radius, board.st.mapWidth)) {
           if (board.st.map[tileKeyOf(h)]) explored.add(tileKeyOf(h));
         }
         player.vision = { explored: [...explored].sort(), visible: player.vision.visible };
@@ -727,7 +731,7 @@ function canEnter(board: Board, unit: Unit, hex: Hex): boolean {
   if (!inRectangle(hex, board.st.mapWidth, board.st.mapHeight)) return false;
   const tile = board.st.map[tileKeyOf(hex)];
   if (!tile) return false;
-  return canEnterTerrain(unitType(unit.type), tile.terrain, isCoastalCityHex(board.st.map, hex));
+  return canEnterTerrain(unitType(unit.type), tile.terrain, isCoastalCityHex(board.st.map, hex, board.st.mapWidth));
 }
 
 function isPeaceful(unit: Unit): boolean {
@@ -1233,7 +1237,7 @@ function applyCampReward(board: Board, winner: Unit, campHex: Hex, reward: HutRe
       break;
     case 'reveal': {
       const explored = new Set(player.vision.explored);
-      for (const h of hexesWithinRadius(campHex, reward.radius)) {
+      for (const h of hexesWithinRadiusW(campHex, reward.radius, board.st.mapWidth)) {
         if (board.st.map[tileKeyOf(h)]) explored.add(tileKeyOf(h));
       }
       player.vision = { explored: [...explored].sort(), visible: player.vision.visible };
@@ -1305,7 +1309,9 @@ function executeMoveOrder(
   priorite: number,
 ): void {
   while (unit.mp > 0 && path.length > 0) {
-    const next = path[0]!;
+    // D1 — normalisation canonique : un pas hors bornes (q=−1 à l'Ouest de la
+    // couture) est replié dans [0, largeur) AVANT tout traitement.
+    const next = normalizeHexW(path[0]!, board.st.mapWidth);
     // X-2 ABROGÉE (décision d'Erik du 18/09) : la découverte d'un ennemi
     // n'arrête PLUS le chemin — une unité exécute son ordre quelle que soit
     // la vision révélée en cours de route (par elle ou par une autre unité).
@@ -1866,7 +1872,7 @@ function validatedWorkedTiles(board: Board, city: City, takenByOthers: Set<TileK
     const parsed = key.split(',');
     const hex = { q: Number(parsed[0]), r: Number(parsed[1]) };
     if (Math.abs(hex.q - cityHex.q) + Math.abs(hex.r - cityHex.r) === 0) continue; // centre : gratuit, jamais assigné
-    if (hexDistance(cityHex, hex) > radius) continue;
+    if (hexDistanceW(cityHex, hex, board.st.mapWidth) > radius) continue;
     if (!tileWorkable(board.st.map, key)) continue;
     if (cityKeys.has(key)) continue;
     if (takenByOthers.has(key)) continue;
@@ -1886,8 +1892,8 @@ function fillWorkedTiles(board: Board, city: City, taken: Set<TileKey>): void {
   const cityHex = { q: city.q, r: city.r };
   const techs = board.st.players[city.owner]?.techsUnlocked ?? [];
   const cityKeys = new Set(Object.values(board.st.cities).map((c) => `${c.q},${c.r}`));
-  const candidates = hexesWithinRadius(cityHex, radius)
-    .filter((h) => hexDistance(h, cityHex) >= 1)
+  const candidates = hexesWithinRadiusW(cityHex, radius, board.st.mapWidth)
+    .filter((h) => hexDistanceW(h, cityHex, board.st.mapWidth) >= 1)
     .map((h) => ({ key: tileKeyOf(h), hex: h }))
     .filter(({ key }) => tileWorkable(board.st.map, key) && !cityKeys.has(key) && !taken.has(key))
     .map(({ key, hex }) => ({ key, hex, y: tileYield(board.st.map, city.buildings, key, techs, city.wonders)! }))
@@ -1976,7 +1982,7 @@ function itemProductionRefuse(board: Board, playerId: PlayerId, city: City, item
   if (
     item.kind === 'unit' &&
     unitType(effectiveItem).aquatic &&
-    !citySiteIsCoastal(board.st.map, { q: city.q, r: city.r })
+    !citySiteIsCoastal(board.st.map, { q: city.q, r: city.r }, board.st.mapWidth)
   ) {
     return true;
   }
@@ -2351,7 +2357,7 @@ function applySetWorkedTile(board: Board, ordersByPlayer: Record<PlayerId, Order
     const hex = { q: Number(parsed[0]), r: Number(parsed[1]) };
     const cityHex = { q: city.q, r: city.r };
     if (!tileWorkable(board.st.map, order.tile)) continue;
-    if (hexDistance(cityHex, hex) > workRadiusOf(city.buildings)) continue;
+    if (hexDistanceW(cityHex, hex, board.st.mapWidth) > workRadiusOf(city.buildings)) continue;
     if (city.workedTiles.includes(order.tile)) {
       // Déjà travaillée par cette ville : DÉSÉLECTION EXACTE (R-60 rév.) —
       // CETTE case précise sort des terrains cultivés, pas la dernière assignée.
@@ -2427,7 +2433,7 @@ function applyGreatPersonActions(board: Board, ordersByPlayer: Record<PlayerId, 
       if (!unit || unit.owner !== playerId) continue;
       if (!city || city.owner !== playerId) continue; // ville AMIE uniquement
       if (!isGreatPersonType(unit.type)) continue; // R-114 : GP seulement
-      if (hexDistance(unit, city) > 1) continue; // sur la case ou adjacente
+      if (hexDistanceW(unit, city, board.st.mapWidth) > 1) continue; // sur la case ou adjacente
       actions.push({ playerId, action, unitId, cityId });
     }
   }
@@ -2623,7 +2629,7 @@ function applySpyMissions(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     if (city.owner === unit.owner) continue; // ville AMIE : pas de mission
     if (!board.st.players[city.owner]) continue; // aucune ville barbare — garde-fou
     const visible = computeVisibleTiles(board.st, unit.owner).has(tileKeyOf(city));
-    const adjacent = hexDistance(unit, city) <= 1;
+    const adjacent = hexDistanceW(unit, city, board.st.mapWidth) <= 1;
     // 7j · D4.3 : seuls les GP INSTALLÉS (settledGreatPersons) peuvent être
     // volés — un GP « en attente de choix » est insaisissable (doc d'Erik).
     const stealable = settledGreatPersonsOfCities(board.st.cities, city.owner) > 0;
@@ -2812,7 +2818,7 @@ function applyLaunches(board: Board, ordersByPlayer: Record<PlayerId, Order[]>):
     // deux camps, aucun survivant (espions infiltrés, réseaux, armées, GP
     // « en attente » — C13.6 — compris). C13.4 s'applique à toute cible.
     const victims: Unit[] = [];
-    for (const h of hexesWithinRadius(target, 1)) {
+    for (const h of hexesWithinRadiusW(target, 1, board.st.mapWidth)) {
       victims.push(...occupants(board, h));
     }
     for (const v of victims) {
@@ -2996,7 +3002,7 @@ function applySpyActions(board: Board, ordersByPlayer: Record<PlayerId, Order[]>
         const hex = { q: city.q, r: city.r };
         const gp = Object.values(board.st.units)
           .filter((u) => u.owner === city.owner && !u.aboard && isGreatPersonType(u.type))
-          .filter((u) => hexDistance(u, hex) <= 1)
+          .filter((u) => hexDistanceW(u, hex, board.st.mapWidth) <= 1)
           .sort(
             (a, b) =>
               (a.q === hex.q && a.r === hex.r ? 0 : 1) - (b.q === hex.q && b.r === hex.r ? 0 : 1) ||
@@ -3452,7 +3458,7 @@ function processFoundCity(board: Board, ordersByPlayer: Record<PlayerId, Order[]
     // NON FONDABLE (défaut 🔶 : permanent). Le colon survit, l'ordre est ignoré.
     if (tile.terrain === 'cratere') continue;
     // T-09 : distance minimale à toute ville existante.
-    if (Object.values(board.st.cities).some((c) => hexDistance(c, hex) < MIN_CITY_DISTANCE)) continue;
+    if (Object.values(board.st.cities).some((c) => hexDistanceW(c, hex, board.st.mapWidth) < MIN_CITY_DISTANCE)) continue;
     // RESOLUTION-DEPLACEMENTS · option B (arbitrage Erik 18/09) : une amie
     // cohabite ENCORE sur la case à l'arrivée (son départ programmé a échoué)
     // → fondation ANNULÉE ; le colon cohabite et fondera au tour suivant si
@@ -4488,7 +4494,7 @@ function regulariserArrivantes(board: Board): void {
       delete u.arrivanteSurCase; // D4 : plus de sur-occupation → nettoyage
       continue;
     }
-    const destinations = neighbors({ q: u.q, r: u.r })
+    const destinations = neighborsW({ q: u.q, r: u.r }, board.st.mapWidth)
       .filter((h) => canEnter(board, u, h))
       .filter((h) => !occupiedByUnit(board, h))
       .filter((h) => {
@@ -4580,7 +4586,7 @@ function processStability(board: Board): void {
         case: key, restante: keeper.id, candidates: here.map((u) => ({ id: u.id, fortified: u.fortified, hp: u.hp })),
       });
       for (const u of here.filter((x) => x.id !== keeper.id).sort((a, b) => compareUnitIds(a.id, b.id))) {
-        const candidates = neighbors({ q: u.q, r: u.r })
+        const candidates = neighborsW({ q: u.q, r: u.r }, board.st.mapWidth)
           .filter((h) => canEnter(board, u, h))
           .filter((h) => !occupiedByUnit(board, h))
           .filter((h) => {
@@ -4992,7 +4998,7 @@ export function resolveTurn(
     let cibleAttaque: UnitId | null = defender?.id ?? null;
     if (isRanged(unit) || estGardien) {
       // à distance / gardien : il faut une cible désignable (défenseur stabilisé/gardien)
-      if (hexDistance(unit, target) > RANGED_RANGE) continue;
+      if (hexDistanceW(unit, target, board.st.mapWidth) > RANGED_RANGE) continue;
       let cible = defender;
       if (!cible && !gardienCamp && isRanged(unit) && !estGardien) {
         // R-159 rév. B (H2, Erik 17/09) : tir sur une case SANS défenseur
@@ -5006,7 +5012,7 @@ export function resolveTurn(
       unit.mp -= 1;
       cibleAttaque = cible?.id ?? null;
     } else {
-      if (hexDistance(unit, target) !== 1) continue; // l'entrée exige le contact
+      if (hexDistanceW(unit, target, board.st.mapWidth) !== 1) continue; // l'entrée exige le contact
       // R-159 rév. B (P1) : ≥ 2 attaquants du MÊME camp sur la même case
       // défendue → entrée RETENUE, séquencée en Phase B (R-177) : la mort du
       // défenseur par le premier ferme la porte aux suivants du même camp.
@@ -5096,7 +5102,7 @@ export function resolveTurn(
         const retenue = board.retenus.find((r) => r.unitId === plan.attackerId && !r.active);
         if (!retenue) continue;
         retenue.active = true;
-        if (hexDistance(attacker, caseCible) !== 1 || attacker.mp < 1) {
+        if (hexDistanceW(attacker, caseCible, board.st.mapWidth) !== 1 || attacker.mp < 1) {
           decide(board, 'entree-retenue-refus', 'R-159 rév. B', `${attacker.id} RETENU reste devant (${caseCible.q},${caseCible.r}) — hors de portée ou sans PM`, { unitId: attacker.id, case: caseCible, mp: attacker.mp });
           continue;
         }
@@ -5120,7 +5126,7 @@ export function resolveTurn(
       if (!defender) continue; // l'un est mort entre-temps
       // R-59 : portée T-13 pour l'attaquant à distance, contact sinon.
       const range = isRanged(attacker) ? RANGED_RANGE : 1;
-      if (hexDistance(attacker, defender) > range) continue; // plus au contact
+      if (hexDistanceW(attacker, defender, board.st.mapWidth) > range) continue; // plus au contact
       // R-176a : le défenseur a QUITTÉ la case visée pendant la Phase A —
       // l'échange a lieu sur sa case actuelle (coup en passant).
       const origineDef = board.origin.get(defender.id);
@@ -5144,10 +5150,10 @@ export function resolveTurn(
         const retenue = board.retenus.find((r) => r.unitId === plan.attackerId && !r.active);
         if (!retenue) continue;
         retenue.active = true;
-        if (hexDistance(attacker, { q: village.q, r: village.r }) !== 1 || attacker.mp < 1) continue;
+        if (hexDistanceW(attacker, { q: village.q, r: village.r }, board.st.mapWidth) !== 1 || attacker.mp < 1) continue;
         attacker.mp -= 1;
         moveUnit(board, attacker, { q: village.q, r: village.r });
-      } else if (hexDistance(attacker, village) > 1) {
+      } else if (hexDistanceW(attacker, village, board.st.mapWidth) > 1) {
         continue; // plus au contact
       }
       resolveVillageAttack(board, attacker, village, { q: village.q, r: village.r });

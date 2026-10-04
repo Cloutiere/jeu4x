@@ -13,7 +13,7 @@
  * du seed de partie (même seed → même carte et mêmes artefacts, rejouable) et
  * ne consomme JAMAIS le RNG de résolution.
  */
-import { hexDistance, inRectangle, neighbors, tileKeyOf } from './hex.js';
+import { hexDistanceW, hexesWithinRadiusW, inRectangle, neighborsW, tileKeyOf } from './hex.js';
 import type { Hex } from './hex.js';
 import { ARTEFACTS, TERRAINS, artefact, unitType } from './data.js';
 import type { ArtefactData, TechEra } from './types.js';
@@ -79,8 +79,7 @@ function landComponents(terrain: Record<string, string>, width: number, height: 
       const cur = queue.shift()!;
       keys.push(cur);
       const [q, r] = cur.split(',').map(Number) as [number, number];
-      for (const n of neighbors({ q: q!, r: r! })) {
-        if (!inRectangle(n, width, height)) continue;
+      for (const n of neighborsW({ q: q!, r: r! }, width, height)) {
         const nk = tileKeyOf(n);
         if (compKey.has(nk)) continue;
         const nt = TERRAINS[terrain[nk] ?? 'eau'];
@@ -115,8 +114,7 @@ function distanceToLand(terrain: Record<string, string>, width: number, height: 
     const next: string[] = [];
     for (const key of current) {
       const [q, r] = key.split(',').map(Number) as [number, number];
-      for (const n of neighbors({ q: q!, r: r! })) {
-        if (!inRectangle(n, width, height)) continue;
+      for (const n of neighborsW({ q: q!, r: r! }, width, height)) {
         const nk = tileKeyOf(n);
         if (dist.has(nk)) continue;
         dist.set(nk, d + 1);
@@ -160,7 +158,7 @@ export function drawArtefacts(
   for (const h of map.huts) occupied.add(tileKeyOf(h));
 
   const minDistToCapitals = (h: Hex): number =>
-    capitals.length === 0 ? Number.MAX_SAFE_INTEGER : Math.min(...capitals.map((c) => hexDistance(c, h)));
+    capitals.length === 0 ? Number.MAX_SAFE_INTEGER : Math.min(...capitals.map((c) => hexDistanceW(c, h, map.width)));
 
   // ---- Tirage (R-151) -----------------------------------------------------
   const poolIds = Object.keys(ARTEFACTS.pool)
@@ -288,7 +286,7 @@ export function drawArtefacts(
   // contrainte). Une case sans espacement valide n'est JAMAIS prise, sauf au
   // repli continental de dernier recours (mieux vaut un artefact visible
   // qu'une carte sans artefact — documented 🔶).
-  const farEnough = (h: Hex): boolean => placed.every((a) => hexDistance(a, h) >= p.spacing);
+  const farEnough = (h: Hex): boolean => placed.every((a) => hexDistanceW(a, h, map.width) >= p.spacing);
   const takeSlot = (slots: Hex[]): Hex | null => slots.find(farEnough) ?? null;
   const takeSlotRelache = (slots: Hex[]): Hex | null => slots[0] ?? null;
   const takeFrom = (slots: Hex[], slot: Hex): void => {
@@ -394,7 +392,7 @@ export function activateArtefactAt(
   if (!unitType(unit.type).aquatic) return;
   const pos = { q: unit.q, r: unit.r };
   const adjacent = st.artefacts
-    .filter((a) => artefact(a.artefactId).activation === 'oceanAdjacent' && hexDistance(a, pos) <= 1)
+    .filter((a) => artefact(a.artefactId).activation === 'oceanAdjacent' && hexDistanceW(a, pos, st.mapWidth) <= 1)
     .sort((a, b) => a.q - b.q || a.r - b.r)[0];
   if (adjacent) applyActivation(ctx, adjacent, unit);
 }
@@ -761,9 +759,9 @@ function appendFillWorkedTiles(st: GameState, cityId: string): void {
     taken.add(`${c.q},${c.r}`);
   }
   const candidates: Array<{ key: string; f: number; p: number; c: number }> = [];
-  for (const h of hexesWithinRadiusLocal(cityHex, radius)) {
+  for (const h of hexesWithinRadiusW(cityHex, radius, st.mapWidth)) {
     const key = tileKeyOf(h);
-    if (hexDistance(cityHex, h) < 1) continue;
+    if (hexDistanceW(cityHex, h, st.mapWidth) < 1) continue;
     const tile = st.map[key];
     if (!tile || !TERRAINS[tile.terrain]!.passable) continue;
     if (taken.has(key) || city.workedTiles.includes(key)) continue;
@@ -776,17 +774,6 @@ function appendFillWorkedTiles(st: GameState, cityId: string): void {
     city.workedTiles.push(c.key);
     taken.add(c.key);
   }
-}
-
-/** Cases dans un rayon hexagonal (miroir local de hexesWithinRadius, hex.ts). */
-function hexesWithinRadiusLocal(center: Hex, radius: number): Hex[] {
-  const out: Hex[] = [];
-  for (let dq = -radius; dq <= radius; dq++) {
-    for (let dr = Math.max(-radius, -dq - radius); dr <= Math.min(radius, -dq + radius); dr++) {
-      out.push({ q: center.q + dq, r: center.r + dr });
-    }
-  }
-  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -810,7 +797,7 @@ export function applyArtefactIndiceReward(
   const out: { remaining: number; position?: { q: number; r: number } } = { remaining: st.artefacts.length };
   if (rng.next() >= ARTEFACTS.params.indicePositionChance || st.artefacts.length === 0) return out;
   const sorted = [...st.artefacts].sort(
-    (a, b) => hexDistance(a, hut) - hexDistance(b, hut) || a.q - b.q || a.r - b.r,
+    (a, b) => hexDistanceW(a, hut, st.mapWidth) - hexDistanceW(b, hut, st.mapWidth) || a.q - b.q || a.r - b.r,
   );
   const target = sorted[0]!;
   out.position = { q: target.q, r: target.r };
@@ -882,7 +869,7 @@ export function artefactsPourCarteFraiche(map: LoadedMap, seed: number): Artefac
         huts: map.huts,
       },
       seed,
-      { miroir: (h) => mirroredHex(h, map.data.width) },
+      { miroir: (h) => mirroredHex(h, map.data.width, map.data.height) },
     );
   }
   // Repli continental autorisé : une préfabriquée ne peut pas re-générer.
@@ -917,7 +904,7 @@ export function garantirIlesLibresPourArtefacts(
   const p = ARTEFACTS.params;
   const capitals = map.spawns.map((s) => s.capital);
   const minDistToCapitals = (h: Hex): number =>
-    capitals.length === 0 ? Number.MAX_SAFE_INTEGER : Math.min(...capitals.map((c) => hexDistance(c, h)));
+    capitals.length === 0 ? Number.MAX_SAFE_INTEGER : Math.min(...capitals.map((c) => hexDistanceW(c, h, map.width)));
   const passable = (key: string): boolean => {
     const t = TERRAINS[map.terrain[key] ?? 'eau'];
     return !!t && t.passable;
@@ -956,8 +943,7 @@ export function garantirIlesLibresPourArtefacts(
     // L'îlot doit naître hors de portée à pied : AUCUNE voisine terrestre de
     // la MASSE DES JOUEURS (une voisine d'île libre est OK — l'îlot l'agrandit
     // ou la rend éligible ; crucial en archipel dense où l'océan isolé manque).
-    for (const n of neighbors(hex)) {
-      if (!inRectangle(n, map.width, map.height)) return false;
+    for (const n of neighborsW(hex, map.width, map.height)) {
       const nk = tileKeyOf(n);
       if (!passable(nk)) continue;
       const info = compsVue.get(nk);
@@ -980,7 +966,7 @@ export function garantirIlesLibresPourArtefacts(
       const [q, r] = key.split(',').map(Number) as [number, number];
       const hex = { q: q!, r: r! };
       if (minDistToCapitals(hex) < PLANCHER_DISTANCE_ILE) continue;
-      if (posees.some((p2) => hexDistance(p2, hex) < p.spacing)) continue;
+      if (posees.some((p2) => hexDistanceW(p2, hex, map.width) < p.spacing)) continue;
       candidats.push(hex);
     }
     // Le plus loin des départs d'abord, puis (q, r) — R-81.

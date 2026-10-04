@@ -34,7 +34,7 @@ import { creditScience } from '../src/research.js';
 import { getFilteredState } from '../src/fog.js';
 import { TECHS } from '../src/techs.js';
 import { MapValidationError } from '../src/map.js';
-import { hexDistance, tileKeyOf } from '../src/hex.js';
+import { hexDistance, hexDistanceW, neighborsW, tileKeyOf } from '../src/hex.js';
 
 const SEED = 20260904;
 
@@ -180,7 +180,9 @@ describe('7o · R-152 · Placement insulaire + Atlantide en haute mer', () => {
   });
 
   it('priorité aux îles isolées / atolls (composantes ≤ islandMaxSize) sur une carte archipel', () => {
-    const { map } = generateProceduralMap(77);
+    // MONDE CYLINDRIQUE (T1, D4) : la couture fusionne des îles — la seed 77
+    // n'a plus aucun artefact insulaire ; remplacée par la 79 (2 insulaires).
+    const { map } = generateProceduralMap(79);
     const comp = componentSizes(map.terrain, map.data.width, map.data.height);
     let islandArtifacts = 0;
     for (const a of map.artefacts) {
@@ -223,14 +225,15 @@ describe('7o · R-152 · Placement insulaire + Atlantide en haute mer', () => {
 // ---------------------------------------------------------------------------
 
 describe('7o · parseMap · validations des artefacts portés par une carte', () => {
-  // 20×3 : capitales (−1,2) et (16,2) — distance 17 ≥ 12 (MIN_SPAWN_DISTANCE).
+  // 30×3 : capitales (−1,2) et (16,2) — MONDE CYLINDRIQUE : distance wrap ≥ 12
+  // (MIN_SPAWN_DISTANCE) — la carte doit être assez large des deux côtés.
   const base: MapData = {
     id: 't',
     name: 'Test',
-    width: 20,
+    width: 30,
     height: 3,
     legend: { '.': 'prairie', '~': 'eau', O: 'ocean' },
-    rows: ['~~~~~~OOOO~~~~~~~~~~', '....................', '....................'],
+    rows: ['~~~~~~OOOO' + '~'.repeat(20), '.'.repeat(30), '.'.repeat(30)],
     players: [
       { id: 'p1', capital: { q: -1, r: 2 }, units: [{ type: 'guerrier', q: 0, r: 2 }] },
       { id: 'p2', capital: { q: 16, r: 2 }, units: [{ type: 'guerrier', q: 17, r: 2 }] },
@@ -770,12 +773,10 @@ function landDistance(terrain: Record<string, string>, width: number, height: nu
   while (current.length > 0) {
     const next: string[] = [];
     for (const key of current) {
+      // MONDE CYLINDRIQUE : BFS wrap-aware (comme le moteur).
       const [q, r] = key.split(',').map(Number) as [number, number];
-      for (const [dq, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]] as const) {
-        const nq = q! + dq;
-        const nr = r! + dr;
-        if (nq < 0 || nr < 0 || nq >= width + 20 || nr >= height) continue;
-        const nk = `${nq},${nr}`;
+      for (const n of neighborsW({ q: q!, r: r! }, width, height)) {
+        const nk = `${n.q},${n.r}`;
         if (dist.has(nk) || terrain[nk] === undefined) continue;
         dist.set(nk, d + 1);
         next.push(nk);
@@ -788,8 +789,6 @@ function landDistance(terrain: Record<string, string>, width: number, height: nu
 }
 
 function componentSizes(terrain: Record<string, string>, width: number, height: number): Map<string, number> {
-  void width;
-  void height;
   const comp = new Map<string, number>();
   const sizes: number[] = [];
   for (const key of Object.keys(terrain).sort()) {
@@ -802,9 +801,10 @@ function componentSizes(terrain: Record<string, string>, width: number, height: 
     while (queue.length > 0) {
       const cur = queue.shift()!;
       size += 1;
+      // MONDE CYLINDRIQUE : BFS wrap-aware (comme le moteur).
       const [q, r] = cur.split(',').map(Number) as [number, number];
-      for (const [dq, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]] as const) {
-        const nk = `${q! + dq},${r! + dr}`;
+      for (const n of neighborsW({ q: q!, r: r! }, width, height)) {
+        const nk = `${n.q},${n.r}`;
         if (comp.has(nk) || terrain[nk] === undefined) continue;
         const nt = terrain[nk]!;
         if (nt === 'eau' || nt === 'ocean') continue;

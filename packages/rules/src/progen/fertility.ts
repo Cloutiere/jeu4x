@@ -13,7 +13,7 @@
  *    contribution nette est `rendement − pénalité 🔶` (le PDF : −10 sec).
  */
 import { RESOURCES, TERRAINS } from '../data.js';
-import { hexDistance, hexesWithinRadius, compareHex } from '../hex.js';
+import { hexDistanceW, hexesWithinRadiusW, compareHex, SANS_WRAP } from '../hex.js';
 import type { Hex } from '../hex.js';
 import type { ResourceId, TerrainId } from '../types.js';
 import type { ProgenSettings } from './settings.js';
@@ -43,19 +43,20 @@ export function tileFertility(terrain: TerrainId, resource: ResourceId | null, s
   return score;
 }
 
-/** Cases de l'anneau `ring` (distance exacte), triées (q, r) — R-81. */
-export function ringCells(center: Hex, ring: number): Hex[] {
+/** Cases de l'anneau `ring` (distance exacte), triées (q, r) — R-81.
+ *  MONDE CYLINDRIQUE : `width` porte l'enroulement Est↔Ouest (défaut : plat). */
+export function ringCells(center: Hex, ring: number, width: number = SANS_WRAP): Hex[] {
   if (ring <= 0) return [{ ...center }];
-  return hexesWithinRadius(center, ring).filter((h) => hexDistance(center, h) === ring).sort(compareHex);
+  return hexesWithinRadiusW(center, ring, width).filter((h) => hexDistanceW(center, h, width) === ring).sort(compareHex);
 }
 
 /** Score de fertilité d'une case candidate sur 3 anneaux concentriques. */
-export function fertilityScore(lookup: TerrainLookup, center: Hex, s: ProgenSettings): number {
+export function fertilityScore(lookup: TerrainLookup, center: Hex, s: ProgenSettings, width: number = SANS_WRAP): number {
   const weights = s.fertilityRingWeights;
   let total = 0;
   for (let ring = 1; ring <= 3; ring++) {
     const weight = weights[ring - 1]!;
-    for (const cell of ringCells(center, ring)) {
+    for (const cell of ringCells(center, ring, width)) {
       const t = lookup.terrainAt(cell);
       if (t === undefined) continue; // hors carte (bord) : ignorée
       total += weight * tileFertility(t, lookup.resourceAt(cell), s);

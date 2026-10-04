@@ -172,23 +172,24 @@ describe('SPAWN-START · Garantie sur les cartes générées (statistique, N see
     }
   });
 
-  it('miroir : les DEUX voisinages ont la même composition (checksum étendu)', () => {
+  it('MONDE CYLINDRIQUE : chaque spawn porte le voisinage SPAWN-START (équité statistique)', () => {
     for (const seed of SEEDS) {
       const { map, report } = generateProceduralMap(seed);
-      const [p1, p2] = map.spawns;
-      const c1 = ringComposition(map, p1!.capital);
-      const c2 = ringComposition(map, p2!.capital);
-      // Même multiset de terrains (les clés triées, comparées).
-      const norm = (c: Record<string, number>): string =>
-        Object.entries(c).sort(([a], [b]) => (a < b ? -1 : 1)).map(([t, n]) => `${t}:${n}`).join(',');
-      expect(norm(c2), `seed ${seed} : composition miroir identique`).toBe(norm(c1));
-      // Checksum d'équité : delta = 0 (étendu par la composition identique).
-      expect(report.fertility.delta, `seed ${seed}`).toBe(0);
-      // Le rapport consigne la garantie (dump admin / labo).
+      // Plus de reflet exact : l'équité est STATISTIQUE (garanties par
+      // joueur) — chaque voisinage satisfait individuellement le pattern
+      // 2F/2P/1E (déjà couvert) et le rapport consigne les compositions.
       expect(report.spawn).toBeDefined();
       expect(report.spawn!.purgeRadius).toBe(S.spawnPurgeRadius);
       expect(report.spawn!.purged).toBeGreaterThanOrEqual(0);
-      expect(report.spawn!.compositionP1).toEqual(report.spawn!.compositionP2);
+      expect(report.spawn!.compositionP1).toBeDefined();
+      expect(report.spawn!.compositionP2).toBeDefined();
+      for (const sp of map.spawns) {
+        const c = ringComposition(map, sp.capital);
+        expect(c['foret'] ?? 0, `seed ${seed} forêts`).toBeGreaterThanOrEqual(2);
+        expect(c['prairie'] ?? 0, `seed ${seed} prairies`).toBeGreaterThanOrEqual(2);
+        expect(c['eau'] ?? 0, `seed ${seed} eau`).toBe(1);
+        expect(c['montagne'] ?? 0, `seed ${seed} montagne`).toBe(0);
+      }
     }
   });
 

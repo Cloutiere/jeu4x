@@ -32,10 +32,10 @@
   "wgggggdddddddddffpppppppggggfffggghggggw",
   "wggggggdddddddffffpppppggggfffffgggggggw",
   "wgggggggdddddfffffppppgggggfffffgggggggw",
-  "wggggggggfffffffffppgggggghfffffggfggggw",
+  "wggggggggfffffffffppgggggghfffffgffggggw",
   "wgggfwggggfffffffgggggggfffffffhgggggggw",
   "wggggggghfffffffgggggggfffffffggggwfgggw",
-  "wggggfggfffffhggggggppfffffffffggggggggw",
+  "wggggffgfffffhggggggppfffffffffggggggggw",
   "wgggggggfffffgggggppppfffffdddddgggggggw",
   "wgggggggfffffggggpppppffffdddddddggggggw",
   "wgggghgggfffggggpppppppffdddddddddgggggw",
@@ -59,13 +59,13 @@
   {
    "id": "p1",
    "capital": {
-    "q": -5,
+    "q": -4,
     "r": 20
    },
    "units": [
     {
      "type": "guerrier",
-     "q": -4,
+     "q": -3,
      "r": 20
     }
    ]
@@ -73,13 +73,13 @@
   {
    "id": "p2",
    "capital": {
-    "q": 25,
+    "q": 24,
     "r": 19
    },
    "units": [
     {
      "type": "guerrier",
-     "q": 24,
+     "q": 23,
      "r": 19
     }
    ]
@@ -88,13 +88,13 @@
  "resources": [
   {
    "id": "betail",
-   "q": -3,
-   "r": 21
+   "q": -5,
+   "r": 23
   },
   {
    "id": "betail",
-   "q": 23,
-   "r": 18
+   "q": 25,
+   "r": 16
   },
   {
    "id": "encens",
@@ -119,12 +119,12 @@
   {
    "id": "fer",
    "q": -2,
-   "r": 20
+   "r": 25
   },
   {
    "id": "fer",
    "q": 22,
-   "r": 19
+   "r": 14
   },
   {
    "id": "gemmes",
@@ -209,12 +209,12 @@
   {
    "id": "ble",
    "q": -4,
-   "r": 22
+   "r": 24
   },
   {
    "id": "ble",
    "q": 24,
-   "r": 17
+   "r": 15
   },
   {
    "id": "uranium",

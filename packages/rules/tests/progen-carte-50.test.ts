@@ -130,9 +130,12 @@ describe('CARTE-50 · Banc de conformité exhaustif 50×40 (D3/D4)', () => {
             tick(`T-45 purge rayon ${s.spawnPurgeRadius} (×${spawns.length} spawns)`, purgeOk);
           }
 
-          // Équidistance D1 : tolérance évolutive (≤ +4) ; taux strict ≤ 8 à part.
+          // Équidistance D1 : tolérance évolutive — MONDE CYLINDRIQUE (T1) :
+          // les spawns peuvent être de VRAIS opposés (≈ demi-circonférence),
+          // l'escalade passe à +3 par tentative (≤ +27, cf. index.ts) ; taux
+          // strict 🔶 ≤ 8 à part (consigné).
           const spread = report.multi!.pairSpread;
-          tick('équidistance ≤ tolérance évolutive (≤ 12)', spread <= s.librePairSpreadMax + 4);
+          tick('équidistance ≤ tolérance évolutive (≤ 35)', spread <= s.librePairSpreadMax + 27);
           tick('équidistance stricte 🔶 ≤ 8', spread <= s.librePairSpreadMax);
 
           // R-151/R-152 : artefacts.
@@ -217,7 +220,7 @@ describe('CARTE-50 · Banc de conformité exhaustif 50×40 (D3/D4)', () => {
       // Les DEUX métriques 🔶 CONSIGNÉES (tolérances déjà vetoées —
       // REPORT-CARTE-MULTI §3 et fix CI LOBBY-5) ne sont pas des manquements :
       //  - équidistance stricte ≤ 8 (la porte d'acceptation effective est la
-      //    tolérance évolutive ≤ 12, 100 % requise) ;
+      //    tolérance évolutive ≤ 35 sous cylindre, 100 % requise) ;
       //  - couverture best-effort des ressources RARES (soufre = désert seul) ;
       //  - totaux villages/huttes exacts (placeEntities est best-effort :
       //    l'exclusion CAMPS-RESSOURCES retire quelques cases éligibles).

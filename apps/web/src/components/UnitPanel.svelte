@@ -5,7 +5,7 @@
    * Le client ne calcule aucune règle : les boutons reflètent ce que l'état
    * filtré autorise ; la validation finale reste serveur.
    */
-  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, SPY_STEAL_GOLD_PCT, combatOdds, effectiveStrength, hexDistance, isWonderObsolete, landCombatBonus, neighbors, unitType, wonderAttackBonusEmpireOf, allKnownTechs, explorerGoldInjectionForEra, eraOfPlayer, civIdOf } from '@game/rules';
+  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, SPY_STEAL_GOLD_PCT, combatOdds, effectiveStrength, hexDistanceW, isWonderObsolete, landCombatBonus, neighborsW, unitType, wonderAttackBonusEmpireOf, allKnownTechs, explorerGoldInjectionForEra, eraOfPlayer, civIdOf } from '@game/rules';
   import type { Order, SpyActionKind } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
@@ -73,7 +73,7 @@
    * Une ville vide adjacente ne se « combat » pas : on y entre (R-57/R-65). */
   const attackTargets = $derived.by(() => {
     if (!unit || !mine || !stats?.canAttack || !editable || !view.state) return [];
-    return neighbors(unit)
+    return neighborsW(unit, view.state!.mapWidth)
       .map((h) => {
         const enemyUnit = unitAtHex(view.state!, h);
         if (!enemyUnit || enemyUnit.owner === unit.owner) return null;
@@ -85,7 +85,7 @@
   /** Villes ennemies adjacentes sans unité visible → entrée (capture/assaut). */
   const cityEntries = $derived.by(() => {
     if (!unit || !mine || !editable || !view.state) return [];
-    return neighbors(unit)
+    return neighborsW(unit, view.state!.mapWidth)
       .map((h) => {
         const occupied = unitAtHex(view.state!, h);
         const city = occupied ? null : cityAtHex(view.state!, h);
@@ -147,7 +147,7 @@
   /** R-64/T-09 : une ville CONNUE (état filtré) à distance < T-09 interdit la fondation. */
   const cityTooClose = $derived.by(() => {
     if (!unit || !view.state) return false;
-    return Object.values(view.state.cities).some((c) => hexDistance(c, unit) < MIN_CITY_DISTANCE);
+    return Object.values(view.state.cities).some((c) => hexDistanceW(c, unit, view.state!.mapWidth) < MIN_CITY_DISTANCE);
   });
 
   /** 7f · R-115 : villes AMIES sur la case du GP ou adjacentes — installation
@@ -157,7 +157,7 @@
   const installTargets = $derived.by(() => {
     if (!unit || !mine || !editable || !view.state || !stats?.greatPerson) return [];
     return Object.values(view.state.cities)
-      .filter((c) => c.owner === unit.owner && hexDistance(c, unit) <= 1)
+      .filter((c) => c.owner === unit.owner && hexDistanceW(c, unit, view.state!.mapWidth) <= 1)
       .map((c) => ({ id: c.id, already: c.settledGreatPersons.includes(unit.type) }));
   });
 
@@ -201,7 +201,7 @@
    *  adjacentes au transport (mêmes contraintes que le moteur). */
   const disembarkTiles = $derived.by(() => {
     if (!unit || !cargoUnit || !view.state) return [];
-    return neighbors(unit).filter(
+    return neighborsW(unit, view.state!.mapWidth).filter(
       (h) => enterableKnown(view.state!, cargoUnit, h) && !unitAtHex(view.state!, h),
     );
   });
@@ -215,7 +215,7 @@
    *  (l'espion n'entre jamais dans la ville : il agit depuis sa case). */
   const spyTargets = $derived.by(() => {
     if (!unit || !mine || !editable || !view.state || !stats?.spy) return [];
-    return neighbors(unit)
+    return neighborsW(unit, view.state!.mapWidth)
       .map((h) => {
         const city = cityAtHex(view.state!, h);
         if (!city || city.owner === unit.owner) return null;

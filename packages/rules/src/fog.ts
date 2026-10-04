@@ -7,7 +7,7 @@
  * quitte le moteur, et le journal d'événements est filtré avec la même règle
  * (un joueur n'apprend rien d'une zone qu'il ne voit pas).
  */
-import { hexesWithinRadius, tileKeyOf } from './hex.js';
+import { hexesWithinRadiusW, tileKeyOf } from './hex.js';
 import type { GameState, PlayerId, TileKey } from './state.js';
 import { isBarbarian } from './state.js';
 import { RESOURCES, TERRAINS, unitType } from './data.js';
@@ -35,13 +35,13 @@ export function computeVisibleTiles(state: GameState, playerId: PlayerId): Set<T
   const visible = new Set<TileKey>();
   for (const unit of Object.values(state.units)) {
     if (unit.owner !== playerId) continue;
-    for (const h of hexesWithinRadius(unit, visionRadiusOf(state, unit))) {
+    for (const h of hexesWithinRadiusW(unit, visionRadiusOf(state, unit), state.mapWidth)) {
       visible.add(tileKeyOf(h));
     }
   }
   for (const city of Object.values(state.cities)) {
     if (city.owner !== playerId) continue;
-    for (const h of hexesWithinRadius(city, VISION_RADIUS_CITY)) {
+    for (const h of hexesWithinRadiusW(city, VISION_RADIUS_CITY, state.mapWidth)) {
       visible.add(tileKeyOf(h));
     }
   }

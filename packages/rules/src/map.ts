@@ -17,7 +17,7 @@
  * ressources (R-94) : id connu, terrain de la case ∈ `terrains` de la
  * ressource, au plus une par case, jamais sur une case de capitale.
  */
-import { colRowToHex, hexDistance, inRectangle, tileKeyOf } from './hex.js';
+import { colRowToHex, hexDistance, hexDistanceW, hexesWithinRadiusW, inRectangle, tileKeyOf } from './hex.js';
 import type { Hex } from './hex.js';
 import { ARTEFACTS, BARBARIANS, RESOURCES, TERRAINS, unitType } from './data.js';
 import type { PlayerId, Tile, GameState, City, BarbarianVillage, Hut, Artefact } from './state.js';
@@ -26,7 +26,6 @@ import type { ResourceId } from './types.js';
 import { SCIENCE_RATIO_DEFAULT, VISION_RADIUS_CITY } from './constants.js';
 import { CONVERSION_DEFAULT } from './conversion.js';
 import { autoAssignWorkedTiles } from './economy.js';
-import { hexesWithinRadius } from './hex.js';
 import { spawnInitialGarrisons } from './barbares.js';
 import { artefactsPourCarteFraiche } from './artefacts.js';
 import { guerreUniverselle } from './state.js';
@@ -204,7 +203,7 @@ export function parseMap(raw: unknown): LoadedMap {
       let seenGuerrier = false;
       for (const u of p.units ?? []) {
         const hex = { q: u.q, r: u.r };
-        const d = cap && typeof cap.q === 'number' && typeof cap.r === 'number' ? hexDistance(cap, hex) : -1;
+        const d = cap && typeof cap.q === 'number' && typeof cap.r === 'number' ? hexDistanceW(cap, hex, width) : -1;
         if (colonStart) {
           if (u.type === 'colon') {
             if (seenColon) issues.push(`joueur ${p.id} : plus d'un Colon de départ`);
@@ -247,7 +246,7 @@ export function parseMap(raw: unknown): LoadedMap {
     // la paire unique historique, comportement inchangé).
     for (let i = 0; i < capitals.length; i++) {
       for (let j = i + 1; j < capitals.length; j++) {
-        const d = hexDistance(capitals[i]!, capitals[j]!);
+        const d = hexDistanceW(capitals[i]!, capitals[j]!, width);
         if (d < MIN_SPAWN_DISTANCE) {
           issues.push(`capitales ${data.players[i]!.id}/${data.players[j]!.id} à distance ${d} < ${MIN_SPAWN_DISTANCE}`);
         }
@@ -477,7 +476,7 @@ export function createInitialState(
       ...cities[id]!,
       q: spawn.capital.q,
       r: spawn.capital.r,
-    });
+    }, new Set(), [], map.data.width);
   });
 
   const units: GameState['units'] = {};
@@ -570,11 +569,11 @@ export function createInitialState(
     for (const unit of Object.values(state.units)) {
       if (unit.owner !== spawn.id) continue;
       const radius = unitType(unit.type).visionRadius;
-      for (const h of hexesWithinRadius(unit, radius)) visible.add(tileKeyOf(h));
+      for (const h of hexesWithinRadiusW(unit, radius, map.data.width)) visible.add(tileKeyOf(h));
     }
     for (const city of Object.values(state.cities)) {
       if (city.owner !== spawn.id) continue;
-      for (const h of hexesWithinRadius(city, VISION_RADIUS_CITY)) visible.add(tileKeyOf(h));
+      for (const h of hexesWithinRadiusW(city, VISION_RADIUS_CITY, map.data.width)) visible.add(tileKeyOf(h));
     }
     state.players[spawn.id]!.vision = {
       explored: [...visible].sort(),
@@ -620,7 +619,7 @@ export function createInitialState(
     if (revealRadius > 0) {
       const anchor = capital ?? spawn.capital;
       const explored = new Set(player.vision.explored);
-      for (const h of hexesWithinRadius(anchor, revealRadius)) {
+      for (const h of hexesWithinRadiusW(anchor, revealRadius, map.data.width)) {
         if (mapRecord[tileKeyOf(h)]) explored.add(tileKeyOf(h));
       }
       player.vision.explored = [...explored].sort();

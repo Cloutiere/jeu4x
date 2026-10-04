@@ -13,7 +13,7 @@
  * Le commerce N'EST PAS l'or : il est converti en totalité en or ou en
  * science par ville (R-90 révisée, conversionGains) dans turn.ts/processEconomy.
  */
-import { hexesWithinRadius, compareHex, tileKeyOf, parseTileKey } from './hex.js';
+import { hexesWithinRadiusW, compareHex, tileKeyOf, parseTileKey, SANS_WRAP } from './hex.js';
 import type { Hex } from './hex.js';
 import { TERRAINS, BUILDINGS, RESOURCES, isWaterTerrain } from './data.js';
 import { WONDERS } from './techs.js';
@@ -128,9 +128,10 @@ export function workableTilesFor(
   cities: Array<Hex>,
   city: Hex,
   radius: number,
+  width: number = SANS_WRAP,
 ): TileKey[] {
   const cityKeys = new Set(cities.map((c) => tileKeyOf(c)));
-  return hexesWithinRadius(city, radius)
+  return hexesWithinRadiusW(city, radius, width)
     .filter((h) => hexDistanceAtLeast1(h, city))
     .map(tileKeyOf)
     .filter((key) => tileWorkable(map, key) && !cityKeys.has(key));
@@ -154,9 +155,10 @@ export function autoAssignWorkedTiles(
   city: Hex & { pop: number; buildings: string[] },
   taken: Set<TileKey> = new Set<TileKey>(),
   techsUnlocked: readonly string[] = [],
+  width: number = SANS_WRAP,
 ): TileKey[] {
   const radius = workRadiusOf(city.buildings);
-  const candidates = workableTilesFor(map, cities, city, radius)
+  const candidates = workableTilesFor(map, cities, city, radius, width)
     .filter((key) => !taken.has(key))
     .map((key) => ({ key, y: tileYield(map, city.buildings, key, techsUnlocked)! }))
     .sort(

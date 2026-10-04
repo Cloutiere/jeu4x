@@ -33,7 +33,7 @@
  * Pur, déterministe (R-80/R-81/R-82) : le RNG ne sert qu'aux restarts de la
  * recherche et aux tirages de poses ; même seed → même carte bit à bit.
  */
-import { colRowToHex, compareHex, hexDistance, inRectangle, neighbors } from '../hex.js';
+import { colRowToHex, compareHex, hexDistance, hexDistanceW, inRectangle, neighborsW, SANS_WRAP } from '../hex.js';
 import type { Hex } from '../hex.js';
 import type { MapHut, MapResource, MapVillage } from '../map.js';
 import { RESOURCES, TERRAINS } from '../data.js';
@@ -98,6 +98,8 @@ export function guaranteeResourceCoverageLibre(input: {
   exclude: Set<string>;
   s: ProgenSettings;
   onlyIds?: Set<string>;
+  /** MONDE CYLINDRIQUE : largeur de la carte (distances wrap). */
+  width?: number;
 }): Record<string, number> {
   const manquants: Record<string, number> = {};
   const min = input.s.minPerResourceType;
@@ -120,7 +122,7 @@ export function guaranteeResourceCoverageLibre(input: {
           const hex = colRowToHex(col, row);
           const key = `${hex.q},${hex.r}`;
           if (input.exclude.has(key) || occupied.has(key)) continue;
-          if (spacingViolated(hex, input.resources, undefined, input.s.minResourceDistance)) continue;
+          if (spacingViolated(hex, input.resources, undefined, input.s.minResourceDistance, input.width)) continue;
           candidates.push(hex);
         }
       }
@@ -133,7 +135,7 @@ export function guaranteeResourceCoverageLibre(input: {
       const hex = candidates.reduce((best, c) => {
         const slack = (h: Hex): number => {
           let d = Number.POSITIVE_INFINITY;
-          for (const p of input.resources) d = Math.min(d, hexDistance(h, p));
+          for (const p of input.resources) d = Math.min(d, hexDistanceW(h, p, input.width ?? SANS_WRAP));
           return d;
         };
         const sBest = slack(best);
@@ -156,6 +158,8 @@ export function placeMarineResourcesLibre(input: {
   resources: MapResource[];
   exclude: Set<string>;
   s: ProgenSettings;
+  /** MONDE CYLINDRIQUE : largeur de la carte (distances wrap). */
+  width?: number;
 }): void {
   const marines = waterOnlyResourceIds().filter((id) => (RESOURCES[id]!.spawnWeight ?? 0) > 0);
   if (marines.length === 0) return;
@@ -170,7 +174,7 @@ export function placeMarineResourcesLibre(input: {
     return true;
   };
   const placeable = (hex: Hex): boolean =>
-    isCoast(hex) && open(hex) && !spacingViolated(hex, input.resources, undefined, input.s.minResourceDistance);
+    isCoast(hex) && open(hex) && !spacingViolated(hex, input.resources, undefined, input.s.minResourceDistance, input.width);
 
   // 1. Garantie : playerCount × minPerResourceType par id — farthest-point.
   const needTotal = input.s.playerCount * input.s.minPerResourceType;
@@ -189,7 +193,7 @@ export function placeMarineResourcesLibre(input: {
       const hex = candidates.reduce((best, c) => {
         const slack = (h: Hex): number => {
           let d = Number.POSITIVE_INFINITY;
-          for (const p of input.resources) d = Math.min(d, hexDistance(h, p));
+          for (const p of input.resources) d = Math.min(d, hexDistanceW(h, p, input.width ?? SANS_WRAP));
           return d;
         };
         const sBest = slack(best);
@@ -251,16 +255,16 @@ export interface EquiteScore {
 /** Critère d'équité (métrique consignée — D1) :
  *  score = Σ_{i<j} (d_ij − d̄)² + wCentre·Σ_i (c_i − c̄)²
  *        + wFert·(fertilité max − min) — minimisé. */
-export function scoreEnsemble(S: SiteCandidate[], centre: Hex, s: ProgenSettings): EquiteScore {
+export function scoreEnsemble(S: SiteCandidate[], centre: Hex, s: ProgenSettings, width: number = SANS_WRAP): EquiteScore {
   const n = S.length;
   const dists: number[] = [];
   for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) dists.push(hexDistance(S[i]!.hex, S[j]!.hex));
+    for (let j = i + 1; j < n; j++) dists.push(hexDistanceW(S[i]!.hex, S[j]!.hex, width));
   }
   const dMean = dists.reduce((a, b) => a + b, 0) / dists.length;
   let pairVar = 0;
   for (const d of dists) pairVar += (d - dMean) * (d - dMean);
-  const centres = S.map((c) => hexDistance(c.hex, centre));
+  const centres = S.map((c) => hexDistanceW(c.hex, centre, width));
   const cMean = centres.reduce((a, b) => a + b, 0) / n;
   let centreVar = 0;
   for (const c of centres) centreVar += (c - cMean) * (c - cMean);
@@ -286,19 +290,19 @@ const trieEnsemble = (S: SiteCandidate[]): SiteCandidate[] => [...S].sort((a, b)
 /** Une passe d'amélioration locale : chaque spawn (ordre (q,r)) est remplaçable
  *  par le meilleur candidat du bassin (best-improvement, pairwise ≥
  *  minSpawnDistance, tie R-81). Boucle jusqu'à stabilité (max 3 passes). */
-function ameliorerEnsemble(S: SiteCandidate[], pool: SiteCandidate[], centre: Hex, s: ProgenSettings): SiteCandidate[] {
+function ameliorerEnsemble(S: SiteCandidate[], pool: SiteCandidate[], centre: Hex, s: ProgenSettings, width: number = SANS_WRAP): SiteCandidate[] {
   let current = trieEnsemble(S);
   for (let pass = 0; pass < 3; pass++) {
     let improved = false;
     for (let i = 0; i < current.length; i++) {
       const base = current.filter((_, j) => j !== i);
       let bestC = current[i]!;
-      let bestScore = scoreEnsemble(current, centre, s).score;
+      let bestScore = scoreEnsemble(current, centre, s, width).score;
       for (const c of pool) {
         if (base.some((b) => memeHex(b.hex, c.hex))) continue;
-        if (base.some((b) => hexDistance(b.hex, c.hex) < s.minSpawnDistance)) continue;
+        if (base.some((b) => hexDistanceW(b.hex, c.hex, width) < s.minSpawnDistance)) continue;
         const trial = trieEnsemble([...base, c]);
-        const sc = scoreEnsemble(trial, centre, s).score;
+        const sc = scoreEnsemble(trial, centre, s, width).score;
         if (sc < bestScore - 1e-9) {
           bestScore = sc;
           bestC = c;
@@ -318,8 +322,30 @@ function ameliorerEnsemble(S: SiteCandidate[], pool: SiteCandidate[], centre: He
  *  premier départ est tiré au RNG, les suivants maximisent la distance au
  *  choix courant), amélioration locale, meilleur score globalement (tie :
  *  liste (q,r) lexicographique — R-81). Échec si AUCUN ensemble complet. */
-export function choisirSpawns(pool: SiteCandidate[], rng: SeededRng, centre: Hex, s: ProgenSettings): SiteCandidate[] {
+export function choisirSpawns(pool: SiteCandidate[], rng: SeededRng, centre: Hex, s: ProgenSettings, width: number = SANS_WRAP): SiteCandidate[] {
   const n = s.playerCount;
+  // CARTE-RONDE T1 · D3 : en 1v1 rotationnel, le second spawn est posé À
+  // L'OPPOSÉ du cylindre (|Δcolonne wrap − largeur/2| ≤ 🔶 tolérance), au
+  // meilleur site du bassin (fertilité décroissante, tie R-81).
+  if (s.oppositionCylindre && n === 2 && width < SANS_WRAP) {
+    const p1 = pool.reduce((best, c) =>
+      c.fertility > best.fertility || (c.fertility === best.fertility && compareHex(c.hex, best.hex) < 0) ? c : best);
+    const c1 = p1.hex.q + Math.floor(p1.hex.r / 2);
+    const tol = s.oppositionTolerance;
+    const moitie = width / 2;
+    const eligibles = pool.filter((c) => {
+      if (hexDistanceW(c.hex, p1.hex, width) < s.minSpawnDistance) return false;
+      const dc = Math.abs(((c.hex.q + Math.floor(c.hex.r / 2) - c1) % width + width) % width);
+      const d = Math.min(dc, width - dc);
+      return Math.abs(d - moitie) <= tol;
+    });
+    if (eligibles.length === 0) {
+      throw new ProgenPlacementError(`aucun site à l'opposé du cylindre (tolérance 🔶 ${tol}) pour le spawn opposé`);
+    }
+    const p2 = eligibles.reduce((best, c) =>
+      c.fertility > best.fertility || (c.fertility === best.fertility && compareHex(c.hex, best.hex) < 0) ? c : best);
+    return trieEnsemble([p1, p2]);
+  }
   let best: SiteCandidate[] | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
   for (let t = 0; t < s.libreAttempts; t++) {
@@ -329,8 +355,8 @@ export function choisirSpawns(pool: SiteCandidate[], rng: SeededRng, centre: Hex
       let pickDmin = -1;
       for (const c of pool) {
         if (S.some((x) => memeHex(x.hex, c.hex))) continue;
-        if (S.some((x) => hexDistance(x.hex, c.hex) < s.minSpawnDistance)) continue;
-        const dmin = Math.min(...S.map((x) => hexDistance(x.hex, c.hex)));
+        if (S.some((x) => hexDistanceW(x.hex, c.hex, width) < s.minSpawnDistance)) continue;
+        const dmin = Math.min(...S.map((x) => hexDistanceW(x.hex, c.hex, width)));
         // Maximise dmin, puis fertilité, puis (q,r) croissant — R-81.
         if (dmin > pickDmin || (dmin === pickDmin && pick && (c.fertility > pick.fertility || (c.fertility === pick.fertility && compareHex(c.hex, pick.hex) < 0)))) {
           pick = c;
@@ -341,8 +367,8 @@ export function choisirSpawns(pool: SiteCandidate[], rng: SeededRng, centre: Hex
       S.push(pick);
     }
     if (S.length < n) continue;
-    S = ameliorerEnsemble(S, pool, centre, s);
-    const sc = scoreEnsemble(S, centre, s);
+    S = ameliorerEnsemble(S, pool, centre, s, width);
+    const sc = scoreEnsemble(S, centre, s, width);
     const lex = (A: SiteCandidate[], B: SiteCandidate[]): number => {
       for (let i = 0; i < A.length; i++) {
         const c = compareHex(A[i]!.hex, B[i]!.hex);
@@ -358,6 +384,45 @@ export function choisirSpawns(pool: SiteCandidate[], rng: SeededRng, centre: Hex
   if (!best) throw new ProgenPlacementError(`aucun ensemble de ${n} spawns espacés d'au moins ${s.minSpawnDistance} n'est réalisable sur cette grille`);
   return trieEnsemble(best);
 }
+
+// ---------------------------------------------------------------------------
+// CARTE-RONDE T1 · D3 — Stratégie rotationnel1v1 : la génération libre à DEUX
+// sièges avec OPPOSITION sur le cylindre. Le terrain est généré ENTIIER
+// (40×40), le contenu (ressources, villages, huttes) est posé une seule fois
+// avec les garanties PAR JOUEUR (couverture 6c, SPAWN-START, R-108) —
+// l'ancien pipeline demi-carte + réflexion (miroir ponctuel) est ABROGÉ.
+// ---------------------------------------------------------------------------
+
+export const ROTATIONNEL_1V1: StartPlacementStrategy = {
+  id: 'rotationnel1v1',
+
+  geoSize(settings: ProgenSettings): { width: number; height: number } {
+    if (settings.playerCount !== 2) {
+      throw new ProgenPlacementError(
+        `rotationnel1v1 exige playerCount = 2 (reçu ${settings.playerCount}) — le multi 3-5 passe par libreMulti`,
+      );
+    }
+    return { width: 40, height: 40 };
+  },
+
+  fullSize(): { width: number; height: number } {
+    return { width: 40, height: 40 };
+  },
+
+  build(input: PlacementInput): PlacementOutput {
+    // Le 1v1 garde la carte 40×40 historique (le libreMulti est 50×40 par
+    // défaut depuis CARTE-50) — override local de la passe de placement.
+    return LIBRE_MULTI.build({
+      ...input,
+      settings: {
+        ...input.settings,
+        libreLargeur: 40,
+        libreHauteur: 40,
+        oppositionCylindre: true,
+      },
+    });
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Stratégie libreMulti.
@@ -379,7 +444,7 @@ function guerrierPour(
   for (const h of huts) taken.add(`${h.q},${h.r}`);
   const height = terrain.length;
   const width = terrain[0]?.length ?? 0;
-  for (const n of neighbors(capital).sort(compareHex)) {
+  for (const n of neighborsW(capital, width).sort(compareHex)) {
     if (!inRectangle(n, width, height)) continue;
     const t = terrain[n.r]?.[n.q + Math.floor(n.r / 2)];
     if (!t || !TERRAINS[t]!.passable) continue;
@@ -422,7 +487,7 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
     const waterOnly = new Set(waterOnlyResourceIds());
     const landOnly = new Set(Object.keys(RESOURCES).filter((id) => !waterOnly.has(id)));
     const resources: MapResource[] = [];
-    const manquantsPre = guaranteeResourceCoverageLibre({ rng, terrain, resources, exclude: new Set<string>(), s: settings, onlyIds: landOnly });
+    const manquantsPre = guaranteeResourceCoverageLibre({ rng, terrain, resources, exclude: new Set<string>(), s: settings, onlyIds: landOnly, width: geo.width });
     resources.push(...placeResources(rng, terrain, settings, { alreadyPlaced: resources, skipIds: waterOnly }).resources);
 
     // 2. Bassin des candidats : praticables, à 🔶 startMinEdgeDistance des
@@ -436,12 +501,12 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
         const t = terrain[row]![col]!;
         if (!TERRAINS[t]!.passable) continue;
         const hex = colRowToHex(col, row);
-        const freeNeighbor = neighbors(hex).some((nb) => {
+        const freeNeighbor = neighborsW(hex, geo.width).some((nb: import('../hex.js').Hex) => {
           const nt = lookup.terrainAt(nb);
           return nt !== undefined && TERRAINS[nt]!.passable && lookup.resourceAt(nb) === null;
         });
         if (!freeNeighbor) continue;
-        candidates.push({ hex, fertility: fertilityScore(lookup, hex, settings) });
+        candidates.push({ hex, fertility: fertilityScore(lookup, hex, settings, geo.width) });
       }
     }
     if (candidates.length === 0) throw new ProgenPlacementError('aucun site de capitale éligible sur la carte libre');
@@ -455,7 +520,7 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
     const threshold = topAverage * settings.normalizationFactor;
 
     // 4. Recherche des N spawns (équité D1) + porte d'acceptation 🔶.
-    const choisis = choisirSpawns(pool, rng, centre, settings);
+    const choisis = choisirSpawns(pool, rng, centre, settings, geo.width);
     const equite = scoreEnsemble(choisis, centre, settings);
     if (equite.pairSpread > settings.librePairSpreadMax) {
       throw new ProgenPlacementError(
@@ -479,7 +544,7 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
     const lookupPost = fullMapLookup(terrain, resources);
     let normalizedCount = 0;
     for (const site of sites) {
-      const siteScore = fertilityScore(lookupPost, site.hex, settings);
+      const siteScore = fertilityScore(lookupPost, site.hex, settings, geo.width);
       try {
         normalizeStartSite(lookupPost, site.hex, siteScore, threshold, settings, resources, { recheckSpacing: true });
         normalizedCount += 1;
@@ -501,11 +566,11 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
     for (const site of sites) {
       for (const h of ringCells(site.hex, settings.spawnPurgeRadius)) spawnExclusion.add(`${h.q},${h.r}`);
     }
-    const manquantsPost = guaranteeResourceCoverageLibre({ rng, terrain, resources: finalResources, exclude: spawnExclusion, s: settings, onlyIds: landOnly });
+    const manquantsPost = guaranteeResourceCoverageLibre({ rng, terrain, resources: finalResources, exclude: spawnExclusion, s: settings, onlyIds: landOnly, width: geo.width });
     // Déficits (pré + post — union par type) consignés au rapport 🔶.
     const couvertureManquants: Record<string, number> = { ...manquantsPre };
     for (const [id, m] of Object.entries(manquantsPost)) couvertureManquants[id] = (couvertureManquants[id] ?? 0) + m;
-    placeMarineResourcesLibre({ rng, terrain: classified, resources: finalResources, exclude: spawnExclusion, s: settings });
+    placeMarineResourcesLibre({ rng, terrain: classified, resources: finalResources, exclude: spawnExclusion, s: settings, width: geo.width });
     const finalPurge = purgeResourcesNear(finalResources, sites.map((s) => s.hex), settings.spawnPurgeRadius);
     finalResources.length = 0;
     finalResources.push(...finalPurge.kept);
@@ -570,7 +635,7 @@ export const LIBRE_MULTI: StartPlacementStrategy = {
     const finalLookup = fullMapLookup(classified, finalResources);
     const terrainAtFull = (h: Hex): TerrainId | undefined => classified[h.r]?.[h.q + Math.floor(h.r / 2)];
     const spawnsReport = sites.map((site, i) => {
-      const fert = fertilityScore(finalLookup, site.hex, settings);
+      const fert = fertilityScore(finalLookup, site.hex, settings, geo.width);
       return {
         id: `p${i + 1}`,
         capital: site.hex,
