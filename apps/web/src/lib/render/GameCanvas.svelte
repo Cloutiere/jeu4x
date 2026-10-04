@@ -28,7 +28,7 @@
   // copies au voisinage de la couture, dépliage des chemins, picking
   // canonique. PURE (wrap.ts, testée) — le rendu n'en est qu'un consommateur.
   import { copiesDe, copiesPolyline, copieLaPlusProche, centreMondeDe, deplierPoints, hexCanoniqueSousPoint, periodeHorizontale, pointProcheDe } from './wrap.js';
-  import { arrowHeadPoints, dashSegments, segmentsOf } from './arrows.js';
+  import { arrowHeadPoints, dashSegments, segmentsOf, ZINDEX_FLECHE } from './arrows.js';
   import type { Point } from './arrows.js';
   import { BADGE_FONDATION, etatFondationColon } from './fondation.js';
   import { BADGE_POPULATION } from './badge-population.js';
@@ -231,6 +231,17 @@
   // CALIBRATION-UNITES : tri par zIndex — profondeur des unités empilées
   // dans une zone de cohabitation (première unité au premier plan).
   entitiesLayer.sortableChildren = true;
+  // FLECHE-COUCHE (signalement Erik 04/10) : la flèche de déplacement vivait
+  // dans `overlayLayer`, SOUS tout `entitiesLayer` — les structures posées
+  // (villes, huttes, camps, artefacts, zIndex -100) la recouvraient. Elle
+  // passe dans une couche dédiée ENFANT d'`entitiesLayer` à ZINDEX_FLECHE
+  // (-95) : au-dessus de toutes les structures, sous l'anneau de sélection
+  // (-90) et sous toutes les unités. Vidée à chaque rebuild (comme la
+  // surcouche) ; en 3D le parent reste `overlayLayer` (marqueurs Three sous
+  // les modèles — cf. flecheParent).
+  let flecheCouche = new Container();
+  flecheCouche.zIndex = ZINDEX_FLECHE;
+  entitiesLayer.addChild(flecheCouche);
   let effectsLayer = new Container();
   const camera = new Camera();
   let vw = 1;
@@ -1373,6 +1384,15 @@
    */
   let anneauSelection: Container | null = null;
 
+  /** FLECHE-COUCHE : parent du bloc flèche (tracés, pointes, badges de
+   *  tours). 2D → `flecheCouche` (au-dessus des structures, sous les
+   *  unités, copies wrap comprises) ; 3D → `overlayLayer` (comportement
+   *  inchangé : les chemins vivent dans les marqueurs Three, sous les
+   *  modèles, et la projection des calques ne traverse pas flecheCouche). */
+  function flecheParent(): Container {
+    return mode3dActif() ? overlayLayer : flecheCouche;
+  }
+
   /** Surcouche : sélection, brouillon de chemin, ordres soumis, possessions. */
   function rebuildOverlay(): void {
     // VUE-VILLE-PERF · D4b : les Text de rendement du pool sont RELÂCHÉS (et
@@ -1383,6 +1403,11 @@
       else child.destroy({ children: true });
     }
     overlayLayer.removeChildren();
+    // FLECHE-COUCHE : vidée comme la surcouche (l'anneau de sélection et les
+    // unités, autres enfants d'entitiesLayer, ne sont pas touchés).
+    (hoverG as Container | null)?.destroy({ children: true });
+    hoverG = null;
+    flecheCouche.removeChildren().forEach((child) => child.destroy({ children: true }));
     // Vit dans entitiesLayer (non vidé par ce rebuild) — détruit puis
     // redessiné si la sélection persiste. Cast : TS voit encore `null` ici.
     (anneauSelection as Container | null)?.destroy({ children: true });
@@ -1945,7 +1970,7 @@
           for (const j of jalonsDeTours(reste, unitType(unit.type).movement)) badgeTour(jalonsC, j.hex, j.tour, 0xf0c419);
         }
       }
-      overlayLayer.addChild(jalonsC);
+      flecheParent().addChild(jalonsC);
     }
 
     // Brouillon de chemin en construction (L3). CARTE-RONDE T2 (D3) : déplié
@@ -1962,12 +1987,12 @@
           for (const p of pts.slice(1)) gr.lineTo(p.x, p.y);
           gr.stroke({ width: 6, color: 0xffe082, alpha: 0.75 });
           (gr as Suivable).__suivi3d = { points: pts, width: 6, color: 0xffe082, alpha: 0.75 };
-          overlayLayer.addChild(gr);
+          flecheParent().addChild(gr);
           for (const p of pts.slice(1)) {
             const dot = new Graphics();
             dot.circle(0, 0, 9).fill({ color: 0xffe082 }).stroke({ width: 3, color: 0x2b2620 });
             dot.position.copyFrom(p);
-            overlayLayer.addChild(dot);
+            flecheParent().addChild(dot);
           }
         }
       }
@@ -2204,7 +2229,7 @@
       }
       gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color, alpha: Math.min(1, alpha + 0.1) });
       (gr as Suivable).__suivi3d = { points: pts, width: 6, color, alpha, dashed, tete: true, pastille: true };
-      overlayLayer.addChild(gr);
+      flecheParent().addChild(gr);
     }
   }
 
@@ -3146,7 +3171,7 @@
       for (const j of jalonsDeTours(hoverPath, unitType(unit.type).movement)) badgeTour(cont, j.hex, j.tour, COULEUR_SURVOL);
     }
     hoverG = cont;
-    overlayLayer.addChild(cont);
+    flecheParent().addChild(cont);
   }
 
   /** Survol : recalcul à une position canvas donnée (pointermove ou
@@ -3581,6 +3606,12 @@
     overlayLayer = new Container();
     entitiesLayer = new Container();
     effectsLayer = new Container();
+    // FLECHE-COUCHE : rattacher la couche flèche au NOUVEAU entitiesLayer
+    // (et restaurer le tri — même contrat qu'à la déclaration).
+    entitiesLayer.sortableChildren = true;
+    flecheCouche = new Container();
+    flecheCouche.zIndex = ZINDEX_FLECHE;
+    entitiesLayer.addChild(flecheCouche);
     world.addChild(tilesLayer, resourceLayer, overlayLayer, entitiesLayer, effectsLayer);
     application.stage.addChild(world);
     if (mode3d && canvas3d) {

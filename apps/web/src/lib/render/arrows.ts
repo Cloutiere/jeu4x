@@ -23,6 +23,15 @@ export const DASH_GAP = 16;
 export const HEAD_SIZE = 30;
 
 /**
+ * FLECHE-COUCHE (signalement Erik 04/10) — couche de tri de la flèche de
+ * déplacement dans `entitiesLayer` (sortableChildren) : AU-DESSUS de toutes
+ * les structures posées (villes, huttes, villages barbares, artefacts —
+ * zIndex -100, retour GP-ART 28/09), EN DESSOUS de l'anneau de sélection
+ * (-90, REGLAGES-CALIBRAGE 30/09) et de toute unité (zIndex = p.y*10+z ≥ 0).
+ */
+export const ZINDEX_FLECHE = -95;
+
+/**
  * Points d'ancrage du tracé : le centre de l'ORIGINE puis chaque étape du
  * chemin (le contrat SubmitOrder n'inclut pas l'origine — elle est passée à
  * part). Chaque segment [i, i+1] est un déplacement d'une case voisine.
