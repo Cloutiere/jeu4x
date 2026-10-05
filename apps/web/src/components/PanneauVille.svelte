@@ -24,7 +24,7 @@
   import { civName, greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
   import { jaugeCroissance, jaugeFrontiereCulturelle, jaugeProduction, toursAvantSeuil } from '../lib/jauges.js';
-  import { fileEffective } from '../lib/fileProduction.js';
+  import { fileEffective, coutItem, nomItem } from '../lib/fileProduction.js';
 
   interface Props {
     view: GameView;
@@ -121,11 +121,16 @@
     for (const b of city.buildings) factoryMult = Math.max(factoryMult, BUILDINGS[b]?.productionMult ?? 1);
     return Math.floor(raw * factoryMult * (1 + 0.25 * (city.pop - 1)));
   });
-  function itemCost(item: ProductionItem): number {
-    return item.kind === 'unit' ? unitType(item.id).cost : (BUILDINGS[item.id]?.cost ?? Infinity);
+  /** MERVEILLE-COUT-FILE (Erik 05/10) : passe par coutItem (lib/fileProduction)
+   *  qui consulte les TROIS tables — les merveilles n'étaient pas dans
+   *  BUILDINGS, d'où le coût infini affiché et le faux « à l'arrêt ».
+   *  null = item inconnu des données (repli honnête : pas d'ETA, jauge
+   *  masquée). */
+  function itemCost(item: ProductionItem): number | null {
+    return coutItem(item);
   }
   function itemName(item: ProductionItem): string {
-    return item.kind === 'unit' ? unitType(item.id).name : (BUILDINGS[item.id]?.name ?? item.id);
+    return nomItem(item);
   }
 
   // ---- FILE EFFECTIVE (D1/D2) : état + brouillons, miroir du moteur -------
@@ -140,7 +145,7 @@
     let cumul: number | null = null;
     for (const [i, rang] of file.rangs.entries()) {
       const cout = itemCost(rang.item);
-      if (!Number.isFinite(cout)) {
+      if (cout === null) {
         out.push(null);
         continue;
       }
@@ -385,9 +390,9 @@
               <span class="rang-no">{i + 1}</span>
               <div class="rang-corps">
                 <span class="rang-nom">{itemName(rang.item)}</span>
-                {#if i === 0 && rang.progress > 0}
+                {#if i === 0 && rang.progress > 0 && itemCost(rang.item) !== null}
                   <span class="rang-jauge" title="Marteaux engagés (tête entamée — R-62)">
-                    <span class="barre"><span class="rempli" style:width={`${jaugeProduction(rang.progress, itemCost(rang.item)) * 100}%`}></span></span>
+                    <span class="barre"><span class="rempli" style:width={`${jaugeProduction(rang.progress, itemCost(rang.item)!) * 100}%`}></span></span>
                     <span class="rang-meta">{rang.progress} / {itemCost(rang.item)} marteaux</span>
                   </span>
                 {/if}

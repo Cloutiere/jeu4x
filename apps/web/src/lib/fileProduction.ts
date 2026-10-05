@@ -7,7 +7,7 @@
  * soumission — même sémantique de commandes que `applyQueueOps` du moteur,
  * miroir d'`effectiveWorkedTiles` pour les tuiles travaillées).
  */
-import { FILE_PRODUCTION_PROFONDEUR } from '@game/rules';
+import { BUILDINGS, FILE_PRODUCTION_PROFONDEUR, UNIT_TYPES, WONDERS } from '@game/rules';
 import type { CityId, ProductionItem } from '@game/rules';
 import type { Order } from '@game/shared';
 import type { GameView } from './gameClient.js';
@@ -28,6 +28,24 @@ export interface FileEffective {
   mine: boolean;
   /** Profondeur max data-driven (FILE_PRODUCTION_PROFONDEUR du moteur). */
   profondeur: number;
+}
+
+/** Coût en marteaux d'un item de file — les TROIS kinds : unité (unitType),
+ *  bâtiment (BUILDINGS) et MERVEILLE (WONDERS — le panneau affichait
+ *  « Infinity » pour elles, MERVEILLE-COUT-FILE Erik 05/10). null si l'item
+ *  est inconnu des données (repli honnête côté UI). Pur. */
+export function coutItem(item: ProductionItem): number | null {
+  if (item.kind === 'unit') return UNIT_TYPES[item.id]?.cost ?? null;
+  if (item.kind === 'wonder') return WONDERS[item.id]?.cost ?? null;
+  return BUILDINGS[item.id]?.cost ?? null;
+}
+
+/** Nom affiché d'un item de file — mêmes TROIS tables que `coutItem` (sans
+ *  elle, une merveille tombait sur son id brut : « stonehenge »). Pur. */
+export function nomItem(item: ProductionItem): string {
+  if (item.kind === 'unit') return UNIT_TYPES[item.id]?.name ?? item.id;
+  if (item.kind === 'wonder') return WONDERS[item.id]?.name ?? item.id;
+  return BUILDINGS[item.id]?.name ?? item.id;
 }
 
 /** Applique les brouillons d'opérations de file d'une ville — MÊME sémantique
