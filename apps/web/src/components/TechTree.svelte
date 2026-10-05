@@ -241,6 +241,10 @@
   let scrollPos = $state(0); // 0..1 — position du bord gauche du viewport
   let viewportRatio = $state(1); // largeur visible / largeur totale
 
+  // SURVOL (retour d'Erik 05/10) : la tech sous le curseur illumine SES
+  // flèches — entrantes (prérequis) ET sortantes (ce qu'elle débloque).
+  let survol = $state<string | null>(null);
+
   function syncScroll(): void {
     if (!scrollBox) return;
     const max = scrollBox.scrollWidth - scrollBox.clientWidth;
@@ -321,7 +325,14 @@
           </marker>
         </defs>
         {#each fleches as f (f.key)}
-          <path class="fleche" class:off={f.etat === 'verrouillee'} class:on={f.etat !== 'verrouillee'} d={chemin(f)} marker-end={f.etat === 'verrouillee' ? 'url(#tt-fleche-off)' : 'url(#tt-fleche-on)'} />
+          <path
+            class="fleche"
+            class:off={f.etat === 'verrouillee'}
+            class:on={f.etat !== 'verrouillee'}
+            class:illumine={survol !== null && (f.key.startsWith(`${survol}->`) || f.key.endsWith(`->${survol}`))}
+            d={chemin(f)}
+            marker-end={f.etat === 'verrouillee' ? 'url(#tt-fleche-off)' : 'url(#tt-fleche-on)'}
+          />
         {/each}
       </svg>
 
@@ -335,6 +346,8 @@
         <div
           class="carte {etat}"
           class:courante={etat === 'en_cours'}
+          onmouseenter={() => (survol = id)}
+          onmouseleave={() => (survol = survol === id ? null : survol)}
           style="left:{x(pos.col)}px;top:{y(pos.row)}px;width:{CARD_W}px;height:{CARD_H}px"
           role={etat === 'disponible' ? 'button' : undefined}
           tabindex={etat === 'disponible' && editable ? 0 : undefined}
@@ -593,6 +606,13 @@
   .fleche.off {
     stroke: #8a743099;
   }
+  /* SURVOL : les flèches de la tech pointée s'illuminent (prérequis entrants
+   * + déblocages sortants) — demande d'Erik 05/10. */
+  .fleche.illumine {
+    stroke: #ffe082;
+    stroke-width: 3.5;
+    filter: drop-shadow(0 0 3px #ffd54acc);
+  }
   .carte {
     position: absolute;
     display: flex;
@@ -603,22 +623,34 @@
     overflow: hidden;
     box-shadow: 0 2px 8px #0009;
   }
+  /* DISPONIBLE : or PÂLI (retour d'Erik — la carte « prête à découvrir » ne
+   * doit pas concurrencer visuellement la carte DÉCOUVERTE). */
   .carte.disponible {
-    border-color: #d4af37;
+    border: 1px solid #b9a15a;
     cursor: pointer;
-    box-shadow: 0 0 10px #d4af3740;
+    box-shadow: 0 0 8px #b9a15a30;
   }
   .carte.disponible:hover {
     background: #2c3640;
-    box-shadow: 0 0 14px #d4af3780;
+    box-shadow: 0 0 12px #b9a15a70;
   }
   .carte.courante {
     border-color: #6fa3b8;
     box-shadow: 0 0 12px #6fa3b860;
   }
+  /* ACQUISE : bordure or ÉPAISSE (2 px) et tuile DÉLAVÉE — la distinction
+   * découverte / découvrable doit sauter aux yeux (retour d'Erik 05/10). */
   .carte.acquise {
-    border-color: #8a7430;
-    background: #1e252b;
+    border: 2px solid #d4af37;
+    background: #31383f;
+  }
+  .carte.acquise .visuel {
+    filter: brightness(1.3) saturate(0.45);
+  }
+  .carte.acquise .tech-nom,
+  .carte.acquise .tech-cout,
+  .carte.acquise .debloques {
+    color: #9aa4ad;
   }
   .carte.verrouillee {
     opacity: 0.55;
