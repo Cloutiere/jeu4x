@@ -113,19 +113,22 @@
     y1: number;
     x2: number;
     y2: number;
-    gx: number; // x du couloir vertical (gouttière entre les deux colonnes)
-    gxFin: number; // gouttière avant la colonne cible (routes multi-colonnes)
+    gx: number; // couloir vertical de la gouttière après le prérequis
+    gxFin: number; // couloir de la gouttière avant la colonne cible
     yCouloir: number; // couloir horizontal libre sous la rangée la plus profonde
     colonnes: number; // distance en colonnes (1 = adjacent)
     etat: EtatTech;
   }
 
-  /** Flèches de dépendance — routage ORTHOGONAL qui CONTOURNE les cartes
-   *  (retour d'Erik 05/10) : sortie à droite du prérequis, couloirs
-   *  verticaux DANS les gouttières, entrée à gauche de la tech. Les
-   *  traversées de colonnes intermédiaires passent par le couloir horizontal
-   *  libre entre les rangées. Les couloirs verticaux sont répartis dans
-   *  chaque gouttière pour éviter les chevauchements. */
+  /** Flèches de dépendance — style Civ5 (retour d'Erik 05/10, 3 principes) :
+   *  1. UN SEUL couloir vertical par gouttière (centré) — les lignes qui
+   *     partagent la gouttière FUSIONNENT visuellement en un faisceau ;
+   *  2. grandes COURBES EN S à tangentes horizontales (sortie/entrée
+   *     douces), jamais d'angles droits ;
+   *  3. départs et arrivées multiples convergent donc en une seule pointe
+   *     de flèche par carte (les segments se superposent exactement).
+   *  Les traversées de colonnes intermédiaires passent par le couloir
+   *  horizontal libre sous la rangée la plus profonde. */
   const fleches = $derived.by<Fleche[]>(() => {
     const liste: Array<Omit<Fleche, 'gx' | 'gxFin'>> = [];
     for (const [id, t] of Object.entries(TECHS)) {
@@ -134,64 +137,61 @@
       for (const p of t.prereqs) {
         const src = PLACEMENT[p];
         if (!src) continue;
-        const y1 = y(src.row) + CARD_H / 2;
-        const y2 = y(cible.row) + CARD_H / 2;
-        const yCouloir =
-          BAND_TOP + Math.max(src.row, cible.row) * ROW_H + CARD_H + (ROW_H - CARD_H) / 2;
         liste.push({
           key: `${p}->${id}`,
           x1: x(src.col) + CARD_W,
-          y1,
+          y1: y(src.row) + CARD_H / 2,
           x2: x(cible.col),
-          y2,
-          yCouloir,
+          y2: y(cible.row) + CARD_H / 2,
+          yCouloir:
+            BAND_TOP + Math.max(src.row, cible.row) * ROW_H + CARD_H + (ROW_H - CARD_H) / 2,
           colonnes: cible.col - src.col,
           etat: etats[id] ?? 'verrouillee',
         });
       }
     }
-    // répartition des couloirs verticaux PAR GOUTTIERE (colonne source)
-    const compte = new Map<number, number>();
     return liste
       .sort((a, b) => a.y1 - b.y1 || a.key.localeCompare(b.key))
-      .map((f) => {
-        const i = compte.get(f.x1) ?? 0;
-        compte.set(f.x1, i + 1);
-        const total = liste.filter((g) => g.x1 === f.x1).length;
-        const frac = total === 1 ? 0.5 : (i + 0.5) / total;
-        const gx = f.x1 + GOUTTIERE * frac;
-        const gxFin = f.x2 - GOUTTIERE / 2;
-        return { ...f, gx, gxFin };
-      });
+      .map((f) => ({
+        ...f,
+        gx: f.x1 + GOUTTIERE / 2,
+        gxFin: f.x2 - GOUTTIERE / 2,
+      }));
   });
 
-  /** Polyligne à coins arrondis. */
+  /** Polyligne à coins ARRONDIS GÉNÉREUX : les segments restent DROITS (le
+   *  vertical est donc partagé au pixel par toutes les flèches de la
+   *  gouttière — elles fusionnent en un faisceau unique), seuls les coins
+   *  sont adoucis. */
   function pathAvecCoudes(points: Array<{ x: number; y: number }>): string {
-    const r = 8;
-    if (points.length < 3) {
-      return `M ${points[0]!.x} ${points[0]!.y} L ${points[points.length - 1]!.x} ${points[points.length - 1]!.y}`;
+    const R = 18;
+    const pts = points.filter(
+      (p, i) => i === 0 || Math.hypot(p.x - points[i - 1]!.x, p.y - points[i - 1]!.y) > 0.5,
+    );
+    if (pts.length < 2) return '';
+    if (pts.length === 2) {
+      return `M ${pts[0]!.x} ${pts[0]!.y} L ${pts[1]!.x} ${pts[1]!.y}`;
     }
-    let d = `M ${points[0]!.x} ${points[0]!.y}`;
-    for (let i = 1; i < points.length - 1; i++) {
-      const p = points[i]!;
-      const avant = points[i - 1]!;
-      const apres = points[i + 1]!;
+    let d = `M ${pts[0]!.x} ${pts[0]!.y}`;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const p = pts[i]!;
+      const avant = pts[i - 1]!;
+      const apres = pts[i + 1]!;
       const dAv = Math.hypot(p.x - avant.x, p.y - avant.y);
       const dAp = Math.hypot(apres.x - p.x, apres.y - p.y);
-      const rr = Math.min(r, dAv / 2, dAp / 2);
+      const rr = Math.min(R, dAv / 2, dAp / 2);
       const ax = p.x - (Math.sign(p.x - avant.x) || 0) * rr;
       const ay = p.y - (Math.sign(p.y - avant.y) || 0) * rr;
       const bx = p.x + (Math.sign(apres.x - p.x) || 0) * rr;
       const by = p.y + (Math.sign(apres.y - p.y) || 0) * rr;
       d += ` L ${ax} ${ay} Q ${p.x} ${p.y}, ${bx} ${by}`;
     }
-    const fin = points[points.length - 1]!;
+    const fin = pts[pts.length - 1]!;
     return `${d} L ${fin.x} ${fin.y}`;
   }
 
   function chemin(f: Fleche): string {
     if (f.colonnes === 1) {
-      // prérequis adjacent : tout se joue dans LA gouttière entre les deux
       return pathAvecCoudes([
         { x: f.x1, y: f.y1 },
         { x: f.gx, y: f.y1 },
@@ -199,16 +199,13 @@
         { x: f.x2, y: f.y2 },
       ]);
     }
-    // prérequis 2+ colonnes à gauche : la traversée des colonnes
-    // intermédiaires passe par le COULOIR horizontal libre SOUS la rangée la
-    // plus profonde (16 px entre les cartes — aucune carte n'y est) ; les
-    // montées/descentes se font dans les gouttières.
-    const yCouloir = f.yCouloir;
+    // prérequis 2+ colonnes à gauche : traversée des colonnes intermédiaires
+    // par le couloir horizontal libre SOUS la rangée la plus profonde.
     return pathAvecCoudes([
       { x: f.x1, y: f.y1 },
       { x: f.gx, y: f.y1 },
-      { x: f.gx, y: yCouloir },
-      { x: f.gxFin, y: yCouloir },
+      { x: f.gx, y: f.yCouloir },
+      { x: f.gxFin, y: f.yCouloir },
       { x: f.gxFin, y: f.y2 },
       { x: f.x2, y: f.y2 },
     ]);
