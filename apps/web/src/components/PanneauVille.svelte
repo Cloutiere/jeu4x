@@ -24,7 +24,7 @@
   import { civName, greatPersonLabel, settleEffectLabel } from '../lib/labels.js';
   import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
   import { jaugeCroissance, jaugeFrontiereCulturelle, jaugeProduction, toursAvantSeuil } from '../lib/jauges.js';
-  import { fileEffective, coutItem, nomItem } from '../lib/fileProduction.js';
+  import { fileEffective, coutItem, nomItem, merveillesMondeConnues } from '../lib/fileProduction.js';
 
   interface Props {
     view: GameView;
@@ -291,7 +291,9 @@
     const ctx = {
       techsUnlocked,
       allTechsUnlocked: allTechs,
-      worldWondersBuilt: [...new Set(Object.values(view.state.cities).flatMap((c) => c.wonders))].sort(),
+      // MERVEILLE-EXCLUSIVITE-PUBLIQUE : liste PUBLIQUE (brume comprise) —
+      // une merveille déjà bâtie n'est plus proposée (le moteur refusait).
+      worldWondersBuilt: merveillesMondeConnues(view.state),
       empireWondersBuilt: ownCities.flatMap((c) => c.wonders),
       empireWondersInProduction: ownCities
         .filter((c) => c.id !== city.id && c.production?.item.kind === 'wonder')

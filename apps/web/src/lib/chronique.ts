@@ -331,6 +331,15 @@ export function entreesChronique(events: GameEvent[], ctx: ContexteChronique, to
         if (ev.owner === ctx.moi) pousser('merveilles', `Merveille achevée : ${nomWonder(ev.wonder)} à ${ctx.ville(ev.cityId)?.nom ?? ev.cityId} (+1 jalon)`, 'good', ev.seq, hexCliquable(ev.at, ctx));
         else { const s2 = sujetNation(ev.owner, ctx); pousser('merveilles', `${s2.sujet} ${s2.pluriel ? 'ont' : 'a'} achevé la merveille ${nomWonder(ev.wonder)}`, 'info', ev.seq); }
         break;
+      // MERVEILLE-EXCLUSIVITE-PUBLIQUE (Erik 05/10, volet 3) : un ordre de
+      // production refusé à la résolution est ANNONCÉ (plus d'évaporation
+      // muette — file vide sans explication).
+      case 'ProductionRefused':
+        if (ev.owner === ctx.moi) {
+          const nom = ev.item.kind === 'wonder' ? nomWonder(ev.item.id) : ev.item.kind === 'building' ? nomBuilding(ev.item.id) : nomTypeUnite(ev.item.id);
+          pousser('empire', `Ordre refusé : ${nom} n'a pas pu être programmé à ${ctx.ville(ev.cityId)?.nom ?? ev.cityId} — ${ev.reason}`, 'bad', ev.seq);
+        }
+        break;
 
       // -------------------------------------------------------------
       // 🗿 Artefacts (mien : effet + lieu ; autre : rumeur SANS lieu, D4)

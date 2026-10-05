@@ -421,6 +421,12 @@ export interface GameState {
    *  SANS identité (canon du « bourdonnement » ; lueur au survol, UI 🔶).
    *  JAMAIS persisté : posé uniquement par getFilteredState. */
   artifactPings?: Array<{ q: number; r: number }>;
+  /** MERVEILLE-EXCLUSIVITE-PUBLIQUE (Erik 05/10) : merveilles mondiales DÉJÀ
+   *  BÂTIES, toutes civilisations (R-129) — information PUBLIQUE (annoncement
+   *  Civ, WonderCompleted public). JAMAIS persisté : posé uniquement par
+   *  getFilteredState depuis l'état complet (les villes invisibles comptent) —
+   *  l'UI s'en sert pour ne pas proposer une merveille déjà prise. */
+  worldWondersBuilt?: string[];
   /** Phase 7d : id de la carte d'origine — null pour les états v7 migrés avant
    *  enrichissement serveur (applyMapEntities). */
   mapId: string | null;

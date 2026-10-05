@@ -48,6 +48,15 @@ export function nomItem(item: ProductionItem): string {
   return BUILDINGS[item.id]?.name ?? item.id;
 }
 
+/** MERVEILLE-EXCLUSIVITE-PUBLIQUE (Erik 05/10) : merveilles mondiales DÉJÀ
+ *  BÂTIES connues du client — UNION de la liste publique du snapshot
+ *  (`worldWondersBuilt`, dérivée du serveur de l'état complet, brume
+ *  comprise) et des villes visibles (repli si le champ manque). Pur. */
+export function merveillesMondeConnues(state: { worldWondersBuilt?: string[]; cities: Record<string, { wonders: string[] }> }): string[] {
+  const visibles = Object.values(state.cities).flatMap((c) => c.wonders ?? []);
+  return [...new Set([...(state.worldWondersBuilt ?? []), ...visibles])].sort();
+}
+
 /** Applique les brouillons d'opérations de file d'une ville — MÊME sémantique
  *  que le moteur (turn.ts `applyQueueOps`) : commandes dans l'ordre, chaque
  *  opération voit le résultat de la précédente ; indices sur la file AFFICHÉE

@@ -121,6 +121,14 @@
         for (const f of unexecutedOrders(previous, message.events, message.state)) {
           pushErrorToast(`Ordre non exécuté (${f.unitId}) : ${f.label}`);
         }
+        // MERVEILLE-EXCLUSIVITE-PUBLIQUE (Erik 05/10, volet 3) : un ordre de
+        // production refusé à la résolution est annoncé EN DIRECT (miroir de
+        // la chronique — plus de file vide sans explication).
+        for (const ev of message.events) {
+          if (ev.type === 'ProductionRefused' && ev.owner === myEngineId(get(view))) {
+            pushErrorToast(`Ordre non exécuté : ${ev.reason}`);
+          }
+        }
         // HANG-LOCAL UX (Erik 01/10 · option 2) : apparition d'un blocage de
         // fin de tour dans le nouvel état → orienter vers la ville fautive
         // (miroir « unités sans ordre » : sélection + centrage, zoom

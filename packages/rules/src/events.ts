@@ -5,7 +5,7 @@
  * Les `seq` sont consécutifs et persistent entre les tours (GameState.lastEventSeq).
  */
 import type { Hex } from './hex.js';
-import type { CityId, PlayerId, TileKey, UnitId } from './state.js';
+import type { CityId, PlayerId, ProductionItem, TileKey, UnitId } from './state.js';
 import type { TechEra } from './types.js';
 
 /** Cause de destruction d'une unité. 7g : `sunk` (cargaison d'un navire
@@ -237,6 +237,22 @@ export type GameEvent =
     }
   /** 7f · R-116 : merveille achevée dans une ville (jalon, effet, ONU → victoire). */
   | { seq: number; type: 'WonderCompleted'; cityId: CityId; owner: PlayerId; wonder: string; at: Hex }
+  /**
+   * MERVEILLE-EXCLUSIVITE-PUBLIQUE (Erik 05/10, volet 3) : un ordre de
+   * production (SetProduction / QueueProduction) a été REFUSÉ à la résolution
+   * par la porte R-87/R-116/R-117/R-148 — auparavant il s'évaporaît en
+   * silence (RULES §5) et le joueur découvrait une file vide bloquée sans
+   * explication. `reason` porte le libellé de la porte (miroir
+   * `wonderProductionIssue` / R-87). Atteint toujours son joueur (sa ville).
+   */
+  | {
+      seq: number;
+      type: 'ProductionRefused';
+      cityId: CityId;
+      owner: PlayerId;
+      item: ProductionItem;
+      reason: string;
+    }
   /**
    * 7k · R-130 · M3 · Récupération de marteaux : un rival a complété la
    * merveille qui était en chantier dans `cityId` (ou départage C8 d'une
@@ -566,6 +582,10 @@ export function eventRefs(event: GameEvent): EventRefs {
       refs.cityIds.push(event.cityId);
       refs.players.push(event.owner);
       hex(event.at);
+      break;
+    case 'ProductionRefused':
+      refs.cityIds.push(event.cityId);
+      refs.players.push(event.owner);
       break;
     case 'UnitsUpgraded':
       refs.players.push(event.player);

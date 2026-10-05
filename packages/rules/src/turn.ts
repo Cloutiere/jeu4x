@@ -1966,16 +1966,19 @@ function promoteQueueSuivante(city: City): boolean {
 /** Porte d'éligibilité commune SetProduction / QueueProduction (D2) — R-87
  *  (coût connu, techs/prérequis, obsolète, GP, Palais, déjà possédé), R-148
  *  (type effectif), R-117 (naval côtier), R-116 (unicité merveille + ONU).
- *  `city` est supposée possédée par `playerId`. Pur. */
-function itemProductionRefuse(board: Board, playerId: PlayerId, city: City, item: ProductionItem): boolean {
-  if (productionItemCostOf(board.st, playerId, item) === null) return true;
+ *  `city` est supposée possédée par `playerId`. Retourne null si l'ordre est
+ *  ACCEPTABLE, sinon la RAISON du refus (libellé utilisateur — MERVEILLE-
+ *  EXCLUSIVITE-PUBLIQUE volet 3 : le refus est annoncé, plus d'évaporation
+ *  muette). Pur. */
+function itemProductionRefuseCause(board: Board, playerId: PlayerId, city: City, item: ProductionItem): string | null {
+  if (productionItemCostOf(board.st, playerId, item) === null) return 'item inconnu des données';
   // R-87 (étendue 7e) : item verrouillé refusé — tech non débloquée, non
   // implémenté, unité OBSOLÈTE, GP (R-114), bâtiment fixe (Palais),
   // prérequis de bâtiment manquant (Banque sans Marché) ou déjà possédé.
   // 7n · R-148 : une unité standard remplacée par l'unique disponible de
   // la civ est refusée (le menu propose l'unique — pattern R-111).
   const research = board.st.players[playerId]!;
-  if (!canSetProduction(item, research.techsUnlocked, city.buildings, civIdOf(research))) return true;
+  if (!canSetProduction(item, research.techsUnlocked, city.buildings, civIdOf(research))) return 'prérequis manquants ou item indisponible (R-87)';
   // 7g · R-117 : une unité navale exige une ville côtière (accès à la mer).
   // 7n · R-148 : la validation porte sur le type EFFECTIF (l'unique).
   const effectiveItem = unitReplacementFor(item, civIdOf(research), research.techsUnlocked) ?? item.id;
@@ -1984,11 +1987,14 @@ function itemProductionRefuse(board: Board, playerId: PlayerId, city: City, item
     unitType(effectiveItem).aquatic &&
     !citySiteIsCoastal(board.st.map, { q: city.q, r: city.r }, board.st.mapWidth)
   ) {
-    return true;
+    return 'unité navale — ville sans accès à la mer (R-117)';
   }
   // 7f · R-116 : unicité d'empire des merveilles + verrou/jalons de l'ONU.
-  if (item.kind === 'wonder' && wonderSetProductionIssue(board.st, item.id, playerId, city.id)) return true;
-  return false;
+  if (item.kind === 'wonder') {
+    const issue = wonderSetProductionIssue(board.st, item.id, playerId, city.id);
+    if (issue) return issue;
+  }
+  return null;
 }
 
 /** MENU-VILLE-QUEUE · D1/D2 — opérations de file, appliquées à la résolution
@@ -2012,7 +2018,12 @@ export function applyQueueOps(board: Board, ordersByPlayer: Record<PlayerId, Ord
       if (!city || city.owner !== playerId) continue;
       if (order.type === 'QueueProduction') {
         if (fileAffichee(city).length >= FILE_PRODUCTION_PROFONDEUR) continue;
-        if (itemProductionRefuse(board, playerId, city, order.item)) continue;
+        const cause = itemProductionRefuseCause(board, playerId, city, order.item);
+        if (cause) {
+          // Volet 3 : le refus est ANNONCÉ (plus d'évaporation muette).
+          emit(board, { type: 'ProductionRefused', cityId: city.id, owner: playerId, item: { ...order.item }, reason: cause });
+          continue;
+        }
         if (!city.production) city.production = { item: order.item, progress: 0 };
         else city.queue = [...(city.queue ?? []), order.item];
       } else if (order.type === 'RemoveFromQueue') {
@@ -2059,7 +2070,12 @@ function applySetProduction(board: Board, ordersByPlayer: Record<PlayerId, Order
       if (order.type !== 'SetProduction') continue;
       const city = board.st.cities[order.cityId];
       if (!city || city.owner !== playerId) continue;
-      if (itemProductionRefuse(board, playerId, city, order.item)) continue;
+      const cause = itemProductionRefuseCause(board, playerId, city, order.item);
+      if (cause) {
+        // Volet 3 : le refus est ANNONCÉ (miroir QueueProduction).
+        emit(board, { type: 'ProductionRefused', cityId: city.id, owner: playerId, item: { ...order.item }, reason: cause });
+        continue;
+      }
       setOrders.push(order);
     }
   }

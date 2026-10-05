@@ -79,6 +79,11 @@ const PUBLIC_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
   'PlayerDefeated', // CARTE-MULTI : une élimination est publique (miroir Victory)
   'DiplomaticIncident',
   'EraChanged',
+  // MERVEILLE-EXCLUSIVITE-PUBLIQUE (Erik 05/10) : l'achèvement d'une merveille
+  // mondiale est une ANNONCE PUBLIQUE (canon Civ — tout le monde apprend qu'elle
+  // est prise). Sans elle, une merveille bâtie dans le brouillard n'apparaît
+  // nulle part et l'UI peut la proposer alors que le moteur la refusera.
+  'WonderCompleted',
 ]);
 
 /** L'événement implique-t-il directement le joueur (une de ses unités/villes) ? */
@@ -208,6 +213,13 @@ export function getFilteredState(state: GameState, playerId: PlayerId): GameStat
     .filter((a) => !explored.has(`${a.q},${a.r}`))
     .map((a) => ({ q: a.q, r: a.r }));
   clone.artefacts = clone.artefacts.filter((a) => explored.has(`${a.q},${a.r}`));
+  // MERVEILLE-EXCLUSIVITE-PUBLIQUE (Erik 05/10) : les merveilles mondiales
+  // bâties sont PUBLIQUES (WonderCompleted public + annoncement Civ) — liste
+  // dérivée de l'état COMPLET (les villes invisibles comptent). JAMAIS
+  // persisté : posé uniquement ici, miroir d'artifactPings.
+  clone.worldWondersBuilt = [
+    ...new Set(Object.values(state.cities).flatMap((c) => c.wonders)),
+  ].sort();
   // 7o · R-154 : les choix Angkor Wat en attente sont PRIVÉS (le droit du
   // rival n'est pas une information publique).
   clone.pendingArtefactChoices = clone.pendingArtefactChoices.filter((c) => c.player === playerId);
