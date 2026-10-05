@@ -55,7 +55,7 @@
   // remplace au clic simple (D3).
   // import CityView from '../components/CityView.svelte';
   import PanneauVille from '../components/PanneauVille.svelte';
-  import ResearchPanel from '../components/ResearchPanel.svelte';
+  import TechTree from '../components/TechTree.svelte';
   import Journal from '../components/Journal.svelte';
   // HANDOFF-CHRONIQUES · L2 : la Chronique unifiée remplace Historique +
   // Journal dans la colonne droite (le Journal de débogue migre dans le
@@ -429,7 +429,8 @@
 
   /**
    * BLOCAGE-NAVIGATION (Erik 05/10 · D1/D2) — le clic sur le bouton bloqué
-   * « Fin de tour bloquée (n) » OUVRE le menu fautif : ResearchPanel si un
+   * « Fin de tour bloquée (n) » OUVRE le menu fautif : TechTree (arbre
+   * technologique, ex-ResearchPanel) si un
    * blocage recherche existe, sinon PanneauVille de la première ville
    * fautive (tri R-81 par id — menuAOuvrir). « Les deux → Recherche
    * d'abord. » Le motif pédagogique (toasts) reste affiché en complément
@@ -1495,7 +1496,7 @@
   {/if}
 
   {#if showResearch && $view.state}
-    <ResearchPanel view={$view} {client} onClose={() => (showResearch = false)} />
+    <TechTree view={$view} {client} onClose={() => (showResearch = false)} />
   {/if}
 
   {#if showGovernment && $view.state}
