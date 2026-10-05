@@ -57,7 +57,7 @@ describe('Volet 1 — WonderCompleted est PUBLIC (chroniques de tous, canon Civ)
       wonder: 'stonehenge',
       amount: 10,
       at: { q: 9, r: 0 },
-    } as GameEvent;
+    } as unknown as GameEvent;
     expect(filterEventsForPlayer(state, 'p1', [ev])).toHaveLength(0);
   });
 });
