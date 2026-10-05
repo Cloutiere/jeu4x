@@ -37,11 +37,14 @@
 
   let { view, client, onClose }: Props = $props();
 
-  // Géométrie de la grille (px) — cartes 238×104, pas 262×120.
-  const COL_W = 262;
+  // Géométrie de la grille (px) — cartes 238×104 ; l'ESPACE entre colonnes
+  // est ×3 le gap initial (retour d'Erik 05/10 : 24 → 72 px) : c'est la
+  // gouttière où les flèches contournent les cartes.
+  const COL_W = 310; // pas de colonne = carte 238 + gouttière 72
   const ROW_H = 120;
   const CARD_W = 238;
   const CARD_H = 104;
+  const GOUTTIERE = COL_W - CARD_W; // 72 px — couloir de routage des flèches
   const PAD_X = 24;
   const BAND_TOP = 96; // place des titres d'ère dans la zone défilante
 
@@ -110,34 +113,105 @@
     y1: number;
     x2: number;
     y2: number;
+    gx: number; // x du couloir vertical (gouttière entre les deux colonnes)
+    gxFin: number; // gouttière avant la colonne cible (routes multi-colonnes)
+    yCouloir: number; // couloir horizontal libre sous la rangée la plus profonde
+    colonnes: number; // distance en colonnes (1 = adjacent)
     etat: EtatTech;
   }
 
-  /** Flèches de dépendance (bord droit du prérequis → bord gauche de la tech). */
+  /** Flèches de dépendance — routage ORTHOGONAL qui CONTOURNE les cartes
+   *  (retour d'Erik 05/10) : sortie à droite du prérequis, couloirs
+   *  verticaux DANS les gouttières, entrée à gauche de la tech. Les
+   *  traversées de colonnes intermédiaires passent par le couloir horizontal
+   *  libre entre les rangées. Les couloirs verticaux sont répartis dans
+   *  chaque gouttière pour éviter les chevauchements. */
   const fleches = $derived.by<Fleche[]>(() => {
-    const out: Fleche[] = [];
+    const liste: Array<Omit<Fleche, 'gx' | 'gxFin'>> = [];
     for (const [id, t] of Object.entries(TECHS)) {
       const cible = PLACEMENT[id];
       if (!cible) continue;
       for (const p of t.prereqs) {
         const src = PLACEMENT[p];
         if (!src) continue;
-        out.push({
+        const y1 = y(src.row) + CARD_H / 2;
+        const y2 = y(cible.row) + CARD_H / 2;
+        const yCouloir =
+          BAND_TOP + Math.max(src.row, cible.row) * ROW_H + CARD_H + (ROW_H - CARD_H) / 2;
+        liste.push({
           key: `${p}->${id}`,
           x1: x(src.col) + CARD_W,
-          y1: y(src.row) + CARD_H / 2,
+          y1,
           x2: x(cible.col),
-          y2: y(cible.row) + CARD_H / 2,
+          y2,
+          yCouloir,
+          colonnes: cible.col - src.col,
           etat: etats[id] ?? 'verrouillee',
         });
       }
     }
-    return out;
+    // répartition des couloirs verticaux PAR GOUTTIERE (colonne source)
+    const compte = new Map<number, number>();
+    return liste
+      .sort((a, b) => a.y1 - b.y1 || a.key.localeCompare(b.key))
+      .map((f) => {
+        const i = compte.get(f.x1) ?? 0;
+        compte.set(f.x1, i + 1);
+        const total = liste.filter((g) => g.x1 === f.x1).length;
+        const frac = total === 1 ? 0.5 : (i + 0.5) / total;
+        const gx = f.x1 + GOUTTIERE * frac;
+        const gxFin = f.x2 - GOUTTIERE / 2;
+        return { ...f, gx, gxFin };
+      });
   });
 
+  /** Polyligne à coins arrondis. */
+  function pathAvecCoudes(points: Array<{ x: number; y: number }>): string {
+    const r = 8;
+    if (points.length < 3) {
+      return `M ${points[0]!.x} ${points[0]!.y} L ${points[points.length - 1]!.x} ${points[points.length - 1]!.y}`;
+    }
+    let d = `M ${points[0]!.x} ${points[0]!.y}`;
+    for (let i = 1; i < points.length - 1; i++) {
+      const p = points[i]!;
+      const avant = points[i - 1]!;
+      const apres = points[i + 1]!;
+      const dAv = Math.hypot(p.x - avant.x, p.y - avant.y);
+      const dAp = Math.hypot(apres.x - p.x, apres.y - p.y);
+      const rr = Math.min(r, dAv / 2, dAp / 2);
+      const ax = p.x - (Math.sign(p.x - avant.x) || 0) * rr;
+      const ay = p.y - (Math.sign(p.y - avant.y) || 0) * rr;
+      const bx = p.x + (Math.sign(apres.x - p.x) || 0) * rr;
+      const by = p.y + (Math.sign(apres.y - p.y) || 0) * rr;
+      d += ` L ${ax} ${ay} Q ${p.x} ${p.y}, ${bx} ${by}`;
+    }
+    const fin = points[points.length - 1]!;
+    return `${d} L ${fin.x} ${fin.y}`;
+  }
+
   function chemin(f: Fleche): string {
-    const dx = Math.max(40, (f.x2 - f.x1) / 2);
-    return `M ${f.x1} ${f.y1} C ${f.x1 + dx} ${f.y1}, ${f.x2 - dx} ${f.y2}, ${f.x2} ${f.y2}`;
+    if (f.colonnes === 1) {
+      // prérequis adjacent : tout se joue dans LA gouttière entre les deux
+      return pathAvecCoudes([
+        { x: f.x1, y: f.y1 },
+        { x: f.gx, y: f.y1 },
+        { x: f.gx, y: f.y2 },
+        { x: f.x2, y: f.y2 },
+      ]);
+    }
+    // prérequis 2+ colonnes à gauche : la traversée des colonnes
+    // intermédiaires passe par le COULOIR horizontal libre SOUS la rangée la
+    // plus profonde (16 px entre les cartes — aucune carte n'y est) ; les
+    // montées/descentes se font dans les gouttières.
+    const yCouloir = f.yCouloir;
+    return pathAvecCoudes([
+      { x: f.x1, y: f.y1 },
+      { x: f.gx, y: f.y1 },
+      { x: f.gx, y: yCouloir },
+      { x: f.gxFin, y: yCouloir },
+      { x: f.gxFin, y: f.y2 },
+      { x: f.x2, y: f.y2 },
+    ]);
   }
 
   function bandeStyle(bande: (typeof BANDES_AFFICHAGE)[number]): string {
@@ -185,7 +259,7 @@
     scrollBox.scrollLeft = fraction * max;
   }
 
-  let dragActif = false;
+  let dragActif = $state(false);
   function thumbPointerDown(ev: PointerEvent): void {
     dragActif = true;
     (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
@@ -259,6 +333,8 @@
         {@const etat = etats[id] ?? 'verrouillee'}
         {@const tours = toursRestants(t.cost, player?.scienceProgress[id] ?? 0, scienceParTour)}
         {@const debloques = libellesDebloques(t)}
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex — le rôle button
+             n'est posé que sur les cartes disponibles (conditionnel) -->
         <div
           class="carte {etat}"
           class:courante={etat === 'en_cours'}
@@ -297,11 +373,10 @@
   </div>
 
   {#if viewportRatio < 1}
+    <!-- svelte-ignore a11y_no_static_element_interactions — piste de la
+         barre de défilement (clic = saut) ; le pouce porte role=slider -->
     <div
       class="barre-defilement"
-      role="scrollbar"
-      aria-orientation="horizontal"
-      aria-valuenow={Math.round(thumbLeft)}
       onpointerdown={(ev) => {
         // clic sur la piste : sauter à la position
         const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect();
@@ -311,6 +386,17 @@
       <div
         class="pouce"
         class:drag={dragActif}
+        role="slider"
+        aria-label="Défilement de l'arbre technologique"
+        aria-orientation="horizontal"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(thumbLeft)}
+        tabindex="0"
+        onkeydown={(ev) => {
+          if (ev.key === 'ArrowRight') scrollPar(Math.min(1, scrollPos + 0.1));
+          if (ev.key === 'ArrowLeft') scrollPar(Math.max(0, scrollPos - 0.1));
+        }}
         style:width={`${viewportRatio * 100}%`}
         style:left={`${thumbLeft}%`}
         onpointerdown={thumbPointerDown}
