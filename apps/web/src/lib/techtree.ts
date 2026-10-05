@@ -1,10 +1,17 @@
 /**
- * TECHTREE (handoff HANDOFF-TECHTREE, décisions Erik 05/10) — données
- * d'AFFICHAGE de l'arbre technologique plein écran. Client seul : l'ère
- * MOTEUR (techs.json, T-36) reste intacte — ce fichier ne porte que la
- * colonne d'ère d'affichage (D3, défaut = ère moteur + surcharges vides),
- * le placement des cartes (D5) et la table d'images recuites (D6).
- * Fonctions PURES (R-81) — partagées par TechTree.svelte et les tests.
+ * TECHTREE (handoff HANDOFF-TECHTREE, décisions Erik 05/10, rév. 05/10) —
+ * données d'AFFICHAGE de l'arbre technologique plein écran. Client seul :
+ * l'ère MOTEUR (techs.json, T-36) reste intacte — ce fichier ne porte que
+ * l'affichage.
+ *
+ * Règle d'Erik (retour visuel 05/10) : JAMAIS de flèche vers la gauche — la
+ * colonne d'une tech est STRICTEMENT à droite de tous ses prérequis :
+ *   col(tech) = max(col(prereqs)) + 1, racines en colonne 0.
+ * Les ères d'AFFICHAGE sont des bandes contiguës de colonnes à répartition
+ * équitable (~12 techs) — une tech peut être REPORTÉE sous une bande
+ * ultérieure ; les titres sont renommables (pas d'exactitude historique).
+ * Fonctions PURES et déterministes (R-81) — partagées par TechTree.svelte
+ * et les tests.
  */
 import { TECHS, ERA_ORDER, BUILDINGS, WONDERS, UNIT_TYPES, availableTechs } from '@game/rules';
 import type { TechData, TechEra } from '@game/rules';
@@ -46,102 +53,133 @@ export function aImageTech(techId: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// D1 — bandes d'ère d'affichage (fonds recuits d'Erik). Ordre = ERA_ORDER.
+// D3 (rév.) — flot de gauche à droite : colonnes calculées depuis les
+// prérequis (col = max(col prereqs) + 1). Les surcharges manuelles restent
+// possibles (vides à l'arrivée) mais NE PEUVENT PAS re-créer de flèche
+// vers la gauche (l'invariant est testé).
+// ---------------------------------------------------------------------------
+/** Surcharges manuelles de colonne (vide — calcul automatique actif). */
+export const SURCHARGE_COLONNE: Partial<Record<string, number>> = {};
+
+const COLONNES_CALCULEES: Readonly<Record<string, number>> = (() => {
+  const out: Record<string, number> = {};
+  const calc = (id: string): number => {
+    if (out[id] !== undefined) return out[id]!;
+    const t = TECHS[id]!;
+    const v = t.prereqs.length === 0 ? 0 : Math.max(...t.prereqs.map((p) => calc(p))) + 1;
+    out[id] = v;
+    return v;
+  };
+  for (const id of Object.keys(TECHS).sort()) calc(id);
+  return out;
+})();
+
+/** Colonne d'affichage d'une tech (surcharge manuelle ou calcul). */
+export function colonneDe(techId: string): number {
+  return SURCHARGE_COLONNE[techId] ?? COLONNES_CALCULEES[techId] ?? 0;
+}
+
+/** Nombre de colonnes de l'arbre. */
+export const NB_COLONNES: number = Math.max(...Object.keys(TECHS).map(colonneDe)) + 1;
+
+// ---------------------------------------------------------------------------
+// D1 (rév.) — bandes d'ère d'affichage : plages CONTIGUËS de colonnes à
+// répartition équitable (13/14/11/8). Une tech est affichée sous la bande de
+// SA colonne — report sous une ère ultérieure assumé (Erik : « pas
+// d'exactitude historique »). Titres renommables sans code.
 // ---------------------------------------------------------------------------
 export interface EraAffichage {
   era: TechEra;
   titre: string;
   sousTitre: string;
   fond: string;
+  /** Dernière colonne de la bande (la première = précédente + 1, ou 0). */
+  derniereCol: number;
 }
 
-export const ERAS_AFFICHAGE: readonly EraAffichage[] = [
-  { era: 'ancienne', titre: 'Ère ancienne', sousTitre: 'Les premiers pas', fond: `${DOSSIER_IMAGES}/era_ancienne.jpg` },
-  { era: 'medievale', titre: 'Ère médiévale', sousTitre: 'Foi, commerce et empires', fond: `${DOSSIER_IMAGES}/era_medievale.jpg` },
-  { era: 'industrielle', titre: 'Ère industrielle', sousTitre: 'La machine change le monde', fond: `${DOSSIER_IMAGES}/era_industrielle.jpg` },
-  { era: 'moderne', titre: 'Ère moderne', sousTitre: 'Un demain meilleur par le savoir', fond: `${DOSSIER_IMAGES}/era_moderne.jpg` },
+export const BANDES_AFFICHAGE: readonly EraAffichage[] = [
+  { era: 'ancienne', titre: 'Ère ancienne', sousTitre: 'Les premiers pas', fond: `${DOSSIER_IMAGES}/era_ancienne.jpg`, derniereCol: 2 },
+  { era: 'medievale', titre: 'Ère médiévale', sousTitre: 'Foi, commerce et empires', fond: `${DOSSIER_IMAGES}/era_medievale.jpg`, derniereCol: 5 },
+  { era: 'industrielle', titre: 'Ère industrielle', sousTitre: 'La machine change le monde', fond: `${DOSSIER_IMAGES}/era_industrielle.jpg`, derniereCol: 7 },
+  { era: 'moderne', titre: 'Ère moderne', sousTitre: 'Un demain meilleur par le savoir', fond: `${DOSSIER_IMAGES}/era_moderne.jpg`, derniereCol: NB_COLONNES - 1 },
 ];
 
-// ---------------------------------------------------------------------------
-// D3 — ère d'AFFICHAGE (colonne) : défaut = ère moteur ; surcharges vides à
-// l'arrivée (réajustables sans code). L'ère MOTEUR n'est JAMAIS lue depuis
-// ici pour le gameplay.
-// ---------------------------------------------------------------------------
-/** Surcharges d'ère d'affichage par tech (vide — Ère moteur = affichage). */
+/** Surcharges d'ère d'affichage par tech (vide — bande de la colonne). */
 export const SURCHARGE_ERA_AFFICHAGE: Partial<Record<string, TechEra>> = {};
 
+/** Première colonne d'une bande. */
+export function premiereColonneDe(bande: EraAffichage): number {
+  const i = BANDES_AFFICHAGE.indexOf(bande);
+  return i === 0 ? 0 : BANDES_AFFICHAGE[i - 1]!.derniereCol + 1;
+}
+
+/** L'ère d'affichage d'une colonne (bande contenant la colonne). */
+export function eraDeColonne(col: number): TechEra {
+  for (const b of BANDES_AFFICHAGE) {
+    if (col <= b.derniereCol) return b.era;
+  }
+  throw new Error(`Colonne hors bandes : ${col}`);
+}
+
+/** Ère d'affichage d'une tech (surcharge manuelle ou bande de sa colonne). */
 export function eraAffichageDe(techId: string): TechEra {
   const surcharge = SURCHARGE_ERA_AFFICHAGE[techId];
   if (surcharge) return surcharge;
-  return TECHS[techId]!.era;
+  return eraDeColonne(colonneDe(techId));
 }
 
 // ---------------------------------------------------------------------------
-// D5 — placement des cartes (colonne, rangée). 7 colonnes : ancienne 0-1,
-// médiévale 2, industrielle 3-4, moderne 5-6. Réajustable sans code.
+// D5 (rév.) — placement : colonnes calculées (flot strict) + rangées
+// séquentielles par colonne dans un ordre de préférence stable (ordre de
+// l'ancien placement main, sinon id — R-81). Réajustable sans code via
+// ORDRE_PREFERENCE.
 // ---------------------------------------------------------------------------
-export const COLONNES_PAR_ERA: Record<TechEra, number[]> = {
-  ancienne: [0, 1],
-  medievale: [2],
-  industrielle: [3, 4],
-  moderne: [5, 6],
-};
+/** Ordre de préférence vertical (hérité du placement initial d'Erik 05/10) —
+ *  les techs d'une même colonne se rangent dans cet ordre, sinon par id. */
+const ORDRE_PREFERENCE: Readonly<Record<string, number>> = Object.fromEntries(
+  [
+    'alphabet', 'travail_du_bronze', 'equitation', 'poterie',
+    'ecriture', 'maconnerie', 'code_des_lois', 'rites_funeraires',
+    'litteratie', 'travail_du_fer', 'mathematiques', 'irrigation',
+    'monarchie', 'construction', 'democratie', 'monnaie', 'navigation',
+    'ingenierie', 'feudalite', 'religion', 'banque', 'universite',
+    'invention', 'poudre_a_canon', 'machine_a_vapeur', 'metallurgie',
+    'imprimerie', 'acier', 'industrialisation', 'electricite',
+    'corporation', 'combustion', 'communisme', 'medias_de_masse',
+    'production_de_masse', 'theorie_atomique', 'aviation', 'electronique',
+    'automobile', 'aviation_avancee', 'energie_nucleaire', 'reseautage',
+    'mondialisation', 'vol_spatial', 'supraconducteur',
+  ].map((id, i) => [id, i]),
+);
 
-export const PLACEMENT: Readonly<Record<string, { col: number; row: number }>> = {
-  // Ère ancienne (18) — racines en rangée 0-1
-  alphabet: { col: 0, row: 0 },
-  travail_du_bronze: { col: 1, row: 0 },
-  equitation: { col: 0, row: 1 },
-  poterie: { col: 1, row: 1 },
-  ecriture: { col: 0, row: 2 },
-  maconnerie: { col: 1, row: 2 },
-  code_des_lois: { col: 0, row: 3 },
-  rites_funeraires: { col: 1, row: 3 },
-  litteratie: { col: 0, row: 4 },
-  travail_du_fer: { col: 1, row: 4 },
-  mathematiques: { col: 0, row: 5 },
-  irrigation: { col: 1, row: 5 },
-  monarchie: { col: 0, row: 6 },
-  construction: { col: 1, row: 6 },
-  democratie: { col: 0, row: 7 },
-  monnaie: { col: 1, row: 7 },
-  navigation: { col: 0, row: 8 },
-  ingenierie: { col: 1, row: 8 },
-  // Ère médiévale (6)
-  feudalite: { col: 2, row: 0 },
-  religion: { col: 2, row: 1 },
-  banque: { col: 2, row: 2 },
-  universite: { col: 2, row: 3 },
-  invention: { col: 2, row: 4 },
-  poudre_a_canon: { col: 2, row: 5 },
-  // Ère industrielle (12)
-  machine_a_vapeur: { col: 3, row: 0 },
-  chemin_de_fer: { col: 3, row: 1 },
-  metallurgie: { col: 4, row: 1 },
-  imprimerie: { col: 3, row: 2 },
-  acier: { col: 4, row: 2 },
-  industrialisation: { col: 3, row: 3 },
-  electricite: { col: 4, row: 3 },
-  corporation: { col: 3, row: 4 },
-  combustion: { col: 4, row: 4 },
-  communisme: { col: 3, row: 5 },
-  medias_de_masse: { col: 4, row: 5 },
-  production_de_masse: { col: 3, row: 6 },
-  // Ère moderne (10)
-  theorie_atomique: { col: 5, row: 0 },
-  aviation: { col: 6, row: 0 },
-  electronique: { col: 5, row: 1 },
-  automobile: { col: 6, row: 1 },
-  aviation_avancee: { col: 5, row: 2 },
-  energie_nucleaire: { col: 6, row: 2 },
-  reseautage: { col: 5, row: 3 },
-  mondialisation: { col: 6, row: 3 },
-  vol_spatial: { col: 5, row: 4 },
-  supraconducteur: { col: 6, row: 4 },
-};
+export const PLACEMENT: Readonly<Record<string, { col: number; row: number }>> = (() => {
+  const parCol = new Map<number, string[]>();
+  for (const id of Object.keys(TECHS)) {
+    const col = colonneDe(id);
+    if (!parCol.has(col)) parCol.set(col, []);
+    parCol.get(col)!.push(id);
+  }
+  const out: Record<string, { col: number; row: number }> = {};
+  for (const [col, ids] of [...parCol.entries()].sort((a, b) => a[0] - b[0])) {
+    ids.sort(
+      (a, b) =>
+        (ORDRE_PREFERENCE[a] ?? Number.MAX_SAFE_INTEGER) - (ORDRE_PREFERENCE[b] ?? Number.MAX_SAFE_INTEGER) ||
+        (a < b ? -1 : a > b ? 1 : 0),
+    );
+    ids.forEach((id, row) => {
+      out[id] = { col, row };
+    });
+  }
+  return out;
+})();
+
+/** Rangée maximale du placement (hauteur de la grille d'affichage). */
+export function rangeeMax(): number {
+  return Math.max(...Object.values(PLACEMENT).map((p) => p.row));
+}
 
 // ---------------------------------------------------------------------------
-// D2 — états des cartes (mêmes règles moteur que ResearchPanel : R-85/R-86).
+// D2 — états des cartes (mêmes règles moteur que l'ancien panneau R-85/R-86).
 // ---------------------------------------------------------------------------
 export type EtatTech = 'acquise' | 'en_cours' | 'disponible' | 'verrouillee';
 
@@ -158,8 +196,7 @@ export function etatTech(player: JoueurRecherche, techId: string): EtatTech {
   return 'verrouillee';
 }
 
-/** Les techs regroupées par état (une seule par carte — « en cours » prime
- *  sur « disponible », impossible sinon : une seule recherche à la fois). */
+/** Les techs regroupées par état (une seule par carte). */
 export function etatsTechs(player: JoueurRecherche): Record<string, EtatTech> {
   const out: Record<string, EtatTech> = {};
   for (const id of Object.keys(TECHS)) out[id] = etatTech(player, id);
@@ -189,26 +226,17 @@ export function prerequisManquants(t: TechData, techsUnlocked: readonly string[]
     .sort();
 }
 
-/** Rangée maximale du placement (hauteur de la grille d'affichage). */
-export function rangeeMax(): number {
-  return Math.max(...Object.values(PLACEMENT).map((p) => p.row));
-}
-
-/** L'ère d'affichage est-elle cohérente avec l'ordre des colonnes ? */
-export function eraDeColonne(col: number): TechEra {
-  for (const [era, cols] of Object.entries(COLONNES_PAR_ERA) as [TechEra, number[]][]) {
-    if (cols.includes(col)) return era;
-  }
-  throw new Error(`Colonne inconnue : ${col}`);
-}
-
-/** Vérification d'intégrité du mapping (test + garde à l'import). */
+/** Vérification d'intégrité du mapping (test + garde). */
 export function integrityMapping(): string[] {
   const erreurs: string[] = [];
   for (const id of Object.keys(TECHS)) {
-    if (!PLACEMENT[id]) erreurs.push(`tech non placée : ${id}`);
-    else if (eraDeColonne(PLACEMENT[id]!.col) !== eraAffichageDe(id))
-      erreurs.push(`tech ${id} : colonne ${PLACEMENT[id]!.col} hors ère d'affichage ${eraAffichageDe(id)}`);
+    const t = TECHS[id]!;
+    for (const p of t.prereqs) {
+      if (colonneDe(id) <= colonneDe(p)) erreurs.push(`flèche vers la gauche : ${p} → ${id}`);
+    }
+    const pos = PLACEMENT[id];
+    if (!pos) erreurs.push(`tech non placée : ${id}`);
+    else if (pos.col !== colonneDe(id)) erreurs.push(`tech ${id} : colonne placée ≠ colonne calculée`);
   }
   for (const id of Object.keys(PLACEMENT)) if (!TECHS[id]) erreurs.push(`placement d'une tech inconnue : ${id}`);
   const vues = new Set<string>();
@@ -217,6 +245,12 @@ export function integrityMapping(): string[] {
     if (vues.has(cle)) erreurs.push(`collision de placement ${cle} (${id})`);
     vues.add(cle);
   }
-  if (ERAS_AFFICHAGE.length !== ERA_ORDER.length) erreurs.push('bandes d’ère ≠ ERA_ORDER');
+  if (BANDES_AFFICHAGE.length !== ERA_ORDER.length) erreurs.push('bandes d’ère ≠ ERA_ORDER');
+  let attendu = 0;
+  for (const b of BANDES_AFFICHAGE) {
+    if (b.derniereCol < attendu) erreurs.push(`bande ${b.era} : bornes non croissantes`);
+    attendu = b.derniereCol + 1;
+  }
+  if (attendu - 1 !== NB_COLONNES - 1) erreurs.push('les bandes ne couvrent pas toutes les colonnes');
   return erreurs;
 }

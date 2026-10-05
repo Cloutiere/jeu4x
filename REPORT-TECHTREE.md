@@ -4,7 +4,39 @@
 recherche en arbre technologique plein écran selon `Techtree/civ_tree.jpeg`.
 Client seul, zéro changement moteur/serveur, `schemaVersion` 27 inchangée.
 
-## Livré
+## Rév. 05/10 (retour visuel d'Erik) — flot strict gauche → droite
+
+**Règle** : jamais une flèche ne revient en arrière — la colonne d'une tech
+est STRICTEMENT à droite de tous ses prérequis (`col = max(col prereqs) + 1`,
+racines en col 0 ; l'exemple d'Erik Alphabet → Écriture en col 1).
+
+- **Colonnes CALCULÉES** depuis les prérequis (`colonneDe()` dans
+  `lib/techtree.ts`, surcharges manuelles possibles mais l'invariant « aucune
+  flèche vers la gauche » est testé) : **11 colonnes** au total.
+- **Rangées** : séquentielles par colonne dans un ordre de préférence hérité
+  du placement initial (`ORDRE_PREFERENCE`, réajustable sans code).
+- **Bandes d'ère = plages contiguës de colonnes à répartition équitable**
+  (choix d'Erik : « pas d'exactitude historique ») : ancienne cols 0-2 (13
+  techs), médiévale 3-5 (14), industrielle 6-7 (11), moderne 8-10 (8) —
+  bornes data-driven (`derniereCol`), titres renommables sans code. Une tech
+  peut être REPORTÉE sous une bande ultérieure (affichage ≠ ère moteur
+  assumé ; le test prouve qu'il y a des reportés).
+- **Fonds d'ère 16:9** (nouveaux `*_16_9.png` d'Erik) recuits 1920 px
+  (total fonds 1,1 Mo), ancrés à GAUCHE sans déformation, **fondu sombre sur
+  les bords** au-delà de l'image (choix d'Erik 3).
+- **Barre de défilement horizontale TOUJOURS VISIBLE** : barre personnalisée
+  (piste sombre + pouce or, déplaçable au pointeur, clic piste = saut) — les
+  scrollbars natives sont masquées par défaut dans Chromium.
+
+Vérification GUI re-faite (partie solo légale, danse SetWorkedTile eau) :
+blocage→arbre, sélection, 46/46 visuels, Échap, réouverture en cours ;
+captures `dev-logs/captures-techtree/C1 gauche / C2 milieu / C3 droite / A
+blocage` — relecture visuelle PASS (flot gauche→droite vérifié carte par
+carte sur les longs connecteurs, pouce de scrollbar cohérent avec le
+défilement). Suites : web **559** (+3 rév.) / rules 993 / server 120,
+svelte-check 0.
+
+## Livré (initial 131d639)
 
 - **D1 — Écran plein** : `TechTree.svelte` (z-index 50, au-dessus du HUD
   barre AAA 30-40) — 4 bandes d'ère verticales aux fonds d'Erik

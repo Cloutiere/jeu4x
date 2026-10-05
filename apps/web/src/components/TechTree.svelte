@@ -15,8 +15,9 @@
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId } from '../lib/render/interaction.js';
   import {
-    ERAS_AFFICHAGE,
-    COLONNES_PAR_ERA,
+    BANDES_AFFICHAGE,
+    premiereColonneDe,
+    NB_COLONNES,
     PLACEMENT,
     imageTech,
     etatTech,
@@ -93,7 +94,7 @@
   const indexEraJoueur = $derived(eraJoueur ? ERA_ORDER.indexOf(eraJoueur) : -1);
 
   const rows = rangeeMax() + 1;
-  const gridW = $derived(PAD_X * 2 + COL_W * 7);
+  const gridW = $derived(PAD_X * 2 + COL_W * NB_COLONNES);
   const gridH = $derived(BAND_TOP + rows * ROW_H + 24);
 
   function x(col: number): number {
@@ -139,12 +140,13 @@
     return `M ${f.x1} ${f.y1} C ${f.x1 + dx} ${f.y1}, ${f.x2 - dx} ${f.y2}, ${f.x2} ${f.y2}`;
   }
 
-  function bandeStyle(era: string): string {
-    const cols = COLONNES_PAR_ERA[era as keyof typeof COLONNES_PAR_ERA]!;
-    const x0 = PAD_X + cols[0]! * COL_W;
-    const w = cols.length * COL_W;
-    const affichage = ERAS_AFFICHAGE.find((e) => e.era === era)!;
-    return `left:${x0}px;top:0;width:${w}px;height:${gridH}px;background-image:url('${affichage.fond}')`;
+  function bandeStyle(bande: (typeof BANDES_AFFICHAGE)[number]): string {
+    const x0 = PAD_X + premiereColonneDe(bande) * COL_W;
+    const w = (bande.derniereCol - premiereColonneDe(bande) + 1) * COL_W;
+    // Fond : image ancrée à gauche (hauteur pleine, SANS déformation) puis
+    // FONDU sombre sur les bords quand la bande est plus large que l'image
+    // (choix d'Erik 05/10 — fonds 16:9).
+    return `left:${x0}px;top:0;width:${w}px;height:${gridH}px;background-color:#0d1218;background-image:url('${bande.fond}');background-repeat:no-repeat;background-size:auto 100%;background-position:left center`;
   }
 
   function select(id: string): void {
@@ -152,12 +154,56 @@
     client.setResearch(id);
   }
 
+  $effect(() => {
+    // synchro initiale (après montage + premier layout)
+    syncScroll();
+  });
+
   function onKeydown(ev: KeyboardEvent): void {
     if (ev.key === 'Escape') onClose();
   }
+
+  // Barre de défilement horizontale PERSONNALISÉE toujours visible (les
+  // scrollbars natives du navigateur sont masquées par défaut — retour
+  // d'Erik 05/10 : l'arbre est plus large que l'écran).
+  let scrollBox: HTMLElement | undefined = $state();
+  let scrollPos = $state(0); // 0..1 — position du bord gauche du viewport
+  let viewportRatio = $state(1); // largeur visible / largeur totale
+
+  function syncScroll(): void {
+    if (!scrollBox) return;
+    const max = scrollBox.scrollWidth - scrollBox.clientWidth;
+    viewportRatio = Math.min(1, scrollBox.clientWidth / scrollBox.scrollWidth);
+    scrollPos = max > 0 ? scrollBox.scrollLeft / max : 0;
+  }
+
+  const thumbLeft = $derived(scrollPos * (1 - viewportRatio) * 100);
+
+  function scrollPar(fraction: number): void {
+    if (!scrollBox) return;
+    const max = scrollBox.scrollWidth - scrollBox.clientWidth;
+    scrollBox.scrollLeft = fraction * max;
+  }
+
+  let dragActif = false;
+  function thumbPointerDown(ev: PointerEvent): void {
+    dragActif = true;
+    (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+  }
+  function thumbPointerMove(ev: PointerEvent): void {
+    if (!dragActif || !scrollBox) return;
+    const rect = scrollBox.getBoundingClientRect();
+    const piste = rect.width * (1 - viewportRatio);
+    if (piste <= 0) return;
+    const x = ev.clientX - rect.left - (viewportRatio * rect.width) / 2;
+    scrollPar(Math.max(0, Math.min(1, x / piste)));
+  }
+  function thumbPointerUp(): void {
+    dragActif = false;
+  }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onresize={syncScroll} />
 
 <div class="techtree" role="dialog" aria-label="Arbre technologique">
   <header>
@@ -179,10 +225,14 @@
     <button type="button" class="close" title="Fermer (Échap)" onclick={onClose}>✕</button>
   </header>
 
-  <div class="scroll">
+  <div
+    class="scroll"
+    bind:this={scrollBox}
+    onscroll={syncScroll}
+  >
     <div class="grille" style:width={`${gridW}px`} style:height={`${gridH}px`}>
-      {#each ERAS_AFFICHAGE as e (e.era)}
-        <div class="bande" class:active={e.era === eraJoueur} style={bandeStyle(e.era)}>
+      {#each BANDES_AFFICHAGE as e (e.era)}
+        <div class="bande" class:active={e.era === eraJoueur} style={bandeStyle(e)}>
           <div class="bande-titre">
             <h2>{e.titre}</h2>
             <p>{e.sousTitre}</p>
@@ -246,9 +296,33 @@
     </div>
   </div>
 
+  {#if viewportRatio < 1}
+    <div
+      class="barre-defilement"
+      role="scrollbar"
+      aria-orientation="horizontal"
+      aria-valuenow={Math.round(thumbLeft)}
+      onpointerdown={(ev) => {
+        // clic sur la piste : sauter à la position
+        const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+        scrollPar((ev.clientX - rect.left) / rect.width - viewportRatio / 2);
+      }}
+    >
+      <div
+        class="pouce"
+        class:drag={dragActif}
+        style:width={`${viewportRatio * 100}%`}
+        style:left={`${thumbLeft}%`}
+        onpointerdown={thumbPointerDown}
+        onpointermove={thumbPointerMove}
+        onpointerup={thumbPointerUp}
+      ></div>
+    </div>
+  {/if}
+
   <footer>
     <div class="timeline">
-      {#each ERAS_AFFICHAGE as e, i (e.era)}
+      {#each BANDES_AFFICHAGE as e, i (e.era)}
         <div
           class="palier"
           class:courant={i === indexEraJoueur}
@@ -339,6 +413,45 @@
     overflow: auto;
     position: relative;
   }
+  /* Barre horizontale VISIBLE (l'arbre est plus large que l'écran — retour
+   * d'Erik 05/10) : piste sombre, poussière or, même langage AAA. */
+  .scroll::-webkit-scrollbar {
+    width: 12px;
+    height: 14px;
+  }
+  .scroll::-webkit-scrollbar-track {
+    background: #10151a;
+    border-top: 1px solid #3a4148;
+  }
+  .scroll::-webkit-scrollbar-thumb {
+    background: #8a7430;
+    border-radius: 7px;
+    border: 3px solid #10151a;
+  }
+  .scroll::-webkit-scrollbar-thumb:hover {
+    background: #d4af37;
+  }
+  .scroll::-webkit-scrollbar-corner {
+    background: #10151a;
+  }
+  .barre-defilement {
+    position: relative;
+    height: 14px;
+    background: #10151a;
+    border-top: 1px solid #3a4148;
+    cursor: pointer;
+  }
+  .pouce {
+    position: absolute;
+    top: 3px;
+    height: 8px;
+    border-radius: 4px;
+    background: #8a7430;
+  }
+  .pouce:hover,
+  .pouce.drag {
+    background: #d4af37;
+  }
   .grille {
     position: relative;
   }
@@ -353,7 +466,11 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(#10151ae6 0%, #10151a66 30%, #10151a99 100%);
+    /* Fondu sombre latéral (choix d'Erik : extension des fonds 16:9) +
+     // assombrissement vertical pour la lisibilité des cartes. */
+    background:
+      linear-gradient(90deg, #10151a80 0%, #10151a00 8%, #10151a00 55%, #10151acc 92%, #10151af0 100%),
+      linear-gradient(#10151ae6 0%, #10151a66 30%, #10151a99 100%);
   }
   .bande-titre {
     position: absolute;
