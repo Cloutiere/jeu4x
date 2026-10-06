@@ -342,6 +342,15 @@ function ordreEnLigne(o: Order & { unitId: UnitId }, u: { q: number; r: number; 
       return `${qui} : TIENT (aucun déplacement)`;
     case 'Fortify':
       return `${qui} : FORTIFIE (+25 % défense, T-17)`;
+    // ORDRES-UNITES (06/10) : libellés des nouveaux ordres (labo).
+    case 'SellUnit':
+      return `${qui} : VEND son unité (+50 % du coût effectif)`;
+    case 'Heal':
+      return `${qui} : SOIGNE (immobile, jusqu'à PV complets)`;
+    case 'Sleep':
+      return `${qui} : VIGILANCE (réveil à la vue ennemie)`;
+    case 'Pass':
+      return `${qui} : PASSE son tour (inerte)`;
     default:
       return `${qui} : ordre ${o.type}`;
   }

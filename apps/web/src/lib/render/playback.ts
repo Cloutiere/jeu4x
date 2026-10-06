@@ -119,6 +119,13 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   GoldStolen: 480,
   GreatPersonKidnapped: 480,
   SpyBuildingDestroyed: 480,
+  // ORDRES-UNITES (06/10) : vente, soins et vigilance — pas d'animation
+  // dédiée (flash court, miroir des refus).
+  UnitSold: 320,
+  SellRefused: 600,
+  HealCompleted: 320,
+  HealRefused: 600,
+  SleepWoke: 320,
   TurnResolved: 140,
 };
 

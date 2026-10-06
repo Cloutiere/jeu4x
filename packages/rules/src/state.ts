@@ -30,6 +30,27 @@ export type Order =
   | { type: 'Hold'; unitId: UnitId }
   /** Fortification permanente (R-33) — non consommé, annulé par tout autre ordre. */
   | { type: 'Fortify'; unitId: UnitId }
+  /** ORDRES-UNITES (décisions d'Erik du 06/10) : vend l'unité — 50 % du coût
+   *  de production EFFECTIF (traits compris, base R-135/productionItemCostOf)
+   *  en or, unité détruite. Interdits (refus nommés SellRefused) : à bord
+   *  d'un transport, transport PORTEUR de cargaison, unité ayant combattu ce
+   *  tour (siège/combat en cours — consigné). */
+  | { type: 'SellUnit'; unitId: UnitId }
+  /** ORDRES-UNITES : soin — immobile, soigne au taux actuel (R-71 : aucun
+   *  soin après combat ; +1 PV/tour, +2 en ville amie) JUSQU'À PV COMPLETS,
+   *  puis l'ordre se termine (unité sans ordres, événement HealCompleted).
+   *  INTERDIT en territoire ennemi (anneaux culturels R-162 — refus
+   *  HealRefused, évalué à la POSE ; l'évolution ultérieure du territoire ne
+   *  rompt pas un soin en cours 🔶). Ordre PERSISTANT (unité.order) — annulé
+   *  par tout autre ordre touchant l'unité. */
+  | { type: 'Heal'; unitId: UnitId }
+  /** ORDRES-UNITES : vigilance — passe ses tours ; RÉVEIL dès qu'un ennemi
+   *  devient VISIBLE (fog, évalué en Phase D après vision) : ordre nul +
+   *  événement SleepWoke (toast client). Ordre PERSISTANT (unité.order). */
+  | { type: 'Sleep'; unitId: UnitId }
+  /** ORDRES-UNITES : passer — inerte ce tour (chemin gelé effacé, aucun
+   *  déplacement) ; « sans ordres » au tour suivant (ordre consommé). */
+  | { type: 'Pass'; unitId: UnitId }
   /** File de production d'une ville (R-62) — progression conservée. Items :
    *  unités ET bâtiments (R-66, Phase 6). MENU-VILLE-QUEUE · D2 : forme
    *  HISTORIQUE conservée pour la compat (bot) — remplace la TÊTE et vide

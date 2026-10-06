@@ -342,6 +342,25 @@ export function entreesChronique(events: GameEvent[], ctx: ContexteChronique, to
         break;
 
       // -------------------------------------------------------------
+      // ORDRES-UNITES (décisions d'Erik du 06/10)
+      // -------------------------------------------------------------
+      case 'UnitSold':
+        if (ev.owner === ctx.moi) pousser('empire', `${nomTypeUnite(ev.unitType)} (${ev.unitId}) vendue — +${ev.amount.toLocaleString('fr-FR')} or (50 % du coût de production)`, 'info', ev.seq, hexCliquable(ev.at, ctx));
+        break;
+      case 'SellRefused':
+        if (ev.owner === ctx.moi) pousser('empire', `Vente refusée (${ev.unitId}) — ${ev.reason === 'abord' ? 'unité à bord d\'un transport' : ev.reason === 'cargo' ? 'le transport porte une cargaison' : 'l\'unité a combattu ce tour'}`, 'bad', ev.seq);
+        break;
+      case 'HealCompleted':
+        if (ev.owner === ctx.moi) pousser('empire', `${nomUniteAvecOwner(ev.unitId, ctx)} a retrouvé tous ses PV — soin terminé`, 'good', ev.seq, hexCliquable(ev.at, ctx));
+        break;
+      case 'HealRefused':
+        if (ev.owner === ctx.moi) pousser('empire', `Soin refusé (${nomUniteAvecOwner(ev.unitId, ctx)}) — territoire ennemi (anneaux culturels)`, 'bad', ev.seq, hexCliquable(ev.at, ctx));
+        break;
+      case 'SleepWoke':
+        if (ev.owner === ctx.moi) pousser('menaces', `${nomUniteAvecOwner(ev.unitId, ctx)} réveillée — un ennemi est devenu visible`, 'info', ev.seq, hexCliquable(ev.at, ctx));
+        break;
+
+      // -------------------------------------------------------------
       // 🗿 Artefacts (mien : effet + lieu ; autre : rumeur SANS lieu, D4)
       // -------------------------------------------------------------
       case 'ArtifactActivated':

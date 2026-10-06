@@ -39,7 +39,7 @@
   import { createUiState, selectNothing, createVueVille } from '../lib/render/ui.js';
   import type { UiStore } from '../lib/render/ui.js';
   import { Playback } from '../lib/render/playback.js';
-  import { rightClickAction, annulationOrdre, unitsWithoutOrders, myEngineId } from '../lib/render/interaction.js';
+  import { rightClickAction, annulationOrdre, unitsWithoutOrders, myEngineId, ordersEditable } from '../lib/render/interaction.js';
   import type { ClickAction } from '../lib/render/interaction.js';
   import { unexecutedOrders } from '../lib/feedback.js';
   import { replayPair, cloneEtatReplay, appliquerEvenement } from '../lib/replay.js';
@@ -100,6 +100,48 @@
       errorToasts = errorToasts.filter((t) => t.id !== id);
     }, 5000);
   }
+
+  // ORDRES-UNITES · D6 (décisions d'Erik du 06/10) : gestionnaire central des
+  // raccourcis d'ordre — F Fortifier · H Soigner · S Vigilance · Z/Espace
+  // Passer · B Fonder, sur l'unité sélectionnée uniquement. Gardes : modale
+  // ouverte (régimes, victoire), relecture active, vue ville, saisie texte
+  // (chat futur), modificateurs, tour non éditable, unité absente/ennemie.
+  function raccourciOrdreUnite(e: KeyboardEvent): void {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const touche = e.key.toLowerCase();
+    if (!['f', 'h', 's', 'z', ' ', 'b'].includes(touche)) return;
+    const cible = e.target as HTMLElement | null;
+    if (cible && (cible.tagName === 'INPUT' || cible.tagName === 'TEXTAREA' || cible.tagName === 'SELECT' || cible.isContentEditable)) return;
+    if (showRegimesModale || showVictory || replayActif || get(vueVille) !== null) return;
+    const u = get(ui);
+    if (u.selectedCityId !== null || u.draft || !u.selectedUnitId) return;
+    const v = get(view);
+    if (!v.state || !ordersEditable(v)) return;
+    const unit = v.state.units[u.selectedUnitId];
+    if (!unit || unit.owner !== myEngineId(v)) return;
+    const envoyer = (type: 'Fortify' | 'Heal' | 'Sleep' | 'Pass' | 'FoundCity'): void => {
+      e.preventDefault();
+      client.submitOrder({ type, unitId: unit.id });
+    };
+    switch (touche) {
+      case 'f':
+        if (unit.stabilized && !unit.fortified) envoyer('Fortify'); // R-174 : réservé au stabilisé
+        break;
+      case 'h':
+        envoyer('Heal'); // le moteur refuse nommément (territoire ennemi) ; le bouton est le miroir UI
+        break;
+      case 's':
+        envoyer('Sleep');
+        break;
+      case 'z':
+      case ' ':
+        envoyer('Pass');
+        break;
+      case 'b':
+        if (unitType(unit.type).canFoundCity) envoyer('FoundCity'); // validation inchangée (T-09…)
+        break;
+    }
+  }
   // D7 : une partie = une Chronique persistante (charge à l'entrée, purge le
   // store global — la SPA survit au changement de partie).
   oublierCleChronique();
@@ -128,6 +170,16 @@
         for (const ev of message.events) {
           if (ev.type === 'ProductionRefused' && ev.owner === myEngineId(get(view))) {
             pushErrorToast(`Ordre non exécuté : ${ev.reason}`);
+          }
+          // ORDRES-UNITES (06/10) : retours directs — vente créditée,
+          // réveil de vigilance, refus de soin en territoire ennemi.
+          const moi = myEngineId(get(view));
+          if (ev.type === 'UnitSold' && ev.owner === moi) {
+            pushErrorToast(`${ev.unitId} vendue — +${ev.amount} or`, 'good');
+          } else if (ev.type === 'SleepWoke' && ev.owner === moi) {
+            pushErrorToast(`${ev.unitId} réveillée — ennemi en vue`, 'bad');
+          } else if (ev.type === 'HealRefused' && ev.owner === moi) {
+            pushErrorToast(`Soin refusé (${ev.unitId}) — territoire ennemi`, 'bad');
           }
         }
         // HANG-LOCAL UX (Erik 01/10 · option 2) : apparition d'un blocage de
@@ -1035,6 +1087,13 @@
     // vue ville avant elle). Les autres overlays gardent leurs propres
     // fermetures (relecture, dialogues).
     if (e.key === 'Escape' && get(ui).selectedCityId !== null) selectNothing(ui);
+    // ORDRES-UNITES · D6 (décisions d'Erik du 06/10) : raccourcis d'ordre
+    // sur l'unité sélectionnée — F Fortifier · H Soigner · S Vigilance ·
+    // Z/Espace Passer · B Fonder. UN SEUL gestionnaire central, avec
+    // gardes : jamais pendant une saisie texte (chat futur), sous une
+    // modale ouverte (régimes, victoire, relecture), en vue ville, hors
+    // tour éditable, ou sans unité à soi sélectionnée.
+    raccourciOrdreUnite(e);
   }}
 />
 

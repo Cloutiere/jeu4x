@@ -286,6 +286,15 @@ export function orderShapeError(order: unknown): string | null {
     case 'Hold':
     case 'Fortify':
       return typeof o.unitId === 'string' ? null : 'unitId manquant';
+    // ORDRES-UNITES (décisions d'Erik du 06/10) : la forme est validée EN
+    // PREMIER (leçon 7f) ; la validité métier (possession, à bord, cargaison,
+    // combat en cours, territoire ennemi R-162, fog) est re-vérifiée par le
+    // moteur à la résolution.
+    case 'SellUnit':
+    case 'Heal':
+    case 'Sleep':
+    case 'Pass':
+      return typeof o.unitId === 'string' ? null : 'unitId manquant';
     case 'FormArmy':
       return Array.isArray(o.members) && o.members.length === 3 && new Set(o.members).size === 3 && o.members.every((m) => typeof m === 'string') && isHex(o.rally)
         ? null
@@ -380,6 +389,13 @@ export function orderOwnerErreur(
     case 'Hold':
     case 'Fortify':
     case 'MultiStep':
+    // ORDRES-UNITES (décisions d'Erik du 06/10) : même possession d'unité —
+    // la validité métier (à bord, cargaison, combat en cours, territoire
+    // R-162, fog) est re-vérifiée par le moteur à la résolution.
+    case 'SellUnit':
+    case 'Heal':
+    case 'Sleep':
+    case 'Pass':
       return ownsUnit(order.unitId) ? null : `unité ${order.unitId} inconnue ou non possédée`;
     case 'FormArmy':
       return order.members.every(ownsUnit) ? null : 'une des unités est inconnue ou non possédée';

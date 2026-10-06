@@ -99,6 +99,10 @@ Une unité qui survit à un combat où elle inflige le coup fatal devient vété
 | `FormArmy` | membres `[id, id, id]`, case RDV | Voir R-31. |
 | `Hold` | — | Ne rien faire (l'unité reste « stationnaire »). |
 | `Fortify` | — | **R-33** (ajouté le 30/08) : fortification permanente — voir ci-dessous. |
+| `SellUnit` | — | **ORDRES-UNITES** (ajouté le 06/10, décisions d'Erik) : vend l'unité — **+50 % du coût de production effectif** (traits compris, base R-135/`productionItemCostOf`) en or, unité détruite, événement `UnitSold` + Chroniques. **Interdits** (refus nommé `SellRefused`, ordre ignoré) : à **bord** d'un transport ; transport **porteur de cargaison** ; unité ayant **combattu ce tour** (siège/combat en cours — interdiction supplémentaire consignée). |
+| `Heal` | — | **ORDRES-UNITES** (06/10) : soin — l'unité est **immobile** et soigne au taux actuel (**R-71 inchangée : aucun soin après combat** ; +1 PV/tour, +2 en ville amie) **jusqu'à PV complets**, puis l'ordre **se termine** (unité sans ordres, événement `HealCompleted`). **Interdit en territoire ennemi** = anneaux culturels (R-162, `estTerritoireEnnemi`) — évalué **à la pose** (refus `HealRefused`) ; l'évolution ultérieure du territoire ne rompt pas un soin en cours 🔶. Ordre **persistant** (`unit.order`) — annulé par tout autre ordre touchant l'unité. |
+| `Sleep` | — | **ORDRES-UNITES** (06/10) : vigilance — l'unité passe ses tours ; **réveil** dès qu'un **ennemi devient visible** (fog, évalué en Phase D après vision — une case explorée mais non visible ne réveille pas) : ordre nul + événement `SleepWoke` (toast). Ordre **persistant** (`unit.order`) — tout autre ordre (y compris `Hold`) lève la vigilance. |
+| `Pass` | — | **ORDRES-UNITES** (06/10) : passer — **inerte ce tour** (chemin gelé effacé, aucun déplacement) ; « sans ordres » au tour suivant (ordre consommé). |
 | `SetProduction` | ville, item | File de production à un élément, remplaçable (progression conservée). Items : unités **et bâtiments** (R-66). |
 | `SetWorkedTile` | ville, case | **R-60** (rév. 14/09 WORKED-TILE-EXACT) : case libre = assigne un citoyen ; case DÉJÀ TRAVAILLÉE par la même ville = DÉSÉLECTION EXACTE de cette case (l'ancien « échange » est abrogé) ; `null` = désassignation déterministe du dernier assigné. |
 
@@ -106,7 +110,7 @@ Une unité qui survit à un combat où elle inflige le coup fatal devient vété
 - bonus défensif `T-17` tant que l'unité est fortifiée (multiplie `S_def`, §7.4) ;
 - l'état persiste d'un tour à l'autre — l'ordre n'est **pas consommé** à la résolution ;
 - **tout autre ordre** (`Move`, `Attack`, `Hold`, `FoundCity`, `FormArmy`) **annule la fortification** ; la réactiver est manuel ;
-- une unité fortifiée ne bouge pas et bénéficie des soins R-71 normaux.
+- **ORDRES-UNITES (rév. 06/10, Erik) : la fortification NE SOIGNE PLUS** — le soin passif est abrogé (R-71 révisée, §9) ; le soin exige l'ordre `Heal`. Le bonus défensif `T-17` est inchangé.
 UI : bouton « Fortifier » sur le panneau d'unité + marqueur écu sur le sprite. *(implémenté en Phase 5 L0 — moteur + UI + bot ; `schemaVersion` 2→3 : champ additif `fortified`, migration d'initialisation à false)*
 
 Les ordres sont **modifiables/annulables jusqu'au verrouillage** (« Fin de tour »). Après verrouillage : irrévocable. Les ordres vivent côté serveur (persistés à chaque modification).
@@ -242,6 +246,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 - n'a **ni ville fondable, ni recherche, ni verrou de tour** — il n'apparaît pas dans `state.players` (aucun trésor, aucun forfait T-06 : la défaite par forfait des joueurs réels n'est **pas affectée**) ;
 - **en guerre permanente avec tout le monde** (R-58-a sans objet) ;
 - ses unités respectent **toutes** les règles de combat/collision/repli (R-51..R-59) et sont **filtrées par le brouillard comme tout ennemi** (R-70) ;
+- **ORDRES-UNITES (rév. 06/10)** : les barbares ne disposent d'aucun des nouveaux ordres (`SellUnit`/`Heal`/`Sleep`/`Pass` hors scope) — la révocation du soin passif (R-71 révisée) leur applique donc **zéro soin** ;
 - **anti-triche** : ses ordres ne sont **jamais envoyés aux clients** — seuls les événements résultants, filtrés par fog, quittent le moteur (les ordres ne sont pas persistés dans l'état) ;
 - sa force **monte en gamme** (escalation) : **guerrier** d'abord, **archer** après le tour `T-23` 🔶 — règle d'engendrement commune à tous les spawns barbares (villages R-96 et embuscades R-98) ;
 - les barbares soignent selon R-71, peuvent être vétérans (R-32), **ne peuvent pas se fortifier** (aucun ordre `Fortify` n'est jamais généré pour eux) ;
@@ -877,7 +882,7 @@ case ne porterait que des amies).
 ## 9. Phase D — Vision, soins, fin de tour
 
 - **R-70 · Vision** : rayon `T-07` (unité) / `T-08` (ville), **distance uniquement** — aucun blocage par terrain. Recalcul par joueur à chaque résolution ; 3 états (inexploré / exploré-masqué / visible). `getFilteredState(state, player)` ne diffuse jamais d'entité hors du champ visible.
-- **R-71 · Soins** 🔶 : +1 PV/tour si l'unité n'a ni bougé ni combattu ; +2 dans une ville amie. Plafonné au PV max.
+- **R-71 · Soins** 🔶 **RÉVISÉE le 06/10 (ORDRES-UNITES, Erik)** : **plus AUCUN soin passif** — une unité fortifiée ou oisive ne récupère plus de PV ; le soin exige l'ordre **`Heal`** (§4), qui applique le taux historique : **+1 PV/tour si l'unité n'a ni bougé ni combattu ; +2 dans une ville amie**, plafonné au PV max, **jusqu'à PV complets** puis l'ordre se termine. R-71 (aucun soin après combat) est inchangée et s'applique à `Heal`. Les barbares ne disposent pas de `Heal` (hors scope) : ils ne soignent plus du tout.
 - **R-72 · PM** : régénérés au maximum à chaque tour.
 - **R-73 · Journal d'événements** : chaque mutation émet un événement typé (`Move`, `CombatExchange`, `UnitDestroyed`, `Captured`, `CityFounded`, `CityCaptured`, `ArmyFormed`, `Retreat`, …) séquencé — base de l'animation client, des notifications et du replay.
 

@@ -116,14 +116,14 @@ describe('R-33 · Fortification', () => {
     expect(r2.events.some((e) => e.type === 'MeleeResolved')).toBe(true);
   });
 
-  it('R-33 : soins R-71 normaux — le fortifié soigne +1/tour (hors combat)', () => {
+  it('ORDRES-UNITES (rév. 06/10) : fortifier NE soigne PLUS — le soin exige Heal', () => {
     const state = guerriersAffrontes();
     state.units.u2!.q = 6;
     state.units.u2!.r = 6;
     state.units.u2!.hp = 2;
     const r = resolveTurn(state, { p1: [], p2: [{ type: 'Fortify', unitId: 'u2' }] }, 42);
-    expect(r.newState.units.u2!.hp).toBe(3);
-    expect(r.newState.units.u2!.fortified).toBe(true);
+    expect(r.newState.units.u2!.hp).toBe(2); // avant : 3 (soin passif R-71 révoqué)
+    expect(r.newState.units.u2!.fortified).toBe(true); // bonus défensif inchangé
   });
 
   it('R-33 : un ordre Fortify est refusé pour une unité inconnue ou ennemie (ignoré, déterministe)', () => {

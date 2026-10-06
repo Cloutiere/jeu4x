@@ -5,7 +5,7 @@
    * Le client ne calcule aucune règle : les boutons reflètent ce que l'état
    * filtré autorise ; la validation finale reste serveur.
    */
-  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, SPY_STEAL_GOLD_PCT, combatOdds, effectiveStrength, hexDistanceW, isWonderObsolete, landCombatBonus, neighborsW, unitType, wonderAttackBonusEmpireOf, allKnownTechs, explorerGoldInjectionForEra, eraOfPlayer, civIdOf } from '@game/rules';
+  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, SPY_STEAL_GOLD_PCT, combatOdds, effectiveStrength, estTerritoireEnnemi, hexDistanceW, isWonderObsolete, landCombatBonus, neighborsW, unitType, wonderAttackBonusEmpireOf, allKnownTechs, explorerGoldInjectionForEra, eraOfPlayer, civIdOf, productionItemCostOf } from '@game/rules';
   import type { Order, SpyActionKind } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
@@ -69,6 +69,48 @@
     client.submitOrder({ type: 'Move', unitId: unit.id, path: moveOrder.path });
   }
 
+  // ORDRES-UNITES (décisions d'Erik du 06/10) : boutons Vendre / Soigner /
+  // Vigilance / Passer + hints clavier (F/H/S/Z-Espace/B). Le client ne
+  // calcule aucune règle : les désactivations reflètent l'état filtré, la
+  // validation finale reste serveur.
+  const ordrePersistant = $derived(
+    unit && (unit.order?.type === 'Heal' || unit.order?.type === 'Sleep') ? unit.order.type : null,
+  );
+  const pvMaxSel = $derived(stats?.hpMax ?? 3);
+  const enTerritoireEnnemi = $derived(
+    !!unit && !!view.state && estTerritoireEnnemi(view.state, unit, unit.owner),
+  );
+  const peutSoigner = $derived(!!unit && mine && editable && unit.hp < pvMaxSel && !enTerritoireEnnemi && !unit.aboard);
+  const raisonSoin = $derived(
+    unit?.aboard ? 'À bord : pas de soin' :
+    enTerritoireEnnemi ? 'Territoire ennemi (R-162) — soin refusé' :
+    unit && unit.hp >= pvMaxSel ? 'PV complets' : 'Immobile, soigne jusqu\'à PV complets (H)',
+  );
+  const aCargaison = $derived(!!unit && view.state ? Object.values(view.state.units).some((u) => u.aboard === unit.id) : false);
+  const prixVente = $derived(
+    unit && mine && view.state
+      ? Math.max(1, Math.round((productionItemCostOf(view.state, unit.owner, { kind: 'unit', id: unit.type }) ?? 0) * 0.5))
+      : 0,
+  );
+  const peutVendre = $derived(!!unit && mine && editable && !unit.aboard && !aCargaison);
+
+  function vendre(): void {
+    if (!unit) return;
+    client.submitOrder({ type: 'SellUnit', unitId: unit.id });
+  }
+  function soigner(): void {
+    if (!unit) return;
+    client.submitOrder({ type: 'Heal', unitId: unit.id });
+  }
+  function vigilance(): void {
+    if (!unit) return;
+    client.submitOrder({ type: 'Sleep', unitId: unit.id });
+  }
+  function passer(): void {
+    if (!unit) return;
+    client.submitOrder({ type: 'Pass', unitId: unit.id });
+  }
+
   /** Cibles d'attaque : UNITÉS ennemies VISIBLES adjacentes (état filtré).
    * Une ville vide adjacente ne se « combat » pas : on y entre (R-57/R-65). */
   const attackTargets = $derived.by(() => {
@@ -116,6 +158,14 @@
         return 'Tenir la position';
       case 'Fortify':
         return 'Fortifier';
+      case 'SellUnit':
+        return `Vente (${prixVente} or)`;
+      case 'Heal':
+        return 'Soin — jusqu\'à PV complets';
+      case 'Sleep':
+        return 'Vigilance — réveil à la vue ennemie';
+      case 'Pass':
+        return 'Passe son tour';
       case 'FormArmy':
         return 'Formation d\'armée';
       case 'SetProduction':
@@ -327,6 +377,8 @@
       {/if}
       {#if unit.aboard}<span class="naval" title="R-117 : l'unité est à bord — donnez un Move vers une case terrestre libre pour débarquer">🚢 À bord de {unit.aboard}</span>{/if}
       {#if unit.fortified}<span class="fortified" title="Bonus défensif de fortification (R-33)">🛡 Fortifié</span>{/if}
+      {#if ordrePersistant === 'Sleep'}<span class="sleep" title="ORDRES-UNITES : vigilance — l'unité passe ses tours et se réveille dès qu'un ennemi devient visible">😴 Vigilance</span>{/if}
+      {#if ordrePersistant === 'Heal'}<span class="healing" title="ORDRES-UNITES : soin — immobile jusqu'à PV complets, puis sans ordres">✚ En soin</span>{/if}
       {#if stats?.spy && garrisonCity}<span class="fortified" title="R-144 : contre-espionnage — un espion en garnison déclenche un duel contre tout espion ennemi">🕵 Garnison ({garrisonCity.id}) — contre-espionnage</span>{/if}
       {#if stats?.spy && infiltratedCity}<span class="enemy" title="R-143 : infiltration — le menu d'actions est ouvert ci-dessous">🕵 Infiltré dans {infiltratedCity.id}</span>{/if}
       {#if !mine}<span class="enemy">Ennemi — {unit.owner}</span>{/if}
@@ -360,6 +412,10 @@
         <button type="button" disabled={!editable} onclick={() => unit && client.submitOrder({ type: 'Hold', unitId: unit.id })}>
           Tenir la position
         </button>
+        <!-- ORDRES-UNITES (06/10) : hints clavier D6 — F Fortifier · H Soigner ·
+             S Vigilance · Z/Espace Passer · B Fonder. Les raccourcis sont
+             ignorés pendant une saisie texte et sous modale (gestionnaire
+             central Game.svelte). -->
         {#if unit.fortified}
           <!-- ENGAGEMENT R-175 : la fortification est durable — elle persiste
                tant que l'unité demeure sur sa case (même en mêlée). Elle ne
@@ -367,12 +423,24 @@
           <span class="fortified" title="ENGAGEMENT R-175 : fortification durable — conservée tant que l'unité demeure sur cette case (même en mêlée), perdue si elle bouge.">🛡 Fortification durable</span>
         {:else if unit.stabilized}
           <!-- ENGAGEMENT R-174 : seule une unité STABILISÉE (seule sur sa case en fin du tour précédent) peut se fortifier. -->
-          <button type="button" disabled={!editable} title="ENGAGEMENT R-174/R-175 : fortification durable (+25 %) — conservée tant que l'unité demeure sur sa case, même en mêlée ; perdue si elle bouge." onclick={() => unit && client.submitOrder({ type: 'Fortify', unitId: unit.id })}>
-            Fortifier
+          <button type="button" disabled={!editable} title="ENGAGEMENT R-174/R-175 : fortification durable (+25 %) — conservée tant que l'unité demeure sur sa case, même en mêlée ; perdue si elle bouge. NE SOIGNE PLUS (le soin exige H)." onclick={() => unit && client.submitOrder({ type: 'Fortify', unitId: unit.id })}>
+            Fortifier (F)
           </button>
         {:else}
           <span class="fortified" title="ENGAGEMENT R-174 : une case instable (plusieurs unités, ou arrivée ce tour) ne permet pas de se fortifier — laissez l'unité seule sur sa case un tour.">Instable — fortification indisponible</span>
         {/if}
+        <button type="button" disabled={!peutSoigner} title={raisonSoin} onclick={soigner}>
+          Soigner (H)
+        </button>
+        <button type="button" disabled={!editable} title="Vigilance : l'unité passe ses tours et se réveille dès qu'un ennemi devient visible (S)" onclick={vigilance}>
+          Vigilance (S)
+        </button>
+        <button type="button" disabled={!editable} title="Passer : l'unité est inerte ce tour, sans ordres au tour suivant (Z ou Espace)" onclick={passer}>
+          Passer (Z)
+        </button>
+        <button type="button" class="danger" disabled={!peutVendre} title={unit?.aboard ? 'Vente refusée : l\'unité est à bord d\'un transport' : aCargaison ? 'Vente refusée : ce transport porte une cargaison' : `Vend l'unité — +${prixVente} or (50 % du coût de production, traits compris)`} onclick={vendre}>
+          Vendre (+{prixVente} or)
+        </button>
         {#if stats?.canFoundCity}
           {#if resourceOnTile}
             <p class="found-warning" title="R-64 (rév., 7i D5) : la ressource sous la ville serait effacée du jeu">
@@ -385,7 +453,7 @@
             title={cityTooClose ? `Une ville connue est à distance < ${MIN_CITY_DISTANCE} (T-09) — déplacez le colon.` : resourceOnTile ? 'La ressource de cette case sera détruite (R-64 rév.)' : 'Fonde une ville (pop initiale selon l\'ère — R-64 rév.)'}
             onclick={() => unit && client.submitOrder({ type: 'FoundCity', unitId: unit.id })}
           >
-            Fonder une ville
+            Fonder une ville (B)
           </button>
           {#if moveOrder && !isFoundAtArrival}
             <!-- DEPLACEMENT-PLANIFIE · R-158 (D5) : déplacement(s) PUIS fondation
@@ -597,7 +665,7 @@
           <p class="hint">Aucune rive libre adjacente — avancez le navire.</p>
         {/if}
       {/if}
-      <button type="button" class="link" onclick={() => unit && onCenterUnit(unit.id)}>Centrer la caméra (F)</button>
+      <button type="button" class="link" onclick={() => unit && onCenterUnit(unit.id)}>Centrer la caméra (C)</button>
     {/if}
   {/if}
 </section>
@@ -645,6 +713,8 @@
   .enemy { color: #ef9a9a; }
   .frozen { color: #ffcc80; font-size: 0.85rem; }
   .fortified { color: #90caf9; font-weight: 600; font-size: 0.85rem; }
+  .sleep { color: #b39ddb; font-weight: 600; font-size: 0.85rem; }
+  .healing { color: #a5d6a7; font-weight: 600; font-size: 0.85rem; }
   .order {
     margin: 0.3rem 0;
     color: var(--or-clair, #e8c96a);

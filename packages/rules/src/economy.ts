@@ -13,11 +13,12 @@
  * Le commerce N'EST PAS l'or : il est converti en totalité en or ou en
  * science par ville (R-90 révisée, conversionGains) dans turn.ts/processEconomy.
  */
-import { hexesWithinRadiusW, compareHex, tileKeyOf, parseTileKey, SANS_WRAP } from './hex.js';
+import { hexesWithinRadiusW, compareHex, hexDistanceW, tileKeyOf, parseTileKey, SANS_WRAP } from './hex.js';
 import type { Hex } from './hex.js';
 import { TERRAINS, BUILDINGS, RESOURCES, isWaterTerrain } from './data.js';
 import { WONDERS } from './techs.js';
-import { isWonderObsolete } from './culture.js';
+import { isWonderObsolete, frontierRadius, rayonCulturelDe } from './culture.js';
+import type { GameState, PlayerId } from './state.js';
 import { civTerrainBonusesOf, civToutesRessources } from './civilizations.js';
 import type { TechEra, TerrainId, TileResource, Yields } from './types.js';
 import { resourceBonus } from './resources.js';
@@ -53,6 +54,28 @@ export function workRadiusOf(buildings: string[]): number {
     if (b) radius += b.workRadiusBonus;
   }
   return radius;
+}
+
+/**
+ * ORDRES-UNITES (décisions d'Erik du 06/10) · Le hex est-il en TERRITOIRE
+ * ENNEMI de `playerId` ? Le territoire d'une ville = zone cultivée + anneaux
+ * culturels (R-162) : rayon `frontierRadius(workRadiusOf(buildings),
+ * rayonCulturelDe(cultureCumulee))`. Consommé par le refus du soin (Heal —
+ * évalué à la pose) et par l'UI (bouton Soigner désactivé). Pur et
+ * déterministe. NOTE 🔶 : l'évaluation est faite à la POSE seulement — un
+ * soin déjà accepté se poursuit même si le territoire évolue ensuite.
+ */
+export function estTerritoireEnnemi(
+  state: Pick<GameState, 'cities' | 'mapWidth'>,
+  hex: Hex,
+  playerId: PlayerId,
+): boolean {
+  for (const city of Object.values(state.cities)) {
+    if (city.owner === playerId) continue;
+    const rayon = frontierRadius(workRadiusOf(city.buildings), rayonCulturelDe(city.cultureCumulee));
+    if (hexDistanceW(city, hex, state.mapWidth) <= rayon) return true;
+  }
+  return false;
 }
 
 /**

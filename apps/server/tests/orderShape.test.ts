@@ -200,3 +200,32 @@ describe('orderShapeError · opérations de file (MENU-VILLE-QUEUE)', () => {
     expect(out2.filter((o) => o.type === 'SetProduction')).toHaveLength(1);
   });
 });
+
+describe('orderShapeError · ORDRES-UNITES (décisions d\'Erik du 06/10)', () => {
+  it('accepte les quatre nouvelles formes (SellUnit / Heal / Sleep / Pass) avec unitId', () => {
+    expect(orderShapeError({ type: 'SellUnit', unitId: 'u1' })).toBeNull();
+    expect(orderShapeError({ type: 'Heal', unitId: 'u1' })).toBeNull();
+    expect(orderShapeError({ type: 'Sleep', unitId: 'u1' })).toBeNull();
+    expect(orderShapeError({ type: 'Pass', unitId: 'u1' })).toBeNull();
+  });
+
+  it('refuse les formes incomplètes — leçon 7f : forme validée EN PREMIER', () => {
+    for (const type of ['SellUnit', 'Heal', 'Sleep', 'Pass'] as const) {
+      expect(orderShapeError({ type })).not.toBeNull();
+      expect(orderShapeError({ type, unitId: 42 })).not.toBeNull();
+    }
+    expect(orderShapeError({ type: 'OrdreInconnu', unitId: 'u1' })).not.toBeNull();
+  });
+});
+
+describe('orderOwnerErreur · ORDRES-UNITES (décisions d\'Erik du 06/10)', () => {
+  const units = { u1: { owner: 'p1' }, uX: { owner: 'p2' } };
+  const cities = { c1: { owner: 'p1' } };
+  it('exige la possession de l\'unité pour les quatre nouveaux ordres', () => {
+    for (const type of ['SellUnit', 'Heal', 'Sleep', 'Pass'] as const) {
+      expect(orderOwnerErreur(units, cities, 'p1', { type, unitId: 'u1' } as Order)).toBeNull();
+      expect(orderOwnerErreur(units, cities, 'p1', { type, unitId: 'uX' } as Order)).not.toBeNull();
+      expect(orderOwnerErreur(units, cities, 'p1', { type, unitId: 'zz' } as Order)).not.toBeNull();
+    }
+  });
+});

@@ -544,7 +544,7 @@ describe('Phase C · R-64/R-65 · fondation et capture de ville', () => {
 });
 
 describe('Phase D · R-70/R-71/R-72 · vision, soins, PM', () => {
-  it('R-71 : +1 PV si l’unité n’a ni bougé ni combattu, +2 en ville amie', () => {
+  it('ORDRES-UNITES (rév. 06/10) : plus AUCUN soin passif — +1 avec l\'ordre Heal, +2 en ville amie', () => {
     const state = makeState({
       width: 12,
       height: 12,
@@ -556,9 +556,14 @@ describe('Phase D · R-70/R-71/R-72 · vision, soins, PM', () => {
         { id: 'u3', type: 'colon', owner: 'p1', q: 7, r: 7, hp: 1 },
       ],
     });
-    const { newState } = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u3', path: [{ q: 7, r: 8 }] }] }, 1);
-    expect(unit(newState, 'u1').hp).toBe(2); // +1
-    expect(unit(newState, 'u2').hp).toBe(3); // +2 en ville amie
+    // u1 et u2 en soin (Heal) ; u3 bouge (et n'a pas d'ordre Heal).
+    const { newState } = resolveTurn(
+      state,
+      { p1: [{ type: 'Heal', unitId: 'u1' }, { type: 'Heal', unitId: 'u2' }, { type: 'Move', unitId: 'u3', path: [{ q: 7, r: 8 }] }] },
+      1,
+    );
+    expect(unit(newState, 'u1').hp).toBe(2); // +1 (Heal)
+    expect(unit(newState, 'u2').hp).toBe(3); // +2 en ville amie (taux R-71 inchangé)
     expect(unit(newState, 'u3').hp).toBe(1); // a bougé : rien
   });
 

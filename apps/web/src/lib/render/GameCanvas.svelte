@@ -412,6 +412,10 @@
     (t) => t.destroy(true),
   );
 
+  // ORDRES-UNITES (06/10) : style CONSTANT des badges d'état persistant
+  // (vigilance 😴 / soin ✚) — même recette que le pool des rendements.
+  const TEXT_STYLE_BADGE_ETAT = { fontFamily: 'system-ui, sans-serif', fontSize: 13, fill: 0xffffff, stroke: { color: 0x1b1b22, width: 3 } };
+
   // ---------------------------------------------------------------------
   // MENU-VILLE — vue ville (retour d'Erik du 13/09 v2 : ZOOM À PLAT)
   // Le conteneur monde est zoomé sur la ville, à l'échelle qui fait tenir
@@ -925,6 +929,12 @@
       // Marqueur écu de fortification (R-33).
       const shield = c.getChildByLabel('fortify');
       if (shield) shield.visible = unit.fortified === true;
+      // ORDRES-UNITES (06/10) : marqueurs d'état persistant — vigilance 😴
+      // (réveil à la vue ennemie) et soin ✚ (jusqu'à PV complets).
+      const sleepBadge = c.getChildByLabel('sleep');
+      if (sleepBadge) sleepBadge.visible = unit.order?.type === 'Sleep';
+      const healBadge = c.getChildByLabel('heal');
+      if (healBadge) healBadge.visible = unit.order?.type === 'Heal';
       // 7g · R-117 : indicateur de charge du transport.
       const cargoDot = c.getChildByLabel('cargo');
       if (cargoDot) cargoDot.visible = unit.cargo != null;
@@ -1178,11 +1188,23 @@
     if (accent) c.addChild(accent);
     c.addChild(bg, ...fills);
     // Écu de fortification (R-33) : petit bouclier bleu au-dessus du PV, caché par défaut.
-    const shield = new Graphics();
-    shield.label = 'fortify';
-    shield.moveTo(0, sommet - 28).lineTo(12, sommet - 22).lineTo(12, sommet - 12).quadraticCurveTo(12, sommet - 2, 0, sommet + 2).quadraticCurveTo(-12, sommet - 2, -12, sommet - 12).lineTo(-12, sommet - 22).closePath().fill({ color: 0x90caf9 }).stroke({ width: 2, color: 0x1b3a5c });
-    shield.visible = false;
-    c.addChild(shield);
+      const shield = new Graphics();
+      shield.label = 'fortify';
+      shield.moveTo(0, sommet - 28).lineTo(12, sommet - 22).lineTo(12, sommet - 12).quadraticCurveTo(12, sommet - 2, 0, sommet + 2).quadraticCurveTo(-12, sommet - 2, -12, sommet - 12).lineTo(-12, sommet - 22).closePath().fill({ color: 0x90caf9 }).stroke({ width: 2, color: 0x1b3a5c });
+      shield.visible = false;
+      c.addChild(shield);
+      // ORDRES-UNITES (06/10) : badges d'état persistant — vigilance (😴) et
+      // soin (✚), même mécanisme que l'écu (miroir de la mise à jour par frame).
+      const sleepBadge = new Text({ text: '😴', style: TEXT_STYLE_BADGE_ETAT });
+      sleepBadge.label = 'sleep';
+      sleepBadge.position.set(sommet + 16, -sommet - 4);
+      sleepBadge.visible = false;
+      c.addChild(sleepBadge);
+      const healBadge = new Text({ text: '✚', style: TEXT_STYLE_BADGE_ETAT });
+      healBadge.label = 'heal';
+      healBadge.position.set(-sommet - 22, -sommet - 4);
+      healBadge.visible = false;
+      c.addChild(healBadge);
     // 7g · R-117 : indicateur de CHARGE (petit point ambré) — visible quand le
     // transport porte une unité embarquée.
     const cargoDot = new Graphics();
@@ -3476,7 +3498,9 @@
       onAction({ kind: 'deselect' });
     } else if (e.key === 'Enter' && scene.ui.draft && scene.ui.draft.path.length > 0) {
       onConfirmDraft?.();
-    } else if (e.key === 'f' || e.key === 'F') {
+    } else if (e.key === 'c' || e.key === 'C') {
+      // ORDRES-UNITES (06/10) : F est dorénavant Fortifier (gestionnaire
+      // central Game.svelte) — le centrage caméra migre sur C.
       const tile = selectedTileOf();
       if (tile) centerOnHex(tile);
     }

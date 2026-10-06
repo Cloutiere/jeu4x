@@ -394,6 +394,21 @@ export type GameEvent =
   /** 7m · R-143 : bâtiment détruit par un espion (`destroyBuilding` — cible
    *  non-Palais choisie 🔶 ; les merveilles sont épargnées). */
   | { seq: number; type: 'SpyBuildingDestroyed'; spyId: UnitId; thief: PlayerId; victim: PlayerId; cityId: CityId; building: string; at: Hex }
+  // --- ORDRES-UNITES (décisions d'Erik du 06/10) ---
+  /** Vente d'une unité (SellUnit) : 50 % du coût de production effectif
+   *  (traits compris, base R-135) crédités à la trésorerie, unité détruite. */
+  | { seq: number; type: 'UnitSold'; unitId: UnitId; owner: PlayerId; unitType: string; at: Hex; amount: number }
+  /** Vente REFUSÉE — `reason` : 'abord' (à bord d'un transport), 'cargo'
+   *  (transport porteur de cargaison), 'combat' (a combattu ce tour). */
+  | { seq: number; type: 'SellRefused'; unitId: UnitId; owner: PlayerId; reason: 'abord' | 'cargo' | 'combat' }
+  /** Soin achevé (Heal) : PV complets atteints, l'ordre se termine (unité
+   *  sans ordres). */
+  | { seq: number; type: 'HealCompleted'; unitId: UnitId; owner: PlayerId; at: Hex }
+  /** Soin REFUSÉ à la pose — territoire ennemi (anneaux culturels R-162). */
+  | { seq: number; type: 'HealRefused'; unitId: UnitId; owner: PlayerId; at: Hex; reason: 'territoireEnnemi' }
+  /** Réveil de vigilance (Sleep) : un ennemi est devenu VISIBLE — l'unité
+   *  redevient « sans ordres » (toast client). */
+  | { seq: number; type: 'SleepWoke'; unitId: UnitId; owner: PlayerId; at: Hex }
   /** Fin de résolution : newState est l'état du tour indiqué. */
   | { seq: number; type: 'TurnResolved'; turn: number };
 
@@ -643,6 +658,22 @@ export function eventRefs(event: GameEvent): EventRefs {
       refs.unitIds.push(event.spyId);
       refs.cityIds.push(event.cityId);
       refs.players.push(event.thief, event.victim);
+      hex(event.at);
+      break;
+    case 'UnitSold':
+      refs.unitIds.push(event.unitId);
+      refs.players.push(event.owner);
+      hex(event.at);
+      break;
+    case 'SellRefused':
+      refs.unitIds.push(event.unitId);
+      refs.players.push(event.owner);
+      break;
+    case 'HealCompleted':
+    case 'HealRefused':
+    case 'SleepWoke':
+      refs.unitIds.push(event.unitId);
+      refs.players.push(event.owner);
       hex(event.at);
       break;
     case 'TurnResolved':

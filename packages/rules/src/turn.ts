@@ -31,7 +31,7 @@ import type { Hex } from './hex.js';
 import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId, allKnownTechs, activePlayerIds, FILE_PRODUCTION_PROFONDEUR } from './state.js';
 import type { BarbarianVillage, City, CityId, GameState, Order, Player, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
 import { BARBARIAN_ID, BARBARIANS, CULTURE, DEPLACEMENT, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, RESOURCES, isWaterTerrain, isSpyUnit } from './data.js';
-import { tileYield, workRadiusOf, tileWorkable } from './economy.js';
+import { tileYield, workRadiusOf, tileWorkable, estTerritoireEnnemi } from './economy.js';
 import { combatRound, effectiveStrength } from './combat.js';
 import { computeVisibleTiles, recomputeVision } from './fog.js';
 import {
@@ -2159,6 +2159,180 @@ function applyRushBuys(board: Board, ordersByPlayer: Record<PlayerId, Order[]>):
       at: { q: city.q, r: city.r },
     });
     completeProductionNow(board, city);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ORDRES-UNITES (décisions d'Erik du 06/10) — Heal / Sleep / Pass / SellUnit
+// ---------------------------------------------------------------------------
+
+/** Ordres PERSISTANTS (portés par `unit.order`, miroir du chemin gelé). */
+type OrdrePersistant = Extract<Order, { type: 'Heal' | 'Sleep' }>;
+
+function estOrdrePersistant(o: Order | null | undefined): o is OrdrePersistant {
+  return o !== null && o !== undefined && (o.type === 'Heal' || o.type === 'Sleep');
+}
+
+/**
+ * Phase A (tête, AVANT les fortifications et les mouvements) · ORDRES-UNITES :
+ *  (a) tout autre ordre touchant une unité lève sa vigilance ou interrompt
+ *      son soin (la persistance exige la reconduction explicite Heal/Sleep) ;
+ *  (b) pose de Heal — REFUS NOMMÉ en territoire ennemi (anneaux culturels
+ *      R-162, `estTerritoireEnnemi` ; évalué à la POSE seulement 🔶 : un soin
+ *      en cours se poursuit même si le territoire évolue ensuite) ;
+ *  (c) pose de Sleep (la vigilance n'est pas une prison : un Move donné à une
+ *      endormie s'exécute) ;
+ *  (d) Pass — chemin gelé effacé, inertie du tour (sans ordres au suivant).
+ */
+function applyPersistentUnitOrders(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
+  // Premier ordre soumis PAR SUJET (miroir du remplacement serveur).
+  const soumis = new Map<UnitId, { playerId: PlayerId; order: Order }>();
+  for (const playerId of Object.keys(ordersByPlayer).sort()) {
+    for (const order of ordersByPlayer[playerId] ?? []) {
+      if (!('unitId' in order)) continue;
+      if (!soumis.has(order.unitId)) soumis.set(order.unitId, { playerId, order });
+    }
+  }
+  // (a) annulation : tout ordre non Heal/Sleep lève l'état persistant.
+  for (const [unitId, { order }] of soumis) {
+    const unit = board.st.units[unitId];
+    if (!unit || !estOrdrePersistant(unit.order)) continue;
+    if (order.type !== 'Heal' && order.type !== 'Sleep') {
+      decide(board, 'ordre-persistant-leve', 'ORDRES-UNITES', `${unitId} : ${unit.order!.type} levé par l'ordre ${order.type}`, { unitId, levé: unit.order!.type, par: order.type });
+      unit.order = null;
+    }
+  }
+  // (b)/(c)/(d) pose des ordres persistants et de Pass.
+  for (const [unitId, { playerId, order }] of soumis) {
+    const unit = board.st.units[unitId];
+    if (!unit || unit.owner !== playerId || unit.detainedBy) continue; // consigne ennemie ignorée
+    if (order.type === 'Heal') {
+      if (unit.aboard) continue; // à bord : pas de soin (consigne ignorée)
+      if (estTerritoireEnnemi(board.st, unit, playerId)) {
+        emit(board, { type: 'HealRefused', unitId, owner: playerId, at: { q: unit.q, r: unit.r }, reason: 'territoireEnnemi' });
+        decide(board, 'soin-refuse', 'ORDRES-UNITES (R-162)', `${unitId} : soin REFUSÉ — territoire ennemi (anneaux culturels)`, { unitId, case: { q: unit.q, r: unit.r } });
+        unit.order = null;
+        continue;
+      }
+      unit.order = { type: 'Heal', unitId };
+      decide(board, 'soin-pose', 'ORDRES-UNITES', `${unitId} se soigne (immobile) jusqu'à PV complets`, { unitId });
+    } else if (order.type === 'Sleep') {
+      unit.order = { type: 'Sleep', unitId };
+      decide(board, 'vigilance-pose', 'ORDRES-UNITES', `${unitId} en VIGILANCE — réveil dès qu'un ennemi devient visible`, { unitId });
+    } else if (order.type === 'Pass') {
+      unit.order = null; // inertie ce tour — sans ordres au tour suivant
+      decide(board, 'passe', 'ORDRES-UNITES', `${unitId} PASSE son tour (inerte, chemin gelé effacé)`, { unitId });
+    }
+  }
+}
+
+/**
+ * Phase C · ORDRES-UNITES · SellUnit — vente d'une unité : 50 % du coût de
+ * production EFFECTIF (traits compris, base R-135/`productionItemCostOf`)
+ * crédités à la trésorerie (R-134), unité détruite. Interdits (refus nommé
+ * SellRefused, ordre ignoré) : à bord d'un transport, transport PORTEUR de
+ * cargaison (la cargaison ne peut pas périr), unité ayant COMBATTU ce tour
+ * (siège/combat en cours — interdiction supplémentaire consignée).
+ */
+function applySellUnits(board: Board, ordersByPlayer: Record<PlayerId, Order[]>): void {
+  const vus = new Set<UnitId>();
+  for (const playerId of Object.keys(ordersByPlayer).sort()) {
+    for (const order of ordersByPlayer[playerId] ?? []) {
+      if (order.type !== 'SellUnit' || vus.has(order.unitId)) continue;
+      vus.add(order.unitId);
+      const unit = board.st.units[order.unitId];
+      if (!unit || unit.owner !== playerId || unit.detainedBy) continue; // consigne ennemie ignorée
+      if (unit.aboard) {
+        emit(board, { type: 'SellRefused', unitId: unit.id, owner: playerId, reason: 'abord' });
+        decide(board, 'vente-refusee', 'ORDRES-UNITES', `${unit.id} : vente REFUSÉE — l'unité est à bord d'un transport`, { unitId: unit.id });
+        continue;
+      }
+      if (Object.values(board.st.units).some((u) => u.aboard === unit.id)) {
+        emit(board, { type: 'SellRefused', unitId: unit.id, owner: playerId, reason: 'cargo' });
+        decide(board, 'vente-refusee', 'ORDRES-UNITES', `${unit.id} : vente REFUSÉE — le transport porte une cargaison`, { unitId: unit.id });
+        continue;
+      }
+      if (board.fought.has(unit.id)) {
+        emit(board, { type: 'SellRefused', unitId: unit.id, owner: playerId, reason: 'combat' });
+        decide(board, 'vente-refusee', 'ORDRES-UNITES', `${unit.id} : vente REFUSÉE — l'unité a combattu ce tour`, { unitId: unit.id });
+        continue;
+      }
+      const cout = productionItemCostOf(board.st, playerId, { kind: 'unit', id: unit.type });
+      if (cout === null) continue; // type inconnu des données : ignoré
+      const montant = Math.max(1, Math.round(cout * 0.5));
+      board.st.players[playerId]!.treasury += montant;
+      delete board.st.units[unit.id];
+      emit(board, {
+        type: 'UnitSold',
+        unitId: unit.id,
+        owner: playerId,
+        unitType: unit.type,
+        at: { q: unit.q, r: unit.r },
+        amount: montant,
+      });
+      decide(board, 'vente', 'ORDRES-UNITES', `${unit.id} (${unit.type}) VENDUE — +${montant} or (50 % du coût effectif ${cout})`, { unitId: unit.id, montant, cout });
+    }
+  }
+}
+
+/**
+ * Phase D (après vision) · ORDRES-UNITES · Vigilance (Sleep) — réveil dès
+ * qu'un ENNEMI est VISIBLE (fog : `computeVisibleTiles` vient d'être appliqué
+ * par recomputeVision). Une case explorée mais non visible ne réveille pas.
+ * Unités ET villes ennemies comptent. Réveil = ordre nul + événement
+ * SleepWoke (toast client).
+ */
+function wakeSleepers(board: Board): void {
+  const visiblesParJoueur = new Map<PlayerId, Set<TileKey>>();
+  for (const id of sortUnitIds(board)) {
+    const unit = board.st.units[id]!;
+    if (unit.aboard || unit.order?.type !== 'Sleep') continue;
+    let visibles = visiblesParJoueur.get(unit.owner);
+    if (!visibles) {
+      visibles = computeVisibleTiles(board.st, unit.owner);
+      visiblesParJoueur.set(unit.owner, visibles);
+    }
+    const ennemiVisible =
+      Object.values(board.st.units).some((u) => u.owner !== unit.owner && visibles!.has(tileKeyOf(u))) ||
+      Object.values(board.st.cities).some((c) => c.owner !== unit.owner && visibles!.has(tileKeyOf(c)));
+    if (!ennemiVisible) continue;
+    unit.order = null;
+    emit(board, { type: 'SleepWoke', unitId: unit.id, owner: unit.owner, at: { q: unit.q, r: unit.r } });
+    decide(board, 'vigilance-reveil', 'ORDRES-UNITES', `${unit.id} RÉVEILLÉE — un ennemi est devenu visible`, { unitId: unit.id });
+  }
+}
+
+/**
+ * Phase D · ORDRES-UNITES · Soin (Heal) — l'UNIQUE canal de soin : fortifier
+ * ne soigne plus, l'oisif non plus (décisions d'Erik du 06/10). Taux R-71
+ * inchangé : +1 PV/tour, +2 en ville amie ; R-71 : une unité ayant bougé ou
+ * combattu ce tour ne soigne pas (l'ordre demeure pour le tour suivant).
+ * JUSQU'À PV COMPLETS puis l'ordre se termine (HealCompleted, unité sans
+ * ordres). Évalué à la pose seulement : l'évolution du territoire ne rompt
+ * pas un soin en cours 🔶.
+ */
+function processHealOrders(board: Board): void {
+  for (const id of sortUnitIds(board)) {
+    const unit = board.st.units[id]!;
+    if (unit.order?.type !== 'Heal') continue;
+    if (unit.aboard) continue;
+    const stats = unitType(unit.type);
+    const cap = unit.isArmy ? ARMY_SIZE * stats.hpMax : stats.hpMax;
+    if (unit.hp >= cap) {
+      // Déjà complète (pose sur une unité intacte) : le soin se termine.
+      unit.order = null;
+      emit(board, { type: 'HealCompleted', unitId: id, owner: unit.owner, at: { q: unit.q, r: unit.r } });
+      continue;
+    }
+    if (board.moved.has(id) || board.fought.has(id)) continue; // R-71 : pas de soin après combat
+    const city = cityAt(board, unit);
+    const heal = city && city.owner === unit.owner ? 2 : 1;
+    unit.hp = Math.min(cap, unit.hp + heal);
+    if (unit.hp >= cap) {
+      unit.order = null;
+      emit(board, { type: 'HealCompleted', unitId: id, owner: unit.owner, at: { q: unit.q, r: unit.r } });
+      decide(board, 'soin-termine', 'ORDRES-UNITES', `${id} a retrouvé tous ses PV — le soin se termine (sans ordres)`, { unitId: id });
+    }
   }
 }
 
@@ -4778,16 +4952,11 @@ function processStability(board: Board): void {
 }
 
 function processHealsAndMp(board: Board): void {
+  // ORDRES-UNITES (décisions d'Erik du 06/10) : PLUS AUCUN soin passif —
+  // fortifier ne soigne plus, l'oisif non plus ; le soin exige l'ordre Heal
+  // (processHealOrders). R-72 : régénération des PM inchangée.
   for (const id of sortUnitIds(board)) {
     const unit = board.st.units[id]!;
-    const stats = unitType(unit.type);
-    if (!board.moved.has(id) && !board.fought.has(id)) {
-      // R-71 🔶 : +1 PV/tour, +2 dans une ville amie.
-      const city = cityAt(board, unit);
-      const heal = city && city.owner === unit.owner ? 2 : 1;
-      const cap = unit.isArmy ? ARMY_SIZE * stats.hpMax : stats.hpMax;
-      unit.hp = Math.min(cap, unit.hp + heal);
-    }
     unit.mp = maxMovementOf(board.st, unit.owner, unit.type); // R-72 + 7n · R-149 (bonus mouvement civ)
   }
 }
@@ -4892,6 +5061,11 @@ export function resolveTurn(
   // unité des civilisations debout sur une hutte l'ouvre, même posée SANS pas
   // de mouvement (rattrape les poses passées, présentes et futures).
   balayerHuttes(board);
+  // ORDRES-UNITES · Phase A (tête) : annulation/pose des ordres persistants
+  // (Heal/Sleep — tout autre ordre les lève), refus de soin en territoire
+  // ennemi, Pass. AVANT les fortifications : un Fortify donné à une unité en
+  // soin lève le soin (la fortification prime, miroir R-33).
+  applyPersistentUnitOrders(board, allOrders);
   applyFortifyOrders(board, allOrders);
   // mouvements (R-40..R-43), ordre unitId croissant (R-41) — barbares compris.
   // R-158 (D5) : un ordre composite MultiStep enchaîne déplacement(s) puis
@@ -5211,6 +5385,7 @@ export function resolveTurn(
   applySetProduction(board, allOrders);
   applyQueueOps(board, allOrders); // MENU-VILLE-QUEUE · D2 : après SetProduction (la forme historique remplace tout)
   applyRushBuys(board, allOrders); // 7l · R-135 : achat instantané (avant l'économie)
+  applySellUnits(board, allOrders); // ORDRES-UNITES : vente d'unités (50 % du coût effectif)
   applyGreatPersonActions(board, allOrders); // 7j · R-126 (alias InstallPerson R-115)
   applySpyMissions(board, allOrders); // 7g · R-119
   applySpyActions(board, allOrders); // 7m · R-143 : actions d'espionnage en ville ennemie
@@ -5257,7 +5432,11 @@ export function resolveTurn(
   trace?.phaseOut('E', st);
 
   // ---- Phase D : vision (R-70), soins (R-71), PM (R-72).
+  // ORDRES-UNITES : réveil de vigilance (ennemi visible), soin Heal (l'unique
+  // canal — fortifier/oisif ne soignent plus), PM.
   recomputeVision(st);
+  wakeSleepers(board);
+  processHealOrders(board);
   processHealsAndMp(board);
 
   // ---- Finalisation : tour suivant, graine avancée uniquement en Phase B (R-80).

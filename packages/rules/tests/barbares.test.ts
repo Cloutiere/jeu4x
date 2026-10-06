@@ -175,8 +175,9 @@ describe('R-95 · Faction barbare (pseudo-joueur)', () => {
     }
   });
 
-  it('R-95/R-71 : une unité barbare qui ne bouge pas et ne combat pas soigne (+1 PV)', () => {
-    // p1 loin au-delà du rayon d’aggro : le barbare tient (Hold) et se soigne.
+  it('ORDRES-UNITES (rév. 06/10) : les barbares ne soignent PLUS passivement (le soin exige Heal — hors scope barbare)', () => {
+    // p1 loin au-delà du rayon d’aggro : le barbare tient (Hold) — avant le
+    // 06/10 il se soignait (+1 PV) ; le soin passif est révoqué.
     const state = makeState({
       width: 12,
       height: 10,
@@ -186,7 +187,7 @@ describe('R-95 · Faction barbare (pseudo-joueur)', () => {
       ],
     });
     const { state: after } = resolveEmpty(state, 1);
-    expect(after.units['b1']!.hp).toBe(2);
+    expect(after.units['b1']!.hp).toBe(1);
   });
 
   it('R-95/R-32 : un barbare qui inflige le coup fatal devient vétéran', () => {
