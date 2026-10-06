@@ -9,6 +9,7 @@
    * SetResearch/SetConversion) : modifiable en phase ordres, même verrouillé.
    */
   import { GOVERNMENTS, ANARCHY_TURNS, isInAnarchy } from '@game/rules';
+  import { fenetreRegimeActive } from '../lib/regimesModale.js';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId } from '../lib/render/interaction.js';
   import { jaugeCulture } from '../lib/jauges.js';
@@ -30,6 +31,9 @@
     return Object.values(view.state.cities).some((c) => c.owner === id && c.wonders.includes('grande_pyramide'));
   });
   const inAnarchy = $derived(me ? isInAnarchy(me, view.turn) : false);
+  // REGIMES-MODALE · D3 : badge tant que `techsUnlockedThisTurn` contient une
+  // tech de régime (même état moteur que le moteur lit — aucun champ nouveau).
+  const fenetreSansAnarchie = $derived(fenetreRegimeActive(me));
 
   // FUSION-MENU-VILLE (retour d'Erik du 15/09) : la jauge du PALIER T-27 de
   // culture de CIVILISATION quitte la vue ville (où elle est remplacée par la
@@ -84,6 +88,8 @@
     </p>
     {#if inAnarchy}
       <p class="anarchy">⚔️ ANARCHIE — marteaux, fioles, or et culture à zéro pendant ce tour (R-122).</p>
+    {:else if fenetreSansAnarchie}
+      <p class="free fenetre">✨ Sans anarchie cette tour — une tech de régime vient d'être complétée (R-122).</p>
     {/if}
     <div class="list">
       {#each rows as r (r.id)}
@@ -139,6 +145,7 @@
   .close { background: none; border: none; color: #8b98a5; cursor: pointer; padding: 0.2rem; }
   .active-line { margin: 0.2rem 0 0.5rem; }
   .anarchy { margin: 0.2rem 0 0.5rem; color: #ffab91; font-weight: 600; font-size: 0.88rem; background: #3a2420; border: 1px solid #6d4c41; border-radius: 6px; padding: 0.3rem 0.5rem; }
+  .fenetre { border: 1px solid #d4af37; border-radius: 6px; padding: 0.3rem 0.5rem; }
   .list { display: flex; flex-direction: column; gap: 0.45rem; }
   .gov-item { border: 1px solid #3a4148; border-radius: 6px; padding: 0.45rem 0.6rem; }
   .gov-item.active { border-color: #3c7a52; background: #20302a; }

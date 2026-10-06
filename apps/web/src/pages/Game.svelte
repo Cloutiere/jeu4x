@@ -65,6 +65,7 @@
   import type { ContexteChronique } from '../lib/chronique.js';
   import { tileKeyOf } from '@game/rules';
   import GovernmentPanel from '../components/GovernmentPanel.svelte';
+  import RegimesModale from '../components/RegimesModale.svelte';
 
   let { code }: { code: string } = $props();
 
@@ -271,6 +272,9 @@
       if (e.type === 'TechResearched' && e.player === pid && GOVERNMENT_TECHS.includes(e.tech)) {
         const regime = GOVERNMENT_TECH_NAMES[e.tech] ?? e.tech;
         pushErrorToast(`Conseiller : ${e.tech} découverte — adoptez ${regime} SANS Anarchie (menu Gouvernement).`, 'good');
+        // REGIMES-MODALE (D1) : la modale rend la fenêtre R-122 VISIBLE
+        // (une fois par complétion — même garde `lastReplayedSeq`).
+        showRegimesModale = true;
       }
       if (e.type === 'GovernmentChanged') {
         pushErrorToast(
@@ -791,6 +795,9 @@
   let showResearch = $state(false);
   // 7h · R-121/R-122 : menu de gouvernement + bandeau d'Anarchie.
   let showGovernment = $state(false);
+  // REGIMES-MODALE (D1) : ouverte à la complétion d'une tech de gouvernement,
+  // rejetable — ne bloque jamais le tour.
+  let showRegimesModale = $state(false);
   const myGovernment = $derived.by(() => {
     const id = myEngineId($view);
     return (id && $view.state ? $view.state.players[id]?.government : null) ?? 'despotisme';
@@ -1509,6 +1516,10 @@
 
   {#if showGovernment && $view.state}
     <GovernmentPanel view={$view} {client} onClose={() => (showGovernment = false)} />
+  {/if}
+
+  {#if showRegimesModale && $view.state}
+    <RegimesModale view={$view} {client} onClose={() => (showRegimesModale = false)} />
   {/if}
 
   {#if showParametres}
