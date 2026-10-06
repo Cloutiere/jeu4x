@@ -85,6 +85,13 @@
     return p ? infoDe(p).nomUnite : unitId;
   }
 
+  /** « Guerrier (Chine) » — la nation/barbare est nommée (retour d'Erik 06/10). */
+  function nomComplet(unitId: string): string {
+    const p = resume.participants.find((x) => x.unitId === unitId);
+    if (!p) return nomDe(unitId);
+    return `${infoDe(p).nomUnite} (${infoDe(p).nomFaction})`;
+  }
+
   function modLigne(f: CombatForceDetail): string {
     const morceaux: string[] = [`base ${f.base}`];
     for (const m of f.modsBase) morceaux.push(`+${fmt(m.valeur)} ${m.label}`);
@@ -118,6 +125,29 @@
   function keydown(e: KeyboardEvent): void {
     if (e.key === 'Escape') onFermer();
   }
+
+  /**
+   * Anti-débordement : le popover ne doit jamais passer sous le bas de la
+   * fenêtre (sections « Assauts » ouvertes notamment) — hauteur plafonnée à
+   * la place réellement disponible (mesurée), défilement interne au-delà.
+   * Réajusté à l'ouverture/fermeture de chaque <details> (retour d'Erik).
+   */
+  function ajusterHauteur(): void {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    // La carte peut être zoomée (transform) : le rect est en pixels ÉCRAN,
+    // maxHeight s'applique en pixels LOCAUX — on repasse par le facteur d'échelle.
+    const scale = rect.width / (el.offsetWidth || 1) || 1;
+    const dispo = (window.innerHeight - rect.top - 8) / scale;
+    el.style.maxHeight = `${Math.max(240, Math.min(el.scrollHeight, dispo))}px`;
+  }
+  $effect(() => {
+    void resume;
+    void detail;
+    void x;
+    void y;
+    queueMicrotask(ajusterHauteur);
+  });
 </script>
 
 <svelte:window onpointerdown={pointerdownExt} onkeydown={keydown} />
@@ -143,7 +173,7 @@
     <p class="verdict">{verdict}</p>
   {/if}
   {#if detail}
-    <details class="explication">
+    <details class="explication" ontoggle={ajusterHauteur}>
       <summary>D'où vient sa force</summary>
       <div class="forces">
         {#each [detail.attaquant, detail.defenseur] as f (f.unitId)}
@@ -153,16 +183,22 @@
       </div>
     </details>
     {#if detail.rounds.length > 0}
-      <details class="explication">
+      <details class="explication" ontoggle={ajusterHauteur}>
         <summary>Assauts ({detail.rounds.length})</summary>
         <ul class="assauts">
           {#each detail.rounds as r (r.round)}
             <li>
-              Assaut {r.round} —
               {#if r.jet === null}
-                tir sans riposte (R-59) → −1 PV à {nomDe(detail.defenseur.unitId)}
+                Assaut {r.round} — tir sans riposte (R-59) → −1 PV à {nomComplet(detail.defenseur.unitId)}
               {:else}
-                jet {fmt(r.jet)} <span class="proba">(p touche {fmt(r.pTouche)})</span> → −1 PV à {nomDe(r.touche === 'attaquant' ? detail.attaquant.unitId : detail.defenseur.unitId)}
+                <span class="jet">Assaut {r.round} — jet {fmt(r.jet)}</span>
+                {#if r.touche === 'defenseur'}
+                  <span class="intervalle">sous le seuil {fmt(r.pTouche)} → l'assaut est gagné par le {nomComplet(detail.attaquant.unitId)}</span>
+                  <span class="impact">le {nomComplet(detail.defenseur.unitId)} perd 1 PV</span>
+                {:else}
+                  <span class="intervalle">au-dessus du seuil {fmt(r.pTouche)} → l'assaut est gagné par le {nomComplet(detail.defenseur.unitId)}</span>
+                  <span class="impact">le {nomComplet(detail.attaquant.unitId)} perd 1 PV</span>
+                {/if}
               {/if}
             </li>
           {/each}
@@ -171,7 +207,7 @@
     {/if}
   {/if}
   {#if resume.detailMelee}
-    <details class="explication">
+    <details class="explication" ontoggle={ajusterHauteur}>
       <summary>Poids de mêlée</summary>
       <ul class="assauts">
         {#each resume.detailMelee.participants as p (p.unitId)}
@@ -237,6 +273,8 @@
     position: absolute;
     z-index: 40; /* au-dessus de la carte, sous les modales */
     width: 21rem;
+    box-sizing: border-box; /* le clamp anti-débordement porte TOUT le panneau */
+    overflow-y: auto; /* sections ouvertes : défile interne plutôt que déborder */
     background: linear-gradient(180deg, #241f16 0%, #1b1712 100%);
     border: 1px solid var(--or-sombre, #8a6d1a);
     border-radius: 10px;
@@ -324,7 +362,10 @@
   }
   .force-detail .egal { color: var(--or-clair, #e8c96a); }
   ul.assauts { list-style: none; margin: 0.25rem 0 0; padding: 0 0 0 0.6rem; display: flex; flex-direction: column; gap: 0.15rem; color: var(--texte-doux, #b6ad93); }
-  ul.assauts .proba { opacity: 0.75; }
+  ul.assauts li { display: flex; flex-direction: column; gap: 0.05rem; }
+  ul.assauts .jet { color: var(--texte, #e9e4d3); }
+  ul.assauts .intervalle { color: var(--texte-doux, #b6ad93); }
+  ul.assauts .impact { color: #f0a8a0; }
   ul { list-style: none; margin: 0.35rem 0 0.2rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
   li {
     display: flex;
@@ -359,7 +400,17 @@
   .pv-texte.perte { color: #f0a8a0; }
   .sort { margin: 0.12rem 0 0; font-size: 0.72rem; color: var(--texte-doux, #b6ad93); }
   .sort.mort { color: #f0a8a0; }
-  footer { display: flex; justify-content: flex-end; margin-top: 0.4rem; }
+  footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.4rem;
+    /* Panneau à hauteur bornée (anti-débordement) : le bouton reste visible
+       même quand le contenu défile à l'intérieur. */
+    position: sticky;
+    bottom: -0.6rem;
+    padding: 0.3rem 0 0.35rem;
+    background: linear-gradient(180deg, rgba(27, 23, 18, 0) 0%, #1b1712 40%);
+  }
   .rejouer {
     font-family: var(--serif-or, Georgia, serif);
     font-size: 0.78rem;
