@@ -33,6 +33,7 @@ import type { BarbarianVillage, City, CityId, GameState, Order, Player, PlayerId
 import { BARBARIAN_ID, BARBARIANS, CULTURE, DEPLACEMENT, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, RESOURCES, isWaterTerrain, isSpyUnit } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable, estTerritoireEnnemi } from './economy.js';
 import { combatRound, effectiveStrength } from './combat.js';
+import type { CombatDetail, CombatForceDetail, CombatMod, CombatRoundDetail, MeleeDetail } from './combat.js';
 import { computeVisibleTiles, recomputeVision } from './fog.js';
 import {
   canEnterTerrain,
@@ -938,13 +939,20 @@ function orderTouchesUnit(order: Order, unitId: UnitId): boolean {
 /**
  * Forces effectives (S_att/S_def) d'un échange — facteur unique partagé par
  * l'échange (R-51) et l'ÉCRASEMENT (7n · R-149 : Overrun, canon CivRev).
+ * HANDOFF-COMBAT-EXPLIQUE (D1-D2) : retourne AUSSI la décomposition nommée
+ * (base → modificateurs → force) — calculée ICI, jamais recomposée ailleurs.
  */
 function combatStrengthsOf(
   board: Board,
   attacker: Unit,
   defender: Unit,
   combatTile: Hex,
-): { sAtt: number; sDef: number; sAttBase: number } {
+): {
+  sAtt: number;
+  sDef: number;
+  sAttBase: number;
+  detail: { attaquant: CombatForceDetail; defenseur: CombatForceDetail };
+} {
   const aStats = unitType(attacker.type);
   const dStats = unitType(defender.type);
   // 7g · R-118 : soutien naval — un combat terrestre adjacent à la côte avec
@@ -977,6 +985,34 @@ function combatStrengthsOf(
         (aStats.aquatic ? civNavalAttackBonusOf(attPlayer) : 0),
       attacker.veteran,
     );
+  // Détail attaquant — même arithmetic, décomposée nommément (aucun recalcul).
+  const modsBaseAtt: CombatMod[] = [];
+  const bonusTypeAtt = civUnitStatBonusOf(attPlayer, 'unitAttack', attacker.type);
+  if (bonusTypeAtt) modsBaseAtt.push({ label: `Trait national — ${attacker.type} (R-149)`, valeur: bonusTypeAtt });
+  if (aStats.aquatic) {
+    const naval = civNavalAttackBonusOf(attPlayer);
+    if (naval) modsBaseAtt.push({ label: `Trait naval national — ${attacker.type} (R-149)`, valeur: naval });
+  }
+  const modsPostAtt: CombatMod[] = [];
+  if (support) modsPostAtt.push({ label: 'Soutien naval (R-118)', valeur: support });
+  const attWonders = attPlayer && !attAnarchy
+    ? wonderAttackBonusEmpireOf(Object.values(board.st.cities), attacker.owner, allTechs)
+    : 0;
+  if (attWonders) modsPostAtt.push({ label: 'Merveille d’attaque d’empire (R-125)', valeur: attWonders });
+  const attRegime = attPlayer && !attAnarchy
+    ? landCombatBonus(effectsFor(attPlayer), aStats, 'attack')
+    : 0;
+  if (attRegime) modsPostAtt.push({ label: 'Régime — Fondamentalisme (R-121)', valeur: attRegime });
+  const detailAtt: CombatForceDetail = {
+    unitId: attacker.id,
+    role: 'attaquant',
+    base: aStats.attack,
+    modsBase: modsBaseAtt,
+    veteran: attacker.veteran,
+    bonusDefPct: [],
+    modsPost: modsPostAtt,
+    force: 0, // posé au retour = sAtt (zéro duplication de formule)
+  };
   const sAtt =
     sAttBase +
     support +
@@ -1002,12 +1038,42 @@ function combatStrengthsOf(
         (defender.fortified ? FORTIFY_DEFENSE_BONUS : 0) +
         cityBuildingDefenseBonus(board, combatTile, defender.owner)
       : 0;
+  // Détail défenseur — décomposition nommée des bonus de demeure.
+  const modsBaseDef: CombatMod[] = [];
+  const bonusTypeDef = civUnitStatBonusOf(defPlayer, stabilise ? 'unitDefense' : 'unitAttack', defender.type);
+  if (bonusTypeDef) {
+    modsBaseDef.push({ label: `Trait national — ${defender.type} (R-149)`, valeur: bonusTypeDef });
+  }
+  const bonusDefPct: CombatMod[] = [];
+  if (stabilise || (defender.fortified && demeure)) {
+    const tileDef = board.st.map[tileKeyOf(combatTile)];
+    const terr = tileDef ? TERRAINS[tileDef.terrain]!.defenseBonus : 0;
+    if (terr) bonusDefPct.push({ label: `Terrain — ${tileDef!.terrain} (T-02)`, valeur: terr });
+    if (defender.fortified) bonusDefPct.push({ label: 'Fortification (T-17)', valeur: FORTIFY_DEFENSE_BONUS });
+    const batiments = cityBuildingDefenseBonus(board, combatTile, defender.owner);
+    if (batiments) bonusDefPct.push({ label: 'Bâtiments de ville', valeur: batiments });
+  }
+  const defRegime = defPlayer && !defAnarchy ? landCombatBonus(effectsFor(defPlayer), dStats, 'defense') : 0;
+  const modsPostDef: CombatMod[] = [];
+  if (defRegime) modsPostDef.push({ label: 'Régime — Fondamentalisme (R-121)', valeur: defRegime });
+  const detailDef: CombatForceDetail = {
+    unitId: defender.id,
+    role: 'defenseur',
+    base: stabilise ? dStats.defense : dStats.attack,
+    modsBase: modsBaseDef,
+    veteran: defender.veteran,
+    bonusDefPct,
+    modsPost: modsPostDef,
+    force: 0, // posé au retour = sDef (zéro duplication de formule)
+  };
   const sDef = effectiveStrength(
     baseDefense,
     defender.veteran,
     bonusDefense,
   ) + (defPlayer && !defAnarchy ? landCombatBonus(effectsFor(defPlayer), dStats, 'defense') : 0);
-  return { sAtt, sDef, sAttBase };
+  detailAtt.force = sAtt;
+  detailDef.force = sDef;
+  return { sAtt, sDef, sAttBase, detail: { attaquant: detailAtt, defenseur: detailDef } };
 }
 
 /**
@@ -1020,23 +1086,30 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
   const aStats = unitType(attacker.type);
   const dStats = unitType(defender.type);
   const noRiposte = isRanged(attacker) && !isRanged(defender);
-  const { sAtt, sDef } = combatStrengthsOf(board, attacker, defender, combatTile);
+  const { sAtt, sDef, detail } = combatStrengthsOf(board, attacker, defender, combatTile);
   const pTouche = sAtt * sAtt / (sAtt * sAtt + sDef * sDef);
+  // COMBAT-EXPLIQUE (D2) : chaque assaut consigne son jet et sa cible.
+  const rounds: CombatRoundDetail[] = [];
   for (let i = 0; i < EXCHANGES_PER_ATTACK && attacker.hp > 0 && defender.hp > 0; i++) {
     if (noRiposte) {
       defender.hp -= 1;
+      rounds.push({ round: i + 1, jet: null, pTouche: 1, touche: 'defenseur', pvPerdus: 1 });
       continue;
     }
-    const winner = combatRound(
-      sAtt,
-      sDef,
-      rollTrace(board, `combat att=${attacker.id} def=${defender.id} round=${i + 1}/${EXCHANGES_PER_ATTACK} p(att)=${pTouche.toFixed(3)}`, () => board.rng.next()),
-    );
-    if (winner === 'defender') defender.hp -= 1;
-    else attacker.hp -= 1;
+    const jet = rollTrace(board, `combat att=${attacker.id} def=${defender.id} round=${i + 1}/${EXCHANGES_PER_ATTACK} p(att)=${pTouche.toFixed(3)}`, () => board.rng.next());
+    const winner = combatRound(sAtt, sDef, jet);
+    if (winner === 'defender') {
+      defender.hp -= 1;
+      rounds.push({ round: i + 1, jet, pTouche, touche: 'defenseur', pvPerdus: 1 });
+    } else {
+      attacker.hp -= 1;
+      rounds.push({ round: i + 1, jet, pTouche, touche: 'attaquant', pvPerdus: 1 });
+    }
   }
   attacker.hp = Math.max(0, attacker.hp);
   defender.hp = Math.max(0, defender.hp);
+  const issue: CombatDetail['issue'] =
+    defender.hp <= 0 ? 'victoire-attaquant' : attacker.hp <= 0 ? 'victoire-defenseur' : 'survie-mutuelle';
   decide(board, 'echange', 'R-51', `Échange att=${attacker.id} (S_att ${sAtt.toFixed(2)}) vs def=${defender.id} (S_def ${sDef.toFixed(2)}) — p(touche att)=${pTouche.toFixed(3)} → PV att ${attacker.hp}, PV def ${defender.hp}`, {
     attaquant: attacker.id, defenseur: defender.id, sAtt, sDef, pTouche,
     pvAttaquant: attacker.hp, pvDefenseur: defender.hp, sansRiposte: noRiposte,
@@ -1049,6 +1122,7 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
     at: combatTile,
     attackerHpAfter: attacker.hp,
     defenderHpAfter: defender.hp,
+    detail: { ...detail, rounds, issue, overrun: false, sansRiposte: noRiposte },
   });
   board.fought.add(attacker.id);
   board.fought.add(defender.id);
@@ -1091,10 +1165,11 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
   // — aucun round R-51. Mêlée uniquement (jamais pour un attaquant à distance,
   // R-59-a — pas d'avancée, pas de contact de ce type).
   if (!isRanged(attacker)) {
-    const { sAttBase, sDef } = combatStrengthsOf(board, attacker, defender, combatTile);
+    const { sAttBase, sDef, detail } = combatStrengthsOf(board, attacker, defender, combatTile);
     // 🔶 sDef > 0 exigé : le ratio est indéfini contre une défense nulle
     // (aucune unité réelle n'a 0 défense — les unités pacifiques sont capturées).
-    if (sAttBase > 0 && sDef > 0 && sAttBase >= sDef * civOverrunRatioOf(board.st.players[attacker.owner])) {
+    const ratio = civOverrunRatioOf(board.st.players[attacker.owner]);
+    if (sAttBase > 0 && sDef > 0 && sAttBase >= sDef * ratio) {
       decide(board, 'overrun', 'R-149', `ÉCRASEMENT : ${attacker.id} (S_att base ${sAttBase.toFixed(2)}) ≥ ratio × S_def ${sDef.toFixed(2)} — ${defender.id} détruit instantanément (aucun round R-51)`, {
         attaquant: attacker.id, defenseur: defender.id, sAttBase, sDef,
       });
@@ -1107,6 +1182,14 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
         at: combatTile,
         attackerHpAfter: attacker.hp,
         defenderHpAfter: 0,
+        detail: {
+          ...detail,
+          rounds: [],
+          issue: 'ecrasement',
+          overrun: true,
+          sansRiposte: false,
+          ecrasement: { sAttBase, sDef, ratio },
+        },
       });
       kill(board, defender, 'combat', attacker.id);
       attacker.veteran = true; // R-32
@@ -4830,6 +4913,8 @@ function processStability(board: Board): void {
       }
       const poids = new Map<string, number>();
       const tracePoids: Array<{ id: UnitId; eff: number; tau: number; poids: number }> = [];
+      // COMBAT-EXPLIQUE (D1) : décomposition nommée des poids de mêlée.
+      const detailMelee: MeleeDetail = { participants: [], rolls: [] };
       for (const u of participants) {
         const stats = unitType(u.type);
         const demeure = !board.moved.has(u.id);
@@ -4846,14 +4931,42 @@ function processStability(board: Board): void {
         const tau = meleeTauMultiplier(compteAllies.get(u.owner) ?? 1);
         poids.set(u.id, eff * eff * tau);
         tracePoids.push({ id: u.id, eff, tau, poids: eff * eff * tau });
+        const bonusMods: CombatMod[] = [];
+        if (demeure) {
+          const tileDef = st.map[tileKeyOf(tile)];
+          const terr = tileDef ? TERRAINS[tileDef.terrain]!.defenseBonus : 0;
+          if (terr) bonusMods.push({ label: `Terrain — ${tileDef!.terrain} (T-02)`, valeur: terr });
+          if (u.fortified) bonusMods.push({ label: 'Fortification (T-17)', valeur: FORTIFY_DEFENSE_BONUS });
+          const batiments = cityBuildingDefenseBonus(board, tile, u.owner);
+          if (batiments) bonusMods.push({ label: 'Bâtiments de ville', valeur: batiments });
+        }
+        detailMelee.participants.push({
+          unitId: u.id,
+          base: stats.attack,
+          veteran: u.veteran,
+          bonusDefPct: bonusMods,
+          force: eff,
+          tau,
+          poids: poids.get(u.id) ?? 0,
+        });
       }
       const rollDebut = board.trace?.marque() ?? 0;
+      // COMBAT-EXPLIQUE (D2) : capture des tirages de mêlée indépendamment du trace.
+      const rollsCaptures: number[] = [];
+      const rngBrut = board.rng.next.bind(board.rng);
+      board.rng.next = () => {
+        const v = rngBrut();
+        rollsCaptures.push(v);
+        return v;
+      };
       board.traceUsage = 'mêlée tirage gagnant/perdant (R-180)';
       const roles = drawWeightedMelee(
         participants.map((u) => ({ id: u.id, weight: poids.get(u.id) ?? 0 })),
         board.rng,
       );
+      board.rng.next = rngBrut;
       board.traceUsage = '';
+      detailMelee.rolls = rollsCaptures;
       if (board.trace) {
         const somme = tracePoids.reduce((acc, p) => acc + p.poids, 0);
         const rollsMelee = board.trace.trace.rolls.slice(rollDebut).map((r) => r.valeur);
@@ -4885,6 +4998,7 @@ function processStability(board: Board): void {
         at: tile,
         participants: participants.map((u) => u.id),
         results,
+        detail: detailMelee,
       });
       let quelquUnEstMort = false;
       for (const u of morts) {

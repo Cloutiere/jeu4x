@@ -7,6 +7,8 @@
 import type { Hex } from './hex.js';
 import type { CityId, PlayerId, ProductionItem, TileKey, UnitId } from './state.js';
 import type { TechEra } from './types.js';
+import type { CombatDetail, MeleeDetail } from './combat.js';
+export type { CombatDetail, MeleeDetail, CombatForceDetail, CombatRoundDetail, CombatMod } from './combat.js';
 
 /** Cause de destruction d'une unité. 7g : `sunk` (cargaison d'un navire
  *  coulé — R-117), `mission` (Espion consommé par une mission réussie — R-119 ;
@@ -45,7 +47,10 @@ export type GameEvent =
   | { seq: number; type: 'Move'; unitId: UnitId; owner: PlayerId; from: Hex; to: Hex }
   /** Une attaque engagée (y compris chaque itération d'attaques répétées R-55). */
   | { seq: number; type: 'Attack'; attackerId: UnitId; defenderId: UnitId; at: Hex }
-  /** Le résultat d'un échange (T-03 round(s)) : PV après échange. */
+  /** Le résultat d'un échange (T-03 round(s)) : PV après échange. `detail`
+   *  (HANDOFF-COMBAT-EXPLIQUE, D1-D5) : décomposition déterministe des forces,
+   *  modificateurs nommés, jets par assaut et issue — champ ADDITIF absent des
+   *  journaux antérieurs au déploiement (D5 : rétroactivité nulle). */
   | {
       seq: number;
       type: 'CombatExchange';
@@ -54,6 +59,7 @@ export type GameEvent =
       at: Hex;
       attackerHpAfter: number;
       defenderHpAfter: number;
+      detail?: CombatDetail;
     }
   | { seq: number; type: 'UnitDestroyed'; unitId: UnitId; owner: PlayerId; at: Hex; cause: DestructionCause; byUnitId: UnitId | null }
   /** Repli (R-54, ABROGÉE par ENGAGEMENT — plus jamais émis ; type conservé
@@ -68,6 +74,9 @@ export type GameEvent =
       at: Hex;
       participants: UnitId[];
       results: Array<{ unitId: UnitId; role: 'winner' | 'loser' | 'middle'; hpAfter: number }>;
+      /** HANDOFF-COMBAT-EXPLIQUE (D1-D5) : poids (force² × étau) de chaque
+       *  participante et tirages — champ ADDITIF (cf. CombatExchange.detail). */
+      detail?: MeleeDetail;
     }
   /** ENGAGEMENT · R-179 · Expulsion de cohabitation : une case ne peut pas
    *  demeurer porteur de plusieurs unités AMIES en fin de tour — l'excédent

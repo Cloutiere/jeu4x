@@ -70,6 +70,47 @@
     );
   }
 
+  // ---- COMBAT-EXPLIQUE (décisions Erik 06/10, L3) — verdict en tête,
+  // « d'où vient sa force », assauts repliables. Compact par défaut.
+  import type { CombatForceDetail } from '@game/rules';
+
+  const detail = $derived(resume.detailCombat ?? null);
+
+  function fmt(n: number): string {
+    return n.toFixed(2).replace('.', ',');
+  }
+
+  function nomDe(unitId: string): string {
+    const p = resume.participants.find((x) => x.unitId === unitId);
+    return p ? infoDe(p).nomUnite : unitId;
+  }
+
+  function modLigne(f: CombatForceDetail): string {
+    const morceaux: string[] = [`base ${f.base}`];
+    for (const m of f.modsBase) morceaux.push(`+${fmt(m.valeur)} ${m.label}`);
+    if (f.veteran) morceaux.push('× vétéran (T-01)');
+    if (f.bonusDefPct.length > 0) {
+      morceaux.push(`+${fmt(f.bonusDefPct.reduce((s, m) => s + m.valeur, 0) * 100)} % défensif`);
+    }
+    for (const m of f.modsPost) morceaux.push(`+${fmt(m.valeur)} ${m.label}`);
+    return morceaux.join('  ·  ');
+  }
+
+  const verdict = $derived.by(() => {
+    if (!detail) return null;
+    const jets = detail.rounds.map((r) => (r.jet === null ? 'sans riposte' : `jet ${fmt(r.jet)}`));
+    switch (detail.issue) {
+      case 'victoire-attaquant':
+        return `Victoire ${nomDe(detail.attaquant.unitId)} : force ${fmt(detail.attaquant.force)} contre ${fmt(detail.defenseur.force)} — ${jets.join(', ')}`;
+      case 'victoire-defenseur':
+        return `Victoire ${nomDe(detail.defenseur.unitId)} : force ${fmt(detail.defenseur.force)} contre ${fmt(detail.attaquant.force)} — ${jets.join(', ')}`;
+      case 'survie-mutuelle':
+        return `Survie mutuelle : force ${fmt(detail.attaquant.force)} contre ${fmt(detail.defenseur.force)} — ${jets.join(', ')}`;
+      case 'ecrasement':
+        return `Écrasement (Overrun) : force de base ${fmt(detail.ecrasement?.sAttBase ?? detail.attaquant.force)} ≥ ${detail.ecrasement?.ratio ?? 6} × S_def ${fmt(detail.ecrasement?.sDef ?? detail.defenseur.force)} — aucun assaut`;
+    }
+  });
+
   function pointerdownExt(e: PointerEvent): void {
     if (el && !el.contains(e.target as Node)) onFermer();
   }
@@ -97,6 +138,48 @@
   </header>
   {#if resume.melee}
     <p class="melee">Mêlée d'instabilité <span>(R-180)</span></p>
+  {/if}
+  {#if verdict}
+    <p class="verdict">{verdict}</p>
+  {/if}
+  {#if detail}
+    <details class="explication">
+      <summary>D'où vient sa force</summary>
+      <div class="forces">
+        {#each [detail.attaquant, detail.defenseur] as f (f.unitId)}
+          <p class="force-ligne"><strong>{nomDe(f.unitId)}</strong> — force <span class="chiffre">{fmt(f.force)}</span></p>
+          <p class="force-detail">{modLigne(f)} <span class="egal">= {fmt(f.force)}</span></p>
+        {/each}
+      </div>
+    </details>
+    {#if detail.rounds.length > 0}
+      <details class="explication">
+        <summary>Assauts ({detail.rounds.length})</summary>
+        <ul class="assauts">
+          {#each detail.rounds as r (r.round)}
+            <li>
+              Assaut {r.round} —
+              {#if r.jet === null}
+                tir sans riposte (R-59) → −1 PV à {nomDe(detail.defenseur.unitId)}
+              {:else}
+                jet {fmt(r.jet)} <span class="proba">(p touche {fmt(r.pTouche)})</span> → −1 PV à {nomDe(r.touche === 'attaquant' ? detail.attaquant.unitId : detail.defenseur.unitId)}
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      </details>
+    {/if}
+  {/if}
+  {#if resume.detailMelee}
+    <details class="explication">
+      <summary>Poids de mêlée</summary>
+      <ul class="assauts">
+        {#each resume.detailMelee.participants as p (p.unitId)}
+          <li>{nomDe(p.unitId)} : force {fmt(p.force)}² × étau {fmt(p.tau)} = poids {fmt(p.poids)}{p.bonusDefPct.length > 0 ? ` (demeure : ${p.bonusDefPct.map((m) => m.label).join(', ')})` : ''}</li>
+        {/each}
+        <li>Tirages : {resume.detailMelee.rolls.map((j) => fmt(j)).join(' puis ')}</li>
+      </ul>
+    </details>
   {/if}
   <ul>
     {#each resume.participants as p (p.unitId)}
@@ -212,6 +295,36 @@
     color: var(--or, #c9a227);
   }
   .melee span { color: var(--texte-doux, #b6ad93); }
+  /* COMBAT-EXPLIQUE — verdict + explications repliables (compact par défaut) */
+  .verdict {
+    margin: 0.35rem 0 0;
+    font-size: 0.76rem;
+    line-height: 1.35;
+    color: var(--or-clair, #e8c96a);
+  }
+  details.explication {
+    margin-top: 0.3rem;
+    font-size: 0.72rem;
+  }
+  details.explication summary {
+    cursor: pointer;
+    color: var(--texte-doux, #b6ad93);
+    letter-spacing: 0.04em;
+    user-select: none;
+  }
+  details.explication summary:hover { color: var(--or-clair, #e8c96a); }
+  .forces { margin-top: 0.25rem; display: flex; flex-direction: column; gap: 0.25rem; }
+  .force-ligne { margin: 0; color: var(--texte, #e9e4d3); }
+  .force-ligne .chiffre { color: var(--or-clair, #e8c96a); }
+  .force-detail {
+    margin: 0 0 0 0.6rem;
+    color: var(--texte-doux, #b6ad93);
+    font-size: 0.68rem;
+    line-height: 1.4;
+  }
+  .force-detail .egal { color: var(--or-clair, #e8c96a); }
+  ul.assauts { list-style: none; margin: 0.25rem 0 0; padding: 0 0 0 0.6rem; display: flex; flex-direction: column; gap: 0.15rem; color: var(--texte-doux, #b6ad93); }
+  ul.assauts .proba { opacity: 0.75; }
   ul { list-style: none; margin: 0.35rem 0 0.2rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
   li {
     display: flex;

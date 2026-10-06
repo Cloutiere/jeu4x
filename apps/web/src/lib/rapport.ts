@@ -10,6 +10,7 @@
  */
 import type { GameEvent, GameState, UnitId } from '@game/shared';
 import type { Hex } from '@game/rules';
+import type { CombatDetail, MeleeDetail } from '@game/rules';
 
 export type RoleMelee = 'winner' | 'loser' | 'middle';
 
@@ -35,6 +36,11 @@ export interface ResumeCase {
   /** Mêlée d'instabilité R-180 résolue sur la case. */
   melee: boolean;
   participants: ParticipantRapport[];
+  /** COMBAT-EXPLIQUE (D1/D4) : détail du dernier échange de la case (forces,
+   *  modificateurs, jets) — absent des combats antérieurs au déploiement (D5). */
+  detailCombat?: CombatDetail | null;
+  /** COMBAT-EXPLIQUE : détail des poids de mêlée — même contrat D5. */
+  detailMelee?: MeleeDetail | null;
 }
 
 interface Brouillon {
@@ -118,6 +124,8 @@ export function resumesDeCase(
   const brouillons = new Map<UnitId, Brouillon>();
   let melee = false;
   let ordre = 0;
+  let detailCombat: CombatDetail | null = null;
+  let detailMelee: MeleeDetail | null = null;
 
   const brouillon = (id: UnitId): Brouillon => {
     let b = brouillons.get(id);
@@ -161,8 +169,10 @@ export function resumesDeCase(
         const d = brouillon(ev.defenderId);
         a.pv = ev.attackerHpAfter;
         d.pv = ev.defenderHpAfter;
+        if (ev.detail) detailCombat = ev.detail; // le dernier échange de la case fait foi
       } else if (ev.type === 'MeleeResolved') {
         melee = true;
+        if (ev.detail) detailMelee = ev.detail;
         for (const res of ev.results) {
           const b = brouillon(res.unitId);
           b.role = res.role;
@@ -188,5 +198,5 @@ export function resumesDeCase(
     const rang: Record<RoleMelee, number> = { winner: 0, middle: 1, loser: 2 };
     participants.sort((x, y) => (rang[x.role ?? 'middle'] - rang[y.role ?? 'middle']) || 0);
   }
-  return { hex, melee, participants };
+  return { hex, melee, participants, detailCombat, detailMelee };
 }
