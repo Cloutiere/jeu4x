@@ -246,9 +246,12 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
     case 'FirstDiscovered':
       // CULTURE-FRONTIERES (M2, 14/09) : un GP du Premier découvrir est
       // explicitement libellé « GP de technologie » (source explicite).
-      return event.greatPerson
-        ? `Premier découvrir (${event.tech}) : ${event.label} — ${greatPersonLabel(event.greatPerson)} rejoint votre empire ! (GP de technologie)`
-        : `Premier découvrir (${event.tech}) : ${event.label}`;
+      // BONUS-DECOUVERTE (D5, 07/10) : part non accordée annoncée nommément.
+      return (
+        (event.greatPerson
+          ? `Premier découvrir (${event.tech}) : ${event.label} — ${greatPersonLabel(event.greatPerson)} rejoint votre empire ! (GP de technologie)`
+          : `Premier découvrir (${event.tech}) : ${event.label}`) + (event.notGranted ? ` — ${event.notGranted}` : '')
+      );
     case 'PopulationGrew':
       return `${event.cityId} grandit — population ${event.pop}`;
     case 'PopulationConsumed':

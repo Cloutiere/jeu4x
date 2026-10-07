@@ -146,6 +146,11 @@ export type GameEvent =
       /** 7j · D5.1 · R-109 étendu : classe du GP gratuit engendré
        *  (Premier découvrir de l'Invention / de la Monarchie). */
       greatPerson?: string;
+      /** BONUS-DECOUVERTE (D5, Erik 07/10) : part de la récompense NON
+       *  accordée, nommée pour la Chronique (« aucun port valide — Galion
+       *  non accordé ») — jamais reportée au tour suivant. Champ additif
+       *  (schemaVersion inchangée). */
+      notGranted?: string;
     }
   /** Croissance d'une ville : +1 pop = +1 citoyen (R-63, Phase 6). */
   | { seq: number; type: 'PopulationGrew'; cityId: CityId; owner: PlayerId; pop: number; at: Hex }

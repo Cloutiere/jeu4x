@@ -174,8 +174,8 @@ export function entreesChronique(events: GameEvent[], ctx: ContexteChronique, to
   let sousSeq = 0;
   // id dérivé du seq MOTEUR (stable au rechargement — les missedEvents
   // rejoués régénèrent les mêmes ids, dédoublonnés au pousser).
-  const pousser = (cat: Categorie, texte: string, ton: 'good' | 'bad' | 'info', seq: number | null, hex: Hex | null = null, combatHex: Hex | null = null): void => {
-    out.push({ id: seq !== null ? `e${seq}` : `c${tour}-${sousSeq++}`, tour, cat, texte, ton, hex, combatHex });
+  const pousser = (cat: Categorie, texte: string, ton: 'good' | 'bad' | 'info', seq: number | null, hex: Hex | null = null, combatHex: Hex | null = null, suffixe = ''): void => {
+    out.push({ id: seq !== null ? `e${seq}${suffixe}` : `c${tour}-${sousSeq++}`, tour, cat, texte, ton, hex, combatHex });
   };
 
   // Agrégation des combats (D5) : UNE entrée par case de combat. Clé "q,r"
@@ -291,8 +291,14 @@ export function entreesChronique(events: GameEvent[], ctx: ContexteChronique, to
         else { const s2 = sujetNation(ev.player, ctx); pousser('decouvertes', `${s2.sujet} ${s2.pluriel ? 'découvrent' : 'découvre'} ${nomTech(ev.tech)}`, 'info', ev.seq); }
         break;
       case 'FirstDiscovered':
-        if (ev.player === ctx.moi) pousser('decouvertes', `Premier découvrir (${nomTech(ev.tech)}) : ${ev.label}${ev.greatPerson ? ` — ${greatPersonLabel(ev.greatPerson)} rejoint votre empire !` : ''}`, 'good', ev.seq);
-        else { const s2 = sujetNation(ev.player, ctx); pousser('decouvertes', `${s2.sujet} ${s2.pluriel ? 'découvrent' : 'découvre'} en premier ${nomTech(ev.tech)}`, 'info', ev.seq); }
+        if (ev.player === ctx.moi) {
+          pousser('decouvertes', `Premier découvrir (${nomTech(ev.tech)}) : ${ev.label}${ev.greatPerson ? ` — ${greatPersonLabel(ev.greatPerson)} rejoint votre empire !` : ''}`, 'good', ev.seq);
+          // BONUS-DECOUVERTE · D5 (07/10) : part de la récompense non accordée
+          // (aucun port valide, aucune case du terrain, ville déjà dotée) —
+          // annoncée nommément, jamais reportée. Suffixe d'id DÉDIÉ : deux
+          // entrées de seq identique = crash each_key_duplicate (Svelte 5).
+          if (ev.notGranted) pousser('decouvertes', ev.notGranted, 'bad', ev.seq, null, null, '-ng');
+        } else { const s2 = sujetNation(ev.player, ctx); pousser('decouvertes', `${s2.sujet} ${s2.pluriel ? 'découvrent' : 'découvre'} en premier ${nomTech(ev.tech)}`, 'info', ev.seq); }
         break;
       case 'EraChanged':
         pousser('decouvertes', ev.player === ctx.moi ? `Votre empire entre dans l'ère ${nomEre(ev.era)}` : (() => { const s2 = sujetNation(ev.player, ctx); return `${s2.sujet} ${s2.pluriel ? 'entrent' : 'entre'} dans l'ère ${nomEre(ev.era)}`; })(), ev.player === ctx.moi ? 'good' : 'info', ev.seq);

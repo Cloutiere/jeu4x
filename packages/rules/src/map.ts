@@ -42,6 +42,7 @@ import {
 } from './civilizations.js';
 import { prochainNomVille } from './noms.js'; // MENU-VILLE : noms VilleN (compteur par joueur)
 import { createRng } from './rng.js';
+import { embarqueMilice } from './bonusPlacement.js'; // BONUS-DECOUVERTE · D2
 import { EGYPT_WONDER_SEED_SALT, applyCapitalStartBonuses } from './civStartBonus.js';
 
 export interface MapPlayerSpawn {
@@ -511,6 +512,9 @@ export function createInitialState(
         cargo: null,
         stabilized: false, // ENGAGEMENT - R-173
       };
+      // BONUS-DECOUVERTE · D2 : la dotation navale embarquerait sa Milice
+      // (no-op tant qu'aucune dotation n'accorde de navire — garde embarqueMilice).
+      embarqueMilice({ units }, units[`u${n}`]!);
     }
   }
 

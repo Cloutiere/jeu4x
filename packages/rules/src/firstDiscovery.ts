@@ -20,14 +20,23 @@
  */
 import { tileKeyOf } from './hex.js';
 import type { Hex } from './hex.js';
-import { unitType } from './data.js';
+import { BUILDINGS, unitType } from './data.js';
 import { nextId } from './state.js';
-import type { GameState, PlayerId } from './state.js';
+import type { GameState, PlayerId, Unit } from './state.js';
 import type { FirstDiscoveredPayload } from './events.js';
 import type { PerCityBonus } from './types.js';
 import { TECHS } from './techs.js';
 import { figureClassForTech } from './culture.js';
 import { freeSpawnTiles } from './barbares.js';
+import { accorderBatiment } from './batiments.js';
+import {
+  BONUS_PLACEMENT_SEED_SALT,
+  embarqueMilice,
+  nomTerrain,
+  siteSpawnNaval,
+  villePlusPeuplee,
+  villePourBatimentTerrain,
+} from './bonusPlacement.js';
 
 /** Première ville du joueur : capitale d'abord, sinon cityId croissant (R-81). */
 function primaryCity(st: GameState, playerId: PlayerId): (typeof st.cities)[string] | null {
@@ -55,6 +64,45 @@ export function empirePerCityBonus(
     out.culture += perCity.culture ?? 0;
   }
   return out;
+}
+
+/** Graine du RNG dédié aux choix de ville (miroir R-154 — BONUS-DECOUVERTE). */
+function grainePlacement(st: GameState): number {
+  return (st.rngSeed ^ BONUS_PLACEMENT_SEED_SALT) >>> 0;
+}
+
+/**
+ * BONUS-DECOUVERTE (décisions d'Erik du 07/10, D1-D6) · Récompense BÂTIMENT :
+ * la cible n'est plus « la première ville » mais la ville qui en PROFITE —
+ * à terrain (Comptoir=désert, Atelier=colline) : le plus de cases du terrain
+ * (rayon actuel, sinon rayon potentiel Tribunal — D3) ; sans terrain (Marché,
+ * Remparts) : la plus peuplée (D4). Jamais bénéficiaire / déjà dotée ⇒
+ * annulé et ANNONCÉ (D5 — `notGranted`, jamais reporté).
+ */
+function accorderBatimentReward(
+  st: GameState,
+  playerId: PlayerId,
+  buildingId: string,
+  payload: FirstDiscoveredPayload,
+): void {
+  const data = BUILDINGS[buildingId];
+  const seed = grainePlacement(st);
+  const choisie = data?.tileBonus
+    ? (villePourBatimentTerrain(st, playerId, buildingId, seed)?.city ?? null)
+    : villePlusPeuplee(st, playerId, seed);
+  if (!choisie) {
+    if (data?.tileBonus) {
+      // D5 : aucune ville ne profitera jamais du tileBonus → annulé, nommé.
+      payload.notGranted = `aucune case de ${nomTerrain(data.tileBonus.terrain)} — ${data.name} non accordé`;
+    }
+    return; // aucune ville : bonus perdu (empire sans ville — edge documenté)
+  }
+  if (!accorderBatiment(choisie, buildingId)) {
+    payload.notGranted = `${data?.name ?? buildingId} non accordé — ville ${choisie.id} déjà dotée`;
+    return;
+  }
+  payload.building = buildingId;
+  payload.cityId = choisie.id;
 }
 
 /**
@@ -100,50 +148,84 @@ export function applyFirstToDiscover(
     if (citiesToFill.length > 0) payload.population = reward.population;
   }
 
-  // Bâtiment gratuit : première ville du joueur (capitale prioritaire) —
-  // perdu si la ville est déjà dotée (idempotent), remplacement appliqué.
+  // Bâtiment gratuit : BONUS-DECOUVERTE D3/D4 — la ville qui PROFITE (terrain
+  // ou population), plus « la première ville bêtement » ; annulation annoncée
+  // (D5). Perdu si la ville choisie est déjà dotée (idempotent — R-66),
+  // remplacement appliqué (R-111 — noyau partagé accorderBatiment).
   if (reward.building) {
-    const city = primaryCity(st, playerId);
-    if (city && !city.buildings.includes(reward.building)) {
-      city.buildings.push(reward.building);
-      payload.building = reward.building;
-      payload.cityId = city.id;
-    }
+    accorderBatimentReward(st, playerId, reward.building, payload);
   }
 
-  // Unité gratuite : case de la première ville si libre, sinon case adjacente
-  // libre (tri (q, r) via freeSpawnTiles — R-81). Ignorée si non implémentée.
+  // Unité gratuite : ignorée si non implémentée. BONUS-DECOUVERTE D1 —
+  // unité NAVALE : JAMAIS sur terre (bug corrigé : Gallion en capitale
+  // intérieure) — site de spawn via siteSpawnNaval (ville au tri pop ↓ →
+  // capitale → seedé ayant une case d'eau libre ; repli port R-117 ; annulé
+  // et annoncé D5). Unité TERRESTRE (D6 inchangé) : case de la première
+  // ville si libre, sinon case adjacente libre (tri (q, r) — R-81).
+  // D2 — tout navire engendré (sauf Sous-marin, barbares exclus 🔶) embarque
+  // une Milice (embarqueMilice).
   if (reward.unit) {
     const stats = unitType(reward.unit);
     if (stats.implemented !== false) {
-      const city = primaryCity(st, playerId);
-      let spot: Hex | null = null;
-      if (city) {
-        const hex = { q: city.q, r: city.r };
-        const occupied = Object.values(st.units).some((u) => u.q === hex.q && u.r === hex.r);
-        spot = occupied ? (freeSpawnTiles(st, hex, 1)[0] ?? null) : hex;
-      }
-      if (spot) {
-        const unitId = nextId(st.units, 'u');
-        st.units[unitId] = {
-          id: unitId,
-          type: reward.unit,
-          owner: playerId,
-          q: spot.q,
-          r: spot.r,
-          hp: stats.hpMax,
-          mp: stats.movement,
-          veteran: false,
-          isArmy: false,
-          order: null,
-          detainedBy: null,
-          fortified: false,
-          aboard: null, // 7g · R-117
-          cargo: null,
-          stabilized: false, // ENGAGEMENT - R-173
-        };
-        payload.unitType = reward.unit;
-        payload.unitIds = [unitId];
+      if (stats.aquatic) {
+        const site = siteSpawnNaval(st, playerId, reward.unit, grainePlacement(st));
+        if (site) {
+          const unitId = nextId(st.units, 'u');
+          const navire: Unit = {
+            id: unitId,
+            type: reward.unit,
+            owner: playerId,
+            q: site.hex.q,
+            r: site.hex.r,
+            hp: stats.hpMax,
+            mp: stats.movement,
+            veteran: false,
+            isArmy: false,
+            order: null,
+            detainedBy: null,
+            fortified: false,
+            aboard: null, // 7g · R-117
+            cargo: null,
+            stabilized: false, // ENGAGEMENT - R-173
+          };
+          st.units[unitId] = navire;
+          const miliceId = embarqueMilice(st, navire); // D2 — Milice de bord
+          payload.unitType = reward.unit;
+          payload.unitIds = miliceId ? [unitId, miliceId] : [unitId];
+        } else {
+          // D5 : aucun port valide — annulé et annoncé, jamais reporté.
+          payload.notGranted = `aucun port valide — ${stats.name} non accordé`;
+        }
+      } else {
+        const city = primaryCity(st, playerId);
+        let spot: Hex | null = null;
+        if (city) {
+          const hex = { q: city.q, r: city.r };
+          const occupied = Object.values(st.units).some((u) => u.q === hex.q && u.r === hex.r);
+          spot = occupied ? (freeSpawnTiles(st, hex, 1)[0] ?? null) : hex;
+        }
+        if (spot) {
+          const unitId = nextId(st.units, 'u');
+          st.units[unitId] = {
+            id: unitId,
+            type: reward.unit,
+            owner: playerId,
+            q: spot.q,
+            r: spot.r,
+            hp: stats.hpMax,
+            mp: stats.movement,
+            veteran: false,
+            isArmy: false,
+            order: null,
+            detainedBy: null,
+            fortified: false,
+            aboard: null, // 7g · R-117
+            cargo: null,
+            stabilized: false, // ENGAGEMENT - R-173
+          };
+          payload.unitType = reward.unit;
+          payload.unitIds = [unitId];
+        }
       }
     }
   }

@@ -242,3 +242,28 @@ describe('chronique — D7 persistance et plafond', () => {
     expect(get(chronique).map((x) => x.id)).toEqual(premier); // pas de doublon
   });
 });
+
+describe('BONUS-DECOUVERTE · notGranted (D5) — chronique', () => {
+  it('la part non accordée produit une entrée « bad » nommée, avec un ID DÉDIÉ (jamais le seq seul — crash each_key_duplicate)', () => {
+    const evts = [
+      { seq: 538, type: 'FirstDiscovered', player: 'p1', tech: 'navigation', label: 'Un Galion gratuit', notGranted: 'aucun port valide — Galion non accordé' } as unknown as GameEvent,
+    ];
+    const entrees = entreesChronique(evts, ctx(), 12);
+    expect(entrees).toHaveLength(2);
+    const ids = new Set(entrees.map((e) => e.id));
+    expect(ids.size).toBe(2); // deux entrées de seq identique = ids DISTINCTS
+    const annulation = entrees.find((e) => e.id.endsWith('-ng'))!;
+    expect(annulation.ton).toBe('bad');
+    expect(annulation.texte).toBe('aucun port valide — Galion non accordé');
+    expect(entrees.find((e) => !e.id.endsWith('-ng'))!.texte).toContain('Un Galion gratuit');
+  });
+
+  it('sans notGranted : une seule entrée (comportement inchangé)', () => {
+    const evts = [
+      { seq: 539, type: 'FirstDiscovered', player: 'p1', tech: 'banque', label: '100 pièces' } as unknown as GameEvent,
+    ];
+    const entrees = entreesChronique(evts, ctx(), 12);
+    expect(entrees).toHaveLength(1);
+    expect(entrees[0]!.id).toBe('e539');
+  });
+});

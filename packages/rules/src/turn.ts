@@ -82,6 +82,8 @@ import {
 import { effectsFor, isInAnarchy, landCombatBonus, populationCostOf } from './governments.js';
 import { prochainNomVille } from './noms.js'; // MENU-VILLE : noms VilleN (compteur par joueur)
 import { applyCapitalStartBonuses } from './civStartBonus.js'; // CIV-CAPITALE-FONDEE
+import { accorderBatiment } from './batiments.js'; // BONUS-DECOUVERTE : noyau partagé R-66/R-111
+import { embarqueMilice } from './bonusPlacement.js'; // BONUS-DECOUVERTE D2 : Milice de bord
 // 7i · R-63 rév. (D1/D2), R-60bis (D4), R-64 rév. (D3) — croissance CivRev.
 import {
   GROWTH,
@@ -354,6 +356,28 @@ function occupiedByUnit(board: Board, hex: Hex, except?: UnitId): boolean {
   return occupants(board, hex, except).length > 0;
 }
 
+/**
+ * BONUS-DECOUVERTE · D2 (décisions d'Erik du 07/10) : tout navire ENGENDRÉ
+ * par le moteur (production en ville, récompense, merveille, palier, hutte,
+ * dotation) démarre avec une Milice à bord — SAUF le Sous-marin ; les
+ * barbares sont EXCLUS 🔶 (garde dans embarqueMilice). L'embarquement est
+ * tracé par l'événement `Embark` existant (fog standard R-73).
+ */
+function miliceDeBord(board: Board, unitId: UnitId): void {
+  const navire = board.st.units[unitId];
+  if (!navire) return;
+  const miliceId = embarqueMilice(board.st, navire);
+  if (miliceId) {
+    emit(board, {
+      type: 'Embark',
+      unitId: miliceId,
+      owner: navire.owner,
+      transportId: unitId,
+      at: { q: navire.q, r: navire.r },
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // EMBARQUEMENT-PROGRAMME (décisions d'Erik du 03/10 — D1-B..D7)
 // ---------------------------------------------------------------------------
@@ -616,6 +640,7 @@ function openHutAt(board: Board, hex: Hex, opener: Unit): void {
           cargo: null,
           stabilized: false, // ENGAGEMENT · R-173
         };
+        miliceDeBord(board, unitId); // BONUS-DECOUVERTE · D2 — Milice de bord
         reward.unitIds = [unitId];
       }
       break;
@@ -1309,6 +1334,7 @@ function applyCampReward(board: Board, winner: Unit, campHex: Hex, reward: HutRe
           aboard: null,
           cargo: null,
         };
+        miliceDeBord(board, unitId); // BONUS-DECOUVERTE · D2 — Milice de bord
         reward.unitIds = [unitId];
       }
       break;
@@ -2476,6 +2502,7 @@ function completeProductionNow(board: Board, city: City): boolean {
     };
     if (arrivante) board.arrivantesCeTour.add(unitId);
     emit(board, { type: 'UnitProduced', unitId, cityId: city.id, owner: city.owner, unitType: effectiveType, at: { q: city.q, r: city.r } });
+    miliceDeBord(board, unitId); // BONUS-DECOUVERTE · D2 — Milice de bord
   } else if (item.kind === 'wonder') {
     // La complétion canonique lit `city.production.progress` pour la
     // récupération éventuelle : à un rush, le projet est payé — la file est
@@ -2492,15 +2519,11 @@ function completeProductionNow(board: Board, city: City): boolean {
  * 7l · R-136 · Ajout d'un bâtiment GRATUIT à une ville (paliers économiques)
  * — mêmes règles que la production (R-66 : non duplicable — saute si déjà
  * construit ; remplacement R-111) ; Tribunal : réassignation immédiate.
+ * BONUS-DECOUVERTE : le noyau d'application est PARTAGÉ (accorderBatiment,
+ * batiments.ts) avec les récompenses Premier découvrir.
  */
 function grantBuildingToCity(board: Board, city: City, buildingId: string): void {
-  if (hasBuilding(city, buildingId)) return; // R-66 : déjà dotée
-  const replaced = BUILDINGS[buildingId]?.replaces;
-  if (replaced && hasBuilding(city, replaced)) {
-    city.buildings = city.buildings.filter((b) => b !== replaced);
-  }
-  city.buildings.push(buildingId);
-  city.buildings.sort();
+  if (!accorderBatiment(city, buildingId)) return; // R-66 : déjà dotée
   if ((BUILDINGS[buildingId]?.workRadiusBonus ?? 0) > 0) {
     // Tribunal : le rayon s'élargit — les citoyens intérieurs redeviennent
     // travailleurs de terrain (miroir production, R-60bis).
@@ -2593,6 +2616,7 @@ function produceUnitFromReserve(board: Board, city: City, unitTypeId: string, al
   };
   if (arrivante) board.arrivantesCeTour.add(unitId);
   emit(board, { type: 'UnitProduced', unitId, cityId: city.id, owner: city.owner, unitType: effectiveType, at: spot });
+  miliceDeBord(board, unitId); // BONUS-DECOUVERTE · D2 — Milice de bord
   return true;
 }
 
@@ -2796,6 +2820,7 @@ function applyGreatPersonConsume(board: Board, unit: Unit, city: City): string |
           cargo: null,
         };
         emit(board, { type: 'UnitProduced', unitId, cityId: city.id, owner: unit.owner, unitType: prod.item.id, at: hex });
+        miliceDeBord(board, unitId); // BONUS-DECOUVERTE · D2 — Milice de bord
       } else if (prod.item.kind === 'wonder') {
         const wonderId = prod.item.id;
         const wonderData = WONDERS[wonderId];
@@ -3988,6 +4013,7 @@ function applyWonderCompletionEffects(board: Board, city: City, wonderData: Wond
         unitType: wonderData.grantsUnit,
         at: spot,
       });
+      miliceDeBord(board, unitId); // BONUS-DECOUVERTE · D2 — Milice de bord
     }
   }
   // Université d'Oxford : une technologie avancée ALÉATOIRE — tirage seedé
@@ -4663,6 +4689,7 @@ function applyEconomyMilestone(
         unitType: milestone.unit,
         at: spot,
       });
+      miliceDeBord(board, unitId); // BONUS-DECOUVERTE · D2 — Milice de bord
       break;
     }
     case 'tech': {
