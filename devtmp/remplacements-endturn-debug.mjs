@@ -1,0 +1,21 @@
+import { readFileSync } from 'node:fs';
+const BASE = 'http://127.0.0.1:8787';
+const ADMIN_TOKEN = /^ADMIN_TOKEN=(.*)$/m.exec(readFileSync('C:/Users/Erik/ZCodeProject/apps/server/.dev.vars', 'utf8'))[1].trim();
+const code = process.argv[2];
+const nom = process.argv[3];
+const GUI = 'http://localhost:5174';
+const res = await fetch(`${GUI}/auth/dev?name=${encodeURIComponent(nom)}&next=/`, { redirect: 'manual' });
+const token = /session=([^;]+)/.exec(res.headers.get('set-cookie') ?? '')?.[1];
+const ws = new WebSocket(`${BASE.replace(/^http/, 'ws')}/ws/game/${code}?token=${encodeURIComponent(token)}`);
+await new Promise((res2, rej2) => { ws.addEventListener('open', res2); ws.addEventListener('error', rej2); });
+let n = 0;
+ws.addEventListener('message', (ev) => {
+  const m = JSON.parse(ev.data);
+  n++;
+  if (n <= 12 || m.type?.includes('Error') || m.type === 'ResolutionFailed') console.log('<<', m.type, JSON.stringify(m).slice(0, 300));
+});
+ws.send(JSON.stringify({ proto: 1, type: 'EndTurn' }));
+await new Promise((r) => setTimeout(r, 15000));
+const st = await (await fetch(`${BASE}/admin/game/${code}`, { headers: { authorization: `Bearer ${ADMIN_TOKEN}` } })).json();
+console.log('turn apres:', st.state.turn);
+ws.close();

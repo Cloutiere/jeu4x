@@ -97,7 +97,11 @@ export function optionsBatiments(ctx: CtxVilleProduction): OptionProd[] {
   for (const b of Object.values(BUILDINGS)) {
     if (b.fixed || b.implemented === false) continue; // Palais, composants du Vaisseau
     if (ctx.buildings.includes(b.id)) continue; // déjà construit (R-66)
-    if (b.replaces && ctx.buildings.includes(b.replaces)) continue; // remplacé (R-111)
+    // R-111 (REMPLACEMENTS-BATIMENTS 06/10) : un remplaçant est proposé quand
+    // son remplacé est construit (c'est son prérequis — canSetProduction
+    // l'accepte). L'ancien filtre inversait le sens de `replaces` et retirait
+    // le remplaçant du menu précisément quand il devenait constructible.
+    if (Object.values(BUILDINGS).some((r) => r.replaces === b.id && ctx.buildings.includes(r.id))) continue;
     const effect = [
       b.workRadiusBonus > 0 ? 'Rayon de travail 1 → 2' : (b.effect ?? tileEffectLabel(b)),
       b.replaces ? `remplace ${BUILDINGS[b.replaces]?.name ?? b.replaces}` : null,

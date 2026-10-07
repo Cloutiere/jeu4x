@@ -1,0 +1,35 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+const require = createRequire('C:/Users/Erik/ZCodeProject/desktop/package.json');
+const { chromium } = require('playwright-core');
+const GUI = 'http://localhost:5174';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const token = /session=([^;]+)/.exec((await fetch(`${GUI}/auth/dev?name=dbgRempl2&next=/`, { redirect: 'manual' })).headers.get('set-cookie'))[1];
+const code = process.argv[2];
+const st = await (await fetch(`http://127.0.0.1:8787/admin/game/${code}`, { headers: { authorization: `Bearer ${/ADMIN_TOKEN=(.*)/.exec(readFileSync('C:/Users/Erik/ZCodeProject/apps/server/.dev.vars', 'utf8'))[1].trim()}` } })).json();
+const ville = Object.values(st.state.cities).find((c) => c.owner === 'p1');
+console.log('ville', ville.id, ville.q, ville.r);
+
+const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+await ctx.addCookies([{ name: 'session', value: token, url: GUI }]);
+const page = await ctx.newPage();
+page.on('console', (m) => { if (m.type() === 'error') console.log('[console]', m.text().slice(0, 200)); });
+page.on('pageerror', (e) => console.log('[pageerror]', String(e).slice(0, 300)));
+await page.goto(`${GUI}/#/game/${code}`, { waitUntil: 'domcontentloaded' });
+await page.waitForFunction(() => !!window.__game, null, { timeout: 30000 });
+await sleep(3000);
+const info = await page.evaluate(() => {
+  const g = window.__game;
+  return { keys: Object.keys(g).slice(0, 40), typeofClickHex: typeof g.clickHex };
+});
+console.log('info', JSON.stringify(info));
+const r1 = await page.evaluate(([q, r]) => { try { window.__game.clickHex(q, r); return 'ok'; } catch (e) { return String(e); } }, [ville.q, ville.r]);
+console.log('clickHex direct (q,r) :', r1);
+await sleep(1500);
+console.log('panneau apres (q,r) :', !!(await page.$('.panneau-ville')));
+const r2 = await page.evaluate(([x, y]) => { try { window.__game.clickHex(x, y); return 'ok'; } catch (e) { return String(e); } }, [ville.q, ville.r]);
+await sleep(1500);
+console.log('panneau apres 2e clic :', !!(await page.$('.panneau-ville')));
+await page.screenshot({ path: 'C:/Users/Erik/ZCodeProject/devtmp/remplacements-debug.png' });
+await browser.close();
