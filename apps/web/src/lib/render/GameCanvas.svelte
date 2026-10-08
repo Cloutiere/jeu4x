@@ -9,10 +9,10 @@
    * JSON), entités = celles de l'état filtré uniquement.
    */
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
-  import type { Texture } from 'pixi.js';
+  import type { Texture, TextStyleOptions } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, previewPrograms, fondeAFinDuChemin, fondateursDe, colOf, colRowToHex, hexesWithinRadiusW, normalizeHexW, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius } from '@game/rules';
-  import type { GameState, Hex, ProgramPreview } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, allKnownTechs, previewPrograms, fondeAFinDuChemin, fondateursDe, colOf, colRowToHex, hexesWithinRadiusW, normalizeHexW, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius } from '@game/rules';
+  import type { CityId, GameState, Hex, ProgramPreview } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
   import type { GameClient, GameView } from '../gameClient.js';
@@ -31,7 +31,12 @@
   import { arrowHeadPoints, dashSegments, segmentsOf, ZINDEX_FLECHE } from './arrows.js';
   import type { Point } from './arrows.js';
   import { BADGE_FONDATION, etatFondationColon } from './fondation.js';
-  import { BADGE_POPULATION } from './badge-population.js';
+  // BANDE-VILLE (Erik 07/10) : bannière Civ VI — segments/géométrie purs
+  // (bande-ville.ts, testée), préchargement des logos de nation (nations.ts).
+  import { Assets } from 'pixi.js';
+  import { BANDE_VILLE, construireBanniere, etaProductionBanniere, rectBanniereLocale, rendementsVille, toursCroissanceBanniere } from './bande-ville.js';
+  import { logosNation, nationDe } from '../nations.js';
+  import { fileEffective, nomItem } from '../fileProduction.js';
   import { iconeCommerceRendement } from './rendements.js';
   // VUE-VILLE-PERF · D4b : pool des Text de rendement (aucun new Text par
   // rebuild — réutilisation par clé texte+style, purge au démontage).
@@ -325,6 +330,10 @@
         if (tb.text !== a.text) tb.text = a.text;
       } else if (a instanceof Sprite) {
         const sb = b as Sprite;
+        // BANDE-VILLE : le logo de nation s'attache APRÈS la création des
+        // copies (chargement async des SVG) — transfert de texture par
+        // identité (les autres sprites gardent leur texture : sans coût).
+        if (sb.texture !== a.texture) sb.texture = a.texture;
         sb.width = a.width;
         sb.height = a.height;
         sb.tint = a.tint;
@@ -415,6 +424,45 @@
   // ORDRES-UNITES (06/10) : style CONSTANT des badges d'état persistant
   // (vigilance 😴 / soin ✚) — même recette que le pool des rendements.
   const TEXT_STYLE_BADGE_ETAT = { fontFamily: 'system-ui, sans-serif', fontSize: 13, fill: 0xffffff, stroke: { color: 0x1b1b22, width: 3 } };
+
+  // BANDE-VILLE (Erik 07/10) : styles CONSTANTS des textes de bannière (une
+  // clé par style — même recette). Les Text sont des enfants DURABLES du
+  // conteneur ville : créés UNE fois au build, textes mis à jour avec garde
+  // (re-rastérisation évitée) — zéro allocation par frame et zéro création
+  // par rebuild (leçon VUE-VILLE-PERF ; le conteneur ville est réutilisé,
+  // un pool n'apporterait rien ici).
+  const STYLE_BANDE_NOM: TextStyleOptions = { fontFamily: 'system-ui, sans-serif', fontSize: BANDE_VILLE.policeNom, fill: BANDE_VILLE.blanc, fontWeight: '700', stroke: { color: BANDE_VILLE.contourTexte, width: 3 } };
+  const STYLE_BANDE_POP: TextStyleOptions = { fontFamily: 'system-ui, sans-serif', fontSize: BANDE_VILLE.policePop, fill: BANDE_VILLE.blanc, fontWeight: '700', stroke: { color: BANDE_VILLE.contourTexte, width: 3 } };
+  const STYLE_BANDE_DETAIL: TextStyleOptions = { fontFamily: 'system-ui, sans-serif', fontSize: BANDE_VILLE.policeDetail, fill: BANDE_VILLE.blanc, fontWeight: '600', stroke: { color: BANDE_VILLE.contourTexte, width: 3 } };
+  const STYLE_BANDE_INITIALE: TextStyleOptions = { fontFamily: 'system-ui, sans-serif', fontSize: BANDE_VILLE.policeDetail, fill: BANDE_VILLE.or, fontWeight: '700', stroke: { color: BANDE_VILLE.contourTexte, width: 2 } };
+  const STYLE_BANDE_ETOILE: TextStyleOptions = { fontFamily: 'system-ui, sans-serif', fontSize: 13, fill: BANDE_VILLE.etoile, fontWeight: '700', stroke: { color: BANDE_VILLE.contourTexte, width: 3 } };
+
+  // BANDE-VILLE — logos de nation préchargés au setup (SVG or du lobby, la
+  // table nations.ts) puis lus au cache Assets par le rebuild. Une bannière
+  // née avant la résolution naît sans logo et s'attache au rebuild suivant
+  // (copies couture comprises — syncCopie transfère la texture) ; un logo
+  // absent/échoué = bannière sans icône (miroir lobby D4, jamais un crash).
+  // `logosCharges` évite d'interroger le cache avant la résolution (Assets
+  // émet un warning par URL manquante sinon) ; vidé au setup (les textures
+  // du cache meurent avec le renderer à la bascule 2D ↔ 3D).
+  const logosCharges = new Set<string>();
+  function textureLogoDe(civId: string | null | undefined): Texture | null {
+    const url = nationDe(civId)?.logo;
+    if (!url || !logosCharges.has(url)) return null;
+    return (Assets.cache.get(url) as Texture | undefined) ?? null;
+  }
+  async function chargerLogosNation(): Promise<void> {
+    for (const url of logosNation()) {
+      try {
+        await Assets.load(url);
+        logosCharges.add(url);
+      } catch (e) {
+        // logo fichier absent/illisible : bannière sans icône, pas de crash
+        console.warn(`[bande-ville] logo de nation non chargé : ${url}`, e);
+      }
+    }
+    if (!disposed) entitiesDirty = true; // attacher les logos aux bannières posées
+  }
 
   // ---------------------------------------------------------------------
   // MENU-VILLE — vue ville (retour d'Erik du 13/09 v2 : ZOOM À PLAT)
@@ -961,12 +1009,15 @@
     // résolues par la mêlée de Phase E et l'expulsion de cohabitation.
 
     const seenCities = new Set<string>();
+    // BANDE-VILLE : les technologies connues ne dépendent pas de la ville —
+    // une seule lecture par rebuild (miroir PanneauVille allKnownTechs).
+    const allTechs = allKnownTechs(state);
     for (const city of Object.values(state.cities)) {
       if (!scene.visible.has(tileKeyOf(city))) continue;
       seenCities.add(city.id);
       let c = citySprites.get(city.id);
       if (!c) {
-        c = buildCityContainer(city.id, city.capital, city.owner);
+        c = buildCityContainer(city.id, city.capital, city.owner, city.name ?? city.id);
         c.zIndex = -100; // RETOUR ERIK 28/09 (GP-ART) : villes, huttes et artefacts
         // sont sur la COUCHE TUILE (comme le village barbare) — tout ce qui est
         // posé sur la tuile ou en dessous se superpose à eux.
@@ -979,9 +1030,9 @@
       const accent2d = c.getChildByLabel('accent');
       if (base2d) base2d.visible = !structures3dActives;
       if (accent2d) accent2d.visible = !structures3dActives;
-      // Progression de production (R-62) : barre or + pop.
+      // Progression de production (R-62) : barre or brute (la bannière porte
+      // le détail ETA ; la barre reste — miroir 3D où l'art est masqué).
       const prodFill = c.getChildByLabel('prodFill') as Sprite;
-      const popText = c.getChildByLabel('pop') as Text;
       if (city.production) {
         // Coût selon le type d'item (unité ou bâtiment — R-66, Phase 6).
         const item = city.production.item;
@@ -991,9 +1042,61 @@
       } else {
         prodFill.visible = false;
       }
-      popText.text = String(city.pop);
+      // BANDE-VILLE (Erik 07/10) : segments de la bannière — calculés par
+      // REBUILD, jamais par frame. D3 : les candidats (croissance/ETA) ne
+      // sont calculés que pour les villes du JOUEUR — getFilteredState garde
+      // les villes ennemies visibles ENTIÈRES, le masquage est un contrat
+      // d'affichage (construireBanniere re-masque par sûreté).
+      const mienne = city.owner === scene.myId;
+      let croissance: number | null = null;
+      let itemNom: string | null = null;
+      let eta: number | null = null;
+      if (mienne && scene.view) {
+        const r = rendementsVille(state, city, effectiveWorkedTiles(scene.view, city).tiles, allTechs);
+        croissance = toursCroissanceBanniere(city, r.food);
+        // MENU-VILLE-QUEUE D1/D2 : la TÊTE EFFECTIVE (état + brouillons de CE
+        // joueur) — un SetProduction posé ce tour s'affiche immédiatement
+        // (miroir du PanneauVille, jamais l'état en retard d'une résolution).
+        const tete = fileEffective(scene.view, city.id).rangs[0] ?? null;
+        if (tete) {
+          itemNom = nomItem(tete.item);
+          eta = etaProductionBanniere(tete.item, tete.progress, r.prodPerTurn);
+        }
+      }
+      const bande = construireBanniere({ nom: city.name ?? city.id, pop: city.pop, capitale: city.capital, mienne, croissance, itemNom, eta });
+      // Logo de nation (préchargé au setup) — capturé par le civId courant
+      // (une capture change le propriétaire, le logo suit).
+      const bandeLogo = c.getChildByLabel('bandeLogo') as Sprite;
+      const texLogo = textureLogoDe(state.players[city.owner]?.civId);
+      if (texLogo && bandeLogo.texture !== texLogo) {
+        bandeLogo.texture = texLogo;
+        bandeLogo.scale.set(BANDE_VILLE.tailleLogo / Math.max(1, texLogo.width, texLogo.height));
+      }
+      bandeLogo.visible = !!texLogo;
+      // Textes mis à jour AVEC GARDE : un texte inchangé n'est jamais
+      // re-rastérisé (miroir de la garde interne de syncCopie).
+      const popText = c.getChildByLabel('pop') as Text;
+      const textePop = String(bande.pop);
+      if (popText.text !== textePop) popText.text = textePop;
+      c.getChildByLabel('bandeEtoile')!.visible = bande.capitale;
+      const rang2 = bande.croissance !== null || bande.initiale !== null;
+      (c.getChildByLabel('bandeFond2') as Graphics).visible = rang2;
+      const bandeCroissance = c.getChildByLabel('bandeCroissance') as Text;
+      bandeCroissance.visible = bande.croissance !== null;
+      const texteCroissance = `${BANDE_VILLE.iconeCroissance} ${bande.croissance ?? ''}`;
+      if (bandeCroissance.text !== texteCroissance) bandeCroissance.text = texteCroissance;
+      const prodCercle = c.getChildByLabel('prodCercle') as Graphics;
+      const prodInitiale = c.getChildByLabel('prodInitiale') as Text;
+      prodCercle.visible = bande.initiale !== null;
+      prodInitiale.visible = bande.initiale !== null;
+      const texteInitiale = bande.initiale ?? '';
+      if (prodInitiale.text !== texteInitiale) prodInitiale.text = texteInitiale;
+      const prodEta = c.getChildByLabel('prodEta') as Text;
+      prodEta.visible = bande.eta !== null;
+      const texteEta = bande.eta === null ? '' : `${bande.eta} tour${bande.eta > 1 ? 's' : ''}`;
+      if (prodEta.text !== texteEta) prodEta.text = texteEta;
       // CARTE-RONDE T2 (D2) : copie au voisinage de la couture.
-      gererCopies(cityCopies, c, city.id, () => buildCityContainer(city.id, city.capital, city.owner), vusCopiesVilles);
+      gererCopies(cityCopies, c, city.id, () => buildCityContainer(city.id, city.capital, city.owner, city.name ?? city.id), vusCopiesVilles);
     }
     for (const [id, c] of citySprites) {
       if (!seenCities.has(id)) {
@@ -1257,7 +1360,7 @@
     return c;
   }
 
-  function buildCityContainer(cityId: string, capital: boolean, owner: string): Container {
+  function buildCityContainer(cityId: string, capital: boolean, owner: string, nom: string): Container {
     const c = new Container();
     // NEW-VILLES (Erik 27/09) : art peint UNE version (toutes époques/joueurs —
     // le contour de tuile porte la couleur) : hexagone complet ancré au sommet
@@ -1280,26 +1383,77 @@
     prodFill.height = 8;
     prodFill.tint = 0xf0c419;
     prodFill.position.set(-38, 26);
-    // MENU-VILLE-RETOUCHES : badge de population SUR la case de la ville
-    // (libère la tuile voisine et son icône de rendement) — constantes 🔶
-    // calibrables à l'œil dans render/badge-population.ts.
-    const popBg = new Graphics();
-    popBg
-      .circle(BADGE_POPULATION.x, BADGE_POPULATION.y, BADGE_POPULATION.rayon)
-      .fill({ color: BADGE_POPULATION.remplissage, alpha: BADGE_POPULATION.alpha })
-      .stroke({
-        color: BADGE_POPULATION.contour.couleur,
-        width: BADGE_POPULATION.contour.largeur,
-        alpha: BADGE_POPULATION.contour.alpha,
-      });
-    const popText = new Text({
-      text: '1',
-      style: { fontFamily: 'system-ui, sans-serif', fontSize: BADGE_POPULATION.police, fill: 0xffffff, fontWeight: '700' },
-    });
+    // BANDE-VILLE (décisions Erik 07/10) : la bannière Civ VI REMPLACE
+    // l'ancien badge de population (D5 — plus de doublon). Bande AAA
+    // or-sur-sombre au-dessus du sprite ville (le conteneur garde son
+    // zIndex -100 : SOUS les unités). Enfants dans un ORDRE FIXE —
+    // syncCopie synchronise les copies couture par index ; textes et
+    // visibilités pilotés au rebuild (rebuildEntities), géométrie fixe ici.
+    const BV = BANDE_VILLE;
+    const bandeFond = new Graphics();
+    bandeFond.label = 'bandeFond';
+    bandeFond
+      .roundRect(-BV.largeur / 2, BV.yRang1 - BV.hauteurRang1 / 2, BV.largeur, BV.hauteurRang1, BV.coin)
+      .fill({ color: BV.fond, alpha: BV.alphaFond })
+      .stroke({ color: BV.liserOr.couleur, width: BV.liserOr.largeur, alpha: BV.liserOr.alpha });
+    const bandeLogo = new Sprite();
+    bandeLogo.label = 'bandeLogo';
+    bandeLogo.anchor.set(0.5, 0.5);
+    bandeLogo.position.set(BV.xLogo, BV.yRang1);
+    bandeLogo.visible = false; // texture préchargée — attachée au rebuild
+    const bandeNom = new Text({ text: nom, style: STYLE_BANDE_NOM });
+    bandeNom.label = 'bandeNom';
+    bandeNom.anchor.set(0, 0.5);
+    bandeNom.position.set(BV.xNom, BV.yRang1);
+    // Nom trop long : ramené par échelle (jamais hors du liseré) ; l'étoile
+    // suit le bord EFFECTIF du texte (nom immuable — posé au build, les
+    // copies couture recalcule la même géométrie).
+    const fitNom = Math.min(1, BV.largeurNomMax / Math.max(1, bandeNom.width));
+    bandeNom.scale.set(fitNom);
+    const bandeEtoile = new Text({ text: '★', style: STYLE_BANDE_ETOILE });
+    bandeEtoile.label = 'bandeEtoile';
+    bandeEtoile.anchor.set(0, 0.5);
+    bandeEtoile.position.set(BV.xNom + bandeNom.width * fitNom + 6, BV.yRang1);
+    bandeEtoile.visible = capital; // D2 : étoile dorée de la capitale
+    const popCercle = new Graphics();
+    popCercle.label = 'popCercle';
+    popCercle.circle(BV.xPop, BV.yRang1, BV.rayonPop).fill({ color: BV.fond, alpha: 0.92 }).stroke({ color: BV.liserOr.couleur, width: 1.5, alpha: 0.9 });
+    const popText = new Text({ text: '1', style: STYLE_BANDE_POP });
     popText.label = 'pop';
     popText.anchor.set(0.5, 0.5);
-    popText.position.set(BADGE_POPULATION.x, BADGE_POPULATION.y);
-    c.addChild(base, accent, prodFill, popBg, popText);
+    popText.position.set(BV.xPop, BV.yRang1);
+    // Rangée 2 — croissance + production : masquée par défaut (D3/D4 :
+    // ville ennemie ou file vide → rien, pas de zéro ni d'« Infinity »).
+    const bandeFond2 = new Graphics();
+    bandeFond2.label = 'bandeFond2';
+    bandeFond2
+      .roundRect(-BV.largeurRang2 / 2, BV.yRang2 - BV.hauteurRang2 / 2, BV.largeurRang2, BV.hauteurRang2, BV.coin)
+      .fill({ color: BV.fond, alpha: BV.alphaFond })
+      .stroke({ color: BV.liserOr.couleur, width: BV.liserOr.largeur, alpha: 0.75 });
+    bandeFond2.visible = false;
+    const bandeCroissance = new Text({ text: '', style: STYLE_BANDE_DETAIL });
+    bandeCroissance.label = 'bandeCroissance';
+    bandeCroissance.anchor.set(0, 0.5);
+    bandeCroissance.position.set(BV.xCroissance, BV.yRang2);
+    bandeCroissance.visible = false;
+    // Cercle production : INITIALE du nom de l'item en attendant l'art
+    // d'Erik — la structure (sprite Text séparé) accueillera l'image sans
+    // changement de code (poser le PNG au label).
+    const prodCercle = new Graphics();
+    prodCercle.label = 'prodCercle';
+    prodCercle.circle(BV.xProdCercle, BV.yRang2, BV.rayonProd).fill({ color: BV.fond, alpha: 0.92 }).stroke({ color: BV.liserOr.couleur, width: 1.5, alpha: 0.9 });
+    prodCercle.visible = false;
+    const prodInitiale = new Text({ text: '', style: STYLE_BANDE_INITIALE });
+    prodInitiale.label = 'prodInitiale';
+    prodInitiale.anchor.set(0.5, 0.5);
+    prodInitiale.position.set(BV.xProdCercle, BV.yRang2);
+    prodInitiale.visible = false;
+    const prodEta = new Text({ text: '', style: STYLE_BANDE_DETAIL });
+    prodEta.label = 'prodEta';
+    prodEta.anchor.set(1, 0.5); // ancré à droite : « 12 tours » s'étend vers la gauche
+    prodEta.position.set(BV.xEta, BV.yRang2);
+    prodEta.visible = false;
+    c.addChild(base, accent, prodFill, bandeFond, bandeLogo, bandeNom, bandeEtoile, popCercle, popText, bandeFond2, bandeCroissance, prodCercle, prodInitiale, prodEta);
     c.label = cityId;
     return c;
   }
@@ -2824,6 +2978,43 @@
     return hexCanoniqueSousPoint(worldX, worldY, HEX_SIZE, scene.state.mapWidth, P);
   }
 
+  // BANDE-VILLE · D6 : le CLIC BANNIÈRE = clic ville (alternance R-2,
+  // PanneauVille) — la bannière flotte au-dessus de l'hex (tuile du dessus
+  // au picking hexagonal), le rect de picking est la MÊME géométrie que le
+  // dessin (rectBanniereLocale). Lecture de la transform GLOBALE des
+  // conteneurs : correct en 2D (caméra/vue ville portées par `world`) comme
+  // en 3D (world en identité, position écran posée par projeterCalques3d) —
+  // aucun calcul 3D nouveau. Les copies couture sont incluses (même ville,
+  // autre copie d'affichage).
+  function banniereSousEcranConteneur(c: Container, x: number, y: number): boolean {
+    if (!c.visible) return false;
+    const R = rectBanniereLocale();
+    const gp = c.getGlobalPosition();
+    const wt = c.worldTransform;
+    const x0 = gp.x + R.x0 * wt.a;
+    const x1 = gp.x + R.x1 * wt.a;
+    const y0 = gp.y + R.y0 * wt.d;
+    const y1 = gp.y + R.y1 * wt.d;
+    return x >= Math.min(x0, x1) && x <= Math.max(x0, x1) && y >= Math.min(y0, y1) && y <= Math.max(y0, y1);
+  }
+  function banniereSousEcran(x: number, y: number): CityId | null {
+    for (const [id, c] of citySprites) {
+      if (banniereSousEcranConteneur(c, x, y)) return id as CityId;
+    }
+    for (const [cle, cp] of cityCopies) {
+      if (banniereSousEcranConteneur(cp, x, y)) return cle.slice(0, cle.indexOf('@')) as CityId;
+    }
+    return null;
+  }
+  /** Hex de la ville dont la bannière est sous le point, sinon le hex sous
+   *  le point (substitution TRANSPARENTE : clickAction/alternance inchangés). */
+  function hexCibleSousEcran(x: number, y: number): Hex | null {
+    const idB = banniereSousEcran(x, y);
+    const ville = idB ? scene.state?.cities[idB] : undefined;
+    if (ville) return { q: ville.q, r: ville.r };
+    return hexSousEcran(x, y);
+  }
+
   /** Reprojecte chaque frame les couches PixiJS (entités, ressources,
    *  surcouche, effets) dans l'espace écran de la caméra 3D. Les enfants
    *  « estampés » (position monde) sont projetés ; les géométries absolues
@@ -3398,7 +3589,7 @@
       if (hexVue) onAction(clickActionVueVille(scene.view, vueVilleId, hexVue));
       return;
     }
-    const hex = hexSousEcran(p.x, p.y);
+    const hex = hexCibleSousEcran(p.x, p.y);
     if (!hex) return;
     // RAPPORT-ENGAGEMENT (D1) : un clic gauche sur une case à événement de
     // combat ouvre AUSSI le rapport — la sélection/désélection existante
@@ -3460,7 +3651,10 @@
    */
   function dblClickAtCanvas(p: { x: number; y: number }): void {
     if (playback.active || !scene.state) return;
-    const hex = hexSousEcran(p.x, p.y);
+    // BANDE-VILLE · D6 : le double-clic bannière = double-clic ville
+    // (entrée en vue ville — en vue ville, cliquer la bannière de la ville
+    // affichée ne sort pas).
+    const hex = hexCibleSousEcran(p.x, p.y);
     if (!hex) return;
     if (vueVilleActif()) {
       const ville = vueVilleId ? scene.state.cities[vueVilleId] : null;
@@ -3585,6 +3779,9 @@
     // Chaque montage recentre la vue (le drapeau survit au teardown — bascule 2D ↔ 3D).
     centered = false;
     if (!host) return;
+    // BANDE-VILLE : le cache Assets meurt avec le renderer à la bascule —
+    // les logos se rechargent (les entrées détruites ne sont plus lues).
+    logosCharges.clear();
     // Chantier V1 (L3) : en 3D, le canvas Three.js est posé SOUS le canvas
     // PixiJS (posé ensuite) — il reçoit les entrées via Pixi au-dessus.
     if (mode3d && !canvas3d) {
@@ -3618,6 +3815,9 @@
 
     // Assets réels (/art/, SPEC-ART) avec fallback placeholder fichier par fichier.
     textures = await loadTextures(application.renderer);
+    // BANDE-VILLE : logos de nation en ARRIÈRE-PLAN (jamais bloquant — les
+    // bannières naissent sans logo puis s'attachent à la résolution).
+    void chargerLogosNation();
     // CORRECTIFS-PILE (course de chargement) : si une vue est arrivée PENDANT
     // l'await, le rebuild consommé par le tick est reparti sans textures
     // (early-return) et les sprites gardaient une pose moteur périmée

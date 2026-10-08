@@ -1,6 +1,6 @@
 /**
  * CALIBRATION-UNITES (retour d'Erik du 20/09) — constantes 🔶 de pose des
- * sprites d'unités, éditables à l'œil SANS code (miroir de badge-population.ts).
+ * sprites d'unités, éditables à l'œil SANS code (miroir de bande-ville.ts).
  *
  * Le CALIBRE est le guerrier Recraft (unite_guerrier, 256×320) : sa hauteur
  * écran fait référence, toutes les autres tailles se règlent relativement à

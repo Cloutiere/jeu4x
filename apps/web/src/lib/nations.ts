@@ -26,3 +26,11 @@ export function nationDe(civId: string | null | undefined): Nation | undefined {
   const n = table[civId];
   return n && !n.reserve ? n : undefined;
 }
+
+/** BANDE-VILLE : URLs des logos de nation à précharger (non-réserve, logo
+ *  fichier présent) — le rendu Pixi les lit ensuite au cache Assets. */
+export function logosNation(): string[] {
+  return Object.values(table)
+    .filter((n) => !n.reserve && n.logo)
+    .map((n) => n.logo!);
+}
