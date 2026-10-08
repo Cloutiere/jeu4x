@@ -155,15 +155,31 @@ describe('rendementsVille (miroir yields/prodPerTurn de PanneauVille)', () => {
 });
 
 describe('géométrie partagée (dessin + picking D6)', () => {
-  it('rectBanniereLocale couvre les DEUX rangées, largeur = bande', () => {
+  it('rectBanniereLocale couvre la bande ET les drapeaux, largeur = bande', () => {
     const R = rectBanniereLocale();
     expect(R.x0).toBe(-BANDE_VILLE.largeur / 2);
     expect(R.x1).toBe(BANDE_VILLE.largeur / 2);
-    expect(R.y0).toBe(BANDE_VILLE.yRang1 - BANDE_VILLE.hauteurRang1 / 2);
-    expect(R.y1).toBe(BANDE_VILLE.yRang2 + BANDE_VILLE.hauteurRang2 / 2);
+    expect(R.y0).toBe(BANDE_VILLE.yBande - BANDE_VILLE.hauteurBande / 2);
+    expect(R.y1).toBe(BANDE_VILLE.yDrapeaux + BANDE_VILLE.hauteurDrapeaux / 2);
   });
-  it('la rangée 1 flotte AU-DESSUS du sommet du sprite ville (−64), la rangée 2 pend sous elle', () => {
-    expect(BANDE_VILLE.yRang1 + BANDE_VILLE.hauteurRang1 / 2).toBeLessThanOrEqual(-64);
-    expect(BANDE_VILLE.yRang2 - BANDE_VILLE.hauteurRang2 / 2).toBeGreaterThanOrEqual(BANDE_VILLE.yRang1 + BANDE_VILLE.hauteurRang1 / 2);
+  it('UNE SEULE bande : les drapeaux pendent sous elle, sans la recouvrir', () => {
+    // Retour d'Erik 08/10 : plus de rangée 2 encadrée — plaquettes nues.
+    expect(BANDE_VILLE.yDrapeaux - BANDE_VILLE.hauteurDrapeaux / 2).toBeGreaterThanOrEqual(
+      BANDE_VILLE.yBande + BANDE_VILLE.hauteurBande / 2,
+    );
+    // Le trio « Tours / croissance / production » tient sous la largeur bande.
+    const gauche = BANDE_VILLE.xDrapeauTours - BANDE_VILLE.largeurDrapeauEtiquette / 2;
+    const droite = BANDE_VILLE.xDrapeauProd + BANDE_VILLE.largeurDrapeauNombre / 2;
+    expect(gauche).toBeGreaterThanOrEqual(-BANDE_VILLE.largeur / 2);
+    expect(droite).toBeLessThanOrEqual(BANDE_VILLE.largeur / 2);
+  });
+  it('cercles pop et production côte à côte DANS la bande, sans chevauchement', () => {
+    const bordPop = BANDE_VILLE.xPop + BANDE_VILLE.rayonPop;
+    const bordProd = BANDE_VILLE.xProdCercle - BANDE_VILLE.rayonProd;
+    expect(bordProd).toBeGreaterThanOrEqual(bordPop);
+    expect(BANDE_VILLE.xProdCercle + BANDE_VILLE.rayonProd).toBeLessThanOrEqual(BANDE_VILLE.largeur / 2 - 2);
+  });
+  it('la bande flotte AU-DESSUS du sommet du sprite ville (−64)', () => {
+    expect(BANDE_VILLE.yBande + BANDE_VILLE.hauteurBande / 2).toBeLessThanOrEqual(-64);
   });
 });

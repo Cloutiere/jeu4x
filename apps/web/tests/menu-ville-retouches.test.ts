@@ -24,12 +24,12 @@ describe('bannière de ville — au-dessus du sprite, jamais sur la tuile voisin
     return Math.abs(x) <= demiLargeur;
   }
 
-  it('la bannière (rangée principale) flotte ENTIÈREMENT au-dessus du sommet du sprite ville (−64)', () => {
+  it('la bannière (bande) flotte ENTIÈREMENT au-dessus du sommet du sprite ville (−64)', () => {
     const R = rectBanniereLocale();
     // BANDE-VILLE (Erik 07/10) : la bannière REMPLACE le badge de population
     // (D5) — plus aucun indicateur SUR le corps de la ville à cet endroit.
-    expect(R.y1 >= BANDE_VILLE.yRang2 - BANDE_VILLE.hauteurRang2 / 2).toBe(true);
-    expect(BANDE_VILLE.yRang1 + BANDE_VILLE.hauteurRang1 / 2).toBeLessThanOrEqual(-64);
+    expect(R.y1 >= BANDE_VILLE.yDrapeaux - BANDE_VILLE.hauteurDrapeaux / 2).toBe(true);
+    expect(BANDE_VILLE.yBande + BANDE_VILLE.hauteurBande / 2).toBeLessThanOrEqual(-64);
   });
 
   it('la bannière ne déborde pas sur la tuile NE (q+1, r−1 : x ∈ [s√3/2·…], y < −s)', () => {

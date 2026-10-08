@@ -1079,11 +1079,17 @@
       const textePop = String(bande.pop);
       if (popText.text !== textePop) popText.text = textePop;
       c.getChildByLabel('bandeEtoile')!.visible = bande.capitale;
+      // Drapeaux sous la bande (D3/D4) : « Tours » + croissance et/ou
+      // production ; tout masqué si rien à montrer (ennemi, file vide).
       const rang2 = bande.croissance !== null || bande.initiale !== null;
-      (c.getChildByLabel('bandeFond2') as Graphics).visible = rang2;
+      (c.getChildByLabel('drapeauToursFond') as Graphics).visible = rang2;
+      const drapeauTours = c.getChildByLabel('drapeauTours') as Text;
+      drapeauTours.visible = rang2;
+      if (drapeauTours.text !== BANDE_VILLE.texteEtiquette) drapeauTours.text = BANDE_VILLE.texteEtiquette;
       const bandeCroissance = c.getChildByLabel('bandeCroissance') as Text;
       bandeCroissance.visible = bande.croissance !== null;
-      const texteCroissance = `${BANDE_VILLE.iconeCroissance} ${bande.croissance ?? ''}`;
+      (c.getChildByLabel('drapeauCroissanceFond') as Graphics).visible = bandeCroissance.visible;
+      const texteCroissance = bande.croissance === null ? '' : String(bande.croissance); // nombre nu
       if (bandeCroissance.text !== texteCroissance) bandeCroissance.text = texteCroissance;
       const prodCercle = c.getChildByLabel('prodCercle') as Graphics;
       const prodInitiale = c.getChildByLabel('prodInitiale') as Text;
@@ -1093,7 +1099,8 @@
       if (prodInitiale.text !== texteInitiale) prodInitiale.text = texteInitiale;
       const prodEta = c.getChildByLabel('prodEta') as Text;
       prodEta.visible = bande.eta !== null;
-      const texteEta = bande.eta === null ? '' : `${bande.eta} tour${bande.eta > 1 ? 's' : ''}`;
+      (c.getChildByLabel('drapeauProdFond') as Graphics).visible = prodEta.visible;
+      const texteEta = bande.eta === null ? '' : String(bande.eta); // nombre nu
       if (prodEta.text !== texteEta) prodEta.text = texteEta;
       // CARTE-RONDE T2 (D2) : copie au voisinage de la couture.
       gererCopies(cityCopies, c, city.id, () => buildCityContainer(city.id, city.capital, city.owner, city.name ?? city.id), vusCopiesVilles);
@@ -1383,28 +1390,28 @@
     prodFill.height = 8;
     prodFill.tint = 0xf0c419;
     prodFill.position.set(-38, 26);
-    // BANDE-VILLE (décisions Erik 07/10) : la bannière Civ VI REMPLACE
-    // l'ancien badge de population (D5 — plus de doublon). Bande AAA
-    // or-sur-sombre au-dessus du sprite ville (le conteneur garde son
-    // zIndex -100 : SOUS les unités). Enfants dans un ORDRE FIXE —
-    // syncCopie synchronise les copies couture par index ; textes et
+    // BANDE-VILLE (retour d'Erik 08/10) : UNE SEULE bande — logo, nom,
+    // étoile, cercle pop, cercle production À SA DROITE ; les tours
+    // (croissance / production) descendent en TROIS DRAPEAUX nus pendus
+    // sous la bande (« Tours », croissance, production). Ordre des enfants
+    // FIXE — syncCopie synchronise les copies couture par index ; textes et
     // visibilités pilotés au rebuild (rebuildEntities), géométrie fixe ici.
     const BV = BANDE_VILLE;
     const bandeFond = new Graphics();
     bandeFond.label = 'bandeFond';
     bandeFond
-      .roundRect(-BV.largeur / 2, BV.yRang1 - BV.hauteurRang1 / 2, BV.largeur, BV.hauteurRang1, BV.coin)
+      .roundRect(-BV.largeur / 2, BV.yBande - BV.hauteurBande / 2, BV.largeur, BV.hauteurBande, BV.coin)
       .fill({ color: BV.fond, alpha: BV.alphaFond })
       .stroke({ color: BV.liserOr.couleur, width: BV.liserOr.largeur, alpha: BV.liserOr.alpha });
     const bandeLogo = new Sprite();
     bandeLogo.label = 'bandeLogo';
     bandeLogo.anchor.set(0.5, 0.5);
-    bandeLogo.position.set(BV.xLogo, BV.yRang1);
+    bandeLogo.position.set(BV.xLogo, BV.yBande);
     bandeLogo.visible = false; // texture préchargée — attachée au rebuild
     const bandeNom = new Text({ text: nom, style: STYLE_BANDE_NOM });
     bandeNom.label = 'bandeNom';
     bandeNom.anchor.set(0, 0.5);
-    bandeNom.position.set(BV.xNom, BV.yRang1);
+    bandeNom.position.set(BV.xNom, BV.yBande);
     // Nom trop long : ramené par échelle (jamais hors du liseré) ; l'étoile
     // suit le bord EFFECTIF du texte (nom immuable — posé au build, les
     // copies couture recalcule la même géométrie).
@@ -1413,47 +1420,58 @@
     const bandeEtoile = new Text({ text: '★', style: STYLE_BANDE_ETOILE });
     bandeEtoile.label = 'bandeEtoile';
     bandeEtoile.anchor.set(0, 0.5);
-    bandeEtoile.position.set(BV.xNom + bandeNom.width * fitNom + 6, BV.yRang1);
+    bandeEtoile.position.set(BV.xNom + bandeNom.width * fitNom + 6, BV.yBande);
     bandeEtoile.visible = capital; // D2 : étoile dorée de la capitale
     const popCercle = new Graphics();
     popCercle.label = 'popCercle';
-    popCercle.circle(BV.xPop, BV.yRang1, BV.rayonPop).fill({ color: BV.fond, alpha: 0.92 }).stroke({ color: BV.liserOr.couleur, width: 1.5, alpha: 0.9 });
+    popCercle.circle(BV.xPop, BV.yBande, BV.rayonPop).fill({ color: BV.fond, alpha: 0.92 }).stroke({ color: BV.liserOr.couleur, width: 1.5, alpha: 0.9 });
     const popText = new Text({ text: '1', style: STYLE_BANDE_POP });
     popText.label = 'pop';
     popText.anchor.set(0.5, 0.5);
-    popText.position.set(BV.xPop, BV.yRang1);
-    // Rangée 2 — croissance + production : masquée par défaut (D3/D4 :
-    // ville ennemie ou file vide → rien, pas de zéro ni d'« Infinity »).
-    const bandeFond2 = new Graphics();
-    bandeFond2.label = 'bandeFond2';
-    bandeFond2
-      .roundRect(-BV.largeurRang2 / 2, BV.yRang2 - BV.hauteurRang2 / 2, BV.largeurRang2, BV.hauteurRang2, BV.coin)
-      .fill({ color: BV.fond, alpha: BV.alphaFond })
-      .stroke({ color: BV.liserOr.couleur, width: BV.liserOr.largeur, alpha: 0.75 });
-    bandeFond2.visible = false;
-    const bandeCroissance = new Text({ text: '', style: STYLE_BANDE_DETAIL });
-    bandeCroissance.label = 'bandeCroissance';
-    bandeCroissance.anchor.set(0, 0.5);
-    bandeCroissance.position.set(BV.xCroissance, BV.yRang2);
-    bandeCroissance.visible = false;
-    // Cercle production : INITIALE du nom de l'item en attendant l'art
-    // d'Erik — la structure (sprite Text séparé) accueillera l'image sans
-    // changement de code (poser le PNG au label).
+    popText.position.set(BV.xPop, BV.yBande);
+    // Cercle production DANS la bande, à droite du pop : INITIALE du nom de
+    // l'item en attendant l'art d'Erik — la structure (sprite Text séparé)
+    // accueillera l'image sans changement de code (poser le PNG au label).
     const prodCercle = new Graphics();
     prodCercle.label = 'prodCercle';
-    prodCercle.circle(BV.xProdCercle, BV.yRang2, BV.rayonProd).fill({ color: BV.fond, alpha: 0.92 }).stroke({ color: BV.liserOr.couleur, width: 1.5, alpha: 0.9 });
+    prodCercle.circle(BV.xProdCercle, BV.yBande, BV.rayonProd).fill({ color: BV.fond, alpha: 0.92 }).stroke({ color: BV.liserOr.couleur, width: 1.5, alpha: 0.9 });
     prodCercle.visible = false;
     const prodInitiale = new Text({ text: '', style: STYLE_BANDE_INITIALE });
     prodInitiale.label = 'prodInitiale';
     prodInitiale.anchor.set(0.5, 0.5);
-    prodInitiale.position.set(BV.xProdCercle, BV.yRang2);
+    prodInitiale.position.set(BV.xProdCercle, BV.yBande);
     prodInitiale.visible = false;
+    // Drapeaux sous la bande — plaquettes sombres NUES (sans liseré,
+    // nombres sans icône) : l'étiquette « Tours » à gauche, puis croissance,
+    // puis production. Masqués par défaut (D3/D4 : ennemi ou file vide →
+    // rien, pas de zéro ni d'« Infinity »).
+    const drapeauFond = (label: string, x: number, largeur: number): Graphics => {
+      const g = new Graphics();
+      g.label = label;
+      g.roundRect(x - largeur / 2, BV.yDrapeaux - BV.hauteurDrapeaux / 2, largeur, BV.hauteurDrapeaux, 4)
+        .fill({ color: BV.fond, alpha: BV.alphaFond });
+      g.visible = false;
+      return g;
+    };
+    const drapeauToursFond = drapeauFond('drapeauToursFond', BV.xDrapeauTours, BV.largeurDrapeauEtiquette);
+    const drapeauCroissanceFond = drapeauFond('drapeauCroissanceFond', BV.xDrapeauCroissance, BV.largeurDrapeauNombre);
+    const drapeauProdFond = drapeauFond('drapeauProdFond', BV.xDrapeauProd, BV.largeurDrapeauNombre);
+    const drapeauTours = new Text({ text: BV.texteEtiquette, style: STYLE_BANDE_DETAIL });
+    drapeauTours.label = 'drapeauTours';
+    drapeauTours.anchor.set(0.5, 0.5);
+    drapeauTours.position.set(BV.xDrapeauTours, BV.yDrapeaux);
+    drapeauTours.visible = false;
+    const bandeCroissance = new Text({ text: '', style: STYLE_BANDE_DETAIL });
+    bandeCroissance.label = 'bandeCroissance';
+    bandeCroissance.anchor.set(0.5, 0.5);
+    bandeCroissance.position.set(BV.xDrapeauCroissance, BV.yDrapeaux);
+    bandeCroissance.visible = false;
     const prodEta = new Text({ text: '', style: STYLE_BANDE_DETAIL });
     prodEta.label = 'prodEta';
-    prodEta.anchor.set(1, 0.5); // ancré à droite : « 12 tours » s'étend vers la gauche
-    prodEta.position.set(BV.xEta, BV.yRang2);
+    prodEta.anchor.set(0.5, 0.5);
+    prodEta.position.set(BV.xDrapeauProd, BV.yDrapeaux);
     prodEta.visible = false;
-    c.addChild(base, accent, prodFill, bandeFond, bandeLogo, bandeNom, bandeEtoile, popCercle, popText, bandeFond2, bandeCroissance, prodCercle, prodInitiale, prodEta);
+    c.addChild(base, accent, prodFill, bandeFond, bandeLogo, bandeNom, bandeEtoile, popCercle, popText, prodCercle, prodInitiale, drapeauToursFond, drapeauTours, drapeauCroissanceFond, bandeCroissance, drapeauProdFond, prodEta);
     c.label = cityId;
     return c;
   }

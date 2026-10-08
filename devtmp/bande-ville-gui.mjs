@@ -212,10 +212,13 @@ async function banniereInfo(page, cityId) {
       bandeNom: lab('bandeNom'),
       bandeEtoile: lab('bandeEtoile'),
       bandeLogo: lab('bandeLogo'),
-      bandeFond2: lab('bandeFond2'),
+      drapeauToursFond: lab('drapeauToursFond'),
+      drapeauTours: lab('drapeauTours'),
+      drapeauCroissanceFond: lab('drapeauCroissanceFond'),
       bandeCroissance: lab('bandeCroissance'),
       prodCercle: lab('prodCercle'),
       prodInitiale: lab('prodInitiale'),
+      drapeauProdFond: lab('drapeauProdFond'),
       prodEta: lab('prodEta'),
     };
   }, cityId);
@@ -454,9 +457,9 @@ const assert = (ok, label) => {
   assert(info && info.prodCercle && !info.prodCercle.visible, 'D4 — cercle production masqué (file vide)');
   assert(info && info.prodEta && !info.prodEta.visible, 'D4 — ETA masqué (pas de zéro/Infinity)');
   if (info.bandeCroissance.visible) {
-    assert(/🌾/.test(info.bandeCroissance.text ?? '') && info.bandeFond2.visible, 't1 — croissance seule affichée (le cercle production reste masqué)');
+    assert(/^\d+$/.test(info.bandeCroissance.text ?? ''), 't1 — croissance en nombre nu affichée (le cercle production reste masqué)');
   } else {
-    assert(info && info.bandeFond2 && !info.bandeFond2.visible, 't1 — rangée 2 entièrement masquée (rien à montrer)');
+    assert(info && info.drapeauToursFond && !info.drapeauToursFond.visible, 't1 — drapeaux entièrement masqués (rien à montrer)');
   }
   await page.screenshot({ path: `${CAP}/t1-capitale-file-vide.png` });
   // Défense immédiate (les barbares rasent une ville sans garnison — T-18).
@@ -513,11 +516,11 @@ const assert = (ok, label) => {
   const stP = await tourJusqua(code, (s) => s.cities[cap.id].production?.item?.id === 'guerrier', 20, 'guerrier en tête', { kind: 'unit', id: 'guerrier' });
   console.log(`[t2] t${stP.turn} guerrier en tête — worked appliqués : ${JSON.stringify(stP.cities[cap.id].workedTiles)}`);
   const info = await banniereInfo(page, cap.id);
-  console.log('  bannière:', JSON.stringify({ fond2: info.bandeFond2, crois: info.bandeCroissance, init: info.prodInitiale, eta: info.prodEta }));
-  assert(info.bandeFond2.visible, 'D1 — rangée 2 visible (croissance OU production)');
-  assert(info.bandeCroissance.visible && /🌾/.test(info.bandeCroissance.text ?? ''), `croissance affichée (${info.bandeCroissance.text})`);
+  console.log('  bannière:', JSON.stringify({ drapeau: info.drapeauTours, crois: info.bandeCroissance, init: info.prodInitiale, eta: info.prodEta }));
+  assert(info.drapeauToursFond.visible && (info.drapeauTours.text ?? '') === 'Tours', 'D1 — drapeau étiquette « Tours » visible');
+  assert(info.bandeCroissance.visible && /^\d+$/.test(info.bandeCroissance.text ?? ''), `croissance en nombre nu (${info.bandeCroissance.text})`);
   assert(info.prodInitiale.visible && info.prodInitiale.text === 'G', 'D1 — initiale du nom (Guerrier → G)');
-  assert(info.prodEta.visible && /tour/.test(info.prodEta.text ?? ''), `D1 — ETA en tours (${info.prodEta.text})`);
+  assert(info.prodEta.visible && /^\d+$/.test(info.prodEta.text ?? ''), `D1 — ETA en nombre nu (${info.prodEta.text})`);
   await page.screenshot({ path: `${CAP}/t2-capitale-item-unite.png` });
 }
 
@@ -602,7 +605,7 @@ let ennemieCapturee = false;
     console.log('  bannière ennemie:', JSON.stringify(info));
     assert(info && info.pop && info.pop.visible, 'D3 — pop ennemie affichée');
     assert(info && info.bandeNom && info.bandeNom.visible, 'D3 — nom ennemi affiché');
-    assert(info && info.bandeFond2 && !info.bandeFond2.visible, 'D3 — AUCUNE rangée 2 sur l\'ennemie');
+    assert(info && info.drapeauToursFond && !info.drapeauToursFond.visible, 'D3 — AUCUN drapeau sur l’ennemie');
     assert(info && info.prodEta && (info.prodEta.text ?? '') === '' && !info.prodEta.visible, 'D3 — production/ETA ennemis absents');
     // La PREUVE du masquage : les données EXISTENT au dump (ville visible = état entier).
     const dump = await dumpFull(code);

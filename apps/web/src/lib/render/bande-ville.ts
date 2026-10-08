@@ -35,17 +35,24 @@ import { coutItem } from '../fileProduction.js';
  *  du conteneur ville : (0,0) = centre de l'hex, y vers le bas ; le sprite
  *  ville est ancré au sommet bas (+64), son sommet visuel ≈ −64. */
 export const BANDE_VILLE = {
-  /** Rangée 1 (bande principale) — largeur FIXE ; un nom trop long est
-   *  ramené par échelle (jamais de débordement hors du liseré). */
-  largeur: 140,
-  hauteurRang1: 26,
-  yRang1: -86,
-  /** Rangée 2 (détail croissance/production) — pend sous la bande (langage
-   *  Civ VI) ; assez large pour « 🌾 12 » à gauche ET « 12 tours » à droite
-   *  sans débordement du liseré. */
-  largeurRang2: 132,
-  hauteurRang2: 18,
-  yRang2: -58,
+  /** Bande UNIQUE (retour d'Erik 08/10 : une seule barre, la production à
+   *  droite de la pop) — largeur FIXE ; un nom trop long est ramené par
+   *  échelle (jamais de débordement hors du liseré). */
+  largeur: 156,
+  hauteurBande: 26,
+  yBande: -86,
+  /** Drapeaux : petites plaquettes sombres NUES (sans liseré, nombres sans
+   *  icône — langage Civ VI) pendues sous la bande : l'étiquette « Tours »
+   *  à gauche, puis tours avant croissance, puis tours de production. */
+  hauteurDrapeaux: 18,
+  yDrapeaux: -62,
+  largeurDrapeauEtiquette: 46,
+  largeurDrapeauNombre: 26,
+  gapDrapeaux: 3,
+  xDrapeauTours: -27,
+  xDrapeauCroissance: 10,
+  xDrapeauProd: 37,
+  texteEtiquette: 'Tours',
   coin: 6,
   /** Palette AAA or-sur-sombre (mêmes ors que l'UI : #e8c96a / #c9a227). */
   fond: 0x1b1b22,
@@ -55,34 +62,30 @@ export const BANDE_VILLE = {
   or: 0xe8c96a,
   etoile: 0xffd54f,
   contourTexte: 0x1b1b22,
-  /** Rangée 1 — logo de nation (SVG or du lobby, même table nations.ts). */
-  xLogo: -54,
+  /** Bande — logo de nation (SVG or du lobby, même table nations.ts). */
+  xLogo: -62,
   tailleLogo: 20,
-  xNom: -36,
-  largeurNomMax: 58,
+  xNom: -44,
+  largeurNomMax: 52,
   policeNom: 12,
-  /** Cercle pop à droite de la bande (remplace l'ancien badge-population). */
-  xPop: 54,
+  /** Cercle pop (taille de la ville) puis cercle production À SA DROITE. */
+  xPop: 40,
   rayonPop: 11,
   policePop: 12,
-  /** Rangée 2 — croissance (icône + tours) à gauche ; cercle production
-   *  puis ETA (ancré à DROITE, s'étend vers la gauche) à l'opposé. */
-  iconeCroissance: '🌾',
-  xCroissance: -56,
-  policeDetail: 11,
-  xProdCercle: 44,
-  rayonProd: 9,
-  xEta: 36,
+  xProdCercle: 63,
+  rayonProd: 10,
+  policeDetail: 12,
 } as const;
 
-/** Rect LOCAL (conteneur ville) de la bannière complète — source unique du
- *  dessin (Graphics) et du picking (D6 : clic bannière = clic ville). */
+/** Rect LOCAL (conteneur ville) de la bannière complète (bande + drapeaux,
+ *  qui lui sont collés) — source unique du dessin (Graphics) et du picking
+ *  (D6 : clic bannière = clic ville). */
 export function rectBanniereLocale(): { x0: number; y0: number; x1: number; y1: number } {
   return {
     x0: -BANDE_VILLE.largeur / 2,
     x1: BANDE_VILLE.largeur / 2,
-    y0: BANDE_VILLE.yRang1 - BANDE_VILLE.hauteurRang1 / 2,
-    y1: BANDE_VILLE.yRang2 + BANDE_VILLE.hauteurRang2 / 2,
+    y0: BANDE_VILLE.yBande - BANDE_VILLE.hauteurBande / 2,
+    y1: BANDE_VILLE.yDrapeaux + BANDE_VILLE.hauteurDrapeaux / 2,
   };
 }
 
