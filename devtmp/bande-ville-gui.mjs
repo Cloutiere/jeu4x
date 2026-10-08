@@ -311,12 +311,14 @@ function bfsExtreme(st, unite) {
   // Et SEULEMENT joignable SANS traverser un camp (le colon isolé y meurt).
   const coteEst = frange.filter((h) => colWrap(h.q, h.r, W) >= W - 2);
   const sansCampProche = (h) => !(st.villages ?? []).some((v) => distAx(v, h) <= 4);
-  const ordonnees = [...coteEst.filter(sansCampProche), ...coteEst, ...frange.filter((h) => !coteEst.includes(h) && sansCampProche(h)), ...frange.filter((h) => !coteEst.includes(h))];
+  // ÉLIMINATOIRE (razies répétées des capitales fraîches en GUI) : pas de
+  // candidate sans camp proche → pas de carte.
+  const ordonnees = [...coteEst.filter(sansCampProche), ...frange.filter((h) => !coteEst.includes(h) && sansCampProche(h))];
   for (const cand of ordonnees.slice(0, 8)) {
     const sansCamp = bfsChemin(st, unite, cand, true);
     if (sansCamp) return { but: cand, chemin: sansCamp, prec };
   }
-  const but = ordonnees[0] ?? meilleur;
+  return null;
   const chemin = [];
   let k = cle(but.q, but.r);
   while (k) { const [a, b] = k.split(',').map(Number); chemin.unshift({ q: a, r: b }); k = prec.get(k); }
@@ -396,7 +398,9 @@ for (let tentative = 1; tentative <= 12 && !carteOk; tentative++) {
   W = st.mapWidth;
   const colon = Object.values(st.units).find((u) => u.owner === MOI && u.type === 'colon');
   const colonBot = Object.values(st.units).find((u) => u.owner !== MOI && u.type === 'colon');
-  ({ but: meilleur, chemin: cheminBord, prec: precBord } = bfsExtreme(st, colon));
+  const extreme = bfsExtreme(st, colon);
+  if (!extreme) { console.log('  🔶 aucune frange sans camp proche — carte suivante'); continue; }
+  ({ but: meilleur, chemin: cheminBord, prec: precBord } = extreme);
   const memeContinent = !!bfsChemin(st, colon, { q: colonBot.q, r: colonBot.r });
   // Camps barbares : plus de filtre carte — le défenseur fortifié (t4) couvre
   // la ville (la razie du run 12 frappait une capitale sans garnison).

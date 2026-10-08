@@ -1099,8 +1099,10 @@
       if (prodInitiale.text !== texteInitiale) prodInitiale.text = texteInitiale;
       const prodEta = c.getChildByLabel('prodEta') as Text;
       prodEta.visible = bande.eta !== null;
-      (c.getChildByLabel('drapeauProdFond') as Graphics).visible = prodEta.visible;
-      const texteEta = bande.eta === null ? '' : String(bande.eta); // nombre nu
+      (c.getChildByLabel('drapeauProdFond') as Graphics).visible = bande.initiale !== null && prodEta.visible;
+      // Erik 08/10 : l'item en tête EXIGE son drapeau — rythme nul → « ∞ »
+      // (la ville ne produit aucun marteau), jamais masqué.
+      const texteEta = bande.eta === null ? '' : Number.isFinite(bande.eta) ? String(bande.eta) : '∞';
       if (prodEta.text !== texteEta) prodEta.text = texteEta;
       // CARTE-RONDE T2 (D2) : copie au voisinage de la couture.
       gererCopies(cityCopies, c, city.id, () => buildCityContainer(city.id, city.capital, city.owner, city.name ?? city.id), vusCopiesVilles);

@@ -49,9 +49,11 @@ export const BANDE_VILLE = {
   largeurDrapeauEtiquette: 46,
   largeurDrapeauNombre: 26,
   gapDrapeaux: 3,
-  xDrapeauTours: -27,
-  xDrapeauCroissance: 10,
-  xDrapeauProd: 37,
+  // Alignés SUR les cercles du dessus (Erik 08/10) : croissance sous le pop,
+  // production sous le G ; l'étiquette complète le duo à gauche.
+  xDrapeauTours: 1,
+  xDrapeauCroissance: 40,
+  xDrapeauProd: 63,
   texteEtiquette: 'Tours',
   coin: 6,
   /** Palette AAA or-sur-sombre (mêmes ors que l'UI : #e8c96a / #c9a227). */
@@ -182,11 +184,14 @@ export function toursCroissanceBanniere(city: City, foodSurplus: number): number
   return toursAvantCroissance(city.pop, city.foodStored, foodSurplus, reduction);
 }
 
-/** Tours restants de l'item en production — MIROIR de `etas[0]`
- *  (PanneauVille) : `ceil((coût − progression) / marteaux-par-tour)` ;
- *  coût inconnu ou rythme nul → `null` (repli honnête, pas d'« Infinity »). */
+/** Tours restants de l'item en production — miroir de `etas[0]`
+ *  (PanneauVille) : `ceil((coût − progression) / marteaux-par-tour)`.
+ *  Erik 08/10 : un item en tête EXIGE son drapeau — rythme nul → `Infinity`
+ *  (rendu « ∞ », la ville ne produit aucun marteau) ; seul un coût inconnu
+ *  reste `null` (repli honnête, masqué). */
 export function etaProductionBanniere(item: ProductionItem, progress: number, prodPerTurn: number): number | null {
   const cout = coutItem(item);
-  if (cout === null || prodPerTurn <= 0) return null;
+  if (cout === null) return null;
+  if (prodPerTurn <= 0) return Infinity;
   return Math.ceil((cout - progress) / prodPerTurn);
 }

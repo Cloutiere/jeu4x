@@ -197,6 +197,12 @@ for (let tentative = 1; tentative <= 12 && !ok; tentative++) {
   const page = await ouvrirPage(ctx, code, token);
   await page.evaluate((h) => window.__gameCanvas.centerOn(h), { q: cap.q, r: cap.r });
   await sleep(1500);
+  // ∞ (retour Erik 08/10) : production posée SANS marteaux (worked auto
+  // nourriture-d'abord) → drapeau production « ∞ », aligné sous le G.
+  g.send({ proto: 1, type: 'SubmitOrder', order: { type: 'SetProduction', cityId: cap.id, item: { kind: 'unit', id: 'guerrier' } } });
+  await sleep(400);
+  g.send({ proto: 1, type: 'EndTurn' });
+  await sleep(8000);
   const pt = await pointBanniere(page, cap.id);
   console.log(`[t8] clic bannière en (${Math.round(pt.x)},${Math.round(pt.y)}) — cycle R-2 jusqu'au panneau`);
   for (let essai = 1; essai <= 6; essai++) {
@@ -205,6 +211,16 @@ for (let tentative = 1; tentative <= 12 && !ok; tentative++) {
     const txt = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ');
     if (/file de production/i.test(txt)) {
       console.log(`[t8] ✓ PanneauVille ouvert après ${essai} clic(s) (cycle R-2)`);
+      const align = await page.evaluate((cid) => {
+        const app = window.__gameCanvas.app();
+        const world = app.stage.children[0];
+        const ents = world.children[3];
+        const c = ents.children.find((k) => k.label === cid);
+        if (!c) return null;
+        const xDe = (l) => { const e = c.children.find((x) => x.label === l); return e ? Math.round(e.getGlobalPosition().x) : null; };
+        return { pop: xDe('pop'), prod: xDe('prodInitiale'), croissance: xDe('bandeCroissance'), prodEta: xDe('prodEta'), etaText: c.children.find((x) => x.label === 'prodEta')?.text };
+      }, cap.id);
+      console.log(`[t8] alignement : pop=${align.pop} croissance-drapeau=${align.croissance} | G=${align.prod} ∞-drapeau=${align.prodEta} texte=${JSON.stringify(align.etaText)}`);
       await page.screenshot({ path: `${CAP}/t8-clic-banniere-panneau.png` });
       ok = true;
       break;

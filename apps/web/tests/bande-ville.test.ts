@@ -118,8 +118,8 @@ describe('etaProductionBanniere (miroir etas[0] de PanneauVille)', () => {
     const cout = unitType('guerrier').cost;
     expect(etaProductionBanniere({ kind: 'unit', id: 'guerrier' }, 3, 1)).toBe(Math.ceil((cout - 3) / 1));
   });
-  it('marteaux-par-tour nul : null (à l\'arrêt)', () => {
-    expect(etaProductionBanniere({ kind: 'unit', id: 'guerrier' }, 3, 0)).toBeNull();
+  it('marteaux-par-tour nul : Infinity (Erik 08/10 — le drapeau reste, rendu « ∞ »)', () => {
+    expect(etaProductionBanniere({ kind: 'unit', id: 'guerrier' }, 3, 0)).toBe(Infinity);
   });
   it('item inconnu des données : null (repli honnête — pas d\'« Infinity »)', () => {
     expect(etaProductionBanniere({ kind: 'building', id: 'batiment_inconnu' }, 0, 5)).toBeNull();
