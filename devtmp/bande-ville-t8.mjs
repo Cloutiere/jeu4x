@@ -215,13 +215,23 @@ for (let tentative = 1; tentative <= 12 && !ok; tentative++) {
         const app = window.__gameCanvas.app();
         const world = app.stage.children[0];
         const ents = world.children[3];
-        const c = ents.children.find((k) => k.label === cid);
+        const c = ents.children.find((k) => k.label === cid && k.children.some((x) => x.label === 'bandeFond')); // la BANNIÈRE (la ville porte le même label)
         if (!c) return null;
         const xDe = (l) => { const e = c.children.find((x) => x.label === l); return e ? Math.round(e.getGlobalPosition().x) : null; };
         return { pop: xDe('pop'), prod: xDe('prodInitiale'), croissance: xDe('bandeCroissance'), prodEta: xDe('prodEta'), etaText: c.children.find((x) => x.label === 'prodEta')?.text };
       }, cap.id);
       console.log(`[t8] alignement : pop=${align.pop} croissance-drapeau=${align.croissance} | G=${align.prod} ∞-drapeau=${align.prodEta} texte=${JSON.stringify(align.etaText)}`);
+      // Survol de la tuile AU-DESSUS de la ville : le cadre jaune doit passer
+      // SOUS la bannière (retour Erik 10/10).
+      const dessus = await page.evaluate((h) => {
+        window.__gameCanvas.centerOn(h);
+        return window.__gameCanvas.hexToPage({ q: h.q, r: h.r - 1 });
+      }, { q: cap.q, r: cap.r });
+      await sleep(900);
+      await page.mouse.move(dessus.x, dessus.y);
+      await sleep(900);
       await page.screenshot({ path: `${CAP}/t8-clic-banniere-panneau.png` });
+      console.log('[t8] ✓ capture panneau + survol cadre jaune (bannière par-dessus)');
       ok = true;
       break;
     }

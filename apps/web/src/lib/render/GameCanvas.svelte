@@ -380,6 +380,11 @@
   const resourceSprites = new Map<string, Sprite>();
   const unitSprites = new Map<string, Container>();
   const citySprites = new Map<string, Container>();
+  // BANDE-VILLE (retour Erik 08/10) : bannières INDÉPENDANTES de la ville,
+  // posées à zIndex -94 (au-dessus du cadre jaune de survol -95, sous
+  // l'anneau -90 et les unités) — suivent la ville (position, contenu).
+  const bandesSprites = new Map<string, Container>();
+  const bandesCopies = new Map<string, Container>();
   // R-96/R-98 (Phase 7d) : villages barbares et huttes bonus.
   const villageSprites = new Map<string, Container>();
   const hutSprites = new Map<string, Container>();
@@ -855,6 +860,7 @@
     fenetreCopies();
     const vusCopiesUnits = new Set<string>();
     const vusCopiesVilles = new Set<string>();
+    const vusCopiesBandes = new Set<string>();
     const vusCopiesVillages = new Set<string>();
     const vusCopiesHuttes = new Set<string>();
     const vusCopiesArtefacts = new Set<string>();
@@ -1017,7 +1023,7 @@
       seenCities.add(city.id);
       let c = citySprites.get(city.id);
       if (!c) {
-        c = buildCityContainer(city.id, city.capital, city.owner, city.name ?? city.id);
+        c = buildCityContainer(city.id, city.capital, city.owner);
         c.zIndex = -100; // RETOUR ERIK 28/09 (GP-ART) : villes, huttes et artefacts
         // sont sur la COUCHE TUILE (comme le village barbare) — tout ce qui est
         // posé sur la tuile ou en dessous se superpose à eux.
@@ -1047,6 +1053,16 @@
       // sont calculés que pour les villes du JOUEUR — getFilteredState garde
       // les villes ennemies visibles ENTIÈRES, le masquage est un contrat
       // d'affichage (construireBanniere re-masque par sûreté).
+      // Retour Erik 08/10 : la bannière est un CONTENEUR INDÉPENDANT posé à
+      // zIndex -94 (au-dessus du cadre jaune de survol -95 qui la coupait,
+      // sous l'anneau -90 et les unités) — elle suit la ville au rebuild.
+      let b = bandesSprites.get(city.id);
+      if (!b) {
+        b = buildBandeContainer(city.id, city.capital, city.name ?? city.id);
+        b.zIndex = -94;
+        entitiesLayer.addChild(b);
+        bandesSprites.set(city.id, b);
+      }
       const mienne = city.owner === scene.myId;
       let croissance: number | null = null;
       let itemNom: string | null = null;
@@ -1064,9 +1080,11 @@
         }
       }
       const bande = construireBanniere({ nom: city.name ?? city.id, pop: city.pop, capitale: city.capital, mienne, croissance, itemNom, eta });
+      const conteneurBande = b;
+      poser3d(conteneurBande, p.x, p.y); // la bannière suit sa ville (même origine)
       // Logo de nation (préchargé au setup) — capturé par le civId courant
       // (une capture change le propriétaire, le logo suit).
-      const bandeLogo = c.getChildByLabel('bandeLogo') as Sprite;
+      const bandeLogo = conteneurBande.getChildByLabel('bandeLogo') as Sprite;
       const texLogo = textureLogoDe(state.players[city.owner]?.civId);
       if (texLogo && bandeLogo.texture !== texLogo) {
         bandeLogo.texture = texLogo;
@@ -1075,38 +1093,47 @@
       bandeLogo.visible = !!texLogo;
       // Textes mis à jour AVEC GARDE : un texte inchangé n'est jamais
       // re-rastérisé (miroir de la garde interne de syncCopie).
-      const popText = c.getChildByLabel('pop') as Text;
+      const popText = conteneurBande.getChildByLabel('pop') as Text;
       const textePop = String(bande.pop);
       if (popText.text !== textePop) popText.text = textePop;
-      c.getChildByLabel('bandeEtoile')!.visible = bande.capitale;
+      conteneurBande.getChildByLabel('bandeEtoile')!.visible = bande.capitale;
       // Drapeaux sous la bande (D3/D4) : « Tours » + croissance et/ou
       // production ; tout masqué si rien à montrer (ennemi, file vide).
       const rang2 = bande.croissance !== null || bande.initiale !== null;
-      (c.getChildByLabel('drapeauToursFond') as Graphics).visible = rang2;
-      const drapeauTours = c.getChildByLabel('drapeauTours') as Text;
+      (conteneurBande.getChildByLabel('drapeauToursFond') as Graphics).visible = rang2;
+      const drapeauTours = conteneurBande.getChildByLabel('drapeauTours') as Text;
       drapeauTours.visible = rang2;
       if (drapeauTours.text !== BANDE_VILLE.texteEtiquette) drapeauTours.text = BANDE_VILLE.texteEtiquette;
-      const bandeCroissance = c.getChildByLabel('bandeCroissance') as Text;
+      const bandeCroissance = conteneurBande.getChildByLabel('bandeCroissance') as Text;
       bandeCroissance.visible = bande.croissance !== null;
-      (c.getChildByLabel('drapeauCroissanceFond') as Graphics).visible = bandeCroissance.visible;
+      (conteneurBande.getChildByLabel('drapeauCroissanceFond') as Graphics).visible = bandeCroissance.visible;
       const texteCroissance = bande.croissance === null ? '' : String(bande.croissance); // nombre nu
       if (bandeCroissance.text !== texteCroissance) bandeCroissance.text = texteCroissance;
-      const prodCercle = c.getChildByLabel('prodCercle') as Graphics;
-      const prodInitiale = c.getChildByLabel('prodInitiale') as Text;
+      const prodCercle = conteneurBande.getChildByLabel('prodCercle') as Graphics;
+      const prodInitiale = conteneurBande.getChildByLabel('prodInitiale') as Text;
       prodCercle.visible = bande.initiale !== null;
       prodInitiale.visible = bande.initiale !== null;
       const texteInitiale = bande.initiale ?? '';
       if (prodInitiale.text !== texteInitiale) prodInitiale.text = texteInitiale;
-      const prodEta = c.getChildByLabel('prodEta') as Text;
+      const prodEta = conteneurBande.getChildByLabel('prodEta') as Text;
       prodEta.visible = bande.eta !== null;
-      (c.getChildByLabel('drapeauProdFond') as Graphics).visible = bande.initiale !== null && prodEta.visible;
+      (conteneurBande.getChildByLabel('drapeauProdFond') as Graphics).visible = bande.initiale !== null && prodEta.visible;
       // Erik 08/10 : l'item en tête EXIGE son drapeau — rythme nul → « ∞ »
       // (la ville ne produit aucun marteau), jamais masqué.
       const texteEta = bande.eta === null ? '' : Number.isFinite(bande.eta) ? String(bande.eta) : '∞';
       if (prodEta.text !== texteEta) prodEta.text = texteEta;
-      // CARTE-RONDE T2 (D2) : copie au voisinage de la couture.
-      gererCopies(cityCopies, c, city.id, () => buildCityContainer(city.id, city.capital, city.owner, city.name ?? city.id), vusCopiesVilles);
+      // CARTE-RONDE T2 (D2) : copie au voisinage de la couture (ville ET sa
+      // bannière indépendante — même origine, même traitement).
+      gererCopies(cityCopies, c, city.id, () => buildCityContainer(city.id, city.capital, city.owner), vusCopiesVilles);
+      gererCopies(bandesCopies, conteneurBande, city.id, () => buildBandeContainer(city.id, city.capital, city.name ?? city.id), vusCopiesBandes);
     }
+    for (const [id, b] of bandesSprites) {
+      if (!seenCities.has(id)) {
+        b.destroy({ children: true });
+        bandesSprites.delete(id);
+      }
+    }
+    prunerCopies(bandesCopies, vusCopiesBandes);
     for (const [id, c] of citySprites) {
       if (!seenCities.has(id)) {
         c.destroy({ children: true });
@@ -1369,7 +1396,7 @@
     return c;
   }
 
-  function buildCityContainer(cityId: string, capital: boolean, owner: string, nom: string): Container {
+  function buildCityContainer(cityId: string, capital: boolean, owner: string): Container {
     const c = new Container();
     // NEW-VILLES (Erik 27/09) : art peint UNE version (toutes époques/joueurs —
     // le contour de tuile porte la couleur) : hexagone complet ancré au sommet
@@ -1392,12 +1419,21 @@
     prodFill.height = 8;
     prodFill.tint = 0xf0c419;
     prodFill.position.set(-38, 26);
-    // BANDE-VILLE (retour d'Erik 08/10) : UNE SEULE bande — logo, nom,
-    // étoile, cercle pop, cercle production À SA DROITE ; les tours
-    // (croissance / production) descendent en TROIS DRAPEAUX nus pendus
-    // sous la bande (« Tours », croissance, production). Ordre des enfants
-    // FIXE — syncCopie synchronise les copies couture par index ; textes et
-    // visibilités pilotés au rebuild (rebuildEntities), géométrie fixe ici.
+    // BANDE-VILLE (retour Erik 08/10) : la bannière NE VIT PLUS dans le
+    // conteneur ville — elle est posée dans son PROPRE conteneur (zIndex -94 :
+    // AU-DESSUS du cadre jaune de survol -95, SOUS l'anneau -90 et les
+    // unités), cf. buildBandeContainer + bandesSprites dans rebuildEntities.
+    c.addChild(base, accent, prodFill);
+    c.label = cityId;
+    return c;
+  }
+
+  /** BANDE-VILLE — conteneur bannière INDÉPENDANT de la ville : posé à la
+   *  même origine (centre de l'hex) sur la couche -94, il survole le cadre
+   *  jaune de survol sans jamais passer derrière. Enfants dans un ORDRE
+   *  FIXE — syncCopie synchronise les copies couture par index. */
+  function buildBandeContainer(cityId: string, capital: boolean, nom: string): Container {
+    const c = new Container();
     const BV = BANDE_VILLE;
     const bandeFond = new Graphics();
     bandeFond.label = 'bandeFond';
@@ -1473,7 +1509,7 @@
     prodEta.anchor.set(0.5, 0.5);
     prodEta.position.set(BV.xDrapeauProd, BV.yDrapeaux);
     prodEta.visible = false;
-    c.addChild(base, accent, prodFill, bandeFond, bandeLogo, bandeNom, bandeEtoile, popCercle, popText, prodCercle, prodInitiale, drapeauToursFond, drapeauTours, drapeauCroissanceFond, bandeCroissance, drapeauProdFond, prodEta);
+    c.addChild(bandeFond, bandeLogo, bandeNom, bandeEtoile, popCercle, popText, prodCercle, prodInitiale, drapeauToursFond, drapeauTours, drapeauCroissanceFond, bandeCroissance, drapeauProdFond, prodEta);
     c.label = cityId;
     return c;
   }
@@ -3018,10 +3054,10 @@
     return x >= Math.min(x0, x1) && x <= Math.max(x0, x1) && y >= Math.min(y0, y1) && y <= Math.max(y0, y1);
   }
   function banniereSousEcran(x: number, y: number): CityId | null {
-    for (const [id, c] of citySprites) {
+    for (const [id, c] of bandesSprites) {
       if (banniereSousEcranConteneur(c, x, y)) return id as CityId;
     }
-    for (const [cle, cp] of cityCopies) {
+    for (const [cle, cp] of bandesCopies) {
       if (banniereSousEcranConteneur(cp, x, y)) return cle.slice(0, cle.indexOf('@')) as CityId;
     }
     return null;
