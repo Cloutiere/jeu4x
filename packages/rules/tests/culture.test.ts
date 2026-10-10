@@ -31,7 +31,10 @@ import { createRng } from '../src/rng.js';
 /** Capitale p1 pop 4 avec 4 citoyens assignés (prairies : 2 N chacun) — le
  *  Palais est posé comme le fait le moteur dans toute capitale. */
 function capitalCity(buildings: string[] = []): GameState {
+  // R-63 rév. Erik 10/10 : plus de production des intérieurs — la capitale
+  // travaille une FORÊT (2 marteaux/tour) pour que les chantiers avancent.
   return makeState({
+    terrainOverrides: { '1,0': 'foret' },
     cities: [{
       id: 'c1',
       owner: 'p1',

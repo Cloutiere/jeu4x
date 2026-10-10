@@ -188,6 +188,11 @@ describe('D4 · R-60bis — citoyens intérieurs (tranches démographiques)', ()
     state.cities['c1']!.buildings = ['tribunal'];
     state.cities['c1']!.production = { item: { kind: 'building', id: 'granary_unused' as never }, progress: 0 };
     state.cities['c1']!.production = null;
+    // R-63 rév. Erik 10/10 : les intérieurs ne produisent plus — UNE colline
+    // travaillée fournit ⌊1 × (1 + 0,25 × 6)⌋ = 2 marteaux/tour : le
+    // Tribunal (80) est complété (79 + 2 ≥ 80).
+    state.map['4,5'] = { terrain: 'colline', resource: null };
+    state.cities['c1']!.workedTiles = ['4,5'];
     // La re-validation + le remplissage se produisent au prochain tour où la
     // ville est marquée pendingFill (complétion Tribunal) — on pose directement
     // le bâtiment PUIS on résout : la réintégration passe par la croissance.
@@ -245,10 +250,11 @@ describe('A3 · La ville fraîchement fondée ne produit que par ses citoyens (R
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 2, workedTiles: [] }],
     });
     const { newState } = resolveTurn(state, {}, 1);
-    // production = 0 (centre 0/0/0 — A3) + 2 × 1 (2 intérieurs Ouvriers) ;
-    // commerce = 0 (centre) + tranche 0 (pop ≤ 6) → trésorerie 0
+    // R-63 rév. Erik 10/10 : production = 0 (centre 0/0/0, intérieurs sans
+    // rendement, déserts 0 marteau) ; commerce = 0 → trésorerie 0
     expect(newState.players['p1']!.treasury).toBe(0);
-    // la file progresse : preuve de production du centre
+    // la file NE progresse PLUS : une ville entourée de déserts ne produit
+    // rien (plus de +1 du citoyen intérieur — R-63 rév.)
     const s2 = makeState({
       width: 8,
       height: 8,
@@ -259,7 +265,7 @@ describe('A3 · La ville fraîchement fondée ne produit que par ses citoyens (R
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 1, workedTiles: [], production: { item: { kind: 'unit', id: 'guerrier' }, progress: 9 } }],
     });
     const r2 = resolveTurn(s2, {}, 1);
-    expect(r2.events.some((e) => e.type === 'UnitProduced')).toBe(true); // 9 + 1 (intérieur Ouvrier) ≥ 10
+    expect(r2.events.some((e) => e.type === 'UnitProduced')).toBe(false); // 9 + 0 < 10
   });
 });
 

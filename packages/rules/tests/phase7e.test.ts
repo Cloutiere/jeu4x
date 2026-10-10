@@ -109,6 +109,9 @@ describe('R-110 · Obsolescence des unités (7e)', () => {
 describe('R-112 · Colon : coût en population officiel (2 — décision d’Erik, 02/09)', () => {
   it('la production d’un Colon consomme 2 population (et retire les citoyens excédentaires)', () => {
     const state = makeState({
+      // R-63 rév. Erik 10/10 : la colline travaillée fournit le marteau qui
+      // complète le Colon (19 + 1 = 20) — plus de +1 du citoyen intérieur.
+      terrainOverrides: { '0,1': 'colline' },
       cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, pop: 3, workedTiles: ['1,0', '0,1'], production: { item: { kind: 'unit', id: 'colon' }, progress: 19 } }],
     });
     const { newState, events } = resolveTurn(state, {}, 1);

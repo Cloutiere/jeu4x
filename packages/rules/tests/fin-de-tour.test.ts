@@ -17,7 +17,8 @@ import {
 } from '../src/finDeTour.js';
 import type { GameState } from '../src/state.js';
 
-/** Ville pop 1 sans case travaillée : citoyen intérieur Ouvrier → 1 marteau/tour. */
+/** Ville pop 1 travaillant une colline : 1 marteau/tour (R-63 rév. Erik
+ *  10/10 — plus de +1 du citoyen intérieur, la production vient des TUILES). */
 function villeProductive(st: GameState): void {
   st.cities['c1'] = {
     id: 'c1',
@@ -28,7 +29,7 @@ function villeProductive(st: GameState): void {
     capital: true,
     foodStored: 0,
     production: null,
-    workedTiles: [],
+    workedTiles: ['1,0'],
     buildings: [],
     conversion: 'gold',
     wonders: [],
@@ -37,6 +38,7 @@ function villeProductive(st: GameState): void {
     wasCaptured: false,
     cultureCumulee: 0,
   };
+  st.map['1,0'] = { terrain: 'colline', resource: null };
 }
 
 /** Ville pop 1 travaillant une case déserte (2 commerce) focus Science →
@@ -165,6 +167,10 @@ describe('FIN-DE-TOUR · cumul et libellés', () => {
     const st = makeState();
     villeProductive(st);
     st.cities['c1']!.name = 'Athènes';
+    // c2 écrase map['1,0'] (sa propre tuile désert) — Athènes travaille une
+    // AUTRE colline pour rester à 1 marteau/tour.
+    st.cities['c1']!.workedTiles = ['2,0'];
+    st.map['2,0'] = { terrain: 'colline', resource: null };
     villeScientifique(st, 'c2');
     st.cities['c2']!.owner = 'p1';
     st.cities['c2']!.q = 3;

@@ -240,6 +240,11 @@ describe('7j · D3 — Consume / Settle (R-126)', () => {
     // tour depuis un chantier à 19 marteaux ; le contrôle SANS Bâtisseur
     // (il manque 21, production < 20/tour) ne l'achève pas.
     settled.cities['c1']!.production = { item: { kind: 'building', id: 'temple' }, progress: 19 };
+    // R-63 rév. Erik 10/10 : plus de production des intérieurs — une colline
+    // voisine de c1 (2,2) fournit 1 marteau/tour (achève à coût −50 % :
+    // 19+1=20 ; à coût plein, 20 < 40 : pas achevé).
+    settled.map['2,1'] = { terrain: 'colline', resource: null };
+    settled.cities['c1']!.workedTiles = ['2,1'];
     const sansState = structuredClone(settled) as typeof settled;
     sansState.cities['c1']!.settledGreatPersons = [];
     const sansOut = resolveTurn(sansState, {}, 43).newState;

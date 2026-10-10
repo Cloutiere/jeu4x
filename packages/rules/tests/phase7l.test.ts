@@ -345,6 +345,10 @@ describe('7l · R-135 · exécution du RushBuy (moteur)', () => {
   it('Hammer banking proscrit : merveille → ONU/Banque mondiale RÉINITIALISE les marteaux (canon)', () => {
     const state = capitalState();
     state.players['p1']!.cultureMilestones = 20; // ONU déverrouillée
+    // R-63 rév. Erik 10/10 : les intérieurs ne produisent plus — une
+    // colline travaillée fournit le 1 marteau du tour.
+    state.map['1,0'] = { terrain: 'colline', resource: null };
+    state.cities['c1']!.workedTiles = ['1,0'];
     state.cities['c1']!.production = { item: { kind: 'wonder', id: 'stonehenge' }, progress: 40 };
     const result = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'wonder', id: 'nations_unies' } }] }, 1);
     expect(result.newState.cities['c1']!.production!.item).toEqual({ kind: 'wonder', id: 'nations_unies' });
@@ -354,6 +358,9 @@ describe('7l · R-135 · exécution du RushBuy (moteur)', () => {
     // Les autres basculements conservent la progression (R-62) : 40 + 1 = 41
     // (Mine de fer 80 — la file ne complète pas ce tour).
     const keep = capitalState();
+    // R-63 rév. Erik 10/10 : même colline travaillée pour le +1 du tour.
+    keep.map['1,0'] = { terrain: 'colline', resource: null };
+    keep.cities['c1']!.workedTiles = ['1,0'];
     keep.players['p1']!.techsUnlocked = ['chemin_de_fer'];
     keep.cities['c1']!.production = { item: { kind: 'wonder', id: 'stonehenge' }, progress: 40 };
     const r2 = resolveTurn(keep, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'building', id: 'mine_de_fer' } }] }, 1);
@@ -501,6 +508,10 @@ describe('7l · R-137 · Banque mondiale (condition dynamique, jamais débitée)
     const state = capitalState();
     state.players['p1']!.treasury = 20_000;
     state.players['p1']!.techsUnlocked = ['vol_spatial'];
+    // R-63 rév. Erik 10/10 : une colline travaillée fournit le marteau de
+    // complétion (499 + 1 = 500).
+    state.map['1,0'] = { terrain: 'colline', resource: null };
+    state.cities['c1']!.workedTiles = ['1,0'];
     state.cities['c1']!.production = { item: { kind: 'wonder', id: 'banque_mondiale' }, progress: 499 };
     const result = resolveTurn(state, {}, 1);
     expect(result.newState.cities['c1']!.wonders).toEqual(['banque_mondiale']);

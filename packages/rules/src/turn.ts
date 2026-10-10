@@ -4162,9 +4162,11 @@ export function cityEconomyInputs(st: GameState, city: City, allTechs: readonly 
       directGold += resData.directGold;
     }
   }
-  // 7i · D4 · R-60bis : citoyens intérieurs au centre-ville (tranche D4).
+  // R-60bis rév. Erik 10/10 : les citoyens INTÉRIEURS (non affectés à une
+  // tuile) ne produisent PLUS de marteaux directs (tranche de production
+  // abrogée) — ils portent le BONUS de production (R-63 rév. 10/10). Leur
+  // tranche de COMMERCE (science) est conservée.
   const interior = interiorCountOf(city.pop, city.workedTiles.length);
-  rawProduction += interior * tier.production;
   commerce += interior * tier.commerce;
   // 7f · R-113/R-116 : le Colosse de Rhodes DOUBLE le commerce brut (R-90).
   let wonderCommerceMult = 1;
@@ -4180,7 +4182,7 @@ export function cityEconomyInputs(st: GameState, city: City, allTechs: readonly 
   for (const b of city.buildings) {
     factoryMult = Math.max(factoryMult, civBuildingProductionMultOf(player, b) ?? BUILDINGS[b]?.productionMult ?? 1);
   }
-  const prodMult = factoryMult * (1 + POP_PRODUCTION_BONUS * (city.pop - 1)); // R-63 🔶
+  const prodMult = factoryMult * (1 + POP_PRODUCTION_BONUS * interior); // R-63 rév. Erik 10/10 : citoyens NON AFFECTÉS (plus pop−1)
   // 7h · R-121 · Communisme : +50 % de Production (round half up, après Usine/pop).
   const production = anarchy
     ? 0 // R-122 : production gelée

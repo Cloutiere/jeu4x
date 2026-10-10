@@ -65,7 +65,8 @@
       : { food: 0, production: 0, commerce: 0 };
     return {
       food: base.food,
-      production: base.production + interior * tier.production,
+      // R-60bis rév. Erik 10/10 : les citoyens intérieurs ne produisent plus de marteaux directs — ils portent le bonus de production (R-63 rév.), et leur tranche de commerce (science) reste.
+      production: base.production,
       commerce: base.commerce + tier.commerce + interior * tier.commerce,
     };
   }
@@ -111,7 +112,8 @@
     }
     let factoryMult = 1;
     for (const b of city.buildings) factoryMult = Math.max(factoryMult, BUILDINGS[b]?.productionMult ?? 1);
-    return Math.floor(raw * factoryMult * (1 + 0.25 * (city.pop - 1)));
+    // R-63 rév. Erik 10/10 : le bonus de production vient des citoyens NON AFFECTÉS (0,25 chacun), plus de la population totale.
+    return Math.floor(raw * factoryMult * (1 + 0.25 * interiorCountOf(city.pop, eff.tiles.length)));
   });
   function itemCost(item: ProductionItem): number {
     return item.kind === 'unit' ? unitType(item.id).cost : (BUILDINGS[item.id]?.cost ?? Infinity);

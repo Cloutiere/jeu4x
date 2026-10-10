@@ -100,8 +100,11 @@ describe('R-60 · cases travaillées multiples (Phase 6)', () => {
 
 describe('R-66 · bâtiments (Phase 6)', () => {
   it('SetProduction d’un bâtiment, complétion → city.buildings, événement BuildingCompleted', () => {
+    // R-63 rév. Erik 10/10 : plus de +1 du citoyen intérieur — la ville
+    // travaille une COLLINE (1 marteau) pour compléter (39 + 1 = 40).
     const state = makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, production: { item: { kind: 'building', id: 'grenier' }, progress: 39 } }],
+      terrainOverrides: { '0,1': 'colline' },
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, production: { item: { kind: 'building', id: 'grenier' }, progress: 39 }, workedTiles: ['0,1'] }],
     });
     const { newState, events } = resolveTurn(state, {}, 1);
     // 7e : coût exact du Grenier = 40 (progression 39 + 1 produit ce tour)

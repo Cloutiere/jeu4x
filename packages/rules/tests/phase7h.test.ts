@@ -30,8 +30,10 @@ function productionState(government = 'despotisme'): GameState {
   // 7i · R-66 (rév.) : case d'eau travaillée — le commerce du centre suit la
   // tranche (0 pop ≤ 6), il faut du commerce de terrain pour l'or.
   const state = makeState({
-    terrainOverrides: { '2,1': 'eau' },
-    cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 3, workedTiles: ['2,1'] }],
+    // R-63 rév. Erik 10/10 : les intérieurs ne produisent plus — une colline
+    // travaillée (1 marteau) alimente les tests de progression.
+    terrainOverrides: { '2,1': 'eau', '1,2': 'colline' },
+    cities: [{ owner: 'p1', q: 2, r: 2, capital: true, pop: 3, workedTiles: ['2,1', '1,2'] }],
   });
   state.players['p1']!.government = government;
   return state;

@@ -102,3 +102,30 @@ Aucune valeur moteur touchée ; PanneauVille inchangé ; file de production,
 - Les asserts GUI lisent le tooltip DOM (`.bande-tip`) APRÈS un `reload` quand
   l'état a changé via le script (le broadcast des ordres scriptés n'est pas
   immédiat — piège déjà consigné).
+
+## RÉVISION Erik 10/10 — R-63 corrigée (bonus sur les citoyens NON AFFECTÉS)
+
+Signalement d'Erik (capture « base 4 × pop ×1,5 ») : l'interprétation d'avant
+était fausse. **Les citoyens sont les unités de population non affectées à une
+tuile** — c'est EUX qui portent le multiplicateur de production :
+
+- **Moteur (R-63 rév. 10/10)** : production = ⌊marteaux des tuiles travaillées
+  × Usine × (1 + 0,25 × citoyens non affectés)⌋. Le facteur « pop − 1 » est
+  ABROGÉ ; les intérieurs n'apportent plus AUCUN marteau direct (tranche de
+  production R-60bis abrogée — leur tranche de COMMERCE/science est conservée).
+- **Tooltip marteaux (format Erik)** : « Marteaux : 5/tour (4 des tuiles ×
+  1 citoyen non affecté ×1,25) » — avec « × Usine ×2 » le cas échéant, « 0
+  citoyen non affecté ×1 » sinon. Son exemple pop 7 / 6 tuiles → ×1,25.
+- **Libellés croissance** : « fioles » → « nourriture » (demande Erik) :
+  « Croissance : 10 / 29 nourriture », « Récolte 8 − Consommation 0 = +8
+  nourriture/tour ».
+- **RULES.md** : R-63 (rév. 10/10) et R-60bis (tranche de production abrogée)
+  documentées.
+- **Suites** : rules 1064 / web 619 / server 123 vertes (≈32 tests moteurs et
+  2 e2e serveur recalés : fixtures alimentées par des tuiles productives —
+  colline/forêt — puisque les intérieurs ne produisent plus) ; GUI re-capturée
+  (t2b : réaffectation des citoyens sur des tuiles productives avant l'ETA),
+  relue PASS 5/5.
+- Note : le message du commit précédent (76c2f6d) est arrivé en texte dégradé
+  (problème d'encodage de mon canal shell) — le CONTENU du commit est sain ;
+  amender un commit poussé demanderait un force-push, non fait.

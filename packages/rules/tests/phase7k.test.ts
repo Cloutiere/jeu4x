@@ -108,9 +108,12 @@ describe('7k · M2/R-129 — exclusivité mondiale (doc : « qu’une seule fois
 
   it('7l · C8 : complétion simultanée — égalité de surplus → cityId croissant ; le perdant récupère l’ENTIÈRETÉ (progress + production du tour)', () => {
     const state = makeState({
+      // R-63 rév. Erik 10/10 : plus de +1 de l'intérieur — UNE colline
+      // travaillée par ville → 1 marteau/tour chacune (égalité conservée).
+      terrainOverrides: { '2,1': 'colline', '5,4': 'colline' },
       cities: [
-        { owner: 'p2', q: 2, r: 2, capital: true, pop: 1, production: { item: { kind: 'wonder', id: 'stonehenge' }, progress: 50 } },
-        { owner: 'p1', q: 5, r: 5, capital: true, pop: 1, production: { item: { kind: 'wonder', id: 'stonehenge' }, progress: 50 } },
+        { owner: 'p2', q: 2, r: 2, capital: true, pop: 1, workedTiles: ['2,1'], production: { item: { kind: 'wonder', id: 'stonehenge' }, progress: 50 } },
+        { owner: 'p1', q: 5, r: 5, capital: true, pop: 1, workedTiles: ['5,4'], production: { item: { kind: 'wonder', id: 'stonehenge' }, progress: 50 } },
       ],
     });
     const result = resolveTurn(state, {}, 42);

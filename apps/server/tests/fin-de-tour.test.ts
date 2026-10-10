@@ -12,6 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GameCreationSettings, Order, Snapshot, TurnResult } from '@game/shared';
 import { adminDump, createGame, joinGame, makeToken, openGameSocket, type TestSocket } from './helpers.js';
+import { neighbors, TERRAINS } from '@game/rules';
 
 const NO_TIMER: GameCreationSettings = { mapId: 'procedural-40', turnTimerMinutes: null, isPublic: true };
 
@@ -65,13 +66,26 @@ describe('FIN-DE-TOUR-PRODUCTION · EndTurn rejeté puis débloqué', () => {
     const city = result.state.cities[cityId]!;
     expect(city.owner).toBe('p1');
 
-    // Tour 2 : alice désassigne un citoyen (le dernier assigné part, sans
-    // re-remplissage — règle d'Erik). À la résolution, ce citoyen devient
-    // INTÉRIEUR (tranche Ouvrier : +1 marteau/tour) — la ville produit
-    // désormais des marteaux de façon persistée.
+    // Tour 2 : alice assigne un 2e citoyen à une case PRODUCTIVE du rayon
+    // (forêt/colline/montagne) — R-63 rév. Erik 10/10 : les intérieurs ne
+    // produisent plus, la production vient des CASES travaillées.
+    const st2 = (await adminDump(code)).state!;
+    const ville = st2.cities[cityId]!;
+    const productive = Object.keys(st2.map)
+      .filter((k) => !ville.workedTiles.includes(k))
+      .filter((k) => {
+        const [q, r] = k.split(',').map(Number);
+        return neighbors({ q: ville.q, r: ville.r }).some((h) => h.q === q && h.r === r) && st2.map[k]!.terrain !== 'eau' && st2.map[k]!.terrain !== 'ocean';
+      })
+      .find((k) => (TERRAINS[st2.map[k]!.terrain]?.yields?.production ?? 0) > 0);
+    if (!productive) throw new Error('aucune case productive à côté de la capitale (carte atypique)');
+    // pop 2 = 2 citoyens déjà affectés : on libère le dernier assigné, puis
+    // on l'affecte à la case productive (même tour — les ordres s'appliquent
+    // à la résolution dans l'ordre).
     await soumettre(alice, { type: 'SetWorkedTile', cityId, tile: null });
+    await soumettre(alice, { type: 'SetWorkedTile', cityId, tile: productive });
     result = await resoudre(alice, bob);
-    expect(result.state.cities[cityId]!.workedTiles.length).toBe(1);
+    expect(result.state.cities[cityId]!.workedTiles.length).toBe(2);
     expect(result.state.cities[cityId]!.production).toBeNull();
 
     // Tour 4 : la ville produit des marteaux SANS production sélectionnée →

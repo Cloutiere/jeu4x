@@ -118,6 +118,11 @@ describe('botPolicy · recherche & régimes (actions immédiates, portage bot.mj
       baseState({ cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 }] }),
       { researching: null, techsUnlocked: [], scienceStored: 15 },
     );
+    // R-63 rév. Erik 10/10 : les intérieurs ne produisent plus — un citoyen
+    // travaille une colline voisine (1 marteau/tour) pour rendre la ville
+    // « productive » comme avant.
+    state.map['1,3'] = { terrain: 'colline', resource: null };
+    state.cities['c1']!.workedTiles = ['1,3'];
     // Avant plan : ville productive sans production + résiduel de recherche
     // (15 points en réserve — ex. bonus de hutte) sans recherche sélectionnée.
     expect(blocagesFinDeTour(state, BOT).map((b) => b.kind).sort()).toEqual(['production', 'recherche']);

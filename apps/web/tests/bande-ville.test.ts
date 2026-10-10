@@ -134,25 +134,40 @@ describe('rendementsVille (miroir yields/prodPerTurn de PanneauVille)', () => {
     const cA = st.cities.cA!; // pop 2, 1 prairie travaillée (2 nourriture)
     expect(rendementsVille(st, cA, cA.workedTiles, []).food).toBe(2);
   });
-  it('prodPerTurn = ⌊brut × multiplicateur bâtiments × (1 + 0,25×(pop−1))⌋ — citoyen intérieur +1', () => {
-    const st = etatAvecVilles();
-    const cA = st.cities.cA!; // pop 2, 1 travaillée → intérieur 1 (tranche Ouvrier +1) ; brut 1
-    expect(rendementsVille(st, cA, cA.workedTiles, []).prodPerTurn).toBe(Math.floor(1 * 1 * 1.25));
+  it('prodPerTurn = ⌊prodTuiles × bonusBâtiments × bonusCitoyens⌋ — bonus des citoyens NON AFFECTÉS (R-63 rév. 10/10)', () => {
+    const st = makeState({
+      width: 8,
+      height: 8,
+      terrainOverrides: { [tileKey(2, 0)]: 'foret' },
+      cities: [{ id: 'cA', owner: 'p1', q: 2, r: 1, pop: 2, workedTiles: [tileKey(2, 0)] }],
+    });
+    const cA = st.cities.cA!; // pop 2, 1 forêt (2 marteaux) → intérieur 1 → ×1,25
+    expect(rendementsVille(st, cA, cA.workedTiles, []).prodPerTurn).toBe(Math.floor(2 * 1 * 1.25));
   });
-  it('Usine (productionMult 2) double le brut avant le facteur de pop', () => {
-    const st = etatAvecVilles();
-    const usine = { ...st.cities.cA!, buildings: ['usine'] };
-    expect(rendementsVille(st, usine, usine.workedTiles, []).prodPerTurn).toBe(Math.floor(1 * 2 * 1.25));
+  it('Usine (productionMult 2) double les TUILES avant le bonus citoyens', () => {
+    const st = makeState({
+      width: 8,
+      height: 8,
+      terrainOverrides: { [tileKey(2, 0)]: 'foret' },
+      cities: [{ id: 'cA', owner: 'p1', q: 2, r: 1, pop: 2, workedTiles: [tileKey(2, 0)] }],
+    });
+    const usine = { ...st.cities.cA!, buildings: ['usine'] }; // intérieur 1 → ×1,25
+    expect(rendementsVille(st, usine, usine.workedTiles, []).prodPerTurn).toBe(Math.floor(2 * 2 * 1.25));
   });
-  it('tuile travaillée en Forêt : +2 marteaux bruts (la case ville ne rapporte rien — R-66 rév.)', () => {
+  it('citoyen intérieur ne produit PLUS de marteaux directs (R-60bis rév. 10/10) : tuile sans production → 0', () => {
+    const st = etatAvecVilles();
+    const cA = st.cities.cA!; // pop 2, 1 prairie (0 marteau) → intérieur 1 mais prodTuiles 0
+    expect(rendementsVille(st, cA, cA.workedTiles, []).prodPerTurn).toBe(0);
+  });
+  it('tuile travaillée en Forêt sans intérieur : ×1 (la case ville ne rapporte rien — R-66 rév.)', () => {
     const st = makeState({
       width: 8,
       height: 8,
       terrainOverrides: { [tileKey(2, 0)]: 'foret' },
       cities: [{ id: 'cA', owner: 'p1', q: 2, r: 1, pop: 1, workedTiles: [tileKey(2, 0)] }],
     });
-    const cA = st.cities.cA!; // pop 1, 1 travaillée → intérieur 0 ; brut = forêt 2
-    expect(rendementsVille(st, cA, cA.workedTiles, []).prodPerTurn).toBe(Math.floor(2 * 1 * 1));
+    const cA = st.cities.cA!; // pop 1, 1 travaillée → intérieur 0 ; tuiles = forêt 2
+    expect(rendementsVille(st, cA, cA.workedTiles, []).prodPerTurn).toBe(2);
   });
 });
 
@@ -187,10 +202,11 @@ describe('géométrie partagée (dessin + picking D6)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// BANDE-DETAIL (décisions Erik 07/10) — infobulles « pourquoi tant de tours »
+// BANDE-DETAIL (decisions Erik 07/10 ; rev. 10/10 — nourriture, bonus
+// citoyens non affectes R-63) — infobulles "pourquoi tant de tours"
 // ---------------------------------------------------------------------------
 
-describe('BANDE-DETAIL · constructeurs d’infobulles (D1/D2/D6)', () => {
+describe('BANDE-DETAIL : constructeurs d infobulles (D1/D2/D6)', () => {
   const detail = (over: Partial<ImportDetail> = {}): ImportDetail => ({
     pop: 3,
     foodStored: 10,
@@ -198,12 +214,13 @@ describe('BANDE-DETAIL · constructeurs d’infobulles (D1/D2/D6)', () => {
     consommation: 0,
     gainNet: 8,
     seuil: 29,
-    prodBrut: 6,
+    prodTuiles: 6,
     bonusBatimentsMult: 2,
     bonusBatimentsNom: 'Usine',
-    bonusPopMult: 1.5,
+    citoyensNonAffectes: 2,
+    bonusCitoyensMult: 1.5,
     prodPerTurn: 18,
-    itemNom: 'Bibliothèque',
+    itemNom: 'Bibliotheque',
     cout: 55,
     progression: 12,
     eta: 3,
@@ -212,57 +229,54 @@ describe('BANDE-DETAIL · constructeurs d’infobulles (D1/D2/D6)', () => {
   });
   type ImportDetail = DetailTooltip;
 
-  it('D1 croissance : « 10 / 29 fioles » + ligne de calcul nommée + délai', () => {
+  it('D1 croissance : "10 / 29 nourriture" + ligne de calcul nommee + delai', () => {
     const lignes = lignesTooltipCroissance(detail());
     expect(lignes[0]).toContain('10 / 29');
-    expect(lignes[0]).toContain('fioles');
-    const calc = lignes.find((l) => l.includes('Récolte'));
+    expect(lignes[0]).toContain('nourriture');
+    const calc = lignes.find((l) => l.includes('Récolte'))!;
     expect(calc).toContain('8');
     expect(calc).toContain('−');
     expect(calc).toContain('+8');
     expect(lignes.some((l) => l.includes('Nouveau citoyen dans 3 tours'))).toBe(true);
   });
 
-  it('D1 croissance : pluriel et stagnation ±0 (surplus nul → jamais)', () => {
-    // 28/29 fioles à +1/tour → 1 tour exactement.
+  it('D1 croissance : pluriel et stagnation a zero (surplus nul -> jamais)', () => {
+    // 28/29 a +1/tour -> 1 tour exactement.
     expect(lignesTooltipCroissance(detail({ gainNet: 1, recolte: 1, foodStored: 28 }))).toContainEqual(
       expect.stringContaining('Nouveau citoyen dans 1 tour'),
     );
-    const lignes = lignesTooltipCroissance(detail({ recolte: 0, gainNet: 0, eta: Infinity }));
+    const lignes = lignesTooltipCroissance(detail({ recolte: 0, gainNet: 0 }));
     expect(lignes.join('\n')).toContain('Jamais');
   });
 
-  it('D1 croissance : plafond de population → fioles masquées, plafond nommé', () => {
+  it('D1 croissance : plafond de population -> nourriture masquee, plafond nomme', () => {
     const lignes = lignesTooltipCroissance(detail({ seuil: null }));
     expect(lignes[0]).toContain('plafond de population');
     expect(lignes.join('\n')).toContain('Plus jamais de croissance');
   });
 
-  it('D2 production : nom, coût avec progression, marteaux détaillés (base × Usine × pop), achèvement', () => {
+  it('D2 production : nom, cout avec progression, marteaux detailles (tuiles x Usine x citoyens non affectes), achevement', () => {
     const lignes = lignesTooltipProduction(detail());
-    expect(lignes[0]).toContain('Bibliothèque');
+    expect(lignes[0]).toContain('Bibliotheque');
     expect(lignes.some((l) => l.includes('55') && l.includes('12'))).toBe(true);
     const marteaux = lignes.find((l) => l.includes('Marteaux'))!;
-    expect(marteaux).toContain('6');
-    expect(marteaux).toContain('Usine');
+    expect(marteaux).toContain('6 des tuiles');
+    expect(marteaux).toContain('Usine ×2');
+    expect(marteaux).toContain('2 citoyens non affectés ×1,5');
     expect(marteaux).toContain('18');
     expect(lignes.some((l) => l.includes('Achèvement dans 3 tours'))).toBe(true);
   });
 
-  it('D2 production : sans bonus de bâtiments (le cas échéant omis) ; ∞ = jamais ; coût inconnu masqué', () => {
-    const simple = lignesTooltipProduction(detail({ bonusBatimentsMult: 1, bonusBatimentsNom: null, bonusPopMult: 1, prodPerTurn: 6 }));
-    expect(simple.find((l) => l.includes('Marteaux'))).not.toContain('Usine');
+  it('D2 production : sans Usine (omis si absent) ; infini = jamais ; coût inconnu masqué', () => {
+    const simple = lignesTooltipProduction(detail({ bonusBatimentsMult: 1, bonusBatimentsNom: null, bonusCitoyensMult: 1, citoyensNonAffectes: 0, prodPerTurn: 6 }));
+    const m = simple.find((l) => l.includes('Marteaux'))!;
+    expect(m).not.toContain('Usine');
+    expect(m).toContain('0 citoyen non affecté ×1');
     expect(lignesTooltipProduction(detail({ eta: Infinity })).join('\n')).toContain('aucun marteau');
     expect(lignesTooltipProduction(detail({ cout: null, eta: null })).join('\n')).not.toContain('Achèvement');
   });
 
   it('D2 production : ETA 0 → « à la prochaine résolution » (miroir de la bannière qui affiche 0)', () => {
     expect(lignesTooltipProduction(detail({ eta: 0 })).join('\n')).toContain('prochaine résolution');
-  });
-
-  it('D3 : les constructeurs ne servent que les villes du joueur — pas de garde ici, l’appelant filtre (contrat documenté)', () => {
-    // Les lignes sont des textes purs : le masquage ennemi est porté par
-    // construireBanniere (testé ci-dessus) et par le branchement GameCanvas.
-    expect(lignesTooltipCroissance(detail()).length).toBeGreaterThan(0);
   });
 });

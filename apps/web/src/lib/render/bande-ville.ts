@@ -205,10 +205,14 @@ export interface DetailTooltip {
   gainNet: number;
   /** Seuil de croissance de la pop courante — `null` au plafond (31). */
   seuil: number | null;
-  prodBrut: number;
+  /** Marteaux des tuiles travaillées SEULS (avant bonus — R-63 rév. 10/10). */
+  prodTuiles: number;
   bonusBatimentsMult: number;
   bonusBatimentsNom: string | null;
-  bonusPopMult: number;
+  /** Citoyens non affectés aux tuiles (source du bonus, R-63 rév. 10/10). */
+  citoyensNonAffectes: number;
+  /** 1 + 0,25 × citoyensNonAffectes. */
+  bonusCitoyensMult: number;
   prodPerTurn: number;
   /** Item en tête effective (nom, coût via coutItem, progression, ETA du
    *  miroir etaProductionBanniere — `null`/Infinity comme la bannière). */
@@ -229,16 +233,16 @@ function signe(n: number): string {
   return '±0';
 }
 
-/** D1 — survol du chiffre de croissance : « 10 / 29 fioles » + ligne de
+/** D1 — survol du chiffre de croissance : « 10 / 29 nourriture » + ligne de
  *  calcul nommée + « Nouveau citoyen dans N tours ». */
 export function lignesTooltipCroissance(d: DetailTooltip): string[] {
   const lignes: string[] = [];
   if (d.seuil === null) {
     lignes.push(`Croissance : plafond de population (${d.pop})`);
   } else {
-    lignes.push(`Croissance : ${d.foodStored} / ${d.seuil} fioles`);
+    lignes.push(`Croissance : ${d.foodStored} / ${d.seuil} nourriture`);
   }
-  lignes.push(`Récolte ${d.recolte} − Consommation ${d.consommation} = ${signe(d.gainNet)} fioles/tour`);
+  lignes.push(`Récolte ${d.recolte} − Consommation ${d.consommation} = ${signe(d.gainNet)} nourriture/tour`);
   if (d.seuil === null) {
     lignes.push('Plus jamais de croissance (plafond atteint)');
   } else if (d.gainNet <= 0) {
@@ -266,13 +270,12 @@ export function lignesTooltipProduction(d: DetailTooltip): string[] {
   if (d.cout !== null) {
     lignes.push(`Coût : ${d.cout} marteaux (déjà ${d.progression})`);
   }
-  const detail =
-    d.bonusBatimentsNom !== null
-      ? `base ${d.prodBrut} × ${d.bonusBatimentsNom} ×${d.bonusBatimentsMult} × pop ×${decimalFr(d.bonusPopMult)}`
-      : d.bonusPopMult !== 1
-        ? `base ${d.prodBrut} × pop ×${decimalFr(d.bonusPopMult)}`
-        : `base ${d.prodBrut}`;
-  lignes.push(`Marteaux : ${d.prodPerTurn}/tour (${detail})`);
+  // Format Erik 10/10 : marteaux des TUILES × bonus des citoyens NON
+  // AFFECTÉS (×1,25 chacun) — la population totale n'intervient plus.
+  const parts: string[] = [`${d.prodTuiles} des tuiles`];
+  if (d.bonusBatimentsNom !== null) parts.push(`${d.bonusBatimentsNom} ×${d.bonusBatimentsMult}`);
+  parts.push(`${d.citoyensNonAffectes} citoyen${d.citoyensNonAffectes > 1 ? 's' : ''} non affecté${d.citoyensNonAffectes > 1 ? 's' : ''} ×${decimalFr(d.bonusCitoyensMult)}`);
+  lignes.push(`Marteaux : ${d.prodPerTurn}/tour (${parts.join(' × ')})`);
   if (d.eta === Infinity) {
     lignes.push('Jamais (aucun marteau par tour)');
   } else if (d.eta !== null) {
@@ -306,7 +309,7 @@ export function rectZoneProductionLocale(): { x0: number; y0: number; x1: number
 }
 
 /** Seuil de croissance de la pop courante (Aqueduc inclus) — `null` au
- *  plafond ; complément du D4 pour la ligne « 10 / 29 fioles ». */
+ *  plafond ; complément du D4 pour la ligne « 10 / 29 nourriture ». */
 export function seuilCroissanceVille(city: City): number | null {
   let reduction = 0;
   for (const b of city.buildings) reduction = Math.max(reduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);

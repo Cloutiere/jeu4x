@@ -329,7 +329,16 @@ Base documentaire : la spécification d'Erik [`Artefacts Dans Civilization Revol
 - **Désélection EXACTE (rév. 14/09 — WORKED-TILE-EXACT, décision d'Erik)** : cibler une case **déjà travaillée par la même ville** fait sortir **CETTE case précise** des terrains cultivés — le citoyen libéré redevient un **ouvrier intérieur** (R-60bis, tranche de commerce intérieure appliquée automatiquement) disponible pour réaffectation. L'ancienne clause « échange » (permutation automatique vers la case ciblée, 30/08) est **ABROGÉE** : la ré-affectation vers une nouvelle tuile est un **second ordre explicite** (clic sur une tuile libre du rayon). `tile: null` conserve la désassignation déterministe du dernier assigné. La même sémantique exacte s'applique à l'état effectif (file d'ordres/aperçu) et à la vue ville (MENU-VILLE `clickActionVueVille` — source unique).
 - La ville affiche ses rendements cumulés (nourriture, production, commerce) — visibles dans le menu de ville et sous forme d'indicateurs sur la carte (affichage masquable).
 
-**R-60bis · Citoyens intérieurs (7i — D4, doc « Moteur Ville Civilization Revolution »).** Quand la population dépasse les cases exploitables (avant Tribunal, saturation, ou désassignation manuelle), les citoyens non affectés au terrain deviennent **ouvriers intérieurs** au **centre-ville** avec un rendement **par tranche démographique** (table data-driven `growth.json` — calibrage sans code, libellés CivRev) :
+**R-60bis · Citoyens intérieurs (7i — D4, doc « Moteur Ville Civilization Revolution » ; RÉVISÉE le 10/10, décision d'Erik).** Quand la population dépasse les cases exploitables (avant Tribunal, saturation, ou désassignation manuelle), les citoyens non affectés au terrain deviennent **ouvriers intérieurs** au **centre-ville**. **Rév. 10/10 : les intérieurs ne produisent PLUS de Production directe** (tranche de Production ABROGÉE — « les citoyens, ce sont les unités de population non affectées à une case ; c'est LEUR multiplicateur qui compte », Erik) ; **leur tranche de COMMERCE (science/or) est conservée** :
+
+| Tranche de pop | Qualification | Rendement par citoyen intérieur |
+|---|---|---|
+| 1-6 | Ouvrier (*Laborer*) | ~~+1 Production~~ **0 Production (abrogée 10/10)** |
+| 7-12 | Vendeur (*Vendor*) | ~~+1 P~~ +1 Commerce |
+| 13-18 | Commerçant (*Trader*) | ~~+1 P~~ +2 Commerce |
+| 19-24 | Marchand (*Merchant*) | ~~+1 P~~ +3 Commerce |
+| 25-30 | Importateur (*Importer*) | ~~+1 P~~ +4 Commerce |
+| 31 | Exportateur (*Exporter*) | ~~+1 P~~ +5 Commerce |
 
 | Tranche de pop | Qualification | Rendement par citoyen intérieur |
 |---|---|---|
@@ -340,7 +349,7 @@ Base documentaire : la spécification d'Erik [`Artefacts Dans Civilization Revol
 | 25-30 | Importateur (*Importer*) | +1 Production, +4 Commerce |
 | 31 | Exportateur (*Exporter*) | +1 Production, +5 Commerce |
 
-Les modificateurs de gouvernement (R-121) s'appliquent selon leur nature (la production intérieure subit le +50 % Communisme, le commerce intérieur le +50 % Démocratie). **Réassignation** : priorité à l'affectation extérieure — un citoyen intérieur redevient travailleur de terrain dès qu'une case est disponible (Tribunal posé, croissance, fondation) ; les intérieurs comblent le reste (ordre déterministe R-81).
+Les modificateurs de gouvernement (R-121) s'appliquent selon leur nature (le commerce intérieur subit le +50 % Démocratie ; la production n'a plus de composante intérieure). **Réassignation** : priorité à l'affectation extérieure — un citoyen intérieur redevient travailleur de terrain dès qu'une case est disponible (Tribunal posé, croissance, fondation) ; les intérieurs comblent le reste (ordre déterministe R-81).
 
 **R-61 · Répartition du commerce.** ~~Répartie par un curseur global science/or (défaut `T-14` = 50/50)~~ — **remplacée par R-90 le 01/09/2026** (conversion binaire par ville ; le curseur global `player.scienceRatio` est déprécié).
 
@@ -350,6 +359,7 @@ Les modificateurs de gouvernement (R-121) s'appliquent selon leur nature (la pro
 - **D1 (rév. 13/09 — abroge la consommation 7i) — AUCUNE consommation de nourriture** : les citoyens ne mangent pas ; **le surplus = la récolte entière**, qui alimente la réserve de croissance `foodStored`. Aucun déficit possible — pas de famine (inchangé). La « pompe à colons » reste possible (République : −1 pop par colon, repousse sur la seule récolte).
 - **D2 (rév. 13/09 — lecture corrigée sur le vrai jeu) — Seuil LINÉAIRE 10 × n** : la nourriture requise pour passer de la population **n** à **n+1** vaut **10 × n** (n = population ACTUELLE) : **2→3 coûte 20** (10 tours à +2/tour), **3→4 coûte 30** (15 tours à +2/tour) — ancres vérifiées par Erik en jeu. La table **`growth.json`** (`growthThresholds`) est indexée par la population **ACTUELLE** (l'ancienne lecture « population cible » décalait tout de 10 — corrigé au moteur) et inclut « 1 »: 10 (villes pop 1 existantes — Mongols, République). À seuil atteint : +1 pop (jauge soustraite du seuil, surplus conservé), **+1 citoyen auto-assigné** (R-60) et `+T-16` production par pop au-delà de la première. **Plafond absolu : population 31** — croissance bloquée au-delà (`growthThresholdFor` retourne null). Helper pur UI : `toursAvantCroissance(pop, foodStored, surplus, reduction)`.
 - **7e : l'Aqueduc réduit le seuil d'un tiers** (multiplicateur `growthThresholdReduction` sur la valeur de table 🔶) et l'**Usine double la production de la ville** (§8.4).
+- **RÉV. 10/10 — Bonus de production = citoyens NON AFFECTÉS (décision d'Erik, corrige l'interprétation)** : la production de la ville vaut **⌊marteaux des cases travaillées × Usine × (1 + 0,25 × citoyens intérieurs)⌋** — chaque citoyen non affecté à une case apporte **+25 %** de production ; **le facteur « pop − 1 » est ABROGÉ** (la population totale n'intervient plus), et les intérieurs n'apportent **aucun marteau direct** (R-60bis rév. 10/10). Exemples d'Erik : pop 3 toute affectée = marteaux des cases ×1 ; pop 7 avec 6 cases = cases × 1,25. (Miroirs UI mis à jour : PanneauVille, CityView, `economieVilleDetail`.)
 
 **R-64 · Fondation (révision 7i — D3/D5, doc d'Erik).** `FoundCity` consomme le Colon → ville **capitale** si première ville du joueur. Distance minimale entre villes : `T-09`.
 - **D3 — Population initiale par ÈRE** : l'ère de l'empire = l'**ère la plus avancée des technologies débloquées** (champ `era` de `techs.json`) → Ère Antique **2**, Médiévale **3**, Industrielle **4**, Moderne **5** (table `founderPopByEra` de `growth.json`). La ville démarre avec ses citoyens **auto-assignés** (R-60). Les **capitales préfabriquées** des cartes démarrent aussi à pop 2 🔶 (ère Antique — à confirmer). Les traits de civilisation (Chine +1, Rome Moderne 6, Mongols villages→pop 1) sont des clés de `civilizations.json` préparées en **7j** — ignorées en 1v1 sans civils.

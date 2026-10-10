@@ -240,8 +240,8 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
 
     // Ville pleine (pop 3, 3 citoyens) → on désassigne d'abord
     // (règle d'Erik : pas d'échange automatique) + Grenier en file.
-    // Le citoyen intérieur (7i · R-60bis) produit : 0 (centre — A3) +
-    // 1 (intérieur) → floor(1 × 1,5) = 1 marteau/tour (bonus pop R-63).
+    // R-63 rév. Erik 10/10 : le citoyen intérieur ne produit PLUS —
+    // production du tour = 0 (centre 0 — A3, intérieurs sans rendement).
     step({
       p1: [
         { type: 'SetWorkedTile', cityId, tile: null },
@@ -249,7 +249,7 @@ describe('Phase 6 · scénario économique de bout en bout', () => {
       ],
     });
     expect(state.cities[cityId]!.workedTiles).toHaveLength(2);
-    expect(state.cities[cityId]!.production!.progress).toBe(1); // production du tour : centre 0 (A3) + intérieur 1 (R-60bis) × bonus pop
+    expect(state.cities[cityId]!.production!.progress).toBe(0); // plus de +1 de l'intérieur (R-63 rév. 10/10)
 
     // Tour 5 : le citoyen libéré est assigné à la plaine (5,6).
     step({ p1: [{ type: 'SetWorkedTile', cityId, tile: '5,6' }] });

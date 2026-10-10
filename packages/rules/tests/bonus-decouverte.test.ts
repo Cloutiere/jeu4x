@@ -18,7 +18,7 @@ import { applyFirstToDiscover } from '../src/firstDiscovery.js';
 import { siteSpawnNaval, trieVillesCandidates, embarqueMilice } from '../src/bonusPlacement.js';
 import { resolveTurn } from '../src/turn.js';
 import { makeState } from '../src/fixtures.js';
-import { colRowToHex, tileKeyOf, hexDistanceW } from '../src/hex.js';
+import { colRowToHex, tileKeyOf, hexDistanceW, neighbors } from '../src/hex.js';
 import { registerTestUnitType, unitType, BARBARIAN_ID, isWaterTerrain } from '../src/data.js';
 import type { GameState, PlayerId } from '../src/state.js';
 import type { TerrainId } from '../src/types.js';
@@ -265,6 +265,13 @@ describe('BONUS-DECOUVERTE · D2 — Milice de bord', () => {
         },
       ],
     });
+    // R-63 rév. Erik 10/10 : plus de +1 du citoyen intérieur — la ville
+    // travaille une colline VOISINE pour produire 1 marteau et compléter
+    // la Galère (29 + 1 = 30).
+    const voisin = neighbors(H(1, 2))[0]!;
+    const kVoisin = tileKeyOf(voisin);
+    st.map[kVoisin] = { terrain: 'colline', resource: null };
+    st.cities['c1']!.workedTiles = [kVoisin];
     const result = resolveTurn(st, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'galere' } }] }, 1);
     const galere = Object.values(result.newState.units).find((u) => u.type === 'galere');
     expect(galere).toBeDefined();

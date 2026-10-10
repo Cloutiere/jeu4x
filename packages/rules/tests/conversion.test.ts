@@ -159,9 +159,12 @@ describe('R-89 · Caserne — unités produites vétérans (hors Colon)', () => 
    *  production floor(3 × 1,25) = 3/tour — progression quasi complète. Une
    *  pop élevée engendrerait un GP à rendement (7h) qui occupe la case. */
   function cityProducing(item: 'guerrier' | 'colon'): GameState {
+    // R-63 rév. Erik 10/10 : un citoyen NON AFFECTÉ (pop 2, 1 colline) →
+    // ⌊1 × 1,25⌋ = 1 marteau/tour, le rythme d'avant.
     return makeState({
       width: 4,
       height: 4,
+      terrainOverrides: { '0,1': 'colline' },
       cities: [
         {
           id: 'c1',
@@ -170,6 +173,7 @@ describe('R-89 · Caserne — unités produites vétérans (hors Colon)', () => 
           r: 0,
           capital: true,
           pop: 2,
+          workedTiles: ['0,1'],
           production: { item: { kind: 'unit', id: item }, progress: item === 'guerrier' ? 9 : 19 },
           buildings: ['caserne'],
         },

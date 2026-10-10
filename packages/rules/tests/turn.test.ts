@@ -415,14 +415,17 @@ describe('Phase C · R-60/R-61 · cases travaillées et commerce (Phase 6)', () 
 
 describe('Phase C · R-62/R-63 · production et croissance', () => {
   function cityState(): GameState {
+    // R-63 rév. Erik 10/10 : plus de +1 du citoyen intérieur — la ville
+    // travaille une COLLINE (1 marteau/tour) : 9 + 1 = 10 ≥ coût Guerrier.
     return makeState({
-      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, production: { item: { kind: 'unit', id: 'guerrier' }, progress: 9 } }],
+      terrainOverrides: { '0,1': 'colline' },
+      cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, workedTiles: ['0,1'], production: { item: { kind: 'unit', id: 'guerrier' }, progress: 9 } }],
     });
   }
 
   it('R-62 : production complétée → l’unité apparaît sur la case de ville', () => {
     const { newState, events } = resolveTurn(cityState(), {}, 1);
-    // production du tour = 1 (centre 0 + intérieur Ouvrier) → 9 + 1 = 10 ≥ coût 10
+    // production du tour = 1 (la colline travaillée) → 9 + 1 = 10 ≥ coût 10
     const produced = events.find((e) => e.type === 'UnitProduced');
     expect(produced).toBeDefined();
     expect(unitAt(newState, 0, 0)?.type).toBe('guerrier');
@@ -452,8 +455,7 @@ describe('Phase C · R-62/R-63 · production et croissance', () => {
     const state = cityState();
     state.cities['c1']!.production = { item: { kind: 'unit', id: 'colon' }, progress: 5 };
     const { newState } = resolveTurn(state, { p1: [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'guerrier' } }] }, 1);
-    // 7i · D4 · R-60bis : le citoyen intérieur produit +1 P (centre 0 — A3)
-    // → production 1/tour
+    // R-63 rév. Erik 10/10 : la colline travaillée produit 1 P/tour
     expect(cityAt(newState, 0, 0)!.production).toEqual({ item: { kind: 'unit', id: 'guerrier' }, progress: 6 });
   });
 

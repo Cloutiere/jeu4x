@@ -53,3 +53,14 @@ Tailles/alpha/positions dans `BANDE_VILLE` (bande 140×26 à y −86, rangée 2 
 ## Périmètre respecté
 
 Moteur/serveur/protocole/schemaVersion 27 intouchés ; PanneauVille inchangé (l'affichage du panneau et le clic case restent les seuls points d'entrée — D6 est une substitution de hex, pas une nouvelle action) ; données de ville inchangées ; 3D intouchée.
+
+## Révision Erik 08/10 — UNE SEULE bande + 3 drapeaux nus (commit aaa259c, CI + Deploy verts)
+
+Retour d'Erik sur captures : « j'aimerais une seule bande ; taille de la ville et à droite ce que l'on produit ; en dessous, un genre de drapeau comme l'image Civ6 et le nombre de tours restant ». Livré :
+
+- **Bande unique** : logo, nom (+ étoile), cercle pop, et cercle production **à droite du pop** dans la même barre (initiale en attendant l'art — structure prête pour les images).
+- **Trois drapeaux** pendus sous la bande : plaquettes sombres **nues** (sans liseré), **nombres sans icône** : `Tours` (étiquette) / `n` (croissance) / `m` (production restants) — le langage des nombres nus de la capture Civ6 (AKSOUM).
+- D3/D4 inchangés : ville ennemie = bande seule ; file vide = cercle production + drapeau production masqués.
+- D6 : le rect de picking couvre bande + drapeaux (collés).
+- Suites web 612 (+2) / rules 1057 / server 123, tsc 0, svelte-check 0. GUI : **run complet vert** (« tous les asserts GUI passent »), t1-t8 recapturés au nouveau design. Nouveau mini-script `devtmp/bande-ville-t4.mjs` (scénario t4 seul).
+- Bug de script consigné : le check « bot joignable » APRÈS fondation visait la case VILLE que `bfsChemin` exclut toujours → « injoignable » systématique ; le check colon→colonBot AVANT fondation suffit.

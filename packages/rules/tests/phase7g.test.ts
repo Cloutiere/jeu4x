@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveTurn } from '../src/turn.js';
 import { makeState, unit as getUnit, unitAt } from '../src/fixtures.js';
-import { colRowToHex, tileKeyOf } from '../src/hex.js';
+import { colRowToHex, tileKeyOf, neighbors } from '../src/hex.js';
 import { registerTestUnitType, unitType } from '../src/data.js';
 import { canEnterTerrain, cargoCapacityOf, isCoastalCityHex, navalSupportFor } from '../src/naval.js';
 import { migrateState, CURRENT_SCHEMA_VERSION } from '../src/state.js';
@@ -178,6 +178,14 @@ describe('Phase 7g · R-117 — mouvement naval', () => {
         { id: 'c2', owner: 'p1', q: H(4, 0).q, r: H(4, 0).r, pop: 1 },
       ],
     });
+    // R-63 rév. Erik 10/10 : plus de +1 du citoyen intérieur — c1 travaille
+    // une colline voisine pour produire le marteau de complétion (29+1=30).
+    {
+      const voisin = neighbors(H(0, 2))[0]!;
+      const kV = tileKeyOf(voisin);
+      state.map[kV] = { terrain: 'colline', resource: null };
+      state.cities['c1']!.workedTiles = [kV];
+    }
     const result = resolveTurn(
       state,
       {

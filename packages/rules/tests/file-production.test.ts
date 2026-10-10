@@ -25,8 +25,11 @@ const COLON = { kind: 'unit', id: 'colon' } as const;
 const CASERNE = { kind: 'building', id: 'caserne' } as const;
 
 function villeFile(production: City['production'], queue: City['queue'] = []): GameState {
+  // R-63 rév. Erik 10/10 : plus de +1/tour du citoyen intérieur — la ville
+  // travaille une COLLINE (1 marteau/tour) pour garder le rythme d'avant.
   return makeState({
-    cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, production, queue }],
+    terrainOverrides: { '0,1': 'colline' },
+    cities: [{ id: 'c1', owner: 'p1', q: 0, r: 0, capital: true, workedTiles: ['0,1'], production, queue }],
   });
 }
 
