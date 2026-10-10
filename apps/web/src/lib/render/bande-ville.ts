@@ -172,15 +172,21 @@ export function rendementsVille(
   return { food, prodPerTurn: Math.floor(brut * factoryMult * (1 + 0.25 * (city.pop - 1))) };
 }
 
-/** Tours avant croissance — MIROIR de `growthEta` (PanneauVille) : plafond
- *  (jauge pleine) ou réserve déjà au seuil → `null` (croissance à la
- *  prochaine résolution) ; surplus nul → `null` (à l'arrêt, pas de zéro). */
+/** Tours avant croissance — miroir de `growthEta` (PanneauVille) enrichi
+ *  du « ∞ » (Erik 10/10, cohérence avec la production) :
+ *  - plafond de population (31) → `Infinity` : plus JAMAIS de croissance ;
+ *  - surplus de nourriture nul ou négatif → `Infinity` : la croissance
+ *    n'arrivera jamais tant que les citoyens ne nourrissent pas ;
+ *  - réserve déjà au seuil → `null` (croissance à la PROCHAINE résolution :
+ *    drapeau masqué ce tour, miroir du panneau) ;
+ *  - sinon `ceil((seuil − réserve) / surplus)`. */
 export function toursCroissanceBanniere(city: City, foodSurplus: number): number | null {
   let reduction = 0;
   for (const b of city.buildings) reduction = Math.max(reduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
   const seuil = growthThresholdFor(city.pop, reduction);
-  if (seuil === null) return null;
+  if (seuil === null) return Infinity;
   if (city.foodStored >= seuil) return null;
+  if (foodSurplus <= 0) return Infinity;
   return toursAvantCroissance(city.pop, city.foodStored, foodSurplus, reduction);
 }
 

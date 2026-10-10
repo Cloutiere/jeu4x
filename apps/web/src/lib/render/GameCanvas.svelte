@@ -1107,7 +1107,8 @@
       const bandeCroissance = conteneurBande.getChildByLabel('bandeCroissance') as Text;
       bandeCroissance.visible = bande.croissance !== null;
       (conteneurBande.getChildByLabel('drapeauCroissanceFond') as Graphics).visible = bandeCroissance.visible;
-      const texteCroissance = bande.croissance === null ? '' : String(bande.croissance); // nombre nu
+      // nombre nu, ou « ∞ » (plafond / surplus nul — Erik 10/10)
+      const texteCroissance = bande.croissance === null ? '' : Number.isFinite(bande.croissance) ? String(bande.croissance) : '∞';
       if (bandeCroissance.text !== texteCroissance) bandeCroissance.text = texteCroissance;
       const prodCercle = conteneurBande.getChildByLabel('prodCercle') as Graphics;
       const prodInitiale = conteneurBande.getChildByLabel('prodInitiale') as Text;

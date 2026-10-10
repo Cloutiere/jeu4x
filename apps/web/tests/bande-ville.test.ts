@@ -91,19 +91,19 @@ describe('toursCroissanceBanniere (miroir growthEta de PanneauVille)', () => {
     const cA = st.cities.cA!; // pop 2 → seuil 20, réserve 6
     expect(toursCroissanceBanniere(cA, 2)).toBe(Math.ceil((20 - 6) / 2));
   });
-  it('surplus nul : null (croissance à l\'arrêt — libellé honnête, pas de zéro)', () => {
+  it('surplus nul : Infinity (Erik 10/10 — la croissance n’arrivera jamais, rendu « ∞ »)', () => {
     const st = etatAvecVilles();
-    expect(toursCroissanceBanniere(st.cities.cA!, 0)).toBeNull();
+    expect(toursCroissanceBanniere(st.cities.cA!, 0)).toBe(Infinity);
   });
   it('réserve déjà au seuil : null (miroir du panneau — croissance à la prochaine résolution)', () => {
     const st = etatAvecVilles();
     const pleine = { ...st.cities.cA!, foodStored: 20 };
     expect(toursCroissanceBanniere(pleine, 2)).toBeNull();
   });
-  it('plafond de population (31) : null', () => {
+  it('plafond de population (31) : Infinity (plus jamais de croissance — Erik 10/10)', () => {
     const st = etatAvecVilles();
     const plafond = { ...st.cities.cA!, pop: 31 };
-    expect(toursCroissanceBanniere(plafond, 2)).toBeNull();
+    expect(toursCroissanceBanniere(plafond, 2)).toBe(Infinity);
   });
   it('réduction Aqueduc lue des bâtiments (miroir growthReduction du panneau)', () => {
     const st = etatAvecVilles();
