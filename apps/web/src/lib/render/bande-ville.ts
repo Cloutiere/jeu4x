@@ -26,7 +26,7 @@
  * données. La géométrie est partagée par le dessin ET le picking (D6 : le
  * clic bannière = clic ville — une seule source de vérité du rect).
  */
-import { BUILDINGS, growthThresholdFor, interiorCitizenFor, interiorCountOf, tileYield, tileKeyOf, toursAvantCroissance } from '@game/rules';
+import { BUILDINGS, growthThresholdFor, toursAvantCroissance, economieVilleDetail } from '@game/rules';
 import type { City, GameState, ProductionItem } from '@game/rules';
 import { coutItem } from '../fileProduction.js';
 
@@ -151,25 +151,8 @@ export function rendementsVille(
   workedKeys: readonly string[],
   allTechs: readonly string[],
 ): { food: number; prodPerTurn: number } {
-  const p = state.players[city.owner];
-  const civ = p && p.civId !== 'neutre' ? { civId: p.civId, era: p.era } : undefined;
-  const techs = p?.techsUnlocked ?? [];
-  const tier = interiorCitizenFor(city.pop);
-  const interior = interiorCountOf(city.pop, workedKeys.length);
-  const base =
-    tileYield(state.map, city.buildings, tileKeyOf(city), techs, city.wonders, allTechs, civ) ??
-    { food: 0, production: 0, commerce: 0 };
-  let food = base.food;
-  let brut = base.production + interior * tier.production;
-  for (const key of workedKeys) {
-    const y = tileYield(state.map, city.buildings, key, techs, city.wonders, allTechs);
-    if (!y) continue;
-    food += y.food;
-    brut += y.production;
-  }
-  let factoryMult = 1;
-  for (const b of city.buildings) factoryMult = Math.max(factoryMult, BUILDINGS[b]?.productionMult ?? 1);
-  return { food, prodPerTurn: Math.floor(brut * factoryMult * (1 + 0.25 * (city.pop - 1))) };
+  const d = economieVilleDetail(state, city, workedKeys, allTechs);
+  return { food: d.recolte, prodPerTurn: d.prodPerTurn };
 }
 
 /** Tours avant croissance — miroir de `growthEta` (PanneauVille) enrichi
@@ -200,4 +183,132 @@ export function etaProductionBanniere(item: ProductionItem, progress: number, pr
   if (cout === null) return null;
   if (prodPerTurn <= 0) return Infinity;
   return Math.ceil((cout - progress) / prodPerTurn);
+}
+
+// ---------------------------------------------------------------------------
+// BANDE-DETAIL (décisions Erik 07/10) — infobulles « pourquoi tant de tours »
+// (référence Civ VII simplifiée). PUR : textes FR SANS coordonnées — le
+// positionnement écran est porté par GameCanvas (D5 : au-dessus de la bande,
+// survol pur, aucun clic intercepté). Les chiffres viennent du helper
+// PARTAGÉ moteur/UI `economieVilleDetail` (@game/rules) + les miroirs
+// ci-dessus : zéro recalcule, miroir exact (D4).
+// ---------------------------------------------------------------------------
+
+/** Données d'une infobulle — remplies par GameCanvas au REBUILD (jamais par
+ *  frame) à partir de economieVilleDetail et des têtes de file/croissance. */
+export interface DetailTooltip {
+  pop: number;
+  foodStored: number;
+  /** Composantes nommées du helper partagé (D4). */
+  recolte: number;
+  consommation: number;
+  gainNet: number;
+  /** Seuil de croissance de la pop courante — `null` au plafond (31). */
+  seuil: number | null;
+  prodBrut: number;
+  bonusBatimentsMult: number;
+  bonusBatimentsNom: string | null;
+  bonusPopMult: number;
+  prodPerTurn: number;
+  /** Item en tête effective (nom, coût via coutItem, progression, ETA du
+   *  miroir etaProductionBanniere — `null`/Infinity comme la bannière). */
+  itemNom: string | null;
+  cout: number | null;
+  progression: number;
+  eta: number | null;
+  /** Valeur AFFICHÉE du drapeau croissance (peut être Infinity = « ∞ ») —
+   *  `null` = drapeau masqué : la zone de survol ne répond que sur un
+   *  chiffre visible. */
+  croissanceAffichee: number | null;
+}
+
+/** Format signé FR : « +8 », « −2 », « ±0 ». */
+function signe(n: number): string {
+  if (n > 0) return `+${n}`;
+  if (n < 0) return `−${Math.abs(n)}`;
+  return '±0';
+}
+
+/** D1 — survol du chiffre de croissance : « 10 / 29 fioles » + ligne de
+ *  calcul nommée + « Nouveau citoyen dans N tours ». */
+export function lignesTooltipCroissance(d: DetailTooltip): string[] {
+  const lignes: string[] = [];
+  if (d.seuil === null) {
+    lignes.push(`Croissance : plafond de population (${d.pop})`);
+  } else {
+    lignes.push(`Croissance : ${d.foodStored} / ${d.seuil} fioles`);
+  }
+  lignes.push(`Récolte ${d.recolte} − Consommation ${d.consommation} = ${signe(d.gainNet)} fioles/tour`);
+  if (d.seuil === null) {
+    lignes.push('Plus jamais de croissance (plafond atteint)');
+  } else if (d.gainNet <= 0) {
+    lignes.push('Jamais tant que les citoyens ne nourrissent pas');
+  } else if (d.foodStored >= d.seuil) {
+    lignes.push('Nouveau citoyen à la prochaine résolution');
+  } else {
+    const tours = Math.ceil((d.seuil - d.foodStored) / d.gainNet);
+    lignes.push(`Nouveau citoyen dans ${tours} tour${tours > 1 ? 's' : ''}`);
+  }
+  return lignes;
+}
+
+/** Format FR : « 1,75 » (virgule décimale — D6 texte or français). */
+function decimalFr(n: number): string {
+  return String(n).replace('.', ',');
+}
+
+/** D2 — survol du cercle item OU du chiffre de tours : nom de l'item, coût
+ *  total, marteaux/tour AVEC détail nommé, achèvement. File suivante
+ *  jamais affichée. */
+export function lignesTooltipProduction(d: DetailTooltip): string[] {
+  const lignes: string[] = [];
+  lignes.push(d.itemNom ?? 'Production');
+  if (d.cout !== null) {
+    lignes.push(`Coût : ${d.cout} marteaux (déjà ${d.progression})`);
+  }
+  const detail =
+    d.bonusBatimentsNom !== null
+      ? `base ${d.prodBrut} × ${d.bonusBatimentsNom} ×${d.bonusBatimentsMult} × pop ×${decimalFr(d.bonusPopMult)}`
+      : d.bonusPopMult !== 1
+        ? `base ${d.prodBrut} × pop ×${decimalFr(d.bonusPopMult)}`
+        : `base ${d.prodBrut}`;
+  lignes.push(`Marteaux : ${d.prodPerTurn}/tour (${detail})`);
+  if (d.eta === Infinity) {
+    lignes.push('Jamais (aucun marteau par tour)');
+  } else if (d.eta !== null) {
+    lignes.push(
+      d.eta === 0 ? 'Achèvement à la prochaine résolution' : `Achèvement dans ${d.eta} tour${d.eta > 1 ? 's' : ''}`,
+    );
+  }
+  return lignes;
+}
+
+/** D5 — rects LOCAUX (conteneur ville) des deux zones de survol, mêmes
+ *  sources de géométrie que le dessin (BANDE_VILLE) — le picking écran les
+ *  lit comme rectBanniereLocale. La zone production couvre le cercle item
+ *  DANS la bande ET le drapeau des tours (D2 : les deux déclenchent la même
+ *  infobulle) ; la zone croissance = le drapeau de croissance seul. */
+export function rectZoneCroissanceLocale(): { x0: number; y0: number; x1: number; y1: number } {
+  return {
+    x0: BANDE_VILLE.xDrapeauCroissance - BANDE_VILLE.largeurDrapeauNombre / 2,
+    x1: BANDE_VILLE.xDrapeauCroissance + BANDE_VILLE.largeurDrapeauNombre / 2,
+    y0: BANDE_VILLE.yDrapeaux - BANDE_VILLE.hauteurDrapeaux / 2,
+    y1: BANDE_VILLE.yDrapeaux + BANDE_VILLE.hauteurDrapeaux / 2,
+  };
+}
+export function rectZoneProductionLocale(): { x0: number; y0: number; x1: number; y1: number } {
+  return {
+    x0: BANDE_VILLE.xProdCercle - BANDE_VILLE.rayonProd,
+    x1: BANDE_VILLE.xDrapeauProd + BANDE_VILLE.largeurDrapeauNombre / 2,
+    y0: BANDE_VILLE.yBande - BANDE_VILLE.rayonProd,
+    y1: BANDE_VILLE.yDrapeaux + BANDE_VILLE.hauteurDrapeaux / 2,
+  };
+}
+
+/** Seuil de croissance de la pop courante (Aqueduc inclus) — `null` au
+ *  plafond ; complément du D4 pour la ligne « 10 / 29 fioles ». */
+export function seuilCroissanceVille(city: City): number | null {
+  let reduction = 0;
+  for (const b of city.buildings) reduction = Math.max(reduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
+  return growthThresholdFor(city.pop, reduction);
 }

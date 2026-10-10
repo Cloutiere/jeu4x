@@ -11,7 +11,7 @@
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture, TextStyleOptions } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, allKnownTechs, previewPrograms, fondeAFinDuChemin, fondateursDe, colOf, colRowToHex, hexesWithinRadiusW, normalizeHexW, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, allKnownTechs, previewPrograms, fondeAFinDuChemin, fondateursDe, colOf, colRowToHex, hexesWithinRadiusW, normalizeHexW, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius, economieVilleDetail } from '@game/rules';
   import type { CityId, GameState, Hex, ProgramPreview } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -34,9 +34,10 @@
   // BANDE-VILLE (Erik 07/10) : bannière Civ VI — segments/géométrie purs
   // (bande-ville.ts, testée), préchargement des logos de nation (nations.ts).
   import { Assets } from 'pixi.js';
-  import { BANDE_VILLE, construireBanniere, etaProductionBanniere, rectBanniereLocale, rendementsVille, toursCroissanceBanniere } from './bande-ville.js';
+  import { BANDE_VILLE, construireBanniere, etaProductionBanniere, lignesTooltipCroissance, lignesTooltipProduction, rectBanniereLocale, rectZoneCroissanceLocale, rectZoneProductionLocale, seuilCroissanceVille, toursCroissanceBanniere } from './bande-ville.js';
+  import type { DetailTooltip } from './bande-ville.js';
   import { logosNation, nationDe } from '../nations.js';
-  import { fileEffective, nomItem } from '../fileProduction.js';
+  import { coutItem, fileEffective, nomItem } from '../fileProduction.js';
   import { iconeCommerceRendement } from './rendements.js';
   // VUE-VILLE-PERF · D4b : pool des Text de rendement (aucun new Text par
   // rebuild — réutilisation par clé texte+style, purge au démontage).
@@ -385,6 +386,11 @@
   // l'anneau -90 et les unités) — suivent la ville (position, contenu).
   const bandesSprites = new Map<string, Container>();
   const bandesCopies = new Map<string, Container>();
+  // BANDE-DETAIL (D4/D5) : données des infobulles par ville, remplies au
+  // REBUILD (jamais par frame) — composantes nommées du helper partagé
+  // economieVilleDetail (@game/rules) + têtes croissance/file. Villes du
+  // JOUEUR seules (D3).
+  const detailsBandes = new Map<string, DetailTooltip>();
   // R-96/R-98 (Phase 7d) : villages barbares et huttes bonus.
   const villageSprites = new Map<string, Container>();
   const hutSprites = new Map<string, Container>();
@@ -1068,16 +1074,44 @@
       let itemNom: string | null = null;
       let eta: number | null = null;
       if (mienne && scene.view) {
-        const r = rendementsVille(state, city, effectiveWorkedTiles(scene.view, city).tiles, allTechs);
-        croissance = toursCroissanceBanniere(city, r.food);
+        // BANDE-DETAIL (D4) : le helper PARTAGÉ donne les composantes nommées
+        // ET le total (miroir exact — un seul calcul pour la bannière ET les
+        // infobulles).
+        const d = economieVilleDetail(state, city, effectiveWorkedTiles(scene.view, city).tiles, allTechs);
+        croissance = toursCroissanceBanniere(city, d.recolte);
         // MENU-VILLE-QUEUE D1/D2 : la TÊTE EFFECTIVE (état + brouillons de CE
         // joueur) — un SetProduction posé ce tour s'affiche immédiatement
         // (miroir du PanneauVille, jamais l'état en retard d'une résolution).
         const tete = fileEffective(scene.view, city.id).rangs[0] ?? null;
+        let cout: number | null = null;
+        let progression = 0;
         if (tete) {
           itemNom = nomItem(tete.item);
-          eta = etaProductionBanniere(tete.item, tete.progress, r.prodPerTurn);
+          cout = coutItem(tete.item);
+          progression = tete.progress;
+          eta = etaProductionBanniere(tete.item, tete.progress, d.prodPerTurn);
         }
+        const detail: DetailTooltip = {
+          pop: city.pop,
+          foodStored: city.foodStored,
+          recolte: d.recolte,
+          consommation: d.consommation,
+          gainNet: d.gainNet,
+          seuil: seuilCroissanceVille(city),
+          prodBrut: d.prodBrut,
+          bonusBatimentsMult: d.bonusBatimentsMult,
+          bonusBatimentsNom: d.bonusBatimentsNom,
+          bonusPopMult: d.bonusPopMult,
+          prodPerTurn: d.prodPerTurn,
+          itemNom,
+          cout,
+          progression,
+          eta,
+          croissanceAffichee: croissance,
+        };
+        detailsBandes.set(city.id, detail);
+      } else {
+        detailsBandes.delete(city.id);
       }
       const bande = construireBanniere({ nom: city.name ?? city.id, pop: city.pop, capitale: city.capital, mienne, croissance, itemNom, eta });
       const conteneurBande = b;
@@ -1132,6 +1166,7 @@
       if (!seenCities.has(id)) {
         b.destroy({ children: true });
         bandesSprites.delete(id);
+        detailsBandes.delete(id);
       }
     }
     prunerCopies(bandesCopies, vusCopiesBandes);
@@ -3044,8 +3079,12 @@
   // aucun calcul 3D nouveau. Les copies couture sont incluses (même ville,
   // autre copie d'affichage).
   function banniereSousEcranConteneur(c: Container, x: number, y: number): boolean {
+    return conteneurSousRect(c, x, y, rectBanniereLocale());
+  }
+  /** BANDE-DETAIL · D5 : rect LOCAL → test écran (même transform que le
+   *  picking D6 — correct 2D comme 3D). */
+  function conteneurSousRect(c: Container, x: number, y: number, R: { x0: number; y0: number; x1: number; y1: number }): boolean {
     if (!c.visible) return false;
-    const R = rectBanniereLocale();
     const gp = c.getGlobalPosition();
     const wt = c.worldTransform;
     const x0 = gp.x + R.x0 * wt.a;
@@ -3053,6 +3092,44 @@
     const y0 = gp.y + R.y0 * wt.d;
     const y1 = gp.y + R.y1 * wt.d;
     return x >= Math.min(x0, x1) && x <= Math.max(x0, x1) && y >= Math.min(y0, y1) && y <= Math.max(y0, y1);
+  }
+  /** Rect ÉCRAN d'un conteneur bannière (positionnement de l'infobulle —
+   *  D5 : au-dessus de la bande). */
+  function rectEcranConteneur(c: Container, R: { x0: number; y0: number; x1: number; y1: number }): { x0: number; y0: number; x1: number; y1: number } {
+    const gp = c.getGlobalPosition();
+    const wt = c.worldTransform;
+    return {
+      x0: gp.x + R.x0 * wt.a,
+      x1: gp.x + R.x1 * wt.a,
+      y0: gp.y + R.y0 * wt.d,
+      y1: gp.y + R.y1 * wt.d,
+    };
+  }
+  /** BANDE-DETAIL · D1/D2 : zone de survol sous le point — croissance
+   *  (drapeau) ou production (cercle item OU drapeau tours), bannières et
+   *  copies couture. `null` hors zone ou ville sans détail (ennemie D3,
+   *  drapeaux masqués D4). */
+  function zoneBanniereSousEcran(x: number, y: number): { cityId: CityId; zone: 'croissance' | 'production' } | null {
+    const essayer = (c: Container, id: string): { cityId: CityId; zone: 'croissance' | 'production' } | null => {
+      const d = detailsBandes.get(id);
+      if (!d) return null;
+      if (d.croissanceAffichee !== null && conteneurSousRect(c, x, y, rectZoneCroissanceLocale())) {
+        return { cityId: id as CityId, zone: 'croissance' };
+      }
+      if (d.itemNom !== null && conteneurSousRect(c, x, y, rectZoneProductionLocale())) {
+        return { cityId: id as CityId, zone: 'production' };
+      }
+      return null;
+    };
+    for (const [id, c] of bandesSprites) {
+      const z = essayer(c, id);
+      if (z) return z;
+    }
+    for (const [cle, cp] of bandesCopies) {
+      const z = essayer(cp, cle.slice(0, cle.indexOf('@')));
+      if (z) return z;
+    }
+    return null;
   }
   function banniereSousEcran(x: number, y: number): CityId | null {
     for (const [id, c] of bandesSprites) {
@@ -3533,8 +3610,52 @@
     return lines;
   }
 
+  // BANDE-DETAIL (D5/D6) : infobulle de bannière — survol PUR (aucun clic
+  // intercepté, la bannière reste cliquable), positionnée AU-DESSUS de la
+  // bande, disparaît à la sortie. Panneau AAA or-sur-sombre compact.
+  let bandeTip = $state<{ x: number; y: number; lines: string[] } | null>(null);
+
+  function majBandeTip(e: PointerEvent): void {
+    if (!app) return;
+    const p = canvasPos(e);
+    const zone = zoneBanniereSousEcran(p.x, p.y);
+    const d = zone ? detailsBandes.get(zone.cityId) : undefined;
+    if (!zone || !d) {
+      bandeTip = null;
+      return;
+    }
+    const lignes = zone.zone === 'croissance' ? lignesTooltipCroissance(d) : lignesTooltipProduction(d);
+    // Conteneur porteur (base ou copie couture) — pour positionner au-dessus.
+    let conteneur = bandesSprites.get(zone.cityId);
+    if (!conteneur || !conteneurSousRect(conteneur, p.x, p.y, zone.zone === 'croissance' ? rectZoneCroissanceLocale() : rectZoneProductionLocale())) {
+      for (const [cle, cp] of bandesCopies) {
+        if (cle.slice(0, cle.indexOf('@')) === zone.cityId) {
+          conteneur = cp;
+          break;
+        }
+      }
+    }
+    if (!conteneur) {
+      bandeTip = null;
+      return;
+    }
+    const banniere = rectEcranConteneur(conteneur, rectBanniereLocale());
+    const rZone = rectEcranConteneur(conteneur, zone.zone === 'croissance' ? rectZoneCroissanceLocale() : rectZoneProductionLocale());
+    // Au-dessus de la bande, centré sur la zone survolée (borné au canvas).
+    const x = Math.max(90, Math.min(vw - 90, (rZone.x0 + rZone.x1) / 2));
+    bandeTip = { x, y: Math.min(banniere.y0, rZone.y0), lines: lignes };
+  }
+
   function updateTip(e: PointerEvent): void {
     if (!app) return;
+    // BANDE-DETAIL : la zone bannière PRIME sur le tooltip de tuile (les deux
+    // ne se chevauchent pas — l'infobulle flotte au-dessus de la bande).
+    majBandeTip(e);
+    if (bandeTip) {
+      tip = null;
+      tipHex = null;
+      return;
+    }
     const p = canvasPos(e);
     const hex = hexSousEcran(p.x, p.y);
     const state = scene.state;
@@ -3557,6 +3678,7 @@
   function onPointerLeave(): void {
     tip = null;
     tipHex = null;
+    bandeTip = null; // BANDE-DETAIL · D5 : sortie → l'infobulle disparaît
     // FLECHE-MOUVEMENT : le curseur quitte la carte → plus de flèche de survol.
     if (hoverHex) effacerSurvol();
     // Le bouton droit relâché hors canvas ne confirmera jamais — préview coupée.
@@ -4317,6 +4439,14 @@
       {/each}
     </div>
   {/if}
+  {#if bandeTip}
+    <!-- BANDE-DETAIL · D6 : panneau AAA or-sur-sombre, AU-DESSUS de la bande -->
+    <div class="bande-tip" aria-hidden="true" style:left="{bandeTip.x}px" style:top="{bandeTip.y - 6}px">
+      {#each bandeTip.lines as line, i (i)}
+        <div class:primary={i === 0}>{line}</div>
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -4348,6 +4478,27 @@
   .tile-tip .primary {
     font-weight: 600;
     color: #ffffff;
+  }
+  /* BANDE-DETAIL (D6) : infobulle de bannière — panneau AAA or-sur-sombre
+   * compact, texte or, AU-DESSUS de la bande (translate -50%/-100%),
+   * jamais cliquable. */
+  .bande-tip {
+    position: absolute;
+    z-index: 21;
+    pointer-events: none;
+    transform: translate(-50%, -100%);
+    background: rgba(27, 27, 34, 0.92);
+    color: #e8c96a;
+    border: 1.5px solid #e8c96a;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font: 12px/1.5 system-ui, sans-serif;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+  .bande-tip .primary {
+    font-weight: 700;
+    color: #ffd54f;
   }
   /* D2 — bandeau d'erreur du ticker : discret, coin haut-droit, non bloquant. */
   .tick-error {

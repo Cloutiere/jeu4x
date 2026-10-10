@@ -19,6 +19,8 @@ import {
   rendementsVille,
   toursCroissanceBanniere,
 } from '../src/lib/render/bande-ville.js';
+import type { DetailTooltip } from '../src/lib/render/bande-ville.js';
+import { lignesTooltipCroissance, lignesTooltipProduction } from '../src/lib/render/bande-ville.js';
 
 /** État : cA (p1, capitale, pop 2, 1 prairie travaillée, 6 nourriture) et
  *  cB (p2, ennemie — production nourrie dans l'état, getFilteredState garde
@@ -181,5 +183,86 @@ describe('géométrie partagée (dessin + picking D6)', () => {
   });
   it('la bande flotte AU-DESSUS du sommet du sprite ville (−64)', () => {
     expect(BANDE_VILLE.yBande + BANDE_VILLE.hauteurBande / 2).toBeLessThanOrEqual(-64);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BANDE-DETAIL (décisions Erik 07/10) — infobulles « pourquoi tant de tours »
+// ---------------------------------------------------------------------------
+
+describe('BANDE-DETAIL · constructeurs d’infobulles (D1/D2/D6)', () => {
+  const detail = (over: Partial<ImportDetail> = {}): ImportDetail => ({
+    pop: 3,
+    foodStored: 10,
+    recolte: 8,
+    consommation: 0,
+    gainNet: 8,
+    seuil: 29,
+    prodBrut: 6,
+    bonusBatimentsMult: 2,
+    bonusBatimentsNom: 'Usine',
+    bonusPopMult: 1.5,
+    prodPerTurn: 18,
+    itemNom: 'Bibliothèque',
+    cout: 55,
+    progression: 12,
+    eta: 3,
+    croissanceAffichee: 3,
+    ...over,
+  });
+  type ImportDetail = DetailTooltip;
+
+  it('D1 croissance : « 10 / 29 fioles » + ligne de calcul nommée + délai', () => {
+    const lignes = lignesTooltipCroissance(detail());
+    expect(lignes[0]).toContain('10 / 29');
+    expect(lignes[0]).toContain('fioles');
+    const calc = lignes.find((l) => l.includes('Récolte'));
+    expect(calc).toContain('8');
+    expect(calc).toContain('−');
+    expect(calc).toContain('+8');
+    expect(lignes.some((l) => l.includes('Nouveau citoyen dans 3 tours'))).toBe(true);
+  });
+
+  it('D1 croissance : pluriel et stagnation ±0 (surplus nul → jamais)', () => {
+    // 28/29 fioles à +1/tour → 1 tour exactement.
+    expect(lignesTooltipCroissance(detail({ gainNet: 1, recolte: 1, foodStored: 28 }))).toContainEqual(
+      expect.stringContaining('Nouveau citoyen dans 1 tour'),
+    );
+    const lignes = lignesTooltipCroissance(detail({ recolte: 0, gainNet: 0, eta: Infinity }));
+    expect(lignes.join('\n')).toContain('Jamais');
+  });
+
+  it('D1 croissance : plafond de population → fioles masquées, plafond nommé', () => {
+    const lignes = lignesTooltipCroissance(detail({ seuil: null }));
+    expect(lignes[0]).toContain('plafond de population');
+    expect(lignes.join('\n')).toContain('Plus jamais de croissance');
+  });
+
+  it('D2 production : nom, coût avec progression, marteaux détaillés (base × Usine × pop), achèvement', () => {
+    const lignes = lignesTooltipProduction(detail());
+    expect(lignes[0]).toContain('Bibliothèque');
+    expect(lignes.some((l) => l.includes('55') && l.includes('12'))).toBe(true);
+    const marteaux = lignes.find((l) => l.includes('Marteaux'))!;
+    expect(marteaux).toContain('6');
+    expect(marteaux).toContain('Usine');
+    expect(marteaux).toContain('18');
+    expect(lignes.some((l) => l.includes('Achèvement dans 3 tours'))).toBe(true);
+  });
+
+  it('D2 production : sans bonus de bâtiments (le cas échéant omis) ; ∞ = jamais ; coût inconnu masqué', () => {
+    const simple = lignesTooltipProduction(detail({ bonusBatimentsMult: 1, bonusBatimentsNom: null, bonusPopMult: 1, prodPerTurn: 6 }));
+    expect(simple.find((l) => l.includes('Marteaux'))).not.toContain('Usine');
+    expect(lignesTooltipProduction(detail({ eta: Infinity })).join('\n')).toContain('aucun marteau');
+    expect(lignesTooltipProduction(detail({ cout: null, eta: null })).join('\n')).not.toContain('Achèvement');
+  });
+
+  it('D2 production : ETA 0 → « à la prochaine résolution » (miroir de la bannière qui affiche 0)', () => {
+    expect(lignesTooltipProduction(detail({ eta: 0 })).join('\n')).toContain('prochaine résolution');
+  });
+
+  it('D3 : les constructeurs ne servent que les villes du joueur — pas de garde ici, l’appelant filtre (contrat documenté)', () => {
+    // Les lignes sont des textes purs : le masquage ennemi est porté par
+    // construireBanniere (testé ci-dessus) et par le branchement GameCanvas.
+    expect(lignesTooltipCroissance(detail()).length).toBeGreaterThan(0);
   });
 });

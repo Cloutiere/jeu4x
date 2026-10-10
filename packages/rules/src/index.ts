@@ -19,6 +19,8 @@ export * from './culture.js';
 export * from './governments.js';
 export * from './naval.js';
 export * from './economy.js';
+/** BANDE-DETAIL (D4) — économie de ville à composantes nommées (helper partagé moteur/UI). */
+export * from './economie-ville.js';
 export * from './growth.js';
 /** 7l — Or & trésorerie (R-134..R-137, economy.json). */
 export * from './economyOr.js';
