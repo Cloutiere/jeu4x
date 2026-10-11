@@ -109,6 +109,10 @@ export interface EntreeBanniereVille {
   croissance: number | null;
   itemNom: string | null;
   eta: number | null;
+  /** D1 ICONES-UNITES : nom d'asset de l'icône (unité avec art chargé),
+   *  candidat calculé par l'appelant (iconeBannierePour) — `null`/absent =
+   *  initiale en repli. */
+  itemIcone?: string | null;
 }
 
 /** Segments affichés de la bannière — tout ce que le rendu lit, rien de plus. */
@@ -120,6 +124,9 @@ export interface BanniereVille {
   croissance: number | null;
   /** Initiale de l'item en production — `null` = masqué (ennemi, file vide D4). */
   initiale: string | null;
+  /** D1 ICONES-UNITES : icône de l'item UNITÉ (art chargée) — `null` = le
+   *  rendu affiche l'initiale (bâtiments, unités sans art, ennemi). */
+  iconeItem: string | null;
   /** Tours restants de l'item — `null` = masqué (ennemi, file vide, arrêt). */
   eta: number | null;
 }
@@ -129,7 +136,7 @@ export interface BanniereVille {
  *  candidats existent dans l'état filtré (D3). */
 export function construireBanniere(e: EntreeBanniereVille): BanniereVille {
   if (!e.mienne) {
-    return { nom: e.nom, pop: e.pop, capitale: e.capitale, croissance: null, initiale: null, eta: null };
+    return { nom: e.nom, pop: e.pop, capitale: e.capitale, croissance: null, initiale: null, iconeItem: null, eta: null };
   }
   return {
     nom: e.nom,
@@ -137,6 +144,7 @@ export function construireBanniere(e: EntreeBanniereVille): BanniereVille {
     capitale: e.capitale,
     croissance: e.croissance,
     initiale: e.itemNom === null ? null : initialeDe(e.itemNom),
+    iconeItem: e.itemNom === null ? null : (e.itemIcone ?? null),
     eta: e.itemNom === null ? null : e.eta,
   };
 }

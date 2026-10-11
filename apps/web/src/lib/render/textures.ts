@@ -15,6 +15,7 @@ import { Assets, Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
 import { ARTEFACTS, RESOURCES, RESOURCE_UNKNOWN, UNIT_TYPES } from '@game/rules';
 import { CLES_JOUEURS, ORDRE_JOUEURS4, couleurBaseJoueur, suffixeCuit, suffixeCuitPalette } from './accents.js';
+import { UNIQUE_UNIT_ALIASES, nomIconeUnite } from './icones-unites.js';
 
 /** 7o · R-151 : les 6 artefacts du jeu de base (DLC jamais générés). */
 export const ARTEFACT_IDS: string[] = Object.keys(ARTEFACTS.pool).filter((id) => !ARTEFACTS.pool[id]!.dlcOnly).sort();
@@ -68,6 +69,10 @@ export interface GameTextures {
    *  CULTURE-RESSOURCES (02/10) : `culture` = l'icône des paliers T-27
    *  (/art/icone_culture.png) — glyphe des ressources culturelles travaillées. */
   yieldIcons: { food: Texture | null; production: Texture | null; commerce: Texture | null; gold: Texture | null; science: Texture | null; culture: Texture | null };
+  /** ICONES-UNITES (D4) : icônes par TYPE d'unité (/art/icone_unite_<type>.png,
+   *  art d'Erik cuite par le pipeline mode « icône ») — null = initiale en
+   *  repli (bannière D1, carré terrain D2 absent). */
+  iconesUnites: Record<string, Texture | null>;
   /** R-91 : sprites des ressources (clé = id de resources.json, null si asset absent). */
   resources: Record<string, Texture | null>;
   /** TUILES-RESSOURCES (Erik 26/09) : tuiles pleines par ressource — clé = id
@@ -642,6 +647,9 @@ export function createTextures(renderer: Renderer): GameTextures {
     artefacts: Object.fromEntries(
       ARTEFACT_IDS.map((id) => [id, bakeEntityOnce(buildArtefactGraphics(id))]),
     ) as Record<string, EntityTexture>,
+    // ICONES-UNITES : aucun placeholder d'icône — l'ABSENCE est l'état
+    // « initiale en repli » (D1).
+    iconesUnites: Object.fromEntries(TOUS_TYPES_UNITES.map((id) => [id, null])),
     yieldIcons,
     resources: {},
     tuilesRessources: {},
@@ -744,38 +752,8 @@ export const TUILES_CACHER: Readonly<Partial<Record<TerrainId, string>>> = Objec
 // rendu les laissait INVISIBLES (conteneur sans sprite).
 const TOUS_TYPES_UNITES = Object.keys(UNIT_TYPES).sort();
 
-// 7n · R-148 · ALIAS des unités uniques 🔶 (art dédiée reportée — le volume
-// 7n ne permet pas 24 nouvelles planches generate.py) : chaque unique rend le
-// sprite de l'unité QU'IL REMPLACE, teinté par l'accent de son propriétaire
-// (le rendu distingue déjà les camps). Un PNG `unite_<id>.png` ajouté plus
-// tard dans public/art/ prend automatiquement la main (chargement optionnel).
-const UNIQUE_UNIT_ALIASES: Record<string, string> = {
-  guerrier_jaguar: 'guerrier',
-  guerrier_impi: 'guerrier',
-  hoplite: 'piquier',
-  piquier_ashigaru: 'piquier',
-  triheme: 'galere',
-  archer_long: 'archer',
-  keshik: 'cavalier',
-  cossaque: 'cavalier',
-  cataphracte: 'chevalier',
-  conquistador: 'chevalier',
-  chevalier_samourai: 'chevalier',
-  trebuchet: 'catapulte',
-  obusier: 'artillerie',
-  canon_88: 'artillerie',
-  char_sherman: 'char_d_assaut',
-  char_panzer: 'char_d_assaut',
-  char_t34: 'char_d_assaut',
-  // Avions de l'ère moderne sans planche dédiée 🔶 : silhouette de chasseur.
-  flying_fortress: 'chasseur',
-  heinkel: 'chasseur',
-  lancaster: 'chasseur',
-  me109: 'chasseur',
-  mustang: 'chasseur',
-  spitfire: 'chasseur',
-  zero: 'chasseur',
-};
+// 7n · R-148 : la table des alias des uniques vit dans le module PUR
+// icones-unites.ts (partagée avec le mapping des icônes, ICONES-UNITES D4).
 
 /** NETTETÉ-DÉZOOM (retour d'Erik du 20/09 : « plus elle rapetisse, plus elle
  *  apparaît détériorée ») : les PNG d'art sont chargés SANS mipmaps — en
@@ -830,7 +808,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const tuileCacherIds = (Object.keys(TUILES_CACHER) as TerrainId[]).sort();
   // Phase 7d (R-95) : variantes barbares (accent de repli rouge sang — accents.json).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, croiseursCuits, cuirassesCuits, galeresCuits, galionsCuits, cavaliersCuits, chevaliersCuits, legionsCuits, catapultesCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, croiseursCuits, cuirassesCuits, galeresCuits, galionsCuits, cavaliersCuits, chevaliersCuits, legionsCuits, catapultesCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites, iconesUnitesChargees] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -886,6 +864,9 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     Promise.all(resourceIds.map((id) => optionalIcon(`res_${id}`).then((t) => [id, t] as const))),
     Promise.all(tuileRessourceIds.map((id) => optionalIcon(TUILES_RESSOURCES[id]!).then((t) => [id, t] as const))),
     Promise.all(tuileCacherIds.map((id) => optionalIcon(TUILES_CACHER[id]!).then((t) => [id, t] as const))),
+    // ICONES-UNITES (D4) : chargement OPTIONNEL par type (mapping pur
+    // nomIconeUnite, alias uniques résolus) — absent → initiale en repli.
+    Promise.all(TOUS_TYPES_UNITES.map((id) => optionalIcon(nomIconeUnite(id)).then((t) => [id, t] as const))),
   ]);
 
   // Fusion : placeholders dessinés (guerrier, colon, classes illustres et
@@ -943,6 +924,16 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     if (tex) cuites[`catapulte@${pal}`] = tex;
   });
 
+  // ICONES-UNITES : table complète par type — l'art de la base dessert ses
+  // uniques en alias (même règle que les sprites), jamais de trou.
+  const iconesUnites: Record<string, Texture | null> = Object.fromEntries(iconesUnitesChargees);
+  for (const [unique, base] of Object.entries(UNIQUE_UNIT_ALIASES)) {
+    if (iconesUnites[unique] === undefined && iconesUnites[base]) iconesUnites[unique] = iconesUnites[base]!;
+  }
+  for (const id of TOUS_TYPES_UNITES) {
+    if (iconesUnites[id] === undefined) iconesUnites[id] = null;
+  }
+
   return {
     tiles: Object.fromEntries(tiles) as Record<TerrainId, Texture>,
     units: { ...unitsFinales, ...Object.fromEntries(barbareUnits) },
@@ -952,6 +943,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     hutte,
     artefacts: Object.fromEntries(artefactTextures) as Record<string, EntityTexture>,
     colonFondation,
+    iconesUnites,
     yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon, gold: goldIcon, science: scienceIcon, culture: cultureIcon },
     resources: Object.fromEntries(resourceIcons),
     tuilesRessources: Object.fromEntries(tuilesRessourcesCuites),

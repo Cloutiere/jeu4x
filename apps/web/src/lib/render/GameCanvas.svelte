@@ -36,6 +36,8 @@
   import { Assets } from 'pixi.js';
   import { BANDE_VILLE, construireBanniere, etaProductionBanniere, lignesTooltipCroissance, lignesTooltipPopulation, lignesTooltipProduction, rectBanniereLocale, rectZoneCroissanceLocale, rectZonePopLocale, rectZoneProductionLocale, seuilCroissanceVille, toursCroissanceBanniere } from './bande-ville.js';
   import type { DetailTooltip } from './bande-ville.js';
+  // ICONES-UNITES (décisions Erik 07/10) : mapping pur (D1/D2/D3/D4).
+  import { ICONES_UNITES, geometrieBarre, iconeBannierePour, modeGarnison, nomIconeUnite, typeBaseIcone } from './icones-unites.js';
   import { logosNation, nationDe } from '../nations.js';
   import { coutItem, fileEffective, nomItem } from '../fileProduction.js';
   import { iconeCommerceRendement } from './rendements.js';
@@ -889,6 +891,8 @@
     // disposition par CÔTÉ D'ENTRÉE + stabilisée au centre (mémoires client,
     // lib/melee.ts — valides aussi en relecture, D6).
     const poses = dispositionsCohabitation(state, positions, contexteEffectif());
+    // ICONES-UNITES (D3) : indices de pile (badge « ×N » en garnison).
+    const piles = pilesAffichees(state, positions);
     // COLON-FONDATION (M1) : dérivation de l'aperçu DÉJÀ calculé
     // (scenePreviews — ordre posé et chemin gelé compris), jamais recalculée
     // par frame. Annulation comme consommation font tomber l'aperçu, donc
@@ -928,10 +932,27 @@
         artPresent: !!textures.colonFondation,
         modele3d: en3d,
       });
+      // ICONES-UNITES (D3) : garnison compacte — TOUTE unité posée sur une
+      // case de VILLE visible (amie ou ennemie, positions DESSINÉES) s'affiche
+      // icône + barre de vie SEULE (sprite masqué), la ville reste lisible ;
+      // pile résumée par le badge ×N de la première unité. Jamais pendant un
+      // déplacement (anim), jamais en 3D ni en fondation (rendus primant).
+      const posee = positions.get(unit.id) ?? unit;
+      const anim = playback.moveOf(unit.id);
+      const pileCase = piles.get(unit.id) ?? { index: 0, total: 1 };
+      const villeCase = Object.values(state.cities).some((cc) => cc.q === posee.q && cc.r === posee.r);
+      const garnison = modeGarnison({
+        ville: villeCase,
+        anim: !!anim,
+        modele3d: en3d,
+        fondationArt: fondation.art,
+        index: pileCase.index,
+        total: pileCase.total,
+      });
       const baseU = c.getChildByLabel('base');
       const accentU = c.getChildByLabel('accent');
-      if (baseU) baseU.visible = !en3d && !fondation.art;
-      if (accentU) accentU.visible = !en3d && !fondation.art;
+      if (baseU) baseU.visible = !en3d && !fondation.art && !garnison.actif;
+      if (accentU) accentU.visible = !en3d && !fondation.art && !garnison.actif;
       const fondBase = c.getChildByLabel('fondBase') as Sprite | null;
       const fondAccent = c.getChildByLabel('fondAccent') as Sprite | null;
       if (fondBase) fondBase.visible = fondation.art;
@@ -945,8 +966,10 @@
       // PILE-AFFICHÉE : cohabitation visuelle — CALIBRATION-UNITES (retour
       // Erik 20/09) : paquets COMPACTS PAR NATION, répartition déterministe
       // dans l'hexagone (dispositionsCohabitation, interaction.ts — pur, testé).
-      const posee = positions.get(unit.id) ?? unit;
-      const disp = poses.get(unit.id) ?? { dx: 0, dy: 0, echelle: 1, z: 0 };
+      let disp = poses.get(unit.id) ?? { dx: 0, dy: 0, echelle: 1, z: 0 };
+      // D3 : en garnison, l'icône compacte reste CENTRÉE dans l'hexagone
+      // (jamais les décalages de mêlée — la pile est un seul badge).
+      if (garnison.actif) disp = { dx: 0, dy: 0, echelle: 1, z: 0 };
       c.scale.set(disp.echelle);
       const p = hexToPixel(posee, HEX_SIZE);
       // CALIBRATION-UNITES : profondeur dans le paquet — la première unité
@@ -958,7 +981,6 @@
       // verticale des pieds domine, disp.z ne départage que le même paquet
       // (écart ≤ qq unités, toujours < l'écart de rangée ×10).
       c.zIndex = p.y * 10 + disp.z;
-      const anim = playback.moveOf(unit.id);
       if (anim) {
         // poser3d et non position.set : le tampon monde (__wx/__wy) doit
         // toujours exister, sinon la reprojection 3D ignore l'enfant
@@ -976,16 +998,40 @@
       const ratio = Math.max(0, Math.min(1, hp / unitType(unit.type).hpMax));
       // PROTO-3-VIES : un compartiment par vie — chaque cellule est pleine
       // si sa vie est acquise, partiellement remplie pour la vie en cours.
-      const largeurCellule = 70 / 3; // même géométrie que la création (76 − 2 encoches de 3)
+      // ICONES-UNITES (D2) : la géométrie suit la présence d'icône (barre
+      // réduite cédant la place au carré, largeur totale invariante).
+      const geoBarre = geometrieBarre(!!(textures.iconesUnites?.[typeBaseIcone(unit.type)]));
+      const barreFond = c.getChildByLabel('barreFond') as Sprite | null;
+      if (barreFond) barreFond.width = geoBarre.largeurFond;
+      const largeurCellule = geoBarre.largeurCellule;
       for (let i = 0; i < 3; i++) {
         const fill = c.getChildByLabel(`hpFill${i}`) as Sprite | null;
         if (!fill) continue;
         const cellule = Math.max(0, Math.min(1, ratio * 3 - i));
         fill.width = largeurCellule * cellule;
+        fill.x = geoBarre.xCellule + i * (largeurCellule + 3);
         // CALIBRATION-UNITES (retour Erik 20/09) : couleur d'accent du joueur.
         fill.tint = playerColor(unit.owner);
         fill.visible = cellule > 0;
       }
+      // ICONES-UNITES (D2) : carré teinté à l'accent du propriétaire (fond
+      // sombre + liseré accent), icône du type posée dedans — terrain ET
+      // garnison (D3 : icône + barre de vie seules quand le sprite est masqué).
+      const iconeFond = c.getChildByLabel('iconeFond') as Graphics | null;
+      const iconeImg = c.getChildByLabel('iconeImg') as Sprite | null;
+      if (iconeFond && iconeImg) {
+        iconeFond.visible = true;
+        iconeImg.visible = true;
+        iconeFond.tint = playerColor(unit.owner);
+      }
+      // ICONES-UNITES (D3) : badge de pile « ×N » porté par la première
+      // unité garnisonnée ; les suivantes de la case se masquent.
+      const pileBadge = c.getChildByLabel('pileGarnison') as Text | null;
+      if (pileBadge) {
+        if (pileBadge.text !== (garnison.badge ?? '')) pileBadge.text = garnison.badge ?? '';
+        pileBadge.visible = garnison.actif && garnison.badge !== null;
+      }
+      if (garnison.actif && !garnison.visible) c.visible = false;
       // Marqueur écu de fortification (R-33).
       const shield = c.getChildByLabel('fortify');
       if (shield) shield.visible = unit.fortified === true;
@@ -1024,6 +1070,11 @@
     // BANDE-VILLE : les technologies connues ne dépendent pas de la ville —
     // une seule lecture par rebuild (miroir PanneauVille allKnownTechs).
     const allTechs = allKnownTechs(state);
+    // ICONES-UNITES (D1) : noms d'icônes d'unités réellement chargées —
+    // une seule lecture par rebuild (mapping pur iconeBannierePour).
+    const iconesUnitesDispo = Object.entries(textures.iconesUnites ?? {})
+      .filter(([, t]) => t)
+      .map(([k]) => nomIconeUnite(k));
     for (const city of Object.values(state.cities)) {
       if (!scene.visible.has(tileKeyOf(city))) continue;
       seenCities.add(city.id);
@@ -1072,6 +1123,8 @@
       const mienne = city.owner === scene.myId;
       let croissance: number | null = null;
       let itemNom: string | null = null;
+      let itemIcone: string | null = null;
+      let texIconeItem: Texture | null = null;
       let eta: number | null = null;
       if (mienne && scene.view) {
         // BANDE-DETAIL (D4) : le helper PARTAGÉ donne les composantes nommées
@@ -1090,6 +1143,11 @@
           cout = coutItem(tete.item);
           progression = tete.progress;
           eta = etaProductionBanniere(tete.item, tete.progress, d.prodPerTurn);
+          // D1 : icône de l'unité en tête (art chargée) — sinon initiale.
+          itemIcone = iconeBannierePour(tete.item, iconesUnitesDispo);
+          if (tete.item.kind === 'unit' && itemIcone) {
+            texIconeItem = textures.iconesUnites?.[typeBaseIcone(tete.item.id)] ?? null;
+          }
         }
         const detail: DetailTooltip = {
           pop: city.pop,
@@ -1114,7 +1172,7 @@
       } else {
         detailsBandes.delete(city.id);
       }
-      const bande = construireBanniere({ nom: city.name ?? city.id, pop: city.pop, capitale: city.capital, mienne, croissance, itemNom, eta });
+      const bande = construireBanniere({ nom: city.name ?? city.id, pop: city.pop, capitale: city.capital, mienne, croissance, itemNom, eta, itemIcone });
       const conteneurBande = b;
       poser3d(conteneurBande, p.x, p.y); // la bannière suit sa ville (même origine)
       // Logo de nation (préchargé au setup) — capturé par le civId courant
@@ -1147,8 +1205,16 @@
       if (bandeCroissance.text !== texteCroissance) bandeCroissance.text = texteCroissance;
       const prodCercle = conteneurBande.getChildByLabel('prodCercle') as Graphics;
       const prodInitiale = conteneurBande.getChildByLabel('prodInitiale') as Text;
+      const prodIcone = conteneurBande.getChildByLabel('prodIcone') as Sprite;
       prodCercle.visible = bande.initiale !== null;
-      prodInitiale.visible = bande.initiale !== null;
+      // D1 : icône de l'unité dans le cercle production ; bâtiment ou unité
+      // sans art → initiale en repli (jamais de trou visuel).
+      prodIcone.visible = bande.iconeItem !== null && !!texIconeItem;
+      prodInitiale.visible = bande.initiale !== null && !prodIcone.visible;
+      if (texIconeItem && prodIcone.texture !== texIconeItem) {
+        prodIcone.texture = texIconeItem;
+        prodIcone.scale.set((BANDE_VILLE.rayonProd * 1.6) / Math.max(1, texIconeItem.width, texIconeItem.height));
+      }
       const texteInitiale = bande.initiale ?? '';
       if (prodInitiale.text !== texteInitiale) prodInitiale.text = texteInitiale;
       const prodEta = conteneurBande.getChildByLabel('prodEta') as Text;
@@ -1309,6 +1375,11 @@
     // Sommet du sprite dans le repère du conteneur (barres/écus accrochés
     // relativement — l'ancien -158/-178 supposait le sprite painter 320 px).
     const sommet = PIEDS_Y - tex.base.height * echelle;
+    // ICONES-UNITES (D2/D4) : icône du type si l'art est chargée — la barre
+    // cède carré+gap (géométrie pure geometrieBarre, largeur totale
+    // invariante) ; sans art : géométrie historique, initiale en repli.
+    const texIcone = textures!.iconesUnites?.[typeBaseIcone(type)] ?? null;
+    const geo = geometrieBarre(!!texIcone);
     let base: Sprite;
     let accent: Sprite | null = null;
     if (cuite) {
@@ -1337,28 +1408,48 @@
       }
     }
     const bg = new Sprite(textures!.px);
-    bg.width = 80;
+    bg.label = 'barreFond';
+    bg.width = geo.largeurFond;
     bg.height = 10;
     bg.tint = 0x1b1b22;
     // CALIBRATION-UNITES (retour Erik 20/09) : barre de PV RAPPROCHÉE —
     // collée au sommet du sprite (l'ancien écart était de 8 px au-dessus).
-    bg.position.set(-40, sommet - 1);
+    bg.position.set(geo.xFond, sommet - 1);
     // PROTO-3-VIES (demande Erik 20/09) : la barre est divisée en 3
     // compartiments (1 compartiment = 1 vie, hpMax = 3 partout), séparés
     // par de fines encoches du fond. Le remplissage par compartiment est
     // piloté dans la boucle de rendu (labels hpFill0/1/2).
     const CELLULES_PV = 3;
-    const INNER_W = 76;
     const ENCOche = 3;
-    const largeurCellule = (INNER_W - (CELLULES_PV - 1) * ENCOche) / CELLULES_PV;
+    const largeurCellule = geo.largeurCellule;
     const fills: Sprite[] = [];
     for (let i = 0; i < CELLULES_PV; i++) {
       const fill = new Sprite(textures!.px);
       fill.label = `hpFill${i}`;
       fill.width = largeurCellule;
       fill.height = 10;
-      fill.position.set(-38 + i * (largeurCellule + ENCOche), sommet + 1);
+      fill.position.set(geo.xCellule + i * (largeurCellule + ENCOche), sommet + 1);
       fills.push(fill);
+    }
+    // ICONES-UNITES (D2) : carré à l'accent de civilisation À GAUCHE de la
+    // barre (fond sombre + liseré blanc teinté joueur au rebuild), icône
+    // d'Erik posée dedans. Masqués par défaut — le rebuild les affiche.
+    if (texIcone) {
+      const ligne = sommet + 4; // axe vertical de la rangée (barre sommet−1 → +9)
+      const carre = new Graphics();
+      carre.label = 'iconeFond';
+      carre
+        .roundRect(geo.xCarre, ligne - ICONES_UNITES.hauteurCarre / 2, ICONES_UNITES.coteCarre, ICONES_UNITES.hauteurCarre, 4)
+        .fill({ color: 0x1b1b22 })
+        .stroke({ width: ICONES_UNITES.liserCarre, color: 0xffffff });
+      carre.visible = false;
+      const img = new Sprite(texIcone);
+      img.label = 'iconeImg';
+      img.anchor.set(0.5, 0.5);
+      img.position.set(geo.xCarre + ICONES_UNITES.coteCarre / 2, ligne);
+      img.scale.set(ICONES_UNITES.tailleIcone / Math.max(1, texIcone.width, texIcone.height));
+      img.visible = false;
+      c.addChild(carre, img);
     }
     c.addChild(base);
     if (accent) c.addChild(accent);
@@ -1396,6 +1487,15 @@
     spyBadge.circle(-30, sommet, 3).fill({ color: 0x1b1b22 });
     spyBadge.visible = false;
     c.addChild(spyBadge);
+    // ICONES-UNITES (D3) : badge de pile en garnison (« ×N » à droite de la
+    // rangée icône+barre) — le résumé de pile EXISTANT, porté par la première
+    // unité de la case (modeGarnison). Position calée sur la rangée.
+    const pileBadge = new Text({ text: '', style: TEXT_STYLE_BADGE_ETAT });
+    pileBadge.label = 'pileGarnison';
+    pileBadge.anchor.set(0, 0.5);
+    pileBadge.position.set(geo.xFond + geo.largeurFond + 6, sommet + 4);
+    pileBadge.visible = false;
+    c.addChild(pileBadge);
     // COLON-FONDATION (M2) : état « en train de fonder » — slot data-driven
     // `colonFondation` du catalogue unités (art d'Erik : unite_colonFondation
     // [+_accent].png dans public/art/ ; s'affiche sans changement de code dès
@@ -1516,6 +1616,13 @@
     prodInitiale.anchor.set(0.5, 0.5);
     prodInitiale.position.set(BV.xProdCercle, BV.yBande);
     prodInitiale.visible = false;
+    // ICONES-UNITES (D1) : l'icône de l'unité en production, MÊME position que
+    // l'initiale (l'un ou l'autre affiché — le rebuild choisit).
+    const prodIcone = new Sprite();
+    prodIcone.label = 'prodIcone';
+    prodIcone.anchor.set(0.5, 0.5);
+    prodIcone.position.set(BV.xProdCercle, BV.yBande);
+    prodIcone.visible = false;
     // Drapeaux sous la bande — plaquettes sombres NUES (sans liseré,
     // nombres sans icône) : l'étiquette « Tours » à gauche, puis croissance,
     // puis production. Masqués par défaut (D3/D4 : ennemi ou file vide →
@@ -1546,7 +1653,7 @@
     prodEta.anchor.set(0.5, 0.5);
     prodEta.position.set(BV.xDrapeauProd, BV.yDrapeaux);
     prodEta.visible = false;
-    c.addChild(bandeFond, bandeLogo, bandeNom, bandeEtoile, popCercle, popText, prodCercle, prodInitiale, drapeauToursFond, drapeauTours, drapeauCroissanceFond, bandeCroissance, drapeauProdFond, prodEta);
+    c.addChild(bandeFond, bandeLogo, bandeNom, bandeEtoile, popCercle, popText, prodCercle, prodInitiale, prodIcone, drapeauToursFond, drapeauTours, drapeauCroissanceFond, bandeCroissance, drapeauProdFond, prodEta);
     c.label = cityId;
     return c;
   }

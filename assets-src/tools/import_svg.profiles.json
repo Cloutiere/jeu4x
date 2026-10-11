@@ -1134,5 +1134,15 @@
       "margeBas": 20,
       "echelle": 1.0
     }
+  },
+  "icone-unite-guerrier": {
+    "_doc": "ICONES-UNITES (07/10) : icône guerrier d'Erik (new_icones/units, RGBA transparent) — 64×64 plein cadre, mode icône. Mapping data-driven icone_unite_<type> (icones-unites.ts). NE JAMAIS committer la source tel quel.",
+    "svg": "new_icones/units/guerrier_icone_trsp.png",
+    "stem": "icone_unite_guerrier",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
   }
 }

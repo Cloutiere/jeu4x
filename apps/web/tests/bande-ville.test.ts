@@ -62,11 +62,11 @@ describe('initialeDe (fallback initiale — D1)', () => {
 describe('construireBanniere (segments D1-D4)', () => {
   it('ville à moi : segments complets — nom, pop, capitale (D2), croissance, initiale, ETA', () => {
     const b = construireBanniere({ nom: 'Ville 1', pop: 3, capitale: true, mienne: true, croissance: 4, itemNom: 'Grenier', eta: 6 });
-    expect(b).toEqual({ nom: 'Ville 1', pop: 3, capitale: true, croissance: 4, initiale: 'G', eta: 6 });
+    expect(b).toEqual({ nom: 'Ville 1', pop: 3, capitale: true, croissance: 4, initiale: 'G', iconeItem: null, eta: 6 });
   });
   it('D3 — ville ENNEMIE : croissance/item/ETA JAMAIS affichés même si les candidats existent (getFilteredState garde les villes visibles entières)', () => {
     const b = construireBanniere({ nom: 'Ville 2', pop: 5, capitale: false, mienne: false, croissance: 2, itemNom: 'Guerrier', eta: 1 });
-    expect(b).toEqual({ nom: 'Ville 2', pop: 5, capitale: false, croissance: null, initiale: null, eta: null });
+    expect(b).toEqual({ nom: 'Ville 2', pop: 5, capitale: false, croissance: null, initiale: null, iconeItem: null, eta: null });
   });
   it('D3 — nom, pop et capitale restent publics pour une ville ennemie', () => {
     const b = construireBanniere({ nom: 'Thèbes', pop: 7, capitale: true, mienne: false, croissance: null, itemNom: null, eta: null });
