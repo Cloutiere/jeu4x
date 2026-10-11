@@ -34,7 +34,7 @@
   // BANDE-VILLE (Erik 07/10) : bannière Civ VI — segments/géométrie purs
   // (bande-ville.ts, testée), préchargement des logos de nation (nations.ts).
   import { Assets } from 'pixi.js';
-  import { BANDE_VILLE, construireBanniere, etaProductionBanniere, lignesTooltipCroissance, lignesTooltipProduction, rectBanniereLocale, rectZoneCroissanceLocale, rectZoneProductionLocale, seuilCroissanceVille, toursCroissanceBanniere } from './bande-ville.js';
+  import { BANDE_VILLE, construireBanniere, etaProductionBanniere, lignesTooltipCroissance, lignesTooltipPopulation, lignesTooltipProduction, rectBanniereLocale, rectZoneCroissanceLocale, rectZonePopLocale, rectZoneProductionLocale, seuilCroissanceVille, toursCroissanceBanniere } from './bande-ville.js';
   import type { DetailTooltip } from './bande-ville.js';
   import { logosNation, nationDe } from '../nations.js';
   import { coutItem, fileEffective, nomItem } from '../fileProduction.js';
@@ -3106,14 +3106,19 @@
       y1: gp.y + R.y1 * wt.d,
     };
   }
-  /** BANDE-DETAIL · D1/D2 : zone de survol sous le point — croissance
-   *  (drapeau) ou production (cercle item OU drapeau tours), bannières et
-   *  copies couture. `null` hors zone ou ville sans détail (ennemie D3,
-   *  drapeaux masqués D4). */
-  function zoneBanniereSousEcran(x: number, y: number): { cityId: CityId; zone: 'croissance' | 'production' } | null {
-    const essayer = (c: Container, id: string): { cityId: CityId; zone: 'croissance' | 'production' } | null => {
+  /** BANDE-DETAIL · D1/D2 + Erik 11/10 : zone de survol sous le point —
+   *  population (cercle pop), croissance (drapeau) ou production (cercle
+   *  item OU drapeau tours), bannières et copies couture. `null` hors zone
+   *  ou ville sans détail (ennemie D3, drapeaux masqués D4). */
+  type ZoneBanniere = 'croissance' | 'production' | 'population';
+  function zoneBanniereSousEcran(x: number, y: number): { cityId: CityId; zone: ZoneBanniere } | null {
+    const essayer = (c: Container, id: string): { cityId: CityId; zone: ZoneBanniere } | null => {
       const d = detailsBandes.get(id);
       if (!d) return null;
+      // Le cercle pop est TOUJOURS visible (nom/pop restent publics, D3).
+      if (conteneurSousRect(c, x, y, rectZonePopLocale())) {
+        return { cityId: id as CityId, zone: 'population' };
+      }
       if (d.croissanceAffichee !== null && conteneurSousRect(c, x, y, rectZoneCroissanceLocale())) {
         return { cityId: id as CityId, zone: 'croissance' };
       }
@@ -3625,10 +3630,14 @@
       bandeTip = null;
       return;
     }
-    const lignes = zone.zone === 'croissance' ? lignesTooltipCroissance(d) : lignesTooltipProduction(d);
+    const rectZoneDe = (z: ZoneBanniere) =>
+      z === 'croissance' ? rectZoneCroissanceLocale() : z === 'population' ? rectZonePopLocale() : rectZoneProductionLocale();
+    const lignesDe = (z: ZoneBanniere, dd: DetailTooltip): string[] =>
+      z === 'croissance' ? lignesTooltipCroissance(dd) : z === 'population' ? lignesTooltipPopulation(dd) : lignesTooltipProduction(dd);
+    const lignes = lignesDe(zone.zone, d);
     // Conteneur porteur (base ou copie couture) — pour positionner au-dessus.
     let conteneur = bandesSprites.get(zone.cityId);
-    if (!conteneur || !conteneurSousRect(conteneur, p.x, p.y, zone.zone === 'croissance' ? rectZoneCroissanceLocale() : rectZoneProductionLocale())) {
+    if (!conteneur || !conteneurSousRect(conteneur, p.x, p.y, rectZoneDe(zone.zone))) {
       for (const [cle, cp] of bandesCopies) {
         if (cle.slice(0, cle.indexOf('@')) === zone.cityId) {
           conteneur = cp;
@@ -3641,7 +3650,7 @@
       return;
     }
     const banniere = rectEcranConteneur(conteneur, rectBanniereLocale());
-    const rZone = rectEcranConteneur(conteneur, zone.zone === 'croissance' ? rectZoneCroissanceLocale() : rectZoneProductionLocale());
+    const rZone = rectEcranConteneur(conteneur, rectZoneDe(zone.zone));
     // Au-dessus de la bande, centré sur la zone survolée (borné au canvas).
     const x = Math.max(90, Math.min(vw - 90, (rZone.x0 + rZone.x1) / 2));
     bandeTip = { x, y: Math.min(banniere.y0, rZone.y0), lines: lignes };

@@ -319,3 +319,28 @@ export function seuilCroissanceVille(city: City): number | null {
   for (const b of city.buildings) reduction = Math.max(reduction, BUILDINGS[b]?.growthThresholdReduction ?? 0);
   return growthThresholdFor(city.pop, reduction);
 }
+
+/** Survol du CERCLE POP (décision Erik 11/10) : rect local autour du cercle
+ *  (BANDE_VILLE.xPop/rayonPop, déborde sur les drapeaux dessous). */
+export function rectZonePopLocale(): { x0: number; y0: number; x1: number; y1: number } {
+  return {
+    x0: BANDE_VILLE.xPop - BANDE_VILLE.rayonPop,
+    x1: BANDE_VILLE.xPop + BANDE_VILLE.rayonPop,
+    y0: BANDE_VILLE.yBande - BANDE_VILLE.rayonPop,
+    // Borné au BAS DE LA BANDE : le drapeau de croissance est juste en
+    // dessous (même x, aligné Erik 08/10) — il garde SA zone de survol.
+    y1: BANDE_VILLE.yBande + BANDE_VILLE.hauteurBande / 2,
+  };
+}
+
+/** Survol du cercle pop : répartition des citoyens (le bonus de production
+ *  vient des non affectés — R-63 rév. Erik 10/10). */
+export function lignesTooltipPopulation(d: DetailTooltip): string[] {
+  const affectes = d.pop - d.citoyensNonAffectes;
+  const lignes: string[] = [`Population : ${d.pop} citoyen${d.pop > 1 ? 's' : ''}`];
+  lignes.push(`Sur les tuiles : ${affectes}`);
+  lignes.push(
+    `Non affectés : ${d.citoyensNonAffectes} — bonus de production ×${decimalFr(d.bonusCitoyensMult)}`,
+  );
+  return lignes;
+}

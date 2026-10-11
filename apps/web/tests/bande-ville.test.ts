@@ -20,7 +20,7 @@ import {
   toursCroissanceBanniere,
 } from '../src/lib/render/bande-ville.js';
 import type { DetailTooltip } from '../src/lib/render/bande-ville.js';
-import { lignesTooltipCroissance, lignesTooltipProduction } from '../src/lib/render/bande-ville.js';
+import { lignesTooltipCroissance, lignesTooltipPopulation, lignesTooltipProduction } from '../src/lib/render/bande-ville.js';
 
 /** État : cA (p1, capitale, pop 2, 1 prairie travaillée, 6 nourriture) et
  *  cB (p2, ennemie — production nourrie dans l'état, getFilteredState garde
@@ -284,5 +284,18 @@ describe('BANDE-DETAIL : constructeurs d infobulles (D1/D2/D6)', () => {
 
   it('D2 production : ETA 0 → « à la prochaine résolution » (miroir de la bannière qui affiche 0)', () => {
     expect(lignesTooltipProduction(detail({ eta: 0 })).join('\n')).toContain('prochaine résolution');
+  });
+
+  it('survol POPULATION : répartition des citoyens (affectés / non affectés avec bonus)', () => {
+    const lignes = lignesTooltipPopulation(detail({ pop: 7, citoyensNonAffectes: 2, bonusCitoyensMult: 1.5 }));
+    expect(lignes[0]).toBe('Population : 7 citoyens');
+    expect(lignes[1]).toBe('Sur les tuiles : 5');
+    expect(lignes[2]).toBe('Non affectés : 2 — bonus de production ×1,5');
+  });
+
+  it('survol POPULATION : singulier (pop 1, 0 non affecté)', () => {
+    const lignes = lignesTooltipPopulation(detail({ pop: 1, citoyensNonAffectes: 0, bonusCitoyensMult: 1 }));
+    expect(lignes[0]).toBe('Population : 1 citoyen');
+    expect(lignes[2]).toBe('Non affectés : 0 — bonus de production ×1');
   });
 });
