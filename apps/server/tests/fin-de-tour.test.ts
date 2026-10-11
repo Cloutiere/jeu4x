@@ -69,7 +69,12 @@ describe('FIN-DE-TOUR-PRODUCTION · EndTurn rejeté puis débloqué', () => {
     // Tour 2 : alice assigne un 2e citoyen à une case PRODUCTIVE du rayon
     // (forêt/colline/montagne) — R-63 rév. Erik 10/10 : les intérieurs ne
     // produisent plus, la production vient des CASES travaillées.
-    const st2 = (await adminDump(code)).state!;
+    // Le dump admin porte la carte ENTIÈRE (le snapshot joueur est filtré par
+    // le fog) — typé localement, le type Snapshot ne déclare pas `map`.
+    const st2 = (await adminDump(code)).state as unknown as {
+      cities: Record<string, { q: number; r: number; workedTiles: string[] }>;
+      map: Record<string, { terrain: string; resource: string | null }>;
+    };
     const ville = st2.cities[cityId]!;
     const productive = Object.keys(st2.map)
       .filter((k) => !ville.workedTiles.includes(k))
