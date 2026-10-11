@@ -270,12 +270,16 @@ export function lignesTooltipProduction(d: DetailTooltip): string[] {
   if (d.cout !== null) {
     lignes.push(`Coût : ${d.cout} marteaux (déjà ${d.progression})`);
   }
-  // Format Erik 10/10 : marteaux des TUILES × bonus des citoyens NON
-  // AFFECTÉS (×1,25 chacun) — la population totale n'intervient plus.
+  // Format Erik 10/10 (rév.) : UNE ligne de formule, puis le détail du
+  // multiplicateur — jamais une multiplication apparente par 0 (2 × 0
+  // citoyens × 1 laissait croire à un produit nul).
   const parts: string[] = [`${d.prodTuiles} des tuiles`];
   if (d.bonusBatimentsNom !== null) parts.push(`${d.bonusBatimentsNom} ×${d.bonusBatimentsMult}`);
-  parts.push(`${d.citoyensNonAffectes} citoyen${d.citoyensNonAffectes > 1 ? 's' : ''} non affecté${d.citoyensNonAffectes > 1 ? 's' : ''} ×${decimalFr(d.bonusCitoyensMult)}`);
+  parts.push(`${decimalFr(d.bonusCitoyensMult)} bonus citoyen`);
   lignes.push(`Marteaux : ${d.prodPerTurn}/tour (${parts.join(' × ')})`);
+  lignes.push(
+    `Multiplicateur bonus citoyen : ${decimalFr(d.bonusCitoyensMult)} = 1 + ${d.citoyensNonAffectes} citoyen${d.citoyensNonAffectes > 1 ? 's' : ''} non affecté${d.citoyensNonAffectes > 1 ? 's' : ''} × 0,25`,
+  );
   if (d.eta === Infinity) {
     lignes.push('Jamais (aucun marteau par tour)');
   } else if (d.eta !== null) {

@@ -262,8 +262,11 @@ describe('BANDE-DETAIL : constructeurs d infobulles (D1/D2/D6)', () => {
     const marteaux = lignes.find((l) => l.includes('Marteaux'))!;
     expect(marteaux).toContain('6 des tuiles');
     expect(marteaux).toContain('Usine ×2');
-    expect(marteaux).toContain('2 citoyens non affectés ×1,5');
+    expect(marteaux).toContain('1,5 bonus citoyen');
     expect(marteaux).toContain('18');
+    // Détail du multiplicateur (jamais de multiplication apparente par 0) :
+    const ligneBonus = lignes.find((l) => l.includes('Multiplicateur bonus citoyen'))!;
+    expect(ligneBonus).toBe('Multiplicateur bonus citoyen : 1,5 = 1 + 2 citoyens non affectés × 0,25');
     expect(lignes.some((l) => l.includes('Achèvement dans 3 tours'))).toBe(true);
   });
 
@@ -271,7 +274,10 @@ describe('BANDE-DETAIL : constructeurs d infobulles (D1/D2/D6)', () => {
     const simple = lignesTooltipProduction(detail({ bonusBatimentsMult: 1, bonusBatimentsNom: null, bonusCitoyensMult: 1, citoyensNonAffectes: 0, prodPerTurn: 6 }));
     const m = simple.find((l) => l.includes('Marteaux'))!;
     expect(m).not.toContain('Usine');
-    expect(m).toContain('0 citoyen non affecté ×1');
+    expect(m).toContain('1 bonus citoyen');
+    expect(lignesTooltipProduction(detail({ citoyensNonAffectes: 0, bonusCitoyensMult: 1 })).join('\n')).toContain(
+      'Multiplicateur bonus citoyen : 1 = 1 + 0 citoyen non affecté × 0,25',
+    );
     expect(lignesTooltipProduction(detail({ eta: Infinity })).join('\n')).toContain('aucun marteau');
     expect(lignesTooltipProduction(detail({ cout: null, eta: null })).join('\n')).not.toContain('Achèvement');
   });
