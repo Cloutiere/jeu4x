@@ -1136,9 +1136,289 @@
     }
   },
   "icone-unite-guerrier": {
-    "_doc": "ICONES-UNITES (07/10) : icône guerrier d'Erik (new_icones/units, RGBA transparent) — 64×64 plein cadre, mode icône. Mapping data-driven icone_unite_<type> (icones-unites.ts). NE JAMAIS committer la source tel quel.",
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône guerrier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
     "svg": "new_icones/units/guerrier_icone_trsp.png",
     "stem": "icone_unite_guerrier",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-archer": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône archer d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/archer_icone_trsp.png",
+    "stem": "icone_unite_archer",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-artillerie": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône artillerie d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/artillerie_icone_trsp.png",
+    "stem": "icone_unite_artillerie",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-bombardier": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône bombardier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/bomber_icone_trsp.png",
+    "stem": "icone_unite_bombardier",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-canon": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône canon d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/canon_icone_trsp.png",
+    "stem": "icone_unite_canon",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-caravane": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône caravane d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/caravane_icone_trsp.png",
+    "stem": "icone_unite_caravane",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-catapulte": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône catapulte d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/catapulte_icone_trsp.png",
+    "stem": "icone_unite_catapulte",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-cavalier": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône cavalier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/cavalier_icone_trsp.png",
+    "stem": "icone_unite_cavalier",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-chevalier": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône chevalier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/chevalier_icone_trsp.png",
+    "stem": "icone_unite_chevalier",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-colon": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône colon d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/colon_icone_trsp.png",
+    "stem": "icone_unite_colon",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-croiseur": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône croiseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/cruiser_icone_trsp.png",
+    "stem": "icone_unite_croiseur",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-chasseur": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône chasseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/fighter_icone_trsp.png",
+    "stem": "icone_unite_chasseur",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-fusilier": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône fusilier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/fusiller_icone_trsp.png",
+    "stem": "icone_unite_fusilier",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-galere": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône galere d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/galere_icone_trsp.png",
+    "stem": "icone_unite_galere",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-galion": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône galion d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/galion_icone_trsp.png",
+    "stem": "icone_unite_galion",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-infanterie_moderne": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône infanterie_moderne d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/infanterie_icone_trsp.png",
+    "stem": "icone_unite_infanterie_moderne",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-legion": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône legion d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/legion_icone_trsp.png",
+    "stem": "icone_unite_legion",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-milice": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône milice d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/milice_icone_trsp.png",
+    "stem": "icone_unite_milice",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-piquier": {
+    "_doc": "🔴 SOURCE DÉFECTUEUSE (12/10) : piquier_icone_trsp.png ne contient que la LANCE (2 % de pixels opaques, pas de personnage — export Erik raté). Profil conservé, cuisson EXCLUE tant que la source n'est pas refaite ; repli initiale en attendant (hoplite suit l'alias).",
+    "svg": "new_icones/units/piquier_icone_trsp.png",
+    "stem": "icone_unite_piquier",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-sous_marin": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône sous_marin d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/sous-marin_icone_trsp.png",
+    "stem": "icone_unite_sous_marin",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-espion": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône espion d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/spy_icone_trsp.png",
+    "stem": "icone_unite_espion",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-char_d_assaut": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône char_d_assaut d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/tank_icone_trsp.png",
+    "stem": "icone_unite_char_d_assaut",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-cuirasse": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône cuirasse d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/battleship_icone_trsp.png",
+    "stem": "icone_unite_cuirasse",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-artiste_penseur": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône artiste_penseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/great_artist_icone_trsp.png",
+    "stem": "icone_unite_artiste_penseur",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-batisseur": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône batisseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/great_builder_icone_trsp.png",
+    "stem": "icone_unite_batisseur",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-humanitaire": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône humanitaire d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/great_humanitarian_icone_trsp.png",
+    "stem": "icone_unite_humanitaire",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-leader": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône leader d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/great_leader_icone_trsp.png",
+    "stem": "icone_unite_leader",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-savant": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône savant d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/great_scientist_icone_trsp.png",
+    "stem": "icone_unite_savant",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-icbm": {
+    "_doc": "ICONES-UNITES vague 2 (12/10) : icône icbm d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/icbm_icone_trsp.jpeg",
+    "stem": "icone_unite_icbm",
     "cible": {
       "mode": "icone",
       "w": 64,

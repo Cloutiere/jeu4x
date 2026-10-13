@@ -33,3 +33,15 @@ Mission exécutée le 11/10 d'après HANDOFF-ICONES-UNITES.md (décisions Erik 0
 ## Icônes attendues pour les autres unités (pipeline prêt)
 
 Déposer `new_icones/units/<type>_icone_trsp.png` + profil `icone-unite-<type>` (mode icône 64×64) → `public/art/icone_unite_<type>.png`. Priorités suggérées : colon, archer, piquier, cavalier, catapule/catapulte, galère — l'ordre n'importe pas, le repli initiale couvre tout intervalle. Les uniques suivent automatiquement l'icône de leur base (alias).
+
+## Vague 2 — 28 icônes supplémentaires (livrées 12/10, Erik)
+
+29 sources `new_icones/units/*_icone_trsp.png` cuites en 64×64 (mode « icône »), toutes RGBA transparentes vérifiées au pixel :
+
+- **Directes** : archer, artillerie, bombardier, canon, caravane, catapulte, cavalier, chevalier, colon, croiseur, chasseur, fusilier, galère, galion, guerrier (recuite — source Erik mise à jour), infanterie_moderne, légion, milice, sous-marin, espion, char_d_assaut (tank), cuirasse (battleship), caravane.
+- **Grandes personnalités** : artiste_penseur (great_artist), bâtisseur (great_builder), humanitaire (great_humanitarian), leader (great_leader), savant (great_scientist).
+- **icbm** : seule source en JPEG — cuite et vérifiée transparente (RGBA).
+- **🔴 piquier EXCLUE** : la source d'Erik ne contient que la LANCE (2 % de pixels opaques, pas de personnage — export raté) ; repli initiale « P » en attendant une source refaite (profil conservé avec note ; hoplite suit l'alias).
+- **Sans icône (repli initiale)** : explorateur, piquier. `great_industrial_icone_trsp.png` fournie mais AUCUN type moteur correspondant (28 types icônes / 54 types dont uniques — les uniques suivent leur base par alias).
+
+Juge visuel sur planche-contact (`devtmp/planche-icones-unites.png`) : **28/29 pass** (le fail = piquier, exclue). Aucun halo d'arrière-plan, aucune coupure, aucune déformation.
