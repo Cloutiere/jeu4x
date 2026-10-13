@@ -25,6 +25,9 @@ describe('mapping D4 — nomIconeUnite / typeBaseIcone', () => {
     expect(nomIconeUnite('guerrier_jaguar')).toBe('icone_unite_guerrier');
     expect(nomIconeUnite('hoplite')).toBe('icone_unite_piquier');
   });
+  it('val (Japon, non implémenté) : suit le bombardier (replaces)', () => {
+    expect(nomIconeUnite('val')).toBe('icone_unite_bombardier');
+  });
   it('type sans alias : son propre nom', () => {
     expect(typeBaseIcone('archer')).toBe('archer');
     expect(nomIconeUnite('archer')).toBe('icone_unite_archer');

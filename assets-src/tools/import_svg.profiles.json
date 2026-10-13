@@ -1316,7 +1316,7 @@
     }
   },
   "icone-unite-piquier": {
-    "_doc": "🔴 SOURCE DÉFECTUEUSE (12/10) : piquier_icone_trsp.png ne contient que la LANCE (2 % de pixels opaques, pas de personnage — export Erik raté). Profil conservé, cuisson EXCLUE tant que la source n'est pas refaite ; repli initiale en attendant (hoplite suit l'alias).",
+    "_doc": "piquier v2 (13/10) : Erik a refait la source (hoplite complet, 46 % du cadre) — cuisson rétablie. v1 (lance seule) avait été exclue.",
     "svg": "new_icones/units/piquier_icone_trsp.png",
     "stem": "icone_unite_piquier",
     "cible": {
@@ -1419,6 +1419,16 @@
     "_doc": "ICONES-UNITES vague 2 (12/10) : icône icbm d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
     "svg": "new_icones/units/icbm_icone_trsp.jpeg",
     "stem": "icone_unite_icbm",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
+  },
+  "icone-unite-explorateur": {
+    "_doc": "ICONES-UNITES (13/10, Erik) : great_industrial_icone_trsp.png = l'EXPLORATEUR (précision Erik). 64×64 mode icône. Source JAMAIS committée.",
+    "svg": "new_icones/units/great_industrial_icone_trsp.png",
+    "stem": "icone_unite_explorateur",
     "cible": {
       "mode": "icone",
       "w": 64,

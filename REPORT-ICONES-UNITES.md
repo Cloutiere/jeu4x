@@ -41,7 +41,9 @@ Déposer `new_icones/units/<type>_icone_trsp.png` + profil `icone-unite-<type>` 
 - **Directes** : archer, artillerie, bombardier, canon, caravane, catapulte, cavalier, chevalier, colon, croiseur, chasseur, fusilier, galère, galion, guerrier (recuite — source Erik mise à jour), infanterie_moderne, légion, milice, sous-marin, espion, char_d_assaut (tank), cuirasse (battleship), caravane.
 - **Grandes personnalités** : artiste_penseur (great_artist), bâtisseur (great_builder), humanitaire (great_humanitarian), leader (great_leader), savant (great_scientist).
 - **icbm** : seule source en JPEG — cuite et vérifiée transparente (RGBA).
-- **🔴 piquier EXCLUE** : la source d'Erik ne contient que la LANCE (2 % de pixels opaques, pas de personnage — export raté) ; repli initiale « P » en attendant une source refaite (profil conservé avec note ; hoplite suit l'alias).
-- **Sans icône (repli initiale)** : explorateur, piquier. `great_industrial_icone_trsp.png` fournie mais AUCUN type moteur correspondant (28 types icônes / 54 types dont uniques — les uniques suivent leur base par alias).
+- **🔴 piquier EXCLUE puis RÉTABLIE** : la source v1 ne contenait que la lance verticale (2 % du cadre — illisible aux tailles du jeu, Erik informé avec aperçu aux calibres réels) ; **Erik a refait la source v2 (hoplite complet, 46 % du cadre)** — cuite 13/10.
+- **explorateur** : `great_industrial_icone_trsp.png` EST l'explorateur (précision Erik 13/10) — cuite comme telle.
+- **val** (bombardier lourd du Japon, non implémenté) : alias ajouté vers le bombardier (icône + sprite).
+- **Couverture COMPLÈTE** : 30 icônes cuites, les 31 types de base du moteur ont leur icône (les 24 uniques suivent leur base par alias). Style Erik = l'objet-symbole (arc, lance, canon…), assumé.
 
-Juge visuel sur planche-contact (`devtmp/planche-icones-unites.png`) : **28/29 pass** (le fail = piquier, exclue). Aucun halo d'arrière-plan, aucune coupure, aucune déformation.
+Juge visuel sur planche-contact (`devtmp/planche-icones-unites.png`) : **28/29 pass** (le fail = piquier v1, remplacée depuis). Aucun halo d'arrière-plan, aucune coupure, aucune déformation.

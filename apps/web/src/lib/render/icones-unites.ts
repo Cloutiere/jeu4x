@@ -33,6 +33,9 @@ export const UNIQUE_UNIT_ALIASES: Record<string, string> = {
   char_sherman: 'char_d_assaut',
   char_panzer: 'char_d_assaut',
   char_t34: 'char_d_assaut',
+  // Val (Japon, bombardier lourd — units.json `replaces`, non implémenté) :
+  // icône et sprite suivent le bombardier.
+  val: 'bombardier',
   // Avions de l'ère moderne sans planche dédiée 🔶 : silhouette de chasseur.
   flying_fortress: 'chasseur',
   heinkel: 'chasseur',
