@@ -16,6 +16,7 @@ import type { Renderer } from 'pixi.js';
 import { ARTEFACTS, RESOURCES, RESOURCE_UNKNOWN, UNIT_TYPES } from '@game/rules';
 import { CLES_JOUEURS, ORDRE_JOUEURS4, couleurBaseJoueur, suffixeCuit, suffixeCuitPalette } from './accents.js';
 import { UNIQUE_UNIT_ALIASES, nomIconeUnite } from './icones-unites.js';
+import { arretsCanvas, CALIBRAGE_ZONE_CULTURELLE } from './zone-culturelle.js';
 
 /** 7o · R-151 : les 6 artefacts du jeu de base (DLC jamais générés). */
 export const ARTEFACT_IDS: string[] = Object.keys(ARTEFACTS.pool).filter((id) => !ARTEFACTS.pool[id]!.dlcOnly).sort();
@@ -978,4 +979,28 @@ async function optionalEntity(name: string): Promise<EntityTexture | null> {
   } catch {
     return null;
   }
+}
+
+/** ZONE-CULTURELLE-DEGRADE (décisions Erik 07/10) : texture radiale du
+ *  dégradé CONTINU de la zone culturelle — pente smoothstep bord→intérieur +
+ *  voile de fond, construite UNE FOIS depuis le profil pur de
+ *  zone-culturelle.ts (bloc de calibrage D4) et mise en cache module (D5 :
+ *  zéro génération par frame ; blanc + canal alpha = profil, teintée accent
+ *  joueur par le sprite au rendu). */
+let cacheDegradeCulturel: Texture | null = null;
+export function textureDegradeCulturel(): Texture {
+  if (cacheDegradeCulturel) return cacheDegradeCulturel;
+  const n = CALIBRAGE_ZONE_CULTURELLE.resolutionTexture;
+  const canvas = document.createElement('canvas');
+  canvas.width = n;
+  canvas.height = n;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  for (const [t, a] of arretsCanvas(CALIBRAGE_ZONE_CULTURELLE)) {
+    g.addColorStop(t, `rgba(255, 255, 255, ${a})`);
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, n, n);
+  cacheDegradeCulturel = Texture.from(canvas);
+  return cacheDegradeCulturel;
 }

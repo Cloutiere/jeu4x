@@ -19,7 +19,7 @@
   import type { UiState, UiStore } from './ui.js';
   import type { Playback } from './playback.js';
   import { Camera } from './camera.js';
-  import { loadTextures, playerColor } from './textures.js';
+  import { loadTextures, playerColor, textureDegradeCulturel } from './textures.js';
   import { definirPalettesJoueurs, paletteDe } from './accents.js';
   import type { GameTextures } from './textures.js';
   import { HEX_SIZE, hexesInRectW, mapBounds, poseVueVillePour, mondeSousEcranVueVille, ZOOM_DEPART } from './hexView.js';
@@ -1873,20 +1873,16 @@
     const ANNEAUX_CULTURELS = {
       epaisseurLisere: 4, // liseré extérieur (trait net)
       alphaLisere: 0.95,
-      // Dégradé vers l'intérieur de la bande (palier 2+) : couches
-      // concentriques du plus large (fond pâle) au plus étroit (proche du
-      // bord), masquées hors de la bande (le trou de la zone cultivée ne
-      // reçoit rien).
-      couchesDegrade: [
-        { largeur: 60, alpha: 0.1 },
-        { largeur: 40, alpha: 0.17 },
-        { largeur: 22, alpha: 0.28 },
-      ],
+      // Dégradé (palier 2+) : ZONE-CULTURELLE-DEGRADE — fini les couches
+      // concentriques à alpha constant (paliers visibles), la pente CONTINUE
+      // (smoothstep bord → intérieur) + le voile de fond vivent dans
+      // zone-culturelle.ts (profil pur testé + bloc de calibrage D4).
     };
     if (!mode3dActif()) {
       for (const city of Object.values(scene.state.cities)) {
         if (!scene.explored.has(tileKeyOf(city))) continue;
         const color = playerColor(city.owner);
+        const p = hexToPixel(city, HEX_SIZE);
         const paliers = rayonCulturelDe(city.cultureCumulee);
         if (paliers === 0) continue; // palier 0 : hexagones des tuiles cultivées seuls
         const eff = scene.view ? effectiveWorkedTiles(scene.view, city) : { tiles: city.workedTiles };
@@ -1907,6 +1903,7 @@
         // CARTE-RONDE T2 : disque wrap-aware (hexesWithinRadiusW) puis
         // EXTENSION AUX COPIES — le contour chaîne À TRAVERS la couture.
         const bande: Hex[] = [];
+        let rayonCulture = 0;
         if (paliers === 1) {
           for (const key of cultivees) {
             const [q, r] = key.split(',').map(Number);
@@ -1914,14 +1911,14 @@
             bande.push({ q, r });
           }
         } else {
-          const rayonCulture = frontierRadius(workRadiusOf(city.buildings), paliers);
+          rayonCulture = frontierRadius(workRadiusOf(city.buildings), paliers);
           for (const hex of hexesWithinRadiusW(city, rayonCulture, wrapW, wrapH)) {
             const key = tileKeyOf(hex);
             if (!scene.explored.has(key) || cultivees.has(key)) continue; // fog : rien n'est inventé
             bande.push(hex);
           }
         }
-        const boucles = contourUnion(hexesCopies(bande, hexToPixel(city, HEX_SIZE).x), HEX_SIZE, (hex) => elevationDe(terrainDe(hex)));
+        const boucles = contourUnion(hexesCopies(bande, p.x), HEX_SIZE, (hex) => elevationDe(terrainDe(hex)));
         if (boucles.length === 0) continue;
         // Aire signée (shoelace) : le chaînage wall-follower longe toujours la
         // région du même côté — les boucles EXTERIEURES de la bande et ses
@@ -1950,21 +1947,39 @@
           tracerBoucles(trait, exterieures, { width: ANNEAUX_CULTURELS.epaisseurLisere, color, alpha: ANNEAUX_CULTURELS.alphaLisere, join: 'round' });
           overlayLayer.addChild(trait);
         } else {
-          // Palier 2+ : liseré + dégradé — boucles EXTERIEURES uniquement
-          // (décision Erik) ; le dégradé s'étend d'≤ 30 px vers l'intérieur
-          // (case ≥ 55 px) : éteint avant la rangée adjacente aux tuiles
-          // cultivées.
-          for (const couche of ANNEAUX_CULTURELS.couchesDegrade) {
-            tracerBoucles(trait, exterieures, { width: couche.largeur, color, alpha: couche.alpha, join: 'round' });
-          }
+          // Palier 2+ : liseré + DÉGRADÉ CONTINU (ZONE-CULTURELLE-DEGRADE,
+          // décisions Erik 07/10) — la texture radiale (D5, construite UNE
+          // fois depuis le profil pur et mise en cache module) porte la pente
+          // smoothstep bord→intérieur ET le voile de fond (D2 : toute tuile
+          // intérieure, zone cultivée comprise, reçoit le voile — la zone se
+          // lit comme un bloc ; les marqueurs cultivés restent posés PAR
+          // DESSUS, D6). Zéro allocation par frame : comme tout l'overlay,
+          // les sprites ne vivent que dans les rebuilds (événements).
           tracerBoucles(trait, exterieures, { width: ANNEAUX_CULTURELS.epaisseurLisere, color, alpha: ANNEAUX_CULTURELS.alphaLisere, join: 'round' });
-          // Masque = la bande entière : toutes les boucles en UN SEUL
-          // remplissage (règle non-zéro — les trous sont déjà inversés par le
-          // chaînage) : le dégradé ne peint NI l'extérieur NI la zone cultivée.
+          // Masque = boucles EXTERIEURES uniquement (décision Erik) : le
+          // remplissage d'un polygone extérieur couvre aussi ses trous, donc
+          // le voile teinte bien tout l'intérieur du disque.
           const masque = new Graphics();
-          for (const boucle of boucles) masque.poly(boucle.map((p) => ({ x: p.x, y: p.y })));
+          for (const boucle of exterieures) masque.poly(boucle.map((p) => ({ x: p.x, y: p.y })));
           masque.fill(0xffffff);
           const zone = new Container();
+          // Rayon extérieur en px : la frontière (frontierRadius en anneaux)
+          // touche au plus loin ~rayonCulture·√3·size (est-ouest) + un rayon
+          // d'hex — le profil calibre sa pente sur cette enveloppe.
+          const rayonExtPx = (rayonCulture * Math.sqrt(3) + 1) * HEX_SIZE;
+          const tex = textureDegradeCulturel();
+          // COPIES WRAP : un sprite par copie visible, le masque couvrant
+          // toutes les formes (bande chaînée à travers la couture), chaque
+          // point est éclairé par le sprite dont le centre est la copie la
+          // plus proche — l'alpha reste continu À TRAVERS la couture.
+          avecCopies(p.x, (dx) => {
+            const sp = new Sprite(tex);
+            sp.anchor.set(0.5);
+            sp.tint = color;
+            sp.width = sp.height = rayonExtPx * 2;
+            sp.position.set(p.x + dx, p.y);
+            zone.addChild(sp);
+          });
           zone.addChild(trait);
           zone.mask = masque;
           overlayLayer.addChild(masque, zone);
