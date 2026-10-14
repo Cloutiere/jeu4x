@@ -97,7 +97,7 @@ describe('D2 — geometrieBarre (largeur totale ≤ barre historique)', () => {
 });
 
 describe('D3 — modeGarnison (ville compacte, pile ×N)', () => {
-  const base = { ville: true, anim: false, modele3d: false, fondationArt: false, index: 0, total: 1 };
+  const base = { ville: true, anim: false, modele3d: false, fondationArt: false, selectionnee: false, index: 0, total: 1 };
   it('unité seule en ville : compacte, visible, sans badge', () => {
     expect(modeGarnison(base)).toEqual({ actif: true, visible: true, badge: null });
   });
@@ -115,5 +115,41 @@ describe('D3 — modeGarnison (ville compacte, pile ×N)', () => {
   it('modèle 3D / fondation : hors périmètre (rendus existants primant)', () => {
     expect(modeGarnison({ ...base, modele3d: true }).actif).toBe(false);
     expect(modeGarnison({ ...base, fondationArt: true }).actif).toBe(false);
+  });
+  // GARNISON-SELECTION (décisions Erik 14/10) : le sprite complet quand
+  // l'unité en ville est sélectionnée — alternance R-2 lisible.
+  describe('GARNISON-SELECTION — sélectionnée = sprite complet', () => {
+    it('D1 — sélectionnée en ville : PAS compacte (sprite, anneau, barre normaux)', () => {
+      const m = modeGarnison({ ...base, selectionnee: true });
+      expect(m.actif).toBe(false);
+      expect(m.visible).toBe(true);
+      expect(m.badge).toBeNull();
+    });
+    it('D2 — désélectionnée : retour compacte', () => {
+      expect(modeGarnison({ ...base, selectionnee: false }).actif).toBe(true);
+    });
+    it('D3 — pile : la sélectionnée seule sort du compacte, badge ×N sur les autres', () => {
+      const pile = { ...base, total: 3 };
+      expect(modeGarnison({ ...pile, index: 0, selectionnee: false }).badge).toBe('×3');
+      expect(modeGarnison({ ...pile, index: 1, selectionnee: true }).actif).toBe(false);
+      expect(modeGarnison({ ...pile, index: 2, selectionnee: false }).visible).toBe(false);
+    });
+    it('D3 — si la SÉLECTIONNÉE porte le badge ×N, elle le garde (résume les autres)', () => {
+      const m = modeGarnison({ ...base, total: 3, selectionnee: true });
+      expect(m.actif).toBe(false);
+      expect(m.badge).toBe('×3');
+    });
+    it('badge de pile = garnison seule (jamais campagne/anim/3D/fondation)', () => {
+      expect(modeGarnison({ ...base, ville: false, total: 3 }).badge).toBeNull();
+      expect(modeGarnison({ ...base, anim: true, total: 3 }).badge).toBeNull();
+      expect(modeGarnison({ ...base, modele3d: true, total: 3 }).badge).toBeNull();
+      expect(modeGarnison({ ...base, fondationArt: true, total: 3 }).badge).toBeNull();
+    });
+    it('D4 — ennemi jamais sélectionné : le champ reste à false, compacte inchangée', () => {
+      expect(modeGarnison({ ...base, selectionnee: false }).actif).toBe(true);
+    });
+    it('D5 — sélection prime même pendant fondation/anim (rendus primant inchangés)', () => {
+      expect(modeGarnison({ ...base, selectionnee: true, anim: true }).actif).toBe(false);
+    });
   });
 });

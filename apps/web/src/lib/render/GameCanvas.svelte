@@ -380,6 +380,8 @@
   }
 
   const tileSprites = new Map<string, Sprite>();
+  // GARNISON-SELECTION : dernière sélection connue du calque entités.
+  let selectionPrecedente: string | null = null;
   const resourceSprites = new Map<string, Sprite>();
   const unitSprites = new Map<string, Container>();
   const citySprites = new Map<string, Container>();
@@ -707,6 +709,13 @@
   function onNewUi(u: UiState): void {
     scene.ui = u;
     overlayDirty = true;
+    // GARNISON-SELECTION (D1/D2, Erik 14/10) : la bascule compacte↔complet
+    // suit le CHANGEMENT de sélection (un rebuild d'entités par bascule —
+    // jamais par frame) ; copies couture et relecture suivent (D5, reflets).
+    if (u.selectedUnitId !== selectionPrecedente) {
+      selectionPrecedente = u.selectedUnitId;
+      entitiesDirty = true;
+    }
     // FLECHE-MOUVEMENT : changement de sélection → la flèche de survol
     // reflète immédiatement la nouvelle unité (ou disparaît), sans attendre
     // un mouvement du curseur.
@@ -946,6 +955,10 @@
         anim: !!anim,
         modele3d: en3d,
         fondationArt: fondation.art,
+        // GARNISON-SELECTION (D1) : l'unité sélectionnée affiche le sprite
+        // complet (mêlée standard, anneau, barre normales) même en ville ;
+        // D4 : un ennemi n'est jamais selectedUnitId, reste compact.
+        selectionnee: scene.ui.selectedUnitId === unit.id,
         index: pileCase.index,
         total: pileCase.total,
       });
@@ -1025,11 +1038,12 @@
         iconeFond.tint = playerColor(unit.owner);
       }
       // ICONES-UNITES (D3) : badge de pile « ×N » porté par la première
-      // unité garnisonnée ; les suivantes de la case se masquent.
+      // unité garnisonnée ; GARNISON-SELECTION : le porteur garde son badge
+      // même sélectionné (il résume les autres, restées compactes).
       const pileBadge = c.getChildByLabel('pileGarnison') as Text | null;
       if (pileBadge) {
         if (pileBadge.text !== (garnison.badge ?? '')) pileBadge.text = garnison.badge ?? '';
-        pileBadge.visible = garnison.actif && garnison.badge !== null;
+        pileBadge.visible = garnison.badge !== null;
       }
       if (garnison.actif && !garnison.visible) c.visible = false;
       // Marqueur écu de fortification (R-33).

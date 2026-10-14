@@ -129,12 +129,26 @@ export function modeGarnison(entree: {
   modele3d: boolean;
   /** État « en train de fonder » (le badge fondation prime). */
   fondationArt: boolean;
+  /** GARNISON-SELECTION (D1, Erik 14/10) : l'unité est CELLE sélectionnée
+   *  (selectedUnitId) — sprite complet à la place de l'icône compacte ;
+   *  un ennemi n'est jamais sélectionnable, donc toujours compact. */
+  selectionnee: boolean;
   /** Indice de pile (pilesAffichees). */
   index: number;
   total: number;
 }): { actif: boolean; visible: boolean; badge: string | null } {
-  const actif = entree.ville && !entree.anim && !entree.modele3d && !entree.fondationArt;
-  if (!actif) return { actif: false, visible: true, badge: null };
+  const actif = entree.ville && !entree.anim && !entree.modele3d && !entree.fondationArt && !entree.selectionnee;
+  if (!actif) {
+    // GARNISON-SELECTION (D3) : la SÉLECTIONNÉE affiche le sprite complet,
+    // mais si elle PORTE le badge de pile (×N), elle le garde — il résume
+    // les N−1 autres, restées compactes. Sinon : rendus normaux, nul badge.
+    return {
+      actif: false,
+      visible: true,
+      badge:
+        (actif || entree.selectionnee) && entree.index === 0 && entree.total > 1 ? `×${entree.total}` : null,
+    };
+  }
   // Pile : la première unité seule porte l'icône + « ×N » ; les suivantes
   // se masquent (une seule icône par case — la ville reste lisible).
   return { actif: true, visible: entree.index === 0, badge: entree.index === 0 && entree.total > 1 ? `×${entree.total}` : null };
