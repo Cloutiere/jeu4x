@@ -11,9 +11,13 @@ import {
   iconeBannierePour,
   geometrieBarre,
   modeGarnison,
+  nomIconeBatiment,
+  nomIconeMerveille,
   nomIconeUnite,
   typeBaseIcone,
+  urlIconeProduction,
 } from '../src/lib/render/icones-unites.js';
+import { BUILDINGS, WONDERS } from '@game/rules';
 import { construireBanniere } from '../src/lib/render/bande-ville.js';
 
 describe('mapping D4 — nomIconeUnite / typeBaseIcone', () => {
@@ -42,11 +46,39 @@ describe('D1 — iconeBannierePour (cercle production)', () => {
   it('unité SANS art (les autres) → null = initiale en repli', () => {
     expect(iconeBannierePour({ kind: 'unit', id: 'archer' }, dispo)).toBeNull();
   });
-  it('bâtiment → JAMAIS d\'icône (initiale), même si un nom coïncide', () => {
-    expect(iconeBannierePour({ kind: 'building', id: 'grenier' }, dispo)).toBeNull();
+  it('bâtiment → icône QUAND l\'art est chargé (Erik 14/10 : bâtiments ET merveilles)', () => {
+    const dispoBat = ['icone_batiment_grenier'];
+    expect(iconeBannierePour({ kind: 'building', id: 'grenier' }, dispoBat)).toBe('icone_batiment_grenier');
+    expect(iconeBannierePour({ kind: 'building', id: 'usine' }, dispoBat)).toBeNull();
+  });
+  it('merveille → icône quand l\'art est chargée, sinon initiale', () => {
+    const dispoMerveille = ['icone_merveille_stonehenge'];
+    expect(iconeBannierePour({ kind: 'wonder', id: 'stonehenge' }, dispoMerveille)).toBe('icone_merveille_stonehenge');
+    expect(iconeBannierePour({ kind: 'wonder', id: 'colosse_de_rhodes' }, dispoMerveille)).toBeNull();
   });
   it('unité unique → icône via alias quand l\'art de la base est chargé', () => {
     expect(iconeBannierePour({ kind: 'unit', id: 'guerrier_jaguar' }, dispo)).toBe('icone_unite_guerrier');
+  });
+});
+
+describe('ICONES-BATIMENTS — mapping bâtiments/merveilles (Erik 14/10)', () => {
+  it('nommage data-driven : icone_batiment_<id> / icone_merveille_<id>', () => {
+    expect(nomIconeBatiment('grenier')).toBe('icone_batiment_grenier');
+    expect(nomIconeMerveille('stonehenge')).toBe('icone_merveille_stonehenge');
+  });
+  it('D2 — TOUS les bâtiments du moteur ont une URL d\'icône (repli onerror si 404)', () => {
+    for (const id of Object.keys(BUILDINGS)) {
+      expect(urlIconeProduction({ kind: 'building', id })).toBe(`/art/icone_batiment_${id}.png`);
+    }
+  });
+  it('D2 — TOUTES les merveilles du moteur ont une URL d\'icône', () => {
+    for (const id of Object.keys(WONDERS)) {
+      expect(urlIconeProduction({ kind: 'wonder', id })).toBe(`/art/icone_merveille_${id}.png`);
+    }
+  });
+  it('D3 — les unités du menu suivent l\'alias R-148 (uniques → base)', () => {
+    expect(urlIconeProduction({ kind: 'unit', id: 'hoplite' })).toBe('/art/icone_unite_piquier.png');
+    expect(urlIconeProduction({ kind: 'unit', id: 'guerrier' })).toBe('/art/icone_unite_guerrier.png');
   });
 });
 

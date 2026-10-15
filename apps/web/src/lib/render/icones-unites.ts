@@ -57,13 +57,48 @@ export function nomIconeUnite(type: string): string {
   return `icone_unite_${typeBaseIcone(type)}`;
 }
 
-/** D1 — icône de bannière pour l'item en tête de file : les UNITÉS SEULES
- *  (bâtiments et merveilles = initiale) et seulement si l'art est chargé ;
- *  `null` = initiale en repli (aucun trou visuel). */
+/** ICONES-BATIMENTS (décisions Erik 14/10) — mapping des BÂTIMENTS et des
+ *  MERVEILLES : le moteur nomme en français (`grenier`, `stonehenge`), les
+ *  sources d'Erik en anglais — la traduction vit dans les PROFILS du pipeline
+ *  (import_svg.profiles.json : `icone_batiment_<id>` / `icone_merveille_<id>`
+ *  = nom de moteur). Ici : la règle de nommage seule, data-driven. Une
+ *  source absente (ex. `atelier`) = pas de PNG cuit = repli initiale. */
+export function nomIconeBatiment(id: string): string {
+  return `icone_batiment_${id}`;
+}
+
+export function nomIconeMerveille(id: string): string {
+  return `icone_merveille_${id}`;
+}
+
+/** D1 — icône de bannière pour l'item en tête de file : TOUTE sorte d'item
+ *  (unités, bâtiments ET merveilles — Erik 14/10) et seulement si l'art est
+ *  chargé ; `null` = initiale en repli (aucun trou visuel, D3 universel). */
 export function iconeBannierePour(item: ProductionItem, iconesDisponibles: readonly string[]): string | null {
-  if (item.kind !== 'unit') return null;
-  const nom = nomIconeUnite(item.id);
-  return iconesDisponibles.includes(nom) ? nom : null;
+  const nom =
+    item.kind === 'unit'
+      ? nomIconeUnite(item.id)
+      : item.kind === 'building'
+        ? nomIconeBatiment(item.id)
+        : item.kind === 'wonder'
+          ? nomIconeMerveille(item.id)
+          : null;
+  return nom !== null && iconesDisponibles.includes(nom) ? nom : null;
+}
+
+/** D2 — URL de l'icône d'un item pour l'UI HTML (PanneauVille : liste des
+ *  onglets + rangs de la file). Les unités suivent l'alias R-148 ; un PNG
+ *  ABSENT (404) est masqué par l'UI (`onerror`) — repli propre, aucun trou. */
+export function urlIconeProduction(item: ProductionItem): string {
+  const nom =
+    item.kind === 'unit'
+      ? nomIconeUnite(item.id)
+      : item.kind === 'building'
+        ? nomIconeBatiment(item.id)
+        : item.kind === 'wonder'
+          ? nomIconeMerveille(item.id)
+          : null;
+  return nom === null ? '' : `/art/${nom}.png`;
 }
 
 /** Constantes 🔶 de calibrage (éditables à l'œil SANS code). Le carré à

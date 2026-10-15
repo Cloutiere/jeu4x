@@ -37,7 +37,7 @@
   import { BANDE_VILLE, construireBanniere, etaProductionBanniere, lignesTooltipCroissance, lignesTooltipPopulation, lignesTooltipProduction, rectBanniereLocale, rectZoneCroissanceLocale, rectZonePopLocale, rectZoneProductionLocale, seuilCroissanceVille, toursCroissanceBanniere } from './bande-ville.js';
   import type { DetailTooltip } from './bande-ville.js';
   // ICONES-UNITES (décisions Erik 07/10) : mapping pur (D1/D2/D3/D4).
-  import { ICONES_UNITES, geometrieBarre, iconeBannierePour, modeGarnison, nomIconeUnite, typeBaseIcone } from './icones-unites.js';
+  import { ICONES_UNITES, geometrieBarre, iconeBannierePour, modeGarnison, nomIconeBatiment, nomIconeMerveille, nomIconeUnite, typeBaseIcone } from './icones-unites.js';
   import { logosNation, nationDe } from '../nations.js';
   import { coutItem, fileEffective, nomItem } from '../fileProduction.js';
   import { iconeCommerceRendement } from './rendements.js';
@@ -1084,11 +1084,18 @@
     // BANDE-VILLE : les technologies connues ne dépendent pas de la ville —
     // une seule lecture par rebuild (miroir PanneauVille allKnownTechs).
     const allTechs = allKnownTechs(state);
-    // ICONES-UNITES (D1) : noms d'icônes d'unités réellement chargées —
-    // une seule lecture par rebuild (mapping pur iconeBannierePour).
-    const iconesUnitesDispo = Object.entries(textures.iconesUnites ?? {})
+    // ICONES-UNITES (D1) : noms d'icônes réellement chargées — une seule
+    // lecture par rebuild (mapping pur iconeBannierePour). ICONES-BATIMENTS
+    // (Erik 14/10) : les bâtiments et les merveilles rejoignent la même liste.
+    const iconesDispo: string[] = Object.entries(textures.iconesUnites ?? {})
       .filter(([, t]) => t)
       .map(([k]) => nomIconeUnite(k));
+    for (const [id, t] of Object.entries(textures.iconesBatiments ?? {})) {
+      if (t) iconesDispo.push(nomIconeBatiment(id));
+    }
+    for (const [id, t] of Object.entries(textures.iconesMerveilles ?? {})) {
+      if (t) iconesDispo.push(nomIconeMerveille(id));
+    }
     for (const city of Object.values(state.cities)) {
       if (!scene.visible.has(tileKeyOf(city))) continue;
       seenCities.add(city.id);
@@ -1157,10 +1164,18 @@
           cout = coutItem(tete.item);
           progression = tete.progress;
           eta = etaProductionBanniere(tete.item, tete.progress, d.prodPerTurn);
-          // D1 : icône de l'unité en tête (art chargée) — sinon initiale.
-          itemIcone = iconeBannierePour(tete.item, iconesUnitesDispo);
-          if (tete.item.kind === 'unit' && itemIcone) {
-            texIconeItem = textures.iconesUnites?.[typeBaseIcone(tete.item.id)] ?? null;
+          // D1 (Erik 14/10) : icône de l'item en tête — unité, bâtiment OU
+          // merveille (art chargée) — sinon initiale.
+          itemIcone = iconeBannierePour(tete.item, iconesDispo);
+          if (itemIcone) {
+            texIconeItem =
+              tete.item.kind === 'unit'
+                ? (textures.iconesUnites?.[typeBaseIcone(tete.item.id)] ?? null)
+                : tete.item.kind === 'building'
+                  ? (textures.iconesBatiments?.[tete.item.id] ?? null)
+                  : tete.item.kind === 'wonder'
+                    ? (textures.iconesMerveilles?.[tete.item.id] ?? null)
+                    : null;
           }
         }
         const detail: DetailTooltip = {

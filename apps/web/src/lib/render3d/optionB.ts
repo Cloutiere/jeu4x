@@ -77,6 +77,8 @@ function texturesDeSecours(): GameTextures {
     artefacts: {},
     colonFondation: null,
     iconesUnites: {},
+    iconesBatiments: {},
+    iconesMerveilles: {},
     yieldIcons: { food: null, production: null, commerce: null, gold: null, science: null, culture: null },
     resources: {},
     tuilesRessources: {},

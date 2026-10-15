@@ -25,6 +25,9 @@
   import { optionsUnites, optionsBatiments, tileEffectLabel } from '../lib/productionMenu.js';
   import { jaugeCroissance, jaugeFrontiereCulturelle, jaugeProduction, toursAvantSeuil } from '../lib/jauges.js';
   import { fileEffective, coutItem, nomItem, merveillesMondeConnues } from '../lib/fileProduction.js';
+  // ICONES-BATIMENTS (Erik 14/10, D2) : icônes des items (liste + file) —
+  // URL pure, PNG absent = 404 masqué par onerror (repli propre, D3).
+  import { urlIconeProduction } from '../lib/render/icones-unites.js';
 
   interface Props {
     view: GameView;
@@ -392,6 +395,9 @@
           {#each file.rangs as rang, i (i + ':' + rang.item.kind + ':' + rang.item.id)}
             <li class="rang" class:tete={i === 0}>
               <span class="rang-no">{i + 1}</span>
+              <!-- ICONES-BATIMENTS · D2 : icône par rang de la file (en-tête),
+                   PNG absent → img masquée. -->
+              <img class="rang-icone" src={urlIconeProduction(rang.item)} alt="" onerror={hideImg} />
               <div class="rang-corps">
                 <span class="rang-nom">{itemName(rang.item)}</span>
                 {#if i === 0 && rang.progress > 0 && itemCost(rang.item) !== null}
@@ -563,7 +569,12 @@
               title={filePleine ? `File pleine (${file.profondeur})` : `Ajouter à la file — ${opt.effect}`}
               onclick={() => ajouterALaFile(opt.item)}
             >
-              <b>{opt.name} ({opt.cost})</b>
+              <span class="opt-tete">
+                <!-- ICONES-BATIMENTS · D2 : icône par ligne (3 onglets) ;
+                     PNG absent → img masquée (repli initiale textuelle). -->
+                <img class="opt-icone" src={urlIconeProduction(opt.item)} alt="" onerror={hideImg} />
+                <b>{opt.name} ({opt.cost})</b>
+              </span>
               <span class="fx">{opt.effect}</span>
               {#if opt.eta !== null}<span class="tours">· {opt.eta} tour{opt.eta > 1 ? 's' : ''}</span>{/if}
               <span class="plus">＋</span>
@@ -625,6 +636,8 @@
   .rang { display: flex; align-items: center; gap: 0.45rem; padding: 0.35rem 0.45rem; border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25)); border-radius: 8px; background: var(--panneau, rgba(13, 20, 32, 0.88)); }
   .rang.tete { border-color: var(--or, #c9a227); }
   .rang-no { font-family: var(--serif-or, Georgia, serif); color: var(--or-clair, #e8c96a); font-weight: 700; min-width: 1.1rem; text-align: center; }
+  /* ICONES-BATIMENTS · D2 : icône par rang de file (calibre data-driven 🔶). */
+  .rang-icone { width: 20px; height: 20px; flex: 0 0 auto; image-rendering: auto; }
   .rang-corps { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
   .rang-nom { font-size: 0.86rem; font-weight: 600; }
   .rang-meta { color: var(--texte-doux, #b6ad93); font-size: 0.74rem; display: inline-flex; align-items: center; gap: 0.3rem; }
@@ -666,6 +679,10 @@
   .onglets button.active { border-color: var(--or, #c9a227); background: rgba(201, 162, 39, 0.14); color: var(--or-clair, #e8c96a); font-weight: 700; }
   .options { display: grid; grid-template-columns: 1fr; gap: 0.35rem; margin: 0.3rem 0; }
   .opt { position: relative; text-align: left; padding: 0.38rem 1.6rem 0.38rem 0.55rem; border-radius: 8px; border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25)); background: var(--panneau, rgba(13, 20, 32, 0.88)); color: var(--texte, #e9e4d3); cursor: pointer; display: flex; flex-direction: column; gap: 0.08rem; }
+  /* ICONES-BATIMENTS · D2 : icône par ligne des onglets, alignée au libellé
+     (calibre data-driven 🔶, cohérent avec la file). */
+  .opt-tete { display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
+  .opt-icone { width: 18px; height: 18px; flex: 0 0 auto; }
   .opt:hover:not(:disabled) { border-color: var(--or, #c9a227); }
   .opt b { font-size: 0.84rem; }
   .opt .fx { color: var(--texte-doux, #b6ad93); font-size: 0.72rem; }

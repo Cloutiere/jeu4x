@@ -13,9 +13,9 @@
  */
 import { Assets, Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
-import { ARTEFACTS, RESOURCES, RESOURCE_UNKNOWN, UNIT_TYPES } from '@game/rules';
+import { ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, UNIT_TYPES, WONDERS } from '@game/rules';
 import { CLES_JOUEURS, ORDRE_JOUEURS4, couleurBaseJoueur, suffixeCuit, suffixeCuitPalette } from './accents.js';
-import { UNIQUE_UNIT_ALIASES, nomIconeUnite } from './icones-unites.js';
+import { UNIQUE_UNIT_ALIASES, nomIconeBatiment, nomIconeMerveille, nomIconeUnite } from './icones-unites.js';
 import { arretsCanvas, CALIBRAGE_ZONE_CULTURELLE } from './zone-culturelle.js';
 
 /** 7o · R-151 : les 6 artefacts du jeu de base (DLC jamais générés). */
@@ -74,6 +74,11 @@ export interface GameTextures {
    *  art d'Erik cuite par le pipeline mode « icône ») — null = initiale en
    *  repli (bannière D1, carré terrain D2 absent). */
   iconesUnites: Record<string, Texture | null>;
+  /** ICONES-BATIMENTS (Erik 14/10) : icônes des bâtiments et des merveilles
+   *  par ID moteur (/art/icone_batiment_<id>.png, /art/icone_merveille_<id>.png)
+   *  — null = initiale en repli (D3 universel, ex. `atelier` sans source). */
+  iconesBatiments: Record<string, Texture | null>;
+  iconesMerveilles: Record<string, Texture | null>;
   /** R-91 : sprites des ressources (clé = id de resources.json, null si asset absent). */
   resources: Record<string, Texture | null>;
   /** TUILES-RESSOURCES (Erik 26/09) : tuiles pleines par ressource — clé = id
@@ -651,6 +656,9 @@ export function createTextures(renderer: Renderer): GameTextures {
     // ICONES-UNITES : aucun placeholder d'icône — l'ABSENCE est l'état
     // « initiale en repli » (D1).
     iconesUnites: Object.fromEntries(TOUS_TYPES_UNITES.map((id) => [id, null])),
+    // ICONES-BATIMENTS : aucun placeholder — l'ABSENCE est l'état repli.
+    iconesBatiments: Object.fromEntries(Object.keys(BUILDINGS).map((id) => [id, null])),
+    iconesMerveilles: Object.fromEntries(Object.keys(WONDERS).map((id) => [id, null])),
     yieldIcons,
     resources: {},
     tuilesRessources: {},
@@ -809,7 +817,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const tuileCacherIds = (Object.keys(TUILES_CACHER) as TerrainId[]).sort();
   // Phase 7d (R-95) : variantes barbares (accent de repli rouge sang — accents.json).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, croiseursCuits, cuirassesCuits, galeresCuits, galionsCuits, cavaliersCuits, chevaliersCuits, legionsCuits, catapultesCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites, iconesUnitesChargees] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, croiseursCuits, cuirassesCuits, galeresCuits, galionsCuits, cavaliersCuits, chevaliersCuits, legionsCuits, catapultesCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites, iconesUnitesChargees, iconesBatimentsChargees, iconesMerveillesChargees] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -868,6 +876,10 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     // ICONES-UNITES (D4) : chargement OPTIONNEL par type (mapping pur
     // nomIconeUnite, alias uniques résolus) — absent → initiale en repli.
     Promise.all(TOUS_TYPES_UNITES.map((id) => optionalIcon(nomIconeUnite(id)).then((t) => [id, t] as const))),
+    // ICONES-BATIMENTS (Erik 14/10) : chargement OPTIONNEL par ID moteur —
+    // absent (ex. atelier, pas de source Erik) → initiale en repli.
+    Promise.all(Object.keys(BUILDINGS).map((id) => optionalIcon(nomIconeBatiment(id)).then((t) => [id, t] as const))),
+    Promise.all(Object.keys(WONDERS).map((id) => optionalIcon(nomIconeMerveille(id)).then((t) => [id, t] as const))),
   ]);
 
   // Fusion : placeholders dessinés (guerrier, colon, classes illustres et
@@ -935,6 +947,16 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     if (iconesUnites[id] === undefined) iconesUnites[id] = null;
   }
 
+  // ICONES-BATIMENTS : table complète par ID — absente = repli initiale (D3).
+  const iconesBatiments: Record<string, Texture | null> = Object.fromEntries(iconesBatimentsChargees);
+  for (const id of Object.keys(BUILDINGS)) {
+    if (iconesBatiments[id] === undefined) iconesBatiments[id] = null;
+  }
+  const iconesMerveilles: Record<string, Texture | null> = Object.fromEntries(iconesMerveillesChargees);
+  for (const id of Object.keys(WONDERS)) {
+    if (iconesMerveilles[id] === undefined) iconesMerveilles[id] = null;
+  }
+
   return {
     tiles: Object.fromEntries(tiles) as Record<TerrainId, Texture>,
     units: { ...unitsFinales, ...Object.fromEntries(barbareUnits) },
@@ -945,6 +967,8 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     artefacts: Object.fromEntries(artefactTextures) as Record<string, EntityTexture>,
     colonFondation,
     iconesUnites,
+    iconesBatiments,
+    iconesMerveilles,
     yieldIcons: { food: foodIcon, production: productionIcon, commerce: commerceIcon, gold: goldIcon, science: scienceIcon, culture: cultureIcon },
     resources: Object.fromEntries(resourceIcons),
     tuilesRessources: Object.fromEntries(tuilesRessourcesCuites),
