@@ -1854,5 +1854,15 @@
       "w": 64,
       "h": 64
     }
+  },
+  "icone-batiment-atelier": {
+    "_doc": "ICONES-BATIMENTS (Erik 15/10) : icône bâtiment atelier (new_icones/buildings/workshop_trsp.png) — 64×64 mode icône. Source JAMAIS committée. Complétait le seul trou du 14/10 (atelier sans source → initiale).",
+    "svg": "new_icones/buildings/workshop_trsp.png",
+    "stem": "icone_batiment_atelier",
+    "cible": {
+      "mode": "icone",
+      "w": 64,
+      "h": 64
+    }
   }
 }
