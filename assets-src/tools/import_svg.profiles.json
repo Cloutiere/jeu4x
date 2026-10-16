@@ -214,7 +214,7 @@
     }
   },
   "ville-settlement": {
-    "_doc": "VILLE (27/09) : ville ancient peinte par Erik (new_villes/vile_ancient) — UNE version pour toutes les époques et tous les joueurs (contour de tuile = couleur, décision Erik) ; hexagone pré-clippé, mode tuile + entite.",
+    "_doc": "ARCHIVÉ (ASSETS-VILLES-ERRES 15/10) : remplacé par les profils ville-ancienne…ville-moderne (art par ÈRE du propriétaire, D1 une image toutes nations). Conservé comme REPLI (D3) : ville_settlement.png reste le sprite de secours si une ère n'est pas cuite. VILLE (27/09) : ville ancient peinte par Erik (new_villes/vile_ancient) — UNE version pour toutes les époques et tous les joueurs (contour de tuile = couleur, décision Erik) ; hexagone pré-clippé, mode tuile + entite.",
     "svg": "new_villes/vile_ancient/vile_ancient.svg",
     "stem": "ville_settlement",
     "cible": {
@@ -225,7 +225,7 @@
     }
   },
   "ville-capitale": {
-    "_doc": "CAPITALE (27/09) : capitale ancient peinte par Erik — UNE version pour toutes les époques/joueurs ; hexagone pré-clippé, mode tuile + entite.",
+    "_doc": "ARCHIVÉ (ASSETS-VILLES-ERRES 15/10) : remplacé par capitale-ancienne…capitale-moderne ; conservé comme REPLI (D3). CAPITALE (27/09) : capitale ancient peinte par Erik — UNE version pour toutes les époques/joueurs ; hexagone pré-clippé, mode tuile + entite.",
     "svg": "new_villes/capitale_ancient/capitale_ancient.svg",
     "stem": "ville_capitale",
     "cible": {
@@ -234,6 +234,62 @@
       "h": 256,
       "entite": true
     }
+  },
+  "ville-ancienne": {
+    "_doc": "ASSETS-VILLES-ERRES (Erik 15/10) : ville Ère Ancienne — UNE image pour TOUTES les nations (D1, plus de variante par accent), sprite suivant l'ÈRE DU PROPRIÉTAIRE (D2). Source 4K new_villes/vile_ancient (PIÈGE nommage Erik : « vile »). Mode « unite » 448×512 (2× du calibre d'affichage ville), echelle 0.62 ≈ empreinte de l'art 27/09 (🔶 calibre à l'œil Erik).",
+    "svg": "new_villes/vile_ancient/vile_ancient_trsp.png",
+    "stem": "ville_settlement_ancienne",
+    "sansAccent": true,
+    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
+  },
+  "ville-medievale": {
+    "_doc": "ASSETS-VILLES-ERRES : ville Médiévale — PIÈGE : le FICHIER d'Erik est new_villes/ville_medievale/vile_medievale_trsp.png (« vile » côté fichier).",
+    "svg": "new_villes/ville_medievale/vile_medievale_trsp.png",
+    "stem": "ville_settlement_medievale",
+    "sansAccent": true,
+    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
+  },
+  "ville-industrielle": {
+    "_doc": "ASSETS-VILLES-ERRES : ville Industrielle.",
+    "svg": "new_villes/ville_industrielle/ville_industrielle_trsp.png",
+    "stem": "ville_settlement_industrielle",
+    "sansAccent": true,
+    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
+  },
+  "ville-moderne": {
+    "_doc": "ASSETS-VILLES-ERRES : ville Moderne.",
+    "svg": "new_villes/ville_moderne/ville_moderne_trsp.png",
+    "stem": "ville_settlement_moderne",
+    "sansAccent": true,
+    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
+  },
+  "capitale-ancienne": {
+    "_doc": "ASSETS-VILLES-ERRES : capitale Ère Ancienne.",
+    "svg": "new_villes/capitale_ancient/capitale_ancient_trsp.png",
+    "stem": "ville_capitale_ancienne",
+    "sansAccent": true,
+    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
+  },
+  "capitale-medievale": {
+    "_doc": "ASSETS-VILLES-ERRES : capitale Médiévale.",
+    "svg": "new_villes/capitale_medievale/capitale_medievale_trsp.png",
+    "stem": "ville_capitale_medievale",
+    "sansAccent": true,
+    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
+  },
+  "capitale-industrielle": {
+    "_doc": "ASSETS-VILLES-ERRES : capitale Industrielle — PIÈGE : ESPACE dans le nom de fichier d'Erik (« capitale industrielle_trsp.png »).",
+    "svg": "new_villes/capitale_industrielle/capitale industrielle_trsp.png",
+    "stem": "ville_capitale_industrielle",
+    "sansAccent": true,
+    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
+  },
+  "capitale-moderne": {
+    "_doc": "ASSETS-VILLES-ERRES : capitale Moderne.",
+    "svg": "new_villes/capitale_moderne/capitale_moderne_trsp.png",
+    "stem": "ville_capitale_moderne",
+    "sansAccent": true,
+    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
   },
   "barbare-unite": {
     "_doc": "ASSETS-4K vague 2 : PNG 4K trsp d'Erik remplace le SVG (calibre echelle 0.9674 inchangé).",

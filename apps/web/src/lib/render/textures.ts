@@ -17,6 +17,7 @@ import { ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, UNIT_TYPES, WONDERS 
 import { CLES_JOUEURS, ORDRE_JOUEURS4, couleurBaseJoueur, suffixeCuit, suffixeCuitPalette } from './accents.js';
 import { UNIQUE_UNIT_ALIASES, nomIconeBatiment, nomIconeMerveille, nomIconeUnite } from './icones-unites.js';
 import { arretsCanvas, CALIBRAGE_ZONE_CULTURELLE } from './zone-culturelle.js';
+import { ERRES_VILLE, type EraVille } from './sprites-villes.js';
 
 /** 7o · R-151 : les 6 artefacts du jeu de base (DLC jamais générés). */
 export const ARTEFACT_IDS: string[] = Object.keys(ARTEFACTS.pool).filter((id) => !ARTEFACTS.pool[id]!.dlcOnly).sort();
@@ -54,6 +55,13 @@ export interface GameTextures {
    *  (ex. `guerrier@p1`). Décision Erik 20/09. */
   cuites: Record<string, EntityTexture>;
   cities: { settlement: EntityTexture; capital: EntityTexture };
+  /** ASSETS-VILLES-ERRES (Erik 15/10) : sprites 4K par ÈRE DU PROPRIÉTAIRE
+   *  (D2), UNE image pour toutes les nations (D1) — clé = ère, null tant que
+   *  le PNG n'est pas cuit (repli sur `cities.settlement/capital`, D3). */
+  citiesParEre: {
+    ville: Record<EraVille, EntityTexture | null>;
+    capitale: Record<EraVille, EntityTexture | null>;
+  };
   /** R-96 (Phase 7d) : village barbare (tente/camp). */
   villageBarbare: EntityTexture;
   /** R-98 (Phase 7d) : hutte bonus. */
@@ -642,6 +650,13 @@ export function createTextures(renderer: Renderer): GameTextures {
       settlement: bakeEntityOnce(buildSettlementGraphics()),
       capital: bakeEntityOnce(buildCapitalGraphics()),
     },
+    // ASSETS-VILLES-ERRES : le fallback placeholder est volontairement ABSENT
+    // par ère (les replis sont cities.settlement/capital — D3, un seul
+    // endroit).
+    citiesParEre: {
+      ville: { ancienne: null, medievale: null, industrielle: null, moderne: null },
+      capitale: { ancienne: null, medievale: null, industrielle: null, moderne: null },
+    },
     // R-96/R-98 : village barbare et hutte bonus (placeholders cuisés ; les
     // assets réels remplacent via loadTextures).
     villageBarbare: bakeEntityOnce(buildVillageBarbareGraphics()),
@@ -817,7 +832,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const tuileCacherIds = (Object.keys(TUILES_CACHER) as TerrainId[]).sort();
   // Phase 7d (R-95) : variantes barbares (accent de repli rouge sang — accents.json).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, croiseursCuits, cuirassesCuits, galeresCuits, galionsCuits, cavaliersCuits, chevaliersCuits, legionsCuits, catapultesCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites, iconesUnitesChargees, iconesBatimentsChargees, iconesMerveillesChargees] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villesParEreChargees, capitalesParEreChargees, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, croiseursCuits, cuirassesCuits, galeresCuits, galionsCuits, cavaliersCuits, chevaliersCuits, legionsCuits, catapultesCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites, iconesUnitesChargees, iconesBatimentsChargees, iconesMerveillesChargees] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -834,6 +849,10 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     ),
     entityOrFallback('ville_settlement', fallback.cities.settlement),
     entityOrFallback('ville_capitale', fallback.cities.capital),
+    // ASSETS-VILLES-ERRES (Erik 15/10) : 8 sprites 4K (type × ère) —
+    // chargement OPTIONNEL (PNG absent → null, repli cities.settlement/capital).
+    Promise.all(ERRES_VILLE.map((e) => optionalEntity(`ville_settlement_${e}`).then((t) => [e, t] as const))),
+    Promise.all(ERRES_VILLE.map((e) => optionalEntity(`ville_capitale_${e}`).then((t) => [e, t] as const))),
     entityOrFallback('village_barbare', fallback.villageBarbare),
     entityOrFallback('hutte', fallback.hutte),
     Promise.all(ARTEFACT_IDS.map((id) => entityOrFallback(`artefact_${id}`, fallback.artefacts[id]!).then((t) => [id, t] as const))),
@@ -962,6 +981,10 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     units: { ...unitsFinales, ...Object.fromEntries(barbareUnits) },
     cuites,
     cities: { settlement, capital },
+    citiesParEre: {
+      ville: Object.fromEntries(villesParEreChargees) as Record<EraVille, EntityTexture | null>,
+      capitale: Object.fromEntries(capitalesParEreChargees) as Record<EraVille, EntityTexture | null>,
+    },
     villageBarbare,
     hutte,
     artefacts: Object.fromEntries(artefactTextures) as Record<string, EntityTexture>,

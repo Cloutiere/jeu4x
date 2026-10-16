@@ -38,6 +38,7 @@
   import type { DetailTooltip } from './bande-ville.js';
   // ICONES-UNITES (décisions Erik 07/10) : mapping pur (D1/D2/D3/D4).
   import { ICONES_UNITES, geometrieBarre, iconeBannierePour, modeGarnison, nomIconeBatiment, nomIconeMerveille, nomIconeUnite, typeBaseIcone } from './icones-unites.js';
+  import { cleSpriteVille, ERRES_VILLE, type EraVille } from './sprites-villes.js';
   import { logosNation, nationDe } from '../nations.js';
   import { coutItem, fileEffective, nomItem } from '../fileProduction.js';
   import { iconeCommerceRendement } from './rendements.js';
@@ -385,6 +386,9 @@
   const resourceSprites = new Map<string, Sprite>();
   const unitSprites = new Map<string, Container>();
   const citySprites = new Map<string, Container>();
+  // ASSETS-VILLES-ERRES : clé (type × ère) du sprite posé par ville — le
+  // rebuild à EraChanged compare cette clé (jamais par frame).
+  const clesSpritesVilles = new Map<string, string>();
   // BANDE-VILLE (retour Erik 08/10) : bannières INDÉPENDANTES de la ville,
   // posées à zIndex -94 (au-dessus du cadre jaune de survol -95, sous
   // l'anneau -90 et les unités) — suivent la ville (position, contenu).
@@ -1099,9 +1103,28 @@
     for (const city of Object.values(state.cities)) {
       if (!scene.visible.has(tileKeyOf(city))) continue;
       seenCities.add(city.id);
+      // ASSETS-VILLES-ERRES (D2) : le sprite suit l'ÈRE COURANTE du
+      // propriétaire — si la clé (type × ère) change (EraChanged, transition
+      // au tour suivant), le conteneur est reconstruit proprement et ses
+      // copies couture détruites (recréées par gererCopies avec le même
+      // builder). Jamais par frame : un seul test Map par ville et rebuild.
+      const era = eraDeProprietaire(state.players[city.owner]);
+      const cleSprite = cleSpriteVille(city.capital, era);
       let c = citySprites.get(city.id);
+      if (c && clesSpritesVilles.get(city.id) !== cleSprite) {
+        c.destroy({ children: true });
+        citySprites.delete(city.id);
+        for (const [ck, cp] of [...cityCopies]) {
+          if (ck.startsWith(`${city.id}@`)) {
+            cp.destroy({ children: true });
+            cityCopies.delete(ck);
+          }
+        }
+        c = undefined;
+      }
+      clesSpritesVilles.set(city.id, cleSprite);
       if (!c) {
-        c = buildCityContainer(city.id, city.capital, city.owner);
+        c = buildCityContainer(city.id, city.capital, city.owner, era);
         c.zIndex = -100; // RETOUR ERIK 28/09 (GP-ART) : villes, huttes et artefacts
         // sont sur la COUCHE TUILE (comme le village barbare) — tout ce qui est
         // posé sur la tuile ou en dessous se superpose à eux.
@@ -1255,7 +1278,7 @@
       if (prodEta.text !== texteEta) prodEta.text = texteEta;
       // CARTE-RONDE T2 (D2) : copie au voisinage de la couture (ville ET sa
       // bannière indépendante — même origine, même traitement).
-      gererCopies(cityCopies, c, city.id, () => buildCityContainer(city.id, city.capital, city.owner), vusCopiesVilles);
+      gererCopies(cityCopies, c, city.id, () => buildCityContainer(city.id, city.capital, city.owner, eraDeProprietaire(state.players[city.owner])), vusCopiesVilles);
       gererCopies(bandesCopies, conteneurBande, city.id, () => buildBandeContainer(city.id, city.capital, city.name ?? city.id), vusCopiesBandes);
     }
     for (const [id, b] of bandesSprites) {
@@ -1270,6 +1293,7 @@
       if (!seenCities.has(id)) {
         c.destroy({ children: true });
         citySprites.delete(id);
+        clesSpritesVilles.delete(id);
       }
     }
     prunerCopies(cityCopies, vusCopiesVilles);
@@ -1562,12 +1586,22 @@
     return c;
   }
 
-  function buildCityContainer(cityId: string, capital: boolean, owner: string): Container {
+  /** ASSETS-VILLES-ERRES (D2) : ère COURANTE du propriétaire (R-147, champ
+   *  `era` de l'état filtré — repli « ancienne » comme le moteur). */
+  function eraDeProprietaire(p: { era?: string } | undefined): EraVille | undefined {
+    return ERRES_VILLE.includes(p?.era as EraVille) ? (p!.era as EraVille) : undefined;
+  }
+
+  function buildCityContainer(cityId: string, capital: boolean, owner: string, era?: EraVille): Container {
     const c = new Container();
-    // NEW-VILLES (Erik 27/09) : art peint UNE version (toutes époques/joueurs —
-    // le contour de tuile porte la couleur) : hexagone complet ancré au sommet
-    // bas de la tuile (+64), pas de calque teinté (accent = repli base).
-    const tex = capital ? textures!.cities.capital : textures!.cities.settlement;
+    // ASSETS-VILLES-ERRES (Erik 15/10) : sprite 4K par (type, ère) — UNE image
+    // pour toutes les nations (D1, le joueur se lit sur la bannière et les
+    // frontières) ; l'ère est celle du PROPRIÉTAIRE (D2). Repli D3 : PNG
+    // d'ère absent → art 27/09 (ville_settlement/ville_capitale), jamais de
+    // trou. Ancrage inchangé (bas de la tuile +64, échelle 0.5 — les 448×512
+    // cuits affichent le calibre de l'art 27/09 ; 🔶 D4 à l'œil Erik).
+    const parEre = capital ? textures!.citiesParEre.capitale : textures!.citiesParEre.ville;
+    const tex = (era && parEre[era]) || (capital ? textures!.cities.capital : textures!.cities.settlement);
     const base = new Sprite(tex.base);
     base.label = 'base';
     base.anchor.set(0.5, 1);

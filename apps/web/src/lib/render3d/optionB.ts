@@ -72,6 +72,10 @@ function texturesDeSecours(): GameTextures {
     cuites: {},
     units: { guerrier: entite },
     cities: { settlement: { base: corpsVille, accent: accentVille }, capital: { base: corpsVille, accent: accentVille } },
+    citiesParEre: {
+      ville: { ancienne: null, medievale: null, industrielle: null, moderne: null },
+      capitale: { ancienne: null, medievale: null, industrielle: null, moderne: null },
+    },
     villageBarbare: entite,
     hutte: entite,
     artefacts: {},
