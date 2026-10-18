@@ -8,7 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FACES_NATIVES, faceDroiteParDefaut, flipUnite } from '../src/lib/render/orientation-unites.js';
+import { FACES_NATIVES, faceDroiteParDefaut, flipUnite, faceGaucheAffichee } from '../src/lib/render/orientation-unites.js';
+import { directionOrientante } from '@game/rules';
 
 const unitsJson = JSON.parse(
   readFileSync(fileURLToPath(new URL('../../../packages/rules/src/data/units.json', import.meta.url)), 'utf8'),
@@ -47,5 +48,32 @@ describe('FACES_NATIVES · table D3', () => {
     // Champ absent (création, reprise d'ancienne partie) = droite.
     expect(flipUnite('canon', undefined)).toBe(true);
     expect(flipUnite('croiseur', undefined)).toBe(false);
+  });
+});
+
+describe('faceGaucheAffichee · orientation DÈS LA PLANIFICATION (retour Erik 18/10)', () => {
+  const W = 40;
+  const unit = { q: 5, r: 5, faceGauche: undefined };
+
+  it('ordre programmé vers l\'Est → droite IMMÉDIATEMENT (avant résolution)', () => {
+    expect(faceGaucheAffichee(unit, [{ q: 6, r: 5 }], W, directionOrientante)).toBe(false);
+  });
+
+  it('ordre programmé vers l\'Ouest → gauche IMMÉDIATEMENT', () => {
+    expect(faceGaucheAffichee(unit, [{ q: 4, r: 5 }], W, directionOrientante)).toBe(true);
+  });
+
+  it('le PREMIER pas du chemin fait foi (multi-cases)', () => {
+    expect(faceGaucheAffichee(unit, [{ q: 5, r: 4 }, { q: 4, r: 4 }], W, directionOrientante)).toBe(true);
+  });
+
+  it('sans ordre (annulé, consommé) : retour à l\'état résolu', () => {
+    expect(faceGaucheAffichee({ q: 5, r: 5, faceGauche: true }, null, W, directionOrientante)).toBe(true);
+    expect(faceGaucheAffichee({ q: 5, r: 5, faceGauche: true }, [], W, directionOrientante)).toBe(true);
+  });
+
+  it('chemin tronqué par le fog (case inconnue) : orientation du premier pas VISIBLE', () => {
+    // Le chemin de l'aperçu est tronqué — son premier pas reste un voisin.
+    expect(faceGaucheAffichee(unit, [{ q: 6, r: 4 }], W, directionOrientante)).toBe(false);
   });
 });

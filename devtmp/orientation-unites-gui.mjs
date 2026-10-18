@@ -219,8 +219,8 @@ const token = await login(`ErikOrient${STAMP}`);
 tokenGlobal = token;
 
 let echecs = [];
-// Table D3 : guerrier = art natif à GAUCHE → « à droite » = flip (scale.x < 0).
-const signeAttendu = (fg) => (fg === true ? 1 : -1);
+// Table D3 (rév. Erik 18/10) : guerrier = art natif à DROITE → faceGauche = flip.
+const signeAttendu = (fg) => (fg === true ? -1 : 1);
 const assert = (ok, label) => {
   if (ok) console.log(`  ✓ ${label}`);
   else { console.log(`  🔴 ${label}`); echecs.push(label); }
@@ -253,6 +253,7 @@ page.on('console', (m) => { if (m.type() === 'error') console.log('[console]', m
 
 // ---- t1 : début de partie — le guerrier regarde à DROITE (champ absent) ------
 let w1 = null;
+let w2 = null;
 {
   const stG = await tourJusqua(code, (s) => Object.values(s.units).some((u) => u.owner === MOI && u.type === 'guerrier'), 30, 'guerrier produit', { kind: 'unit', id: 'guerrier' });
   w1 = Object.values(stG.units).find((u) => u.owner === MOI && u.type === 'guerrier' && !u.aboard);
@@ -327,8 +328,8 @@ let w1 = null;
   }
   const e = await etatUnite(page, w1.id);
   console.log(`[t3] état : ${JSON.stringify(e)}`);
-  assert(!!e && e.base && e.base.scaleX > 0, 't3 — rendu : regarde à GAUCHE = art NATIF (scale.x > 0, pas de flip)');
-  if (e?.accent) assert(e.accent.scaleX > 0, 't3 — calque accent cohérent');
+  assert(!!e && e.base && Math.sign(e.base.scaleX) === signeAttendu(true), 't3 — rendu : regarde à GAUCHE (flip, art natif droite → scale.x < 0)');
+  if (e?.accent) assert(Math.sign(e.accent.scaleX) === signeAttendu(true), 't3 — calque accent cohérent');
   await capture(page, '3-pas-ouest-flip');
 }
 
@@ -347,7 +348,7 @@ let w1 = null;
     vu = (await etatUnite(page, w1.id))?.base?.visible;
   }
   const e = await etatUnite(page, w1.id);
-  assert(!!e && e.base && e.base.scaleX > 0, 't4 — rendu toujours à gauche après un tour sans mouvement');
+  assert(!!e && e.base && Math.sign(e.base.scaleX) === signeAttendu(true), 't4 — rendu toujours à gauche après un tour sans mouvement');
   await capture(page, '4-persistance');
 }
 
@@ -355,7 +356,7 @@ let w1 = null;
 {
   const st = await tourJusqua(code, (s) => Object.values(s.units).filter((x) => x.owner === MOI && x.type === 'guerrier' && !x.aboard).length >= 2, 50, '2e guerrier', { kind: 'unit', id: 'guerrier' });
   const deux = Object.values(st.units).filter((x) => x.owner === MOI && x.type === 'guerrier' && !x.aboard);
-  const w2 = deux.find((x) => x.id !== w1.id);
+  w2 = deux.find((x) => x.id !== w1.id);
   // w2 reste en ville (créé = droite) ; w1 (gauche) y rentre — pile mixte.
   if (!(w2.q === cap.q && w2.r === cap.r)) {
     await assurerSocket(code);
@@ -371,7 +372,7 @@ let w1 = null;
   const f1 = st2.units[w1.id].faceGauche;
   const f2 = st2.units[w2.id].faceGauche;
   console.log(`[t5] pile : w1 faceGauche=${f1}, w2 faceGauche=${f2}`);
-  assert(f1 === true && (f2 === undefined || f2 === false), 't5 — pile à orientations MIXTES (une à gauche, une à droite)');
+  assert(f1 === true && (f2 === undefined || f2 === false), 't5 — pile à orientations MIXTES (une à gauche, une à droite) — w2 (droite, natif droite) ne flip PAS');
   await recentrer(page, cap);
   const e1 = await etatUnite(page, w1.id);
   const e2 = await etatUnite(page, w2.id);
@@ -389,6 +390,35 @@ let w1 = null;
   await capture(page, '5-pile-mixte');
 }
 
+// ---- t6 : FLIP DÈS LA PLANIFICATION (clic droit, AVANT fin de tour) ----------
+{
+  await recentrer(page, cap);
+  // sélectionner w2 en ville (alternance R-2 : sprite complet = sélectionné)
+  let sel = null;
+  for (let i = 0; i < 3 && !sel; i++) {
+    await clicCase(page, cap);
+    const e2 = await etatUnite(page, w2.id);
+    sel = e2?.base?.visible === true;
+  }
+  assert(!!sel, 't6 — w2 SÉLECTIONNÉ (sprite complet en ville)');
+  const st = (await dumpFull(code)).state;
+  const cible = [{ q: cap.q - 1, r: cap.r }, { q: cap.q - 1, r: cap.r + 1 }, { q: cap.q, r: cap.r + 1 }]
+    .find((h) => { const t = st.map[`${h.q},${h.r}`]; return t && !['eau', 'ocean', 'montagne'].includes(t.terrain) && !Object.values(st.cities).some((c) => c.q === h.q && c.r === h.r); });
+  assert(!!cible, `t6 — case libre à l'Ouest pour programmer (${cible ? `${cible.q},${cible.r}` : 'aucune'})`);
+  const pc = await page.evaluate((h) => window.__gameCanvas.hexToPage(h), { q: cible.q, r: cible.r });
+  await page.mouse.click(pc.x, pc.y, { button: 'right' });
+  await sleep(1200); // aperçu locale, AUCUNE résolution
+  const stMid = (await dumpFull(code)).state;
+  assert(stMid.units[w2.id].faceGauche === undefined, 't6 — état moteur INTACT avant résolution (faceGauche absent)');
+  const e = await etatUnite(page, w2.id);
+  console.log(`[t6] aperçu : ${JSON.stringify(e)}`);
+  // w2 (créé = droite, art natif droite → PAS de flip, signe +) ; programmé
+  // vers l'Ouest = gauche → flip → signe − (inversion attendue).
+  const avant = signeAttendu(undefined); // +1 (droite)
+  const vu = e?.base?.visible ? e.base.scaleX : e?.iconeImg?.scaleX;
+  assert(vu !== null && vu !== undefined && Math.sign(vu) !== avant, 't6 — unité retournée DÈS le clic droit (aperçu, sans résolution)');
+  await capture(page, '6-flip-planification');
+}
 console.log('================================');
 console.log('🔶 non capturé : couture (copies synchronisées par syncCopie — largeur signée) et relecture (l\'orientation voyage dans l\'état, même rendu) — à l\'œil en ligne (REPORT)');
 if (echecs.length > 0) {

@@ -19,6 +19,11 @@ Mission exécutée le 18/10/2026 (handoff du 17/10, décisions D1-D5 d'Erik). **
 - **Tests** : `packages/rules/tests/orientation-unites.test.ts` (12 — helper, wrap couture, Est/Ouest, premier-pas-seulement, gel repris, immobile, dépose) ; `apps/web/tests/orientation-unites.test.ts` (4 — table, couverture, flip). Suites : règles **vertes** (suite complète), web **671/671**, svelte-check **0**.
 - **Captures GUI** (devtmp/orientation-unites-gui.mjs, ports wrangler 8787 — le proxy Vite est FIGÉ sur 8787 dans vite.config.ts, pas de port dédié possible sans toucher la config) : `dev-logs/captures-orientation-unites/` — 1-début-droite, 2-pas-est, 3-pas-ouest-flip, 4-persistance, 5-pile-mixte. **Tous les asserts passent** (état moteur + signe `scale.x` des sprites/icônes). gitignorées comme les captures précédentes.
 
+## Révisions
+
+- **6199b54** (verdict Erik, capture prod 18/10) : guerrier art natif à DROITE (regard + hache) — critère D3 = le REGARD, pas le côté de l'arme.
+- **Aperçu immédiat** (retour Erik 18/10) : l'orientation se met à jour **dès la planification** du mouvement (clic droit), pas seulement à la résolution — `faceGaucheAffichee(unit, cheminPrevu, largeur, directionOrientante)` (pur, testé) branché sur `scenePreviews` dans GameCanvas : premier pas prévu → côté, sinon état résolu. L'état moteur reste intact avant résolution (assert GUI t6). 5 nouveaux tests (web 676/676) ; e2e 17/17 asserts, capture `6-flip-planification`.
+
 ## 🔶 À l'œil Erik
 
 1. **Table D3** (ci-dessus) — corriger `FACES_NATIVES` sans code si une face est mal jugée.

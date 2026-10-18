@@ -9,8 +9,7 @@
  * devtmp/orientation-planche-unites.png) — 🔶 CALIBRAGE À L'ŒIL D'ERIK :
  * corriger ici, sans code.
  */
-export const FACES_NATIVES: Readonly<Record<string, boolean>> = Object.freeze({
-  // Personnages de face / profil gauche
+export const FACES_NATIVES: Readonly<Record<string, boolean>> = Object.freeze({  // Personnages de face / profil gauche
   // (guerrier : art natif à DROITE — regard + hache à droite, verdict Erik
   // 18/10 sur prod ; classé à gauche par erreur au premier passage de table.)
   colon: false,
@@ -57,4 +56,24 @@ export function faceDroiteParDefaut(type: string): boolean {
  */
 export function flipUnite(type: string, faceGauche: boolean | undefined): boolean {
   return (faceGauche === true) === faceDroiteParDefaut(type);
+}
+
+/**
+ * Orientation AFFICHÉE d'une unité : si un mouvement est PROGRAMMÉ (aperçu
+ * optimiste — scenePreviews), elle se tourne dès la planification vers le
+ * côté du PREMIER pas prévu (miroir du moteur : `faceGauche` n'est écrit qu'à
+ * la résolution) ; sans ordre de mouvement, l'état fait foi. Pur, testé.
+ */
+export function faceGaucheAffichee(
+  unit: { q: number; r: number; faceGauche?: boolean },
+  cheminPrevu: readonly { q: number; r: number }[] | null | undefined,
+  largeur: number,
+  directionOrientante: (o: { q: number; r: number }, d: { q: number; r: number }, l: number) => 'gauche' | 'droite' | null,
+): boolean {
+  const premierPas = cheminPrevu?.[0];
+  if (premierPas) {
+    const o = directionOrientante({ q: unit.q, r: unit.r }, premierPas, largeur);
+    if (o) return o === 'gauche';
+  }
+  return unit.faceGauche === true;
 }

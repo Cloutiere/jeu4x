@@ -11,7 +11,7 @@
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture, TextStyleOptions } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, allKnownTechs, previewPrograms, fondeAFinDuChemin, fondateursDe, colOf, colRowToHex, hexesWithinRadiusW, normalizeHexW, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius, economieVilleDetail } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, allKnownTechs, previewPrograms, directionOrientante, fondeAFinDuChemin, fondateursDe, colOf, colRowToHex, hexesWithinRadiusW, normalizeHexW, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius, economieVilleDetail } from '@game/rules';
   import type { CityId, GameState, Hex, ProgramPreview } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -38,7 +38,7 @@
   import type { DetailTooltip } from './bande-ville.js';
   // ICONES-UNITES (décisions Erik 07/10) : mapping pur (D1/D2/D3/D4).
   import { ICONES_UNITES, geometrieBarre, iconeBannierePour, modeGarnison, nomIconeBatiment, nomIconeMerveille, nomIconeUnite, typeBaseIcone } from './icones-unites.js';
-  import { flipUnite } from './orientation-unites.js';
+  import { flipUnite, faceGaucheAffichee } from './orientation-unites.js';
   import { cleSpriteVille, ERRES_VILLE, type EraVille } from './sprites-villes.js';
   import { logosNation, nationDe } from '../nations.js';
   import { coutItem, fileEffective, nomItem } from '../fileProduction.js';
@@ -914,6 +914,10 @@
     // par frame. Annulation comme consommation font tomber l'aperçu, donc
     // l'état visuel, sans aucune purge dédiée (miroir du moteur).
     const fondateurs = scene.myId ? fondateursDe(scenePreviews, scene.myId) : new Set<string>();
+    // ORIENTATION-UNITES (retour Erik 18/10) : l'unité se tourne DÈS LA
+    // PLANIFICATION — chemin prévu de l'aperçu (Move/gelé compris), avant
+    // résolution ; sans ordre, l'état fait foi.
+    const cheminsPrevus = new Map(scenePreviews.filter((p) => p.path.length > 0).map((p) => [p.unitId, p.path]));
     const seenUnits = new Set<string>();
     // MENU-VILLE (retour d'Erik) : en vue ville, les UNITÉS disparaissent —
     // concentration sur la gestion de la ville ; elles reviennent en vue carte.
@@ -978,7 +982,7 @@
       // icône compacte garnison — icône quasi symétrique : retournée aussi,
       // consigné) ; barres PV, badges et écus restent non mirroir. Zéro asset
       // miroir ; copies couture via syncCopie (largeur signée).
-      const retourne = flipUnite(unit.type, unit.faceGauche);
+      const retourne = flipUnite(unit.type, faceGaucheAffichee(unit, cheminsPrevus.get(unit.id), scene.state!.mapWidth, directionOrientante));
       const echelleArt = echellesUnites.get(unit.id) ?? 1;
       if (baseU) baseU.scale.x = retourne ? -echelleArt : echelleArt;
       if (accentU) accentU.scale.x = retourne ? -echelleArt : echelleArt;
