@@ -28,6 +28,7 @@
   // copies au voisinage de la couture, dépliage des chemins, picking
   // canonique. PURE (wrap.ts, testée) — le rendu n'en est qu'un consommateur.
   import { copiesDe, copiesPolyline, copieLaPlusProche, centreMondeDe, deplierPoints, hexCanoniqueSousPoint, periodeHorizontale, pointProcheDe } from './wrap.js';
+  import { STYLE_PREVIEW_VIVANTE, coupeTourCourant, previewVivanteAutorisee } from './preview-vivante.js';
   import { arrowHeadPoints, dashSegments, segmentsOf, ZINDEX_FLECHE } from './arrows.js';
   import type { Point } from './arrows.js';
   import { BADGE_FONDATION, etatFondationColon } from './fondation.js';
@@ -3655,10 +3656,20 @@
     hoverUnitId = null;
     chemins3dHover = [];
     const state = scene.state;
-    const editable = !!state && !!scene.view && ordersEditable(scene.view) && !playback.active;
+    // PREVIEW-VIVANTE (D5) : les exclusions passent par le prédicat pur.
+    const editable = !!state && !!scene.view && ordersEditable(scene.view);
     const selectedId = scene.ui.selectedUnitId;
-    const unit = editable && selectedId ? state!.units[selectedId] : undefined;
-    if (unit && unit.owner === scene.myId) {
+    const unit = selectedId ? state?.units[selectedId] : undefined;
+    const amie = !!unit && unit.owner === scene.myId;
+    if (
+      amie &&
+      previewVivanteAutorisee({
+        editable,
+        playback: playback.active,
+        vueVille: vueVilleActif(),
+        uniteAmie: amie,
+      })
+    ) {
       const path = hoverCache.chemin(state!, unit, hex, destinationsEmbarquement(state!, scene.view!.orders, unit.owner)); // unit = position moteur (Hex structurel)
       // Destination déjà programmée pour cette unité : la flèche d'ordre
       // solide la montre — pas de doublon pointillé par-dessus.
@@ -3675,10 +3686,13 @@
     else dessinerSurvol();
   }
 
-  /** Survol : dessin 2D — RAFFINEMENT-MOUVEMENT v2 (Erik 12/09) : au simple
-   *  survol, AUCUNE flèche — seule la tuile visée reste ENTOURÉE. La flèche
-   *  (pointillée, pointes par case, badges de tours) n'apparaît que pendant
-   *  le CLIC DROIT MAINTENU ; le relâchement confirme l'ordre. */
+  /** Survol : dessin 2D — PREVIEW-VIVANTE (décisions Erik 19/10) : la
+   *  préview COMPLÈTE du chemin de clic droit s'affiche au simple survol
+   *  (MÊME calcul que la préview maintenue — recalculerSurvol, aucun règle
+   *  nouvelle) et suit le curseur. Rendu AAA (D3) : contour sombre, tour
+   *  courant or plein, suite du trajet discrète, pointes par case, badges de
+   *  tours, anneau de destination. Le relâchement du clic droit confirme
+   *  l'ordre (D2 — geste inchangé, la préview n'intercepte AUCUN clic). */
   function dessinerSurvol(): void {
     if (hoverG) {
       hoverG.destroy();
@@ -3714,27 +3728,52 @@
       anneau.position.set(cibleP.x + dx, cibleP.y);
       cont.addChild(anneau);
     });
-    if (droitMaintenu) {
-      const P = copieFen.P;
-      const points = deplierPoints([hexToPixel(unit, HEX_SIZE), ...hoverPath.map((h) => hexToPixel(h, HEX_SIZE))], P);
-      for (const k of copiesPolyline(points, copieFen.vx0, copieFen.vx1, P)) {
-        const pts = k === 0 ? points : points.map((p) => ({ x: p.x + k * P, y: p.y }));
-        const segs = segmentsOf(pts);
-        if (segs.length === 0) continue;
-        const gr = new Graphics();
-        for (const [a, b] of segs.flatMap(([a, b]) => dashSegments(a, b))) gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
-        gr.stroke({ width: 4, color: COULEUR_SURVOL, alpha: ALPHA_SURVOL });
-        // Petite pointe sur chaque case traversée + grande pointe d'arrivée.
-        for (let i = 1; i < pts.length - 1; i++) {
-          gr.poly(arrowHeadPoints(pts[i - 1]!, pts[i]!, 16).flatMap((p) => [p.x, p.y])).fill({ color: COULEUR_SURVOL, alpha: Math.min(1, ALPHA_SURVOL + 0.1) });
-        }
-        const [lastFrom, lastTo] = segs[segs.length - 1]!;
-        gr.poly(arrowHeadPoints(lastFrom, lastTo).flatMap((p) => [p.x, p.y])).fill({ color: COULEUR_SURVOL, alpha: Math.min(1, ALPHA_SURVOL + 0.1) });
-        cont.addChild(gr);
+    // PREVIEW-VIVANTE (D1/D3) : préview complète au survol — style AAA dans
+    // STYLE_PREVIEW_VIVANTE (bloc pur, 🔶 calibrage à l'œil sans code).
+    const S = STYLE_PREVIEW_VIVANTE;
+    const P = copieFen.P;
+    const mpSurvol = unitType(unit.type).movement;
+    const { courant } = coupeTourCourant(hoverPath, mpSurvol);
+    const points = deplierPoints([hexToPixel(unit, HEX_SIZE), ...hoverPath.map((h) => hexToPixel(h, HEX_SIZE))], P);
+    const finCourant = courant.length; // dernier point du tour courant (points[0] = origine)
+    for (const k of copiesPolyline(points, copieFen.vx0, copieFen.vx1, P)) {
+      const pts = k === 0 ? points : points.map((p) => ({ x: p.x + k * P, y: p.y }));
+      const gr = new Graphics();
+      // Tour courant : contour sombre puis or PLEIN (lisibilité sur tout terrain).
+      const segsCourant = segmentsOf(pts.slice(0, finCourant + 1));
+      for (const passe of [
+        { width: S.largeurTourCourant + S.surplusContour * 2, color: S.couleurContour, alpha: S.alphaContour },
+        { width: S.largeurTourCourant, color: S.couleurTourCourant, alpha: S.alphaTourCourant },
+      ]) {
+        for (const [a, b] of segsCourant) gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
+        gr.stroke(passe);
       }
-      // Préview multi-tours : badges (1), (2)… (badgeTour wrap lui-même.)
-      for (const j of jalonsDeTours(hoverPath, unitType(unit.type).movement)) badgeTour(cont, j.hex, j.tour, COULEUR_SURVOL);
+      // Suite du trajet (tours suivants) : tirets discrets.
+      const segsSuite = segmentsOf(pts.slice(finCourant));
+      if (segsSuite.length > 0) {
+        for (const [a, b] of segsSuite.flatMap(([a, b]) => dashSegments(a, b, S.tiretSuite, S.trouSuite)))
+          gr.moveTo(a.x, a.y).lineTo(b.x, b.y);
+        gr.stroke({ width: S.largeurSuite, color: S.couleurSuite, alpha: S.alphaSuite });
+      }
+      // Pointes : petite sur chaque case traversée + grande pointe d'arrivée.
+      for (let i = 1; i < pts.length - 1; i++) {
+        gr.poly(arrowHeadPoints(pts[i - 1]!, pts[i]!, S.taillePointeCase).flatMap((p) => [p.x, p.y])).fill({
+          color: S.couleurPointe,
+          alpha: S.alphaTourCourant,
+        });
+      }
+      const segsTous = segmentsOf(pts);
+      if (segsTous.length > 0) {
+        const [lastFrom, lastTo] = segsTous[segsTous.length - 1]!;
+        gr.poly(arrowHeadPoints(lastFrom, lastTo, S.taillePointeArrivee).flatMap((p) => [p.x, p.y])).fill({
+          color: S.couleurPointe,
+          alpha: S.alphaTourCourant,
+        });
+      }
+      cont.addChild(gr);
     }
+    // Préview multi-tours : badges (1), (2)… (badgeTour wrap lui-même.)
+    for (const j of jalonsDeTours(hoverPath, mpSurvol)) badgeTour(cont, j.hex, j.tour, S.couleurBadge);
     hoverG = cont;
     flecheParent().addChild(cont);
   }
@@ -3748,22 +3787,34 @@
       return;
     }
     if (hoverHex && hoverHex.q === hex.q && hoverHex.r === hex.r) {
-      // Même case : le seul changement possible est l'état maintenu.
-      if (hoverG || (hoverPath && droitMaintenu)) dessinerSurvol();
+      // Même case : rien ne change (préview passive, D2 — zéro redraw/frame).
+      if (!hoverG && hoverPath) dessinerSurvol();
       return;
     }
     hoverHex = hex;
     recalculerSurvol(hex);
   }
 
-  /** Survol : suivi du curseur (pointermove, hors drag/playback). */
+  /** Survol : suivi du curseur (pointermove, hors drag/playback). D4 : le
+   *  recalcul est throttlé à UNE décision par frame (rAF) — les mousemove
+   *  intermédiaires ne font que rafraîchir la dernière position du curseur. */
+  let survolEnAttente: { x: number; y: number } | null = null;
+  let survolPlanifie = false;
   function mettreAJourSurvol(e: PointerEvent): void {
     if (!app) return;
     if (dragging || playback.active) {
       if (hoverHex) effacerSurvol();
       return;
     }
-    survolALa(canvasPos(e));
+    survolEnAttente = canvasPos(e);
+    if (survolPlanifie) return;
+    survolPlanifie = true;
+    requestAnimationFrame(() => {
+      survolPlanifie = false;
+      const p = survolEnAttente;
+      survolEnAttente = null;
+      if (p && !dragging && !playback.active) survolALa(p);
+    });
   }
 
   /** R-161 (D6) : troncature fog d'un chemin gelé (affichage pointillé) —
