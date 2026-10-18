@@ -11,7 +11,8 @@
  */
 export const FACES_NATIVES: Readonly<Record<string, boolean>> = Object.freeze({
   // Personnages de face / profil gauche
-  guerrier: false,
+  // (guerrier : art natif à DROITE — regard + hache à droite, verdict Erik
+  // 18/10 sur prod ; classé à gauche par erreur au premier passage de table.)
   colon: false,
   piquier: false,
   espion: false,
@@ -24,6 +25,7 @@ export const FACES_NATIVES: Readonly<Record<string, boolean>> = Object.freeze({
   icbm: false,
   batisseur: false,
   // Profils droits
+  guerrier: true,
   artiste_penseur: true,
   archer: true,
   cavalier: true,
