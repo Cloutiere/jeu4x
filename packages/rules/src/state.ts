@@ -195,6 +195,15 @@ export interface Unit {
    * GreatPersonSpawned, schemaVersion inchangée).
    */
   arrivanteSurCase?: boolean;
+  /**
+   * ORIENTATION-UNITES · D1 (décision d'Erik du 17/10) : l'unité regarde à
+   * GAUCHE — mis à jour au premier pas de chaque mouvement résolu (direction
+   * origine → premier pas : 3 voisins à gauche ↔ 3 à droite) ; à bord, l'unité
+   * suit l'orientation de son transport. Création/spawn/début de partie =
+   * droite (champ ABSENT — défaut). Affichage seulement, zéro gameplay (D4).
+   * Champ optionnel : aucune migration, schemaVersion inchangée (D5).
+   */
+  faceGauche?: boolean;
 }
 
 export interface CityProduction {

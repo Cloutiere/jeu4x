@@ -38,6 +38,7 @@
   import type { DetailTooltip } from './bande-ville.js';
   // ICONES-UNITES (décisions Erik 07/10) : mapping pur (D1/D2/D3/D4).
   import { ICONES_UNITES, geometrieBarre, iconeBannierePour, modeGarnison, nomIconeBatiment, nomIconeMerveille, nomIconeUnite, typeBaseIcone } from './icones-unites.js';
+  import { flipUnite } from './orientation-unites.js';
   import { cleSpriteVille, ERRES_VILLE, type EraVille } from './sprites-villes.js';
   import { logosNation, nationDe } from '../nations.js';
   import { coutItem, fileEffective, nomItem } from '../fileProduction.js';
@@ -385,6 +386,8 @@
   let selectionPrecedente: string | null = null;
   const resourceSprites = new Map<string, Sprite>();
   const unitSprites = new Map<string, Container>();
+  /** ORIENTATION-UNITES : échelle intrinsèque par unité (flip au rendu). */
+  const echellesUnites = new Map<string, number>();
   const citySprites = new Map<string, Container>();
   // ASSETS-VILLES-ERRES : clé (type × ère) du sprite posé par ville — le
   // rebuild à EraChanged compare cette clé (jamais par frame).
@@ -966,10 +969,28 @@
         index: pileCase.index,
         total: pileCase.total,
       });
-      const baseU = c.getChildByLabel('base');
-      const accentU = c.getChildByLabel('accent');
+      const baseU = c.getChildByLabel('base') as Sprite | null;
+      const accentU = c.getChildByLabel('accent') as Sprite | null;
       if (baseU) baseU.visible = !en3d && !fondation.art && !garnison.actif;
       if (accentU) accentU.visible = !en3d && !fondation.art && !garnison.actif;
+      // ORIENTATION-UNITES · D2 : retournement AU RENDU (scale.x = −1) selon
+      // `faceGauche` de l'état — sprites d'art SEULS (base/accent/fondation,
+      // icône compacte garnison — icône quasi symétrique : retournée aussi,
+      // consigné) ; barres PV, badges et écus restent non mirroir. Zéro asset
+      // miroir ; copies couture via syncCopie (largeur signée).
+      const retourne = flipUnite(unit.type, unit.faceGauche);
+      const echelleArt = echellesUnites.get(unit.id) ?? 1;
+      if (baseU) baseU.scale.x = retourne ? -echelleArt : echelleArt;
+      if (accentU) accentU.scale.x = retourne ? -echelleArt : echelleArt;
+      const fondBaseF = c.getChildByLabel('fondBase') as Sprite | null;
+      const fondAccentF = c.getChildByLabel('fondAccent') as Sprite | null;
+      if (fondBaseF) fondBaseF.scale.x = retourne ? -Math.abs(fondBaseF.scale.x) : Math.abs(fondBaseF.scale.x);
+      if (fondAccentF) fondAccentF.scale.x = retourne ? -Math.abs(fondAccentF.scale.x) : Math.abs(fondAccentF.scale.x);
+      const iconeImgF = c.getChildByLabel('iconeImg') as Sprite | null;
+      if (iconeImgF) {
+        const es = ICONES_UNITES.tailleIcone / Math.max(1, iconeImgF.texture?.width ?? 1, iconeImgF.texture?.height ?? 1);
+        iconeImgF.scale.x = retourne ? -es : es;
+      }
       const fondBase = c.getChildByLabel('fondBase') as Sprite | null;
       const fondAccent = c.getChildByLabel('fondAccent') as Sprite | null;
       if (fondBase) fondBase.visible = fondation.art;
@@ -1076,6 +1097,7 @@
       if (!seenUnits.has(id)) {
         c.destroy({ children: true });
         unitSprites.delete(id);
+        echellesUnites.delete(id);
       }
     }
     prunerCopies(unitCopies, vusCopiesUnits);
@@ -1425,6 +1447,7 @@
     // `hauteurUnitePx(HEX_SIZE)` × ajustement du type (calibre = guerrier
     // Recraft), quel que soit le ratio du PNG. Ancrage PIEDS (0.5,1)+PIEDS_Y.
     const echelle = echelleUnite(type, tex.base.height, HEX_SIZE);
+    echellesUnites.set(unitId, echelle); // ORIENTATION-UNITES : flip au rendu
     // Sommet du sprite dans le repère du conteneur (barres/écus accrochés
     // relativement — l'ancien -158/-178 supposait le sprite painter 320 px).
     const sommet = PIEDS_Y - tex.base.height * echelle;

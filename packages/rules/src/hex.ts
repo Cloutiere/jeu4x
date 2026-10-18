@@ -156,6 +156,31 @@ export function wrapColDelta(dc: number, width: number): number {
   return m > width / 2 ? m - width : m;
 }
 
+// ---------------------------------------------------------------------------
+// ORIENTATION-UNITES — côté gauche/droite d'un pas de déplacement.
+// Le côté est mesuré en X ÉCRAN (hexToPixel : x ∝ q + r/2, pointy-top) —
+// c'est ce que voit le joueur ; sur le cylindre (CARTE-RONDE T1) le delta
+// est pris au plus court en espace colonne (repli Est↔Ouest, ×2 car mesuré
+// en demi-colonnes).
+// ---------------------------------------------------------------------------
+
+/** Orientation d'un pas : 'gauche' (O/N-O/S-O) ou 'droite' (E/N-E/S-E). */
+export type Orientation = 'gauche' | 'droite';
+
+/**
+ * Côté du pas origine → destination : 'gauche' ou 'droite' pour un VOISIN
+ * (les 6 directions se partagent 3 à gauche ↔ 3 à droite) ; null sinon
+ * (case hors voisinage ou delta vertical pur — pas d'orientation).
+ */
+export function directionOrientante(origine: Hex, destination: Hex, largeur: number = SANS_WRAP): Orientation | null {
+  if (hexDistanceW(origine, destination, largeur) !== 1) return null;
+  // dx en demi-colonnes : 2·Δq + Δr (signe de Δx écran ×2).
+  const dx = 2 * (destination.q - origine.q) + (destination.r - origine.r);
+  const dc = wrapColDelta(dx, 2 * largeur);
+  if (dc === 0) return null;
+  return dc < 0 ? 'gauche' : 'droite';
+}
+
 /**
  * D1 — Normalisation canonique : colonne repliée dans [0, width), rangée
  * intacte. Toute case stockée (unités, villes, ordres, entités) est normalisée.

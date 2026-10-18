@@ -175,6 +175,8 @@ Déclenchée quand **les deux joueurs ont verrouillé** ou à l'**échéance du 
 
 **R-44 · Fusion.** Les cases de rendez-vous `FormArmy` sont traitées en fin de Phase A ; la co-location transitoire n'est légale que pour les 3 membres désignés.
 
+**R-185 · Orientation (ORIENTATION-UNITES, ajouté le 18/10/2026 — décision d'Erik du 17/10).** Chaque unité porte un champ **`faceGauche?: boolean`** (optionnel — absent = regarde à DROITE, défaut de toute création/spawn/reprise d'ancienne partie). Il est mis à jour au **PREMIER pas** de chaque mouvement résolu dans le tour : direction du pas (mesurée en X écran — 3 voisins à gauche O/N-O/S-O ↔ 3 à droite E/N-E/S-E, plus court delta sur le cylindre) → `faceGauche = true/false` ; les pas suivants du même tour ne réorientent pas, le premier pas du tour suivant si. La **dépose navale oriente** (côté du pas de dépose) ; une unité **à bord suit son transport**. Purement AFFICHAGE (retournement au rendu `scale.x = −1`, table des faces natives côté client, aucun asset miroir) — **zéro effet de gameplay**, aucun RNG, `schemaVersion` inchangée.
+
 ## 7. Phase B — Combats & replis
 
 ### 7.1 Généralités

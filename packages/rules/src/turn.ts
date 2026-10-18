@@ -19,6 +19,7 @@ import {
   compareHex,
   hexDistance,
   hexDistanceW,
+  directionOrientante,
   hexesWithinRadius,
   hexesWithinRadiusW,
   inRectangle,
@@ -424,6 +425,12 @@ function tenterDepose(board: Board, transport: Unit): boolean {
     }
     board.steps.set(passager.id, (board.steps.get(passager.id) ?? 0) + 1);
     board.moved.add(passager.id);
+    // ORIENTATION-UNITES · D1 (tranché) : la DÉPOSE oriente — côté du pas de
+    // dépose (transport → case d'arrivée), hors voisinage = pas d'orientation.
+    {
+      const o = directionOrientante(transport, cible, board.st.mapWidth);
+      if (o) passager.faceGauche = o === 'gauche';
+    }
     emit(board, {
       type: 'Disembark',
       unitId: passager.id,
@@ -828,6 +835,17 @@ function moveUnit(board: Board, unit: Unit, to: Hex): void {
   }
   board.steps.set(unit.id, (board.steps.get(unit.id) ?? 0) + 1);
   board.moved.add(unit.id);
+  // ORIENTATION-UNITES · D1 : orientation au PREMIER pas du mouvement de ce
+  // tour (simple, multi-tours repris, attaque entrante) — les pas suivants ne
+  // la changent pas ; au tour suivant, le premier pas réoriente. Zéro RNG,
+  // zéro gameplay (D4/D5). À bord, la cargaison suit son transport (D1).
+  if ((board.steps.get(unit.id) ?? 0) === 1) {
+    const o = directionOrientante(from, to, board.st.mapWidth);
+    if (o) {
+      unit.faceGauche = o === 'gauche';
+      for (const passager of passagersDuTransport(board, unit)) passager.faceGauche = unit.faceGauche;
+    }
+  }
   // EMBARQUEMENT-PROGRAMME · rév. 03/10 : chaque case d'entrée d'un transport
   // rallonge sa route du tour (rendez-vous virtuel des embarquements).
   if (estTransport(unit)) board.routesNavales.get(unit.id)?.push({ ...to });
