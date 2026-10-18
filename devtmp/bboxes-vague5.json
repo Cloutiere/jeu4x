@@ -1,0 +1,1158 @@
+{
+ "piquier": {
+  "avant_h": 251,
+  "avant_w": 179,
+  "target": 502,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     281,
+     9,
+     1505,
+     2021
+    ],
+    "echelle": 0.8257,
+    "contenu": [
+     374,
+     502
+    ],
+    "src": "new_units/new_piquier/piquier_bleu_trsp.png",
+    "mode": "hauteur"
+   },
+   "rouge": {
+    "bbox": [
+     207,
+     0,
+     1633,
+     2039
+    ],
+    "echelle": 0.8817,
+    "contenu": [
+     402,
+     502
+    ],
+    "src": "new_units/new_piquier/piquier_rouge_trsp.png",
+    "mode": "hauteur"
+   },
+   "vert": {
+    "bbox": [
+     279,
+     13,
+     1507,
+     2028
+    ],
+    "echelle": 0.8257,
+    "contenu": [
+     373,
+     502
+    ],
+    "src": "new_units/new_piquier/piquier_vert_trsp.png",
+    "mode": "hauteur"
+   },
+   "jaune": {
+    "bbox": [
+     207,
+     0,
+     1623,
+     2049
+    ],
+    "echelle": 0.872,
+    "contenu": [
+     398,
+     502
+    ],
+    "src": "new_units/new_piquier/piquier_jaune_trsp.png",
+    "mode": "hauteur"
+   },
+   "orange": {
+    "bbox": [
+     127,
+     0,
+     1734,
+     2032
+    ],
+    "echelle": 0.9394,
+    "contenu": [
+     428,
+     502
+    ],
+    "src": "new_units/new_piquier/piquier_orange_trsp.png",
+    "mode": "hauteur"
+   },
+   "ardoise": {
+    "bbox": [
+     247,
+     0,
+     1433,
+     2049
+    ],
+    "echelle": 0.8257,
+    "contenu": [
+     351,
+     502
+    ],
+    "src": "new_units/new_piquier/piquier_ardoise_trsp.png",
+    "mode": "hauteur"
+   }
+  }
+ },
+ "sous_marin": {
+  "avant_h": 135,
+  "avant_w": 234,
+  "target": 270,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     11,
+     11,
+     2035,
+     2006
+    ],
+    "echelle": 0.6007,
+    "contenu": [
+     274,
+     270
+    ],
+    "src": "new_units/new_sousmarin/sous-marin_bleu_trsp.png",
+    "mode": "hauteur"
+   },
+   "rouge": {
+    "bbox": [
+     1,
+     0,
+     2048,
+     2022
+    ],
+    "echelle": 0.5997,
+    "contenu": [
+     273,
+     270
+    ],
+    "src": "new_units/new_sousmarin/sous-marin_rouge_trsp.png",
+    "mode": "hauteur"
+   },
+   "vert": {
+    "bbox": [
+     21,
+     23,
+     1998,
+     1995
+    ],
+    "echelle": 0.593,
+    "contenu": [
+     270,
+     270
+    ],
+    "src": "new_units/new_sousmarin/sous-marin_vert_trsp.png",
+    "mode": "hauteur"
+   },
+   "jaune": {
+    "bbox": [
+     21,
+     19,
+     1997,
+     2009
+    ],
+    "echelle": 0.5886,
+    "contenu": [
+     268,
+     270
+    ],
+    "src": "new_units/new_sousmarin/sous-marin_jaune_trsp.png",
+    "mode": "hauteur"
+   },
+   "orange": {
+    "bbox": [
+     15,
+     17,
+     2017,
+     1993
+    ],
+    "echelle": 0.5992,
+    "contenu": [
+     273,
+     270
+    ],
+    "src": "new_units/new_sousmarin/sous-marin_orange_trsp.png",
+    "mode": "hauteur"
+   },
+   "ardoise": {
+    "bbox": [
+     1,
+     0,
+     2045,
+     2036
+    ],
+    "echelle": 0.5947,
+    "contenu": [
+     271,
+     270
+    ],
+    "src": "new_units/new_sousmarin/sous-marin_ardoise_trsp.png",
+    "mode": "hauteur"
+   }
+  }
+ },
+ "milice": {
+  "avant_h": 205,
+  "avant_w": 141,
+  "target": 410,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     473,
+     19,
+     1521,
+     1999
+    ],
+    "echelle": 0.6841,
+    "contenu": [
+     312,
+     410
+    ],
+    "src": "new_units/new_milice/milice_bleu_trsp.png",
+    "mode": "hauteur"
+   },
+   "rouge": {
+    "bbox": [
+     421,
+     10,
+     1567,
+     2026
+    ],
+    "echelle": 0.6954,
+    "contenu": [
+     317,
+     410
+    ],
+    "src": "new_units/new_milice/milice_rouge_trsp.png",
+    "mode": "hauteur"
+   },
+   "vert": {
+    "bbox": [
+     507,
+     19,
+     1421,
+     2009
+    ],
+    "echelle": 0.6743,
+    "contenu": [
+     290,
+     410
+    ],
+    "src": "new_units/new_milice/milice_vert_trsp.png",
+    "mode": "hauteur"
+   },
+   "jaune": {
+    "bbox": [
+     471,
+     9,
+     1515,
+     2023
+    ],
+    "echelle": 0.6743,
+    "contenu": [
+     307,
+     410
+    ],
+    "src": "new_units/new_milice/milice_jaune_trsp.png",
+    "mode": "hauteur"
+   },
+   "orange": {
+    "bbox": [
+     431,
+     9,
+     1541,
+     2022
+    ],
+    "echelle": 0.6852,
+    "contenu": [
+     312,
+     410
+    ],
+    "src": "new_units/new_milice/milice_orange_trsp.png",
+    "mode": "hauteur"
+   },
+   "ardoise": {
+    "bbox": [
+     489,
+     21,
+     1447,
+     1985
+    ],
+    "echelle": 0.6743,
+    "contenu": [
+     299,
+     410
+    ],
+    "src": "new_units/new_milice/milice_ardoise_trsp.png",
+    "mode": "hauteur"
+   }
+  }
+ },
+ "caravane": {
+  "avant_h": 188,
+  "avant_w": 224,
+  "target": 376,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     75,
+     9,
+     1949,
+     1997
+    ],
+    "echelle": 0.8047,
+    "contenu": [
+     367,
+     376
+    ],
+    "src": "new_units/new_caravane/caravane_bleu_trsp.png",
+    "mode": "hauteur"
+   },
+   "rouge": {
+    "bbox": [
+     17,
+     13,
+     2013,
+     2013
+    ],
+    "echelle": 0.8246,
+    "contenu": [
+     376,
+     376
+    ],
+    "src": "new_units/new_caravane/caravane_rouge_trsp.png",
+    "mode": "hauteur"
+   },
+   "vert": {
+    "bbox": [
+     9,
+     7,
+     2031,
+     2035
+    ],
+    "echelle": 0.8229,
+    "contenu": [
+     375,
+     376
+    ],
+    "src": "new_units/new_caravane/caravane_vert_trsp.png",
+    "mode": "hauteur"
+   },
+   "jaune": {
+    "bbox": [
+     29,
+     13,
+     1991,
+     2015
+    ],
+    "echelle": 0.8147,
+    "contenu": [
+     372,
+     376
+    ],
+    "src": "new_units/new_caravane/caravane_jaune_trsp.png",
+    "mode": "hauteur"
+   },
+   "orange": {
+    "bbox": [
+     49,
+     23,
+     1967,
+     2003
+    ],
+    "echelle": 0.8097,
+    "contenu": [
+     369,
+     376
+    ],
+    "src": "new_units/new_caravane/caravane_orange_trsp.png",
+    "mode": "hauteur"
+   },
+   "ardoise": {
+    "bbox": [
+     63,
+     11,
+     1931,
+     2023
+    ],
+    "echelle": 0.7871,
+    "contenu": [
+     359,
+     376
+    ],
+    "src": "new_units/new_caravane/caravane_ardoise_trsp.png",
+    "mode": "hauteur"
+   }
+  }
+ },
+ "icbm": {
+  "avant_h": 231,
+  "avant_w": 106,
+  "target": 462,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     3,
+     47,
+     2033,
+     1925
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     432
+    ],
+    "src": "new_units/new_icbm/icbm_bleu.png",
+    "mode": "LARGEUR"
+   },
+   "rouge": {
+    "bbox": [
+     53,
+     15,
+     1939,
+     1967
+    ],
+    "echelle": 0.9987,
+    "contenu": [
+     455,
+     462
+    ],
+    "src": "new_units/new_icbm/icbm_rouge_trsp.png",
+    "mode": "hauteur"
+   },
+   "vert": {
+    "bbox": [
+     122,
+     21,
+     1818,
+     1947
+    ],
+    "echelle": 0.946,
+    "contenu": [
+     431,
+     462
+    ],
+    "src": "new_units/new_icbm/icbm_vert_trsp.png",
+    "mode": "hauteur"
+   },
+   "jaune": {
+    "bbox": [
+     35,
+     37,
+     1945,
+     1921
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     450
+    ],
+    "src": "new_units/new_icbm/icbm_jaune_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "orange": {
+    "bbox": [
+     89,
+     13,
+     1857,
+     1985
+    ],
+    "echelle": 0.9478,
+    "contenu": [
+     432,
+     462
+    ],
+    "src": "new_units/new_icbm/icbm_orange_trsp.png",
+    "mode": "hauteur"
+   },
+   "ardoise": {
+    "bbox": [
+     93,
+     21,
+     1865,
+     1945
+    ],
+    "echelle": 0.9715,
+    "contenu": [
+     443,
+     462
+    ],
+    "src": "new_units/new_icbm/icbm_ardoise_trsp.png",
+    "mode": "hauteur"
+   }
+  }
+ },
+ "chasseur": {
+  "avant_h": 207,
+  "avant_w": 170,
+  "target": 414,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     25,
+     445,
+     2001,
+     899
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     205
+    ],
+    "src": "new_units/new_fighter/fighter_bleu_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "rouge": {
+    "bbox": [
+     9,
+     511,
+     2022,
+     811
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     183
+    ],
+    "src": "new_units/new_fighter/fighter_rouge_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "vert": {
+    "bbox": [
+     23,
+     545,
+     1993,
+     835
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     191
+    ],
+    "src": "new_units/new_fighter/fighter_vert_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "jaune": {
+    "bbox": [
+     20,
+     513,
+     2006,
+     869
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     198
+    ],
+    "src": "new_units/new_fighter/fighter_jaune_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "orange": {
+    "bbox": [
+     15,
+     595,
+     2011,
+     697
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     158
+    ],
+    "src": "new_units/new_fighter/fighter_orange_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "ardoise": {
+    "bbox": [
+     17,
+     565,
+     2015,
+     743
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     168
+    ],
+    "src": "new_units/new_fighter/fighter_ardoise_trsp.png",
+    "mode": "LARGEUR"
+   }
+  }
+ },
+ "bombardier": {
+  "avant_h": 233,
+  "avant_w": 186,
+  "target": 466,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     13,
+     5,
+     2031,
+     1935
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     434
+    ],
+    "src": "new_units/new_bomber/bomber_bleu_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "rouge": {
+    "bbox": [
+     0,
+     0,
+     2049,
+     1962
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     437
+    ],
+    "src": "new_units/new_bomber/bomber_rouge_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "vert": {
+    "bbox": [
+     5,
+     3,
+     2033,
+     1989
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     446
+    ],
+    "src": "new_units/new_bomber/bomber_vert_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "jaune": {
+    "bbox": [
+     9,
+     11,
+     2031,
+     1919
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     431
+    ],
+    "src": "new_units/new_bomber/bomber_jaune_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "orange": {
+    "bbox": [
+     11,
+     10,
+     2014,
+     1900
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     430
+    ],
+    "src": "new_units/new_bomber/bomber_orange_trsp.png",
+    "mode": "LARGEUR"
+   },
+   "ardoise": {
+    "bbox": [
+     15,
+     3,
+     2019,
+     1933
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     437
+    ],
+    "src": "new_units/new_bomber/bomber_ardoise_trsp.png",
+    "mode": "LARGEUR"
+   }
+  }
+ },
+ "espion": {
+  "avant_h": 210,
+  "avant_w": 99,
+  "target": 420,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     365,
+     9,
+     1373,
+     2027
+    ],
+    "echelle": 0.6908,
+    "contenu": [
+     284,
+     420
+    ],
+    "src": "new_units/new_espion/espion_4k_trsp.png",
+    "mode": "hauteur"
+   }
+  }
+ },
+ "canon": {
+  "avant_h": 260,
+  "avant_w": 236,
+  "target": 520,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     22,
+     13,
+     1989,
+     1969
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     451
+    ],
+    "mode": "LARGEUR"
+   },
+   "rouge": {
+    "bbox": [
+     17,
+     16,
+     2016,
+     1992
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     451
+    ],
+    "mode": "LARGEUR"
+   },
+   "vert": {
+    "bbox": [
+     26,
+     14,
+     2015,
+     1886
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     427
+    ],
+    "mode": "LARGEUR"
+   },
+   "jaune": {
+    "bbox": [
+     14,
+     19,
+     2025,
+     1974
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     445
+    ],
+    "mode": "LARGEUR"
+   },
+   "orange": {
+    "bbox": [
+     38,
+     22,
+     1925,
+     1964
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     465
+    ],
+    "mode": "LARGEUR"
+   },
+   "ardoise": {
+    "bbox": [
+     15,
+     23,
+     2020,
+     1969
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     444
+    ],
+    "mode": "LARGEUR"
+   }
+  }
+ },
+ "fusiller": {
+  "avant_h": 178,
+  "avant_w": null,
+  "target": 356,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     47,
+     1,
+     1943,
+     2043
+    ],
+    "echelle": 0.7425,
+    "contenu": [
+     339,
+     356
+    ],
+    "mode": "hauteur"
+   },
+   "rouge": {
+    "bbox": [
+     23,
+     0,
+     2003,
+     2030
+    ],
+    "echelle": 0.7703,
+    "contenu": [
+     351,
+     356
+    ],
+    "mode": "hauteur"
+   },
+   "vert": {
+    "bbox": [
+     88,
+     5,
+     1686,
+     2029
+    ],
+    "echelle": 0.6487,
+    "contenu": [
+     296,
+     356
+    ],
+    "mode": "hauteur"
+   },
+   "jaune": {
+    "bbox": [
+     243,
+     0,
+     1757,
+     2049
+    ],
+    "echelle": 0.6694,
+    "contenu": [
+     305,
+     356
+    ],
+    "mode": "hauteur"
+   },
+   "orange": {
+    "bbox": [
+     84,
+     0,
+     1911,
+     2038
+    ],
+    "echelle": 0.7321,
+    "contenu": [
+     334,
+     356
+    ],
+    "mode": "hauteur"
+   },
+   "ardoise": {
+    "bbox": [
+     123,
+     3,
+     1899,
+     2023
+    ],
+    "echelle": 0.7328,
+    "contenu": [
+     334,
+     356
+    ],
+    "mode": "hauteur"
+   }
+  }
+ },
+ "artillerie": {
+  "avant_h": 264,
+  "avant_w": null,
+  "target": 528,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     15,
+     35,
+     2013,
+     1905
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     432
+    ],
+    "mode": "LARGEUR"
+   },
+   "rouge": {
+    "bbox": [
+     29,
+     23,
+     1987,
+     1883
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     432
+    ],
+    "mode": "LARGEUR"
+   },
+   "vert": {
+    "bbox": [
+     62,
+     37,
+     1932,
+     1963
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     463
+    ],
+    "mode": "LARGEUR"
+   },
+   "jaune": {
+    "bbox": [
+     25,
+     7,
+     1994,
+     1965
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     449
+    ],
+    "mode": "LARGEUR"
+   },
+   "orange": {
+    "bbox": [
+     27,
+     9,
+     1993,
+     1993
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     456
+    ],
+    "mode": "LARGEUR"
+   },
+   "ardoise": {
+    "bbox": [
+     11,
+     38,
+     2025,
+     1931
+    ],
+    "echelle": 1.0,
+    "contenu": [
+     456,
+     435
+    ],
+    "mode": "LARGEUR"
+   }
+  }
+ },
+ "infanterie_moderne": {
+  "avant_h": 178,
+  "avant_w": null,
+  "target": 356,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     63,
+     12,
+     1821,
+     2018
+    ],
+    "echelle": 0.7045,
+    "contenu": [
+     321,
+     356
+    ],
+    "mode": "hauteur"
+   },
+   "rouge": {
+    "bbox": [
+     38,
+     10,
+     1816,
+     2022
+    ],
+    "echelle": 0.7012,
+    "contenu": [
+     320,
+     356
+    ],
+    "mode": "hauteur"
+   },
+   "vert": {
+    "bbox": [
+     51,
+     0,
+     1899,
+     2028
+    ],
+    "echelle": 0.731,
+    "contenu": [
+     333,
+     356
+    ],
+    "mode": "hauteur"
+   },
+   "jaune": {
+    "bbox": [
+     49,
+     0,
+     1779,
+     2034
+    ],
+    "echelle": 0.6828,
+    "contenu": [
+     311,
+     356
+    ],
+    "mode": "hauteur"
+   },
+   "orange": {
+    "bbox": [
+     99,
+     18,
+     1793,
+     2000
+    ],
+    "echelle": 0.6999,
+    "contenu": [
+     319,
+     356
+    ],
+    "mode": "hauteur"
+   },
+   "ardoise": {
+    "bbox": [
+     29,
+     7,
+     1887,
+     2031
+    ],
+    "echelle": 0.7253,
+    "contenu": [
+     331,
+     356
+    ],
+    "mode": "hauteur"
+   }
+  }
+ },
+ "char_d_assaut": {
+  "avant_h": 196,
+  "avant_w": null,
+  "target": 392,
+  "vars": {
+   "bleu": {
+    "bbox": [
+     15,
+     45,
+     2017,
+     1861
+    ],
+    "echelle": 0.9317,
+    "contenu": [
+     425,
+     392
+    ],
+    "mode": "hauteur"
+   },
+   "rouge": {
+    "bbox": [
+     0,
+     49,
+     2032,
+     1827
+    ],
+    "echelle": 0.9561,
+    "contenu": [
+     436,
+     392
+    ],
+    "mode": "hauteur"
+   },
+   "vert": {
+    "bbox": [
+     13,
+     73,
+     2017,
+     1853
+    ],
+    "echelle": 0.9357,
+    "contenu": [
+     427,
+     392
+    ],
+    "mode": "hauteur"
+   },
+   "jaune": {
+    "bbox": [
+     0,
+     51,
+     2040,
+     1827
+    ],
+    "echelle": 0.9599,
+    "contenu": [
+     438,
+     392
+    ],
+    "mode": "hauteur"
+   },
+   "orange": {
+    "bbox": [
+     11,
+     23,
+     2031,
+     1839
+    ],
+    "echelle": 0.9494,
+    "contenu": [
+     433,
+     392
+    ],
+    "mode": "hauteur"
+   },
+   "ardoise": {
+    "bbox": [
+     0,
+     85,
+     2046,
+     1775
+    ],
+    "echelle": 0.9909,
+    "contenu": [
+     452,
+     392
+    ],
+    "mode": "hauteur"
+   }
+  }
+ }
+}

@@ -832,7 +832,7 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   const tuileCacherIds = (Object.keys(TUILES_CACHER) as TerrainId[]).sort();
   // Phase 7d (R-95) : variantes barbares (accent de repli rouge sang — accents.json).
   const barbareIds = ['guerrier', 'archer'];
-  const [tiles, unitesReelles, barbareUnits, settlement, capital, villesParEreChargees, capitalesParEreChargees, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, croiseursCuits, cuirassesCuits, galeresCuits, galionsCuits, cavaliersCuits, chevaliersCuits, legionsCuits, catapultesCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites, iconesUnitesChargees, iconesBatimentsChargees, iconesMerveillesChargees] = await Promise.all([
+  const [tiles, unitesReelles, barbareUnits, settlement, capital, villesParEreChargees, capitalesParEreChargees, villageBarbare, hutte, artefactTextures, colonFondation, guerriersCuits, archersCuits, colonsCuits, croiseursCuits, cuirassesCuits, galeresCuits, galionsCuits, cavaliersCuits, chevaliersCuits, legionsCuits, catapultesCuits, piquiersCuits, sousMarinsCuits, canonsCuits, milicesCuits, caravanesCuits, icbmsCuits, chasseursCuits, bombardiersCuits, fusiliersCuits, artilleriesCuits, infanteriesCuits, charsCuits, foodIcon, productionIcon, commerceIcon, goldIcon, scienceIcon, cultureIcon, resourceIcons, tuilesRessourcesCuites, tuilesCacherCuites, iconesUnitesChargees, iconesBatimentsChargees, iconesMerveillesChargees] = await Promise.all([
     Promise.all(tileIds.map((id) => texOrFallback(TILE_ASSETS[id], fallback.tiles[id]).then((t) => [id, t] as const))),
     // PILE-AFFICHÉE (archer invisible) : chargement OPTIONNEL de l'art de
     // TOUS les types du moteur — un 404 par type sans planche, puis résolu
@@ -881,6 +881,26 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
     Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_chevalier_j${i + 1}`).then((t) => [pal, t] as const))),
     Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_legion_j${i + 1}`).then((t) => [pal, t] as const))),
     Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_catapulte_j${i + 1}`).then((t) => [pal, t] as const))),
+    // PIQUIER/SOUS-MARIN/CANON/MILICE/CARAVANE/ICBM/CHASSEUR/BOMBARDIER ×6
+    // (ASSETS-UNITS-4K VAGUE5, Erik 16/10) : mêmes variantes cuites par
+    // palette que les autres unités importées. L'ESPION (D3 universelle,
+    // une seule image sans accent) n'a PAS de variantes : sa cuite est
+    // `unite_espion.png`, chargée par le passage TOUS_TYPES_UNITES ci-dessus.
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_piquier_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_sous_marin_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_canon_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_milice_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_caravane_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_icbm_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_chasseur_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_bombardier_j${i + 1}`).then((t) => [pal, t] as const))),
+    // FUSILLER/ARTILLERIE/INFANTERIE MODERNE/CHAR D'ASSAUT ×6 (VAGUE5
+    // complément, Erik 16/10 — les 13 dernières unités jouables en SVG
+    // atelier passent en 4K).
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_fusilier_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_artillerie_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_infanterie_moderne_j${i + 1}`).then((t) => [pal, t] as const))),
+    Promise.all(ORDRE_JOUEURS4.map((pal, i) => optionalEntity(`unite_char_d_assaut_j${i + 1}`).then((t) => [pal, t] as const))),
     optionalIcon('icone_nourriture'),
     optionalIcon('icone_production'),
     optionalIcon('icone_commerce'),
@@ -954,6 +974,44 @@ export async function loadTextures(renderer: Renderer): Promise<GameTextures> {
   });
   catapultesCuits.forEach(([pal, tex]) => {
     if (tex) cuites[`catapulte@${pal}`] = tex;
+  });
+  // ASSETS-UNITS-4K VAGUE5 (Erik 16/10) : mêmes clés `<type>@<palette>` pour
+  // les 8 nouvelles unités importées. Espion : PAS de clé — universelle.
+  piquiersCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`piquier@${pal}`] = tex;
+  });
+  sousMarinsCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`sous_marin@${pal}`] = tex;
+  });
+  canonsCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`canon@${pal}`] = tex;
+  });
+  milicesCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`milice@${pal}`] = tex;
+  });
+  caravanesCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`caravane@${pal}`] = tex;
+  });
+  icbmsCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`icbm@${pal}`] = tex;
+  });
+  chasseursCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`chasseur@${pal}`] = tex;
+  });
+  bombardiersCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`bombardier@${pal}`] = tex;
+  });
+  fusiliersCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`fusilier@${pal}`] = tex;
+  });
+  artilleriesCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`artillerie@${pal}`] = tex;
+  });
+  infanteriesCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`infanterie_moderne@${pal}`] = tex;
+  });
+  charsCuits.forEach(([pal, tex]) => {
+    if (tex) cuites[`char_d_assaut@${pal}`] = tex;
   });
 
   // ICONES-UNITES : table complète par type — l'art de la base dessert ses

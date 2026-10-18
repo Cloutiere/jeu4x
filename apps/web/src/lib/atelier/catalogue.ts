@@ -259,11 +259,26 @@ function sprites2d(): AssetAtelier[] {
     ['unite_chevalier', 'Chevalier', 'chevalier', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE4)'],
     ['unite_legion', 'Légion', 'legion', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE4)'],
     ['unite_catapulte', 'Catapulte', 'catapulte', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE4)'],
+    ['unite_piquier', 'Piquier', 'piquier', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
+    ['unite_sous_marin', 'Sous-marin', 'sous_marin', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
+    ['unite_canon', 'Canon', 'canon', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5, transparence dérivée D2)'],
+    ['unite_milice', 'Milice', 'milice', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
+    ['unite_caravane', 'Caravane', 'caravane', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
+    ['unite_icbm', 'ICBM', 'icbm', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
+    ['unite_chasseur', 'Chasseur', 'chasseur', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
+    ['unite_bombardier', 'Bombardier', 'bombardier', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
+    ['unite_fusilier', 'Fusiller', 'fusiller', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
+    ['unite_artillerie', 'Artillerie', 'artillerie', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
+    ['unite_infanterie_moderne', 'Infanterie moderne', 'infanterie_moderne', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
+    ['unite_char_d_assaut', 'Char d\'assaut', 'char_d_assaut', 'PNG 4K d\'Erik (ASSETS-UNITS-4K VAGUE5)'],
   ] as const) {
     for (const [suffixe, nom] of VARIANTES_CUITES) {
       out.push(spriteAsset(`${type}_${suffixe}`, `${label} — variante fournie ${nom} (art d'Erik, 6 couleurs)`, `assets-src/tools/import_svg.mjs (profil ${profil}-6couleurs, variantesFournies) — ${doc}`, false));
     }
   }
+  // ASSETS-UNITS-4K VAGUE5 · D3 : l'ESPION est UNIVERSELLE — sa cuite
+  // `unite_espion.png` est déjà au catalogue via la liste des types (base
+  // seule, aucune variante j*, l'accent atelier est retiré du dépôt).
   // COLON-FONDATION : état « en train de fonder » du Colon (art d'Erik en
   // attente — PNG optionnel, badge provisoire au rendu tant qu'il manque).
   out.push(spriteAsset('unite_colonFondation', 'Colon « en train de fonder » (état, R-158)', `${SRC_GENERATEUR('render_entity')} — textures.ts (colonFondation)`, true));

@@ -159,6 +159,28 @@
       const h = colRowToHex(i, 16); // axial : q = col - floor(r/2)
       units.push({ id: `d3${i + 1}`, owner, type: 'colon', q: h.q, r: h.r });
     });
+    // ASSETS-UNITS-4K VAGUE5 (Erik 16/10) : les 8 nouvelles unités importées —
+    // une rangée de 6 palettes par type (variantes cuites j1..j6), puis
+    // l'ESPION (D3 universelle : le MÊME sprite sans teinte pour les 6
+    // propriétaires, preuve visuelle de l'absence d'accent).
+    const VAGUE5: Array<[string, string]> = [
+      ['piquier', 'Piquier'], ['sous_marin', 'Sous-marin'], ['canon', 'Canon'],
+      ['milice', 'Milice'], ['caravane', 'Caravane'], ['icbm', 'ICBM'],
+      ['chasseur', 'Chasseur'], ['bombardier', 'Bombardier'],
+      ['fusilier', 'Fusiller'], ['artillerie', 'Artillerie'],
+      ['infanterie_moderne', 'Infanterie moderne'], ['char_d_assaut', 'Char d\'assaut'],
+    ];
+    VAGUE5.forEach(([type], ligne) => {
+      const r = 20 + ligne * 2;
+      for (let i = 0; i < 6; i++) {
+        const h = colRowToHex(i, r);
+        units.push({ id: `v5${ligne}${i + 1}`, owner: `p${i + 1}`, type, q: h.q, r: h.r });
+      }
+    });
+    for (let i = 0; i < 6; i++) {
+      const h = colRowToHex(i, 46);
+      units.push({ id: `v5esp${i + 1}`, owner: `p${i + 1}`, type: 'espion', q: h.q, r: h.r });
+    }
     // Cohabitation multi-nations (3 nations côte à côte, tuile prairie).
     for (const [i, owner] of ['p1', 'p3', 'p5'].entries()) {
       units.push({ id: `d1${i + 1}`, owner, type: 'guerrier', q: 0, r: 6 });
@@ -177,7 +199,7 @@
       { owner: 'p2', q: 6, r: 6, pop: 5, capital: true },
     ];
     return makeState({
-      width: 8, height: 17, units, cities: villes, terrainOverrides,
+      width: 8, height: 48, units, cities: villes, terrainOverrides,
       villages: [{ q: 6, r: 0 }], // camp barbare (tuile_barbare d'Erik)
       // NEW-OTHERS (26/09) : hutte peinte + les 6 artefacts non-dlc peints —
       // vérification à l'œil de l'alignement hexagone (sommet bas à +64 px).

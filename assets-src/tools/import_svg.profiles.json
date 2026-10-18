@@ -1,1924 +1,2543 @@
 {
-  "_commentaire": "Profils d'import SVG (Erik désigne explicitement chaque fichier). cible.mode = 'unite' (256×320, ancré bas) | 'hex' (tuile 224×256 clippée + contour #2B2620). margeX/Haut/Bas en px de la cible. remplacements (variante CUITE) : paires source→cible explicites, une seule sortie. remplacementsPalette (PALETTE OFFICIELLE, décision Erik 20/09 — HANDOFF-ACCENTS-7-FACTIONS) : source → TONALITÉ (reflet|base|ombre) ; UNE variante par faction de apps/web/src/lib/render/accents.json (7 joueurs + barbare = 8), stems <stem>_j1.._j7,_barbare, sans calque accent. IMPORTANT : Erik fournit, le pipeline n'importe QUE ces fichiers-là.",
-  "gp-artiste-penseur": {
-    "_doc": "GP-ART (27/09) : Personnage Illustre peint par Erik (new_units/great people) — mapping D1 artist.svg → artiste_penseur. Sprite neutre SANS accent (GP jamais teintés, décision Erik). echelle = calibre guerrier (hauteur de contenu identique au PNG livré, 456 px (contenu du guerrier livré)).",
-    "svg": "assets-src/modeles/gp/artist.svg",
-    "stem": "unite_artiste_penseur",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.7501
-    }
-  },
-  "gp-batisseur": {
-    "_doc": "GP-ART : builder.svg → batisseur (mapping D1). Calibre guerrier.",
-    "svg": "assets-src/modeles/gp/builder.svg",
-    "stem": "unite_batisseur",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.7501
-    }
-  },
-  "gp-humanitaire": {
-    "_doc": "GP-ART : humanitaire.svg → humanitaire (mapping D1). Calibre guerrier.",
-    "svg": "assets-src/modeles/gp/humanitaire.svg",
-    "stem": "unite_humanitaire",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.8176
-    }
-  },
-  "gp-explorateur": {
-    "_doc": "GP-ART : industrial.svg → explorateur (mapping D1, décision Erik « Explorateur = industriel »). Calibre guerrier.",
-    "svg": "assets-src/modeles/gp/industrial.svg",
-    "stem": "unite_explorateur",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.7501
-    }
-  },
-  "gp-leader": {
-    "_doc": "GP-ART : leader.svg → leader (mapping D1). Calibre guerrier.",
-    "svg": "assets-src/modeles/gp/leader.svg",
-    "stem": "unite_leader",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.8672
-    }
-  },
-  "gp-savant": {
-    "_doc": "GP-ART : scientist.svg → savant (mapping D1). Calibre guerrier.",
-    "svg": "assets-src/modeles/gp/scientist.svg",
-    "stem": "unite_savant",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.7501
-    }
-  },
-  "guerrier-6couleurs": {
-    "_doc": "ASSETS-4K (02/10) : dessins 4K d'Erik (new_units/new_guerrier, copies assets-src/modeles/4k, PNG _trsp fond transparent — JAMAIS les JPEG incrustés). Mapping D1 : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise (nommage irrégulier : guerrier_{couleur}4k_trsp.png, casse K variable — cf. rapport). Aucun recoloriage — la cuite = rendu direct. echelle 0,8808 = calibre guerrier (inchangé, D2). echelleParVariante : calibre variante par variante (hauteurs de contenu des SVG v2 conservées — les 4K changent de proportions par couleur). echelleParVariante (feu vert Erik 02/10) : j3/j4 recalés sur leur hauteur de contenu d'avant (les proportions des 4K diffèrent des SVG).",
-    "svg": "assets-src/modeles/4k/guerrier_bleu4k_trsp.png",
-    "stem": "unite_guerrier",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/guerrier_bleu4k_trsp.png",
-      "rouge-royal": "assets-src/modeles/4k/guerrier_rouge4k_trsp.png",
-      "vert-emeraude": "assets-src/modeles/4k/guerrier_vert4K_trsp.png",
-      "jaune-dor": "assets-src/modeles/4k/guerrier_jaune4k_trsp.png",
-      "cuivre-ardent": "assets-src/modeles/4k/guerrier_orange4k_trsp.png",
-      "ardoise": "assets-src/modeles/4k/guerrier_ardoise4K_trsp.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.8808
-    },
-    "echelleParVariante": {
-      "vert-emeraude": 0.9541,
-      "jaune-dor": 0.8394
-    }
-  },
-  "guerrier-base": {
-    "_doc": "Sprite de base unite_guerrier (fallback + pile) : le PNG 4K bleu d'Erik (ASSETS-4K, 02/10) supplanté au SVG v2 (consigné, SVG conservés en assets-src/modeles/guerrier_v2_*.svg).",
-    "svg": "assets-src/modeles/4k/guerrier_bleu4k_trsp.png",
-    "stem": "unite_guerrier",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.8808
-    }
-  },
-  "archer-6couleurs": {
-    "_doc": "ASSETS-UNITS-4K VAGUE2 (03/10) : dessins 4K d'Erik (new_units/new_archer, copies assets-src/modeles/4k, PNG _trsp fond transparent). Aucun recoloriage — la cuite = rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (SVG 6couleurs, 456 px) variante par variante (les 4K changent de proportions par couleur).",
-    "svg": "assets-src/modeles/4k/archer_bleu_trsp.png",
-    "stem": "unite_archer",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/archer_bleu_trsp.png",
-      "rouge-royal": "assets-src/modeles/4k/archer_rouge_trsp.png",
-      "vert-emeraude": "assets-src/modeles/4k/archer_vert_trsp.png",
-      "jaune-dor": "assets-src/modeles/4k/archer_jaune_trsp.png",
-      "cuivre-ardent": "assets-src/modeles/4k/archer_orange_trsp.png",
-      "ardoise": "assets-src/modeles/4k/archer_ardoise_trsp.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.9873
-    },
-    "echelleParVariante": {
-      "bleu-saphir": 0.9873,
-      "rouge-royal": 0.9266,
-      "vert-emeraude": 0.8263,
-      "jaune-dor": 0.9316,
-      "cuivre-ardent": 0.7843,
-      "ardoise": 0.9734
-    }
-  },
-  "archer-base": {
-    "_doc": "Sprite de base unite_archer : PNG 4K bleu d'Erik (VAGUE2 03/10) remplace le SVG. Calibre = variante bleu du profil 6couleurs.",
-    "svg": "assets-src/modeles/4k/archer_bleu_trsp.png",
-    "stem": "unite_archer",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.9873
-    }
-  },
-  "colon-6couleurs": {
-    "_doc": "ASSETS-4K (02/10) : dessins 4K d'Erik (new_units/new_colon, copies assets-src/modeles/4k, PNG _trsp — JAMAIS les JPEG incrustés ; nommage colon_trsp_4k_{couleur}.png). Mapping ASSETS-6COULEURS : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise. echelle = calibre guerrier (inchangé, D2).",
-    "svg": "assets-src/modeles/4k/colon_trsp_4k_bleu.png",
-    "stem": "unite_colon",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/colon_trsp_4k_bleu.png",
-      "rouge-royal": "assets-src/modeles/4k/colon_trsp_4k_rouge.png",
-      "vert-emeraude": "assets-src/modeles/4k/colon_trsp_4k_vert.png",
-      "jaune-dor": "assets-src/modeles/4k/colon_trsp_4k_jaune.png",
-      "cuivre-ardent": "assets-src/modeles/4k/colon_trsp_4k_orange.png",
-      "ardoise": "assets-src/modeles/4k/colon_trsp_4k_ardoise.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.8808
-    }
-  },
-  "colon-base": {
-    "_doc": "Sprite de base unite_colon (fallback + piles) : le PNG 4K bleu d'Erik (ASSETS-4K, 02/10).",
-    "svg": "assets-src/modeles/4k/colon_trsp_4k_bleu.png",
-    "stem": "unite_colon",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.8808
-    }
-  },
-  "ville-settlement": {
-    "_doc": "ARCHIVÉ (ASSETS-VILLES-ERRES 15/10) : remplacé par les profils ville-ancienne…ville-moderne (art par ÈRE du propriétaire, D1 une image toutes nations). Conservé comme REPLI (D3) : ville_settlement.png reste le sprite de secours si une ère n'est pas cuite. VILLE (27/09) : ville ancient peinte par Erik (new_villes/vile_ancient) — UNE version pour toutes les époques et tous les joueurs (contour de tuile = couleur, décision Erik) ; hexagone pré-clippé, mode tuile + entite.",
-    "svg": "new_villes/vile_ancient/vile_ancient.svg",
-    "stem": "ville_settlement",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "ville-capitale": {
-    "_doc": "ARCHIVÉ (ASSETS-VILLES-ERRES 15/10) : remplacé par capitale-ancienne…capitale-moderne ; conservé comme REPLI (D3). CAPITALE (27/09) : capitale ancient peinte par Erik — UNE version pour toutes les époques/joueurs ; hexagone pré-clippé, mode tuile + entite.",
-    "svg": "new_villes/capitale_ancient/capitale_ancient.svg",
-    "stem": "ville_capitale",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "ville-ancienne": {
-    "_doc": "ASSETS-VILLES-ERRES (Erik 15/10) : ville Ère Ancienne — UNE image pour TOUTES les nations (D1, plus de variante par accent), sprite suivant l'ÈRE DU PROPRIÉTAIRE (D2). Source 4K new_villes/vile_ancient (PIÈGE nommage Erik : « vile »). Mode « unite » 448×512 (2× du calibre d'affichage ville), echelle 0.62 ≈ empreinte de l'art 27/09 (🔶 calibre à l'œil Erik).",
-    "svg": "new_villes/vile_ancient/vile_ancient_trsp.png",
-    "stem": "ville_settlement_ancienne",
-    "sansAccent": true,
-    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
-  },
-  "ville-medievale": {
-    "_doc": "ASSETS-VILLES-ERRES : ville Médiévale — PIÈGE : le FICHIER d'Erik est new_villes/ville_medievale/vile_medievale_trsp.png (« vile » côté fichier).",
-    "svg": "new_villes/ville_medievale/vile_medievale_trsp.png",
-    "stem": "ville_settlement_medievale",
-    "sansAccent": true,
-    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
-  },
-  "ville-industrielle": {
-    "_doc": "ASSETS-VILLES-ERRES : ville Industrielle.",
-    "svg": "new_villes/ville_industrielle/ville_industrielle_trsp.png",
-    "stem": "ville_settlement_industrielle",
-    "sansAccent": true,
-    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
-  },
-  "ville-moderne": {
-    "_doc": "ASSETS-VILLES-ERRES : ville Moderne.",
-    "svg": "new_villes/ville_moderne/ville_moderne_trsp.png",
-    "stem": "ville_settlement_moderne",
-    "sansAccent": true,
-    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
-  },
-  "capitale-ancienne": {
-    "_doc": "ASSETS-VILLES-ERRES : capitale Ère Ancienne.",
-    "svg": "new_villes/capitale_ancient/capitale_ancient_trsp.png",
-    "stem": "ville_capitale_ancienne",
-    "sansAccent": true,
-    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
-  },
-  "capitale-medievale": {
-    "_doc": "ASSETS-VILLES-ERRES : capitale Médiévale.",
-    "svg": "new_villes/capitale_medievale/capitale_medievale_trsp.png",
-    "stem": "ville_capitale_medievale",
-    "sansAccent": true,
-    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
-  },
-  "capitale-industrielle": {
-    "_doc": "ASSETS-VILLES-ERRES : capitale Industrielle — PIÈGE : ESPACE dans le nom de fichier d'Erik (« capitale industrielle_trsp.png »).",
-    "svg": "new_villes/capitale_industrielle/capitale industrielle_trsp.png",
-    "stem": "ville_capitale_industrielle",
-    "sansAccent": true,
-    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
-  },
-  "capitale-moderne": {
-    "_doc": "ASSETS-VILLES-ERRES : capitale Moderne.",
-    "svg": "new_villes/capitale_moderne/capitale_moderne_trsp.png",
-    "stem": "ville_capitale_moderne",
-    "sansAccent": true,
-    "cible": { "mode": "unite", "w": 448, "h": 512, "margeX": 24, "margeHaut": 8, "margeBas": 0, "echelle": 0.62 }
-  },
-  "barbare-unite": {
-    "_doc": "ASSETS-4K vague 2 : PNG 4K trsp d'Erik remplace le SVG (calibre echelle 0.9674 inchangé).",
-    "svg": "assets-src/modeles/4k/unit_barbare_4K_trsp.png",
-    "stem": "unite_barbare_guerrier",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.9674
-    }
-  },
-  "tuile-barbare": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/tuile_barbare_4k_trsp.png",
-    "stem": "village_barbare",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "tuile-hutte": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/hutte_4k_trsp.png",
-    "stem": "hutte",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "artefact-angkor-wat": {
-    "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
-    "svg": "new_others/tuile_Angkor Wat.svg",
-    "stem": "artefact_angkor_wat",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "artefact-arche-alliance": {
-    "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
-    "svg": "new_others/tuile_Ark of the Covenant.svg",
-    "stem": "artefact_arche_alliance",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "artefact-sept-cites-or": {
-    "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
-    "svg": "new_others/tuile_Seven Cities of Gold.svg",
-    "stem": "artefact_sept_cites_or",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "artefact-ecole-confucius": {
-    "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
-    "svg": "new_others/tuile_School of Confucius.svg",
-    "stem": "artefact_ecole_confucius",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "artefact-chevaliers-templiers": {
-    "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
-    "svg": "new_others/tuile_Knights Templar.svg",
-    "stem": "artefact_chevaliers_templiers",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "artefact-atlantide": {
-    "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
-    "svg": "new_others/tuile_Lost City of Atlantis.svg",
-    "stem": "artefact_atlantide",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "artefact-grand-sphinx": {
-    "_doc": "Artefact peint par Erik (new_others) — remplace le painter (dlcOnly : jamais rendu aujourd’hui — cuit par complétude, consigné au rapport) [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
-    "svg": "new_others/tuile_Great Sphinx.svg",
-    "stem": "artefact_grand_sphinx",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256,
-      "entite": true
-    }
-  },
-  "_tuiles-ressources-commentaire": "TUILES-RESSOURCES (26/09) : 22 tuiles pleines par ressource, art d'Erik new_ressources/ (NON commités). Remplacent la tuile de terrain SEULEMENT quand la ressource est révélée (rendu, mission TUILES-RESSOURCES). renames : alluminium→aluminium, boeuf→boeufs, gems→gemmes, poissons→poisson, souffre→soufre.",
-  "tuile-ressource-aluminium": {
-    "_doc": "ASSETS-4K vague 2 (complétée 02/10) : source PNG 4K trsp remplace le SVG.",
-    "svg": "assets-src/modeles/4k/alluminium_colline_4k_trsp.png",
-    "stem": "tile_ressource_aluminium",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-baleine": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/baleine_rivage_4k_trsp.png",
-    "stem": "tile_ressource_baleine",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-betail": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/betail_prairie_4K_trsp.png",
-    "stem": "tile_ressource_betail",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-ble": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/ble_prairie_4K_trsp.png",
-    "stem": "tile_ressource_ble",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-boeufs": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/oxen_prairie_4k_trsp.png",
-    "stem": "tile_ressource_boeufs",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-caoutchouc": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/caoutchouc_forest_4k_trsp.png",
-    "stem": "tile_ressource_caoutchouc",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-charbon": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/charbon_colline_4k_trsp.png",
-    "stem": "tile_ressource_charbon",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-chene": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/chene_forest_4k_trsp.png",
-    "stem": "tile_ressource_chene",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-encens": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/encens_prairie_4k_trsp.png",
-    "stem": "tile_ressource_encens",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-epices": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/epices_desert_4k_trsp.png",
-    "stem": "tile_ressource_epices",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-fer": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/fer_colline_4k_trsp.png",
-    "stem": "tile_ressource_fer",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-gemmes": {
-    "_doc": "ASSETS-4K vague 2 (complétée 02/10) : source PNG 4K trsp remplace le SVG.",
-    "svg": "assets-src/modeles/4k/gems_montagne_4k_trsp.png",
-    "stem": "tile_ressource_gemmes",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-gibier": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/gibier_forest_4k_trsp.png",
-    "stem": "tile_ressource_gibier",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-marbre": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/marbre_plaines_4k_trsp.png",
-    "stem": "tile_ressource_marbre",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-or": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/or_montagne_4k_trsp.png",
-    "stem": "tile_ressource_or",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-petrole": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/petrole_desert_4k_trsp.png",
-    "stem": "tile_ressource_petrole",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-poisson": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/poissons_rivage_4k_trsp.png",
-    "stem": "tile_ressource_poisson",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-soie": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/soie_plaines_4k_trsp.png",
-    "stem": "tile_ressource_soie",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-soufre": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/souffre_desert_4k_trsp.png",
-    "stem": "tile_ressource_soufre",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-teinture": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/teinture_rivage_4k_trsp.png",
-    "stem": "tile_ressource_teinture",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-uranium": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/uranium_montagne_4k_trsp.png",
-    "stem": "tile_ressource_uranium",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ressource-vin": {
-    "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
-    "svg": "assets-src/modeles/4k/vin_plaines_4k_trsp.png",
-    "stem": "tile_ressource_vin",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-prairie": {
-    "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px).",
-    "svg": "assets-src/modeles/4k/prairie_4K.png",
-    "stem": "tile_prairie",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-plaine": {
-    "svg": "assets-src/modeles/4k/plaine_4K.png",
-    "stem": "tile_plaine",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    },
-    "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
-  },
-  "tuile-colline": {
-    "svg": "assets-src/modeles/4k/colline_4K.png",
-    "stem": "tile_colline",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    },
-    "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
-  },
-  "tuile-montagne": {
-    "svg": "assets-src/modeles/4k/montagne_4K.png",
-    "stem": "tile_montagne",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    },
-    "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
-  },
-  "tuile-desert": {
-    "svg": "assets-src/modeles/4k/desert_4K.png",
-    "stem": "tile_desert",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    },
-    "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
-  },
-  "tuile-foret": {
-    "svg": "assets-src/modeles/4k/arbre_4K.png",
-    "stem": "tile_foret",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    },
-    "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
-  },
-  "tuile-eau": {
-    "svg": "assets-src/modeles/4k/rivage_4K.png",
-    "stem": "tile_eau",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    },
-    "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
-  },
-  "tuile-cacher-prairie": {
-    "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
-    "svg": "assets-src/modeles/4k/prairie_4K_fog.png",
-    "stem": "tile_cacher_prairie",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-cacher-plaine": {
-    "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
-    "svg": "assets-src/modeles/4k/plaine_4K_fog.png",
-    "stem": "tile_cacher_plaine",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-cacher-colline": {
-    "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
-    "svg": "assets-src/modeles/4k/colline_4K_fog.png",
-    "stem": "tile_cacher_colline",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-cacher-montagne": {
-    "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
-    "svg": "assets-src/modeles/4k/montagne_4K_fog.png",
-    "stem": "tile_cacher_montagne",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-cacher-desert": {
-    "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
-    "svg": "assets-src/modeles/4k/desert_4K_fog.png",
-    "stem": "tile_cacher_desert",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-cacher-foret": {
-    "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
-    "svg": "assets-src/modeles/4k/arbre_4K_fog.png",
-    "stem": "tile_cacher_foret",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-cacher-eau": {
-    "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
-    "svg": "assets-src/modeles/4k/rivage_4K_fog.png",
-    "stem": "tile_cacher_eau",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    }
-  },
-  "tuile-ocean": {
-    "svg": "assets-src/modeles/4k/ocean_4K.png",
-    "stem": "tile_ocean",
-    "cible": {
-      "mode": "tuile",
-      "w": 224,
-      "h": 256
-    },
-    "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
-  },
-  "icone-nourriture": {
-    "svg": "new_icones/icone_nourriture.svg",
-    "stem": "icone_nourriture",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-production": {
-    "svg": "new_icones/icone_production.svg",
-    "stem": "icone_production",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-or": {
-    "svg": "new_icones/icone_or.svg",
-    "stem": "icone_or",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-sciences": {
-    "_doc": "GP-ART (27/09) : icône sciences v2 d'Erik (icone_sciences2.svg) remplace la v1 — même stem icone_science, 64×64.",
-    "svg": "new_icones/icone_sciences2.svg",
-    "stem": "icone_science",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-balance": {
-    "svg": "new_icones/icone_balance.svg",
-    "stem": "icone_commerce",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-culture": {
-    "svg": "new_icones/icone_culture.svg",
-    "stem": "icone_culture",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "croiseur-6couleurs": {
-    "_doc": "ASSETS-UNITS-4K VAGUE2 (03/10) : Croiseur 4K d'Erik (new_units/new_cuirasse — nom historique CivRev inversé, cf. handoff §2 ; copies assets-src/modeles/4k/croiseur_*_trsp.png). Rendu direct (pré-peint par couleur). echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 165 px @256 → 330 @512).",
-    "svg": "assets-src/modeles/4k/croiseur_bleu_trsp.png",
-    "stem": "unite_croiseur",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/croiseur_bleu_trsp.png",
-      "rouge-royal": "assets-src/modeles/4k/croiseur_rouge_trsp.png",
-      "vert-emeraude": "assets-src/modeles/4k/croiseur_vert_trsp.png",
-      "jaune-dor": "assets-src/modeles/4k/croiseur_jaune_trsp.png",
-      "cuivre-ardent": "assets-src/modeles/4k/croiseur_orange_trsp.png",
-      "ardoise": "assets-src/modeles/4k/croiseur_ardoise_trsp.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.7187
-    },
-    "echelleParVariante": {
-      "bleu-saphir": 0.7187,
-      "rouge-royal": 0.7298,
-      "vert-emeraude": 0.7398,
-      "jaune-dor": 0.7208,
-      "cuivre-ardent": 0.7048,
-      "ardoise": 0.7276
-    }
-  },
-  "croiseur-base": {
-    "_doc": "Sprite de base unite_croiseur : PNG 4K bleu (VAGUE2). Remplace la planche peintre (repli barbare/fallback).",
-    "svg": "assets-src/modeles/4k/croiseur_bleu_trsp.png",
-    "stem": "unite_croiseur",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.7187
-    }
-  },
-  "cuirasse-6couleurs": {
-    "_doc": "ASSETS-UNITS-4K VAGUE2 (03/10) : Cuirassé 4K d'Erik (new_units/new_battleship = Cuirassé, cf. handoff §2 ; copies assets-src/modeles/4k/cuirasse_*_trsp.png). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 183 px @256 → 366 @512).",
-    "svg": "assets-src/modeles/4k/cuirasse_bleu_trsp.png",
-    "stem": "unite_cuirasse",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/cuirasse_bleu_trsp.png",
-      "rouge-royal": "assets-src/modeles/4k/cuirasse_rouge_trsp.png",
-      "vert-emeraude": "assets-src/modeles/4k/cuirasse_vert_trsp.png",
-      "jaune-dor": "assets-src/modeles/4k/cuirasse_jaune_trsp.png",
-      "cuivre-ardent": "assets-src/modeles/4k/cuirasse_orange_trsp.png",
-      "ardoise": "assets-src/modeles/4k/cuirasse_ardoise_trsp.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.7947
-    },
-    "echelleParVariante": {
-      "bleu-saphir": 0.7947,
-      "rouge-royal": 0.7964,
-      "vert-emeraude": 0.7999,
-      "jaune-dor": 0.8018,
-      "cuivre-ardent": 0.7976,
-      "ardoise": 0.802
-    }
-  },
-  "cuirasse-base": {
-    "_doc": "Sprite de base unite_cuirasse : PNG 4K bleu (VAGUE2). Remplace la planche peintre (repli barbare/fallback).",
-    "svg": "assets-src/modeles/4k/cuirasse_bleu_trsp.png",
-    "stem": "unite_cuirasse",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.7947
-    }
-  },
-  "galere-6couleurs": {
-    "_doc": "ASSETS-UNITS-4K VAGUE3 (03/10) : Galère 4K d'Erik (new_units/new_galere, copies assets-src/modeles/4k/galere_*_trsp.png — transparence fournie cette fois). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 212 px @256 → 424 @512).",
-    "svg": "assets-src/modeles/4k/galere_bleu_trsp.png",
-    "stem": "unite_galere",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/galere_bleu_trsp.png",
-      "rouge-royal": "assets-src/modeles/4k/galere_rouge_trsp.png",
-      "vert-emeraude": "assets-src/modeles/4k/galere_vert_trsp.png",
-      "jaune-dor": "assets-src/modeles/4k/galere_jaune_trsp.png",
-      "cuivre-ardent": "assets-src/modeles/4k/galere_orange_trsp.png",
-      "ardoise": "assets-src/modeles/4k/galere_ardoise_trsp.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.934
-    },
-    "echelleParVariante": {
-      "bleu-saphir": 0.934,
-      "rouge-royal": 0.9893,
-      "vert-emeraude": 0.9268,
-      "jaune-dor": 0.9271,
-      "cuivre-ardent": 0.9319,
-      "ardoise": 0.9577
-    }
-  },
-  "galere-base": {
-    "_doc": "Sprite de base unite_galere : PNG 4K bleu (VAGUE3). Remplace la planche peintre (repli barbare/fallback).",
-    "svg": "assets-src/modeles/4k/galere_bleu_trsp.png",
-    "stem": "unite_galere",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.934
-    }
-  },
-  "galion-6couleurs": {
-    "_doc": "ASSETS-UNITS-4K VAGUE3 (03/10) : Galion 4K d'Erik (new_units/new_galion, copies assets-src/modeles/4k/galion_*_trsp.png). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 234 px @256 → 468 @512).",
-    "svg": "assets-src/modeles/4k/galion_bleu_trsp.png",
-    "stem": "unite_galion",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/galion_bleu_trsp.png",
-      "rouge-royal": "assets-src/modeles/4k/galion_rouge_trsp.png",
-      "vert-emeraude": "assets-src/modeles/4k/galion_vert_trsp.png",
-      "jaune-dor": "assets-src/modeles/4k/galion_jaune_trsp.png",
-      "cuivre-ardent": "assets-src/modeles/4k/galion_orange_trsp.png",
-      "ardoise": "assets-src/modeles/4k/galion_ardoise_trsp.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 1.0337
-    },
-    "echelleParVariante": {
-      "bleu-saphir": 1.0337,
-      "rouge-royal": 1.0256,
-      "vert-emeraude": 1.0225,
-      "jaune-dor": 1.034,
-      "cuivre-ardent": 1.019,
-      "ardoise": 1.0256
-    }
-  },
-  "galion-base": {
-    "_doc": "Sprite de base unite_galion : PNG 4K bleu (VAGUE3). Remplace la planche peintre (repli barbare/fallback).",
-    "svg": "assets-src/modeles/4k/galion_bleu_trsp.png",
-    "stem": "unite_galion",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 1.0337
-    }
-  },
-  "cavalier-6couleurs": {
-    "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Cavalier 4K d'Erik (new_units/new_cavalier, canvas 4096×3072 rembourré en 4096² transparent à la copie — le pipeline suppose du carré). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 267 px @256 → 534 @512). Ardoise recalée à 1.1228 (limite largeur 512, l'art déborde de 1 px à la hauteur d'avant exacte).",
-    "svg": "assets-src/modeles/4k/cavalier_bleu_trsp.png",
-    "stem": "unite_cavalier",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/cavalier_bleu_trsp.png",
-      "rouge-royal": "assets-src/modeles/4k/cavalier_rouge_trsp.png",
-      "vert-emeraude": "assets-src/modeles/4k/cavalier_vert_trsp.png",
-      "jaune-dor": "assets-src/modeles/4k/cavalier_jaune_trsp.png",
-      "cuivre-ardent": "assets-src/modeles/4k/cavalier_orange_trsp.png",
-      "ardoise": "assets-src/modeles/4k/cavalier_ardoise_trsp.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 1.0457
-    },
-    "echelleParVariante": {
-      "bleu-saphir": 1.0457,
-      "rouge-royal": 1.0517,
-      "vert-emeraude": 0.9662,
-      "jaune-dor": 1.0142,
-      "cuivre-ardent": 0.9843,
-      "ardoise": 1.1228
-    }
-  },
-  "chevalier-6couleurs": {
-    "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Chevalier 4K d'Erik (new_units/new_chevalier, suffixe _trsp sans 4K). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (233 px @256 → 466 @512).",
-    "svg": "assets-src/modeles/4k/chevalier_bleu_trsp.png",
-    "stem": "unite_chevalier",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/chevalier_bleu_trsp.png",
-      "rouge-royal": "assets-src/modeles/4k/chevalier_rouge_trsp.png",
-      "vert-emeraude": "assets-src/modeles/4k/chevalier_vert_trsp.png",
-      "jaune-dor": "assets-src/modeles/4k/chevalier_jaune_trsp.png",
-      "cuivre-ardent": "assets-src/modeles/4k/chevalier_orange_trsp.png",
-      "ardoise": "assets-src/modeles/4k/chevalier_ardoise_trsp.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.9657
-    },
-    "echelleParVariante": {
-      "bleu-saphir": 0.9657,
-      "rouge-royal": 0.901,
-      "vert-emeraude": 0.9761,
-      "jaune-dor": 0.9682,
-      "cuivre-ardent": 0.8782,
-      "ardoise": 0.9401
-    }
-  },
-  "legion-6couleurs": {
-    "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Légion 4K d'Erik (new_units/new_legion). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (215 px @256 → 430 @512).",
-    "svg": "assets-src/modeles/4k/legion_bleu_trsp.png",
-    "stem": "unite_legion",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/legion_bleu_trsp.png",
-      "rouge-royal": "assets-src/modeles/4k/legion_rouge_trsp.png",
-      "vert-emeraude": "assets-src/modeles/4k/legion_vert_trsp.png",
-      "jaune-dor": "assets-src/modeles/4k/legion_jaune_trsp.png",
-      "cuivre-ardent": "assets-src/modeles/4k/legion_orange_trsp.png",
-      "ardoise": "assets-src/modeles/4k/legion_ardoise_trsp.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.897
-    },
-    "echelleParVariante": {
-      "bleu-saphir": 0.897,
-      "rouge-royal": 0.8202,
-      "vert-emeraude": 0.8234,
-      "jaune-dor": 0.7721,
-      "cuivre-ardent": 0.9185,
-      "ardoise": 0.7921
-    }
-  },
-  "catapulte-6couleurs": {
-    "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Catapulte 4K d'Erik (new_units/new_catapult, nom moteur catapulte). Rendu direct. ART QUASI CARRÉ : figer la hauteur d'avant (542 @512) ferait déborder la largeur (545 > 512, rognage 16 px/côté) — echelle 1 = largeur calée sur l'avant (456), hauteur résultante ~454 (−16 % vs avant, consigné 🔶 pour l'œil d'Erik).",
-    "svg": "assets-src/modeles/4k/catapulte_bleu_trsp.png",
-    "stem": "unite_catapulte",
-    "variantesFournies": {
-      "bleu-saphir": "assets-src/modeles/4k/catapulte_bleu_trsp.png",
-      "rouge-royal": "assets-src/modeles/4k/catapulte_rouge_trsp.png",
-      "vert-emeraude": "assets-src/modeles/4k/catapulte_vert_trsp.png",
-      "jaune-dor": "assets-src/modeles/4k/catapulte_jaune_trsp.png",
-      "cuivre-ardent": "assets-src/modeles/4k/catapulte_orange_trsp.png",
-      "ardoise": "assets-src/modeles/4k/catapulte_ardoise_trsp.png"
-    },
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 1.0
-    },
-    "echelleParVariante": {
-      "bleu-saphir": 1.0,
-      "rouge-royal": 1.0,
-      "vert-emeraude": 1.0,
-      "jaune-dor": 1.0,
-      "cuivre-ardent": 1.0,
-      "ardoise": 1.0
-    }
-  },
-  "cavalier-base": {
-    "_doc": "Sprite de base unite_cavalier : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
-    "svg": "assets-src/modeles/4k/cavalier_bleu_trsp.png",
-    "stem": "unite_cavalier",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 1.0457
-    }
-  },
-  "chevalier-base": {
-    "_doc": "Sprite de base unite_chevalier : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
-    "svg": "assets-src/modeles/4k/chevalier_bleu_trsp.png",
-    "stem": "unite_chevalier",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.9657
-    }
-  },
-  "legion-base": {
-    "_doc": "Sprite de base unite_legion : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
-    "svg": "assets-src/modeles/4k/legion_bleu_trsp.png",
-    "stem": "unite_legion",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 0.897
-    }
-  },
-  "catapulte-base": {
-    "_doc": "Sprite de base unite_catapulte : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
-    "svg": "assets-src/modeles/4k/catapulte_bleu_trsp.png",
-    "stem": "unite_catapulte",
-    "sansAccent": true,
-    "cible": {
-      "mode": "unite",
-      "w": 512,
-      "h": 640,
-      "margeX": 28,
-      "margeHaut": 12,
-      "margeBas": 20,
-      "echelle": 1.0
-    }
-  },
-  "icone-unite-guerrier": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône guerrier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/guerrier_icone_trsp.png",
-    "stem": "icone_unite_guerrier",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-archer": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône archer d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/archer_icone_trsp.png",
-    "stem": "icone_unite_archer",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-artillerie": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône artillerie d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/artillerie_icone_trsp.png",
-    "stem": "icone_unite_artillerie",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-bombardier": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône bombardier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/bomber_icone_trsp.png",
-    "stem": "icone_unite_bombardier",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-canon": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône canon d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/canon_icone_trsp.png",
-    "stem": "icone_unite_canon",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-caravane": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône caravane d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/caravane_icone_trsp.png",
-    "stem": "icone_unite_caravane",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-catapulte": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône catapulte d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/catapulte_icone_trsp.png",
-    "stem": "icone_unite_catapulte",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-cavalier": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône cavalier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/cavalier_icone_trsp.png",
-    "stem": "icone_unite_cavalier",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-chevalier": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône chevalier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/chevalier_icone_trsp.png",
-    "stem": "icone_unite_chevalier",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-colon": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône colon d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/colon_icone_trsp.png",
-    "stem": "icone_unite_colon",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-croiseur": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône croiseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/cruiser_icone_trsp.png",
-    "stem": "icone_unite_croiseur",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-chasseur": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône chasseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/fighter_icone_trsp.png",
-    "stem": "icone_unite_chasseur",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-fusilier": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône fusilier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/fusiller_icone_trsp.png",
-    "stem": "icone_unite_fusilier",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-galere": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône galere d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/galere_icone_trsp.png",
-    "stem": "icone_unite_galere",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-galion": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône galion d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/galion_icone_trsp.png",
-    "stem": "icone_unite_galion",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-infanterie_moderne": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône infanterie_moderne d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/infanterie_icone_trsp.png",
-    "stem": "icone_unite_infanterie_moderne",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-legion": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône legion d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/legion_icone_trsp.png",
-    "stem": "icone_unite_legion",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-milice": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône milice d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/milice_icone_trsp.png",
-    "stem": "icone_unite_milice",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-piquier": {
-    "_doc": "piquier v2 (13/10) : Erik a refait la source (hoplite complet, 46 % du cadre) — cuisson rétablie. v1 (lance seule) avait été exclue.",
-    "svg": "new_icones/units/piquier_icone_trsp.png",
-    "stem": "icone_unite_piquier",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-sous_marin": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône sous_marin d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/sous-marin_icone_trsp.png",
-    "stem": "icone_unite_sous_marin",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-espion": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône espion d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/spy_icone_trsp.png",
-    "stem": "icone_unite_espion",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-char_d_assaut": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône char_d_assaut d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/tank_icone_trsp.png",
-    "stem": "icone_unite_char_d_assaut",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-cuirasse": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône cuirasse d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/battleship_icone_trsp.png",
-    "stem": "icone_unite_cuirasse",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-artiste_penseur": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône artiste_penseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/great_artist_icone_trsp.png",
-    "stem": "icone_unite_artiste_penseur",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-batisseur": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône batisseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/great_builder_icone_trsp.png",
-    "stem": "icone_unite_batisseur",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-humanitaire": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône humanitaire d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/great_humanitarian_icone_trsp.png",
-    "stem": "icone_unite_humanitaire",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-leader": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône leader d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/great_leader_icone_trsp.png",
-    "stem": "icone_unite_leader",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-savant": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône savant d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/great_scientist_icone_trsp.png",
-    "stem": "icone_unite_savant",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-icbm": {
-    "_doc": "ICONES-UNITES vague 2 (12/10) : icône icbm d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/icbm_icone_trsp.jpeg",
-    "stem": "icone_unite_icbm",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-unite-explorateur": {
-    "_doc": "ICONES-UNITES (13/10, Erik) : great_industrial_icone_trsp.png = l'EXPLORATEUR (précision Erik). 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/units/great_industrial_icone_trsp.png",
-    "stem": "icone_unite_explorateur",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-aqueduc": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment aqueduc (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/aqueduct_trsp.png",
-    "stem": "icone_batiment_aqueduc",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-banque": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment banque (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/bank_trsp.png",
-    "stem": "icone_batiment_banque",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-bibliotheque": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment bibliotheque (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/library_trsp.png",
-    "stem": "icone_batiment_bibliotheque",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-caserne": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment caserne (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/barracks_trsp.png",
-    "stem": "icone_batiment_caserne",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-cathedrale": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment cathedrale (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/cathedral_trsp.png",
-    "stem": "icone_batiment_cathedrale",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-comptoir_commercial": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment comptoir_commercial (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/trading_post_trsp.png",
-    "stem": "icone_batiment_comptoir_commercial",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-grenier": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment grenier (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/grenier_trsp.png",
-    "stem": "icone_batiment_grenier",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-marche": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment marche (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/marketplace_trsp.png",
-    "stem": "icone_batiment_marche",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-mine_de_fer": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment mine_de_fer (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/iron_mines_trsp.png",
-    "stem": "icone_batiment_mine_de_fer",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-palais": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment palais (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/palace_trsp.png",
-    "stem": "icone_batiment_palais",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-port": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment port (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/harbor_trsp.png",
-    "stem": "icone_batiment_port",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-remparts": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment remparts (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/walls_trsp.png",
-    "stem": "icone_batiment_remparts",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-sdi": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment sdi (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/SDI_trsp.png",
-    "stem": "icone_batiment_sdi",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-temple": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment temple (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/temple_trsp.png",
-    "stem": "icone_batiment_temple",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-tribunal": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment tribunal (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/courthouse_trsp.png",
-    "stem": "icone_batiment_tribunal",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-universite": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment universite (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/university_trsp.png",
-    "stem": "icone_batiment_universite",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-usine": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment usine (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/factory_trsp.png",
-    "stem": "icone_batiment_usine",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-vaisseau_carburant": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment vaisseau_carburant (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/spaceship_fuel_trsp.png",
-    "stem": "icone_batiment_vaisseau_carburant",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-vaisseau_habitation": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment vaisseau_habitation (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/spaceship_habitation_trsp.png",
-    "stem": "icone_batiment_vaisseau_habitation",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-vaisseau_propulsion": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment vaisseau_propulsion (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/spaceship_propulsion_trsp.png",
-    "stem": "icone_batiment_vaisseau_propulsion",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-vaisseau_support_vie": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment vaisseau_support_vie (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/buildings/spaceship_life_trsp.png",
-    "stem": "icone_batiment_vaisseau_support_vie",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-atelier_de_leonard": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille atelier_de_leonard (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/leonardo_trsp.png",
-    "stem": "icone_merveille_atelier_de_leonard",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-banque_mondiale": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille banque_mondiale (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/world_bank_trsp.png",
-    "stem": "icone_merveille_banque_mondiale",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-chateau_himeji": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille chateau_himeji (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/himeji_castle_trsp.png",
-    "stem": "icone_merveille_chateau_himeji",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-colosse_de_rhodes": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille colosse_de_rhodes (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/colossus_trsp.png",
-    "stem": "icone_merveille_colosse_de_rhodes",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-compagnie_des_indes": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille compagnie_des_indes (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/east_india_cie_trsp.png",
-    "stem": "icone_merveille_compagnie_des_indes",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-complexe_militaro_industriel": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille complexe_militaro_industriel (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/military_industrial_complex_trsp.png",
-    "stem": "icone_merveille_complexe_militaro_industriel",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-foire_de_troyes": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille foire_de_troyes (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/trade_troyes_trsp.png",
-    "stem": "icone_merveille_foire_de_troyes",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-grande_bibliotheque": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille grande_bibliotheque (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/Great Library of Alexandria_trsp.png",
-    "stem": "icone_merveille_grande_bibliotheque",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-grande_muraille": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille grande_muraille (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/great_walls_trsp.png",
-    "stem": "icone_merveille_grande_muraille",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-grande_pyramide": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille grande_pyramide (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/pyramid_trsp.png",
-    "stem": "icone_merveille_grande_pyramide",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-hollywood": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille hollywood (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/hollywood_trsp.png",
-    "stem": "icone_merveille_hollywood",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-internet": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille internet (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/internet_trsp.png",
-    "stem": "icone_merveille_internet",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-jardins_suspendus": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille jardins_suspendus (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/hanging_gardens_trsp.png",
-    "stem": "icone_merveille_jardins_suspendus",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-magna_carta": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille magna_carta (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/magna_carta_trsp.png",
-    "stem": "icone_merveille_magna_carta",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-nations_unies": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille nations_unies (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/onu_trsp.png",
-    "stem": "icone_merveille_nations_unies",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-oracle_de_delphes": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille oracle_de_delphes (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/oracle_trsp.png",
-    "stem": "icone_merveille_oracle_de_delphes",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-programme_apollo": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille programme_apollo (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/appolo_trsp.png",
-    "stem": "icone_merveille_programme_apollo",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-projet_manhattan": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille projet_manhattan (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/manattan_project_trsp.png",
-    "stem": "icone_merveille_projet_manhattan",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-stonehenge": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille stonehenge (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/stonehenge_trsp.png",
-    "stem": "icone_merveille_stonehenge",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-theatre_de_shakespeare": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille theatre_de_shakespeare (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/theatre_shekespeare_trsp.png",
-    "stem": "icone_merveille_theatre_de_shakespeare",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-merveille-universite_d_oxford": {
-    "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille universite_d_oxford (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
-    "svg": "new_icones/wonders/oxford_trsp.png",
-    "stem": "icone_merveille_universite_d_oxford",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
-  },
-  "icone-batiment-atelier": {
-    "_doc": "ICONES-BATIMENTS (Erik 15/10) : icône bâtiment atelier (new_icones/buildings/workshop_trsp.png) — 64×64 mode icône. Source JAMAIS committée. Complétait le seul trou du 14/10 (atelier sans source → initiale).",
-    "svg": "new_icones/buildings/workshop_trsp.png",
-    "stem": "icone_batiment_atelier",
-    "cible": {
-      "mode": "icone",
-      "w": 64,
-      "h": 64
-    }
+ "_commentaire": "Profils d'import SVG (Erik désigne explicitement chaque fichier). cible.mode = 'unite' (256×320, ancré bas) | 'hex' (tuile 224×256 clippée + contour #2B2620). margeX/Haut/Bas en px de la cible. remplacements (variante CUITE) : paires source→cible explicites, une seule sortie. remplacementsPalette (PALETTE OFFICIELLE, décision Erik 20/09 — HANDOFF-ACCENTS-7-FACTIONS) : source → TONALITÉ (reflet|base|ombre) ; UNE variante par faction de apps/web/src/lib/render/accents.json (7 joueurs + barbare = 8), stems <stem>_j1.._j7,_barbare, sans calque accent. IMPORTANT : Erik fournit, le pipeline n'importe QUE ces fichiers-là.",
+ "gp-artiste-penseur": {
+  "_doc": "GP-ART (27/09) : Personnage Illustre peint par Erik (new_units/great people) — mapping D1 artist.svg → artiste_penseur. Sprite neutre SANS accent (GP jamais teintés, décision Erik). echelle = calibre guerrier (hauteur de contenu identique au PNG livré, 456 px (contenu du guerrier livré)).",
+  "svg": "assets-src/modeles/gp/artist.svg",
+  "stem": "unite_artiste_penseur",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7501
   }
+ },
+ "gp-batisseur": {
+  "_doc": "GP-ART : builder.svg → batisseur (mapping D1). Calibre guerrier.",
+  "svg": "assets-src/modeles/gp/builder.svg",
+  "stem": "unite_batisseur",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7501
+  }
+ },
+ "gp-humanitaire": {
+  "_doc": "GP-ART : humanitaire.svg → humanitaire (mapping D1). Calibre guerrier.",
+  "svg": "assets-src/modeles/gp/humanitaire.svg",
+  "stem": "unite_humanitaire",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8176
+  }
+ },
+ "gp-explorateur": {
+  "_doc": "GP-ART : industrial.svg → explorateur (mapping D1, décision Erik « Explorateur = industriel »). Calibre guerrier.",
+  "svg": "assets-src/modeles/gp/industrial.svg",
+  "stem": "unite_explorateur",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7501
+  }
+ },
+ "gp-leader": {
+  "_doc": "GP-ART : leader.svg → leader (mapping D1). Calibre guerrier.",
+  "svg": "assets-src/modeles/gp/leader.svg",
+  "stem": "unite_leader",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8672
+  }
+ },
+ "gp-savant": {
+  "_doc": "GP-ART : scientist.svg → savant (mapping D1). Calibre guerrier.",
+  "svg": "assets-src/modeles/gp/scientist.svg",
+  "stem": "unite_savant",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7501
+  }
+ },
+ "guerrier-6couleurs": {
+  "_doc": "ASSETS-4K (02/10) : dessins 4K d'Erik (new_units/new_guerrier, copies assets-src/modeles/4k, PNG _trsp fond transparent — JAMAIS les JPEG incrustés). Mapping D1 : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise (nommage irrégulier : guerrier_{couleur}4k_trsp.png, casse K variable — cf. rapport). Aucun recoloriage — la cuite = rendu direct. echelle 0,8808 = calibre guerrier (inchangé, D2). echelleParVariante : calibre variante par variante (hauteurs de contenu des SVG v2 conservées — les 4K changent de proportions par couleur). echelleParVariante (feu vert Erik 02/10) : j3/j4 recalés sur leur hauteur de contenu d'avant (les proportions des 4K diffèrent des SVG).",
+  "svg": "assets-src/modeles/4k/guerrier_bleu4k_trsp.png",
+  "stem": "unite_guerrier",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/guerrier_bleu4k_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/guerrier_rouge4k_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/guerrier_vert4K_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/guerrier_jaune4k_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/guerrier_orange4k_trsp.png",
+   "ardoise": "assets-src/modeles/4k/guerrier_ardoise4K_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8808
+  },
+  "echelleParVariante": {
+   "vert-emeraude": 0.9541,
+   "jaune-dor": 0.8394
+  }
+ },
+ "guerrier-base": {
+  "_doc": "Sprite de base unite_guerrier (fallback + pile) : le PNG 4K bleu d'Erik (ASSETS-4K, 02/10) supplanté au SVG v2 (consigné, SVG conservés en assets-src/modeles/guerrier_v2_*.svg).",
+  "svg": "assets-src/modeles/4k/guerrier_bleu4k_trsp.png",
+  "stem": "unite_guerrier",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8808
+  }
+ },
+ "archer-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE2 (03/10) : dessins 4K d'Erik (new_units/new_archer, copies assets-src/modeles/4k, PNG _trsp fond transparent). Aucun recoloriage — la cuite = rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (SVG 6couleurs, 456 px) variante par variante (les 4K changent de proportions par couleur).",
+  "svg": "assets-src/modeles/4k/archer_bleu_trsp.png",
+  "stem": "unite_archer",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/archer_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/archer_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/archer_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/archer_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/archer_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/archer_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.9873
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.9873,
+   "rouge-royal": 0.9266,
+   "vert-emeraude": 0.8263,
+   "jaune-dor": 0.9316,
+   "cuivre-ardent": 0.7843,
+   "ardoise": 0.9734
+  }
+ },
+ "archer-base": {
+  "_doc": "Sprite de base unite_archer : PNG 4K bleu d'Erik (VAGUE2 03/10) remplace le SVG. Calibre = variante bleu du profil 6couleurs.",
+  "svg": "assets-src/modeles/4k/archer_bleu_trsp.png",
+  "stem": "unite_archer",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.9873
+  }
+ },
+ "colon-6couleurs": {
+  "_doc": "ASSETS-4K (02/10) : dessins 4K d'Erik (new_units/new_colon, copies assets-src/modeles/4k, PNG _trsp — JAMAIS les JPEG incrustés ; nommage colon_trsp_4k_{couleur}.png). Mapping ASSETS-6COULEURS : bleu→Saphir, rouge→Rouge Royal, vert→Émeraude, jaune→Jaune d'Or, orange→Cuivre Ardent, ardoise→Ardoise. echelle = calibre guerrier (inchangé, D2).",
+  "svg": "assets-src/modeles/4k/colon_trsp_4k_bleu.png",
+  "stem": "unite_colon",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/colon_trsp_4k_bleu.png",
+   "rouge-royal": "assets-src/modeles/4k/colon_trsp_4k_rouge.png",
+   "vert-emeraude": "assets-src/modeles/4k/colon_trsp_4k_vert.png",
+   "jaune-dor": "assets-src/modeles/4k/colon_trsp_4k_jaune.png",
+   "cuivre-ardent": "assets-src/modeles/4k/colon_trsp_4k_orange.png",
+   "ardoise": "assets-src/modeles/4k/colon_trsp_4k_ardoise.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8808
+  }
+ },
+ "colon-base": {
+  "_doc": "Sprite de base unite_colon (fallback + piles) : le PNG 4K bleu d'Erik (ASSETS-4K, 02/10).",
+  "svg": "assets-src/modeles/4k/colon_trsp_4k_bleu.png",
+  "stem": "unite_colon",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8808
+  }
+ },
+ "ville-settlement": {
+  "_doc": "ARCHIVÉ (ASSETS-VILLES-ERRES 15/10) : remplacé par les profils ville-ancienne…ville-moderne (art par ÈRE du propriétaire, D1 une image toutes nations). Conservé comme REPLI (D3) : ville_settlement.png reste le sprite de secours si une ère n'est pas cuite. VILLE (27/09) : ville ancient peinte par Erik (new_villes/vile_ancient) — UNE version pour toutes les époques et tous les joueurs (contour de tuile = couleur, décision Erik) ; hexagone pré-clippé, mode tuile + entite.",
+  "svg": "new_villes/vile_ancient/vile_ancient.svg",
+  "stem": "ville_settlement",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "ville-capitale": {
+  "_doc": "ARCHIVÉ (ASSETS-VILLES-ERRES 15/10) : remplacé par capitale-ancienne…capitale-moderne ; conservé comme REPLI (D3). CAPITALE (27/09) : capitale ancient peinte par Erik — UNE version pour toutes les époques/joueurs ; hexagone pré-clippé, mode tuile + entite.",
+  "svg": "new_villes/capitale_ancient/capitale_ancient.svg",
+  "stem": "ville_capitale",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "ville-ancienne": {
+  "_doc": "ASSETS-VILLES-ERRES (Erik 15/10) : ville Ère Ancienne — UNE image pour TOUTES les nations (D1, plus de variante par accent), sprite suivant l'ÈRE DU PROPRIÉTAIRE (D2). Source 4K new_villes/vile_ancient (PIÈGE nommage Erik : « vile »). Mode « unite » 448×512 (2× du calibre d'affichage ville), echelle 0.62 ≈ empreinte de l'art 27/09 (🔶 calibre à l'œil Erik).",
+  "svg": "new_villes/vile_ancient/vile_ancient_trsp.png",
+  "stem": "ville_settlement_ancienne",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 448,
+   "h": 512,
+   "margeX": 24,
+   "margeHaut": 8,
+   "margeBas": 0,
+   "echelle": 0.62
+  }
+ },
+ "ville-medievale": {
+  "_doc": "ASSETS-VILLES-ERRES : ville Médiévale — PIÈGE : le FICHIER d'Erik est new_villes/ville_medievale/vile_medievale_trsp.png (« vile » côté fichier).",
+  "svg": "new_villes/ville_medievale/vile_medievale_trsp.png",
+  "stem": "ville_settlement_medievale",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 448,
+   "h": 512,
+   "margeX": 24,
+   "margeHaut": 8,
+   "margeBas": 0,
+   "echelle": 0.62
+  }
+ },
+ "ville-industrielle": {
+  "_doc": "ASSETS-VILLES-ERRES : ville Industrielle.",
+  "svg": "new_villes/ville_industrielle/ville_industrielle_trsp.png",
+  "stem": "ville_settlement_industrielle",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 448,
+   "h": 512,
+   "margeX": 24,
+   "margeHaut": 8,
+   "margeBas": 0,
+   "echelle": 0.62
+  }
+ },
+ "ville-moderne": {
+  "_doc": "ASSETS-VILLES-ERRES : ville Moderne.",
+  "svg": "new_villes/ville_moderne/ville_moderne_trsp.png",
+  "stem": "ville_settlement_moderne",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 448,
+   "h": 512,
+   "margeX": 24,
+   "margeHaut": 8,
+   "margeBas": 0,
+   "echelle": 0.62
+  }
+ },
+ "capitale-ancienne": {
+  "_doc": "ASSETS-VILLES-ERRES : capitale Ère Ancienne.",
+  "svg": "new_villes/capitale_ancient/capitale_ancient_trsp.png",
+  "stem": "ville_capitale_ancienne",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 448,
+   "h": 512,
+   "margeX": 24,
+   "margeHaut": 8,
+   "margeBas": 0,
+   "echelle": 0.62
+  }
+ },
+ "capitale-medievale": {
+  "_doc": "ASSETS-VILLES-ERRES : capitale Médiévale.",
+  "svg": "new_villes/capitale_medievale/capitale_medievale_trsp.png",
+  "stem": "ville_capitale_medievale",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 448,
+   "h": 512,
+   "margeX": 24,
+   "margeHaut": 8,
+   "margeBas": 0,
+   "echelle": 0.62
+  }
+ },
+ "capitale-industrielle": {
+  "_doc": "ASSETS-VILLES-ERRES : capitale Industrielle — PIÈGE : ESPACE dans le nom de fichier d'Erik (« capitale industrielle_trsp.png »).",
+  "svg": "new_villes/capitale_industrielle/capitale industrielle_trsp.png",
+  "stem": "ville_capitale_industrielle",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 448,
+   "h": 512,
+   "margeX": 24,
+   "margeHaut": 8,
+   "margeBas": 0,
+   "echelle": 0.62
+  }
+ },
+ "capitale-moderne": {
+  "_doc": "ASSETS-VILLES-ERRES : capitale Moderne.",
+  "svg": "new_villes/capitale_moderne/capitale_moderne_trsp.png",
+  "stem": "ville_capitale_moderne",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 448,
+   "h": 512,
+   "margeX": 24,
+   "margeHaut": 8,
+   "margeBas": 0,
+   "echelle": 0.62
+  }
+ },
+ "barbare-unite": {
+  "_doc": "ASSETS-4K vague 2 : PNG 4K trsp d'Erik remplace le SVG (calibre echelle 0.9674 inchangé).",
+  "svg": "assets-src/modeles/4k/unit_barbare_4K_trsp.png",
+  "stem": "unite_barbare_guerrier",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.9674
+  }
+ },
+ "tuile-barbare": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/tuile_barbare_4k_trsp.png",
+  "stem": "village_barbare",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "tuile-hutte": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/hutte_4k_trsp.png",
+  "stem": "hutte",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-angkor-wat": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Angkor Wat.svg",
+  "stem": "artefact_angkor_wat",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-arche-alliance": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Ark of the Covenant.svg",
+  "stem": "artefact_arche_alliance",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-sept-cites-or": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Seven Cities of Gold.svg",
+  "stem": "artefact_sept_cites_or",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-ecole-confucius": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_School of Confucius.svg",
+  "stem": "artefact_ecole_confucius",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-chevaliers-templiers": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Knights Templar.svg",
+  "stem": "artefact_chevaliers_templiers",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-atlantide": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Lost City of Atlantis.svg",
+  "stem": "artefact_atlantide",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "artefact-grand-sphinx": {
+  "_doc": "Artefact peint par Erik (new_others) — remplace le painter (dlcOnly : jamais rendu aujourd’hui — cuit par complétude, consigné au rapport) [entite: sprite posé SUR une tuile — trous intérieurs légitimes (le terrain se voit à travers), G2 décor-plein non applicable]",
+  "svg": "new_others/tuile_Great Sphinx.svg",
+  "stem": "artefact_grand_sphinx",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256,
+   "entite": true
+  }
+ },
+ "_tuiles-ressources-commentaire": "TUILES-RESSOURCES (26/09) : 22 tuiles pleines par ressource, art d'Erik new_ressources/ (NON commités). Remplacent la tuile de terrain SEULEMENT quand la ressource est révélée (rendu, mission TUILES-RESSOURCES). renames : alluminium→aluminium, boeuf→boeufs, gems→gemmes, poissons→poisson, souffre→soufre.",
+ "tuile-ressource-aluminium": {
+  "_doc": "ASSETS-4K vague 2 (complétée 02/10) : source PNG 4K trsp remplace le SVG.",
+  "svg": "assets-src/modeles/4k/alluminium_colline_4k_trsp.png",
+  "stem": "tile_ressource_aluminium",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-baleine": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/baleine_rivage_4k_trsp.png",
+  "stem": "tile_ressource_baleine",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-betail": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/betail_prairie_4K_trsp.png",
+  "stem": "tile_ressource_betail",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-ble": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/ble_prairie_4K_trsp.png",
+  "stem": "tile_ressource_ble",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-boeufs": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/oxen_prairie_4k_trsp.png",
+  "stem": "tile_ressource_boeufs",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-caoutchouc": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/caoutchouc_forest_4k_trsp.png",
+  "stem": "tile_ressource_caoutchouc",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-charbon": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/charbon_colline_4k_trsp.png",
+  "stem": "tile_ressource_charbon",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-chene": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/chene_forest_4k_trsp.png",
+  "stem": "tile_ressource_chene",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-encens": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/encens_prairie_4k_trsp.png",
+  "stem": "tile_ressource_encens",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-epices": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/epices_desert_4k_trsp.png",
+  "stem": "tile_ressource_epices",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-fer": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/fer_colline_4k_trsp.png",
+  "stem": "tile_ressource_fer",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-gemmes": {
+  "_doc": "ASSETS-4K vague 2 (complétée 02/10) : source PNG 4K trsp remplace le SVG.",
+  "svg": "assets-src/modeles/4k/gems_montagne_4k_trsp.png",
+  "stem": "tile_ressource_gemmes",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-gibier": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/gibier_forest_4k_trsp.png",
+  "stem": "tile_ressource_gibier",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-marbre": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/marbre_plaines_4k_trsp.png",
+  "stem": "tile_ressource_marbre",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-or": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/or_montagne_4k_trsp.png",
+  "stem": "tile_ressource_or",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-petrole": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/petrole_desert_4k_trsp.png",
+  "stem": "tile_ressource_petrole",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-poisson": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/poissons_rivage_4k_trsp.png",
+  "stem": "tile_ressource_poisson",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-soie": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/soie_plaines_4k_trsp.png",
+  "stem": "tile_ressource_soie",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-soufre": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/souffre_desert_4k_trsp.png",
+  "stem": "tile_ressource_soufre",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-teinture": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/teinture_rivage_4k_trsp.png",
+  "stem": "tile_ressource_teinture",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-uranium": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/uranium_montagne_4k_trsp.png",
+  "stem": "tile_ressource_uranium",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ressource-vin": {
+  "_doc": "ASSETS-4K vague 2 (Erik 02/10) : source PNG 4K trsp remplace le SVG (mode tuile inchangé).",
+  "svg": "assets-src/modeles/4k/vin_plaines_4k_trsp.png",
+  "stem": "tile_ressource_vin",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-prairie": {
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px).",
+  "svg": "assets-src/modeles/4k/prairie_4K.png",
+  "stem": "tile_prairie",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-plaine": {
+  "svg": "assets-src/modeles/4k/plaine_4K.png",
+  "stem": "tile_plaine",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
+ },
+ "tuile-colline": {
+  "svg": "assets-src/modeles/4k/colline_4K.png",
+  "stem": "tile_colline",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
+ },
+ "tuile-montagne": {
+  "svg": "assets-src/modeles/4k/montagne_4K.png",
+  "stem": "tile_montagne",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
+ },
+ "tuile-desert": {
+  "svg": "assets-src/modeles/4k/desert_4K.png",
+  "stem": "tile_desert",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
+ },
+ "tuile-foret": {
+  "svg": "assets-src/modeles/4k/arbre_4K.png",
+  "stem": "tile_foret",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
+ },
+ "tuile-eau": {
+  "svg": "assets-src/modeles/4k/rivage_4K.png",
+  "stem": "tile_eau",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
+ },
+ "tuile-cacher-prairie": {
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/prairie_4K_fog.png",
+  "stem": "tile_cacher_prairie",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-plaine": {
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/plaine_4K_fog.png",
+  "stem": "tile_cacher_plaine",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-colline": {
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/colline_4K_fog.png",
+  "stem": "tile_cacher_colline",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-montagne": {
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/montagne_4K_fog.png",
+  "stem": "tile_cacher_montagne",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-desert": {
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/desert_4K_fog.png",
+  "stem": "tile_cacher_desert",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-foret": {
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/arbre_4K_fog.png",
+  "stem": "tile_cacher_foret",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-cacher-eau": {
+  "_doc": "ASSETS-4K (02/10) : variante brume 4K d'Erik ({terrain}_4K_fog) remplace la « cacher » du 26/09 — MÊME stem/clé tile_cacher_* et même consommation (ressource présente non révélée, sans jeton).",
+  "svg": "assets-src/modeles/4k/rivage_4K_fog.png",
+  "stem": "tile_cacher_eau",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  }
+ },
+ "tuile-ocean": {
+  "svg": "assets-src/modeles/4k/ocean_4K.png",
+  "stem": "tile_ocean",
+  "cible": {
+   "mode": "tuile",
+   "w": 224,
+   "h": 256
+  },
+  "_doc": "ASSETS-4K (02/10) : PNG 4K d'Erik remplace le SVG comme source (mode tuile inchangé : bbox, fenêtre 224×256 collée haut, masque hexagone + contour #2B2620 2,5 px)."
+ },
+ "icone-nourriture": {
+  "svg": "new_icones/icone_nourriture.svg",
+  "stem": "icone_nourriture",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-production": {
+  "svg": "new_icones/icone_production.svg",
+  "stem": "icone_production",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-or": {
+  "svg": "new_icones/icone_or.svg",
+  "stem": "icone_or",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-sciences": {
+  "_doc": "GP-ART (27/09) : icône sciences v2 d'Erik (icone_sciences2.svg) remplace la v1 — même stem icone_science, 64×64.",
+  "svg": "new_icones/icone_sciences2.svg",
+  "stem": "icone_science",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-balance": {
+  "svg": "new_icones/icone_balance.svg",
+  "stem": "icone_commerce",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-culture": {
+  "svg": "new_icones/icone_culture.svg",
+  "stem": "icone_culture",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "croiseur-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE2 (03/10) : Croiseur 4K d'Erik (new_units/new_cuirasse — nom historique CivRev inversé, cf. handoff §2 ; copies assets-src/modeles/4k/croiseur_*_trsp.png). Rendu direct (pré-peint par couleur). echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 165 px @256 → 330 @512).",
+  "svg": "assets-src/modeles/4k/croiseur_bleu_trsp.png",
+  "stem": "unite_croiseur",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/croiseur_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/croiseur_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/croiseur_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/croiseur_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/croiseur_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/croiseur_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7187
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.7187,
+   "rouge-royal": 0.7298,
+   "vert-emeraude": 0.7398,
+   "jaune-dor": 0.7208,
+   "cuivre-ardent": 0.7048,
+   "ardoise": 0.7276
+  }
+ },
+ "croiseur-base": {
+  "_doc": "Sprite de base unite_croiseur : PNG 4K bleu (VAGUE2). Remplace la planche peintre (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/croiseur_bleu_trsp.png",
+  "stem": "unite_croiseur",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7187
+  }
+ },
+ "cuirasse-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE2 (03/10) : Cuirassé 4K d'Erik (new_units/new_battleship = Cuirassé, cf. handoff §2 ; copies assets-src/modeles/4k/cuirasse_*_trsp.png). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 183 px @256 → 366 @512).",
+  "svg": "assets-src/modeles/4k/cuirasse_bleu_trsp.png",
+  "stem": "unite_cuirasse",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/cuirasse_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/cuirasse_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/cuirasse_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/cuirasse_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/cuirasse_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/cuirasse_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7947
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.7947,
+   "rouge-royal": 0.7964,
+   "vert-emeraude": 0.7999,
+   "jaune-dor": 0.8018,
+   "cuivre-ardent": 0.7976,
+   "ardoise": 0.802
+  }
+ },
+ "cuirasse-base": {
+  "_doc": "Sprite de base unite_cuirasse : PNG 4K bleu (VAGUE2). Remplace la planche peintre (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/cuirasse_bleu_trsp.png",
+  "stem": "unite_cuirasse",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7947
+  }
+ },
+ "galere-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE3 (03/10) : Galère 4K d'Erik (new_units/new_galere, copies assets-src/modeles/4k/galere_*_trsp.png — transparence fournie cette fois). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 212 px @256 → 424 @512).",
+  "svg": "assets-src/modeles/4k/galere_bleu_trsp.png",
+  "stem": "unite_galere",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/galere_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/galere_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/galere_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/galere_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/galere_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/galere_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.934
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.934,
+   "rouge-royal": 0.9893,
+   "vert-emeraude": 0.9268,
+   "jaune-dor": 0.9271,
+   "cuivre-ardent": 0.9319,
+   "ardoise": 0.9577
+  }
+ },
+ "galere-base": {
+  "_doc": "Sprite de base unite_galere : PNG 4K bleu (VAGUE3). Remplace la planche peintre (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/galere_bleu_trsp.png",
+  "stem": "unite_galere",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.934
+  }
+ },
+ "galion-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE3 (03/10) : Galion 4K d'Erik (new_units/new_galion, copies assets-src/modeles/4k/galion_*_trsp.png). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 234 px @256 → 468 @512).",
+  "svg": "assets-src/modeles/4k/galion_bleu_trsp.png",
+  "stem": "unite_galion",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/galion_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/galion_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/galion_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/galion_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/galion_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/galion_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0337
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 1.0337,
+   "rouge-royal": 1.0256,
+   "vert-emeraude": 1.0225,
+   "jaune-dor": 1.034,
+   "cuivre-ardent": 1.019,
+   "ardoise": 1.0256
+  }
+ },
+ "galion-base": {
+  "_doc": "Sprite de base unite_galion : PNG 4K bleu (VAGUE3). Remplace la planche peintre (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/galion_bleu_trsp.png",
+  "stem": "unite_galion",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0337
+  }
+ },
+ "cavalier-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Cavalier 4K d'Erik (new_units/new_cavalier, canvas 4096×3072 rembourré en 4096² transparent à la copie — le pipeline suppose du carré). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (planche peintre 267 px @256 → 534 @512). Ardoise recalée à 1.1228 (limite largeur 512, l'art déborde de 1 px à la hauteur d'avant exacte).",
+  "svg": "assets-src/modeles/4k/cavalier_bleu_trsp.png",
+  "stem": "unite_cavalier",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/cavalier_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/cavalier_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/cavalier_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/cavalier_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/cavalier_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/cavalier_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0457
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 1.0457,
+   "rouge-royal": 1.0517,
+   "vert-emeraude": 0.9662,
+   "jaune-dor": 1.0142,
+   "cuivre-ardent": 0.9843,
+   "ardoise": 1.1228
+  }
+ },
+ "chevalier-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Chevalier 4K d'Erik (new_units/new_chevalier, suffixe _trsp sans 4K). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (233 px @256 → 466 @512).",
+  "svg": "assets-src/modeles/4k/chevalier_bleu_trsp.png",
+  "stem": "unite_chevalier",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/chevalier_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/chevalier_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/chevalier_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/chevalier_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/chevalier_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/chevalier_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.9657
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.9657,
+   "rouge-royal": 0.901,
+   "vert-emeraude": 0.9761,
+   "jaune-dor": 0.9682,
+   "cuivre-ardent": 0.8782,
+   "ardoise": 0.9401
+  }
+ },
+ "legion-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Légion 4K d'Erik (new_units/new_legion). Rendu direct. echelleParVariante : hauteur de contenu calée sur l'avant (215 px @256 → 430 @512).",
+  "svg": "assets-src/modeles/4k/legion_bleu_trsp.png",
+  "stem": "unite_legion",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/legion_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/legion_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/legion_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/legion_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/legion_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/legion_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.897
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.897,
+   "rouge-royal": 0.8202,
+   "vert-emeraude": 0.8234,
+   "jaune-dor": 0.7721,
+   "cuivre-ardent": 0.9185,
+   "ardoise": 0.7921
+  }
+ },
+ "catapulte-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE4 (03/10) : Catapulte 4K d'Erik (new_units/new_catapult, nom moteur catapulte). Rendu direct. ART QUASI CARRÉ : figer la hauteur d'avant (542 @512) ferait déborder la largeur (545 > 512, rognage 16 px/côté) — echelle 1 = largeur calée sur l'avant (456), hauteur résultante ~454 (−16 % vs avant, consigné 🔶 pour l'œil d'Erik).",
+  "svg": "assets-src/modeles/4k/catapulte_bleu_trsp.png",
+  "stem": "unite_catapulte",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/catapulte_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/catapulte_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/catapulte_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/catapulte_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/catapulte_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/catapulte_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 1.0,
+   "rouge-royal": 1.0,
+   "vert-emeraude": 1.0,
+   "jaune-dor": 1.0,
+   "cuivre-ardent": 1.0,
+   "ardoise": 1.0
+  }
+ },
+ "cavalier-base": {
+  "_doc": "Sprite de base unite_cavalier : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/cavalier_bleu_trsp.png",
+  "stem": "unite_cavalier",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0457
+  }
+ },
+ "chevalier-base": {
+  "_doc": "Sprite de base unite_chevalier : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/chevalier_bleu_trsp.png",
+  "stem": "unite_chevalier",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.9657
+  }
+ },
+ "legion-base": {
+  "_doc": "Sprite de base unite_legion : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/legion_bleu_trsp.png",
+  "stem": "unite_legion",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.897
+  }
+ },
+ "catapulte-base": {
+  "_doc": "Sprite de base unite_catapulte : PNG 4K bleu (VAGUE4). Remplace la planche peintre (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/catapulte_bleu_trsp.png",
+  "stem": "unite_catapulte",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  }
+ },
+ "icone-unite-guerrier": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône guerrier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/guerrier_icone_trsp.png",
+  "stem": "icone_unite_guerrier",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-archer": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône archer d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/archer_icone_trsp.png",
+  "stem": "icone_unite_archer",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-artillerie": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône artillerie d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/artillerie_icone_trsp.png",
+  "stem": "icone_unite_artillerie",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-bombardier": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône bombardier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/bomber_icone_trsp.png",
+  "stem": "icone_unite_bombardier",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-canon": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône canon d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/canon_icone_trsp.png",
+  "stem": "icone_unite_canon",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-caravane": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône caravane d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/caravane_icone_trsp.png",
+  "stem": "icone_unite_caravane",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-catapulte": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône catapulte d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/catapulte_icone_trsp.png",
+  "stem": "icone_unite_catapulte",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-cavalier": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône cavalier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/cavalier_icone_trsp.png",
+  "stem": "icone_unite_cavalier",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-chevalier": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône chevalier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/chevalier_icone_trsp.png",
+  "stem": "icone_unite_chevalier",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-colon": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône colon d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/colon_icone_trsp.png",
+  "stem": "icone_unite_colon",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-croiseur": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône croiseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/cruiser_icone_trsp.png",
+  "stem": "icone_unite_croiseur",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-chasseur": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône chasseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/fighter_icone_trsp.png",
+  "stem": "icone_unite_chasseur",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-fusilier": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône fusilier d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/fusiller_icone_trsp.png",
+  "stem": "icone_unite_fusilier",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-galere": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône galere d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/galere_icone_trsp.png",
+  "stem": "icone_unite_galere",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-galion": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône galion d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/galion_icone_trsp.png",
+  "stem": "icone_unite_galion",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-infanterie_moderne": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône infanterie_moderne d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/infanterie_icone_trsp.png",
+  "stem": "icone_unite_infanterie_moderne",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-legion": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône legion d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/legion_icone_trsp.png",
+  "stem": "icone_unite_legion",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-milice": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône milice d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/milice_icone_trsp.png",
+  "stem": "icone_unite_milice",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-piquier": {
+  "_doc": "piquier v2 (13/10) : Erik a refait la source (hoplite complet, 46 % du cadre) — cuisson rétablie. v1 (lance seule) avait été exclue.",
+  "svg": "new_icones/units/piquier_icone_trsp.png",
+  "stem": "icone_unite_piquier",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-sous_marin": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône sous_marin d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/sous-marin_icone_trsp.png",
+  "stem": "icone_unite_sous_marin",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-espion": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône espion d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/spy_icone_trsp.png",
+  "stem": "icone_unite_espion",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-char_d_assaut": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône char_d_assaut d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/tank_icone_trsp.png",
+  "stem": "icone_unite_char_d_assaut",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-cuirasse": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône cuirasse d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/battleship_icone_trsp.png",
+  "stem": "icone_unite_cuirasse",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-artiste_penseur": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône artiste_penseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/great_artist_icone_trsp.png",
+  "stem": "icone_unite_artiste_penseur",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-batisseur": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône batisseur d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/great_builder_icone_trsp.png",
+  "stem": "icone_unite_batisseur",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-humanitaire": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône humanitaire d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/great_humanitarian_icone_trsp.png",
+  "stem": "icone_unite_humanitaire",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-leader": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône leader d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/great_leader_icone_trsp.png",
+  "stem": "icone_unite_leader",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-savant": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône savant d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/great_scientist_icone_trsp.png",
+  "stem": "icone_unite_savant",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-icbm": {
+  "_doc": "ICONES-UNITES vague 2 (12/10) : icône icbm d'Erik (new_icones/units) — 64×64 plein cadre, mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/icbm_icone_trsp.jpeg",
+  "stem": "icone_unite_icbm",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-unite-explorateur": {
+  "_doc": "ICONES-UNITES (13/10, Erik) : great_industrial_icone_trsp.png = l'EXPLORATEUR (précision Erik). 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/units/great_industrial_icone_trsp.png",
+  "stem": "icone_unite_explorateur",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-aqueduc": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment aqueduc (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/aqueduct_trsp.png",
+  "stem": "icone_batiment_aqueduc",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-banque": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment banque (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/bank_trsp.png",
+  "stem": "icone_batiment_banque",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-bibliotheque": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment bibliotheque (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/library_trsp.png",
+  "stem": "icone_batiment_bibliotheque",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-caserne": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment caserne (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/barracks_trsp.png",
+  "stem": "icone_batiment_caserne",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-cathedrale": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment cathedrale (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/cathedral_trsp.png",
+  "stem": "icone_batiment_cathedrale",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-comptoir_commercial": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment comptoir_commercial (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/trading_post_trsp.png",
+  "stem": "icone_batiment_comptoir_commercial",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-grenier": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment grenier (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/grenier_trsp.png",
+  "stem": "icone_batiment_grenier",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-marche": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment marche (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/marketplace_trsp.png",
+  "stem": "icone_batiment_marche",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-mine_de_fer": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment mine_de_fer (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/iron_mines_trsp.png",
+  "stem": "icone_batiment_mine_de_fer",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-palais": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment palais (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/palace_trsp.png",
+  "stem": "icone_batiment_palais",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-port": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment port (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/harbor_trsp.png",
+  "stem": "icone_batiment_port",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-remparts": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment remparts (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/walls_trsp.png",
+  "stem": "icone_batiment_remparts",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-sdi": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment sdi (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/SDI_trsp.png",
+  "stem": "icone_batiment_sdi",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-temple": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment temple (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/temple_trsp.png",
+  "stem": "icone_batiment_temple",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-tribunal": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment tribunal (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/courthouse_trsp.png",
+  "stem": "icone_batiment_tribunal",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-universite": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment universite (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/university_trsp.png",
+  "stem": "icone_batiment_universite",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-usine": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment usine (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/factory_trsp.png",
+  "stem": "icone_batiment_usine",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-vaisseau_carburant": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment vaisseau_carburant (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/spaceship_fuel_trsp.png",
+  "stem": "icone_batiment_vaisseau_carburant",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-vaisseau_habitation": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment vaisseau_habitation (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/spaceship_habitation_trsp.png",
+  "stem": "icone_batiment_vaisseau_habitation",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-vaisseau_propulsion": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment vaisseau_propulsion (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/spaceship_propulsion_trsp.png",
+  "stem": "icone_batiment_vaisseau_propulsion",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-vaisseau_support_vie": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône bâtiment vaisseau_support_vie (new_icones/buildings) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/buildings/spaceship_life_trsp.png",
+  "stem": "icone_batiment_vaisseau_support_vie",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-atelier_de_leonard": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille atelier_de_leonard (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/leonardo_trsp.png",
+  "stem": "icone_merveille_atelier_de_leonard",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-banque_mondiale": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille banque_mondiale (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/world_bank_trsp.png",
+  "stem": "icone_merveille_banque_mondiale",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-chateau_himeji": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille chateau_himeji (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/himeji_castle_trsp.png",
+  "stem": "icone_merveille_chateau_himeji",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-colosse_de_rhodes": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille colosse_de_rhodes (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/colossus_trsp.png",
+  "stem": "icone_merveille_colosse_de_rhodes",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-compagnie_des_indes": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille compagnie_des_indes (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/east_india_cie_trsp.png",
+  "stem": "icone_merveille_compagnie_des_indes",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-complexe_militaro_industriel": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille complexe_militaro_industriel (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/military_industrial_complex_trsp.png",
+  "stem": "icone_merveille_complexe_militaro_industriel",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-foire_de_troyes": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille foire_de_troyes (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/trade_troyes_trsp.png",
+  "stem": "icone_merveille_foire_de_troyes",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-grande_bibliotheque": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille grande_bibliotheque (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/Great Library of Alexandria_trsp.png",
+  "stem": "icone_merveille_grande_bibliotheque",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-grande_muraille": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille grande_muraille (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/great_walls_trsp.png",
+  "stem": "icone_merveille_grande_muraille",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-grande_pyramide": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille grande_pyramide (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/pyramid_trsp.png",
+  "stem": "icone_merveille_grande_pyramide",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-hollywood": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille hollywood (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/hollywood_trsp.png",
+  "stem": "icone_merveille_hollywood",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-internet": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille internet (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/internet_trsp.png",
+  "stem": "icone_merveille_internet",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-jardins_suspendus": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille jardins_suspendus (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/hanging_gardens_trsp.png",
+  "stem": "icone_merveille_jardins_suspendus",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-magna_carta": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille magna_carta (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/magna_carta_trsp.png",
+  "stem": "icone_merveille_magna_carta",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-nations_unies": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille nations_unies (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/onu_trsp.png",
+  "stem": "icone_merveille_nations_unies",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-oracle_de_delphes": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille oracle_de_delphes (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/oracle_trsp.png",
+  "stem": "icone_merveille_oracle_de_delphes",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-programme_apollo": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille programme_apollo (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/appolo_trsp.png",
+  "stem": "icone_merveille_programme_apollo",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-projet_manhattan": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille projet_manhattan (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/manattan_project_trsp.png",
+  "stem": "icone_merveille_projet_manhattan",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-stonehenge": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille stonehenge (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/stonehenge_trsp.png",
+  "stem": "icone_merveille_stonehenge",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-theatre_de_shakespeare": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille theatre_de_shakespeare (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/theatre_shekespeare_trsp.png",
+  "stem": "icone_merveille_theatre_de_shakespeare",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-merveille-universite_d_oxford": {
+  "_doc": "ICONES-BATIMENTS (Erik 14/10) : icône merveille universite_d_oxford (new_icones/wonders) — 64×64 mode icône. Source JAMAIS committée.",
+  "svg": "new_icones/wonders/oxford_trsp.png",
+  "stem": "icone_merveille_universite_d_oxford",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "icone-batiment-atelier": {
+  "_doc": "ICONES-BATIMENTS (Erik 15/10) : icône bâtiment atelier (new_icones/buildings/workshop_trsp.png) — 64×64 mode icône. Source JAMAIS committée. Complétait le seul trou du 14/10 (atelier sans source → initiale).",
+  "svg": "new_icones/buildings/workshop_trsp.png",
+  "stem": "icone_batiment_atelier",
+  "cible": {
+   "mode": "icone",
+   "w": 64,
+   "h": 64
+  }
+ },
+ "piquier-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 (16/10) : Piquier 4K d'Erik (new_units/new_piquier). Rendu direct, calibre = hauteur d'avant (502) figée par variante.",
+  "svg": "assets-src/modeles/4k/piquier_bleu_trsp.png",
+  "stem": "unite_piquier",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/piquier_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/piquier_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/piquier_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/piquier_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/piquier_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/piquier_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8257
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.8257,
+   "rouge-royal": 0.8817,
+   "vert-emeraude": 0.8257,
+   "jaune-dor": 0.872,
+   "cuivre-ardent": 0.9394,
+   "ardoise": 0.8257
+  }
+ },
+ "piquier-base": {
+  "_doc": "Sprite de base unite_piquier : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/piquier_bleu_trsp.png",
+  "stem": "unite_piquier",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8257
+  }
+ },
+ "sous_marin-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 (16/10) : Sous-marin 4K d'Erik (new_units/new_sousmarin, tiret dans les noms de fichiers sources, normalisé en sous_marin). Calibre = hauteur d'avant (270) figée par variante.",
+  "svg": "assets-src/modeles/4k/sous_marin_bleu_trsp.png",
+  "stem": "unite_sous_marin",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/sous_marin_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/sous_marin_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/sous_marin_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/sous_marin_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/sous_marin_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/sous_marin_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.6007
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.6007,
+   "rouge-royal": 0.5997,
+   "vert-emeraude": 0.593,
+   "jaune-dor": 0.5886,
+   "cuivre-ardent": 0.5992,
+   "ardoise": 0.5947
+  }
+ },
+ "sous_marin-base": {
+  "_doc": "Sprite de base unite_sous_marin : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/sous_marin_bleu_trsp.png",
+  "stem": "unite_sous_marin",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.6007
+  }
+ },
+ "canon-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 (16/10) : Canon 4K d'Erik (new_units/new_canon) — D2 : sources JPEG OPACUES, transparence DÉRIVÉE par le labo (fond blanc connecté aux bords, devtmp/canon-transparence.mjs) ; verdict à l'œil Erik, ré-export possible. ART QUASI CARRÉ : figer la hauteur d'avant (520) aurait dépassé 456 de large — exception catapulte : LARGEUR calée (456), hauteur résultante ~450 (−13 %), consigné 🔶.",
+  "svg": "assets-src/modeles/4k/canon_bleu_trsp.png",
+  "stem": "unite_canon",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/canon_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/canon_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/canon_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/canon_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/canon_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/canon_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 1.0,
+   "rouge-royal": 1.0,
+   "vert-emeraude": 1.0,
+   "jaune-dor": 1.0,
+   "cuivre-ardent": 1.0,
+   "ardoise": 1.0
+  }
+ },
+ "canon-base": {
+  "_doc": "Sprite de base unite_canon : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/canon_bleu_trsp.png",
+  "stem": "unite_canon",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  }
+ },
+ "milice-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 (16/10) : Milice 4K d'Erik (new_units/new_milice). Rendu direct, calibre = hauteur d'avant (410) figée par variante.",
+  "svg": "assets-src/modeles/4k/milice_bleu_trsp.png",
+  "stem": "unite_milice",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/milice_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/milice_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/milice_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/milice_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/milice_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/milice_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.6841
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.6841,
+   "rouge-royal": 0.6954,
+   "vert-emeraude": 0.6743,
+   "jaune-dor": 0.6743,
+   "cuivre-ardent": 0.6852,
+   "ardoise": 0.6743
+  }
+ },
+ "milice-base": {
+  "_doc": "Sprite de base unite_milice : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/milice_bleu_trsp.png",
+  "stem": "unite_milice",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.6841
+  }
+ },
+ "caravane-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 (16/10) : Caravane 4K d'Erik (new_units/new_caravane). Rendu direct, calibre = hauteur d'avant (376) figée par variante.",
+  "svg": "assets-src/modeles/4k/caravane_bleu_trsp.png",
+  "stem": "unite_caravane",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/caravane_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/caravane_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/caravane_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/caravane_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/caravane_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/caravane_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8047
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.8047,
+   "rouge-royal": 0.8246,
+   "vert-emeraude": 0.8229,
+   "jaune-dor": 0.8147,
+   "cuivre-ardent": 0.8097,
+   "ardoise": 0.7871
+  }
+ },
+ "caravane-base": {
+  "_doc": "Sprite de base unite_caravane : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/caravane_bleu_trsp.png",
+  "stem": "unite_caravane",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.8047
+  }
+ },
+ "icbm-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 (16/10) : ICBM 4K d'Erik (new_units/new_icbm) — D5 : icbm_bleu.png SANS suffixe _trsp vérifié RGBA 4K, utilisé comme variante bleue. ICBM bleu/jaune débordaient en largeur à hauteur figée (488/468 > 456) : calées à la LARGEUR (456), hauteur légèrement sous la cible (432/450 vs 462), consigné 🔶.",
+  "svg": "assets-src/modeles/4k/icbm_bleu_trsp.png",
+  "stem": "unite_icbm",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/icbm_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/icbm_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/icbm_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/icbm_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/icbm_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/icbm_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 1.0,
+   "rouge-royal": 0.9987,
+   "vert-emeraude": 0.946,
+   "jaune-dor": 1.0,
+   "cuivre-ardent": 0.9478,
+   "ardoise": 0.9715
+  }
+ },
+ "icbm-base": {
+  "_doc": "Sprite de base unite_icbm : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/icbm_bleu_trsp.png",
+  "stem": "unite_icbm",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  }
+ },
+ "chasseur-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 (16/10) : Chasseur 4K d'Erik (new_units/new_fighter) — unité aérienne pas encore active, art préparée. PROPORTIONS TRÈS LARGES (jet de profil ~2,2:1) : figer la hauteur d'avant (414) aurait donné 900-1200 de large — exception catapulte : LARGEUR calée (456), hauteur ~160-205, consigné 🔶 (verdict à l'œil).",
+  "svg": "assets-src/modeles/4k/chasseur_bleu_trsp.png",
+  "stem": "unite_chasseur",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/chasseur_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/chasseur_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/chasseur_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/chasseur_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/chasseur_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/chasseur_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 1.0,
+   "rouge-royal": 1.0,
+   "vert-emeraude": 1.0,
+   "jaune-dor": 1.0,
+   "cuivre-ardent": 1.0,
+   "ardoise": 1.0
+  }
+ },
+ "chasseur-base": {
+  "_doc": "Sprite de base unite_chasseur : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/chasseur_bleu_trsp.png",
+  "stem": "unite_chasseur",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  }
+ },
+ "bombardier-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 (16/10) : Bombardier 4K d'Erik (new_units/new_bomber) — unité aérienne pas encore active, art préparée. Débordement léger à hauteur figée (476-494 > 456) : LARGEUR calée (456), hauteur ~430-446 (vs cible 466), consigné 🔶.",
+  "svg": "assets-src/modeles/4k/bombardier_bleu_trsp.png",
+  "stem": "unite_bombardier",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/bombardier_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/bombardier_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/bombardier_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/bombardier_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/bombardier_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/bombardier_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 1.0,
+   "rouge-royal": 1.0,
+   "vert-emeraude": 1.0,
+   "jaune-dor": 1.0,
+   "cuivre-ardent": 1.0,
+   "ardoise": 1.0
+  }
+ },
+ "bombardier-base": {
+  "_doc": "Sprite de base unite_bombardier : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/bombardier_bleu_trsp.png",
+  "stem": "unite_bombardier",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  }
+ },
+ "espion-universel": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 (16/10) : Espion 4K d'Erik (new_units/new_espion) — D3 UNIVERSELLE : UNE seule image pour TOUTES les palettes (aucun accent, aucune teinte joueur), choix Erik assumé. Cuite sansAccent → unite_espion.png ; l'accent atelier unite_espion_accent.png est RETIRÉ du chargement (base seule partout).",
+  "svg": "assets-src/modeles/4k/espion_bleu_trsp.png",
+  "stem": "unite_espion",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.6908
+  }
+ },
+ "fusiller-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 complément (16/10, les 13 dernières unités) : Fusiller 4K d'Erik (new_units/new_fusiller). SANS art atelier (aucun unite_fusiller.png avant) — cible de calibre = celle de l'infanterie_moderne (fantassin debout comparable, 356), consigné 🔶 à l'œil. ⚠ NOM MOTEUR : « fusilier » (un l), fichiers sources Erik « fusiller_*.png ».",
+  "svg": "assets-src/modeles/4k/fusiller_bleu_trsp.png",
+  "stem": "unite_fusilier",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/fusiller_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/fusiller_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/fusiller_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/fusiller_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/fusiller_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/fusiller_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7425
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.7425,
+   "rouge-royal": 0.7703,
+   "vert-emeraude": 0.6487,
+   "jaune-dor": 0.6694,
+   "cuivre-ardent": 0.7321,
+   "ardoise": 0.7328
+  }
+ },
+ "fusiller-base": {
+  "_doc": "Sprite de base unite_fusiller : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback). ⚠ NOM MOTEUR : « fusilier » (un l), fichiers sources Erik « fusiller_*.png ».",
+  "svg": "assets-src/modeles/4k/fusiller_bleu_trsp.png",
+  "stem": "unite_fusilier",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7425
+  }
+ },
+ "artillerie-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 complément : Artillerie 4K d'Erik (new_units/new_artillerie). ART LARGEMENT HORS CADRE à hauteur figée (l'avant 528 aurait donné ~640+ de large) : LARGEUR calée (456), hauteur ~432-463, consigné 🔶. D4 : les uniques Obusier/Trébuchet suivent cette base.",
+  "svg": "assets-src/modeles/4k/artillerie_bleu_trsp.png",
+  "stem": "unite_artillerie",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/artillerie_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/artillerie_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/artillerie_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/artillerie_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/artillerie_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/artillerie_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 1.0,
+   "rouge-royal": 1.0,
+   "vert-emeraude": 1.0,
+   "jaune-dor": 1.0,
+   "cuivre-ardent": 1.0,
+   "ardoise": 1.0
+  }
+ },
+ "artillerie-base": {
+  "_doc": "Sprite de base unite_artillerie : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/artillerie_bleu_trsp.png",
+  "stem": "unite_artillerie",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 1.0
+  }
+ },
+ "infanterie_moderne-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 complément : Infanterie moderne 4K d'Erik (new_units/new_infanterie, dossier sans « _moderne »). Calibre = hauteur d'avant (356) figée par variante.",
+  "svg": "assets-src/modeles/4k/infanterie_moderne_bleu_trsp.png",
+  "stem": "unite_infanterie_moderne",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/infanterie_moderne_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/infanterie_moderne_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/infanterie_moderne_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/infanterie_moderne_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/infanterie_moderne_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/infanterie_moderne_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7045
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.7045,
+   "rouge-royal": 0.7012,
+   "vert-emeraude": 0.731,
+   "jaune-dor": 0.6828,
+   "cuivre-ardent": 0.6999,
+   "ardoise": 0.7253
+  }
+ },
+ "infanterie_moderne-base": {
+  "_doc": "Sprite de base unite_infanterie_moderne : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/infanterie_moderne_bleu_trsp.png",
+  "stem": "unite_infanterie_moderne",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.7045
+  }
+ },
+ "char_d_assaut-6couleurs": {
+  "_doc": "ASSETS-UNITS-4K VAGUE5 complément : Char d'assaut 4K d'Erik (new_units/new_tank, dossier « tank », nom moteur char_d_assaut). Calibre = hauteur d'avant (392) figée par variante. D4 : les chars uniques (Sherman/Panzer/T-34) suivent cette base.",
+  "svg": "assets-src/modeles/4k/char_d_assaut_bleu_trsp.png",
+  "stem": "unite_char_d_assaut",
+  "variantesFournies": {
+   "bleu-saphir": "assets-src/modeles/4k/char_d_assaut_bleu_trsp.png",
+   "rouge-royal": "assets-src/modeles/4k/char_d_assaut_rouge_trsp.png",
+   "vert-emeraude": "assets-src/modeles/4k/char_d_assaut_vert_trsp.png",
+   "jaune-dor": "assets-src/modeles/4k/char_d_assaut_jaune_trsp.png",
+   "cuivre-ardent": "assets-src/modeles/4k/char_d_assaut_orange_trsp.png",
+   "ardoise": "assets-src/modeles/4k/char_d_assaut_ardoise_trsp.png"
+  },
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.9317
+  },
+  "echelleParVariante": {
+   "bleu-saphir": 0.9317,
+   "rouge-royal": 0.9561,
+   "vert-emeraude": 0.9357,
+   "jaune-dor": 0.9599,
+   "cuivre-ardent": 0.9494,
+   "ardoise": 0.9909
+  }
+ },
+ "char_d_assaut-base": {
+  "_doc": "Sprite de base unite_char_d_assaut : PNG 4K bleu (VAGUE5). Remplace l'art atelier (repli barbare/fallback).",
+  "svg": "assets-src/modeles/4k/char_d_assaut_bleu_trsp.png",
+  "stem": "unite_char_d_assaut",
+  "sansAccent": true,
+  "cible": {
+   "mode": "unite",
+   "w": 512,
+   "h": 640,
+   "margeX": 28,
+   "margeHaut": 12,
+   "margeBas": 20,
+   "echelle": 0.9317
+  }
+ }
 }

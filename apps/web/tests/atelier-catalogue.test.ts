@@ -78,7 +78,9 @@ describe('atelier — catalogue L0', () => {
     // les barbares ci-dessous.
     // GP-ART (27/09) : les 6 classes de Personnages Illustres = SVG peints
     // d'Erik — neutres, SANS calque accent (les _accent painter retirés).
-    const SANS_ACCENT = new Set(['guerrier', 'archer', 'colon', 'artiste_penseur', 'batisseur', 'humanitaire', 'explorateur', 'leader', 'savant']);
+    // VAGUE5 (16/10) : l'espion est UNIVERSELLE (D3) — une seule image pour
+    // toutes les palettes, l'accent atelier est retiré du dépôt.
+    const SANS_ACCENT = new Set(['guerrier', 'archer', 'colon', 'artiste_penseur', 'batisseur', 'humanitaire', 'explorateur', 'leader', 'savant', 'espion']);
     for (const id of Object.keys(UNIT_TYPES)) {
       if (!existsSync(path.join(ART_DIR, `unite_${id}.png`))) continue;
       attends.push(`unite_${id}`);
