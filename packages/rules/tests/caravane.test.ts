@@ -21,6 +21,7 @@ import { colRowToHex } from '../src/hex.js';
 import { SETTLER_BOOTY_GOLD } from '../src/constants.js';
 import { facteurCaravane, montantsLivraison, montantCapture } from '../src/caravane.js';
 import type { GameState, Order } from '../src/state.js';
+import type { TerrainId } from '../src/types.js';
 
 const SEED = 20261019;
 const H = (col: number, row: number) => colRowToHex(col, row);
@@ -56,7 +57,7 @@ describe('CARAVANE · D1 — livraison automatique', () => {
     expect(liv).toMatchObject({ livreur: 'p1', hote: 'p2', montantLivreur: 80, montantHote: 50, villeId: 'ville2' });
     // défenseur en place : ni attaqué ni capturé, aucune cohabitation
     expect(getUnit(newState, 'g1')).toMatchObject({ q: H(3, 2).q, r: H(3, 2).r, hp: 3 });
-    expect(events.some((e) => e.type === 'Combat')).toBe(false);
+    expect(events.some((e) => e.type === 'CombatExchange')).toBe(false);
     expect(events.some((e) => e.type === 'Captured' && e.unitId === 'c1')).toBe(false);
   });
 
@@ -179,7 +180,7 @@ describe('CARAVANE · D4 — R-43 inchangée ailleurs, embarquement, déterminis
       width: 8,
       height: 7,
       terrainOverrides: (() => {
-        const o: Record<string, string> = {};
+        const o: Record<string, TerrainId> = {};
         for (let col = 0; col < 8; col++) {
           o[`${H(col, 3).q},${H(col, 3).r}`] = 'eau';
         }
