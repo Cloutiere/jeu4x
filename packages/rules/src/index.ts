@@ -24,6 +24,8 @@ export * from './economie-ville.js';
 export * from './growth.js';
 /** 7l — Or & trésorerie (R-134..R-137, economy.json). */
 export * from './economyOr.js';
+/** CARAVANE (Erik 19/10) — commerce forfaitaire entre nations (montants purs). */
+export * from './caravane.js';
 /** 7m — Nucléaire & espionnage jeu de base (R-138..R-144, espionnage.json). */
 export * from './espionnage.js';
 /** 7n — Civilisations & traits (R-145..R-150, civilizations.json / eras.json). */

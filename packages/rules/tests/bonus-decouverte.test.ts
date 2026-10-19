@@ -409,7 +409,7 @@ describe('BONUS-DECOUVERTE · D3 — bâtiments à terrain', () => {
 // ---------------------------------------------------------------------------
 
 describe('BONUS-DECOUVERTE · D4 — bâtiments sans terrain', () => {
-  it('Marché : ville la plus peuplée ; la Caravane (non implémentée) reste ignorée', () => {
+  it('Marché : ville la plus peuplée ; la Caravane (implémentée 19/10) est accordée AUSSI', () => {
     const st = etatCotier({
       cities: [
         { id: 'c1', owner: 'p1', q: H(1, 2).q, r: H(1, 2).r, capital: true, pop: 2 },
@@ -420,7 +420,10 @@ describe('BONUS-DECOUVERTE · D4 — bâtiments sans terrain', () => {
     expect(st.cities['c2']!.buildings).toContain('marche');
     expect(st.cities['c1']!.buildings).not.toContain('marche');
     expect(payload.cityId).toBe('c2');
-    expect(Object.values(st.units).some((u) => u.type === 'caravane')).toBe(false);
+    // CARAVANE (Erik 19/10) : implemented: true — le bonus Monnaie accorde
+    // désormais caravane ET marché (unité terrestre : case de la première
+    // ville, sinon adjacente libre — D6).
+    expect(Object.values(st.units).some((u) => u.type === 'caravane')).toBe(true);
   });
 
   it('Remparts : égalité de population → la capitale', () => {

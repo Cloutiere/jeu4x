@@ -209,8 +209,25 @@ export function entreesChronique(events: GameEvent[], ctx: ContexteChronique, to
         groupeCombat(ev.from, ev.seq).replis.push(nomUniteAvecOwner(ev.unitId, ctx));
         break;
       case 'Captured':
-        groupeCombat(ev.at, ev.seq).pertes.push(`${nomUniteAvecOwner(ev.unitId, ctx)} capturée`);
+        groupeCombat(ev.at, ev.seq).pertes.push(
+          ev.caravanGold
+            ? `Caravane de ${nomNation(ev.owner, ctx)} capturée par ${nomNation(ev.byPlayer, ctx)} — ${ev.caravanGold.toLocaleString('fr-FR')} or saisis`
+            : `${nomUniteAvecOwner(ev.unitId, ctx)} capturée`,
+        );
         break;
+      case 'CaravanDelivered': {
+        // D7 (Erik 19/10) : livraison de caravane — le joueur voit SA part ;
+        // la livraison adverse passe par le fog standard (case visible 🔶).
+        const ville = ctx.ville(ev.villeId);
+        const ou = ville?.nom ? ` à ${ville.nom}` : '';
+        if (ev.livreur === ctx.moi)
+          pousser('monde', `Caravane livrée à ${nomNation(ev.hote, ctx)}${ou} : +${ev.montantLivreur.toLocaleString('fr-FR')} or`, 'good', ev.seq, hexCliquable(ev.at, ctx));
+        else if (ev.hote === ctx.moi)
+          pousser('monde', `${nomNation(ev.livreur, ctx)} livre une Caravane${ou} : +${ev.montantHote.toLocaleString('fr-FR')} or`, 'good', ev.seq, hexCliquable(ev.at, ctx));
+        else
+          pousser('monde', `${nomNation(ev.livreur, ctx)} livre une Caravane à ${nomNation(ev.hote, ctx)}${ou}`, 'info', ev.seq, hexCliquable(ev.at, ctx));
+        break;
+      }
       case 'MeleeResolved': {
         const g = groupeCombat(ev.at, ev.seq);
         for (const r of ev.results) {

@@ -100,8 +100,18 @@ export type GameEvent =
   /**
    * Capture d'une unité pacifique (R-43). En guerre (v1) : outcome 'destroyed'
    * (+ BootyGold). En paix (Phase 7) : 'detained'.
+   * CARAVANE (D3, Erik 19/10) : `caravanGold` = or capté par le capteur
+   * (80 × facteur de l'ère du PROPRIÉTAIRE — amendement R-43).
    */
-  | { seq: number; type: 'Captured'; unitId: UnitId; owner: PlayerId; byPlayer: PlayerId; at: Hex; outcome: 'destroyed' | 'detained' }
+  | { seq: number; type: 'Captured'; unitId: UnitId; owner: PlayerId; byPlayer: PlayerId; at: Hex; outcome: 'destroyed' | 'detained'; caravanGold?: number }
+  /**
+   * CARAVANE · D1/D7 (Erik 19/10) : livraison automatique — entrer sur la
+   * case d'une ville étrangère paie livreur +80 × mult et hôte +50 × mult
+   * (ère du LIVREUR, arrondi au plus proche), la caravane est consommée.
+   * Fog standard : livreur et hôte sont référencés (chacun voit sa
+   * transaction 🔶 ; un tiers ne voit que si la case est visible).
+   */
+  | { seq: number; type: 'CaravanDelivered'; livreur: PlayerId; hote: PlayerId; montantLivreur: number; montantHote: number; villeId: CityId; at: Hex }
   /**
    * Butin en or (T-12 capture d'unité pacifique, v1) — la source est une
    * unité (`sourceUnitId`). BARBARES-PILES (15/09) : l'or fixe T-20 de
@@ -480,6 +490,11 @@ export function eventRefs(event: GameEvent): EventRefs {
     case 'Captured':
       refs.unitIds.push(event.unitId);
       refs.players.push(event.owner, event.byPlayer);
+      hex(event.at);
+      break;
+    case 'CaravanDelivered':
+      refs.players.push(event.livreur, event.hote);
+      refs.cityIds.push(event.villeId);
       hex(event.at);
       break;
     case 'BootyGold':

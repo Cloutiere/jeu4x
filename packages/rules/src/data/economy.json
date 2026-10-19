@@ -64,6 +64,18 @@
   "interestRatePct": 0.02,
   "interestNote": "R-134 🔶 (hook 7n) : intérêts passifs de trésorerie — actifs uniquement pour une civilisation dotée du trait (clé 'interets', civilizations.json 7n).",
   "interestTraitKey": "interets",
+  "caravane": {
+    "livreurOr": 80,
+    "hoteOr": 50,
+    "captureOr": 80,
+    "eraFactors": {
+      "ancienne": 1,
+      "medievale": 2,
+      "industrielle": 3,
+      "moderne": 5
+    },
+    "note": "CARAVANE (décisions Erik 19/10, HANDOFF-CARAVANE) : les bases 80/50 SONT les valeurs Ère Ancienne (facteur 1) ; arrondi au plus proche, ère de référence = celle du LIVREUR à la livraison, du PROPRIÉTAIRE à la capture. 🔶 Table 1/2/3/5 dictée par Erik — DISTINCTE de la table rush eraRushFactors ci-dessus (2/3/4/8, canon dataminé 06/09) : le critère d'acceptation « Médiévale ×2 = +160/+100 » fixe l'intention ; la table rush reste LUE, jamais modifiée."
+  },
   "explorerGoldInjection": {
     "ancienne": 50,
     "medievale": 100,

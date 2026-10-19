@@ -148,6 +148,7 @@ function pickProduction(
   }
   for (const u of Object.values(UNIT_TYPES)) {
     if (u.implemented === false || u.greatPerson || u.strategic) continue;
+    if (u.id === 'caravane') continue; // CARAVANE · D4 (Erik 19/10) : le bot solo n'en produit pas
     if ((u.populationCost ?? 0) > 0 && city.pop < u.populationCost!) continue; // R-112 (complétion)
     if (u.aquatic && !isCoastal(city, state)) continue; // R-117 : accès à la mer
     if (!canSetProduction({ kind: 'unit', id: u.id }, unlocked, city.buildings, player.civId)) continue;

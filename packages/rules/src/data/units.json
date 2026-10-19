@@ -235,7 +235,7 @@
     "canFoundCity": false,
     "isRanged": false,
     "tech": "monnaie",
-    "implemented": false
+    "implemented": true
   },
   "galere": {
     "id": "galere",

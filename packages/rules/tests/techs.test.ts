@@ -209,7 +209,7 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
       }
     });
 
-  it('7g : Espion et navales ACTIVÉS ; Caravane reste une donnée seule (isUnlocked)', () => {
+  it('7g : Espion et navales ACTIVÉS ; CARAVANE activée (HANDOFF-CARAVANE 19/10, implemented: true)', () => {
     expect(isUnlocked({ tech: 'ecriture', implemented: false }, ['ecriture'])).toBe(false);
     expect(isUnlocked({ tech: null, implemented: false }, [])).toBe(false);
     expect(productionDataOf({ kind: 'unit', id: 'espion' })!.implemented).toBe(true);
@@ -217,7 +217,7 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
     expect(productionDataOf({ kind: 'unit', id: 'galere' })!.implemented).toBe(true);
     expect(productionDataOf({ kind: 'unit', id: 'galere' })!.cargoCapacity).toBe(1); // R-117 (Galion aussi)
     expect(productionDataOf({ kind: 'unit', id: 'galion' })!.cargoCapacity).toBe(1);
-    expect(productionDataOf({ kind: 'unit', id: 'caravane' })!.implemented).toBe(false); // 7h
+    expect(productionDataOf({ kind: 'unit', id: 'caravane' })!.implemented).toBe(true); // CARAVANE 19/10
   });
 
   it('nouvelles unités terrestres 7e (Appendice A) : Archer 1/2/1 (10), Piquier 1/3/1, Catapulte à distance, Chevalier, Fusilier, Canon, Tank, Artillerie, Infanterie moderne', () => {

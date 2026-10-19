@@ -229,6 +229,10 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
       return `${event.unitId} se replie vers (${event.to.q},${event.to.r})`;
     case 'Captured':
       return `${event.unitId} capturée par ${nameOf(event.byPlayer)} (${event.outcome})`;
+    case 'CaravanDelivered':
+      return `Caravane livrée à ${nameOf(event.hote)} : +${event.montantLivreur} or pour ${nameOf(event.livreur)}, +${event.montantHote} or pour l'hôte`;
+    case 'CaravanDelivered':
+      return `Caravane livrée à ${nameOf(event.hote)} : +${event.montantLivreur} or pour ${nameOf(event.livreur)}, +${event.montantHote} or pour l'hôte`;
     case 'BootyGold':
       return `${nameOf(event.player)} touche ${event.amount} or de butin`;
     case 'ArmyFormed':

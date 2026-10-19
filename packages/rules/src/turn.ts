@@ -85,6 +85,7 @@ import { prochainNomVille } from './noms.js'; // MENU-VILLE : noms VilleN (compt
 import { applyCapitalStartBonuses } from './civStartBonus.js'; // CIV-CAPITALE-FONDEE
 import { accorderBatiment } from './batiments.js'; // BONUS-DECOUVERTE : noyau partagé R-66/R-111
 import { embarqueMilice } from './bonusPlacement.js'; // BONUS-DECOUVERTE D2 : Milice de bord
+import { isCaravane, montantsLivraison, montantCapture } from './caravane.js'; // CARAVANE (Erik 19/10)
 // 7i · R-63 rév. (D1/D2), R-60bis (D4), R-64 rév. (D3) — croissance CivRev.
 import {
   GROWTH,
@@ -411,8 +412,17 @@ function tenterDepose(board: Board, transport: Unit): boolean {
     const ordre = passager.order;
     if (!ordre || (ordre.type !== 'Move' && ordre.type !== 'MultiStep') || ordre.path.length === 0) continue;
     const cible = normalizeHexW(ordre.path[0]!, board.st.mapWidth);
+    // CARAVANE · D1 : la case d'une ville étrangère reste « entrable » pour
+    // une caravane (livraison — le défenseur en place ne bloque pas ; l'unité
+    // disparaît à l'arrivée, jamais de cohabitation R-30).
+    const villeEtrangereCible = (() => {
+      const v = cityAt(board, cible);
+      return v && v.owner !== passager.owner && isCaravane(passager) ? v : null;
+    })();
     const deposable =
-      hexDistanceW(transport, cible, board.st.mapWidth) === 1 && canEnter(board, passager, cible) && occupants(board, cible).length === 0;
+      hexDistanceW(transport, cible, board.st.mapWidth) === 1 &&
+      canEnter(board, passager, cible) &&
+      (occupants(board, cible).length === 0 || villeEtrangereCible !== null);
     if (!deposable) continue;
     passager.aboard = null;
     passager.q = cible.q;
@@ -443,6 +453,11 @@ function tenterDepose(board: Board, transport: Unit): boolean {
     activateArtefactAt(artefactCtxOf(board), passager, cible);
     // HUTTE-POSE · miroir R-98 amendée : la dépose ouvre une hutte aussi.
     openHutAt(board, cible, passager);
+    // CARAVANE · D1 : la dépose SUR une ville étrangère LIVRE aussi (miroir
+    // du câblage ARTEFACT/HUTTE à la dépose — embarquement-dépose-livraison).
+    if (villeEtrangereCible) {
+      livrerCaravane(board, passager, villeEtrangereCible);
+    }
     return true;
   }
   return false;
@@ -881,6 +896,32 @@ function kill(board: Board, unit: Unit, cause: DestructionCause, byUnitId: UnitI
 }
 
 /**
+ * CARAVANE · D1/D7 (Erik 19/10) : livraison automatique sur la case d'une
+ * ville étrangère. PAIEMENT (ère du livreur, arrondi au plus proche) :
+ * livreur +80 × mult, hôte +50 × mult (données economy.json `caravane`).
+ * CONSOMMATION : kill cause 'mission' (l'unité disparaît — jamais de
+ * cohabitation R-30). Événement `CaravanDelivered` — fog standard (D7 :
+ * livreur et hôte référencés, chacun voit sa transaction 🔶).
+ */
+function livrerCaravane(board: Board, unit: Unit, ville: City): void {
+  const { livreur, hote } = montantsLivraison(board.st.players[unit.owner]?.era ?? 'ancienne');
+  const livreurP = board.st.players[unit.owner];
+  const hoteP = board.st.players[ville.owner];
+  if (livreurP) livreurP.treasury += livreur;
+  if (hoteP) hoteP.treasury += hote;
+  emit(board, {
+    type: 'CaravanDelivered',
+    livreur: unit.owner,
+    hote: ville.owner,
+    montantLivreur: livreur,
+    montantHote: hote,
+    villeId: ville.id,
+    at: { q: unit.q, r: unit.r },
+  });
+  kill(board, unit, 'mission', null);
+}
+
+/**
  * Capture d'une unité pacifique (R-43, R-57, I-3/I-4).
  * En guerre (v1) : destruction + butin T-12 au capteur. En paix (Phase 7) :
  * détention — le capteur choisira au tour suivant (§7.7-c). Une capture n'est
@@ -888,6 +929,11 @@ function kill(board: Board, unit: Unit, cause: DestructionCause, byUnitId: UnitI
  */
 function capturePeaceful(board: Board, victim: Unit, byPlayer: PlayerId, byUnitId: UnitId | null): void {
   const war = areAtWar(board.st, victim.owner, byPlayer);
+  // CARAVANE · D3 (Erik 19/10) : le capteur d'une caravane en guerre encaisse
+  // 80 × facteur de l'ère du PROPRIÉTAIRE (amendement R-43) — le propriétaire
+  // ne reçoit RIEN. En paix : détention standard (aucun or).
+  const caravane = isCaravane(victim);
+  const butinCaravane = caravane && war ? montantCapture(board.st, victim.owner) : 0;
   emit(board, {
     type: 'Captured',
     unitId: victim.id,
@@ -895,14 +941,16 @@ function capturePeaceful(board: Board, victim: Unit, byPlayer: PlayerId, byUnitI
     byPlayer,
     at: { q: victim.q, r: victim.r },
     outcome: war ? 'destroyed' : 'detained',
+    ...(caravane && war ? { caravanGold: butinCaravane } : {}),
   });
   if (war) {
     kill(board, victim, 'capture', byUnitId);
     // R-95 : les barbares n'ont pas de trésor — destruction sans butin.
     // 7m · R-43/R-142 🔶 : un ESPION capturé ne rapporte rien non plus.
     if (board.st.players[byPlayer] && !unitType(victim.type).spy) {
-      board.st.players[byPlayer]!.treasury += SETTLER_BOOTY_GOLD;
-      emit(board, { type: 'BootyGold', player: byPlayer, amount: SETTLER_BOOTY_GOLD, sourceUnitId: victim.id });
+      const butin = caravane ? butinCaravane : SETTLER_BOOTY_GOLD;
+      board.st.players[byPlayer]!.treasury += butin;
+      emit(board, { type: 'BootyGold', player: byPlayer, amount: butin, sourceUnitId: victim.id });
     }
   } else {
     victim.detainedBy = byPlayer;
@@ -1520,6 +1568,21 @@ function executeMoveOrder(
       break;
     }
     const here = occupants(board, next);
+    // CARAVANE · D1 (Erik 19/10) : entrer sur la case d'une ville ÉTRANGÈRE =
+    // LIVRAISON AUTOMATIQUE (miroir hutte) — livreur +80 × mult, hôte +50 ×
+    // mult (ère du LIVREUR, arrondi au plus proche), la caravane est
+    // CONSOMMÉE. La case ville est toujours « entrable » pour elle : le
+    // défenseur en place ne bloque pas et n'attaque pas (l'unité disparaît,
+    // jamais de cohabitation R-30, jamais de capture ni de combat — la
+    // livraison PRÉCÈDE Grande Muraille, village et branches combat/capture).
+    const villeLivraison = cityAt(board, next);
+    if (villeLivraison && villeLivraison.owner !== unit.owner && isCaravane(unit)) {
+      path = [];
+      unit.mp -= 1;
+      moveUnit(board, unit, next);
+      livrerCaravane(board, unit, villeLivraison);
+      break;
+    }
     if (here.length === 0) {
       // 7k · R-132 · Grande Muraille (décision d'Erik du 04/09, validée) :
       // entrer sur une ville ennemie NON défendue serait une capture — c'est

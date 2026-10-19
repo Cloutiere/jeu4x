@@ -31,6 +31,19 @@ export interface EconomyData {
   interestRatePct: number;
   interestTraitKey: string;
   explorerGoldInjection: Record<TechEra, number>;
+  caravane: CaravaneData;
+}
+
+/** CARAVANE (décisions Erik 19/10) : commerce forfaitaire entre nations. */
+export interface CaravaneData {
+  /** Or du LIVREUR à l'Ère Ancienne (base ×1). */
+  livreurOr: number;
+  /** Or de l'HÔTE (ville étrangère) à l'Ère Ancienne. */
+  hoteOr: number;
+  /** Or du CAPTEUR quand une caravane est capturée (R-43 amendée). */
+  captureOr: number;
+  /** Facteur d'ère CARAVANE — 🔶 DISTINCT de la table rush (voir note economy.json). */
+  eraFactors: Record<TechEra, number>;
 }
 
 export const ECONOMY: EconomyData = economyJson as unknown as EconomyData;

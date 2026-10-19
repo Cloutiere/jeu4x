@@ -126,11 +126,14 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   HealCompleted: 320,
   HealRefused: 600,
   SleepWoke: 320,
+  // CARAVANE (Erik 19/10) : livraison — animation courte (toast + journal).
+  CaravanDelivered: 360,
   TurnResolved: 140,
 };
 
 const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   BootyGold: 'good',
+  CaravanDelivered: 'good',
   CityFounded: 'good',
   CityCaptured: 'bad',
   UnitProduced: 'info',
