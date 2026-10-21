@@ -140,6 +140,11 @@ export type ClientToServerMessage = ProtoMessage &
      *  validée et appliquée à la réception (moteur pur applyAngkorChoice),
      *  diffusion immédiate. N'existe que lorsqu'un droit est en attente
      *  (`pendingArtefactChoices`). */
+    /** DIPLOMATIE-T1 (Erik 19/10, D3) · Déclaration de guerre — ACTION
+     *  IMMÉDIATE (hors ordres de tour, même contrat que SetGovernment) :
+     *  publique et mutuelle (la paire rejoint `diplomacy.war`), appliquée à
+     *  la réception (moteur pur applyDeclareWar), diffusion immédiate. */
+    | { type: 'DeclareWar'; player: string }
     | { type: 'ChooseWonder'; cityId: CityId; wonderId: string }
     /** --- Messages de lobby (socket LobbyDO) --- */
     | { type: 'CreateGame'; settings: GameCreationSettings }
