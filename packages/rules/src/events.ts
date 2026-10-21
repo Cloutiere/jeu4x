@@ -174,6 +174,24 @@ export type GameEvent =
   | { seq: number; type: 'BuildingCompleted'; cityId: CityId; owner: PlayerId; building: string; at: Hex }
   /** Point d'accroche diplomatie (R-58-b) — inactif en v1 (guerre permanente). */
   | { seq: number; type: 'DiplomaticIncident'; between: [PlayerId, PlayerId]; at: Hex }
+  /**
+   * DIPLOMATIE-T1 (Erik 19/10, D3) : déclaration de guerre PUBLIQUE et
+   * MUTUELLE (action immédiate DeclareWar, module pur diplomatie.ts) —
+   * diffusée telle quelle à TOUTES les nations (liste PUBLIC_EVENTS, R-73 :
+   * canon CivRev, la guerre est une annonce). Les attaques sont débloquées
+   * DANS LES DEUX SENS par la paire (gate D2).
+   */
+  | { seq: number; type: 'WarDeclared'; from: PlayerId; on: PlayerId }
+  /**
+   * DIPLOMATIE-T1 (Erik 19/10, D2) : une attaque a été REFUSÉE par la gate de
+   * Paix (ordre Attack explicite, entrée ennemie de mouvement, entrée dans
+   * une ville étrangère) — auparavant fizzle silencieux (R-58-a 🔶). Miroir
+   * ProductionRefused : `reason` porte le libellé de la porte ('paix'). Ne
+   * consomme AUCUN PM et ne déclenche JAMAIS de guerre. Touche son joueur
+   * (son unité) et — l'attaque visant une nation tierce — reste filtrée par
+   * le fog standard (l'unité est un ref du joueur).
+   */
+  | { seq: number; type: 'AttackRefused'; player: PlayerId; unitId: UnitId; target: Hex; reason: 'paix' }
   /** Victoire — v1 : 'domination' (capture de la capitale adverse, R-65),
    *  'forfait' (T-06), 'razedCapital' (capitale rasée par les barbares,
    *  R-97 — Phase 7d), 'culture' (Nations Unies — R-116), 'science'
@@ -358,7 +376,7 @@ export type GameEvent =
       target: Hex;
       outcome: 'detonated' | 'intercepted' | 'blocked' | 'refused';
       cityId?: CityId;
-      reason?: 'democratie' | 'cibleInvisible' | 'grandeMuraille';
+      reason?: 'democratie' | 'cibleInvisible' | 'grandeMuraille' | 'paix';
     }
   /** 7m · C13/R-139 : une ville ciblée a subi la résolution C13 — survit, pop
    *  résultante (`popAfter` = min(pop, 2) 🔶), bâtiments détruits (moitié
@@ -553,6 +571,14 @@ export function eventRefs(event: GameEvent): EventRefs {
     case 'DiplomaticIncident':
       refs.players.push(...event.between);
       hex(event.at);
+      break;
+    case 'WarDeclared':
+      refs.players.push(event.from, event.on);
+      break;
+    case 'AttackRefused':
+      refs.players.push(event.player);
+      refs.unitIds.push(event.unitId);
+      hex(event.target);
       break;
     case 'Victory':
       refs.players.push(event.winner);

@@ -1600,6 +1600,21 @@ function executeMoveOrder(
       ) {
         break;
       }
+      // DIPLOMATIE-T1 · D2 : entrer dans une ville étrangère EN PAIX serait
+      // une capture — refus NOMMÉ (l'unité s'arrête devant, chemin gelé, aucun
+      // PM) ; exceptions : l'espion (infiltration R-143, libre en Paix) et la
+      // caravane (livraison, branché PLUS HAUT).
+      if (
+        cityHere &&
+        cityHere.owner !== unit.owner &&
+        !isSpyUnit(unit) &&
+        !isPeaceful(unit) &&
+        !areAtWar(board.st, unit.owner, cityHere.owner)
+      ) {
+        emit(board, { type: 'AttackRefused', player: unit.owner, unitId: unit.id, target: next, reason: 'paix' });
+        decide(board, 'attaque-refusee', 'DIPLOMATIE-T1 D2', `${unit.id} NE CAPTURE PAS ${cityHere.id} (${next.q},${next.r}) — la Paix interdit l'attaque de ville : déclarez la guerre (DeclareWar)`, { unitId: unit.id, case: next, ville: cityHere.id, raison: 'paix' });
+        break;
+      }
       // R-96 (Phase 7d) : case de village barbare ENNEMI — entrer = l'attaquer
       // (une unité pacifique y est capturée, I-4). L'attaque est planifiée
       // après l'entrée (le village est stationnaire, R-52). Un barbare entre
@@ -1751,6 +1766,16 @@ function executeMoveOrder(
     // est impossible — l'unité s'arrête devant le défenseur, chemin gelé
     // (l'attaque n'entre jamais, aucun PM consommé, pas de combat planifié).
     if (wonderBlocksEnemyAttacks(Object.values(board.st.cities), here[0]!.owner, allKnownTechs(board.st))) {
+      break;
+    }
+    // DIPLOMATIE-T1 · D2 : entrer sur une case occupée par une nation en PAIX
+    // est refusé (nommé) — l'unité s'arrête devant, chemin gelé, aucun PM ;
+    // EXCEPTION défense territoriale (consignée 🔶) : le pacifique qui marche
+    // SUR ta case est déjà capturé PLUS HAUT (capturePeaceful R-43, détenu
+    // en Paix) — la gate ci-dessous ne concerne que les MILITAIRES.
+    if (!areAtWar(board.st, unit.owner, here[0]!.owner)) {
+      emit(board, { type: 'AttackRefused', player: unit.owner, unitId: unit.id, target: next, reason: 'paix' });
+      decide(board, 'attaque-refusee', 'DIPLOMATIE-T1 D2', `${unit.id} N'ENTRE PAS sur (${next.q},${next.r}) — la Paix interdit l'attaque : déclarez la guerre (DeclareWar)`, { unitId: unit.id, case: next, raison: 'paix' });
       break;
     }
     // ENGAGEMENT · R-176/R-178 : entrée sur une case ENNEMIE — l'unité y ENTRE
@@ -3095,7 +3120,7 @@ function applyLaunches(board: Board, ordersByPlayer: Record<PlayerId, Order[]>):
   }
   orders.sort((a, b) => compareUnitIds(a.unitId, b.unitId));
   const visibilityCache = new Map<PlayerId, Set<TileKey>>();
-  const refuse = (unit: Unit, target: Hex, reason: 'democratie' | 'cibleInvisible') => {
+  const refuse = (unit: Unit, target: Hex, reason: 'democratie' | 'cibleInvisible' | 'paix') => {
     emit(board, {
       type: 'NukeLaunched',
       unitId: unit.id,
@@ -3129,6 +3154,30 @@ function applyLaunches(board: Board, ordersByPlayer: Record<PlayerId, Order[]>):
     if (player.government === 'democratie') {
       refuse(unit, target, 'democratie');
       continue;
+    }
+    // DIPLOMATIE-T1 · D2 : la Paix interdit la frappe — refus nommé, missile
+    // CONSERVÉ (miroir Démocratie). Victimes potentielles = la ville ciblée
+    // (son propriétaire) et TOUTES les unités du rayon 1 : si AUCUNE n'est en
+    // guerre avec le lanceur, la frappe est refusée. Cible mixte (une nation
+    // en guerre + une en Paix dans le rayon 🔶) : la frappe passe — le canon
+    // est muet sur les dégâts collatéraux en Paix.
+    {
+      const cityCible = cityAt(board, target);
+      const proprietaires = new Set<string>(cityCible ? [cityCible.owner] : []);
+      for (const u of Object.values(board.st.units)) {
+        if (
+          board.st.units[u.id] &&
+          u.owner !== unit.owner &&
+          hexDistanceW(u, target, board.st.mapWidth) <= 1
+        ) {
+          proprietaires.add(u.owner);
+        }
+      }
+      const aucuneGuerre = proprietaires.size > 0 && [...proprietaires].every((p) => !areAtWar(board.st, unit.owner, p));
+      if (aucuneGuerre) {
+        refuse(unit, target, 'paix');
+        continue;
+      }
     }
     const cityThere = cityAt(board, target);
     // C17 (7n · Bloc 0) : la Grande Muraille du propriétaire de la ville ciblée
@@ -3538,6 +3587,13 @@ function eliminerJoueur(
     const invader = here.find((u) => u.owner !== city.owner && !isSpyUnit(u));
     if (!invader) continue;
     const fromOwner = city.owner;
+    // DIPLOMATIE-T1 · D2 (ceinture de sécurité) : la capture de ville exige la
+    // guerre — l'entrée en Paix est déjà refusée au mouvement ; jamais une
+    // capture par co-location résiduelle. Les barbares restent en guerre
+    // permanente (R-95).
+    if (!isBarbarian(invader.owner) && !isBarbarian(fromOwner) && !areAtWar(board.st, invader.owner, fromOwner)) {
+      continue;
+    }
     // CARTE-MULTI : la capture justement posée ci-dessous (`wasCaptured = true`,
     // R-149) ne doit pas masquer le test « capitale ORIGINALE » — figé AVANT
     // toute mutation de la ville.
@@ -5390,7 +5446,14 @@ export function resolveTurn(
     const target = order.target;
     const enemy = occupants(board, target).find((u) => u.owner !== unit.owner);
     if (!enemy) continue; // pas d'ennemi présent → fizzle
-    if (!areAtWar(st, unit.owner, enemy.owner)) continue; // R-58-a 🔶 (Phase 7)
+    // DIPLOMATIE-T1 · D2 : la Paix INTERDIT l'attaque — l'ordre individuel est
+    // ignoré avec refus NOMMÉ (miroir ProductionRefused : événement + trace ;
+    // aucun PM consommé, aucun combat, JAMAIS de déclaration de guerre).
+    if (!areAtWar(st, unit.owner, enemy.owner)) {
+      emit(board, { type: 'AttackRefused', player: unit.owner, unitId: unit.id, target, reason: 'paix' });
+      decide(board, 'attaque-refusee', 'DIPLOMATIE-T1 D2', `${unit.id} N'ATTAQUE PAS (${target.q},${target.r}) — la Paix interdit l'attaque : déclarez la guerre (DeclareWar) pour ouvrir les hostilités`, { unitId: unit.id, case: target, raison: 'paix' });
+      continue;
+    }
     if (isPeaceful(unit)) continue; // R-43 : un pacifique n'attaque jamais
     // 7k · R-132 · Grande Muraille : l'adversaire d'un empire protégé ne peut
     // pas attaquer ses unités ni ses villes — l'ordre est un fizzle SANS

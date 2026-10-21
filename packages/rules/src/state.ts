@@ -490,24 +490,11 @@ export function activePlayerIds(state: Pick<GameState, 'players'>): PlayerId[] {
     .sort();
 }
 
-/** Paires de guerre initiales : TOUS contre TOUS (R-58 — à 2 joueurs c'est la
- *  paire unique historique ; à 3+ le FFA complet remplace la diplomatie,
- *  périmètre interdit de CARTE-MULTI §7). Déterministe : ids triés, paires
- *  triées (i < j). */
-export function guerreUniverselle(ids: PlayerId[]): Array<[PlayerId, PlayerId]> {
-  const sorted = [...ids].sort();
-  const war: Array<[PlayerId, PlayerId]> = [];
-  for (let i = 0; i < sorted.length; i++) {
-    for (let j = i + 1; j < sorted.length; j++) war.push([sorted[i]!, sorted[j]!]);
-  }
-  return war;
-}
-
 // ---------------------------------------------------------------------------
 // Versionnage du schéma — DESIGN.md §3.8. La chaîne commence au premier commit.
 // ---------------------------------------------------------------------------
 
-export const CURRENT_SCHEMA_VERSION = 27;
+export const CURRENT_SCHEMA_VERSION = 28;
 
 /**
  * 7k · R-128 (M1) · Union des technologies connues de TOUTES les civilisations
@@ -1163,6 +1150,17 @@ export const MIGRATIONS: Record<number, (state: AnyState) => AnyState> = {
     }
     return { ...state, cities: migrated };
   },
+  /**
+   * v27 → v28 · DIPLOMATIE-T1 (décisions d'Erik du 19/10, D1) : l'état de
+   * guerre devient une PAIX par DÉFAUT entre toutes les nations — la guerre
+   * se déclare (action DeclareWar) au lieu d'exister d'office (abrogation de
+   * la guerre universelle R-58). Les états persistés v27 portent la guerre
+   * universelle de création : la lecture seule ne suffit pas (le champ EXISTE
+   * et est faux) — migration NÉCESSAIRE, justifiée au rapport : `war` est
+   * VIDÉ (reprise = Paix partout, critère d'acceptation #3) et le champ
+   * redevient une simple liste croissante que DeclareWar allonge.
+   */
+  28: (state) => ({ ...state, diplomacy: { war: [] } }),
 };
 
 

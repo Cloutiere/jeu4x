@@ -35,7 +35,7 @@ function villeFile(production: City['production'], queue: City['queue'] = []): G
 
 describe('Migration schemaVersion 26 → 27 (champ additif City.queue)', () => {
   it('CURRENT_SCHEMA_VERSION = 27 ; MIGRATIONS[27] existe ; file vide, tête = production courante', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(27);
+    expect(CURRENT_SCHEMA_VERSION).toBe(28);
     expect(typeof MIGRATIONS[27]).toBe('function');
     const base = makeState({
       cities: [
@@ -49,7 +49,7 @@ describe('Migration schemaVersion 26 → 27 (champ additif City.queue)', () => {
     v26.schemaVersion = 26;
     for (const c of Object.values(v26.cities as Record<string, Record<string, unknown>>)) delete c.queue;
     const out = migrateState(v26) as unknown as GameState;
-    expect(out.schemaVersion).toBe(27);
+    expect(out.schemaVersion).toBe(28);
     // production courante = tête d'une file à 1 élément ; attente vide
     expect(out.cities['c1']!.production).toEqual({ item: GUERRIER, progress: 3 });
     expect(out.cities['c1']!.queue).toEqual([]);

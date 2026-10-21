@@ -229,10 +229,18 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 
 ### 7.7 Diplomatie (points d'accroche — pleinement jouable en Phase 7)
 
-**R-58.** v1 = guerre permanente (1v1) : ces règles ne s'activent pas, mais le moteur les porte dès maintenant.
-- **a.** Attaquer une nation en paix est impossible sans déclaration de guerre préalable : les ordres `Attack` contre elle sont refusés 🔶.
-- **b.** Collision involontaire entre nations en paix (R-53 alors possible) : si les **deux** unités ont une case de repli → **repli mutuel** (chacune selon R-54 depuis son origine), aucune autre conséquence. À défaut, l'échange se déroule selon les règles normales **sans rompre la paix** : c'est un **incident diplomatique** (événement `DiplomaticIncident`, impact 🔶 en Phase 7) — pas une déclaration de guerre.
-- **c.** Capture d'une unité pacifique en temps de paix : détention puis choix du capteur au tour suivant (R-43).
+**R-58 · ABROGÉE (DIPLOMATIE-T1, R-187).** v1 = guerre permanente (1v1) — remplacée par la Paix par défaut : voir **R-187** ci-dessous.
+- **b. (abrogé)** Collision involontaire en paix (repli mutuel / incident diplomatique `DiplomaticIncident`) : l'entrée en Paix est désormais REFUSÉE (R-187-b) — plus de cohabitation transfrontalière par mouvement ; le hook `DiplomaticIncident` demeure dans `resolveAttack` pour les cohabitations résiduelles.
+- **c.** Capture d'une unité pacifique en temps de paix : détention (R-43/R-187-b — défense territoriale uniquement).
+
+### 7.7bis Diplomatie T1 — Paix/Guerre par paire (réforme d'Erik du 19/10, R-187)
+
+**R-187 · L'état de guerre est PUBLIC, par paire de nations, PAIX par défaut.**
+- **a. (D1)** `diplomacy.war` = liste de paires (ids triés) dans l'état persisté ; **absence = Paix**. Les nouvelles parties naissent en **Paix partout** (abrogation de la guerre universelle R-58 et du FFA CARTE-MULTI §7) ; les parties anciennes reprennent en Paix (migration v27 → v28 : `war` vidé — migration NÉCESSAIRE et justifiée : le champ existait et portait la guerre universelle, la lecture seule ne suffisait pas). L'état est **PUBLIC** : aucun fog sur les guerres (`WarDeclared` ajouté à `PUBLIC_EVENTS`, R-73).
+- **b. (D2)** **Attaquer exige la Guerre** — mêlée, tir à distance, entrée sur case ennemie, entrée/capture de ville étrangère, frappe ICBM : refus **nommés** en Paix (événement `AttackRefused { player, unitId, target, reason: 'paix' }`, miroir `ProductionRefused` ; aucun PM consommé, aucune entrée, jamais de déclaration automatique de guerre). La gate couvre aussi les ordres du bot (D4). **Exceptions** : l'**espionnage** (missions, duels R-144, infiltration R-143 — libre en Paix, ne déclenche JAMAIS de guerre) ; la **caravane** (livraison en guerre ET en Paix, D5) ; la **défense territoriale** (🔶 tranché par défaut) : un pacifique qui marche sur TA case occupée est capturé même en Paix (détention R-43-c, jamais de destruction) ; les **barbares** restent en guerre permanente (R-95). ICBM : refus `reason: 'paix'` si AUCUNE victime potentielle (ville ciblée, unités du rayon 1) n'est en guerre avec le lanceur — cible mixte 🔶 la frappe passe (canon muet sur les dégâts collatéraux).
+- **c. (D3)** **DeclareWar { player }** — ACTION immédiate (même contrat que SetGovernment : forme validée EN PREMIER par `orderShapeError`, validité métier par le moteur pur `applyDeclareWar`, module `diplomatie.ts`). **Publique et mutuelle** : événement `WarDeclared { from, on }` diffusé à tous (Chroniques de tous, badge ⚔ sur la pastille de nation + détail au survol, modale de confirmation « La guerre est publique et mutuelle ») ; la paire rejoint `diplomacy.war` et débloque les attaques DANS LES DEUX SENS. Re-déclaration sans paix : refusée (« déjà en guerre ») ; le retour à la paix est T2/T3 (négociation, ONU/Grande Muraille — hors périmètre T1).
+- **d. (D4)** Les **bots ne déclarent JAMAIS la guerre** en T1 (l'union `BotAction` ne porte pas l'action — l'initiative est T2/T3) ; leurs attaques subissent la même gate (refusées en Paix, refus nommé) ; un bot attaqué répond normalement (défense, mêlée de riposte 🔶 à l'œil).
+- **e. (D5)** **Intouchés** : ONU (jalons actuels), Grande Muraille (blocage actuel), caravane, espionnage, victoires existantes. `schemaVersion` 27 → 28 uniquement pour la reprise Paix (justifiée en a.).
 
 ### 7.8 Unités à distance
 
@@ -248,7 +256,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 
 **R-95 · Faction barbare.** Pseudo-joueur `barbarien` (id moteur `barbarien`, constante `BARBARIAN_ID`) :
 - n'a **ni ville fondable, ni recherche, ni verrou de tour** — il n'apparaît pas dans `state.players` (aucun trésor, aucun forfait T-06 : la défaite par forfait des joueurs réels n'est **pas affectée**) ;
-- **en guerre permanente avec tout le monde** (R-58-a sans objet) ;
+- **en guerre permanente avec tout le monde** (R-95 : jamais en Paix — R-187 ne les concerne pas) ;
 - ses unités respectent **toutes** les règles de combat/collision/repli (R-51..R-59) et sont **filtrées par le brouillard comme tout ennemi** (R-70) ;
 - **ORDRES-UNITES (rév. 06/10)** : les barbares ne disposent d'aucun des nouveaux ordres (`SellUnit`/`Heal`/`Sleep`/`Pass` hors scope) — la révocation du soin passif (R-71 révisée) leur applique donc **zéro soin** ;
 - **anti-triche** : ses ordres ne sont **jamais envoyés aux clients** — seuls les événements résultants, filtrés par fog, quittent le moteur (les ordres ne sont pas persistés dans l'état) ;

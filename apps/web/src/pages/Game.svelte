@@ -850,6 +850,8 @@
   // REGIMES-MODALE (D1) : ouverte à la complétion d'une tech de gouvernement,
   // rejetable — ne bloque jamais le tour.
   let showRegimesModale = $state(false);
+  // DIPLOMATIE-T1 · D3 : confirmation « Déclarer la guerre » (cible = pastille).
+  let declarationGuerre = $state<{ id: string; nom: string } | null>(null);
   const myGovernment = $derived.by(() => {
     const id = myEngineId($view);
     return (id && $view.state ? $view.state.players[id]?.government : null) ?? 'despotisme';
@@ -931,6 +933,10 @@
         const info = $view.players.find((x) => x.engineId === p);
         const joueur = $view.state!.players[p];
         const civ = joueur?.civId ?? 'neutre';
+        // DIPLOMATIE-T1 · D1/D3 : l'état de guerre est PUBLIC (diplomacy.war).
+        const enGuerre = ($view.state!.diplomacy?.war ?? []).some(
+          ([x, y]) => (x === id && y === p) || (x === p && y === id),
+        );
         return {
           id: p,
           nom: info?.name ?? p,
@@ -939,6 +945,7 @@
           era: joueur?.era ?? 'ancienne',
           government: joueur?.government ?? 'despotisme',
           defeated: joueur?.defeated === true,
+          enGuerre,
         };
       });
   });
@@ -1281,8 +1288,21 @@
                   <span>{civName(a.civ)}{civLeader(a.civ) ? ` — ${civLeader(a.civ)}` : ''}</span>
                   <span>{eraLabel(a.era)}</span>
                   <span>{GOVERNMENTS[a.government]?.name ?? a.government}</span>
+                  <span class:guerre={a.enGuerre}>{a.enGuerre ? '⚔ En guerre' : '🕊 Paix'}</span>
                   {#if a.defeated}<span class="elimine-mention">Éliminé</span>{/if}
                 </span>
+                <!-- DIPLOMATIE-T1 · D3 : badge ⚔ en guerre ; sinon bouton
+                     « Déclarer la guerre » (modale de confirmation). -->
+                {#if a.enGuerre}
+                  <span class="pastille-guerre" aria-label="En guerre">⚔</span>
+                {:else if !a.defeated}
+                  <button
+                    type="button"
+                    class="pastille-guerre declarer"
+                    title={`Déclarer la guerre à ${a.nom} (publique et mutuelle)`}
+                    onclick={() => (declarationGuerre = { id: a.id, nom: a.nom })}
+                  >⚔</button>
+                {/if}
               </div>
             {/each}
             <span class="portrait-cadre" class:logo={!myPortrait.portrait} title={myPortrait.titre}>
@@ -1580,6 +1600,25 @@
   {#if showRegimesModale && $view.state}
     <RegimesModale view={$view} {client} onClose={() => (showRegimesModale = false)} />
   {/if}
+  {#if declarationGuerre && $view.state}
+    <!-- DIPLOMATIE-T1 · D3 : confirmation — « La guerre est publique et mutuelle » -->
+    <div class="parametres-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) declarationGuerre = null; }}>
+      <div class="parametres-boite guerre-boite">
+        <div class="parametres-tete">
+          <h2>Déclarer la guerre ?</h2>
+          <button type="button" class="fermer" aria-label="Annuler" onclick={() => (declarationGuerre = null)}>×</button>
+        </div>
+        <p class="guerre-texte">
+          Vous allez déclarer la guerre à <strong>{declarationGuerre.nom}</strong>.
+        </p>
+        <p class="guerre-hint">La guerre est <strong>publique et mutuelle</strong> : toutes les nations en seront informées, et vos attaques comme les siennes seront débloquées. L'espionnage et les caravanes ne sont pas concernés.</p>
+        <div class="guerre-btns">
+          <button type="button" class="guerre-annuler" onclick={() => (declarationGuerre = null)}>Annuler</button>
+          <button type="button" class="guerre-confirmer" onclick={() => { const cible = declarationGuerre; if (!cible) return; client.declareWar(cible.id); declarationGuerre = null; }}>⚔ Déclarer la guerre</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   {#if showParametres}
     <!-- HANDOFF-CHRONIQUES · D6 : le journal de débogue (Journal.svelte,
@@ -1855,6 +1894,31 @@
   .pastille-detail strong { font-family: var(--serif-or, Georgia, serif); color: var(--or-clair, #e8c96a); letter-spacing: 0.04em; }
   .pastille:hover .pastille-detail, .pastille:focus-within .pastille-detail { display: flex; }
   .pastille.elimine .pastille-detail .elimine-mention { color: #ef9a9a; font-weight: 600; }
+  /* DIPLOMATIE-T1 · D3 — badge ⚔ / bouton « Déclarer la guerre » sur la
+     pastille de nation (coin bas-droite du cadre) ; ligne d'état dans le
+     détail au survol (⚔ En guerre / 🕊 Paix). */
+  .pastille-guerre {
+    position: absolute; bottom: -0.35rem; right: -0.35rem;
+    display: flex; align-items: center; justify-content: center;
+    width: 1.3rem; height: 1.3rem; border-radius: 50%;
+    font-size: 0.85rem; line-height: 1;
+    background: #3a1512; color: #ff8a80; border: 1px solid #a35b45;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  }
+  button.pastille-guerre.declarer { cursor: pointer; background: #24313f; color: #b6cbd8; border-color: #46525c; opacity: 0.85; }
+  button.pastille-guerre.declarer:hover { background: #54262a; color: #ffab91; border-color: #a35b45; opacity: 1; }
+  .pastille-detail .guerre { color: #ef9a9a; font-weight: 600; }
+  /* Modale de confirmation — même gabarit que Paramètres. */
+  .guerre-boite { width: min(440px, 90vw); }
+  .guerre-boite h2 { color: #ef9a9a; }
+  .guerre-texte { margin: 0.2rem 0 0.4rem; color: var(--texte, #e9e4d3); }
+  .guerre-texte strong { color: #ffab91; }
+  .guerre-hint { color: var(--texte-doux, #b6ad93); font-size: 0.85rem; margin: 0 0 0.9rem; }
+  .guerre-btns { display: flex; justify-content: flex-end; gap: 0.6rem; }
+  .guerre-annuler, .guerre-confirmer { padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+  .guerre-annuler { background: #27313a; border: 1px solid #46525c; color: inherit; }
+  .guerre-confirmer { background: #54262a; border: 1px solid #a35b45; color: #ffcc80; font-weight: 600; }
+  .guerre-confirmer:hover { background: #6b2f2f; }
   .pastille-cadre { position: relative; }
   .portrait-cadre {
     display: flex; align-items: center; justify-content: center;

@@ -137,7 +137,7 @@ describe('SUR-OCCUPATION-POSE · D3/D4 — régularisation à la résolution sui
 
   it('D7 : champ sans migration — un état 27 sans le champ est accepté tel quel (schemaVersion inchangée)', () => {
     const { state } = apresPose();
-    expect(state.schemaVersion).toBe(27);
+    expect(state.schemaVersion).toBe(28);
     // Aucune unité préexistante ne porte le champ.
     for (const u of Object.values(state.units)) {
       if (u.id === idArrivante(state)) continue;

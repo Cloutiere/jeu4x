@@ -140,7 +140,7 @@ describe('CARAVANE · D3 — capture d\'une caravane (amendement R-43)', () => {
     expect(montantCapture(st, 'p1')).toBe(160);
   });
 
-  it('en PAIX : détention standard, aucun or (R-43 inchangée)', () => {
+  it('en PAIX (rév. DIPLOMATIE-T1 D2) : capturer la caravane exige la guerre — refus nommé, aucun or', () => {
     const st = makeState({
       width: 8,
       height: 5,
@@ -151,10 +151,15 @@ describe('CARAVANE · D3 — capture d\'une caravane (amendement R-43)', () => {
       ],
     });
     st.players.p2!.treasury = 100;
+    // RÉVISION DIPLOMATIE-T1 : la capture R-43 par un MARCHEUR exige la guerre ;
+    // en Paix le guerrier s'arrête devant (AttackRefused), la caravane est
+    // intacte et RICHE (elle livre à la prochaine occasion).
     const { newState, events } = resolveTurn(st, { p2: [{ type: 'Move', unitId: 'g2', path: [H(2, 2)] }] }, SEED);
-    expect(getUnit(newState, 'c1')).toMatchObject({ detainedBy: 'p2' });
+    expect(events.some((e) => e.type === 'AttackRefused')).toBe(true);
+    expect(getUnit(newState, 'c1').detainedBy ?? null).toBeNull();
     expect(newState.players.p2!.treasury).toBe(100);
     expect(events.some((e) => e.type === 'BootyGold')).toBe(false);
+    expect(events.some((e) => e.type === 'Captured')).toBe(false);
   });
 });
 

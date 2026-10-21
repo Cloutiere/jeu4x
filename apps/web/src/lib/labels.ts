@@ -264,6 +264,11 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
       return `${event.building} achevé dans ${event.cityId}`;
     case 'DiplomaticIncident':
       return `Incident diplomatique entre ${nameOf(event.between[0])} et ${nameOf(event.between[1])}`;
+    case 'WarDeclared':
+      return `${nameOf(event.from)} déclare la GUERRE à ${nameOf(event.on)} (publique et mutuelle — DIPLOMATIE-T1)`;
+    case 'AttackRefused':
+      return `Attaque refusée — la Paix interdit l'attaque : déclarez la guerre (DIPLOMATIE-T1)`;
+
     case 'Victory':
       return `VICTOIRE de ${nameOf(event.winner)} (${event.reason})`;
     case 'PlayerDefeated': {
@@ -327,7 +332,7 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
     // 7m · R-138..R-144 : nucléaire & espionnage jeu de base.
     case 'NukeLaunched':
       if (event.outcome === 'refused') {
-        return `Lancement REFUSÉ (${event.reason === 'democratie' ? 'interdit sous Démocratie — R-121/R-140' : 'cible non visible'}) — l'ICBM est conservée`;
+        return `Lancement REFUSÉ (${event.reason === 'democratie' ? 'interdit sous Démocratie — R-121/R-140' : event.reason === 'paix' ? 'la Paix interdit la frappe — DIPLOMATIE-T1' : 'cible non visible'}) — l'ICBM est conservée`;
       }
       if (event.outcome === 'intercepted') {
         return `ICBM INTERCEPTÉE par la Défense SDI de ${event.cityId} ! (R-141 — interception garantie, missile détruit)`;

@@ -438,6 +438,20 @@ export function entreesChronique(events: GameEvent[], ctx: ContexteChronique, to
       case 'DiplomaticIncident':
         pousser('monde', `Incident diplomatique entre ${nomNation(ev.between[0], ctx)} et ${nomNation(ev.between[1], ctx)}`, 'info', ev.seq);
         break;
+      // DIPLOMATIE-T1 (Erik 19/10) : la guerre est une annonce PUBLIQUE
+      // (canon CivRev) — Chroniques de TOUS ; le refus d'attaque en Paix est
+      // nommé dans le journal de son joueur.
+      case 'WarDeclared':
+        pousser('monde', ev.from === ctx.moi
+          ? `Vous déclarez la GUERRE à ${nomNation(ev.on, ctx)} — publique et mutuelle`
+          : ev.on === ctx.moi
+            ? `${nomNation(ev.from, ctx)} vous déclare la GUERRE !`
+            : `${nomNation(ev.from, ctx)} déclare la guerre à ${nomNation(ev.on, ctx)}`,
+          ev.on === ctx.moi ? 'bad' : 'info', ev.seq);
+        break;
+      case 'AttackRefused':
+        if (ev.player === ctx.moi) pousser('menaces', 'Attaque REFUSÉE — vous êtes en PAIX avec cette nation (déclarez la guerre depuis sa pastille)', 'bad', ev.seq, hexCliquable(ev.target, ctx));
+        break;
       case 'Victory':
         pousser('monde', `VICTOIRE de ${nomNation(ev.winner, ctx)} (${nomMotifVictoire(ev.reason)})`, ev.winner === ctx.moi ? 'good' : 'bad', ev.seq);
         break;

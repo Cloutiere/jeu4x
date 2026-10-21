@@ -35,6 +35,7 @@ import {
   applySetConversion,
   applySetGovernment,
   applyAngkorChoice,
+  applyDeclareWar,
   angkorEligibleWonders,
   artefactsPourCarteFraiche,
   greatPersonThresholdFor,
@@ -362,6 +363,12 @@ export function orderShapeError(order: unknown): string | null {
       if (o.action === 'destroyBuilding' && typeof o.buildingId !== 'string') return 'bâtiment cible requis';
       return null;
     }
+    case 'DeclareWar':
+      // DIPLOMATIE-T1 · D3 : action immédiate — la forme (player requis) est
+      // validée EN PREMIER (leçon 7f) ; la validité métier (nation connue,
+      // en lice, pas déjà en guerre) est re-vérifiée par le moteur pur
+      // applyDeclareWar.
+      return typeof o.player === 'string' ? null : 'nation cible invalide';
     default:
       return 'type d\'ordre inconnu';
   }
@@ -1179,6 +1186,9 @@ export class GameDO {
         case 'SetGovernment':
           await this.handleSetGovernment(ws, att.playerId, (msg as { government: string }).government);
           break;
+        case 'DeclareWar':
+          await this.handleDeclareWar(ws, att.playerId, (msg as { player: string }).player);
+          break;
         case 'ChooseWonder':
           await this.handleChooseWonder(
             ws,
@@ -1341,6 +1351,36 @@ export class GameDO {
     this.lastEvents = [...this.lastEvents, event];
     await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'gouvernement mis à jour' });
+    this.broadcast((pid) => this.snapshotFor(pid, null));
+  }
+
+  /**
+   * DIPLOMATIE-T1 · D3 (Erik 19/10) — DeclareWar : ACTION IMMÉDIATE (pas un
+   * ordre de tour), même contrat que SetGovernment : la forme est validée EN
+   * PREMIER (orderShapeError, leçon 7f), la validité métier par le moteur pur
+   * applyDeclareWar. PUBLIQUE (aucun fog sur les guerres) et MUTUELLE : la
+   * paire rejoint diplomacy.war, débloquant les attaques DANS LES DEUX SENS.
+   * L'événement WarDeclared prolonge le journal diffusé (Chroniques de tous,
+   * badge ⚔ sur la pastille).
+   */
+  private async handleDeclareWar(ws: WebSocket, playerId: PlayerId, target: string): Promise<void> {
+    const shapeError = orderShapeError({ type: 'DeclareWar', player: target });
+    if (shapeError) return this.sendOrderRejection(ws, shapeError);
+    if (!this.game || !this.meta || this.meta.status !== 'active') {
+      return this.sendOrderRejection(ws, 'déclaration impossible (partie non active)');
+    }
+    if (this.game.phase !== 'orders') {
+      return this.sendOrderRejection(ws, 'déclaration impossible (résolution en cours)');
+    }
+    const engineId = this.engineIdOf(playerId);
+    const result = applyDeclareWar(this.game, engineId, target);
+    if (!result.ok) return this.sendOrderRejection(ws, result.reason);
+    this.game = result.state;
+    this.game.lastEventSeq += 1;
+    const event: GameEvent = { ...result.events[0]!, seq: this.game.lastEventSeq };
+    this.lastEvents = [...this.lastEvents, event];
+    await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
+    this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'guerre déclarée' });
     this.broadcast((pid) => this.snapshotFor(pid, null));
   }
 

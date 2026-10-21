@@ -60,6 +60,9 @@ export interface GameClient {
   setGovernment(government: string): void;
   /** 7o · R-154 : choix Angkor Wat (merveille + ville) — action immédiate. */
   chooseWonder(cityId: CityId, wonderId: string): void;
+  /** DIPLOMATIE-T1 · D3 : déclaration de guerre — action immédiate,
+   *  publique et mutuelle. */
+  declareWar(playerId: string): void;
   resync(): void;
   close(): void;
 }
@@ -270,6 +273,9 @@ export function createGameClient(
     },
     chooseWonder(cityId, wonderId) {
       handle.send({ type: 'ChooseWonder', cityId, wonderId });
+    },
+    declareWar(playerId) {
+      handle.send({ type: 'DeclareWar', player: playerId });
     },
     resync,
     close() {

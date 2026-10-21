@@ -26,6 +26,8 @@ export * from './growth.js';
 export * from './economyOr.js';
 /** CARAVANE (Erik 19/10) — commerce forfaitaire entre nations (montants purs). */
 export * from './caravane.js';
+/** DIPLOMATIE-T1 (Erik 19/10) — état de guerre public + action DeclareWar. */
+export * from './diplomatie.js';
 /** 7m — Nucléaire & espionnage jeu de base (R-138..R-144, espionnage.json). */
 export * from './espionnage.js';
 /** 7n — Civilisations & traits (R-145..R-150, civilizations.json / eras.json). */

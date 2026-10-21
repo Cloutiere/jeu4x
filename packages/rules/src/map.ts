@@ -28,7 +28,6 @@ import { CONVERSION_DEFAULT } from './conversion.js';
 import { autoAssignWorkedTiles } from './economy.js';
 import { spawnInitialGarrisons } from './barbares.js';
 import { artefactsPourCarteFraiche } from './artefacts.js';
-import { guerreUniverselle } from './state.js';
 import {
   eraOfTechCount,
   civStartTechs,
@@ -543,10 +542,11 @@ export function createInitialState(
     units,
     cities,
     settings: { turnTimerMinutes: null },
-    // R-58 · CARTE-MULTI : guerre universelle — TOUTES les paires de spawns
-    // (à 2 joueurs : la paire unique historique, bit-identique). Le FFA
-    // remplace la diplomatie (périmètre interdit CARTE-MULTI §7).
-    diplomacy: { war: guerreUniverselle(map.spawns.map((s) => s.id)) },
+    // DIPLOMATIE-T1 (décisions d'Erik du 19/10, D1) : Paix par DÉFAUT entre
+    // toutes les nations — la guerre se DÉCLARE (DeclareWar), elle n'existe
+    // plus d'office (abrogation de la guerre universelle R-58 et du FFA
+    // CARTE-MULTI §7). Champ persisté, liste vide au départ.
+    diplomacy: { war: [] },
     // Villages/huttes réellement posés par applyMapEntities ci-dessous (R-96/R-98).
     villages: [],
     huts: [],

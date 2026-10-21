@@ -200,7 +200,7 @@ describe('L3 · Cartes 40×40 commises', () => {
 });
 
 describe('L3 · createInitialState', () => {
-  it('capitales fondées (pop 2 — 7i D3, capital), unités placées, guerre permanente, vision initiale', async () => {
+  it('capitales fondées (pop 2 — 7i D3, capital), unités placées, Paix par défaut (DIPLOMATIE-T1), vision initiale', async () => {
     const loaded = await loadBuiltinMap('pangee-40');
     const state = createInitialState(loaded, 42);
     expect(state.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
@@ -226,7 +226,7 @@ describe('L3 · createInitialState', () => {
       expect(defenders).toHaveLength(1);
       expect(defenders[0]!.type).toBe('guerrier');
     }
-    expect(state.diplomacy.war).toEqual([['p1', 'p2']]);
+    expect(state.diplomacy.war).toEqual([]); // DIPLOMATIE-T1 : Paix par défaut (la guerre se déclare)
     // chaque joueur voit au moins sa capitale (rayon ville T-08 = 3)
     for (const p of Object.values(state.players)) {
       expect(p.vision.visible.length).toBeGreaterThanOrEqual(1);

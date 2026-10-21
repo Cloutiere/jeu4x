@@ -85,6 +85,8 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   // 7i (D5) : ressource détruite par une fondation.
   ResourceDestroyed: 320,
   DiplomaticIncident: 300,
+  WarDeclared: 300,
+  AttackRefused: 260,
   Victory: 400,
   // Phase 7h (R-122/R-124) : gouvernements & vaisseau spatial.
   GovernmentChanged: 320,
@@ -145,6 +147,8 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   BuildingCompleted: 'good',
   Captured: 'bad',
   DiplomaticIncident: 'info',
+  WarDeclared: 'bad',
+  AttackRefused: 'info',
   Victory: 'good',
   // Phase 7d : village détruit +or (good), hutte ouverte +récompense (good),
   // ville rasée / barbares engendrés (bad).

@@ -73,7 +73,7 @@ export function recomputeVision(state: GameState): void {
 /** Types d'événements publics (diffusés tels quels). */
 // 7n · R-147 : EraChanged est PUBLIC — l'ère est une information publique
 // (comme la civ adverse, canon).
-const PUBLIC_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
+export const PUBLIC_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
   'TurnResolved',
   'Victory',
   'PlayerDefeated', // CARTE-MULTI : une élimination est publique (miroir Victory)
@@ -84,6 +84,9 @@ const PUBLIC_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
   // est prise). Sans elle, une merveille bâtie dans le brouillard n'apparaît
   // nulle part et l'UI peut la proposer alors que le moteur la refusera.
   'WonderCompleted',
+  // DIPLOMATIE-T1 (Erik 19/10, D1/D3) : les guerres sont PUBLIQUES — la
+  // déclaration est une annonce (canon CivRev), badge ⚔ sur la pastille.
+  'WarDeclared',
 ]);
 
 /** L'événement implique-t-il directement le joueur (une de ses unités/villes) ? */

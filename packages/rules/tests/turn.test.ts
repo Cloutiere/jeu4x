@@ -604,7 +604,7 @@ describe('R-58 · points d’accroche diplomatie (inactifs en v1)', () => {
     expect(events.some((e) => e.type === 'CombatExchange')).toBe(false);
   });
 
-  it('ENGAGEMENT R-175 (rév. R-58-b) : entrée en paix — plus de repli mutuel : incident diplomatique + cohabitation/mêlée', () => {
+  it('DIPLOMATIE-T1 D2 (rév.) : entrée en paix — REFUS nommé, jamais de cohabitation ni de mêlée', () => {
     const state = makeState({
       units: [
         { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
@@ -613,18 +613,22 @@ describe('R-58 · points d’accroche diplomatie (inactifs en v1)', () => {
       warPairs: [],
     });
     const t1 = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 1, r: 0 }] }] }, 1);
-    // ENGAGEMENT : l'attaquant ENTRE (fin des replis) ; l'incident diplomatique
-    // est émis (nation en paix), sans rupture de paix (R-58-b). R-178 rév. A :
-    // le défenseur stabilisé a été attaqué → mêlée REPORTÉE au tour suivant.
-    expect(t1.events.some((e) => e.type === 'DiplomaticIncident')).toBe(true);
-    expect(t1.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
+    // RÉVISION DIPLOMATIE-T1 (Erik 19/10) : l'ancien « incident diplomatique +
+    // cohabitation » (R-58-b/R-175) est ABROGÉ — la Paix interdit l'entrée sur
+    // une case ennemie : refus nommé (AttackRefused), l'unité s'arrête DEVANT,
+    // aucun PM consommé, aucune mêlée possible (la cohabitation transfrontalière
+    // n'est plus atteignable par mouvement).
+    expect(t1.events.some((e) => e.type === 'AttackRefused')).toBe(true);
+    expect(t1.events.some((e) => e.type === 'DiplomaticIncident')).toBe(false);
+    expect(unit(t1.newState, 'u1')).toMatchObject({ q: 0, r: 0 });
+    expect(t1.newState.units['u2']).toBeDefined();
     const t2 = resolveTurn(t1.newState, {}, 2);
-    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(true);
+    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
     expect(t2.newState.winner).toBeNull();
-    expect(state.diplomacy.war.length).toBe(0); // la paix n'est pas rompue par l'incident
+    expect(state.diplomacy.war.length).toBe(0);
   });
 
-  it('R-43/§7.7-c : capture d’un pacifique en paix → détention, pas de butin', () => {
+  it('DIPLOMATIE-T1 D2 (rév.) : capturer un pacifique exige la guerre — en paix, refus nommé', () => {
     const state = makeState({
       units: [
         { id: 'u1', type: 'colon', owner: 'p1', q: 5, r: 5 },
@@ -632,11 +636,17 @@ describe('R-58 · points d’accroche diplomatie (inactifs en v1)', () => {
       ],
       warPairs: [],
     });
+    // RÉVISION DIPLOMATIE-T1 : la capture R-43 par UN MARCHEUR exige la guerre ;
+    // en Paix l'entrée est refusée (le colon n'est ni détenu ni détruit). La
+    // seule exception est la DÉFENSE TERRITORIALE (le pacifique qui marche sur
+    // TA case — couverte par tests/diplomatie-t1.test.ts, détention R-43).
     const { newState, events } = resolveTurn(state, { p2: [{ type: 'Move', unitId: 'u2', path: [{ q: 5, r: 5 }] }] }, 1);
+    expect(events.some((e) => e.type === 'AttackRefused')).toBe(true);
+    expect(unit(newState, 'u2')).toMatchObject({ q: 6, r: 5 });
     const colon = unit(newState, 'u1');
-    expect(colon.detainedBy).toBe('p2');
+    expect(colon.detainedBy ?? null).toBeNull();
     expect(newState.players['p2']!.treasury).toBe(0);
-    expect(events.some((e) => e.type === 'Captured' && e.outcome === 'detained')).toBe(true);
+    expect(events.some((e) => e.type === 'Captured')).toBe(false);
   });
 });
 
