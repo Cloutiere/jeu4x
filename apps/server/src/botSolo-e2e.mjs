@@ -191,6 +191,26 @@ const botCapital0 = capitalOf(state, 'p2');
 if (!botCapital0) throw new Error('pas de capitale bot dans l\'état initial');
 console.log(`[e2e] capitale du bot en (${botCapital0.q},${botCapital0.r}) — marche de guerre engagée (cap ${MAX_TURNS} tours)`);
 
+// BOT-TA : Alice joue « comme un joueur » — elle RECHERCHE et produit la
+// meilleure unité militaire disponible (le bot standard monte en ère, la
+// meute de guerriers seuls ne passe plus la garnison).
+const TECHS = JSON.parse(readFileSync(join(HERE, '../../../packages/rules/src/data/techs.json'), 'utf8'));
+function techDispo(p1) {
+  const unlocked = new Set(p1.techsUnlocked ?? []);
+  const cibles = Object.values(TECHS).filter((t) => !unlocked.has(t.id) && t.id !== p1.researching && (t.prereqs ?? []).every((q) => unlocked.has(q)));
+  const attaqueDe = (t) => Math.max(0, ...Object.values(UNIT_TYPES).filter((u) => (t.unlocks?.units ?? []).includes(u.id) && u.canAttack !== false && u.implemented !== false).map((u) => u.attack ?? 0));
+  cibles.sort((a, b) => attaqueDe(b) - attaqueDe(a) || a.id.localeCompare(b.id));
+  return cibles[0]?.id ?? null;
+}
+function meilleureUnite(p1) {
+  const unlocked = new Set(p1.techsUnlocked ?? []);
+  const candidates = Object.entries(UNIT_TYPES).filter(([, u]) =>
+    u.implemented !== false && u.canAttack !== false && !u.greatPerson && !u.strategic && u.id !== 'caravane' &&
+    (!u.tech || unlocked.has(u.tech)),
+  );
+  candidates.sort((a, b) => (b[1].attack ?? 0) - (a[1].attack ?? 0) || a[0].localeCompare(b[0]));
+  return candidates[0]?.[0] ?? 'guerrier';
+}
 let victory = null;
 let botMovedTurns = 0;
 let lastBotPositions = JSON.stringify(Object.values(state.units).filter((u) => u.owner === 'p2').map((u) => [u.id, u.q, u.r]).sort());
@@ -202,6 +222,12 @@ for (let turn = state.turn; turn < MAX_TURNS; turn = state.turn) {
   const myCapital = capitalOf(state, 'p1');
   const botCapital = capitalOf(state, 'p2');
   if (!botCapital) throw new Error('capitale bot introuvable (rasée ?) — cas hors périmètre e2e');
+  // R-187 : la PAIX est le défaut — sans déclaration, TOUTES les attaques
+  // d'Alice sont refusées (AttackRefused) et la guerre ne commence jamais.
+  // Le bot standard ne déclare jamais (BOT-TA D4) : c'est Alice qui le fait.
+  if (!state.diplomacy.war.some(([a, b]) => (a === 'p1' && b === 'p2') || (a === 'p2' && b === 'p1'))) {
+    game.send({ type: 'DeclareWar', player: 'p2' });
+  }
   const goals = [{ q: botCapital.q, r: botCapital.r }];
   const field = bfsField(state, goals);
 
@@ -218,6 +244,18 @@ for (let turn = state.turn; turn < MAX_TURNS; turn = state.turn) {
   //    avant leur passage, la capture se fait sans combat ; sinon c'est une
   //    attaque (usure de la garnison, jamais ripostée au-delà de l'échange).
   const home = capitalOf(state, 'p1');
+  // BOT-TA : Alice joue « comme un joueur » — recherche + meilleure unité
+  // disponible (le bot monte en ère, les guerriers seuls ne suffisent plus).
+  const p1 = state.players.p1;
+  if (!p1.researching) {
+    const tech = techDispo(p1);
+    if (tech) game.send({ type: 'SetResearch', techId: tech });
+  }
+  const courante = home?.production?.item;
+  const best = meilleureUnite(p1);
+  if (home && (!courante || courante.kind !== 'unit' || courante.id !== best)) {
+    game.send({ type: 'SubmitOrder', order: { type: 'SetProduction', cityId: home.id, item: { kind: 'unit', id: best } } });
+  }
   const myUnits = Object.values(state.units).filter((u) => u.owner === 'p1' && !u.aboard);
   const barbNearHome = home
     ? Object.values(state.units).some((u) => u.owner === 'barbarien' && hexDist(u, home) <= 3)
@@ -226,14 +264,19 @@ for (let turn = state.turn; turn < MAX_TURNS; turn = state.turn) {
   const siege = myUnits
     .filter((u) => hexDist(u, botCapital) === 1)
     .sort((a, b) => a.id.localeCompare(b.id));
-  const siegeChargers = new Set(siege.slice(0, 2).map((u) => u.id));
+  // BOT-TA : le bot standard garnisonne sa capitale (2 défenseurs « normal »)
+  // et replie ses blessés — la fenêtre R-57 à 2 chargeurs ne suffit plus.
+  // Quand la capitale est DÉFENDUE et que la meute est là, TOUT le siège
+  // charge (usure de la garnison, le moteur revalide chaque attaque).
+  const chargers = botGarrison && siege.length >= 3 ? siege : siege.slice(0, 2);
+  const siegeChargers = new Set(chargers.map((u) => u.id));
   for (const unit of myUnits) {
     if (siegeChargers.has(unit.id)) {
       game.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: unit.id, path: [{ q: botCapital.q, r: botCapital.r }] } });
       continue;
     }
-    if (siege.some((u) => u.id === unit.id)) {
-      game.send({ type: 'SubmitOrder', order: { type: 'Hold', unitId: unit.id } }); // siégeant en réserve
+    if (siege.some((u) => u.id === unit.id) && !siegeChargers.has(unit.id)) {
+      game.send({ type: 'SubmitOrder', order: { type: 'Attack', unitId: unit.id, target: { q: botCapital.q, r: botCapital.r } } }); // assaut général
       continue;
     }
     if (homeGarrison && unit.id === homeGarrison.id && barbNearHome) {
@@ -251,6 +294,19 @@ for (let turn = state.turn; turn < MAX_TURNS; turn = state.turn) {
         continue;
       }
     }
+    // BOT-TA : la garnison du bot tient désormais (garnison + repli des
+    // blessés) — le siège naïf par Move seul aboutit à une impasse. Toute
+    // unité adjacente à un ennemi MILITAIRE attaque (ordre Attack explicite,
+    // le moteur revalide l'état de guerre — les bots solo démarrent en paix
+    // R-187 : la guerre vient des entrées en combat d'Alice... vérifiée
+    // plus bas par la victoire effective).
+    const adjacentEnnemi = DIRS.map(([dq, dr]) => unitAt(state, unit.q + dq, unit.r + dr)).find(
+      (u) => u && u.owner !== 'p1' && UNIT_TYPES[u.type]?.canAttack !== false,
+    );
+    if (adjacentEnnemi && UNIT_TYPES[unit.type]?.canAttack !== false) {
+      game.send({ type: 'SubmitOrder', order: { type: 'Attack', unitId: unit.id, target: { q: adjacentEnnemi.q, r: adjacentEnnemi.r } } });
+      continue;
+    }
     const step = stepToward(state, unit, field, 'p1');
     if (step && !unit.fortified) {
       game.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: unit.id, path: [step] } });
@@ -258,9 +314,7 @@ for (let turn = state.turn; turn < MAX_TURNS; turn = state.turn) {
       game.send({ type: 'SubmitOrder', order: { type: 'Hold', unitId: unit.id } });
     }
   }
-  if (home && !home.production) {
-    game.send({ type: 'SubmitOrder', order: { type: 'SetProduction', cityId: home.id, item: { kind: 'unit', id: 'guerrier' } } });
-  }
+
   // Rush-buy R-135 systématique au-delà d'une réserve de 40 or (le moteur
   // revalide : trésorerie, éligibilité, 1 rush/ville/tour).
   if (home?.production && state.players.p1.treasury >= 40) {
@@ -268,7 +322,7 @@ for (let turn = state.turn; turn < MAX_TURNS; turn = state.turn) {
   }
   game.send({ type: 'EndTurn' });
 
-  const result = await game.waitFor('TurnResult');
+  const result = await game.waitFor('TurnResult', 60000); // BOT-TA : guerres longues (journal volumineux)
   if (result.type !== 'TurnResult') throw new Error('TurnResult attendu');
   state = (await admin(CODE)).state;
   const positions = JSON.stringify(Object.values(state.units).filter((u) => u.owner === 'p2').map((u) => [u.id, u.q, u.r]).sort());

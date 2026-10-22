@@ -1,0 +1,23 @@
+{
+  "profil": "normal",
+  "profiles": {
+    "facile": {
+      "seuilSoinPv": 2,
+      "ratioAttaqueMin": 0.6,
+      "garnisonsParVille": 1,
+      "garnisonsCapitale": 1
+    },
+    "normal": {
+      "seuilSoinPv": 2,
+      "ratioAttaqueMin": 0.8,
+      "garnisonsParVille": 1,
+      "garnisonsCapitale": 2
+    },
+    "difficile": {
+      "seuilSoinPv": 3,
+      "ratioAttaqueMin": 1.0,
+      "garnisonsParVille": 2,
+      "garnisonsCapitale": 3
+    }
+  }
+}

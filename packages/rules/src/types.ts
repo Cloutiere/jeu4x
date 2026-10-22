@@ -706,3 +706,24 @@ export interface CivilizationsData {
 export interface ErasData {
   thresholds: Record<Exclude<TechEra, 'ancienne'>, number>;
 }
+
+/** BOT-TA (décisions Erik 21/10) · Profil de difficulté du bot — seuils de
+ *  la politique tactique (bot.json). Seul « normal » est implémenté (T-D
+ *  livrera facile/difficile et le banc de calibrage). */
+export interface BotProfileData {
+  /** L'unité blessée reçoit l'objectif SOIGNER si hp <= seuil (hpMax = 3). */
+  seuilSoinPv: number;
+  /** L'attaque est tentée si S_att >= ratioAttaqueMin × S_def (estimation
+   *  §7.4 simple : base × vétéran × (1 + bonus défenseurs)). */
+  ratioAttaqueMin: number;
+  /** Garnison : défenseurs minimum par ville (capitale : garnisonsCapitale). */
+  garnisonsParVille: number;
+  garnisonsCapitale: number;
+}
+
+/** BOT-TA · Configuration data-driven du bot (bot.json) — hook de difficulté
+ *  D5 : trois profils prévus, le profil actif est `profil`. */
+export interface BotSettingsData {
+  profil: string;
+  profiles: Record<string, BotProfileData>;
+}

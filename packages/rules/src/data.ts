@@ -14,8 +14,10 @@ import espionnageJson from './data/espionnage.json' with { type: 'json' };
 import figuresJson from './data/figures.json' with { type: 'json' };
 import artefactsJson from './data/artefacts.json' with { type: 'json' };
 import deplacementJson from './data/deplacement.json' with { type: 'json' };
+import botJson from './data/bot.json' with { type: 'json' };
 import type {
   ArtefactsData,
+  BotSettingsData,
   DeplacementData,
   BarbariansData,
   BuildingData,
@@ -48,6 +50,9 @@ export const ARTEFACTS: ArtefactsData = artefactsJson as unknown as ArtefactsDat
 /** DEPLACEMENT-PLANIFIE · R-158..R-161 · Configuration des déplacements
  *  programmés (deplacement.json — limite fog, actions finales multi-étapes). */
 export const DEPLACEMENT: DeplacementData = deplacementJson as unknown as DeplacementData;
+/** BOT-TA (Erik 21/10) · Configuration du bot tactique (bot.json — D5 :
+ *  profils facile/normal/difficile, seul « normal » est implémenté). */
+export const BOT_SETTINGS: BotSettingsData = botJson as unknown as BotSettingsData;
 /** 7o · R-154 · Artefact par id (pool artefacts.json — DLC compris, jamais générés). */
 export function artefact(id: string) {
   const a = ARTEFACTS.pool[id];
