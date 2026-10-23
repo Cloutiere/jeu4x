@@ -142,6 +142,29 @@
         break;
     }
   }
+  // GOD-MODE (décisions d'Erik du 22/10, D3) : combo Ctrl+J puis W (chord —
+  // deux touches simultanées étant impossibles) bascule la révélation
+  // complète de la carte. Gardes habituelles : jamais pendant une saisie
+  // texte ; partie active requise. Le client n'active JAMAIS localement :
+  // le serveur confirme par le Snapshot (`godMode` — refus si un autre
+  // humain participe, D1).
+  let godModeArme = 0;
+  function raccourciGodMode(e: KeyboardEvent): void {
+    const cible = e.target as HTMLElement | null;
+    if (cible && (cible.tagName === 'INPUT' || cible.tagName === 'TEXTAREA' || cible.tagName === 'SELECT' || cible.isContentEditable)) return;
+    if (e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'j') {
+      godModeArme = Date.now();
+      e.preventDefault();
+      return;
+    }
+    if (e.key.toLowerCase() === 'w' && godModeArme > 0 && Date.now() - godModeArme < 1500) {
+      godModeArme = 0;
+      const v = get(view);
+      if (!v.state || v.status !== 'active') return;
+      e.preventDefault();
+      client.toggleGodMode(!v.godMode);
+    }
+  }
   // D7 : une partie = une Chronique persistante (charge à l'entrée, purge le
   // store global — la SPA survit au changement de partie).
   oublierCleChronique();
@@ -1101,6 +1124,9 @@
     // modale ouverte (régimes, victoire, relecture), en vue ville, hors
     // tour éditable, ou sans unité à soi sélectionnée.
     raccourciOrdreUnite(e);
+    // GOD-MODE (Erik 22/10, D3) : Ctrl+J puis W — bascule de la révélation
+    // complète (solo/bots uniquement, confirmée par le serveur).
+    raccourciGodMode(e);
   }}
 />
 
@@ -1157,6 +1183,11 @@
           <span class="civname">{civName(myCivId)}</span>
           <span class="eraname">{eraLabel(myEra)}{adversairesBadge}</span>
         </button>
+      {/if}
+      {#if $view.godMode}
+        <!-- GOD-MODE (Erik 22/10, D3) : bandeau discret tant que la révélation
+             est active — or-sur-sombre, piloté par l'état serveur. -->
+        <span class="godmode" title="GOD MODE — carte entièrement révélée (Ctrl+J puis W pour basculer)">GOD MODE</span>
       {/if}
       {#if vueVilleActive}<span class="chip">Vue ville — Échap ou double-clic hors de la ville pour sortir</span>{/if}
     </div>
@@ -1729,6 +1760,15 @@
     white-space: nowrap;
   }
   .tour-chip strong { color: var(--or-clair, #e8c96a); font-size: 1.1rem; }
+  /* GOD-MODE (Erik 22/10, D3) — bandeau discret or-sur-sombre. */
+  .godmode {
+    font-family: var(--serif-or, Georgia, serif); font-size: 0.78rem; font-weight: 700;
+    letter-spacing: 0.22em; color: var(--or-clair, #e8c96a);
+    border: 1px solid var(--or, #c9a227); border-radius: 999px;
+    padding: 0.12rem 0.7rem; background: rgba(13, 20, 32, 0.85);
+    box-shadow: 0 0 8px rgba(201, 162, 39, 0.35);
+    white-space: nowrap;
+  }
   .bar a { color: #7fb3ff; }
   .chip { padding: 0.1rem 0.55rem; border-radius: 999px; border: 1px solid #3c4a55; font-size: 0.8rem; background: #1f2a33; }
   .chip.resolving { border-color: #8d6e63; background: #332a24; }

@@ -369,6 +369,11 @@ export function orderShapeError(order: unknown): string | null {
       // en lice, pas déjà en guerre) est re-vérifiée par le moteur pur
       // applyDeclareWar.
       return typeof o.player === 'string' ? null : 'nation cible invalide';
+    case 'ToggleGodMode':
+      // GOD-MODE (Erik 22/10, D3) : action immédiate — la forme (booléen on
+      // requis) est validée EN PREMIER (leçon 7f) ; la validité métier (partie
+      // active, AUCUN autre humain — D1) est vérifiée dans le handler.
+      return typeof o.on === 'boolean' ? null : 'flag on invalide';
     default:
       return 'type d\'ordre inconnu';
   }
@@ -445,6 +450,21 @@ export function orderOwnerErreur(
   }
 }
 
+/** GOD-MODE (Erik 22/10, D2) : copie de l'état avec la vision du joueur
+ *  élargie à TOUTE la carte — le client dessine sa brume depuis
+ *  `vision.explored` : sans cela, l'état serait complet mais le voile
+ *  graphique persisterait. Copie profonde : l'état moteur est intact (D5). */
+function etatRevele(game: GameState, engineId: EnginePlayerId): GameState {
+  const copie = structuredClone(game);
+  const cles = Object.keys(game.map);
+  const vision = copie.players[engineId]?.vision;
+  if (vision) {
+    vision.explored = cles;
+    vision.visible = cles;
+  }
+  return copie;
+}
+
 export class GameDO {
   private readonly state: DurableObjectState;
   private readonly env: Env;
@@ -455,6 +475,10 @@ export class GameDO {
   private locked: Record<EnginePlayerId, boolean> = emptyLocked();
   private resolving: PendingResolution | null = null;
   private lastEvents: GameEvent[] = [];
+  /** GOD-MODE (Erik 22/10, D2/D4/D5) : flag de session PAR JOUEUR — hors état
+   *  moteur (aucune migration), persisté en storage (survit à la reconnexion
+   *  et à l'hibernation). Clé = id de session réel. */
+  private godMode: Record<string, boolean> = {};
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -494,6 +518,7 @@ export class GameDO {
     this.locked = normalizeSlots(await this.state.storage.get<Record<EnginePlayerId, boolean>>('locked'), emptyLocked());
     this.resolving = (await this.state.storage.get<PendingResolution>('resolving')) ?? null;
     this.lastEvents = (await this.state.storage.get<GameEvent[]>('lastEvents')) ?? [];
+    this.godMode = (await this.state.storage.get<Record<string, boolean>>('godMode')) ?? {};
     this.loaded = true;
     return this.ensureResolved();
   }
@@ -520,6 +545,16 @@ export class GameDO {
   /** Chantier BOT-SOLO : le joueur moteur donné est-il le bot ? */
   private isBot(engineId: EnginePlayerId): boolean {
     return this.meta?.players.some((p) => p.engineId === engineId && p.bot === true) ?? false;
+  }
+
+  /** GOD-MODE (Erik 22/10, D2) : le flag de session de CE joueur est-il actif ? */
+  private godModeActif(playerId: PlayerId): boolean {
+    return this.godMode[playerId] === true;
+  }
+
+  /** GOD-MODE · D1 : un AUTRE humain (non-bot) participe-t-il à la partie ? */
+  private aAutreHumain(playerId: PlayerId): boolean {
+    return this.meta?.players.some((p) => p.id !== playerId && p.bot !== true) ?? false;
   }
 
   // -----------------------------------------------------------------------
@@ -1116,18 +1151,25 @@ export class GameDO {
   private snapshotFor(playerId: PlayerId, clientLastSeq: number | null): ServerToClientMessage | null {
     if (!this.game) return null; // partie en attente du joueur B
     const engineId = this.engineIdOf(playerId);
+    // GOD-MODE (Erik 22/10, D2) : quand le flag de CE joueur est actif, le
+    // filtrage fog de sa session ne filtre plus — état brut + événements en
+    // direct. Strictement personnel : les autres sessions gardent leur fog.
+    const god = this.godModeActif(playerId);
     const missed =
       this.lastEvents.length > 0 && (clientLastSeq === null || this.lastEvents[0]!.seq > clientLastSeq)
-        ? filterEventsForPlayer(this.game, engineId, this.lastEvents)
+        ? god
+          ? this.lastEvents
+          : filterEventsForPlayer(this.game, engineId, this.lastEvents)
         : [];
     return {
       proto: PROTO_VERSION,
       type: 'Snapshot',
       seq: this.game.lastEventSeq,
-      state: getFilteredState(this.game, engineId),
+      state: god ? etatRevele(this.game, engineId) : getFilteredState(this.game, engineId),
       orders: this.orders[engineId] ?? [],
       missedEvents: missed,
       locked: this.locked[engineId] === true,
+      ...(god ? { godMode: true } : {}),
     };
   }
 
@@ -1188,6 +1230,9 @@ export class GameDO {
           break;
         case 'DeclareWar':
           await this.handleDeclareWar(ws, att.playerId, (msg as { player: string }).player);
+          break;
+        case 'ToggleGodMode':
+          await this.handleToggleGodMode(ws, att.playerId, (msg as { on: boolean }).on);
           break;
         case 'ChooseWonder':
           await this.handleChooseWonder(
@@ -1415,6 +1460,37 @@ export class GameDO {
     this.broadcast((pid) => this.snapshotFor(pid, null));
   }
 
+  /**
+   * GOD-MODE (décisions d'Erik du 22/10) — ToggleGodMode : ACTION IMMÉDIATE,
+   * même contrat que DeclareWar (forme validée EN PREMIER, leçon 7f).
+   * D1 : REFUSÉ si un autre humain participe (solo/bots uniquement). D2 : flag
+   * de session hors état moteur. D4 : persisté (survit à la reconnexion).
+   * D5 : réversible — OFF supprime le flag, brouillard exact reconstitué.
+   * Confirmation par le retour d'état : le Snapshot qui suit porte `godMode`.
+   */
+  private async handleToggleGodMode(ws: WebSocket, playerId: PlayerId, on: boolean): Promise<void> {
+    const shapeError = orderShapeError({ type: 'ToggleGodMode', on });
+    if (shapeError) return this.sendOrderRejection(ws, shapeError);
+    if (!this.meta || !this.game || this.meta.status !== 'active') {
+      return this.sendOrderRejection(ws, 'god mode indisponible (partie non active)');
+    }
+    if (this.aAutreHumain(playerId)) {
+      return this.sendOrderRejection(ws, 'god mode refusé : un autre humain participe à cette partie');
+    }
+    if (on) this.godMode[playerId] = true;
+    else delete this.godMode[playerId];
+    await this.state.storage.put({ godMode: this.godMode });
+    this.sendTo(ws, {
+      proto: PROTO_VERSION,
+      type: 'OrderAck',
+      accepted: true,
+      order: null,
+      reason: on ? 'god mode actif' : 'god mode inactif',
+    });
+    const snap = this.snapshotFor(playerId, null);
+    if (snap) this.sendTo(ws, snap);
+  }
+
   private orderOwnerError(engineId: EnginePlayerId, order: Order): string | null {
     return orderOwnerErreur(this.game?.units ?? {}, this.game?.cities ?? {}, engineId, order);
   }
@@ -1629,13 +1705,15 @@ export class GameDO {
     if (!this.game) return;
     this.broadcast((playerId) => {
       const engineId = this.engineIdOf(playerId);
+      const god = this.godModeActif(playerId);
       return {
         proto: PROTO_VERSION,
         type: 'TurnResult',
         seq: this.game!.lastEventSeq,
         turn: this.game!.turn,
-        events: filterEventsForPlayer(this.game!, engineId, events),
-        state: getFilteredState(this.game!, engineId),
+        events: god ? events : filterEventsForPlayer(this.game!, engineId, events),
+        state: god ? etatRevele(this.game!, engineId) : getFilteredState(this.game!, engineId),
+        ...(god ? { godMode: true } : {}),
       };
     });
   }

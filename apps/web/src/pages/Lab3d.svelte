@@ -136,6 +136,7 @@
     orders: [],
     locked: false,
     events: [],
+    godMode: false,
     lastSeq: 0,
     seenEventSeq: 0,
   };

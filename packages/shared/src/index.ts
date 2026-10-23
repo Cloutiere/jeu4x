@@ -145,6 +145,11 @@ export type ClientToServerMessage = ProtoMessage &
      *  publique et mutuelle (la paire rejoint `diplomacy.war`), appliquée à
      *  la réception (moteur pur applyDeclareWar), diffusion immédiate. */
     | { type: 'DeclareWar'; player: string }
+    /** GOD-MODE (Erik 22/10, D3) · Bascule de la révélation complète de la
+     *  carte (outil d'observation des bots) — ACTION IMMÉDIATE : REFUSÉE si un
+     *  autre humain participe (D1, solo/bots uniquement) ; flag de session
+     *  GameDO hors état moteur (D2/D5), persisté à la reconnexion (D4). */
+    | { type: 'ToggleGodMode'; on: boolean }
     | { type: 'ChooseWonder'; cityId: CityId; wonderId: string }
     /** --- Messages de lobby (socket LobbyDO) --- */
     | { type: 'CreateGame'; settings: GameCreationSettings }
@@ -210,6 +215,10 @@ export interface Snapshot extends ProtoMessage {
   orders: Order[];
   missedEvents: GameEvent[];
   locked: boolean;
+  /** GOD-MODE (Erik 22/10, D3) : révélation complète active pour CE joueur —
+   *  l'état serveur est la source de vérité (le client n'active jamais
+   *  localement). Absent/faux = brouillard exact. */
+  godMode?: boolean;
 }
 
 /**
@@ -223,6 +232,8 @@ export interface TurnResult extends ProtoMessage {
   turn: number;
   events: GameEvent[];
   state: GameState;
+  /** GOD-MODE (Erik 22/10) : révélation complète active pour CE joueur. */
+  godMode?: boolean;
 }
 
 /** Accusé de réception d'un ordre ou d'un verrouillage (EndTurn).

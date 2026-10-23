@@ -39,6 +39,9 @@ export interface GameView {
   locked: boolean;
   /** Journal cumulé (événements filtrés reçus, dans l'ordre). */
   events: GameEvent[];
+  /** GOD-MODE (Erik 22/10, D3) : révélation complète active — pilotée PAR LE
+   *  SERVEUR (Snapshot/TurnResult), le client n'active jamais localement. */
+  godMode: boolean;
   /** Dernier seq de protocole reçu (ResyncRequest, obsolescence TurnResult). */
   lastSeq: number;
   /** Dernier seq ajouté au journal (dédoublonnage missedEvents/événements). */
@@ -63,6 +66,10 @@ export interface GameClient {
   /** DIPLOMATIE-T1 · D3 : déclaration de guerre — action immédiate,
    *  publique et mutuelle. */
   declareWar(playerId: string): void;
+  /** GOD-MODE (Erik 22/10, D3) : bascule la révélation complète — le serveur
+   *  seul décide (refus si un autre humain participe) ; la confirmation
+   *  arrive par le Snapshot (`godMode`). */
+  toggleGodMode(on: boolean): void;
   resync(): void;
   close(): void;
 }
@@ -79,6 +86,7 @@ export function initialView(code: string): GameView {
     orders: [],
     locked: false,
     events: [],
+    godMode: false,
     lastSeq: -1,
     seenEventSeq: -1,
   };
@@ -142,6 +150,7 @@ export function reduceView(v: GameView, message: ServerToClientMessage): GameVie
           state: message.state,
           orders: message.orders,
           locked: message.locked,
+          godMode: message.godMode === true,
           status: 'active',
           turn: message.state.turn,
           phase: message.state.phase,
@@ -276,6 +285,9 @@ export function createGameClient(
     },
     declareWar(playerId) {
       handle.send({ type: 'DeclareWar', player: playerId });
+    },
+    toggleGodMode(on) {
+      handle.send({ type: 'ToggleGodMode', on });
     },
     resync,
     close() {
