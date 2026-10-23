@@ -177,6 +177,68 @@ function menaceAdjacente(state: GameState, unit: Unit, me: PlayerId, ennemis: Se
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// BOT-EXPLORATION (décisions Erik 23/10) — patrouille du scout et quota de
+// garnison dynamique : la première unité TOURNE EN BOUCLE autour de la
+// capitale (méta 4X « scouting loop »), la garnison est une exception.
+// ---------------------------------------------------------------------------
+
+/** D3 · Y a-t-il urgence près de la capitale : un camp barbare (`villages`)
+ *  ou une unité ennemie (barbare ou joueur en guerre) à ≤ `rayon` de la
+ *  capitale ? Dans ce cas le quota complet du profil s'applique et le scout
+ *  est rappelé. */
+function menaceAutourCapitale(
+  state: GameState,
+  capitale: City,
+  me: PlayerId,
+  ennemis: Set<PlayerId>,
+  rayon: number,
+): boolean {
+  for (const u of Object.values(state.units)) {
+    if (u.aboard) continue;
+    if ((isBarbarian(u.owner) || ennemis.has(u.owner)) && dist(state, capitale, u) <= rayon) return true;
+  }
+  for (const v of state.villages ?? []) {
+    if (dist(state, capitale, v) <= rayon) return true;
+  }
+  return false;
+}
+
+/** D1/D2 · Quota de DÉFENSEURS en capitale selon la taille de l'empire :
+ *  0 à 1 unité (le scout patrouille), 1 dès la 2e unité, quota complet du
+ *  profil à ≥ `unitesAvantRenfort`. Toute urgence (D3) restaure le quota
+ *  du profil. Pur, déterministe. */
+export function quotaCapitale(profile: BotProfileData, nbUnites: number, urgence: boolean): number {
+  if (urgence) return profile.garnisonsCapitale;
+  if (nbUnites < 2) return 0;
+  if (nbUnites < profile.unitesAvantRenfort) return 1;
+  return profile.garnisonsCapitale;
+}
+
+/** D1 · Prochain WAYPOINT de patrouille : les 6 coins de l'anneau de rayon
+ *  `rayon` autour de la capitale (ordre canonique des directions), visités
+ *  en cycle — le coin suivant celui le plus proche du scout (tie-break :
+ *  index le plus petit, R-81). Répétable : arrivé sur un coin, le scout vise
+ *  le suivant → boucle infinie déterministe autour de la capitale. */
+export function prochainWaypointPatrouille(
+  capitale: { q: number; r: number },
+  unit: { q: number; r: number },
+  rayon: number,
+  mapWidth: number,
+): { q: number; r: number } {
+  const coins = DIRS.map(([dq, dr]) => ({ q: capitale.q + dq * rayon, r: capitale.r + dr * rayon }));
+  let k = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < coins.length; i++) {
+    const d = hexDistanceW(unit, coins[i]!, mapWidth);
+    if (d < bestD) {
+      bestD = d;
+      k = i;
+    }
+  }
+  return coins[(k + 1) % coins.length]!;
+}
+
 /** Heal interdit en territoire ennemi (anneaux culturels R-162) —
  *  approximation : le rayon FRONTIÈRE de chaque ville étrangère (radius de
  *  travail + paliers culturels, culture.ts) — 🔶 l'anneau exact inclut les
@@ -240,6 +302,7 @@ export type ObjectifKind =
   | 'attaquer'
   | 'repli'
   | 'garnison'
+  | 'patrouiller'
   | 'chasser'
   | 'explorer'
   | 'debarquer'
@@ -334,14 +397,26 @@ export function assignerObjectifs(
   // déjà assignées — les besoins sont comblés capitale d'abord.
   const estCombattante = (u: Unit): boolean =>
     !u.aboard && (UNIT_TYPES[u.type]?.canAttack ?? false) && UNIT_TYPES[u.type]?.aquatic !== true;
+  // BOT-EXPLORATION : le scout (première combattante, R-81) ne compte JAMAIS
+  // comme défenseur présent — il patrouille (D1), la garnison est pour les autres.
+  const scoutId = mine.find((u) => estCombattante(u))?.id;
   const defenseurs = new Map<string, number>();
   for (const c of myCities) {
     defenseurs.set(
       c.id,
-      mine.filter((u) => estCombattante(u) && u.q === c.q && u.r === c.r).length,
+      mine.filter((u) => estCombattante(u) && u.id !== scoutId && u.q === c.q && u.r === c.r).length,
     );
   }
-  const besoinDe = (c: City): number => (c.capital ? profile.garnisonsCapitale : profile.garnisonsParVille);
+  const besoinDeVille = (c: City): number => (c.capital ? profile.garnisonsCapitale : profile.garnisonsParVille);
+
+  // BOT-EXPLORATION D1/D2/D3 : quota DYNAMIQUE de la capitale (0 à 1 unité,
+  // 1 ensuite, profil complet au renfort) — relevé par toute urgence (D3).
+  const capitale = myCities[0]; // triée : capitale d'abord (sinon première ville)
+  const urgence =
+    ennemis.size > 0 ||
+    (capitale ? menaceAutourCapitale(state, capitale, playerId, ennemis, profile.rayonMenace) : false);
+  const quotaCap = quotaCapitale(profile, mine.length, urgence);
+  const besoinDe = (c: City): number => (c.capital ? quotaCap : besoinDeVille(c));
 
   // Proies barbares (R-95) : unités vivantes, triées par id (R-81) — la
   // distance est évaluée par unité chasseuse au moment du choix.
@@ -405,6 +480,15 @@ export function assignerObjectifs(
         objectifs.set(unit.id, { kind: 'repli', cible: { q: refuge.q, r: refuge.r }, cityId: refuge.id });
         continue;
       }
+    }
+
+    // BOT-EXPLORATION D1 : hors urgence, le scout PATROUILLE en boucle autour
+    // de la capitale au lieu de garnisonner (priorité entre ② et ③ — il n'abandonne
+    // la boucle que pour soigner, attaquer ou replier).
+    if (capitale && !urgence && scoutId === unit.id && estCombattante(unit)) {
+      const wp = prochainWaypointPatrouille(capitale, unit, profile.rayonPatrouille, state.mapWidth);
+      objectifs.set(unit.id, { kind: 'patrouiller', cible: wp });
+      continue;
     }
 
     // ③ garnisonner (unités de combat terrestres seulement).
@@ -717,8 +801,10 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng):
         }
         break;
       }
-      // ④ chasse / ⑤ exploration : un pas déterministe vers la cible.
+      // ④ chasse / BOT-EXPLORATION patrouille / ⑤ exploration : un pas
+      // déterministe vers la cible.
       case 'chasser':
+      case 'patrouiller':
       case 'explorer': {
         const step = obj.cible ? pasVers(unit, state, obj.cible) : null;
         orders.push(step ? { type: 'Move', unitId: unit.id, path: [step] } : { type: 'Hold', unitId: unit.id });

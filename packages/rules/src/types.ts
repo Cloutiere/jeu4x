@@ -719,6 +719,16 @@ export interface BotProfileData {
   /** Garnison : défenseurs minimum par ville (capitale : garnisonsCapitale). */
   garnisonsParVille: number;
   garnisonsCapitale: number;
+  /** BOT-EXPLORATION D2 (Erik 23/10) : à partir de ce nombre d'unités dans
+   *  l'empire, le quota de garnison complet du profil s'applique (en-dessous
+   *  : quota de capitale réduit — 0 à 1 unité, 1 ensuite). */
+  unitesAvantRenfort: number;
+  /** BOT-EXPLORATION D1 : rayon de la boucle de patrouille du scout autour
+   *  de la capitale (waypoints en anneau). */
+  rayonPatrouille: number;
+  /** BOT-EXPLORATION D3 : rappel immédiat du scout si un camp barbare ou une
+   *  unité ennemie est à ≤ ce rayon de la capitale. */
+  rayonMenace: number;
 }
 
 /** BOT-TA · Configuration data-driven du bot (bot.json) — hook de difficulté
