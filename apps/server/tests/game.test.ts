@@ -186,6 +186,37 @@ describe('GameDO · POLISSAGE-1 C2 · annulation d\'ordre et aperçu (R-160)', (
   });
 });
 
+/**
+ * ANNUL-CHEMIN (Erik 24/10) — l'annulation couvre aussi les ordres
+ * persistants Heal/Sleep portés par unit.order (unité en soin / en vigilance
+ * au tour courant, SANS ordre du jour soumis) : le serveur efface l'état et
+ * renvoie le Snapshot de rafraîchissement, comme pour le chemin gelé R-160.
+ */
+describe('GameDO · ANNUL-CHEMIN · annulation des ordres persistants (Heal/Sleep)', () => {
+  it('annuler une vigilance posée au tour précédent → unit.order effacé + Snapshot', async () => {
+    const { alice, bob } = await readySockets(NO_TIMER);
+    alice.send({ type: 'SubmitOrder', order: { type: 'Sleep', unitId: 'u1' } });
+    await alice.waitFor('OrderAck');
+    alice.send({ type: 'EndTurn' });
+    await alice.waitFor('OrderAck');
+    bob.send({ type: 'EndTurn' });
+    await alice.waitFor('TurnResult');
+    // La vigilance persiste dans l'état au tour suivant (aucun ennemi visible).
+    // (vérifiée implicitement par l'annulation ci-dessous : accepted=false
+    // signifierait que rien n'était à annuler.)
+
+    alice.send({ type: 'CancelOrder', unitId: 'u1' });
+    const cancel = await alice.waitFor('OrderAck');
+    if (cancel.type !== 'OrderAck') return;
+    expect(cancel.accepted).toBe(true);
+    expect(cancel.cancelledUnitId).toBe('u1');
+    const snap = (await alice.waitFor('Snapshot')) as Snapshot;
+    expect(snap.state.units['u1']!.order).toBeNull();
+    alice.close();
+    bob.close();
+  });
+});
+
 describe('GameDO · SetConversion (R-90, Phase 7b — action immédiate)', () => {
   it('la conversion or→science d’une ville possédée est appliquée et diffusée aux deux clients', async () => {
     const { code, alice, bob } = await readySockets(NO_TIMER);

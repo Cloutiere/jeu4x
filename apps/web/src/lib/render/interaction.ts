@@ -777,9 +777,13 @@ export function annulationOrdre(
   ui: UiState,
   unitId: UnitId,
 ): { ordreExistant: boolean; draft: UiState['draft'] } {
-  const ordreExistant = view.orders.some((o) =>
-    'unitId' in o ? o.unitId === unitId : o.type === 'FormArmy' && o.members.includes(unitId),
-  );
+  // ANNUL-CHEMIN (Erik 24/10) : un ordre PERSISTANT porté par unit.order
+  // (chemin gelé R-158, soin, vigilance) compte aussi — sans lui, l'annulation
+  // d'un chemin gelé sans ordre du jour n'envoyait jamais le CancelOrder.
+  const ordreExistant =
+    view.orders.some((o) =>
+      'unitId' in o ? o.unitId === unitId : o.type === 'FormArmy' && o.members.includes(unitId),
+    ) || view.state?.units[unitId]?.order != null;
   const draft = ui.draft && ui.draft.unitId === unitId ? null : ui.draft;
   return { ordreExistant, draft };
 }

@@ -1513,6 +1513,9 @@ export class GameDO {
     // POLISSAGE-1 C2 (R-160) : un chemin gelé (Move/MultiStep restant sur
     // l'unité, programmé un tour antérieur) annulé disparaît lui aussi —
     // effacé de l'état immédiatement, l'aperçu ne doit plus le montrer.
+    // ANNUL-CHEMIN (Erik 24/10) : pareil pour les ordres persistants
+    // Heal/Sleep portés par unit.order (soin, vigilance) — l'unité annulée
+    // redevient libre, Snapshot de rafraîchissement à l'appui.
     let frozenCleared = false;
     if (unitId !== undefined) {
       const unit = this.game.units[unitId];
@@ -1520,8 +1523,9 @@ export class GameDO {
         unit &&
         unit.owner === engineId &&
         unit.order &&
-        (unit.order.type === 'Move' || unit.order.type === 'MultiStep') &&
-        unit.order.path.length > 0
+        (((unit.order.type === 'Move' || unit.order.type === 'MultiStep') && unit.order.path.length > 0) ||
+          unit.order.type === 'Heal' ||
+          unit.order.type === 'Sleep')
       ) {
         unit.order = null;
         frozenCleared = true;

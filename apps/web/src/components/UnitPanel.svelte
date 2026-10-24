@@ -10,6 +10,7 @@
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
   import { consumeEffectLabel, settleEffectLabel, greatPersonLabel, SPY_ACTION_LABELS } from '../lib/labels.js';
+  import { libelleAnnulationOrdre } from '../lib/annul-ordre.js';
   import type { UiState } from '../lib/render/ui.js';
 
   interface Props {
@@ -47,6 +48,13 @@
   });
   const currentOrder = $derived(
     unit ? view.orders.find((o) => 'unitId' in o && o.unitId === unit.id) ?? null : null,
+  );
+
+  /** ANNUL-CHEMIN (Erik 24/10, D1) : un ordre PERSISTANT porté par unit.order
+   *  (chemin gelé R-158, soin, vigilance) est annulable d'un clic — le
+   *  libellé est contextuel ; sinon libellé générique pour un ordre du jour. */
+  const libelleAnnul = $derived(
+    unit ? libelleAnnulationOrdre(unit.order) ?? (currentOrder ? "Annuler l'ordre" : null) : null,
   );
 
   /** DEPLACEMENT-PLANIFIE · R-158 (D5) : ordre de déplacement (simple ou
@@ -479,9 +487,9 @@
             </button>
           {/if}
         {/if}
-        {#if currentOrder}
-          <button type="button" disabled={!editable} onclick={() => unit && onCancelOrder(unit.id)}>
-            Annuler l'ordre
+        {#if libelleAnnul}
+          <button type="button" disabled={!editable} title="Annule l'ordre en cours — l'unité redevient libre, PM actuels conservés." onclick={() => unit && onCancelOrder(unit.id)}>
+            {libelleAnnul}
           </button>
         {/if}
       </div>
