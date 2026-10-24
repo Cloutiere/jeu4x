@@ -68,6 +68,18 @@ describe('construireBanniere (segments D1-D4)', () => {
     const b = construireBanniere({ nom: 'Ville 2', pop: 5, capitale: false, mienne: false, croissance: 2, itemNom: 'Guerrier', eta: 1 });
     expect(b).toEqual({ nom: 'Ville 2', pop: 5, capitale: false, croissance: null, initiale: null, iconeItem: null, eta: null });
   });
+  it('GOD-MODE-PRODUCTION D1 — god mode : ville ENNEMIE montre croissance, item et ETA quand les candidats existent', () => {
+    const b = construireBanniere({ nom: 'Ville 2', pop: 5, capitale: false, mienne: false, godMode: true, croissance: 2, itemNom: 'Guerrier', eta: 1 });
+    expect(b).toEqual({ nom: 'Ville 2', pop: 5, capitale: false, croissance: 2, initiale: 'G', iconeItem: null, eta: 1 });
+  });
+  it('GOD-MODE-PRODUCTION D1 — god mode : initiale de repli si l\'icône manque, masquages D4 inchangés (file vide)', () => {
+    const vide = construireBanniere({ nom: 'Thèbes', pop: 7, capitale: true, mienne: false, godMode: true, croissance: null, itemNom: null, eta: null });
+    expect(vide.croissance).toBeNull();
+    expect(vide.initiale).toBeNull();
+    expect(vide.eta).toBeNull();
+    const icone = construireBanniere({ nom: 'V', pop: 1, capitale: false, mienne: false, godMode: true, croissance: 3, itemNom: 'Grenier', eta: 2, itemIcone: 'guerrier' });
+    expect(icone.iconeItem).toBe('guerrier');
+  });
   it('D3 — nom, pop et capitale restent publics pour une ville ennemie', () => {
     const b = construireBanniere({ nom: 'Thèbes', pop: 7, capitale: true, mienne: false, croissance: null, itemNom: null, eta: null });
     expect(b.nom).toBe('Thèbes');

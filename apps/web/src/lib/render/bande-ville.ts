@@ -106,6 +106,10 @@ export interface EntreeBanniereVille {
   capitale: boolean;
   /** Ville du joueur courant — sinon D3 masque tout détail. */
   mienne: boolean;
+  /** GOD-MODE-PRODUCTION D1 : session d'observation (solo/bots) — la
+   *  bannière montre TOUT, même sur une ville étrangère. Hors god mode le
+   *  masquage anti-fog D3 reste INTACT. */
+  godMode?: boolean;
   croissance: number | null;
   itemNom: string | null;
   eta: number | null;
@@ -133,9 +137,10 @@ export interface BanniereVille {
 
 /** Données → segments (D1-D4). Une ville ENNEMIE expose nom, pop et
  *  capitale — JAMAIS sa croissance ni sa production, même quand les
- *  candidats existent dans l'état filtré (D3). */
+ *  candidats existent dans l'état filtré (D3) — SAUF en god mode
+ *  (GOD-MODE-PRODUCTION D1 : session d'observation, tout est montré). */
 export function construireBanniere(e: EntreeBanniereVille): BanniereVille {
-  if (!e.mienne) {
+  if (!e.mienne && !e.godMode) {
     return { nom: e.nom, pop: e.pop, capitale: e.capitale, croissance: null, initiale: null, iconeItem: null, eta: null };
   }
   return {

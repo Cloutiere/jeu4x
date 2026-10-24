@@ -1192,12 +1192,16 @@
         bandesSprites.set(city.id, b);
       }
       const mienne = city.owner === scene.myId;
+      // GOD-MODE-PRODUCTION D1 : session d'observation — les candidats
+      // (croissance/item/ETA) sont calculés pour TOUTES les villes visibles ;
+      // le masquage anti-fog D3 ne s'applique qu'hors god mode.
+      const godModeActif = scene.view?.godMode === true;
       let croissance: number | null = null;
       let itemNom: string | null = null;
       let itemIcone: string | null = null;
       let texIconeItem: Texture | null = null;
       let eta: number | null = null;
-      if (mienne && scene.view) {
+      if ((mienne || godModeActif) && scene.view) {
         // BANDE-DETAIL (D4) : le helper PARTAGÉ donne les composantes nommées
         // ET le total (miroir exact — un seul calcul pour la bannière ET les
         // infobulles).
@@ -1251,7 +1255,7 @@
       } else {
         detailsBandes.delete(city.id);
       }
-      const bande = construireBanniere({ nom: city.name ?? city.id, pop: city.pop, capitale: city.capital, mienne, croissance, itemNom, eta, itemIcone });
+      const bande = construireBanniere({ nom: city.name ?? city.id, pop: city.pop, capitale: city.capital, mienne, godMode: godModeActif, croissance, itemNom, eta, itemIcone });
       const conteneurBande = b;
       poser3d(conteneurBande, p.x, p.y); // la bannière suit sa ville (même origine)
       // Logo de nation (préchargé au setup) — capturé par le civId courant
