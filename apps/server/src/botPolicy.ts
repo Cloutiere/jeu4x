@@ -46,18 +46,36 @@ import {
   TERRAINS,
   UNIT_TYPES,
   WONDERS,
+  allKnownTechs,
   areAtWar,
   canSetProduction,
   compareCityIds,
   compareUnitIds,
   frontierRadius,
+  growthThresholdFor,
   hexDistanceW,
   isBarbarian,
   rayonCulturelDe,
   rushBuyCostOf,
+  techEraOf,
+  tileYield,
   wonderTreasuryLocked,
+  workRadiusOf,
+  workableTilesFor,
 } from '@game/rules';
-import type { BotProfileData, City, GameState, Order, PlayerId, ProductionItem, SeededRng, Unit } from '@game/rules';
+import type {
+  BotEconomieData,
+  BotProfileData,
+  City,
+  GameState,
+  Order,
+  PlayerId,
+  ProductionItem,
+  SeededRng,
+  TechEra,
+  TileKey,
+  Unit,
+} from '@game/rules';
 
 /** Id de session du joueur bot (réservé — l'auth ne délivre jamais cet id). */
 export const BOT_PLAYER_ID = 'bot';
@@ -540,97 +558,6 @@ export function assignerObjectifs(
   return objectifs;
 }
 
-// ---------------------------------------------------------------------------
-// Économie (T-B affinera — D4 : seule la pondération de guerre est nouvelle).
-// ---------------------------------------------------------------------------
-
-/** R-85 : une tech aléatoire (RNG seedé) disponible — non débloquée, prérequis satisfaits. */
-function pickResearch(player: GameState['players'][PlayerId], rng: SeededRng): string | null {
-  const unlocked = player.techsUnlocked ?? [];
-  const available = Object.values(TECHS).filter(
-    (t) => !unlocked.includes(t.id) && t.prereqs.every((p) => unlocked.includes(p)),
-  );
-  if (available.length === 0) return null;
-  return available[rng.nextInt(available.length)]!.id;
-}
-
-/** R-135 : coût de base d'un item de production (données — miroir bot.mjs). */
-function baseCostOf(item: ProductionItem): number | null {
-  if (item.kind === 'unit') return UNIT_TYPES[item.id]?.cost ?? null;
-  if (item.kind === 'wonder') return WONDERS[item.id]?.cost ?? null;
-  return BUILDINGS[item.id]?.cost ?? null;
-}
-void baseCostOf;
-
-
-/**
- * R-87 · Un item de production aléatoire VALIDE pour la ville (miroir bot.mjs
- * `pickProduction`). Le filtre final passe par le VALIDATEUR MOTEUR
- * `canSetProduction` (tech, obsolescence R-110, unités uniques R-148 avec
- * remplacement, GP R-114, stratégiques R-138, bâtiments R-66/R-111) — un
- * ordre que le moteur refuserait n'entre jamais dans le tirage. S'y ajoutent
- * les filtres bot.mjs : coût population (R-112), accès à la mer (R-117),
- * unicité MONDIALE des merveilles (R-129) et verrou de trésorerie (R-137).
- *
- * BOT-TA · D4 : en guerre, la ville produit une UNITÉ si une option unité
- * existe (pondération data-driven minimale — T-B affinera).
- */
-function pickProduction(
-  city: City,
-  player: GameState['players'][PlayerId],
-  myCities: City[],
-  state: GameState,
-  rng: SeededRng,
-  enGuerre: boolean,
-): ProductionItem | null {
-  const unlocked = player.techsUnlocked ?? [];
-  const obsoleteWonders = new Set<string>();
-  for (const techId of unlocked) for (const w of TECHS[techId]?.obsoleteWonders ?? []) obsoleteWonders.add(w);
-  const allCities = Object.values(state.cities);
-  const empireWonders = new Set(myCities.flatMap((c) => c.wonders ?? []));
-  // Unicité MONDIALE R-129 (révision 7k, absente de bot.mjs) : une merveille
-  // bâtie chez le rival n'est plus produisible — le moteur le refuserait.
-  const worldWonders = new Set(allCities.flatMap((c) => c.wonders ?? []));
-  const empireChantiers = new Set(
-    myCities.filter((c) => c.production?.item.kind === 'wonder').map((c) => c.production!.item.id),
-  );
-  const options: ProductionItem[] = [];
-  // R-116 : à 20 jalons, le bot VISE l'ONU (victoire culturelle).
-  if ((player.cultureMilestones ?? 0) >= CULTURE.milestonesTarget) {
-    options.unshift({ kind: 'wonder', id: 'nations_unies' });
-  }
-  for (const u of Object.values(UNIT_TYPES)) {
-    if (u.implemented === false || u.greatPerson || u.strategic) continue;
-    if (u.id === 'caravane') continue; // CARAVANE · D4 (Erik 19/10) : le bot solo n'en produit pas
-    if ((u.populationCost ?? 0) > 0 && city.pop < u.populationCost!) continue; // R-112 (complétion)
-    if (u.aquatic && !isCoastal(city, state)) continue; // R-117 : accès à la mer
-    if (!canSetProduction({ kind: 'unit', id: u.id }, unlocked, city.buildings, player.civId)) continue;
-    options.push({ kind: 'unit', id: u.id });
-  }
-  // D4 : en guerre, seules les unités restent dans le tirage.
-  if (enGuerre) {
-    const unités = options.filter((o) => o.kind === 'unit');
-    if (unités.length > 0) return unités[rng.nextInt(unités.length)]!;
-  }
-  for (const b of Object.values(BUILDINGS)) {
-    if (b.fixed || b.implemented === false) continue;
-    if (city.buildings.includes(b.id)) continue;
-    if (b.replaces && city.buildings.includes(b.replaces)) continue;
-    if (!canSetProduction({ kind: 'building', id: b.id }, unlocked, city.buildings, player.civId)) continue;
-    options.push({ kind: 'building', id: b.id });
-  }
-  for (const w of Object.values(WONDERS)) {
-    if (w.implemented === false || w.cultureVictory) continue; // ONU déjà priorisée
-    if (w.tech && !unlocked.includes(w.tech)) continue;
-    if (obsoleteWonders.has(w.id)) continue;
-    if (empireWonders.has(w.id) || worldWonders.has(w.id) || empireChantiers.has(w.id)) continue;
-    if (wonderTreasuryLocked(w.id, player.treasury)) continue; // R-137 (Banque mondiale)
-    options.push({ kind: 'wonder', id: w.id });
-  }
-  if (options.length === 0) return null;
-  return options[rng.nextInt(options.length)]!;
-}
-
 /**
  * R-122 · Le régime à adopter — République dès Code des lois, puis Démocratie
  * ou Communisme selon les rendements d'empire, LORSQUE la tech a été
@@ -715,10 +642,307 @@ function isCoastal(city: City, state: GameState): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// BOT-TB (décisions Erik 24/10) — arbitres ÉCONOMIQUES (D1-D4). Fonctions
+// pures séparées de l'émission ; miroirs exacts des formules moteur
+// (tileYield/workRadiusOf/workableTilesFor pour D1, canSetProduction pour
+// D2, l'arbre TECHS pour D3, rushBuyCostOf pour D4). Seuils et poids :
+// bot.json (bloc `economie` + `objectifRecherche` par profil).
+// ---------------------------------------------------------------------------
+
+/** Accès au bloc économie (bot.json). */
+export function ecoDuBot(): BotEconomieData {
+  return BOT_SETTINGS.economie;
+}
+
+/** Poids de pondération des rendements pour une ville (D1) :
+ *  - nourriture si la ville peut encore croître (seuil non nul) ;
+ *  - marteaux de guerre si en guerre OU production militaire en tête de file ;
+ *  - or seulement si trésorerie basse (seuil data-driven).
+ *  Pur, déterministe. */
+export function poidsVille(
+  state: GameState,
+  city: City,
+  player: GameState['players'][PlayerId],
+  eco: BotEconomieData,
+  enGuerre: boolean,
+): { food: number; production: number; commerce: number } {
+  const militaireEnTete =
+    city.production?.item.kind === 'unit' && (UNIT_TYPES[city.production.item.id]?.canAttack ?? false);
+  return {
+    food: growthThresholdFor(city.pop) === null ? 0 : eco.poidsNourriture,
+    production: enGuerre || militaireEnTete ? eco.poidsMarteauxGuerre : eco.poidsMarteaux,
+    commerce: player.treasury < eco.seuilTresorerieBasse ? eco.poidsOr : 0,
+  };
+}
+
+/** D1 · Plan optimal de worked tiles : les `pop` meilleures cases libres par
+ *  score pondéré (rendements EFFECTIFS — miroir tileYield : bâtiments,
+ *  merveilles, ressources, union des techs et traits civ comme le moteur).
+ *  Tie-break clé croissant (R-81). Pur : ne mute jamais l'état. */
+export function planWorkedTiles(
+  state: GameState,
+  city: City,
+  player: GameState['players'][PlayerId],
+  poids: { food: number; production: number; commerce: number },
+  opts: { reserveInterieurs?: number; marteauxMin?: number } = {},
+): TileKey[] {
+  const reserveInterieurs = opts.reserveInterieurs ?? 0;
+  const marteauxMin = opts.marteauxMin ?? 0;
+  const autresVilles = Object.values(state.cities)
+    .filter((c) => c.id !== city.id)
+    .map((c) => ({ q: c.q, r: c.r }));
+  const prises = new Set<TileKey>(
+    Object.values(state.cities).flatMap((c) => (c.id === city.id ? [] : c.workedTiles)),
+  );
+  const allTechs = allKnownTechs(state);
+  const civ = { civId: player.civId, era: player.era };
+  const radius = workRadiusOf(city.buildings);
+  const candidates = workableTilesFor(state.map, autresVilles, city, radius, state.mapWidth)
+    .filter((key) => !prises.has(key))
+    .map((key) => {
+      const y = tileYield(state.map, city.buildings, key, player.techsUnlocked ?? [], city.wonders ?? [], allTechs, civ);
+      const score = y ? poids.food * y.food + poids.production * y.production + poids.commerce * y.commerce : -1;
+      return { key, score, production: y?.production ?? 0 };
+    });
+  const picks = candidates
+    .slice()
+    .sort((a, b) => b.score - a.score || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+    .slice(0, Math.max(0, city.pop - reserveInterieurs));
+  // BOT-TB · garantie de marteaux BRUTS (miroir processEconomy : les citoyens
+  // intérieurs ne produisent plus de marteaux directs — R-60bis rév. 10/10) :
+  // un plan tout-nourriture (prairies 2N/0P) ne ferait JAMAIS avancer la file.
+  // Correction déterministe : on échange les tuiles choisies au score le plus
+  // faible contre les meilleures productrices restantes, jusqu'au quota data.
+  let marteaux = picks.reduce((s, p) => s + p.production, 0);
+  if (marteaux < marteauxMin) {
+    const productrices = candidates
+      .filter((c) => !picks.includes(c) && c.production > 0)
+      .sort((a, b) => b.production - a.production || b.score - a.score || (a.key < b.key ? -1 : 1));
+    for (const cand of productrices) {
+      if (marteaux >= marteauxMin) break;
+      if (picks.length === 0) picks.push(cand);
+      else {
+        // la moins utile des choisies : production croissante puis score croissant
+        let worst = 0;
+        for (let i = 1; i < picks.length; i++) {
+          const a = picks[i]!;
+          const w = picks[worst]!;
+          if (a.production < w.production || (a.production === w.production && a.score < w.score)) worst = i;
+        }
+        if (picks[worst]!.production >= cand.production) break; // rien à gagner
+        picks[worst] = cand;
+      }
+      marteaux += cand.production;
+    }
+  }
+  return picks
+    .map((c) => c.key)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)); // R-81 : sortie triée
+}
+
+/** D2 · L'item de production est-il PRIORITAIRE pour le rush (D4) :
+ *  unité de combat en guerre ou sous menace, ou colon (expansion). */
+export function rushPrioritaire(
+  item: ProductionItem,
+  enGuerre: boolean,
+  menace: boolean,
+): boolean {
+  if (item.kind !== 'unit') return false;
+  if (item.id === 'colon') return true;
+  return (enGuerre || menace) && (UNIT_TYPES[item.id]?.canAttack ?? false);
+}
+
+/**
+ * D3 · Prochaine tech du bot — plus de hasard. Objectif par profil :
+ * « militaire »/« economique » → chaîne complète de prérequis vers la tech
+ * clé (bot.json) ; « auto » → tech de l'ère suivante à la chaîne la moins
+ * chère (somme des coûts de la fermeture de prérequis manquants). Le choix
+ * courant = une tech de la fermeture DONT LES PRÉREQUIS SONT SATISFAITS
+ * (légal immédiatement), minimisant le coût des dépendances manquantes
+ * restantes vers l'objectif, tie-break id croissant (R-81). Null si tout
+ * est débloqué.
+ */
+export function prochaineTech(
+  player: GameState['players'][PlayerId],
+  profile: BotProfileData,
+  eco: BotEconomieData,
+): string | null {
+  const unlocked = new Set(player.techsUnlocked ?? []);
+  const fermeture = (cible: string): Set<string> => {
+    const manquants = new Set<string>();
+    const visite = new Set<string>();
+    const pile = [cible];
+    while (pile.length > 0) {
+      const id = pile.pop()!;
+      if (visite.has(id) || unlocked.has(id)) continue;
+      visite.add(id);
+      const t = TECHS[id];
+      if (!t) continue;
+      manquants.add(id);
+      for (const p of t.prereqs) pile.push(p);
+    }
+    return manquants;
+  };
+
+  let cible: string | null = null;
+  if (profile.objectifRecherche === 'militaire') cible = eco.techMilitaireCle;
+  else if (profile.objectifRecherche === 'economique') cible = eco.techEconomiqueCle;
+  else {
+    // auto : ère suivante, tech à la fermeture la moins chère ; en dernière
+    // ère, la moins chère de ce qui reste (fin d'arbre → null).
+    const eraActuelle = techEraOf(player.techsUnlocked ?? []);
+    const idx = ERA_ORDRE.indexOf(eraActuelle);
+    const eraCible = ERA_ORDRE[idx + 1];
+    let bestCost = Infinity;
+    let bestId: string | null = null;
+    for (const t of Object.values(TECHS)) {
+      if (unlocked.has(t.id)) continue;
+      if (eraCible && t.era !== eraCible) continue;
+      if (!eraCible && t.era !== eraActuelle) continue;
+      const cout = [...fermeture(t.id)].reduce((s, id) => s + (TECHS[id]?.cost ?? 0), 0);
+      if (cout < bestCost || (cout === bestCost && (bestId === null || t.id < bestId))) {
+        bestCost = cout;
+        bestId = t.id;
+      }
+    }
+    cible = bestId;
+  }
+  if (!cible || unlocked.has(cible)) return null;
+  const manquants = fermeture(cible);
+  let choix: string | null = null;
+  let bestReste = Infinity;
+  for (const id of manquants) {
+    const t = TECHS[id]!;
+    if (!t.prereqs.every((p) => unlocked.has(p))) continue;
+    // Mesure : coût total de la sous-fermeture nécessaire APRÈS id — les
+    // manquants qui dépendent (transitivement) de id, plus id lui-même.
+    let sous = 0;
+    for (const m of manquants) {
+      if (m === id || dependDe(m, id)) sous += TECHS[m]?.cost ?? 0;
+    }
+    if (sous < bestReste || (sous === bestReste && (choix === null || id < choix))) {
+      bestReste = sous;
+      choix = id;
+    }
+  }
+  return choix;
+}
+
+/** La tech `a` dépend-elle (transitivement) de la tech `b` ? */
+function dependDe(a: string, b: string): boolean {
+  const pile = [...(TECHS[a]?.prereqs ?? [])];
+  const vus = new Set<string>();
+  while (pile.length > 0) {
+    const id = pile.pop()!;
+    if (id === b) return true;
+    if (vus.has(id)) continue;
+    vus.add(id);
+    for (const p of TECHS[id]?.prereqs ?? []) pile.push(p);
+  }
+  return false;
+}
+
+/** Ordre croissant des ères (miroir growth.ts — non exporté là-bas). */
+const ERA_ORDRE: TechEra[] = ['ancienne', 'medievale', 'industrielle', 'moderne'];
+
+/** D2 · Production pondérée — remplace le tirage aléatoire.
+ *  ① besoin militaire (guerre ou barbares actifs proches → meilleure unité
+ *  d'attaque disponible) ; ② pop au seuil (ou croissance bloquée) → colon
+ *  si aucun colon n'existe déjà dans l'empire ; ③ premier bâtiment
+ *  économique manquant (ordre bot.json) ; ④ merveille si l'empire est
+ *  pionnier (aucune merveille, première disponible par id, R-129) ;
+ *  ⑤ repli = l'ancien tirage aléatoire VALIDE (canSetProduction). */
+export function arbitrerProduction(
+  city: City,
+  player: GameState['players'][PlayerId],
+  myCities: City[],
+  state: GameState,
+  eco: BotEconomieData,
+  enGuerre: boolean,
+  menace: boolean,
+  rng?: SeededRng,
+): ProductionItem | null {
+  const unlocked = player.techsUnlocked ?? [];
+  // Options VALIDES (miroir de l'ancien tirage — le validateur moteur tranche).
+  const unitesDisponibles: ProductionItem[] = [];
+  const batimentsManquants: ProductionItem[] = [];
+  const merveillesDisponibles: ProductionItem[] = [];
+
+  for (const u of Object.values(UNIT_TYPES)) {
+    if (u.implemented === false || u.greatPerson || u.strategic) continue;
+    if (u.id === 'caravane') continue; // CARAVANE · D4 : le bot n'en produit pas
+    if ((u.populationCost ?? 0) > 0 && city.pop < u.populationCost!) continue; // R-112
+    if (u.aquatic && !isCoastal(city, state)) continue; // R-117
+    if (!canSetProduction({ kind: 'unit', id: u.id }, unlocked, city.buildings, player.civId)) continue;
+    unitesDisponibles.push({ kind: 'unit', id: u.id });
+  }
+  for (const b of Object.values(BUILDINGS)) {
+    if (b.fixed || b.implemented === false) continue;
+    if (city.buildings.includes(b.id)) continue;
+    if (b.replaces && city.buildings.includes(b.replaces)) continue;
+    if (!canSetProduction({ kind: 'building', id: b.id }, unlocked, city.buildings, player.civId)) continue;
+    batimentsManquants.push({ kind: 'building', id: b.id });
+  }
+  const empireWonders = new Set(myCities.flatMap((c) => c.wonders ?? []));
+  const worldWonders = new Set(Object.values(state.cities).flatMap((c) => c.wonders ?? []));
+  const empireChantiers = new Set(
+    myCities.filter((c) => c.production?.item.kind === 'wonder').map((c) => c.production!.item.id),
+  );
+  const obsoleteWonders = new Set<string>();
+  for (const techId of unlocked) for (const w of TECHS[techId]?.obsoleteWonders ?? []) obsoleteWonders.add(w);
+  for (const w of Object.values(WONDERS)) {
+    if (w.implemented === false || w.cultureVictory) continue;
+    if (w.tech && !unlocked.includes(w.tech)) continue;
+    if (obsoleteWonders.has(w.id)) continue;
+    if (empireWonders.has(w.id) || worldWonders.has(w.id) || empireChantiers.has(w.id)) continue;
+    if (wonderTreasuryLocked(w.id, player.treasury)) continue; // R-137
+    merveillesDisponibles.push({ kind: 'wonder', id: w.id });
+  }
+
+  // ① besoin militaire : la meilleure ATTAQUE disponible (tie : coût, id — R-81).
+  if (enGuerre || menace) {
+    const combattantes = unitesDisponibles
+      .filter((o) => o.kind === 'unit' && (UNIT_TYPES[o.id]?.canAttack ?? false) && UNIT_TYPES[o.id]?.aquatic !== true)
+      .sort(
+        (a, b) =>
+          (UNIT_TYPES[b.id]?.attack ?? 0) - (UNIT_TYPES[a.id]?.attack ?? 0) ||
+          (UNIT_TYPES[a.id]?.cost ?? 0) - (UNIT_TYPES[b.id]?.cost ?? 0) ||
+          (a.id < b.id ? -1 : 1),
+      );
+    if (combattantes.length > 0) return combattantes[0]!;
+  }
+  // ② expansion : colon si la ville est « au plafond ou presque » (seuil
+  // data) ou bloquée, et si l'empire n'a AUCUN colon en attente de fondation.
+  if ((city.pop >= eco.seuilPopColonne || growthThresholdFor(city.pop) === null) &&
+      !Object.values(state.units).some((u) => u.owner === player.id && u.type === 'colon' && !u.aboard)) {
+    const colon = unitesDisponibles.find((o) => o.kind === 'unit' && o.id === 'colon');
+    if (colon) return colon;
+  }
+  // ③ bâtiment économique : premier de l'ordre data-driven présent dans les
+  // manquants (tie par l'ordre lui-même — déterministe).
+  for (const id of eco.ordreBatiments) {
+    const b = batimentsManquants.find((o) => o.kind === 'building' && o.id === id);
+    if (b) return b;
+  }
+  // ④ merveille si pionnier : l'empire n'en possède AUCUNE — première par id.
+  if (empireWonders.size === 0 && merveillesDisponibles.length > 0) {
+    return merveillesDisponibles.slice().sort((a, b) => (a.id < b.id ? -1 : 1))[0]!;
+  }
+  // ⑤ repli : l'ancien tirage aléatoire parmi TOUTES les options valides.
+  const options: ProductionItem[] = [
+    ...unitesDisponibles,
+    ...batimentsManquants,
+    ...merveillesDisponibles,
+  ];
+  if (options.length === 0) return null;
+  return rng ? options[rng.nextInt(options.length)]! : options[0]!;
+}
+
+// ---------------------------------------------------------------------------
 // La politique du bot : état complet + RNG seedé dédié → plan (ordres +
-// actions immédiates). BOT-TA : les ordres d'unités dérivent des OBJECTIFS
-// (D1) ; l'économie (production/rush/GP/recherche/régimes) reste au portage
-// bot.mjs (T-B affinera). Le moteur revalide tout (R-80, §5).
+// actions immédiates). BOT-TA/BOT-TB : les ordres d'unités dérivent des
+// OBJECTIFS (D1) ; l'économie est arbitrée (T-B). Le moteur revalide tout
+// (R-80, §5).
 // ---------------------------------------------------------------------------
 
 export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng): BotPlan {
@@ -827,48 +1051,61 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng):
     .filter((c) => c.owner === playerId)
     .sort((a, b) => compareCityIds(a.id, b.id)); // R-81 : parcours déterministe
 
-  // R-60 : réassignation occasionnelle d'un citoyen (ordre valide — le moteur revalide).
+  // BOT-TB · D1 — worked tiles au meilleur rendement pondéré (remplace la
+  // réassignation aléatoire R-60). Plan optimal par ville ; si le plan
+  // diffère des assignations courantes : DÉSÉLECTIONS d'abord (sémantique
+  // moteur « ville pleine »), puis assignations — la file d'ordres d'une
+  // même ville est appliquée séquentiellement par applySetWorkedTile.
+  const eco = ecoDuBot();
   for (const city of myCities) {
-    if (rng.next() >= 0.2) continue;
-    const candidates = Object.keys(state.map).filter((key) => {
-      const parts = key.split(',');
-      const q = Number(parts[0]);
-      const r = Number(parts[1]);
-      const d = hexDistanceW({ q, r }, { q: city.q, r: city.r }, state.mapWidth);
-      return d >= 1 && d <= 2;
+    if (city.pop <= 0) continue;
+    const poids = poidsVille(state, city, me, eco, enGuerre);
+    const plan = planWorkedTiles(state, city, me, poids, {
+      reserveInterieurs: eco.citoyensInterieurs,
+      marteauxMin: eco.marteauxMin,
     });
-    if (candidates.length === 0) continue;
-    orders.push({ type: 'SetWorkedTile', cityId: city.id, tile: candidates[rng.nextInt(candidates.length)]! });
+    const aRetirer = city.workedTiles.filter((t) => !plan.includes(t));
+    const aAjouter = plan.filter((t) => !city.workedTiles.includes(t));
+    for (const t of aRetirer) orders.push({ type: 'SetWorkedTile', cityId: city.id, tile: t });
+    for (const t of aAjouter) orders.push({ type: 'SetWorkedTile', cityId: city.id, tile: t });
   }
 
-  // R-85 : dès qu'il n'a pas de tech en cours, le bot en choisit une (action immédiate).
+  // R-85 · BOT-TB · D3 : dès qu'il n'a pas de tech en cours, le bot choisit
+  // la PROCHAINE BRIQUE de son objectif de recherche (chaîne de prérequis
+  // complète — plus de tech au hasard).
   if (!me.researching) {
-    const tech = pickResearch(me, rng);
+    const tech = prochaineTech(me, profile, eco);
     if (tech) actions.push({ type: 'SetResearch', techId: tech });
   }
   // R-122 : adoption de régime SANS Anarchie (action immédiate).
   const gov = pickGovernment(me, myCities, state);
   if (gov) actions.push({ type: 'SetGovernment', government: gov });
 
-  // R-87 : villes sans file → un item aléatoire valide (R-116 ONU, R-124
-  // vaisseau, D4 : unités si en guerre).
+  // R-87 · BOT-TB · D2 : villes sans file → ARBITRAGE (① militaire ② colon
+  // ③ bâtiment ④ merveille ⑤ repli) ; priorités conservées : ONU à 20 jalons
+  // (R-116) et composants du vaisseau (R-124).
+  const capitale = myCities.find((c) => c.capital) ?? myCities[0];
+  const menace = capitale ? menaceAutourCapitale(state, capitale, playerId, ennemis, profile.rayonMenace) : false;
   for (const city of myCities) {
     if (city.production) continue;
     const component = (me.techsUnlocked ?? []).includes('vol_spatial') ? missingShipComponent(myCities) : null;
-    const item = component
+    let item: ProductionItem | null = component
       ? ({ kind: 'building', id: component } as ProductionItem)
-      : pickProduction(city, me, myCities, state, rng, enGuerre);
+      : null;
+    if (!item && (me.cultureMilestones ?? 0) >= CULTURE.milestonesTarget) item = { kind: 'wonder', id: 'nations_unies' };
+    if (!item) item = arbitrerProduction(city, me, myCities, state, eco, enGuerre, menace, rng);
     if (item) orders.push({ type: 'SetProduction', cityId: city.id, item });
   }
 
-  // R-135 : rush-buy simple — achète si la trésorerie couvre coût + 30 % de
-  // réserve (coût par le helper moteur : toutes réductions 7n comprises).
-  const SAFETY = 1.3;
+  // R-135 · BOT-TB · D4 : rush DISCIPLINÉ — seulement un item prioritaire
+  // (D2 ①/②), coût × réserve (data) couvert ET trésorerie restante au-dessus
+  // du plancher (coût par le helper moteur : toutes réductions 7n comprises).
   for (const city of myCities) {
     if (!city.production) continue;
+    if (!rushPrioritaire(city.production.item, enGuerre, menace)) continue;
     const cost = rushBuyCostOf(state, city);
     if (cost === null) continue;
-    if (me.treasury >= cost * SAFETY && me.treasury - cost > 0) {
+    if (me.treasury >= cost * eco.reserveRush && me.treasury - cost >= eco.tresorerieMinimale) {
       orders.push({ type: 'RushBuy', cityId: city.id });
     }
   }
@@ -887,6 +1124,5 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng):
     else orders.push(settle);
   }
 
-  void baseCostOf; // conservé pour le portage bot.mjs (miroir minimal, T-B)
   return { orders, actions };
 }

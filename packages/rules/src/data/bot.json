@@ -1,5 +1,32 @@
 {
   "profil": "normal",
+  "economie": {
+    "poidsNourriture": 3,
+    "poidsMarteaux": 2,
+    "poidsOr": 2,
+    "poidsMarteauxGuerre": 5,
+    "seuilTresorerieBasse": 40,
+    "reserveRush": 1.3,
+    "tresorerieMinimale": 30,
+    "seuilPopColonne": 4,
+    "citoyensInterieurs": 0,
+    "marteauxMin": 1,
+    "ordreBatiments": [
+      "grenier",
+      "bibliotheque",
+      "comptoir_commercial",
+      "caserne",
+      "marche",
+      "atelier",
+      "aqueduc",
+      "remparts",
+      "universite",
+      "banque",
+      "usine"
+    ],
+    "techMilitaireCle": "travail_du_fer",
+    "techEconomiqueCle": "monnaie"
+  },
   "profiles": {
     "facile": {
       "seuilSoinPv": 2,
@@ -8,7 +35,8 @@
       "garnisonsCapitale": 1,
       "unitesAvantRenfort": 3,
       "rayonPatrouille": 3,
-      "rayonMenace": 3
+      "rayonMenace": 3,
+      "objectifRecherche": "auto"
     },
     "normal": {
       "seuilSoinPv": 2,
@@ -17,7 +45,8 @@
       "garnisonsCapitale": 2,
       "unitesAvantRenfort": 3,
       "rayonPatrouille": 3,
-      "rayonMenace": 3
+      "rayonMenace": 3,
+      "objectifRecherche": "auto"
     },
     "difficile": {
       "seuilSoinPv": 3,
@@ -26,7 +55,8 @@
       "garnisonsCapitale": 3,
       "unitesAvantRenfort": 3,
       "rayonPatrouille": 3,
-      "rayonMenace": 3
+      "rayonMenace": 3,
+      "objectifRecherche": "militaire"
     }
   }
 }

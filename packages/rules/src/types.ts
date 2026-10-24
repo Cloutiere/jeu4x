@@ -729,11 +729,50 @@ export interface BotProfileData {
   /** BOT-EXPLORATION D3 : rappel immédiat du scout si un camp barbare ou une
    *  unité ennemie est à ≤ ce rayon de la capitale. */
   rayonMenace: number;
+  /** BOT-TB · D3 : objectif de recherche du bot — « militaire » (chemin vers
+   *  techMilitaireCle), « economique » (techEconomiqueCle) ou « auto »
+   *  (chemin le moins cher vers l'ère suivante). */
+  objectifRecherche: 'militaire' | 'economique' | 'auto';
+}
+
+/** BOT-TB · D1-D4 — arbitres économiques du bot (bot.json, partagés par les
+ *  3 profils). Tous les seuils/poids sont des données (D5). */
+export interface BotEconomieData {
+  /** D1 · Poids de pondération des worked tiles (score = Σ poids × rendement). */
+  poidsNourriture: number;
+  poidsMarteaux: number;
+  /** Poids du commerce — appliqué seulement si trésorerie < seuilTresorerieBasse. */
+  poidsOr: number;
+  /** Poids marteaux de remplacement en guerre (ou production militaire en tête). */
+  poidsMarteauxGuerre: number;
+  /** D1 · la trésorerie est « basse » sous ce seuil → le commerce est pondéré. */
+  seuilTresorerieBasse: number;
+  /** D4 · rush-buy : coût × reserveRush de réserve + trésorerie minimale
+   *  restante, et seulement sur un item prioritaire (D2 ①/②). */
+  reserveRush: number;
+  tresorerieMinimale: number;
+  /** D2 ② · une ville à ≥ ce seuil de population (ou bloquée) produit un
+   *  colon — « au plafond ou presque », opérationnalisé en donnée. */
+  seuilPopColonne: number;
+  /** D1 · citoyens gardés INTÉRIEURS par ville (R-60bis : commerce seulement
+   *  depuis la rév. 10/10 — zéro marteau direct ; 0 par défaut). */
+  citoyensInterieurs: number;
+  /** D1 · marteaux BRUTS minimum par ville : si le plan pondéré n'en donne
+   *  pas assez (tout-nourriture), des tuiles de production sont forcées —
+   *  sans elles, la file n'avance JAMAIS (miroir processEconomy). */
+  marteauxMin: number;
+  /** D2 ③ · ordre déterministe de priorité des bâtiments économiques. */
+  ordreBatiments: string[];
+  /** D3 · techs clés des objectifs de recherche. */
+  techMilitaireCle: string;
+  techEconomiqueCle: string;
 }
 
 /** BOT-TA · Configuration data-driven du bot (bot.json) — hook de difficulté
- *  D5 : trois profils prévus, le profil actif est `profil`. */
+ *  D5 : trois profils prévus, le profil actif est `profil`. BOT-TB ajoute le
+ *  bloc `economie` (arbitres D1-D4). */
 export interface BotSettingsData {
   profil: string;
   profiles: Record<string, BotProfileData>;
+  economie: BotEconomieData;
 }

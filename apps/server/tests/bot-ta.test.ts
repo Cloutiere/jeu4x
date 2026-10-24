@@ -286,13 +286,16 @@ describe('BOT-TA · D4 — production pondérée (unités si en guerre)', () => 
     }
   });
 
-  it('en paix, l\'équilibre existant reste possible (bâtiments non exclus)', () => {
+  // BOT-TB (Erik 24/10) : en paix, l'arbitrage D2 est DÉTERMINISTE — le même
+  // état produit le même item quel que soit le seed (plus de tirage varié).
+  it('en paix, la production est arbitrée et déterministe (BOT-TB D2)', () => {
     const s = state({ cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 }], peace: true });
-    const kinds = new Set<string>();
+    const items = new Set<string>();
     for (let seed = 0; seed < 40; seed++) {
       const prod = planOf(s, seed).orders.find((o) => o.type === 'SetProduction');
-      if (prod?.type === 'SetProduction') kinds.add(prod.item.kind);
+      expect(prod?.type).toBe('SetProduction');
+      if (prod?.type === 'SetProduction') items.add(JSON.stringify(prod.item));
     }
-    expect(kinds.size).toBeGreaterThan(1);
+    expect(items.size).toBe(1);
   });
 });
