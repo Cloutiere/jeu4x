@@ -736,20 +736,28 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng):
   // SA capitale dès qu'il possède un colon sans ville (coût nul sur le site
   // réservé). Sans ceci, le bot restait inerte toute la partie sur ces
   // cartes. Ordre unitaire du même validateur orderShapeError.
+  // BOT-FONDATION-MOUVEMENT D1 : la fondation N'INTERROMPT plus la politique —
+  // les autres unités reçoivent leurs objectifs dès ce premier tour ; le
+  // colon fondateur lui-même ne reçoit que FoundCity (jamais de mouvement).
   const aUneVille = Object.values(state.cities).some((c) => c.owner === playerId);
+  let fondateurId: string | null = null;
   if (!aUneVille) {
     const colon = mine.find((u) => u.type === 'colon');
     if (colon) {
       orders.push({ type: 'FoundCity', unitId: colon.id });
-      return { orders, actions };
+      fondateurId = colon.id;
     }
   }
 
   const ennemis = ennemisDe(state, playerId);
   const enGuerre = ennemis.size > 0;
   const objectifs = assignerObjectifs(state, playerId, profile);
+  if (fondateurId) objectifs.set(fondateurId, { kind: 'tenir' as const });
 
   for (const unit of mine) {
+    // D1 : le colon fondateur ne reçoit QUE FoundCity — un 2e ordre (Hold)
+    // sur la même unité ferait tomber la fondation à la résolution.
+    if (unit.id === fondateurId) continue;
     const obj = objectifs.get(unit.id) ?? { kind: 'tenir' as const };
     switch (obj.kind) {
       // R-117 : débarquement vers une rive libre.
