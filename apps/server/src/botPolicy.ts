@@ -136,9 +136,12 @@ const SHIP_COMPONENTS = ['vaisseau_habitation', 'vaisseau_support_vie', 'vaissea
 // BOT-TA · D5 — profil de difficulté (bot.json, seul « normal » implémenté).
 // ---------------------------------------------------------------------------
 
-/** Le profil actif du bot (BOT_SETTINGS.profil — défaut « normal »). */
-export function profileDuBot(): BotProfileData {
-  return BOT_SETTINGS.profiles[BOT_SETTINGS.profil] ?? Object.values(BOT_SETTINGS.profiles)[0]!;
+/** Le profil du bot pour une difficulté donnée (BOT-TD — bot.json
+ *  `profiles` ; valeur absente/inconnue ⇒ le profil global `profil`,
+ *  « normal » par défaut). Pur. */
+export function profileDuBot(difficulte?: string): BotProfileData {
+  const cle = difficulte ?? BOT_SETTINGS.profil;
+  return BOT_SETTINGS.profiles[cle] ?? BOT_SETTINGS.profiles[BOT_SETTINGS.profil] ?? Object.values(BOT_SETTINGS.profiles)[0]!;
 }
 
 // ---------------------------------------------------------------------------
@@ -945,12 +948,17 @@ export function arbitrerProduction(
 // (R-80, §5).
 // ---------------------------------------------------------------------------
 
-export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng): BotPlan {
+/**
+ * @param difficulte BOT-TD : difficulté de la partie (meta lobby) — profil
+ *        data-driven bot.json (`profileDuBot`) ; absent = comportement
+ *        historique (profil « normal »).
+ */
+export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, difficulte?: string): BotPlan {
   const orders: Order[] = [];
   const actions: BotAction[] = [];
   const me = state.players[playerId];
   if (!me) return { orders, actions };
-  const profile = profileDuBot();
+  const profile = profileDuBot(difficulte);
 
   const mine = Object.values(state.units)
     .filter((u) => u.owner === playerId)

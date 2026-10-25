@@ -20,7 +20,7 @@ import type {
   GameSummary,
   ServerToClientMessage,
 } from '@game/shared';
-import { CLES_PALETTES4, configPartieErreur, resoutConflitsPalettes, SIEGES_PAR_PARTIE } from '@game/shared';
+import { CLES_PALETTES4, configPartieErreur, normaliseDifficulteBot, resoutConflitsPalettes, SIEGES_PAR_PARTIE } from '@game/shared';
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
 import { generateCode, generateSeed, isValidCode } from './codes.js';
@@ -277,6 +277,7 @@ export class LobbyDO {
     // SEEDÉ par la partie (défaut « aléatoire », R-80 — même seed → même
     // bot, rejouable ; le tirage ne consomme pas le seed de résolution).
     const solo = (settings as { solo?: boolean }).solo === true;
+    const rawBotDiff = (settings as { botDifficulte?: unknown }).botDifficulte;
     const rawBotCiv = (settings as { botCivId?: string }).botCivId;
     if (rawBotCiv !== undefined && rawBotCiv !== 'random' && !CIVILIZATIONS.civs[rawBotCiv]) {
       return this.sendError(ws, 'badMessage', 'civilisation du bot inconnue');
@@ -348,6 +349,8 @@ export class LobbyDO {
         ...(sieges !== 2 ? { playerCount: sieges } : {}),
         ...(solo ? { solo: true } : {}),
         ...(solo && botCivIds[0] ? { botCivId: botCivIds[0] } : {}),
+        // BOT-TD : difficulté demandée (valeur inconnue ⇒ repli « normal »).
+        ...(rawBotDiff !== undefined ? { botDifficulte: normaliseDifficulteBot(rawBotDiff) } : {}),
       },
       turn: 0,
       createdAt: Date.now(),
@@ -403,6 +406,8 @@ export class LobbyDO {
       isPublic: settings.isPublic === true,
       playerCount: SIEGES_PAR_PARTIE,
       config: cfg,
+      // BOT-TD : difficulté des bots (sélecteur du lobby — inconnu ⇒ normal).
+      ...(settings.botDifficulte !== undefined ? { botDifficulte: normaliseDifficulteBot(settings.botDifficulte) } : {}),
     };
 
     let code = '';

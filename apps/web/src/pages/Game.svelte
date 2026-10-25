@@ -269,6 +269,11 @@
     (e.currentTarget as HTMLElement | null)?.style.setProperty('display', 'none');
   }
 
+  /** BOT-TD : « facile » → « Facile » (détail du bot dans les pastilles). */
+  function capitalise(s: string): string {
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
+
   /** 7l · Commerce de base des terrains (miroir §2 — GPT d'affichage ;
    *  le commerce du centre-ville suit la tranche démographique — R-60bis). */
   const TERRAIN_COMMERCE: Record<string, number> = {
@@ -964,6 +969,8 @@
           id: p,
           nom: info?.name ?? p,
           bot: !!info?.bot,
+          // BOT-TD : difficulté des bots (Welcome) — « Bot 🤖 · Difficile ».
+          difficulte: $view.botDifficulte,
           civ,
           era: joueur?.era ?? 'ancienne',
           government: joueur?.government ?? 'despotisme',
@@ -1315,7 +1322,7 @@
                   {/if}
                 </span>
                 <span class="pastille-detail" role="tooltip">
-                  <strong>{a.nom}{a.bot ? ' 🤖' : ''}</strong>
+                  <strong>{a.nom}{a.bot ? ` 🤖 · ${capitalise(a.difficulte)}` : ''}</strong>
                   <span>{civName(a.civ)}{civLeader(a.civ) ? ` — ${civLeader(a.civ)}` : ''}</span>
                   <span>{eraLabel(a.era)}</span>
                   <span>{GOVERNMENTS[a.government]?.name ?? a.government}</span>

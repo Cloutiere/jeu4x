@@ -49,7 +49,7 @@ import {
   normalizeHexW,
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, LoadedMap, Order, PlayerId, ProgenReport, UnitId } from '@game/rules';
-import { PROTO_VERSION } from '@game/shared';
+import { PROTO_VERSION, normaliseDifficulteBot } from '@game/shared';
 import type { ClientToServerMessage, ConfigPartie, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
@@ -625,7 +625,14 @@ export class GameDO {
         ...(body.host.paletteId ? { paletteId: body.host.paletteId } : {}),
         ...(typeof body.host.siege === 'number' ? { siege: body.host.siege } : {}),
       }],
-      settings: body.settings,
+      settings: {
+        ...body.settings,
+        // BOT-TD : la difficulté est normalisée DÈS l'init (le lobby renvoie
+        // la demande du client — valeur inconnue ⇒ repli « normal »).
+        ...(body.settings.botDifficulte !== undefined
+          ? { botDifficulte: normaliseDifficulteBot(body.settings.botDifficulte) }
+          : {}),
+      },
       seed: body.seed >>> 0,
       createdAt: Date.now(),
       deadline: null,
@@ -1141,6 +1148,8 @@ export class GameDO {
       seq: this.game?.lastEventSeq ?? 0,
       players: this.meta.players,
       status: this.meta.status,
+      // BOT-TD : difficulté des bots (normalisée — reprise conservée, meta).
+      botDifficulte: normaliseDifficulteBot(this.meta.settings.botDifficulte),
       locked: this.locked[engineId] === true,
     });
   }
@@ -1617,7 +1626,7 @@ export class GameDO {
       // bots d'une partie tireraient des plans identiques). L'id historique
       // 'bot' conserve la dérivation d'origine (bot solo inchangé).
       const rng = createRng(botTurnSeed(this.meta.seed, game.turn, p.engineId));
-      const plan = botPolicy(game, p.engineId, rng);
+      const plan = botPolicy(game, p.engineId, rng, this.meta.settings.botDifficulte);
       for (const order of plan.orders) {
         if (orderShapeError(order) !== null) continue; // jamais un ordre mal formé
         this.orders[p.engineId] = upsertOrderPreservingPriority(this.orders[p.engineId] ?? [], order);

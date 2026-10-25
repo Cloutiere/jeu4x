@@ -31,6 +31,8 @@
   let timerMinutes = $state(60);
   let isPublic = $state(true);
   let joinCode = $state('');
+  // BOT-TD (décisions Erik 24/10) : difficulté des bots — défaut Normal.
+  let difficulte = $state<'facile' | 'normal' | 'difficile'>('normal');
   let config = $state<ConfigPartie>(configPartieDefaut('amerique'));
 
   // Jointure : partie sélectionnée (liste publique ou code saisi) + choix.
@@ -45,6 +47,7 @@
       mapId: 'procedural-40',
       turnTimerMinutes: timerMinutes > 0 ? timerMinutes : null,
       isPublic,
+      botDifficulte: difficulte,
       config: $state.snapshot(config) as ConfigPartie,
     });
   }
@@ -103,6 +106,15 @@
         <label class="check">
           <input type="checkbox" bind:checked={isPublic} />
           Partie publique
+        </label>
+        <!-- BOT-TD · D1 : difficulté des bots (sélecteur — défaut Normal). -->
+        <label>
+          Difficulté des bots
+          <select bind:value={difficulte}>
+            <option value="facile">Facile</option>
+            <option value="normal">Normal</option>
+            <option value="difficile">Difficile</option>
+          </select>
         </label>
         <button type="button" class="bouton-or creer" onclick={creerPartie}>
           <img src="/interface/epees.svg" alt="" />

@@ -130,6 +130,7 @@
       { id: 'lab-other', name: 'Joueur 2', engineId: 'p2' },
     ],
     status: 'active',
+    botDifficulte: 'normal',
     turn: 1,
     phase: 'orders',
     state: null,

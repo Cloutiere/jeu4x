@@ -29,6 +29,8 @@ export interface GameView {
   code: string;
   playerId: string | null;
   players: Array<{ id: string; name: string; engineId: string; bot?: boolean; civId?: string; paletteId?: string; siege?: number }>;
+  /** BOT-TD : difficulté des bots (Welcome — normalisée serveur, défaut normal). */
+  botDifficulte: string;
   status: 'waiting' | 'active' | 'finished';
   turn: number;
   phase: 'orders' | 'resolving';
@@ -79,6 +81,7 @@ export function initialView(code: string): GameView {
     code,
     playerId: null,
     players: [],
+    botDifficulte: 'normal',
     status: 'waiting',
     turn: 0,
     phase: 'orders',
@@ -142,7 +145,7 @@ export function reduceView(v: GameView, message: ServerToClientMessage): GameVie
     case 'Welcome':
       // `seenEventSeq` volontairement inchangé : le seq du Welcome est le bout
       // du journal serveur, pas une marque de lecture du journal client.
-      return { ...v, playerId: message.playerId, players: message.players, status: message.status, turn: message.turn, phase: message.phase, lastSeq: Math.max(v.lastSeq, message.seq) };
+      return { ...v, playerId: message.playerId, players: message.players, status: message.status, turn: message.turn, phase: message.phase, botDifficulte: message.botDifficulte ?? 'normal', lastSeq: Math.max(v.lastSeq, message.seq) };
     case 'Snapshot':
       return appendJournalEvents(
         {

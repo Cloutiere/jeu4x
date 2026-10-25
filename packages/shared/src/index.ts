@@ -67,6 +67,22 @@ export interface GameCreationSettings {
    *  absent sur les parties créées avant la mission (flux historique 1v1
    *  inchangé — testé) ; présent ⇒ nouvelle voie de création unique. */
   config?: ConfigPartie;
+  /** BOT-TD (décisions Erik 24/10) · difficulté du bot — champ META
+   *  (lobby/Welcome — aucun champ GameState : pas de migration moteur).
+   *  Absent/inconnu = « normal » (repli — normaliseDifficulteBot). */
+  botDifficulte?: BotDifficulte;
+}
+
+/** BOT-TD · les trois difficultés du bot (bot.json `profiles`). */
+export const DIFFICULTES_BOT = ['facile', 'normal', 'difficile'] as const;
+export type BotDifficulte = (typeof DIFFICULTES_BOT)[number];
+
+/** BOT-TD · L1 : toute valeur absente ou inconnue retombe sur « normal »
+ *  (repli explicite — reprise d'anciennes parties et CreateGame forgés). */
+export function normaliseDifficulteBot(v: unknown): BotDifficulte {
+  return typeof v === 'string' && (DIFFICULTES_BOT as readonly string[]).includes(v)
+    ? (v as BotDifficulte)
+    : 'normal';
 }
 
 export interface PlayerInfo {
@@ -198,6 +214,9 @@ export interface Welcome extends ProtoMessage {
   /** Les joueurs inscrits (attente → 1, active → 2). */
   players: GamePlayerInfo[];
   status: GameStatus;
+  /** BOT-TD : difficulté des bots de la partie (normalisée — meta lobby).
+   *  Absent = parties anciennes ⇒ « normal ». */
+  botDifficulte?: BotDifficulte;
   /** Ordres du joueur déjà verrouillés pour le tour courant. */
   locked: boolean;
 }

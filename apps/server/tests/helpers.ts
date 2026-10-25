@@ -135,7 +135,7 @@ export interface AdminDump {
     /** BOT-SOLO : le dump expose le meta complet (civ, flag bot…). */
     players: Array<{ id: string; engineId: string; name?: string; civId?: string; bot?: boolean; paletteId?: string; siege?: number }>;
     seed?: number;
-    settings?: { mapId?: string; solo?: boolean; botCivId?: string; playerCount?: number; config?: unknown };
+    settings?: { mapId?: string; solo?: boolean; botCivId?: string; playerCount?: number; config?: unknown; botDifficulte?: string };
     /** Phase 6b : présent uniquement pour procedural-40. */
     progen?: ProgenReportShape;
   } | null;
