@@ -161,6 +161,11 @@ export type ClientToServerMessage = ProtoMessage &
      *  publique et mutuelle (la paire rejoint `diplomacy.war`), appliquée à
      *  la réception (moteur pur applyDeclareWar), diffusion immédiate. */
     | { type: 'DeclareWar'; player: string }
+    /** BOT-TC (Erik 25/10, D3) · Proposition de paix — ACTION IMMÉDIATE
+     *  (miroir DeclareWar, même contrat) : publique ; la cible DÉCIDE
+     *  (bot : deciderPaix — écrasé ou guerre traînante ⇒ accepte) et la
+     *  réponse est diffusée (PeaceAccepted/PeaceRefused). */
+    | { type: 'ProposePeace'; player: string }
     /** GOD-MODE (Erik 22/10, D3) · Bascule de la révélation complète de la
      *  carte (outil d'observation des bots) — ACTION IMMÉDIATE : REFUSÉE si un
      *  autre humain participe (D1, solo/bots uniquement) ; flag de session

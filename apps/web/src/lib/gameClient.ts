@@ -68,6 +68,9 @@ export interface GameClient {
   /** DIPLOMATIE-T1 · D3 : déclaration de guerre — action immédiate,
    *  publique et mutuelle. */
   declareWar(playerId: string): void;
+  /** BOT-TC (Erik 25/10, D3) : proposition de paix — miroir de DeclareWar ;
+   *  la réponse du bot arrive par le Snapshot (PeaceAccepted/PeaceRefused). */
+  proposePeace(playerId: string): void;
   /** GOD-MODE (Erik 22/10, D3) : bascule la révélation complète — le serveur
    *  seul décide (refus si un autre humain participe) ; la confirmation
    *  arrive par le Snapshot (`godMode`). */
@@ -288,6 +291,9 @@ export function createGameClient(
     },
     declareWar(playerId) {
       handle.send({ type: 'DeclareWar', player: playerId });
+    },
+    proposePeace(playerId) {
+      handle.send({ type: 'ProposePeace', player: playerId });
     },
     toggleGodMode(on) {
       handle.send({ type: 'ToggleGodMode', on });

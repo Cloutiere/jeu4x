@@ -36,6 +36,7 @@ import {
   applySetGovernment,
   applyAngkorChoice,
   applyDeclareWar,
+  applyProposePeace,
   angkorEligibleWonders,
   artefactsPourCarteFraiche,
   greatPersonThresholdFor,
@@ -53,7 +54,7 @@ import { PROTO_VERSION, normaliseDifficulteBot } from '@game/shared';
 import type { ClientToServerMessage, ConfigPartie, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
-import { botPolicy, botTurnSeed } from './botPolicy.js';
+import { botPolicy, botTurnSeed, deciderPaix, profileDuBot } from './botPolicy.js';
 
 // CARTE-MULTI : jusqu'à 5 sièges moteur (p1..p5) — seuls les sièges présents
 // dans `meta.players` sont actifs (les parties 1v1 n'en instancient que 2).
@@ -368,6 +369,12 @@ export function orderShapeError(order: unknown): string | null {
       // validée EN PREMIER (leçon 7f) ; la validité métier (nation connue,
       // en lice, pas déjà en guerre) est re-vérifiée par le moteur pur
       // applyDeclareWar.
+      return typeof o.player === 'string' ? null : 'nation cible invalide';
+    case 'ProposePeace':
+      // BOT-TC (Erik 25/10, D3) : miroir DeclareWar — la forme (player
+      // requis) est validée EN PREMIER (leçon 7f) ; la validité métier
+      // (nation connue, en lice, PAIRE EN GUERRE) est re-vérifiée par le
+      // moteur pur applyProposePeace.
       return typeof o.player === 'string' ? null : 'nation cible invalide';
     case 'ToggleGodMode':
       // GOD-MODE (Erik 22/10, D3) : action immédiate — la forme (booléen on
@@ -1240,6 +1247,9 @@ export class GameDO {
         case 'DeclareWar':
           await this.handleDeclareWar(ws, att.playerId, (msg as { player: string }).player);
           break;
+        case 'ProposePeace':
+          await this.handleProposePeace(ws, att.playerId, (msg as { player: string }).player);
+          break;
         case 'ToggleGodMode':
           await this.handleToggleGodMode(ws, att.playerId, (msg as { on: boolean }).on);
           break;
@@ -1435,6 +1445,52 @@ export class GameDO {
     this.lastEvents = [...this.lastEvents, event];
     await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
     this.sendTo(ws, { proto: PROTO_VERSION, type: 'OrderAck', accepted: true, order: null, reason: 'guerre déclarée' });
+    this.broadcast((pid) => this.snapshotFor(pid, null));
+  }
+
+  /**
+   * BOT-TC (Erik 25/10, D3) — ProposePeace : miroir EXACT de handleDeclareWar
+   * (forme validée EN PREMIER — leçon 7f). La réponse du bot est calculée par
+   * deciderPaix (botPolicy) : accepte si écrasé (rapport < seuil + tirage
+   * seedé) ou si la guerre dure ≥ toursPaixMin, sinon refuse. La décision
+   * s'applique aux DEUX sens : le bot cible peut être humain (multi — même
+   * règle, consigné 🔶 au rapport) ; l'événement public PeaceAccepted/
+   * PeaceRefused porte la réponse (Chroniques de tous, OrderAck au proposeur).
+   */
+  private async handleProposePeace(ws: WebSocket, playerId: PlayerId, target: string): Promise<void> {
+    const shapeError = orderShapeError({ type: 'ProposePeace', player: target });
+    if (shapeError) return this.sendOrderRejection(ws, shapeError);
+    if (!this.game || !this.meta || this.meta.status !== 'active') {
+      return this.sendOrderRejection(ws, 'proposition impossible (partie non active)');
+    }
+    if (this.game.phase !== 'orders') {
+      return this.sendOrderRejection(ws, 'proposition impossible (résolution en cours)');
+    }
+    const engineId = this.engineIdOf(playerId);
+    // RNG seedé DÉDIÉ (dérivation par cible — indépendant des flux moteur et
+    // bot) : la décision de la cible est reproductible rejou après rejou.
+    const rng = createRng(botTurnSeed(this.meta.seed, this.game.turn, `paix:${target}`));
+    const decision = deciderPaix(
+      this.game,
+      target as PlayerId,
+      engineId,
+      profileDuBot(this.meta.settings.botDifficulte),
+      rng,
+    );
+    const result = applyProposePeace(this.game, engineId, target as PlayerId, decision);
+    if (!result.ok) return this.sendOrderRejection(ws, result.reason);
+    this.game = result.state;
+    this.game.lastEventSeq += 1;
+    const event: GameEvent = { ...result.events[0]!, seq: this.game.lastEventSeq };
+    this.lastEvents = [...this.lastEvents, event];
+    await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
+    this.sendTo(ws, {
+      proto: PROTO_VERSION,
+      type: 'OrderAck',
+      accepted: true,
+      order: null,
+      reason: decision ? 'paix acceptée' : 'paix refusée',
+    });
     this.broadcast((pid) => this.snapshotFor(pid, null));
   }
 
@@ -1637,6 +1693,35 @@ export class GameDO {
           if (result.ok) {
             game = result.state;
             if (result.events.length > 0) botEvents.push(...result.events);
+          }
+        } else if (action.type === 'DeclareWar' || action.type === 'ProposePeace') {
+          // BOT-TC (Erik 25/10) : diplomatie du bot — mêmes helpers purs que
+          // les humains ; la PAIX est DÉCIDÉE par la cible (deciderPaix, RNG
+          // seedé dédié par paire/tour — reproductible au rejeu), puis
+          // appliquée (guerre: WarDeclared, paix: PeaceAccepted/Refused —
+          // publics, au journal diffusé).
+          if (action.type === 'DeclareWar') {
+            const result = applyDeclareWar(game, p.engineId, action.player);
+            if (result.ok) {
+              game = result.state;
+              game.lastEventSeq += 1;
+              botEvents.push({ ...result.events[0]!, seq: game.lastEventSeq });
+            }
+          } else {
+            const rngPaix = createRng(botTurnSeed(this.meta.seed, game.turn, `paix:${action.player}`));
+            const accepte = deciderPaix(
+              game,
+              action.player,
+              p.engineId,
+              profileDuBot(this.meta.settings.botDifficulte),
+              rngPaix,
+            );
+            const result = applyProposePeace(game, p.engineId, action.player, accepte);
+            if (result.ok) {
+              game = result.state;
+              game.lastEventSeq += 1;
+              botEvents.push({ ...result.events[0]!, seq: game.lastEventSeq });
+            }
           }
         } else {
           const result = applySetGovernment(game, p.engineId, action.government);

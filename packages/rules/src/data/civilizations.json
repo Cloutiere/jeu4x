@@ -13,7 +13,8 @@
       "jardins_suspendus",
       "oracle_de_delphes"
     ],
-    "egypteWonderNote": "Calibrage canon (rapports « Calibrage Mécaniques » + « Rules Research », Erik 06/09) : les 6 Merveilles Antiques du canon console ; la Merveille de l'Égypte est TIRÉE au RNG seedé de génération (pas de résolution) et construite gratuitement dans la capitale à la fondation — SANS choix du joueur. Éditable sans code."
+    "egypteWonderNote": "Calibrage canon (rapports « Calibrage Mécaniques » + « Rules Research », Erik 06/09) : les 6 Merveilles Antiques du canon console ; la Merveille de l'Égypte est TIRÉE au RNG seedé de génération (pas de résolution) et construite gratuitement dans la capitale à la fondation — SANS choix du joueur. Éditable sans code.",
+    "agressiviteDefaut": 0.5
   },
   "civs": {
     "amerique": {
@@ -21,248 +22,807 @@
       "name": "Amérique",
       "leader": "Abraham Lincoln",
       "start": [
-        { "key": "gpGratuit", "label": "Commence avec un Personnage Illustre gratuit (classe déterministe R-127 🔶)" }
+        {
+          "key": "gpGratuit",
+          "label": "Commence avec un Personnage Illustre gratuit (classe déterministe R-127 🔶)"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "interets", "label": "2 % d'intérêts sur la réserve d'or" }],
-        "medievale": [{ "key": "rushHalfPrice", "scope": "unit", "label": "Achat accéléré d'UNITÉS à demi-prix" }],
-        "industrielle": [{ "key": "terrainBonus", "terrain": "plaine", "food": 1, "label": "+1 nourriture sur les cases de plaines" }],
-        "moderne": [{ "key": "buildingProductionMult", "building": "usine", "mult": 3, "label": "Les Usines triplent la production (×3)" }]
+        "ancienne": [
+          {
+            "key": "interets",
+            "label": "2 % d'intérêts sur la réserve d'or"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "rushHalfPrice",
+            "scope": "unit",
+            "label": "Achat accéléré d'UNITÉS à demi-prix"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "terrainBonus",
+            "terrain": "plaine",
+            "food": 1,
+            "label": "+1 nourriture sur les cases de plaines"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "buildingProductionMult",
+            "building": "usine",
+            "mult": 3,
+            "label": "Les Usines triplent la production (×3)"
+          }
+        ]
       },
-      "uniqueUnits": ["char_sherman", "mustang", "flying_fortress"]
+      "uniqueUnits": [
+        "char_sherman",
+        "mustang",
+        "flying_fortress"
+      ],
+      "agressivite": 0.35
     },
     "arabie": {
       "id": "arabie",
       "name": "Arabie",
       "leader": "Saladin",
       "start": [
-        { "key": "techGratuite", "tech": "religion", "label": "Connaissance de la Religion" },
-        { "key": "gouvernementGratuit", "government": "fondamentalisme", "label": "Gouvernement Fondamentalisme" }
+        {
+          "key": "techGratuite",
+          "tech": "religion",
+          "label": "Connaissance de la Religion"
+        },
+        {
+          "key": "gouvernementGratuit",
+          "government": "fondamentalisme",
+          "label": "Gouvernement Fondamentalisme"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "caravanesPlus50", "inactif": true, "label": "+50 % d'or généré par les Caravanes (inactif — caravanes reportées)" }],
-        "medievale": [{ "key": "techGratuite", "tech": "mathematiques", "label": "Connaissance gratuite des Mathématiques" }],
-        "industrielle": [{ "key": "unitAttack", "units": ["cavalier", "chevalier"], "amount": 1, "label": "+1 en Attaque pour les Cavaliers et Chevaliers" }],
-        "moderne": [{ "key": "interets", "label": "2 % d'intérêts sur la réserve d'or" }]
+        "ancienne": [
+          {
+            "key": "caravanesPlus50",
+            "inactif": true,
+            "label": "+50 % d'or généré par les Caravanes (inactif — caravanes reportées)"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "techGratuite",
+            "tech": "mathematiques",
+            "label": "Connaissance gratuite des Mathématiques"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "unitAttack",
+            "units": [
+              "cavalier",
+              "chevalier"
+            ],
+            "amount": 1,
+            "label": "+1 en Attaque pour les Cavaliers et Chevaliers"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "interets",
+            "label": "2 % d'intérêts sur la réserve d'or"
+          }
+        ]
       },
-      "uniqueUnits": []
+      "uniqueUnits": [],
+      "agressivite": 0.5
     },
     "azteques": {
       "id": "azteques",
       "name": "Aztèques",
       "leader": "Montezuma",
       "start": [
-        { "key": "orDepart", "amount": 25, "label": "Réserve d'or initiale importante (+25 — canon dataminé, montant fixe au tour 1)" }
+        {
+          "key": "orDepart",
+          "amount": 25,
+          "label": "Réserve d'or initiale importante (+25 — canon dataminé, montant fixe au tour 1)"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "soinVictoire", "label": "Les unités se soignent automatiquement après une victoire" }],
-        "medievale": [{ "key": "templeScience", "building": "temple", "science": 3, "label": "Les Temples produisent +3 en Science" }],
-        "industrielle": [{ "key": "routesMoitie", "inactif": true, "label": "Coût de construction des routes divisé par deux (inactif — pas d'ouvriers/routes)" }],
-        "moderne": [{ "key": "empireGoldMult", "mult": 1.5, "label": "+50 % de production globale d'or" }]
+        "ancienne": [
+          {
+            "key": "soinVictoire",
+            "label": "Les unités se soignent automatiquement après une victoire"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "templeScience",
+            "building": "temple",
+            "science": 3,
+            "label": "Les Temples produisent +3 en Science"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "routesMoitie",
+            "inactif": true,
+            "label": "Coût de construction des routes divisé par deux (inactif — pas d'ouvriers/routes)"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "empireGoldMult",
+            "mult": 1.5,
+            "label": "+50 % de production globale d'or"
+          }
+        ]
       },
-      "uniqueUnits": ["guerrier_jaguar"]
+      "uniqueUnits": [
+        "guerrier_jaguar"
+      ],
+      "agressivite": 0.9
     },
     "chine": {
       "id": "chine",
       "name": "Chine",
       "leader": "Mao Zedong",
       "start": [
-        { "key": "techGratuite", "tech": "ecriture", "label": "Connaissance de la technologie Écriture" }
+        {
+          "key": "techGratuite",
+          "tech": "ecriture",
+          "label": "Connaissance de la technologie Écriture"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "popFondation", "amount": 1, "label": "Les nouvelles villes débutent avec +1 de Population" }],
-        "medievale": [{ "key": "techGratuite", "tech": "litteratie", "label": "Connaissance gratuite de l'Alphabétisation" }],
-        "industrielle": [{ "key": "coutBuildingMoitie", "buildings": ["bibliotheque"], "label": "Coût des Bibliothèques divisé par deux" }],
-        "moderne": [{ "key": "immuniteAnarchie", "label": "Immunité totale contre l'Anarchie" }]
+        "ancienne": [
+          {
+            "key": "popFondation",
+            "amount": 1,
+            "label": "Les nouvelles villes débutent avec +1 de Population"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "techGratuite",
+            "tech": "litteratie",
+            "label": "Connaissance gratuite de l'Alphabétisation"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "coutBuildingMoitie",
+            "buildings": [
+              "bibliotheque"
+            ],
+            "label": "Coût des Bibliothèques divisé par deux"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "immuniteAnarchie",
+            "label": "Immunité totale contre l'Anarchie"
+          }
+        ]
       },
-      "uniqueUnits": []
+      "uniqueUnits": [],
+      "agressivite": 0.5
     },
     "egypte": {
       "id": "egypte",
       "name": "Égypte",
       "leader": "Cléopâtre",
       "start": [
-        { "key": "merveilleAntiqueDepart", "label": "Commence la partie avec une Merveille Antique (choix du joueur au setup 🔶)" }
+        {
+          "key": "merveilleAntiqueDepart",
+          "label": "Commence la partie avec une Merveille Antique (choix du joueur au setup 🔶)"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "terrainBonus", "terrain": "desert", "food": 1, "commerce": 1, "label": "+1 nourriture et +1 commerce sur les cases de Désert" }],
-        "medievale": [{ "key": "techGratuite", "tech": "irrigation", "label": "Connaissance gratuite de l'Irrigation" }],
-        "industrielle": [{ "key": "unitMovement", "units": ["fusilier"], "amount": 1, "label": "+1 en Déplacement pour les Fusiliers" }],
-        "moderne": [{ "key": "caravanesPlus50", "inactif": true, "label": "+50 % d'or généré par les Caravanes (inactif — caravanes reportées)" }]
+        "ancienne": [
+          {
+            "key": "terrainBonus",
+            "terrain": "desert",
+            "food": 1,
+            "commerce": 1,
+            "label": "+1 nourriture et +1 commerce sur les cases de Désert"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "techGratuite",
+            "tech": "irrigation",
+            "label": "Connaissance gratuite de l'Irrigation"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "unitMovement",
+            "units": [
+              "fusilier"
+            ],
+            "amount": 1,
+            "label": "+1 en Déplacement pour les Fusiliers"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "caravanesPlus50",
+            "inactif": true,
+            "label": "+50 % d'or généré par les Caravanes (inactif — caravanes reportées)"
+          }
+        ]
       },
-      "uniqueUnits": []
+      "uniqueUnits": [],
+      "agressivite": 0.45
     },
     "angleterre": {
       "id": "angleterre",
       "name": "Angleterre",
       "leader": "Élisabeth I",
       "start": [
-        { "key": "techGratuite", "tech": "monarchie", "label": "Connaissance de la technologie Monarchie" }
+        {
+          "key": "techGratuite",
+          "tech": "monarchie",
+          "label": "Connaissance de la technologie Monarchie"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "unitDefense", "units": ["archer", "archer_long"], "amount": 1, "label": "+1 en Défense pour les Archers à long arc" }],
-        "medievale": [{ "key": "navalAttack", "amount": 1, "label": "+1 en Combat Naval" }],
-        "industrielle": [{ "key": "terrainBonus", "terrain": "colline", "production": 1, "label": "+1 en Production sur les cases de Collines" }],
-        "moderne": [{ "key": "soutienNavalDouble", "label": "Soutien naval de bombardement doublé" }]
+        "ancienne": [
+          {
+            "key": "unitDefense",
+            "units": [
+              "archer",
+              "archer_long"
+            ],
+            "amount": 1,
+            "label": "+1 en Défense pour les Archers à long arc"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "navalAttack",
+            "amount": 1,
+            "label": "+1 en Combat Naval"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "terrainBonus",
+            "terrain": "colline",
+            "production": 1,
+            "label": "+1 en Production sur les cases de Collines"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "soutienNavalDouble",
+            "label": "Soutien naval de bombardement doublé"
+          }
+        ]
       },
-      "uniqueUnits": ["archer_long", "spitfire", "lancaster"]
+      "uniqueUnits": [
+        "archer_long",
+        "spitfire",
+        "lancaster"
+      ],
+      "agressivite": 0.5
     },
     "france": {
       "id": "france",
       "name": "France",
       "leader": "Napoléon Bonaparte",
       "start": [
-        { "key": "batimentDepart", "building": "cathedrale", "label": "Commence la partie avec une Cathédrale dans la capitale" }
+        {
+          "key": "batimentDepart",
+          "building": "cathedrale",
+          "label": "Commence la partie avec une Cathédrale dans la capitale"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "techGratuite", "tech": "poterie", "label": "Connaissance gratuite de la Poterie" }],
-        "medievale": [{ "key": "routesMoitie", "inactif": true, "label": "Coût de construction des routes divisé par deux (inactif — pas d'ouvriers/routes)" }],
-        "industrielle": [{ "key": "unitAttack", "units": ["canon", "obusier"], "amount": 2, "label": "+2 en Attaque pour les Canons (Obusier compris — doc §unités)" }],
-        "moderne": [{ "key": "unitMovement", "units": ["fusilier"], "amount": 1, "label": "+1 en Déplacement pour les Fusiliers" }]
+        "ancienne": [
+          {
+            "key": "techGratuite",
+            "tech": "poterie",
+            "label": "Connaissance gratuite de la Poterie"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "routesMoitie",
+            "inactif": true,
+            "label": "Coût de construction des routes divisé par deux (inactif — pas d'ouvriers/routes)"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "unitAttack",
+            "units": [
+              "canon",
+              "obusier"
+            ],
+            "amount": 2,
+            "label": "+2 en Attaque pour les Canons (Obusier compris — doc §unités)"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "unitMovement",
+            "units": [
+              "fusilier"
+            ],
+            "amount": 1,
+            "label": "+1 en Déplacement pour les Fusiliers"
+          }
+        ]
       },
-      "uniqueUnits": ["trebuchet", "obusier"]
+      "uniqueUnits": [
+        "trebuchet",
+        "obusier"
+      ],
+      "agressivite": 0.8
     },
     "allemagne": {
       "id": "allemagne",
       "name": "Allemagne",
       "leader": "Otto von Bismarck",
       "start": [
-        { "key": "eliteAuto", "inactif": true, "label": "Amélioration automatique des unités qui atteignent le statut d'Élite (inactif — pas d'XP/promotions)" }
+        {
+          "key": "eliteAuto",
+          "inactif": true,
+          "label": "Amélioration automatique des unités qui atteignent le statut d'Élite (inactif — pas d'XP/promotions)"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "uniteVeteran", "units": ["guerrier"], "label": "Tous les nouveaux Guerriers commencent Vétérans" }],
-        "medievale": [{ "key": "terrainBonus", "terrain": "foret", "production": 1, "label": "+1 en Production sur les cases de Forêt" }],
-        "industrielle": [{ "key": "coutBuildingMoitie", "buildings": ["caserne"], "label": "Coût des Casernes divisé par deux" }],
-        "moderne": [{ "key": "interets", "label": "2 % d'intérêts sur la réserve d'or" }]
+        "ancienne": [
+          {
+            "key": "uniteVeteran",
+            "units": [
+              "guerrier"
+            ],
+            "label": "Tous les nouveaux Guerriers commencent Vétérans"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "terrainBonus",
+            "terrain": "foret",
+            "production": 1,
+            "label": "+1 en Production sur les cases de Forêt"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "coutBuildingMoitie",
+            "buildings": [
+              "caserne"
+            ],
+            "label": "Coût des Casernes divisé par deux"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "interets",
+            "label": "2 % d'intérêts sur la réserve d'or"
+          }
+        ]
       },
-      "uniqueUnits": ["char_panzer", "canon_88", "heinkel", "me109"]
+      "uniqueUnits": [
+        "char_panzer",
+        "canon_88",
+        "heinkel",
+        "me109"
+      ],
+      "agressivite": 0.7
     },
     "grece": {
       "id": "grece",
       "name": "Grèce",
       "leader": "Alexandre le Grand",
       "start": [
-        { "key": "batimentDepart", "building": "tribunal", "label": "Commence avec un Palais de justice (Tribunal) dans la capitale" }
+        {
+          "key": "batimentDepart",
+          "building": "tribunal",
+          "label": "Commence avec un Palais de justice (Tribunal) dans la capitale"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "techGratuite", "tech": "democratie", "label": "Connaissance gratuite de la Démocratie" }],
-        "medievale": [{ "key": "gpFrequents", "label": "Taux d'apparition des Personnages Illustres augmenté (seuils ×0,75 — canon confirmé, fourchette 25-50 %, borne basse)" }],
-        "industrielle": [{ "key": "coutBuildingMoitie", "buildings": ["bibliotheque"], "label": "Coût des Bibliothèques divisé par deux" }],
+        "ancienne": [
+          {
+            "key": "techGratuite",
+            "tech": "democratie",
+            "label": "Connaissance gratuite de la Démocratie"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "gpFrequents",
+            "label": "Taux d'apparition des Personnages Illustres augmenté (seuils ×0,75 — canon confirmé, fourchette 25-50 %, borne basse)"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "coutBuildingMoitie",
+            "buildings": [
+              "bibliotheque"
+            ],
+            "label": "Coût des Bibliothèques divisé par deux"
+          }
+        ],
         "moderne": [
-          { "key": "terrainBonus", "terrain": "eau", "food": 1, "label": "+1 nourriture sur les cases maritimes (côte)" },
-          { "key": "terrainBonus", "terrain": "ocean", "food": 1, "label": "+1 nourriture sur les cases maritimes (océan)" }
+          {
+            "key": "terrainBonus",
+            "terrain": "eau",
+            "food": 1,
+            "label": "+1 nourriture sur les cases maritimes (côte)"
+          },
+          {
+            "key": "terrainBonus",
+            "terrain": "ocean",
+            "food": 1,
+            "label": "+1 nourriture sur les cases maritimes (océan)"
+          }
         ]
       },
-      "uniqueUnits": ["triheme", "hoplite"]
+      "uniqueUnits": [
+        "triheme",
+        "hoplite"
+      ],
+      "agressivite": 0.75
     },
     "inde": {
       "id": "inde",
       "name": "Inde",
       "leader": "Mohandas Gandhi",
       "start": [
-        { "key": "toutesRessources", "label": "Accès immédiat à toutes les ressources spéciales du jeu (R-92/R-93 — bonus actifs sans technologie)" }
+        {
+          "key": "toutesRessources",
+          "label": "Accès immédiat à toutes les ressources spéciales du jeu (R-92/R-93 — bonus actifs sans technologie)"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "immuniteAnarchie", "label": "Immunité totale des villes contre l'Anarchie" }],
-        "medievale": [{ "key": "techGratuite", "tech": "religion", "label": "Connaissance gratuite de la Religion" }],
-        "industrielle": [{ "key": "coutUniteMoitie", "units": ["colon"], "label": "Coût d'entraînement des Colons divisé par deux" }],
-        "moderne": [{ "key": "coutBuildingMoitie", "buildings": ["tribunal"], "label": "Coût des Palais de justice divisé par deux" }]
+        "ancienne": [
+          {
+            "key": "immuniteAnarchie",
+            "label": "Immunité totale des villes contre l'Anarchie"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "techGratuite",
+            "tech": "religion",
+            "label": "Connaissance gratuite de la Religion"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "coutUniteMoitie",
+            "units": [
+              "colon"
+            ],
+            "label": "Coût d'entraînement des Colons divisé par deux"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "coutBuildingMoitie",
+            "buildings": [
+              "tribunal"
+            ],
+            "label": "Coût des Palais de justice divisé par deux"
+          }
+        ]
       },
-      "uniqueUnits": []
+      "uniqueUnits": [],
+      "agressivite": 0.25
     },
     "japon": {
       "id": "japon",
       "name": "Japon",
       "leader": "Tokugawa Ieyasu",
       "start": [
-        { "key": "techGratuite", "tech": "rites_funeraires", "label": "Connaissance de l'Inhumation Cérémonielle" }
+        {
+          "key": "techGratuite",
+          "tech": "rites_funeraires",
+          "label": "Connaissance de l'Inhumation Cérémonielle"
+        }
       ],
       "eras": {
         "ancienne": [
-          { "key": "terrainBonus", "terrain": "eau", "food": 1, "label": "+1 nourriture sur les cases maritimes (côte)" },
-          { "key": "terrainBonus", "terrain": "ocean", "food": 1, "label": "+1 nourriture sur les cases maritimes (océan)" }
+          {
+            "key": "terrainBonus",
+            "terrain": "eau",
+            "food": 1,
+            "label": "+1 nourriture sur les cases maritimes (côte)"
+          },
+          {
+            "key": "terrainBonus",
+            "terrain": "ocean",
+            "food": 1,
+            "label": "+1 nourriture sur les cases maritimes (océan)"
+          }
         ],
-        "medievale": [{ "key": "unitAttack", "units": ["chevalier_samourai"], "amount": 1, "label": "+1 en Attaque pour les Chevaliers Samouraïs" }],
-        "industrielle": [{ "key": "immuniteAnarchie", "label": "Immunité totale contre l'Anarchie" }],
-        "moderne": [{ "key": "loyaute", "inactif": true, "label": "Les nouvelles unités défensives obtiennent la promotion Loyauté (inactif — pas de promotions/XP)" }]
+        "medievale": [
+          {
+            "key": "unitAttack",
+            "units": [
+              "chevalier_samourai"
+            ],
+            "amount": 1,
+            "label": "+1 en Attaque pour les Chevaliers Samouraïs"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "immuniteAnarchie",
+            "label": "Immunité totale contre l'Anarchie"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "loyaute",
+            "inactif": true,
+            "label": "Les nouvelles unités défensives obtiennent la promotion Loyauté (inactif — pas de promotions/XP)"
+          }
+        ]
       },
-      "uniqueUnits": ["chevalier_samourai", "piquier_ashigaru", "zero", "val"]
+      "uniqueUnits": [
+        "chevalier_samourai",
+        "piquier_ashigaru",
+        "zero",
+        "val"
+      ],
+      "agressivite": 0.4
     },
     "mongolie": {
       "id": "mongolie",
       "name": "Mongolie",
       "leader": "Genghis Khan",
       "start": [
-        { "key": "commerceCaptures", "mult": 1.5, "label": "+50 % de Commerce généré par les villes capturées" }
+        {
+          "key": "commerceCaptures",
+          "mult": 1.5,
+          "label": "+50 % de Commerce généré par les villes capturées"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "villagesVilles", "label": "Les villages barbares assimilés deviennent directement des villes (hutte ouverte → ville pop 1 🔶)" }],
-        "medievale": [{ "key": "unitMovement", "units": ["cavalier", "chevalier", "keshik"], "amount": 1, "label": "+1 en Déplacement pour les unités de Cavalerie" }],
-        "industrielle": [{ "key": "terrainBonus", "terrain": "montagne", "production": 2, "label": "+2 en Production sur les cases de Montagnes" }],
-        "moderne": [{ "key": "techGratuite", "tech": "communisme", "label": "Connaissance gratuite du Communisme" }]
+        "ancienne": [
+          {
+            "key": "villagesVilles",
+            "label": "Les villages barbares assimilés deviennent directement des villes (hutte ouverte → ville pop 1 🔶)"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "unitMovement",
+            "units": [
+              "cavalier",
+              "chevalier",
+              "keshik"
+            ],
+            "amount": 1,
+            "label": "+1 en Déplacement pour les unités de Cavalerie"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "terrainBonus",
+            "terrain": "montagne",
+            "production": 2,
+            "label": "+2 en Production sur les cases de Montagnes"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "techGratuite",
+            "tech": "communisme",
+            "label": "Connaissance gratuite du Communisme"
+          }
+        ]
       },
-      "uniqueUnits": ["keshik"]
+      "uniqueUnits": [
+        "keshik"
+      ],
+      "agressivite": 0.9
     },
     "rome": {
       "id": "rome",
       "name": "Rome",
       "leader": "Jules César",
       "start": [
-        { "key": "techGratuite", "tech": "code_des_lois", "label": "Connaissance du Code des lois" },
-        { "key": "gouvernementGratuit", "government": "republique", "label": "Gouvernement République" }
+        {
+          "key": "techGratuite",
+          "tech": "code_des_lois",
+          "label": "Connaissance du Code des lois"
+        },
+        {
+          "key": "gouvernementGratuit",
+          "government": "republique",
+          "label": "Gouvernement République"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "routesMoitie", "inactif": true, "label": "Coût de construction des routes divisé par deux (inactif — pas d'ouvriers/routes)" }],
-        "medievale": [{ "key": "coutMerveilleMoitie", "label": "Coût de construction des Merveilles divisé par deux" }],
-        "industrielle": [{ "key": "gpFrequents", "label": "Taux d'apparition des Personnages Illustres augmenté (seuils ×0,75 — canon confirmé, fourchette 25-50 %, borne basse)" }],
-        "moderne": [{ "key": "popFondation", "amount": 1, "label": "Les nouvelles villes débutent avec +1 de Population" }]
+        "ancienne": [
+          {
+            "key": "routesMoitie",
+            "inactif": true,
+            "label": "Coût de construction des routes divisé par deux (inactif — pas d'ouvriers/routes)"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "coutMerveilleMoitie",
+            "label": "Coût de construction des Merveilles divisé par deux"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "gpFrequents",
+            "label": "Taux d'apparition des Personnages Illustres augmenté (seuils ×0,75 — canon confirmé, fourchette 25-50 %, borne basse)"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "popFondation",
+            "amount": 1,
+            "label": "Les nouvelles villes débutent avec +1 de Population"
+          }
+        ]
       },
-      "uniqueUnits": ["cataphracte"]
+      "uniqueUnits": [
+        "cataphracte"
+      ],
+      "agressivite": 0.7
     },
     "russie": {
       "id": "russie",
       "name": "Russie",
       "leader": "Catherine la Grande",
       "start": [
-        { "key": "carteRevelee", "label": "Carte de la région environnante entièrement révélée au départ (rayon 5 — canon : ~2-3 cases au-delà de la vision du Colon)" }
+        {
+          "key": "carteRevelee",
+          "label": "Carte de la région environnante entièrement révélée au départ (rayon 5 — canon : ~2-3 cases au-delà de la vision du Colon)"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "terrainBonus", "terrain": "plaine", "food": 1, "label": "+1 nourriture sur les cases de plaines" }],
-        "medievale": [{ "key": "loyaute", "inactif": true, "label": "Les nouvelles unités défensives obtiennent la promotion Loyauté (inactif — pas de promotions/XP)" }],
-        "industrielle": [{ "key": "coutUniteMoitie", "units": ["fusilier"], "label": "Coût d'entraînement des Fusiliers divisé par deux" }],
-        "moderne": [{ "key": "coutUniteMoitie", "units": ["espion"], "label": "Coût d'entraînement des Espions divisé par deux" }]
+        "ancienne": [
+          {
+            "key": "terrainBonus",
+            "terrain": "plaine",
+            "food": 1,
+            "label": "+1 nourriture sur les cases de plaines"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "loyaute",
+            "inactif": true,
+            "label": "Les nouvelles unités défensives obtiennent la promotion Loyauté (inactif — pas de promotions/XP)"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "coutUniteMoitie",
+            "units": [
+              "fusilier"
+            ],
+            "label": "Coût d'entraînement des Fusiliers divisé par deux"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "coutUniteMoitie",
+            "units": [
+              "espion"
+            ],
+            "label": "Coût d'entraînement des Espions divisé par deux"
+          }
+        ]
       },
-      "uniqueUnits": ["cossaque", "char_t34"]
+      "uniqueUnits": [
+        "cossaque",
+        "char_t34"
+      ],
+      "agressivite": 0.6
     },
     "espagne": {
       "id": "espagne",
       "name": "Espagne",
       "leader": "Isabelle I",
       "start": [
-        { "key": "techGratuite", "tech": "navigation", "label": "Connaissance de la technologie Navigation" }
+        {
+          "key": "techGratuite",
+          "tech": "navigation",
+          "label": "Connaissance de la technologie Navigation"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "tresorsDouble", "mult": 2, "label": "Or des trésors doublé (huttes et artefact Sept Cités d'Or — R-98/R-154)" }],
-        "medievale": [{ "key": "navalAttack", "amount": 1, "label": "+1 en Combat Naval" }],
-        "industrielle": [{ "key": "empireGoldMult", "mult": 1.5, "label": "+50 % de production globale d'or" }],
-        "moderne": [{ "key": "terrainBonus", "terrain": "colline", "production": 1, "label": "+1 en Production sur les cases de Collines" }]
+        "ancienne": [
+          {
+            "key": "tresorsDouble",
+            "mult": 2,
+            "label": "Or des trésors doublé (huttes et artefact Sept Cités d'Or — R-98/R-154)"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "navalAttack",
+            "amount": 1,
+            "label": "+1 en Combat Naval"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "empireGoldMult",
+            "mult": 1.5,
+            "label": "+50 % de production globale d'or"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "terrainBonus",
+            "terrain": "colline",
+            "production": 1,
+            "label": "+1 en Production sur les cases de Collines"
+          }
+        ]
       },
-      "uniqueUnits": ["conquistador"]
+      "uniqueUnits": [
+        "conquistador"
+      ],
+      "agressivite": 0.55
     },
     "zoulous": {
       "id": "zoulous",
       "name": "Zoulous",
       "leader": "Shaka Zulu",
       "start": [
-        { "key": "overrun", "ratio": 4, "label": "Écrasement (Overrun) : ratio requis de 4:1 au lieu de 6:1" }
+        {
+          "key": "overrun",
+          "ratio": 4,
+          "label": "Écrasement (Overrun) : ratio requis de 4:1 au lieu de 6:1"
+        }
       ],
       "eras": {
-        "ancienne": [{ "key": "unitMovement", "units": ["guerrier", "guerrier_impi"], "amount": 1, "label": "+1 en Déplacement pour les Guerriers (Impi compris)" }],
-        "medievale": [{ "key": "croissanceSeuilDivise", "divisor": 2, "label": "Croissance urbaine accélérée (seuils de croissance divisés par deux — Aqueduc passif canon, dataminé)" }],
-        "industrielle": [{ "key": "empireGoldMult", "mult": 1.5, "label": "+50 % de production globale d'or" }],
-        "moderne": [{ "key": "coutUniteMoitie", "units": ["fusilier"], "label": "Coût d'entraînement des Fusiliers divisé par deux" }]
+        "ancienne": [
+          {
+            "key": "unitMovement",
+            "units": [
+              "guerrier",
+              "guerrier_impi"
+            ],
+            "amount": 1,
+            "label": "+1 en Déplacement pour les Guerriers (Impi compris)"
+          }
+        ],
+        "medievale": [
+          {
+            "key": "croissanceSeuilDivise",
+            "divisor": 2,
+            "label": "Croissance urbaine accélérée (seuils de croissance divisés par deux — Aqueduc passif canon, dataminé)"
+          }
+        ],
+        "industrielle": [
+          {
+            "key": "empireGoldMult",
+            "mult": 1.5,
+            "label": "+50 % de production globale d'or"
+          }
+        ],
+        "moderne": [
+          {
+            "key": "coutUniteMoitie",
+            "units": [
+              "fusilier"
+            ],
+            "label": "Coût d'entraînement des Fusiliers divisé par deux"
+          }
+        ]
       },
-      "uniqueUnits": ["guerrier_impi"]
+      "uniqueUnits": [
+        "guerrier_impi"
+      ],
+      "agressivite": 0.85
     }
   }
 }

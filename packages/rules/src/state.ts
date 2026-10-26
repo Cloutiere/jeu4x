@@ -436,8 +436,17 @@ export interface GameState {
   units: Record<UnitId, Unit>;
   cities: Record<CityId, City>;
   settings: GameSettings;
-  /** Points d'accroche diplomatie (R-58) : paires en guerre. v1 = les deux joueurs. */
-  diplomacy: { war: Array<[PlayerId, PlayerId]> };
+  /** Points d'accroche diplomatie (R-58) : paires en guerre. v1 = les deux joueurs.
+   *  BOT-TC (Erik 25/10) : champs OPTIONNELS (zéro migration — schemaVersion
+   *  28 inchangée) — `warsDepuis` : tour de DÉBUT de chaque guerre (clé paire
+   *  canonique « a,b ») pour la durée de guerre ; `dernieresGuerres` : tour
+   *  de FIN de la dernière guerre par joueur (délai entre guerres). Absents
+   *  = guerres pré-BOT-TC de durée inconnue (0). */
+  diplomacy: {
+    war: Array<[PlayerId, PlayerId]>;
+    warsDepuis?: Record<string, number>;
+    dernieresGuerres?: Record<PlayerId, number>;
+  };
   /** R-96/Phase 7d : villages barbares (portés du JSON de carte vers l'état). */
   villages: BarbarianVillage[];
   /** R-98/Phase 7d : huttes bonus non ouvertes (une ouverte est retirée). */

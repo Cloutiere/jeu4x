@@ -24,9 +24,13 @@
  * (R-81 : tris ; aucune décision dépendante d'un Map). D4 : production
  * pondérée (unités si en guerre). D5 : seuils data-driven (bot.json,
  * profils facile/normal/difficile — seul « normal » est implémenté, T-D).
- * Le bot NE déclare JAMAIS la guerre (R-187, T-C) : attaquer une unité ou
- * une ville de JOUEUR exige une paire en guerre dans `diplomacy.war` ; les
- * barbares sont en guerre permanente (R-95).
+ * BOT-TC (Erik 25/10) : le bot DÉCLARE la guerre (agressivité de sa civ ×
+ * tirage seedé, rapport de forces, tour minimum, délai entre guerres —
+ * actions publiques DeclareWar) et propose la PAIX quand elle perd ou
+ * quand la guerre traîne (ProposePeace) ; en guerre, ses armées
+ * excédentaires marchent vers la capitale ennemie. Attaquer une unité ou
+ * une ville de JOUEUR exige toujours une paire en guerre dans
+ * `diplomacy.war` ; les barbares sont en guerre permanente (R-95).
  *
  * NB : `bot.mjs` est CONSERVÉ tel quel pour les tests/e2e — deux
  * implémentations (duplication documentée, défaut 🔶 du handoff). Le
@@ -46,11 +50,14 @@ import {
   TERRAINS,
   UNIT_TYPES,
   WONDERS,
+  activePlayerIds,
+  agressiviteDe,
   allKnownTechs,
   areAtWar,
   canSetProduction,
   compareCityIds,
   compareUnitIds,
+  dureeGuerre,
   frontierRadius,
   growthThresholdFor,
   hexDistanceW,
@@ -109,7 +116,12 @@ export function botTurnSeed(gameSeed: number, turn: number, engineId?: string): 
 /** Actions immédiates (hors ordres de tour) choisies par la politique. */
 export type BotAction =
   | { type: 'SetResearch'; techId: string }
-  | { type: 'SetGovernment'; government: string };
+  | { type: 'SetGovernment'; government: string }
+  // BOT-TC (Erik 25/10, D1/D3) : diplomatie — déclaration de guerre (cible
+  // calculée D1) et proposition de paix (boucle minimale D3). Actions
+  // PUBLIQUES appliquées par le DO via les helpers purs du moteur.
+  | { type: 'DeclareWar'; player: PlayerId }
+  | { type: 'ProposePeace'; player: PlayerId };
 
 export interface BotPlan {
   /** Ordres de tour — passés à resolveTurn comme ceux d'un humain (L1). */
@@ -315,6 +327,124 @@ function unitAtHex(state: GameState, q: number, r: number, owner?: PlayerId): Un
 }
 
 // ---------------------------------------------------------------------------
+// BOT-TC (décisions Erik 25/10) — DIPLOMATIE du bot : déclaration de guerre
+// (agressivité par civ × tirage seedé, rapport de forces, tour minimum,
+// délai entre guerres), ciblage du voisin le plus faible (D2), paix
+// minimale (D3) et offensive des armées en guerre vers la capitale cible.
+// Fonctions PURES séparées de l'émission — le DO applique DeclareWar/
+// ProposePeace via les helpers purs du moteur (diplomatie.ts).
+// ---------------------------------------------------------------------------
+
+/** Force MILITAIRE totale estimée d'un joueur : Σ (attaque + défense) des
+ *  unités déployées, vétérans compris (estimation simple §7.4 — 🔶 les
+ *  bonus de terrain/ville ne comptent pas ici, l'échelle suffit). */
+export function forcesDe(state: GameState, playerId: PlayerId): number {
+  let total = 0;
+  for (const u of Object.values(state.units)) {
+    if (u.owner !== playerId || u.aboard) continue;
+    const stats = UNIT_TYPES[u.type];
+    const vete = u.veteran ? 1.5 : 1;
+    total += ((stats?.attack ?? 0) + (stats?.defense ?? 0)) * vete;
+  }
+  return total;
+}
+
+/** D2 · Voisin le plus FAIBLE : joueurs actifs ≠ moi, hors barbares, pas
+ *  déjà en guerre, possédant une ville — tri (forces croissantes, distance
+ *  wrap entre capitales, id) R-81. Null si aucun candidat. */
+export function cibleGuerre(state: GameState, me: PlayerId): PlayerId | null {
+  const maCapitale = Object.values(state.cities).find((c) => c.owner === me && c.capital)
+    ?? Object.values(state.cities).find((c) => c.owner === me);
+  const actifs = new Set(activePlayerIds(state));
+  const ennemis = ennemisDe(state, me);
+  const candidates = Object.values(state.players)
+    .filter(
+      (p) =>
+        p.id !== me &&
+        actifs.has(p.id) &&
+        !isBarbarian(p.id) &&
+        !ennemis.has(p.id) &&
+        p.defeated !== true &&
+        Object.values(state.cities).some((c) => c.owner === p.id),
+    )
+    .sort((a, b) => {
+      const fa = forcesDe(state, a.id);
+      const fb = forcesDe(state, b.id);
+      if (fa !== fb) return fa - fb;
+      const ca = Object.values(state.cities).find((c) => c.owner === a.id)!;
+      const cb = Object.values(state.cities).find((c) => c.owner === b.id)!;
+      const da = maCapitale ? dist(state, maCapitale, ca) : 0;
+      const db = maCapitale ? dist(state, maCapitale, cb) : 0;
+      if (da !== db) return da - db;
+      return a.id < b.id ? -1 : 1;
+    });
+  return candidates[0]?.id ?? null;
+}
+
+/**
+ * D1 · Décision de DÉCLARATION de guerre : tour ≥ tourMinGuerre, délai
+ * depuis la dernière guerre écoulé, ma capitale existe, rapport de forces
+ * ≥ seuil du profil, puis TIRAGE seedé < agressivité de MA civ × facteur du
+ * profil. Retourne la cible (voisin le plus faible, D2) ou null. Pur :
+ * ne consomme le RNG que par un appel à next (déterminisme R-80).
+ */
+export function deciderGuerre(
+  state: GameState,
+  me: PlayerId,
+  profile: BotProfileData,
+  rng: SeededRng,
+  agressivite: number,
+): PlayerId | null {
+  if (state.turn < profile.tourMinGuerre) return null;
+  const derniere = state.diplomacy.dernieresGuerres?.[me];
+  if (derniere !== undefined && state.turn - derniere < profile.delaiEntreGuerres) return null;
+  const cible = cibleGuerre(state, me);
+  if (!cible) return null;
+  const mesForces = forcesDe(state, me);
+  if (mesForces <= 0) return null;
+  const sesForces = forcesDe(state, cible);
+  if (mesForces < profile.seuilRatioGuerre * sesForces) return null;
+  if (rng.next() >= agressivite * profile.facteurAgressivite) return null;
+  return cible;
+}
+
+/**
+ * D3 · Décision de PAIX du joueur `decideur` face au proposeur : accepte si
+ * la guerre dure ≥ toursPaixMin, ou si son rapport de forces est INFÉRIEUR
+ * au seuil (écrasé) ET que le tirage seedé passe (chanceAccepteFaible).
+ * Sinon refuse (crédibilité T1). Pur, déterministe (RNG dédié).
+ */
+export function deciderPaix(
+  state: GameState,
+  decideur: PlayerId,
+  proposeur: PlayerId,
+  profile: BotProfileData,
+  rng: SeededRng,
+): boolean {
+  if (!areAtWar(state, decideur, proposeur)) return false;
+  if (dureeGuerre(state, decideur, proposeur) >= profile.toursPaixMin) return true;
+  const mesForces = forcesDe(state, decideur);
+  const sesForces = forcesDe(state, proposeur);
+  if (sesForces <= 0 || mesForces >= profile.seuilRatioPaix * sesForces) return false;
+  return rng.next() < profile.chanceAccepteFaible;
+}
+
+/** D2 · La capitale ennemie la plus proche de `me` (de SA capitale) :
+ *  villes-capitales des ennemis en guerre, tri (distance wrap, id) R-81.
+ *  Les objectifs T-A attaquent déjà les cibles adjacentes — la guerre les
+ *  nourrit ; celle-ci donne la DIRECTION aux armées excédentaires. */
+export function cibleOffensive(state: GameState, me: PlayerId): { q: number; r: number } | null {
+  const ennemis = ennemisDe(state, me);
+  const maCapitale = Object.values(state.cities).find((c) => c.owner === me && c.capital)
+    ?? Object.values(state.cities).find((c) => c.owner === me);
+  const origine = maCapitale ?? { q: 0, r: 0 };
+  const capitales = Object.values(state.cities)
+    .filter((c) => c.capital && c.owner !== me && !isBarbarian(c.owner) && ennemis.has(c.owner))
+    .sort((a, b) => dist(state, origine, a) - dist(state, origine, b) || (a.id < b.id ? -1 : 1));
+  return capitales[0] ? { q: capitales[0].q, r: capitales[0].r } : null;
+}
+
+// ---------------------------------------------------------------------------
 // BOT-TA · D1 — assignation d'objectifs (pure, séparée de l'émission).
 // ---------------------------------------------------------------------------
 
@@ -328,6 +458,7 @@ export type ObjectifKind =
   | 'explorer'
   | 'debarquer'
   | 'espion'
+  | 'offensiver'
   | 'tenir';
 
 export interface Objectif {
@@ -521,6 +652,18 @@ export function assignerObjectifs(
           .sort((a, b) => dist(state, unit, a) - dist(state, unit, b) || compareCityIds(a.id, b.id))[0]!;
         defenseurs.set(cible.id, (defenseurs.get(cible.id) ?? 0) + 1);
         objectifs.set(unit.id, { kind: 'garnison', cityId: cible.id });
+        continue;
+      }
+    }
+
+    // BOT-TC · D2 : en guerre, les armées excédentaires MARCHENT vers la
+    // capitale ennemie — PRIORITAIRE sur la chasse aux barbares (une armée
+    // qui traque les camps n'arrive jamais) et sur l'exploration ; les
+    // cibles adjacentes (② ) restent prises en route par la re-assignation.
+    if (estCombattante(unit) && ennemis.size > 0) {
+      const capitale = cibleOffensive(state, playerId);
+      if (capitale) {
+        objectifs.set(unit.id, { kind: 'offensiver', cible: capitale });
         continue;
       }
     }
@@ -983,6 +1126,26 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
 
   const ennemis = ennemisDe(state, playerId);
   const enGuerre = ennemis.size > 0;
+
+  // BOT-TC (Erik 25/10) · DIPLOMATIE — actions immédiates calculées AVANT
+  // les ordres (l'ordre de consommation du RNG est fixé : paix puis guerre).
+  // D3 paix : le bot ne propose QUE S'IL PERD (rapport de forces < seuil —
+  // proposer en position de force tuerait ses propres offensives ; la clause
+  // de durée toursPaixMin reste du côté ACCEPTATION). D1 guerre : si en
+  // paix, la cible (voisin le plus faible) est tirée selon l'agressivité de
+  // MA civ — la déclaration est PUBLIQUE (événement DO).
+  for (const e of [...ennemis].sort((a, b) => (a < b ? -1 : 1))) {
+    const sesForces = forcesDe(state, e);
+    const perd = sesForces > 0 && forcesDe(state, playerId) < profile.seuilRatioPaix * sesForces;
+    if (perd && deciderPaix(state, playerId, e, profile, rng)) {
+      actions.push({ type: 'ProposePeace', player: e });
+    }
+  }
+  if (!enGuerre) {
+    const cible = deciderGuerre(state, playerId, profile, rng, agressiviteDe(me.civId));
+    if (cible) actions.push({ type: 'DeclareWar', player: cible });
+  }
+
   const objectifs = assignerObjectifs(state, playerId, profile);
   if (fondateurId) objectifs.set(fondateurId, { kind: 'tenir' as const });
 
@@ -1041,9 +1204,10 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
         }
         break;
       }
-      // ④ chasse / BOT-EXPLORATION patrouille / ⑤ exploration : un pas
-      // déterministe vers la cible.
+      // ④ chasse / BOT-TC offensive capitale / BOT-EXPLORATION patrouille /
+      // ⑤ exploration : un pas déterministe vers la cible.
       case 'chasser':
+      case 'offensiver':
       case 'patrouiller':
       case 'explorer': {
         const step = obj.cible ? pasVers(unit, state, obj.cible) : null;

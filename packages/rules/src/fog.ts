@@ -87,6 +87,10 @@ export const PUBLIC_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
   // DIPLOMATIE-T1 (Erik 19/10, D1/D3) : les guerres sont PUBLIQUES — la
   // déclaration est une annonce (canon CivRev), badge ⚔ sur la pastille.
   'WarDeclared',
+  // BOT-TC (Erik 25/10, D3) : la paix est PUBLIQUE comme la guerre (canon
+  // CivRev) — acceptation ET refus sont des annonces (crédibilité T1).
+  'PeaceAccepted',
+  'PeaceRefused',
 ]);
 
 /** L'événement implique-t-il directement le joueur (une de ses unités/villes) ? */

@@ -266,6 +266,10 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
       return `Incident diplomatique entre ${nameOf(event.between[0])} et ${nameOf(event.between[1])}`;
     case 'WarDeclared':
       return `${nameOf(event.from)} déclare la GUERRE à ${nameOf(event.on)} (publique et mutuelle — DIPLOMATIE-T1)`;
+    case 'PeaceAccepted':
+      return `${nameOf(event.from)} propose la PAIX et ${nameOf(event.on)} accepte (BOT-TC)`;
+    case 'PeaceRefused':
+      return `${nameOf(event.from)} propose la paix — ${nameOf(event.on)} REFUSE (BOT-TC)`;
     case 'AttackRefused':
       return `Attaque refusée — la Paix interdit l'attaque : déclarez la guerre (DIPLOMATIE-T1)`;
 

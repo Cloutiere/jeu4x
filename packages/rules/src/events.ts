@@ -183,6 +183,17 @@ export type GameEvent =
    */
   | { seq: number; type: 'WarDeclared'; from: PlayerId; on: PlayerId }
   /**
+   * BOT-TC (Erik 25/10, D3) : paix acceptée — PUBLIQUE (miroir WarDeclared,
+   * canon CivRev). La paire quitte `diplomacy.war` ; `from` = proposeur.
+   */
+  | { seq: number; type: 'PeaceAccepted'; from: PlayerId; on: PlayerId }
+  /**
+   * BOT-TC (Erik 25/10, D3) : proposition de paix REFUSÉE — PUBLIQUE
+   * (crédibilité T1 : le refus est une annonce). `from` = proposeur,
+   * `on` = refuseur. `wars` intacte.
+   */
+  | { seq: number; type: 'PeaceRefused'; from: PlayerId; on: PlayerId }
+  /**
    * DIPLOMATIE-T1 (Erik 19/10, D2) : une attaque a été REFUSÉE par la gate de
    * Paix (ordre Attack explicite, entrée ennemie de mouvement, entrée dans
    * une ville étrangère) — auparavant fizzle silencieux (R-58-a 🔶). Miroir
@@ -573,6 +584,10 @@ export function eventRefs(event: GameEvent): EventRefs {
       hex(event.at);
       break;
     case 'WarDeclared':
+      refs.players.push(event.from, event.on);
+      break;
+    case 'PeaceAccepted':
+    case 'PeaceRefused':
       refs.players.push(event.from, event.on);
       break;
     case 'AttackRefused':

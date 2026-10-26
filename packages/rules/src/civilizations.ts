@@ -74,6 +74,16 @@ export function civIdOf(player: { civId?: string } | undefined): string {
 }
 
 /**
+ * BOT-TC (Erik 25/10, D1) · Agressivité d'une civilisation (0-1) — pondère
+ * le tirage seedé de déclaration de guerre du bot. Défaut canon (params)
+ * pour une civ sans valeur ou inconnue (« neutre » compris).
+ */
+export function agressiviteDe(civId: string | undefined): number {
+  const civ = civId ? CIVILIZATIONS.civs[civId] : undefined;
+  return civ?.agressivite ?? CIVILIZATIONS.params.agressiviteDefaut;
+}
+
+/**
  * R-145 · Traits ACTIFS d'un joueur : avantage de départ + bonus d'ère
  * « ancienne » (actifs dès le setup — le joueur commence dans l'ère Antique)
  * puis bonus de chaque ère ATTEINTE (Médiévale à 5 techs, Industrielle à 14,

@@ -452,6 +452,24 @@ export function entreesChronique(events: GameEvent[], ctx: ContexteChronique, to
       case 'AttackRefused':
         if (ev.player === ctx.moi) pousser('menaces', 'Attaque REFUSÉE — vous êtes en PAIX avec cette nation (déclarez la guerre depuis sa pastille)', 'bad', ev.seq, hexCliquable(ev.target, ctx));
         break;
+      // BOT-TC (Erik 25/10, D3) : la paix est une annonce PUBLIQUE —
+      // Chroniques de TOUS ; la réponse du bot est visible par le proposeur.
+      case 'PeaceAccepted':
+        pousser('monde', ev.from === ctx.moi
+          ? `${nomNation(ev.on, ctx)} ACCEPTE la paix — les guerres sont finies`
+          : ev.on === ctx.moi
+            ? `Vous acceptez la paix proposée par ${nomNation(ev.from, ctx)}`
+            : `${nomNation(ev.from, ctx)} et ${nomNation(ev.on, ctx)} signent la PAIX`,
+          ev.on === ctx.moi || ev.from === ctx.moi ? 'good' : 'info', ev.seq);
+        break;
+      case 'PeaceRefused':
+        pousser('monde', ev.from === ctx.moi
+          ? `${nomNation(ev.on, ctx)} REFUSE votre proposition de paix`
+          : ev.on === ctx.moi
+            ? `Vous refusez la paix proposée par ${nomNation(ev.from, ctx)}`
+            : `${nomNation(ev.on, ctx)} refuse la paix de ${nomNation(ev.from, ctx)}`,
+          ev.from === ctx.moi ? 'bad' : 'info', ev.seq);
+        break;
       case 'Victory':
         pousser('monde', `VICTOIRE de ${nomNation(ev.winner, ctx)} (${nomMotifVictoire(ev.reason)})`, ev.winner === ctx.moi ? 'good' : 'bad', ev.seq);
         break;

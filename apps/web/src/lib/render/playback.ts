@@ -86,6 +86,8 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   ResourceDestroyed: 320,
   DiplomaticIncident: 300,
   WarDeclared: 300,
+  PeaceAccepted: 300,
+  PeaceRefused: 260,
   AttackRefused: 260,
   Victory: 400,
   // Phase 7h (R-122/R-124) : gouvernements & vaisseau spatial.
@@ -148,6 +150,8 @@ const TOAST_KINDS: Partial<Record<GameEvent['type'], Toast['kind']>> = {
   Captured: 'bad',
   DiplomaticIncident: 'info',
   WarDeclared: 'bad',
+  PeaceAccepted: 'good',
+  PeaceRefused: 'info',
   AttackRefused: 'info',
   Victory: 'good',
   // Phase 7d : village détruit +or (good), hutte ouverte +récompense (good),

@@ -34,6 +34,10 @@ export function paireGuerre(a: PlayerId, b: PlayerId): [PlayerId, PlayerId] {
  * attaques DANS LES DEUX SENS (gate D2). Pur : l'état d'entrée est cloné,
  * jamais muté. L'événement `WarDeclared` prolonge le journal diffusé (le DO
  * l'ajoute à `lastEvents`, miroir SetGovernment/GovernmentChanged).
+ *
+ * BOT-TC (Erik 25/10) : le tour de DÉBUT est consigné dans
+ * `diplomacy.warsDepuis` (champ optionnel — zéro migration) pour la durée de
+ * guerre (paix minimale, délai entre guerres).
  */
 export function applyDeclareWar(input: GameState, playerId: PlayerId, target: PlayerId): DeclareWarOk | DeclareWarKo {
   if (playerId === target) return { ok: false, reason: 'on ne se déclare pas la guerre à soi-même' };
@@ -42,9 +46,69 @@ export function applyDeclareWar(input: GameState, playerId: PlayerId, target: Pl
   if (!actifs.includes(target)) return { ok: false, reason: `nation inconnue ou éliminée : ${target}` };
   if (areAtWar(input, playerId, target)) return { ok: false, reason: 'déjà en guerre' };
   const st = structuredClone(input);
+  const [a, b] = paireGuerre(playerId, target);
   st.diplomacy.war = [...st.diplomacy.war, paireGuerre(playerId, target)].sort(
     (x, y) => x[0].localeCompare(y[0]) || x[1].localeCompare(y[1]),
   );
+  st.diplomacy.warsDepuis = { ...st.diplomacy.warsDepuis, [`${a},${b}`]: st.turn };
   const events: GameEvent[] = [{ seq: 0, type: 'WarDeclared', from: playerId, on: target }];
   return { ok: true, state: st, events };
+}
+
+/** Clé canonique d'une paire dans `warsDepuis`. */
+function cleDepuis(a: PlayerId, b: PlayerId): string {
+  const [x, y] = paireGuerre(a, b);
+  return `${x},${y}`;
+}
+
+/**
+ * BOT-TC (Erik 25/10, D3) · Durée de la guerre (a, b) en tours — 0 si la
+ * guerre est inconnue/pré-BOT-TC (pas d'entrée `warsDepuis`) ou finie.
+ */
+export function dureeGuerre(state: GameState, a: PlayerId, b: PlayerId): number {
+  const depuis = state.diplomacy.warsDepuis?.[cleDepuis(a, b)];
+  return depuis === undefined ? 0 : Math.max(0, state.turn - depuis);
+}
+
+/**
+ * BOT-TC (Erik 25/10, D3) · ProposePeace { player } — action immédiate,
+ * PUBLIQUE, même contrat que DeclareWar (forme validée EN PREMIER côté DO,
+ * leçon 7f). La DÉCISION d'accepter est EXTERNE (le bot la calcule : écrasé
+ * ou guerre traînante ⇒ oui — botPolicy.deciderPaix) ; ici on l'applique :
+ *   accepte  → la paire quitte `wars` (purge), `warsDepuis` effacée,
+ *              `dernieresGuerres` (fin de guerre) posée pour le délai D1,
+ *              événement `PeaceAccepted` ;
+ *   refuse   → `wars` intacte, événement `PeaceRefused` (crédibilité T1).
+ * Re-déclaration après paix : permise (miroir T1).
+ */
+export function applyProposePeace(
+  input: GameState,
+  proposerId: PlayerId,
+  target: PlayerId,
+  accepte: boolean,
+): DeclareWarOk | DeclareWarKo {
+  if (proposerId === target) return { ok: false, reason: 'on ne se propose pas la paix à soi-même' };
+  const actifs = activePlayerIds(input);
+  if (!actifs.includes(proposerId)) return { ok: false, reason: `joueur inconnu ou éliminé : ${proposerId}` };
+  if (!actifs.includes(target)) return { ok: false, reason: `nation inconnue ou éliminée : ${target}` };
+  if (!areAtWar(input, proposerId, target)) return { ok: false, reason: 'pas en guerre' };
+  if (!accepte) {
+    return {
+      ok: true,
+      state: structuredClone(input),
+      events: [{ seq: 0, type: 'PeaceRefused', from: proposerId, on: target }],
+    };
+  }
+  const st = structuredClone(input);
+  const [a, b] = paireGuerre(proposerId, target);
+  st.diplomacy.war = st.diplomacy.war.filter(([x, y]) => !(x === a && y === b));
+  const warsDepuis = { ...st.diplomacy.warsDepuis };
+  delete warsDepuis[cleDepuis(a, b)];
+  st.diplomacy.warsDepuis = warsDepuis;
+  st.diplomacy.dernieresGuerres = {
+    ...st.diplomacy.dernieresGuerres,
+    [a]: st.turn,
+    [b]: st.turn,
+  };
+  return { ok: true, state: st, events: [{ seq: 0, type: 'PeaceAccepted', from: proposerId, on: target }] };
 }

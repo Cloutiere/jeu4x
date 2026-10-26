@@ -5,7 +5,8 @@
  * (devtmp/banc-bot-td.json) + tableau markdown au stdout (rapport).
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import type { MesuresPartie } from '../src/bancBotTd.js';
 import { agrege, corpusBanc, simulerPartie } from '../src/bancBotTd.js';
@@ -46,7 +47,10 @@ it.skipIf(!d)('banc BOT-TD — 40 parties × 3 difficultés × 150 tours', () =>
     console.log(`| ${t.difficulte} | ${t.villes.toFixed(1)} | ${t.population.toFixed(1)} | ${t.unites.toFixed(1)} | ${t.tresorerie.toFixed(0)} | ${t.techs.toFixed(1)} | ${t.pvMilitaires.toFixed(0)} | ${t.tours.toFixed(0)} |`);
   }
 
-  const out = resolve(process.cwd(), '../../../devtmp');
+  // PIÈGE BOT-TC (25/10) : process.cwd() dépend du worker vitest — deux bancs
+  // complets ont été écrits dans ~/devtmp au lieu du dépôt. Ancrage sur LE
+  // FICHIER (tests-banc → apps/server → ZCodeProject/devtmp).
+  const out = resolve(dirname(fileURLToPath(import.meta.url)), '../../../devtmp');
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'banc-bot-td.json'), JSON.stringify({ tableau, mesures }, null, 2));
 });

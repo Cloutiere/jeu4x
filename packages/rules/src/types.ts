@@ -686,6 +686,9 @@ export interface CivilizationData {
   eras: Record<TechEra, CivTrait[]>;
   /** Unités uniques (ids de units.json, `uniqueTo` réciproque — testé). */
   uniqueUnits: string[];
+  /** BOT-TC (Erik 25/10, D1) : propension à DÉCLARER la guerre (0-1) —
+   *  pondère le tirage seedé du bot du joueur (défaut canon 0,5). */
+  agressivite: number;
 }
 
 /** R-99/R-145 · Configuration globale des civilisations (calibrage 🔶). */
@@ -697,6 +700,8 @@ export interface CivilizationsData {
     orDepartDefault: number;
     gpThresholdMult: number;
     egypteWonderChoices: string[];
+    /** BOT-TC (Erik 25/10, D1) : agressivité par défaut (civ sans valeur). */
+    agressiviteDefaut: number;
   };
   civs: Record<string, CivilizationData>;
 }
@@ -733,6 +738,21 @@ export interface BotProfileData {
    *  techMilitaireCle), « economique » (techEconomiqueCle) ou « auto »
    *  (chemin le moins cher vers l'ère suivante). */
   objectifRecherche: 'militaire' | 'economique' | 'auto';
+  // --- BOT-TC (Erik 25/10) — bloc diplomatie (guerre + paix minimale). ---
+  /** D1 · pas de déclaration avant ce tour. */
+  tourMinGuerre: number;
+  /** D1 · guerre envisagée seulement si forces(me)/forces(cible) ≥ seuil. */
+  seuilRatioGuerre: number;
+  /** D1 · tirage seedé : passe si tirage < agressivite × facteurAgressivite. */
+  facteurAgressivite: number;
+  /** D1 · délai minimal (tours) entre la FIN d'une guerre et la suivante. */
+  delaiEntreGuerres: number;
+  /** D3 · le bot ACCEPTE la paix si forces(moi)/forces(proposeur) < seuil. */
+  seuilRatioPaix: number;
+  /** D3 · tirage seedé quand écrasé : accepte si tirage < chanceAccepteFaible. */
+  chanceAccepteFaible: number;
+  /** D3 · après cette DURÉE de guerre, la paix est acceptée systématiquement. */
+  toursPaixMin: number;
 }
 
 /** BOT-TB · D1-D4 — arbitres économiques du bot (bot.json, partagés par les

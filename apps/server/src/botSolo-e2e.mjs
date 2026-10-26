@@ -6,8 +6,10 @@
  *      imposée) → partie ACTIVE immédiatement avec p2 = « Bot » ;
  *   2. le bot JOUE chaque tour sans processus externe (recherche, production,
  *      déplacements de ses unités) ;
- *   3. victoire par DOMINATION du joueur contre le bot (capture de la
- *      capitale adverse) ;
+ *   3. victoire par DOMINATION du BOT (BOT-TC, D5 — Erik 25/10) : Alice est
+ *      passive (Hold sur place, jamais de déclaration) ; le bot (zoulous,
+ *      agressivité 0,85) DÉCLARE la guerre (R-188-a), MARCHE sur la capitale
+ *      d'Alice (offensive R-188-b) et la capture ;
  *   4. les parties pré-solo (2 joueurs) restent inchangées (création + join +
  *      résolution classique).
  *
@@ -212,6 +214,7 @@ function meilleureUnite(p1) {
   return candidates[0]?.[0] ?? 'guerrier';
 }
 let victory = null;
+let guerreTour = null;
 let botMovedTurns = 0;
 let lastBotPositions = JSON.stringify(Object.values(state.units).filter((u) => u.owner === 'p2').map((u) => [u.id, u.q, u.r]).sort());
 let botProduced = 0;
@@ -222,14 +225,12 @@ for (let turn = state.turn; turn < MAX_TURNS; turn = state.turn) {
   const myCapital = capitalOf(state, 'p1');
   const botCapital = capitalOf(state, 'p2');
   if (!botCapital) throw new Error('capitale bot introuvable (rasée ?) — cas hors périmètre e2e');
-  // R-187 : la PAIX est le défaut — sans déclaration, TOUTES les attaques
-  // d'Alice sont refusées (AttackRefused) et la guerre ne commence jamais.
-  // Le bot standard ne déclare jamais (BOT-TA D4) : c'est Alice qui le fait.
-  if (!state.diplomacy.war.some(([a, b]) => (a === 'p1' && b === 'p2') || (a === 'p2' && b === 'p1'))) {
-    game.send({ type: 'DeclareWar', player: 'p2' });
-  }
+  // R-187 : la PAIX est le défaut — BOT-TC (Erik 25/10, D5) : Alice ne
+  // déclare JAMAIS ; la guerre vient du BOT (R-188-a : tour ≥ tourMinGuerre,
+  // rapport de forces, tirage d'agressivité).
   const goals = [{ q: botCapital.q, r: botCapital.r }];
   const field = bfsField(state, goals);
+  void goals; void field; // (plus de marche de guerre d'Alice — le bot vient à elle)
 
   const botGarrison = unitAt(state, botCapital.q, botCapital.r);
   // Stratégie (leçons des runs précédents) :
@@ -243,82 +244,39 @@ for (let turn = state.turn; turn < MAX_TURNS; turn = state.turn) {
   //    capitale chaque tour — si la garnison du bot quitte sa case en Phase A
   //    avant leur passage, la capture se fait sans combat ; sinon c'est une
   //    attaque (usure de la garnison, jamais ripostée au-delà de l'échange).
+  // BOT-TC (Erik 25/10, D5) : Alice est PASSIVE — recherche + production
+  // (sinon le blocage fin de tour « Recherche prioritaire » retient EndTurn),
+  // unités tenues SUR PLACE (Hold, jamais d'attaque ni de marche). C'est le
+  // BOT (zoulous, agressivité 0,85) qui déclare (R-188-a), marche sur sa
+  // capitale (offensive R-188-b) et la capture : victoire par domination p2.
   const home = capitalOf(state, 'p1');
-  // BOT-TA : Alice joue « comme un joueur » — recherche + meilleure unité
-  // disponible (le bot monte en ère, les guerriers seuls ne suffisent plus).
   const p1 = state.players.p1;
+  // BOT-TC : Alice recherche la tech DISPO la moins chère (elle bâtit, elle
+  // ne militarise pas — le rapport de forces doit basculer vers le bot).
   if (!p1.researching) {
-    const tech = techDispo(p1);
-    if (tech) game.send({ type: 'SetResearch', techId: tech });
+    const unlocked = new Set(p1.techsUnlocked ?? []);
+    const TECHS_DATA = JSON.parse(readFileSync(join(HERE, '../../../packages/rules/src/data/techs.json'), 'utf8'));
+    const dispo = Object.values(TECHS_DATA)
+      .filter((t) => !unlocked.has(t.id) && t.id !== p1.researching && (t.prereqs ?? []).every((q) => unlocked.has(q)))
+      .sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id));
+    if (dispo[0]) game.send({ type: 'SetResearch', techId: dispo[0].id });
   }
+  // BOT-TC : Alice ne produit JAMAIS d'unité (le rapport de forces doit
+  // basculer vers le bot — R-188-a) : premier bâtiment économique débloqué
+  // non construit (ordre du catalogue), repli guerrier (blocage production).
   const courante = home?.production?.item;
-  const best = meilleureUnite(p1);
-  if (home && (!courante || courante.kind !== 'unit' || courante.id !== best)) {
-    game.send({ type: 'SubmitOrder', order: { type: 'SetProduction', cityId: home.id, item: { kind: 'unit', id: best } } });
+  const unlocked = new Set(p1.techsUnlocked ?? []);
+  const BATIMENTS = JSON.parse(readFileSync(join(HERE, '../../../packages/rules/src/data/buildings.json'), 'utf8'));
+  const premierBatiment = Object.values(BATIMENTS).find(
+    (b) => b.implemented !== false && !b.fixed && (!b.tech || unlocked.has(b.tech)) &&
+      !Object.values(state.cities).some((c) => c.owner === 'p1' && (c.buildings ?? []).includes(b.id)),
+  );
+  const item = premierBatiment ? { kind: 'building', id: premierBatiment.id } : { kind: 'unit', id: 'guerrier' };
+  if (home && (!courante || courante.kind !== item.kind || courante.id !== item.id)) {
+    game.send({ type: 'SubmitOrder', order: { type: 'SetProduction', cityId: home.id, item } });
   }
-  const myUnits = Object.values(state.units).filter((u) => u.owner === 'p1' && !u.aboard);
-  const barbNearHome = home
-    ? Object.values(state.units).some((u) => u.owner === 'barbarien' && hexDist(u, home) <= 3)
-    : false;
-  const homeGarrison = home ? myUnits.find((u) => u.q === home.q && u.r === home.r) : null;
-  const siege = myUnits
-    .filter((u) => hexDist(u, botCapital) === 1)
-    .sort((a, b) => a.id.localeCompare(b.id));
-  // BOT-TA : le bot standard garnisonne sa capitale (2 défenseurs « normal »)
-  // et replie ses blessés — la fenêtre R-57 à 2 chargeurs ne suffit plus.
-  // Quand la capitale est DÉFENDUE et que la meute est là, TOUT le siège
-  // charge (usure de la garnison, le moteur revalide chaque attaque).
-  const chargers = botGarrison && siege.length >= 3 ? siege : siege.slice(0, 2);
-  const siegeChargers = new Set(chargers.map((u) => u.id));
-  for (const unit of myUnits) {
-    if (siegeChargers.has(unit.id)) {
-      game.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: unit.id, path: [{ q: botCapital.q, r: botCapital.r }] } });
-      continue;
-    }
-    if (siege.some((u) => u.id === unit.id) && !siegeChargers.has(unit.id)) {
-      game.send({ type: 'SubmitOrder', order: { type: 'Attack', unitId: unit.id, target: { q: botCapital.q, r: botCapital.r } } }); // assaut général
-      continue;
-    }
-    if (homeGarrison && unit.id === homeGarrison.id && barbNearHome) {
-      game.send({ type: 'SubmitOrder', order: { type: 'Hold', unitId: unit.id } }); // garrison anti-barbares
-      continue;
-    }
-    // R-126 : un GP adjacent à une ville avec production le CONSUME (Bâtisseur :
-    // achève la production en cours — unité gratuite immédiate).
-    if (UNIT_TYPES[unit.type]?.greatPerson === true) {
-      const target = Object.values(state.cities).find(
-        (c) => c.owner === 'p1' && c.production && hexDist(unit, c) <= 1,
-      );
-      if (target) {
-        game.send({ type: 'SubmitOrder', order: { type: 'GreatPersonAction', unitId: unit.id, action: 'consume', cityId: target.id } });
-        continue;
-      }
-    }
-    // BOT-TA : la garnison du bot tient désormais (garnison + repli des
-    // blessés) — le siège naïf par Move seul aboutit à une impasse. Toute
-    // unité adjacente à un ennemi MILITAIRE attaque (ordre Attack explicite,
-    // le moteur revalide l'état de guerre — les bots solo démarrent en paix
-    // R-187 : la guerre vient des entrées en combat d'Alice... vérifiée
-    // plus bas par la victoire effective).
-    const adjacentEnnemi = DIRS.map(([dq, dr]) => unitAt(state, unit.q + dq, unit.r + dr)).find(
-      (u) => u && u.owner !== 'p1' && UNIT_TYPES[u.type]?.canAttack !== false,
-    );
-    if (adjacentEnnemi && UNIT_TYPES[unit.type]?.canAttack !== false) {
-      game.send({ type: 'SubmitOrder', order: { type: 'Attack', unitId: unit.id, target: { q: adjacentEnnemi.q, r: adjacentEnnemi.r } } });
-      continue;
-    }
-    const step = stepToward(state, unit, field, 'p1');
-    if (step && !unit.fortified) {
-      game.send({ type: 'SubmitOrder', order: { type: 'Move', unitId: unit.id, path: [step] } });
-    } else {
-      game.send({ type: 'SubmitOrder', order: { type: 'Hold', unitId: unit.id } });
-    }
-  }
-
-  // Rush-buy R-135 systématique au-delà d'une réserve de 40 or (le moteur
-  // revalide : trésorerie, éligibilité, 1 rush/ville/tour).
-  if (home?.production && state.players.p1.treasury >= 40) {
-    game.send({ type: 'SubmitOrder', order: { type: 'RushBuy', cityId: home.id } });
+  for (const unit of Object.values(state.units).filter((u) => u.owner === 'p1' && !u.aboard)) {
+    game.send({ type: 'SubmitOrder', order: { type: 'Hold', unitId: unit.id } });
   }
   game.send({ type: 'EndTurn' });
 
@@ -336,14 +294,20 @@ for (let turn = state.turn; turn < MAX_TURNS; turn = state.turn) {
     victory = victoryEvent;
     break;
   }
+  if (state.diplomacy.war.length > 0 && !guerreTour) {
+    guerreTour = state.turn;
+    console.log(`[e2e] ⚔ le BOT a DÉCLARÉ la guerre au tour ${state.turn} (${JSON.stringify(state.diplomacy.war)})`);
+  }
   if (state.winner) break;
   if (turn % 10 === 0) console.log(`[e2e] tour ${state.turn} — Alice : ${Object.values(state.units).filter((u) => u.owner === 'p1').length} unité(s), trésorerie ${state.players.p1.treasury} ; bot : ${Object.values(state.units).filter((u) => u.owner === 'p2').length} unité(s)`);
 }
 
 if (!victory) throw new Error(`pas de victoire après ${MAX_TURNS} tours — e2e échoué`);
 const dumpEnd = await admin(CODE);
-if (victory.winner !== 'p1' || dumpEnd.meta.finishedReason !== 'domination') {
-  throw new Error(`victoire inattendue : ${JSON.stringify(victory)} / motif méta ${dumpEnd.meta.finishedReason}`);
+// BOT-TC (D5) : c'est le BOT qui doit gagner — déclaration de guerre
+// (R-188-a) puis offensive capitale (R-188-b) contre Alice passive.
+if (victory.winner !== 'p2' || dumpEnd.meta.finishedReason !== 'domination') {
+  throw new Error(`victoire inattendue (BOT-TC : le BOT doit gagner par domination) : ${JSON.stringify(victory)} / motif méta ${dumpEnd.meta.finishedReason}`);
 }
 if (botMovedTurns === 0 || botProduced === 0) {
   throw new Error(`le bot n'a pas joué (tours avec déplacement bot : ${botMovedTurns}, productions bot : ${botProduced})`);

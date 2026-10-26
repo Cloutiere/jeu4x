@@ -36,7 +36,14 @@
       "unitesAvantRenfort": 3,
       "rayonPatrouille": 3,
       "rayonMenace": 3,
-      "objectifRecherche": "auto"
+      "objectifRecherche": "auto",
+      "tourMinGuerre": 15,
+      "seuilRatioGuerre": 1,
+      "facteurAgressivite": 0.6,
+      "delaiEntreGuerres": 30,
+      "seuilRatioPaix": 0.5,
+      "chanceAccepteFaible": 0.6,
+      "toursPaixMin": 20
     },
     "normal": {
       "seuilSoinPv": 2,
@@ -46,17 +53,31 @@
       "unitesAvantRenfort": 3,
       "rayonPatrouille": 3,
       "rayonMenace": 3,
-      "objectifRecherche": "auto"
+      "objectifRecherche": "auto",
+      "tourMinGuerre": 10,
+      "seuilRatioGuerre": 0.7,
+      "facteurAgressivite": 1,
+      "delaiEntreGuerres": 20,
+      "seuilRatioPaix": 0.6,
+      "chanceAccepteFaible": 0.75,
+      "toursPaixMin": 12
     },
     "difficile": {
       "seuilSoinPv": 3,
-      "ratioAttaqueMin": 1.0,
+      "ratioAttaqueMin": 1,
       "garnisonsParVille": 2,
       "garnisonsCapitale": 3,
       "unitesAvantRenfort": 3,
       "rayonPatrouille": 3,
       "rayonMenace": 3,
-      "objectifRecherche": "militaire"
+      "objectifRecherche": "militaire",
+      "tourMinGuerre": 8,
+      "seuilRatioGuerre": 0.5,
+      "facteurAgressivite": 1.5,
+      "delaiEntreGuerres": 12,
+      "seuilRatioPaix": 0.7,
+      "chanceAccepteFaible": 0.85,
+      "toursPaixMin": 8
     }
   }
 }

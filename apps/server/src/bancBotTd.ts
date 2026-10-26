@@ -13,6 +13,8 @@
  */
 import {
   UNIT_TYPES,
+  applyDeclareWar,
+  applyProposePeace,
   createInitialState,
   createRng,
   generateProceduralMap,
@@ -20,7 +22,7 @@ import {
 } from '@game/rules';
 import type { BotDifficulte } from '@game/shared';
 import type { GameState, Order } from '@game/rules';
-import { botPolicy, botTurnSeed } from './botPolicy.js';
+import { botPolicy, botTurnSeed, deciderPaix, profileDuBot } from './botPolicy.js';
 
 /** Durée d'une partie du banc (décision D3 — 150 tours). */
 export const BANC_TOURS = 150;
@@ -52,23 +54,50 @@ export interface MesuresPartie {
   techs: number;
   /** Σ PV des unités de combat (canAttack) — puissance militaire. */
   pvMilitaires: number;
+  /** BOT-TC (D5) : guerres déclarées (entre bots) et paix acceptées. */
+  guerres: number;
+  paix: number;
 }
 
 /** Une partie bot vs bot à difficulté fixée. Déterministe : même
- *  (difficulte, seed, tours) ⇒ mêmes mesures bit à bit. */
+ *  (difficulté, seed, tours) ⇒ mêmes mesures bit à bit.
+ *  BOT-TC (Erik 25/10) : les actions de DIPLOMATIE du bot (DeclareWar /
+ *  ProposePeace) sont appliquées par le banc — miroir exact du GameDO
+ *  (startResolution), mêmes helpers purs et même dérivation de RNG paix. */
 export function simulerPartie(difficulte: BotDifficulte, seed: number, tours = BANC_TOURS): MesuresPartie {
   const { map } = generateProceduralMap(seed, { playerCount: 2 });
   let state: GameState = createInitialState(map, seed);
+  const seedPartie = state.rngSeed;
+  let guerres = 0;
+  let paix = 0;
   for (let t = 0; t < tours && state.winner === null; t++) {
     const orders: Record<string, Order[]> = { p1: [], p2: [] };
     for (const id of ['p1', 'p2'] as const) {
       if (state.players[id]?.defeated === true) continue;
-      const rng = createRng(botTurnSeed(state.rngSeed, state.turn, id));
-      orders[id] = botPolicy(state, id, rng, difficulte).orders;
+      const rng = createRng(botTurnSeed(seedPartie, state.turn, id));
+      const plan = botPolicy(state, id, rng, difficulte);
+      orders[id] = plan.orders;
+      for (const action of plan.actions) {
+        if (action.type === 'DeclareWar') {
+          const r = applyDeclareWar(state, id, action.player);
+          if (r.ok) {
+            state = r.state;
+            guerres++;
+          }
+        } else if (action.type === 'ProposePeace') {
+          const rngPaix = createRng(botTurnSeed(seedPartie, state.turn, `paix:${action.player}`));
+          const accepte = deciderPaix(state, action.player, id, profileDuBot(difficulte), rngPaix);
+          const r = applyProposePeace(state, id, action.player, accepte);
+          if (r.ok) {
+            state = r.state;
+            if (accepte) paix++;
+          }
+        }
+      }
     }
     state = resolveTurn(state, orders, state.rngSeed).newState;
   }
-  return mesures(state, difficulte, seed);
+  return { ...mesures(state, difficulte, seed), guerres, paix };
 }
 
 function mesures(state: GameState, difficulte: BotDifficulte, seed: number): MesuresPartie {
@@ -84,6 +113,9 @@ function mesures(state: GameState, difficulte: BotDifficulte, seed: number): Mes
     tresorerie: Object.values(state.players).reduce((s, p) => s + (p.defeated ? 0 : p.treasury), 0),
     techs: Object.values(state.players).reduce((s, p) => s + (p.techsUnlocked?.length ?? 0), 0),
     pvMilitaires: unites.reduce((s, u) => s + ((UNIT_TYPES[u.type]?.canAttack ?? false) ? u.hp : 0), 0),
+    // BOT-TC : comptés par simulerPartie (défauts pour les autres usages).
+    guerres: 0,
+    paix: 0,
   };
 }
 
@@ -100,6 +132,9 @@ export interface AggregateDifficulte {
   techs: number;
   pvMilitaires: number;
   tours: number;
+  /** BOT-TC (D5) : guerres déclarées et paix acceptées (moyennes). */
+  guerres: number;
+  paix: number;
 }
 
 export function agrege(mesures: MesuresPartie[]): AggregateDifficulte[] {
@@ -126,6 +161,8 @@ export function agrege(mesures: MesuresPartie[]): AggregateDifficulte[] {
         techs: list.reduce((s, m) => s + m.techs, 0) / n,
         pvMilitaires: list.reduce((s, m) => s + m.pvMilitaires, 0) / n,
         tours: list.reduce((s, m) => s + m.tours, 0) / n,
+        guerres: list.reduce((s, m) => s + m.guerres, 0) / n,
+        paix: list.reduce((s, m) => s + m.paix, 0) / n,
       };
     });
 }

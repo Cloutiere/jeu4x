@@ -346,6 +346,21 @@
     // HANDOFF-CHRONIQUES · D1 : mapping des événements → Chronique (même
     // garde `lastReplayedSeq` que le playback — chaque événement une fois).
     pousserEntrees(entreesChronique(fresh, contexteChronique(v), v.turn));
+    // BOT-TC (Erik 25/10, L3) : la RÉPONSE du bot à une proposition de paix
+    // est affichée EN DIRECT (toast) — la Chroniques la garde (événements
+    // publics PeaceAccepted/PeaceRefused).
+    for (const e of fresh) {
+      if (e.type === 'PeaceAccepted' && (e.from === pid || e.on === pid)) {
+        pushErrorToast(
+          e.from === pid ? `${nomJoueur(e.on)} ACCEPTE la paix — la guerre est finie.` : `Paix signée avec ${nomJoueur(e.from)}.`,
+          'good',
+        );
+      } else if (e.type === 'PeaceRefused' && e.from === pid) {
+        pushErrorToast(`${nomJoueur(e.on)} REFUSE votre proposition de paix.`, 'bad');
+      } else if (e.type === 'WarDeclared' && e.on === pid) {
+        pushErrorToast(`${nomJoueur(e.from)} vous déclare la GUERRE !`, 'bad');
+      }
+    }
     // 7h · R-122/R-124 : annonces conseiller (tech de gouvernement),
     // changement de régime et lancement du vaisseau.
     for (const e of fresh) {
@@ -880,6 +895,8 @@
   let showRegimesModale = $state(false);
   // DIPLOMATIE-T1 · D3 : confirmation « Déclarer la guerre » (cible = pastille).
   let declarationGuerre = $state<{ id: string; nom: string } | null>(null);
+  // BOT-TC (Erik 25/10, L3) : confirmation « Proposer la paix » (miroir).
+  let propositionPaix = $state<{ id: string; nom: string } | null>(null);
   const myGovernment = $derived.by(() => {
     const id = myEngineId($view);
     return (id && $view.state ? $view.state.players[id]?.government : null) ?? 'despotisme';
@@ -1330,9 +1347,20 @@
                   {#if a.defeated}<span class="elimine-mention">Éliminé</span>{/if}
                 </span>
                 <!-- DIPLOMATIE-T1 · D3 : badge ⚔ en guerre ; sinon bouton
-                     « Déclarer la guerre » (modale de confirmation). -->
+                     « Déclarer la guerre » (modale de confirmation).
+                     BOT-TC (Erik 25/10, L3) : en guerre, bouton « Proposer
+                     la paix » (🕊) — la réponse du bot est annoncée en
+                     direct (toast) et gardée aux Chroniques. -->
                 {#if a.enGuerre}
                   <span class="pastille-guerre" aria-label="En guerre">⚔</span>
+                  {#if !a.defeated}
+                    <button
+                      type="button"
+                      class="pastille-guerre declarer paix"
+                      title={`Proposer la paix à ${a.nom} (publique — le bot répond selon le rapport de forces)`}
+                      onclick={() => (propositionPaix = { id: a.id, nom: a.nom })}
+                    >🕊</button>
+                  {/if}
                 {:else if !a.defeated}
                   <button
                     type="button"
@@ -1658,6 +1686,28 @@
     </div>
   {/if}
 
+  {#if propositionPaix && $view.state}
+    <!-- BOT-TC (Erik 25/10, L3) : confirmation — miroir de la déclaration ;
+         la réponse du bot (deciderPaix) est annoncée en direct (toast) et
+         gardée aux Chroniques. -->
+    <div class="parametres-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) propositionPaix = null; }}>
+      <div class="parametres-boite guerre-boite">
+        <div class="parametres-tete">
+          <h2>Proposer la paix ?</h2>
+          <button type="button" class="fermer" aria-label="Annuler" onclick={() => (propositionPaix = null)}>×</button>
+        </div>
+        <p class="guerre-texte">
+          Vous allez proposer la paix à <strong>{propositionPaix.nom}</strong>.
+        </p>
+        <p class="guerre-hint">La proposition est <strong>publique</strong> : la nation visée répond selon le rapport de forces (elle accepte si affaiblie, ou après une longue guerre) — sinon elle refuse.</p>
+        <div class="guerre-btns">
+          <button type="button" class="guerre-annuler" onclick={() => (propositionPaix = null)}>Annuler</button>
+          <button type="button" class="guerre-confirmer paix" onclick={() => { const cible = propositionPaix; if (!cible) return; client.proposePeace(cible.id); propositionPaix = null; }}>🕊 Proposer la paix</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   {#if showParametres}
     <!-- HANDOFF-CHRONIQUES · D6 : le journal de débogue (Journal.svelte,
          migré TEL QUEL — coordonnées, ligne ⚔ et centrage conservés). -->
@@ -1952,8 +2002,11 @@
     background: #3a1512; color: #ff8a80; border: 1px solid #a35b45;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
   }
-  button.pastille-guerre.declarer { cursor: pointer; background: #24313f; color: #b6cbd8; border-color: #46525c; opacity: 0.85; }
-  button.pastille-guerre.declarer:hover { background: #54262a; color: #ffab91; border-color: #a35b45; opacity: 1; }
+  button.pastille-guerre.declarer { cursor: pointer; background: #24312f; color: #b6d8c2; border-color: #465c4c; opacity: 0.85; }
+  button.pastille-guerre.declarer:hover { background: #2a4232; color: #a5ffb0; border-color: #5a9a6a; opacity: 1; }
+  /* BOT-TC (Erik 25/10, L3) : bouton paix — décalé à GAUCHE du badge ⚔
+     (les deux cohabitent en guerre au coin bas-droit de la pastille). */
+  button.pastille-guerre.declarer.paix { right: 1.15rem; }
   .pastille-detail .guerre { color: #ef9a9a; font-weight: 600; }
   /* Modale de confirmation — même gabarit que Paramètres. */
   .guerre-boite { width: min(440px, 90vw); }
@@ -1966,6 +2019,9 @@
   .guerre-annuler { background: #27313a; border: 1px solid #46525c; color: inherit; }
   .guerre-confirmer { background: #54262a; border: 1px solid #a35b45; color: #ffcc80; font-weight: 600; }
   .guerre-confirmer:hover { background: #6b2f2f; }
+  /* BOT-TC : bouton de confirmation « Proposer la paix » — palette verte. */
+  .guerre-confirmer.paix { background: #22352a; border-color: #4c7a58; color: #b9f6ca; }
+  .guerre-confirmer.paix:hover { background: #2d4a37; }
   .pastille-cadre { position: relative; }
   .portrait-cadre {
     display: flex; align-items: center; justify-content: center;
