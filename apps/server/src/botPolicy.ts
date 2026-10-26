@@ -321,6 +321,62 @@ function pasVers(
   return best;
 }
 
+/**
+ * BOT-ARMEE · pas ROUTIER vers une cible : premier pas du plus court chemin
+ * (BFS déterministe — voisinage trié R-81) sur les cases praticables libres
+ * de TOUTE unité. Le pas glouton `pasVers` se colle aux obstacles (littoral,
+ * lacs) et oscille — les armées n'arrivaient JAMAIS (verrou de circulation,
+ * banc god mode 26/10 : distMin figée à 15 sur 25 tours). Terrestres :
+ * terrains passables ; navales : accès naval (miroir pasVers). Cible admise
+ * même occupée (assaut). Retour : null si inatteignable.
+ */
+export function pasVersRoutier(
+  unit: Unit,
+  state: GameState,
+  cible: { q: number; r: number },
+): { q: number; r: number } | null {
+  const stats = UNIT_TYPES[unit.type];
+  const aquatic = stats?.aquatic === true;
+  const praticable = (h: { q: number; r: number }): boolean => {
+    const tile = state.map[`${h.q},${h.r}`];
+    if (!tile) return false;
+    if (aquatic) {
+      const access = TERRAINS[tile.terrain]?.navalAccess;
+      if (!access) return false;
+      return !(access === 'ocean' && stats?.navalAccess !== 'ocean');
+    }
+    return !!TERRAINS[tile.terrain]?.passable;
+  };
+  const origin = `${unit.q},${unit.r}`;
+  const dest = `${cible.q},${cible.r}`;
+  if (origin === dest) return null;
+  const cameFrom = new Map<string, string | null>([[origin, null]]);
+  const queue: Array<{ q: number; r: number }> = [{ q: unit.q, r: unit.r }];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const voisins = DIRS.map(([dq, dr]) => ({ q: current.q + dq, r: current.r + dr }))
+      .sort((a, b) => a.q - b.q || a.r - b.r); // R-81
+    for (const n of voisins) {
+      const k = `${n.q},${n.r}`;
+      if (cameFrom.has(k)) continue;
+      const estCible = n.q === cible.q && n.r === cible.r;
+      // transit : praticable + libre ; la cible est admise occupée (assaut).
+      if (!estCible && (!praticable(n) || unitAtHex(state, n.q, n.r))) continue;
+      if (estCible && !praticable(n) && !unitAtHex(state, n.q, n.r)) continue; // ville/port occupé ok
+      cameFrom.set(k, `${current.q},${current.r}`);
+      if (estCible) {
+        // Reconstituer le PREMIER pas.
+        let cur = k;
+        while (cameFrom.get(cur) !== origin) cur = cameFrom.get(cur)!;
+        const [q, r] = cur.split(',').map(Number);
+        return { q: q!, r: r! };
+      }
+      queue.push(n);
+    }
+  }
+  return null;
+}
+
 /** Unité amie sur la case (q, r) — miroir bot.mjs `unitAtHex`. */
 function unitAtHex(state: GameState, q: number, r: number, owner?: PlayerId): Unit | undefined {
   return Object.values(state.units).find((u) => u.q === q && u.r === r && (!owner || u.owner === owner));
@@ -382,6 +438,17 @@ export function cibleGuerre(state: GameState, me: PlayerId): PlayerId | null {
 }
 
 /**
+ * BOT-ARMEE · D6 — seuil de guerre modulé par l'AGRESSIVITÉ de la civ :
+ * seuil effectif = seuilRatioGuerre × (1 + modulation × (1 − 2 ×
+ * agressivite)). Les agressives (agressivite > 0,5) abaissent leur seuil
+ * (elles attaquent des voisins ÉGAUX), les pacifiques le relèvent (elles
+ * exigent l'écrasement). Pur.
+ */
+export function seuilGuerreEffectif(profile: BotProfileData, agressivite: number): number {
+  return profile.seuilRatioGuerre * (1 + profile.modulationSeuilAgressivite * (1 - 2 * agressivite));
+}
+
+/**
  * D1 · Décision de DÉCLARATION de guerre : tour ≥ tourMinGuerre, délai
  * depuis la dernière guerre écoulé, ma capitale existe, rapport de forces
  * ≥ seuil du profil, puis TIRAGE seedé < agressivité de MA civ × facteur du
@@ -403,7 +470,7 @@ export function deciderGuerre(
   const mesForces = forcesDe(state, me);
   if (mesForces <= 0) return null;
   const sesForces = forcesDe(state, cible);
-  if (mesForces < profile.seuilRatioGuerre * sesForces) return null;
+  if (mesForces < seuilGuerreEffectif(profile, agressivite) * sesForces) return null;
   if (rng.next() >= agressivite * profile.facteurAgressivite) return null;
   return cible;
 }
@@ -445,6 +512,148 @@ export function cibleOffensive(state: GameState, me: PlayerId): { q: number; r: 
 }
 
 // ---------------------------------------------------------------------------
+// BOT-ARMEE (décisions Erik 26/10) — D1/D2 : la guerre vraie. Le bot raisonne
+// en ARMÉE : une campagne vise la ville ennemie LA PLUS PROCHE (pas la
+// capitale d'office), une armée de `tailleArmee` unités (data) se rassemble
+// au point de ralliement AVANT d'attaquer, puis marche et assiège. La
+// campagne PERSISTE par construction : cible et membres sont des fonctions
+// PURES de l'état (déterminisme R-81) — pas d'état caché, l'armée ne se
+// disperse pas d'un tour à l'autre ; le rappel passe par la garnison
+// (BOT-EXPLORATION D3 : urgence capitale → quota complet → les membres sont
+// absorbés AVANT d'atteindre le bloc offensif). D3 : hors le détachement,
+// garnisons/patrouilles/économie T-A/T-B inchangées.
+// ---------------------------------------------------------------------------
+
+/** D2 · Cible de campagne : ville ennemie (en guerre, hors barbares) la plus
+ *  PROCHE de ma capitale — tri (distance wrap, id) R-81. Null sans guerre. */
+export function cibleCampagne(
+  state: GameState,
+  me: PlayerId,
+): { q: number; r: number; cityId: string } | null {
+  const ennemis = ennemisDe(state, me);
+  const maCapitale = Object.values(state.cities).find((c) => c.owner === me && c.capital)
+    ?? Object.values(state.cities).find((c) => c.owner === me);
+  const origine = maCapitale ?? { q: 0, r: 0 };
+  const villes = Object.values(state.cities)
+    .filter((c) => c.owner !== me && !isBarbarian(c.owner) && ennemis.has(c.owner))
+    .sort((a, b) => dist(state, origine, a) - dist(state, origine, b) || compareCityIds(a.id, b.id));
+  const v = villes[0];
+  return v ? { q: v.q, r: v.r, cityId: v.id } : null;
+}
+
+/** D1 · Pool EXCÉDENTAIRE : les combattantes terrestres qui restent APRÈS le
+ *  remplissage de garnison (miroir de la boucle d'assignation — même tri,
+ *  même choix de ville, quota dynamique BOT-EXPLORATION). Le scout hors
+ *  urgence n'est jamais du pool (il patrouille, D1). Pur, déterministe. */
+export function poolExcedentaire(state: GameState, me: PlayerId, profile: BotProfileData): Unit[] {
+  const mine = Object.values(state.units)
+    .filter((u) => u.owner === me)
+    .sort((a, b) => compareUnitIds(a.id, b.id)); // R-81
+  const myCities = Object.values(state.cities)
+    .filter((c) => c.owner === me)
+    .sort((a, b) => (a.capital !== b.capital ? (a.capital ? -1 : 1) : compareCityIds(a.id, b.id)));
+  const estCombattante = (u: Unit): boolean =>
+    !u.aboard && (UNIT_TYPES[u.type]?.canAttack ?? false) && UNIT_TYPES[u.type]?.aquatic !== true;
+  const scoutId = mine.find((u) => estCombattante(u))?.id;
+  const defenseurs = new Map<string, number>();
+  for (const c of myCities) {
+    defenseurs.set(
+      c.id,
+      mine.filter((u) => estCombattante(u) && u.id !== scoutId && u.q === c.q && u.r === c.r).length,
+    );
+  }
+  const capitale = myCities[0];
+  const ennemis = ennemisDe(state, me);
+  const urgence =
+    ennemis.size > 0 ||
+    (capitale ? menaceAutourCapitale(state, capitale, me, ennemis, profile.rayonMenace) : false);
+  const quotaCap = quotaCapitale(profile, mine.length, urgence);
+  const besoinDe = (c: City): number => (c.capital ? quotaCap : profile.garnisonsParVille);
+  // BOT-ARMEE · les défenseurs EN PLACE (comptés dans le quota) ne sont
+  // JAMAIS du pool — sinon la garnison se vide en campagne alors que le
+  // quota la croit toujours là (D3 : garnisons stables).
+  const enPlace = new Set<string>();
+  for (const c of myCities) {
+    for (const u of mine) {
+      if (u.id !== scoutId && estCombattante(u) && u.q === c.q && u.r === c.r) enPlace.add(u.id);
+    }
+  }
+  const pool: Unit[] = [];
+  for (const unit of mine) {
+    if (!estCombattante(unit)) continue;
+    if (enPlace.has(unit.id)) continue;
+    if (capitale && !urgence && scoutId === unit.id) {
+      pool.push(unit);
+      continue;
+    }
+    const manque = myCities.filter((c) => (defenseurs.get(c.id) ?? 0) < besoinDe(c));
+    if (manque.length > 0) {
+      const cible = manque
+        .slice()
+        .sort((a, b) => dist(state, unit, a) - dist(state, unit, b) || compareCityIds(a.id, b.id))[0]!;
+      defenseurs.set(cible.id, (defenseurs.get(cible.id) ?? 0) + 1);
+    } else {
+      pool.push(unit);
+    }
+  }
+  return pool;
+}
+
+/** D1 · Les `tailleArmee` unités excédentaires LES PLUS PROCHES de la cible
+ *  (ties id, R-81) forment l'armée. Pur, déterministe. */
+export function assignerArmee(
+  state: GameState,
+  me: PlayerId,
+  profile: BotProfileData,
+  cible: { q: number; r: number } | null,
+): Set<string> {
+  const armee = new Set<string>();
+  if (!cible) return armee;
+  const pool = poolExcedentaire(state, me, profile);
+  return new Set(
+    pool
+      .slice()
+      .sort((a, b) => dist(state, a, cible) - dist(state, b, cible) || compareUnitIds(a.id, b.id))
+      .slice(0, profile.tailleArmee)
+      .map((u) => u.id),
+  );
+}
+
+/** D1 · Point de RALLIEMENT : case praticable libre (pas d'unité, pas de
+ *  ville) à exactement `rayonRalliement` de la cible, la plus proche de MA
+ *  capitale (l'armée arrive du côté chez elle), tie-break clé croissant
+ *  (R-81). Repli : la cible elle-même (île sans rivage praticable 🔶). */
+export function pointRalliement(
+  state: GameState,
+  cible: { q: number; r: number },
+  me: PlayerId,
+  profile: BotProfileData,
+): { q: number; r: number } {
+  const maCapitale = Object.values(state.cities).find((c) => c.owner === me && c.capital)
+    ?? Object.values(state.cities).find((c) => c.owner === me);
+  const origine = maCapitale ?? { q: 0, r: 0 };
+  const villes = Object.values(state.cities);
+  let best: { q: number; r: number } | null = null;
+  let bestD = Infinity;
+  for (const [key, tile] of Object.entries(state.map)) {
+    const parts = key.split(',');
+    const hex = { q: Number(parts[0]), r: Number(parts[1]) };
+    if (hexDistanceW(hex, cible, state.mapWidth) !== profile.rayonRalliement) continue;
+    if (!TERRAINS[tile.terrain]?.passable) continue;
+    if (unitAtHex(state, hex.q, hex.r)) continue;
+    if (villes.some((c) => c.q === hex.q && c.r === hex.r)) continue;
+    const d = dist(state, hex, origine);
+    // Tie-break NUMÉRIQUE (q, r) croissants : le tie lexicographique de clé
+    // casse le côté avec le wrap (carte ronde — « 10,x » < « 6,x »).
+    if (d < bestD || (d === bestD && best && (hex.q < best.q || (hex.q === best.q && hex.r < best.r)))) {
+      bestD = d;
+      best = hex;
+    }
+  }
+  return best ?? { q: cible.q, r: cible.r };
+}
+
+// ---------------------------------------------------------------------------
 // BOT-TA · D1 — assignation d'objectifs (pure, séparée de l'émission).
 // ---------------------------------------------------------------------------
 
@@ -459,6 +668,7 @@ export type ObjectifKind =
   | 'debarquer'
   | 'espion'
   | 'offensiver'
+  | 'rallier'
   | 'tenir';
 
 export interface Objectif {
@@ -492,7 +702,13 @@ function ennemisDe(state: GameState, me: PlayerId): Set<PlayerId> {
  *  + attaque en une tour n'est pas planifié). Aquatique : cibles navales
  *  seulement. Barbares R-95 : toujours légitimes ; joueurs : en guerre
  *  seulement (R-187, le bot ne déclare pas — T-C). */
-function ciblesAttaquables(state: GameState, unit: Unit, me: PlayerId, ennemis: Set<PlayerId>): CibleAttaque[] {
+function ciblesAttaquables(
+  state: GameState,
+  unit: Unit,
+  me: PlayerId,
+  ennemis: Set<PlayerId>,
+  siege = false,
+): CibleAttaque[] {
   const stats = UNIT_TYPES[unit.type];
   const aquatic = stats?.aquatic === true;
   const out: CibleAttaque[] = [];
@@ -509,7 +725,16 @@ function ciblesAttaquables(state: GameState, unit: Unit, me: PlayerId, ennemis: 
     if (ville && !aquatic && ville.owner !== me && !isBarbarian(ville.owner) && ennemis.has(ville.owner)) {
       const defendue = Object.values(state.units).some((u) => !u.aboard && u.q === hex.q && u.r === hex.r);
       if (!defendue) out.push({ hex, sDef: 0, priorite: 3 }); // ville sans défense : capture
+      // 🔴 note : la ville DÉFENDUE est ciblée via l'unité ennemie sur sa
+      // case (branche `e` ci-dessus, priorite 2) — en siège, rehaussée plus bas.
     }
+  }
+  // BOT-ARMEE · siège : quand l'armée est réunie, la GARNISON de la ville
+  // passe AVANT les unités de campagne (sinon les assiégeants pourchassent
+  // à l'infini les unités qui millent autour — banc 26/10 : 0 attaque de
+  // ville en 150 tours, guerres de 68 batailles sans percée).
+  if (siege) {
+    for (const c of out) if (c.priorite === 2) c.priorite = 5;
   }
   return out;
 }
@@ -578,6 +803,20 @@ export function assignerObjectifs(
 
   const vision = new Set(me.vision.visible ?? []);
 
+  // BOT-ARMEE · D1/D2 : en guerre, l'ARMÉE (tailleArmee excédentaires les
+  // plus proches de la cible de campagne — la ville ennemie la plus proche,
+  // PAS la capitale d'office) se rassemble au point de ralliement AVANT
+  // d'attaquer ; complète, elle marche et assiège. L'effectif compte les
+  // membres vivants au rayon de ralliement ; requis = min(tailleArmee,
+  // membres vivants) — une armée entamée garde sa poussée (anéantissement
+  // partiel ≠ campement éternel). Hors armée, l'excédent garde les objectifs
+  // T-A (chasse/exploration) — D3, seul le détachement part en campagne.
+  const campagne = ennemis.size > 0 ? cibleCampagne(state, playerId) : null;
+  const armee = campagne ? assignerArmee(state, playerId, profile, campagne) : new Set<string>();
+  const membresArmee = campagne
+    ? Object.values(state.units).filter((u) => u.owner === playerId && armee.has(u.id) && !u.aboard)
+    : [];
+
   for (const unit of mine) {
     const stats = UNIT_TYPES[unit.type];
     // R-117 : embarquée → débarquement (émission).
@@ -607,9 +846,16 @@ export function assignerObjectifs(
       continue;
     }
 
+    // BOT-ARMEE · siège actif : membre d'armée, campagne complète → la
+    // garnison ennemie est prioritaire (voir ciblesAttaquables).
+    const enSiege =
+      campagne !== null && armee.has(unit.id) &&
+      membresArmee.filter((m) => dist(state, m, campagne) <= profile.rayonRalliement).length >=
+        Math.min(profile.tailleArmee, membresArmee.length);
+
     // ② attaquer une cible adjacente au rapport favorable.
     const sAtt = forceAttaque(unit);
-    const cibles = ciblesAttaquables(state, unit, playerId, ennemis)
+    const cibles = ciblesAttaquables(state, unit, playerId, ennemis, enSiege)
       .filter((c) => sAtt > 0 && sAtt >= profile.ratioAttaqueMin * c.sDef)
       .sort((a, b) => b.priorite - a.priorite || a.sDef - b.sDef || a.hex.q - b.hex.q || a.hex.r - b.hex.r);
     if (cibles.length > 0) {
@@ -618,8 +864,10 @@ export function assignerObjectifs(
     }
 
     // D2 : menace défavorable — repli d'un pas vers la ville propre la plus
-    // proche (ou tenir sur place si déjà en ville).
-    if (menace) {
+    // proche (ou tenir sur place si déjà en ville). EXCEPTION BOT-ARMEE : un
+    // membre de l'armée NE REPLIE PAS — il presse le siège (rallier/
+    // offensiver, plus bas) ; sans cela l'assaut ne part jamais.
+    if (menace && !armee.has(unit.id)) {
       const ici = surVillePropre(state, unit, playerId);
       if (ici) {
         objectifs.set(unit.id, { kind: 'garnison', cityId: ici.id });
@@ -656,16 +904,18 @@ export function assignerObjectifs(
       }
     }
 
-    // BOT-TC · D2 : en guerre, les armées excédentaires MARCHENT vers la
-    // capitale ennemie — PRIORITAIRE sur la chasse aux barbares (une armée
-    // qui traque les camps n'arrive jamais) et sur l'exploration ; les
-    // cibles adjacentes (② ) restent prises en route par la re-assignation.
-    if (estCombattante(unit) && ennemis.size > 0) {
-      const capitale = cibleOffensive(state, playerId);
-      if (capitale) {
-        objectifs.set(unit.id, { kind: 'offensiver', cible: capitale });
-        continue;
+    // BOT-ARMEE · D1/D2 : le détachement de campagne — rallier (incomplète)
+    // ou offensiver (complète) vers la ville la plus proche. Les cibles
+    // adjacentes (② ) restent prises en route par la re-assignation.
+    if (estCombattante(unit) && campagne && armee.has(unit.id)) {
+      const effectif = membresArmee.filter((m) => dist(state, m, campagne) <= profile.rayonRalliement).length;
+      const requis = Math.min(profile.tailleArmee, membresArmee.length);
+      if (effectif >= requis) {
+        objectifs.set(unit.id, { kind: 'offensiver', cible: { q: campagne.q, r: campagne.r }, cityId: campagne.cityId });
+      } else {
+        objectifs.set(unit.id, { kind: 'rallier', cible: pointRalliement(state, campagne, playerId, profile), cityId: campagne.cityId });
       }
+      continue;
     }
 
     // ④ chasser les barbares : proie la plus proche prenable (ratio
@@ -1182,7 +1432,7 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
       // D2 : repli d'un pas vers la ville propre la plus proche.
       case 'repli': {
         const cible = obj.cible ?? { q: unit.q, r: unit.r };
-        const step = pasVers(unit, state, cible);
+        const step = pasVersRoutier(unit, state, cible) ?? pasVers(unit, state, cible);
         orders.push(step ? { type: 'Move', unitId: unit.id, path: [step] } : { type: 'Fortify', unitId: unit.id });
         break;
       }
@@ -1204,14 +1454,45 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
         }
         break;
       }
-      // ④ chasse / BOT-TC offensive capitale / BOT-EXPLORATION patrouille /
-      // ⑤ exploration : un pas déterministe vers la cible.
+      // ④ chasse / BOT-EXPLORATION patrouille / ⑤ exploration : un pas
+      // déterministe vers la cible.
       case 'chasser':
-      case 'offensiver':
       case 'patrouiller':
       case 'explorer': {
         const step = obj.cible ? pasVers(unit, state, obj.cible) : null;
         orders.push(step ? { type: 'Move', unitId: unit.id, path: [step] } : { type: 'Hold', unitId: unit.id });
+        break;
+      }
+      // BOT-ARMEE · marche offensive : pas ROUTIER (BFS — contourne l'eau et
+      // les obstacles, verrou de circulation consigné), repli glouton ; un pas
+      // SEULEMENT s'il réduit la distance — au contact bloqué, tenir plutôt
+      // qu'osciller.
+      case 'offensiver': {
+        if (!obj.cible) {
+          orders.push({ type: 'Hold', unitId: unit.id });
+          break;
+        }
+        const step = pasVersRoutier(unit, state, obj.cible) ?? pasVers(unit, state, obj.cible);
+        if (step && dist(state, step, obj.cible) < dist(state, unit, obj.cible)) {
+          orders.push({ type: 'Move', unitId: unit.id, path: [step] });
+        } else {
+          orders.push({ type: 'Hold', unitId: unit.id });
+        }
+        break;
+      }
+      // BOT-ARMEE · D1 : rassemblement — déjà DANS l'anneau de ralliement
+      // (dist ≤ rayonRalliement de la cible) → campement (Fortify) ; sinon un
+      // pas déterministe vers le point de ralliement. (Le point exact se
+      // déplace dès qu'il est occupé : c'est l'anneau qui fait foi, pas la
+      // case — sinon l'armée orbite sans jamais camper.)
+      case 'rallier': {
+        const cible = obj.cible ?? { q: unit.q, r: unit.r };
+        if (dist(state, unit, cible) <= profile.rayonRalliement) {
+          orders.push({ type: 'Fortify', unitId: unit.id });
+          break;
+        }
+        const step = pasVersRoutier(unit, state, cible) ?? pasVers(unit, state, cible);
+        orders.push(step ? { type: 'Move', unitId: unit.id, path: [step] } : { type: 'Fortify', unitId: unit.id });
         break;
       }
       default:

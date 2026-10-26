@@ -753,6 +753,19 @@ export interface BotProfileData {
   chanceAccepteFaible: number;
   /** D3 · après cette DURÉE de guerre, la paix est acceptée systématiquement. */
   toursPaixMin: number;
+  // --- BOT-ARMEE (Erik 26/10) — l'armée et la campagne. ---
+  /** D1 · taille de l'ARMÉE offensive : la campagne n'attaque la cible
+   *  qu'une fois cet effectif rassemblé au point de ralliement. */
+  tailleArmee: number;
+  /** D1 · distance de rassemblement à la cible de campagne (le campement se
+   *  tient à ce rayon ; l'assaut part quand l'effectif y est). */
+  rayonRalliement: number;
+  /** BOT-ARMEE D6 · modulation du seuil de guerre par l'agressivité de la
+   *  civ : seuil effectif = seuilRatioGuerre × (1 + mod × (1 − 2 ×
+   *  agressivite)) — les agressives (agressivite > 0,5) abaissent leur seuil
+   *  (attaquent des voisins égaux), les pacifiques le relèvent (exigent
+   *  l'écrasement). 0 = neutre. */
+  modulationSeuilAgressivite: number;
 }
 
 /** BOT-TB · D1-D4 — arbitres économiques du bot (bot.json, partagés par les

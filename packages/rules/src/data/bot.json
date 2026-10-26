@@ -30,7 +30,7 @@
   "profiles": {
     "facile": {
       "seuilSoinPv": 2,
-      "ratioAttaqueMin": 0.6,
+      "ratioAttaqueMin": 0.45,
       "garnisonsParVille": 1,
       "garnisonsCapitale": 1,
       "unitesAvantRenfort": 3,
@@ -43,11 +43,14 @@
       "delaiEntreGuerres": 30,
       "seuilRatioPaix": 0.5,
       "chanceAccepteFaible": 0.6,
-      "toursPaixMin": 20
+      "toursPaixMin": 20,
+      "tailleArmee": 4,
+      "rayonRalliement": 2,
+      "modulationSeuilAgressivite": 0.7
     },
     "normal": {
       "seuilSoinPv": 2,
-      "ratioAttaqueMin": 0.8,
+      "ratioAttaqueMin": 0.5,
       "garnisonsParVille": 1,
       "garnisonsCapitale": 2,
       "unitesAvantRenfort": 3,
@@ -60,11 +63,14 @@
       "delaiEntreGuerres": 20,
       "seuilRatioPaix": 0.6,
       "chanceAccepteFaible": 0.75,
-      "toursPaixMin": 12
+      "toursPaixMin": 12,
+      "tailleArmee": 6,
+      "rayonRalliement": 2,
+      "modulationSeuilAgressivite": 0.7
     },
     "difficile": {
       "seuilSoinPv": 3,
-      "ratioAttaqueMin": 1,
+      "ratioAttaqueMin": 0.55,
       "garnisonsParVille": 2,
       "garnisonsCapitale": 3,
       "unitesAvantRenfort": 3,
@@ -77,7 +83,10 @@
       "delaiEntreGuerres": 12,
       "seuilRatioPaix": 0.7,
       "chanceAccepteFaible": 0.85,
-      "toursPaixMin": 8
+      "toursPaixMin": 8,
+      "tailleArmee": 8,
+      "rayonRalliement": 2,
+      "modulationSeuilAgressivite": 0.7
     }
   }
 }

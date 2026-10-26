@@ -118,7 +118,11 @@ describe('BOT-TC · D1 — décision de déclaration de guerre', () => {
       ],
       turn: profile.tourMinGuerre - 1,
     });
-    expect(deciderGuerre(s, ME, profile, createRng(7), 1)).toBeNull();
+    // BOT-ARMEE D6 : le seuil est modulé par l'agressivité (une civ
+    // agressive attaque des voisins ÉGAUX) — on teste le blocage au seuil à
+    // agressivité NEUTRE (0,5 ⇒ seuil non modulé, miroir du comportement
+    // historique).
+    expect(deciderGuerre(s, ME, profile, createRng(7), 0.5)).toBeNull();
   });
 
   it('pas de guerre si le rapport de forces est sous le seuil', () => {
@@ -135,7 +139,11 @@ describe('BOT-TC · D1 — décision de déclaration de guerre', () => {
         { id: 'c2', owner: AUTRE, q: 6, r: 2 },
       ],
     });
-    expect(deciderGuerre(s, ME, profile, createRng(7), 1)).toBeNull();
+    // BOT-ARMEE D6 : le seuil est modulé par l'agressivité (une civ
+    // agressive attaque des voisins ÉGAUX) — on teste le blocage au seuil à
+    // agressivité NEUTRE (0,5 ⇒ seuil non modulé, miroir du comportement
+    // historique).
+    expect(deciderGuerre(s, ME, profile, createRng(7), 0.5)).toBeNull();
   });
 
   it('guerre si forces, tour et tirage favorable — même seed ⇒ même décision', () => {
@@ -190,7 +198,11 @@ describe('BOT-TC · D1 — décision de déclaration de guerre', () => {
       ],
     });
     s.diplomacy.dernieresGuerres = { [ME]: s.turn - profile.delaiEntreGuerres + 1 };
-    expect(deciderGuerre(s, ME, profile, createRng(7), 1)).toBeNull();
+    // BOT-ARMEE D6 : le seuil est modulé par l'agressivité (une civ
+    // agressive attaque des voisins ÉGAUX) — on teste le blocage au seuil à
+    // agressivité NEUTRE (0,5 ⇒ seuil non modulé, miroir du comportement
+    // historique).
+    expect(deciderGuerre(s, ME, profile, createRng(7), 0.5)).toBeNull();
     s.diplomacy.dernieresGuerres = { [ME]: s.turn - profile.delaiEntreGuerres };
     expect(deciderGuerre(s, ME, profile, createRng(7), 1)).toBe(AUTRE);
   });
