@@ -85,8 +85,7 @@ export function simulerPartie(difficulte: BotDifficulte, seed: number, tours = B
             guerres++;
           }
         } else if (action.type === 'ProposePeace') {
-          const rngPaix = createRng(botTurnSeed(seedPartie, state.turn, `paix:${action.player}`));
-          const accepte = deciderPaix(state, action.player, id, profileDuBot(difficulte), rngPaix);
+          const accepte = deciderPaix(state, action.player, id, profileDuBot(difficulte));
           const r = applyProposePeace(state, id, action.player, accepte);
           if (r.ok) {
             state = r.state;

@@ -32,7 +32,7 @@ const ME: PlayerId = 'p2';
 const AUTRE: PlayerId = 'p1';
 
 function state(opts: {
-  units?: Array<{ id: string; type: string; owner: string; q: number; r: number }>;
+  units?: Array<{ id: string; type: string; owner: string; q: number; r: number; isArmy?: boolean }>;
   cities?: Array<Partial<City> & { id: string; owner: string; q: number; r: number }>;
 }): GameState {
   const s = makeState({
@@ -266,12 +266,16 @@ describe('BOT-ARMEE · D1 — objectifs : rallier avant d’offensiver', () => {
     expect(kinds).not.toContain('offensiver');
   });
 
-  it('armée complète (effectif au rayon de ralliement) : les membres OFFENSIVENT vers la cible', () => {
+  it('armée au contact (armées formées, PAIX-RYTHME D1) : le trio FUSIONNE et l’ARMÉE offensive/assaut', () => {
+    // PAIX-RYTHME (Erik 27/10) : au siège, le trio homogène FUSE d'abord
+    // (canon R-31 — converger/fusionner) ; l'ARMÉE formée, elle, marche et
+    // frappe (offensiver/attaquer).
     const s = state({
       cities,
       units: [
         { id: 'g1', type: 'guerrier', owner: ME, q: 2, r: 2 },
-        { id: 'g2', type: 'guerrier', owner: ME, q: 7, r: 1 },
+        { id: 'g2', type: 'guerrier', owner: ME, q: 2, r: 2 },
+        { id: 'g3', type: 'guerrier', owner: ME, q: 2, r: 2 },
         { id: 'e1', type: 'piquier', owner: AUTRE, q: 8, r: 2 }, // garnison ennemie
         { id: 'u1', type: 'guerrier', owner: ME, q: 6, r: 2 },
         { id: 'u2', type: 'guerrier', owner: ME, q: 7, r: 2 },
@@ -279,10 +283,31 @@ describe('BOT-ARMEE · D1 — objectifs : rallier avant d’offensiver', () => {
       ],
     });
     const objs = assignerObjectifs(s, ME, NORMAL);
-    for (const id of ['u1', 'u2', 'u3']) {
-      expect(objs.get(id)?.kind, id).toBe('offensiver');
-      expect(objs.get(id)?.cible).toEqual({ q: 8, r: 2 });
+    const rdv = { q: 7, r: 2 }; // hex du membre le plus proche de la cible (u2)
+    expect(objs.get('u2')?.kind, 'u2').toBe('fusionner');
+    expect(objs.get('u1')?.kind, 'u1').toBe('converger');
+    expect(objs.get('u3')?.kind, 'u3').toBe('converger');
+    for (const id of ['u1', 'u3']) {
+      expect(objs.get(id)?.cible, id).toEqual(rdv);
     }
+    // L'armée FORMÉE (post-fusion) offensive : même état, l'entité isArmy.
+    const s2 = state({
+      cities,
+      units: [
+        { id: 'h1', type: 'guerrier', owner: ME, q: 2, r: 2 },
+        { id: 'h2', type: 'guerrier', owner: ME, q: 2, r: 2 },
+        { id: 'a1', type: 'guerrier', owner: ME, q: 7, r: 2, isArmy: true },
+        { id: 'a2', type: 'guerrier', owner: ME, q: 7, r: 3, isArmy: true },
+      ],
+    });
+    const objs2 = assignerObjectifs(s2, ME, NORMAL);
+    // ville ennemie vide adjacente → ASSAUT (capture, priorite 3).
+    expect(objs2.get('a1')?.kind, 'a1').toBe('attaquer');
+    expect(objs2.get('a1')?.cible, 'a1').toEqual({ q: 8, r: 2 });
+    // a2, adjacente elle aussi, participe à l'assaut (deux armées = deux
+    // entités canon — la ville vide est prise par la première entrée).
+    expect(objs2.get('a2')?.kind, 'a2').toBe('attaquer');
+    expect(objs2.get('a2')?.cible, 'a2').toEqual({ q: 8, r: 2 });
   });
 
   it('D3 : l’excédentaire HORS armée ne part pas en campagne (chasse/exploration)', () => {
@@ -349,19 +374,19 @@ describe('BOT-ARMEE · émission des ordres', () => {
     expect(o2?.type).toBe('Move');
   });
 
-  it('armée complète, ville ennemie vide au contact → ASSAUT (Attack)', () => {
+  it('armée FORMÉE au contact, ville ennemie vide au contact → ASSAUT (Attack)', () => {
+    // PAIX-RYTHME D1 : l'assaut est porté par l'ARMÉE (isArmy, canon R-31) ;
+    // le trio non formé fusionne d'abord (voir test objectifs).
     const s = state({
       cities,
       units: [
-        { id: 'g1', type: 'guerrier', owner: ME, q: 2, r: 2 },
-        { id: 'g2', type: 'guerrier', owner: ME, q: 2, r: 2 },
-        { id: 'u1', type: 'guerrier', owner: ME, q: 6, r: 2 },
-        { id: 'u2', type: 'guerrier', owner: ME, q: 7, r: 2 },
-        { id: 'u3', type: 'guerrier', owner: ME, q: 7, r: 3 },
+        { id: 'h1', type: 'guerrier', owner: ME, q: 2, r: 2 },
+        { id: 'h2', type: 'guerrier', owner: ME, q: 2, r: 2 },
+        { id: 'a1', type: 'guerrier', owner: ME, q: 7, r: 2, isArmy: true },
       ],
     });
     const plan = botPolicy(s, ME, rngFaux());
-    const o = plan.orders.find((x) => 'unitId' in x && x.unitId === 'u2');
+    const o = plan.orders.find((x) => 'unitId' in x && x.unitId === 'a1');
     expect(o?.type).toBe('Attack');
     if (o?.type === 'Attack') {
       expect(o.target).toEqual({ q: 8, r: 2 });

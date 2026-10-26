@@ -38,6 +38,7 @@
  * rush du helper moteur `rushBuyCostOf`. Parcours déterministes R-81.
  */
 import {
+  ARMY_SIZE,
   BARBARIAN_ID,
   BOT_SETTINGS,
   BUILDINGS,
@@ -54,6 +55,7 @@ import {
   agressiviteDe,
   allKnownTechs,
   areAtWar,
+  bataillesDe,
   canSetProduction,
   compareCityIds,
   compareUnitIds,
@@ -405,15 +407,21 @@ export function forcesDe(state: GameState, playerId: PlayerId): number {
   return total;
 }
 
-/** D2 · Voisin le plus FAIBLE : joueurs actifs ≠ moi, hors barbares, pas
- *  déjà en guerre, possédant une ville — tri (forces croissantes, distance
- *  wrap entre capitales, id) R-81. Null si aucun candidat. */
-export function cibleGuerre(state: GameState, me: PlayerId): PlayerId | null {
-  const maCapitale = Object.values(state.cities).find((c) => c.owner === me && c.capital)
-    ?? Object.values(state.cities).find((c) => c.owner === me);
+/** D2 · Voisin le plus FAIBLE PARMI LES PROCHES (PAIX-RYTHME, Erik 27/10) :
+ *  score = forces × (1 + poidsDistanceCibleGuerre × distance wrap entre
+ *  capitales) — le poids affine sans renverser l'échelle des forces. Joueurs
+ *  actifs ≠ moi, hors barbares, pas déjà en guerre, avec ville — tri (score,
+ *  forces, distance, id) R-81. Null si aucun candidat. */
+export function cibleGuerre(state: GameState, me: PlayerId, profile?: BotProfileData): PlayerId | null {
+  const prof = profile ?? BOT_SETTINGS.profiles[BOT_SETTINGS.profil] ?? Object.values(BOT_SETTINGS.profiles)[0]!;
+  return cibleGuerrePonderee(state, me, prof, candidatsGuerre(state, me));
+}
+
+/** Candidats à la déclaration (miroir de l'ancien filtre de cibleGuerre). */
+function candidatsGuerre(state: GameState, me: PlayerId): PlayerId[] {
   const actifs = new Set(activePlayerIds(state));
   const ennemis = ennemisDe(state, me);
-  const candidates = Object.values(state.players)
+  return Object.values(state.players)
     .filter(
       (p) =>
         p.id !== me &&
@@ -423,18 +431,45 @@ export function cibleGuerre(state: GameState, me: PlayerId): PlayerId | null {
         p.defeated !== true &&
         Object.values(state.cities).some((c) => c.owner === p.id),
     )
-    .sort((a, b) => {
-      const fa = forcesDe(state, a.id);
-      const fb = forcesDe(state, b.id);
-      if (fa !== fb) return fa - fb;
-      const ca = Object.values(state.cities).find((c) => c.owner === a.id)!;
-      const cb = Object.values(state.cities).find((c) => c.owner === b.id)!;
-      const da = maCapitale ? dist(state, maCapitale, ca) : 0;
-      const db = maCapitale ? dist(state, maCapitale, cb) : 0;
-      if (da !== db) return da - db;
-      return a.id < b.id ? -1 : 1;
-    });
-  return candidates[0]?.id ?? null;
+    .map((p) => p.id)
+    .sort((a, b) => (a < b ? -1 : 1));
+}
+
+/** Capitale effective (capitale, sinon première ville — triée R-81). */
+function capitaleDe(state: GameState, me: PlayerId): { q: number; r: number } | null {
+  const villes = Object.values(state.cities)
+    .filter((c) => c.owner === me)
+    .sort((a, b) => (a.capital !== b.capital ? (a.capital ? -1 : 1) : compareCityIds(a.id, b.id)));
+  const c = villes[0];
+  return c ? { q: c.q, r: c.r } : null;
+}
+
+/**
+ * PAIX-RYTHME · D2 — la cible PONDÉRÉE parmi les candidats donnés (guerre à
+ * déclarer : hors guerre ; campagne : ennemis en guerre). score = forces ×
+ * (1 + poids × dist(capitales)) ; tri (score, forces, dist, id) R-81. Pur.
+ */
+export function cibleGuerrePonderee(
+  state: GameState,
+  me: PlayerId,
+  profile: BotProfileData,
+  candidats: PlayerId[],
+): PlayerId | null {
+  const maCapitale = capitaleDe(state, me);
+  const scores = candidats.map((id) => {
+    const forces = forcesDe(state, id);
+    const sesVilles = Object.values(state.cities)
+      .filter((c) => c.owner === id)
+      .sort((a, b) => compareCityIds(a.id, b.id));
+    const saCapitale =
+      sesVilles.find((c) => c.capital) ?? sesVilles[0];
+    const d = maCapitale && saCapitale ? dist(state, maCapitale, saCapitale) : 0;
+    return { id, forces, d, score: forces * (1 + profile.poidsDistanceCibleGuerre * d) };
+  });
+  scores.sort(
+    (a, b) => a.score - b.score || a.forces - b.forces || a.d - b.d || (a.id < b.id ? -1 : 1),
+  );
+  return scores[0]?.id ?? null;
 }
 
 /**
@@ -465,7 +500,7 @@ export function deciderGuerre(
   if (state.turn < profile.tourMinGuerre) return null;
   const derniere = state.diplomacy.dernieresGuerres?.[me];
   if (derniere !== undefined && state.turn - derniere < profile.delaiEntreGuerres) return null;
-  const cible = cibleGuerre(state, me);
+  const cible = cibleGuerre(state, me, profile);
   if (!cible) return null;
   const mesForces = forcesDe(state, me);
   if (mesForces <= 0) return null;
@@ -476,24 +511,28 @@ export function deciderGuerre(
 }
 
 /**
- * D3 · Décision de PAIX du joueur `decideur` face au proposeur : accepte si
- * la guerre dure ≥ toursPaixMin, ou si son rapport de forces est INFÉRIEUR
- * au seuil (écrasé) ET que le tirage seedé passe (chanceAccepteFaible).
- * Sinon refuse (crédibilité T1). Pur, déterministe (RNG dédié).
+ * D3 · PAIX-RYTHME (Erik 27/10) — Décision de PAIX du joueur `decideur` face
+ * au proposeur, DÉTERMINISTE (chanceAccepteFaible ABROGÉE — jamais
+ * déclenchée en 1581 occasions, et le re-tirage par proposition est banni) :
+ *   - guerre JAMAIS bataillée (0 bataille comptée) et durée ≥ toursPaixMin
+ *     → paix administrative (les guerres vides se ferment au rythme min) ;
+ *   - durée ≥ toursPaixGagnant × toursPaixMin → paix du GAGNANT (tout côté
+ *     accepte ; les propositions répétées du perdant reçoivent toujours la
+ *     même réponse — aucune usure, aucun tirage) ;
+ *   - sinon refuse (crédibilité T1, la guerre vivante continue).
+ * Pur.
  */
 export function deciderPaix(
   state: GameState,
   decideur: PlayerId,
   proposeur: PlayerId,
   profile: BotProfileData,
-  rng: SeededRng,
 ): boolean {
   if (!areAtWar(state, decideur, proposeur)) return false;
-  if (dureeGuerre(state, decideur, proposeur) >= profile.toursPaixMin) return true;
-  const mesForces = forcesDe(state, decideur);
-  const sesForces = forcesDe(state, proposeur);
-  if (sesForces <= 0 || mesForces >= profile.seuilRatioPaix * sesForces) return false;
-  return rng.next() < profile.chanceAccepteFaible;
+  const duree = dureeGuerre(state, decideur, proposeur);
+  if (duree >= profile.toursPaixGagnant * profile.toursPaixMin) return true;
+  if (bataillesDe(state, decideur, proposeur) === 0 && duree >= profile.toursPaixMin) return true;
+  return false;
 }
 
 /** D2 · La capitale ennemie la plus proche de `me` (de SA capitale) :
@@ -524,28 +563,47 @@ export function cibleOffensive(state: GameState, me: PlayerId): { q: number; r: 
 // garnisons/patrouilles/économie T-A/T-B inchangées.
 // ---------------------------------------------------------------------------
 
-/** D2 · Cible de campagne : ville ennemie (en guerre, hors barbares) la plus
- *  PROCHE de ma capitale — tri (distance wrap, id) R-81. Null sans guerre. */
+/** D2 · Cible de campagne = la cible de GUERRE (PAIX-RYTHME, Erik 27/10) :
+ *  parmi les ennemis en guerre (hors barbares) la cible pondérée (D2), puis
+ *  SA ville la plus proche de ma capitale — tri (distance wrap, id) R-81.
+ *  Null sans guerre. */
 export function cibleCampagne(
   state: GameState,
   me: PlayerId,
+  profile?: BotProfileData,
 ): { q: number; r: number; cityId: string } | null {
   const ennemis = ennemisDe(state, me);
-  const maCapitale = Object.values(state.cities).find((c) => c.owner === me && c.capital)
-    ?? Object.values(state.cities).find((c) => c.owner === me);
+  const prof = profile ?? BOT_SETTINGS.profiles[BOT_SETTINGS.profil] ?? Object.values(BOT_SETTINGS.profiles)[0]!;
+  const enGuerre = [...ennemis].filter(
+    (id) => !isBarbarian(id) && Object.values(state.cities).some((c) => c.owner === id),
+  );
+  const cible = cibleGuerrePonderee(state, me, prof, enGuerre);
+  if (!cible) return null;
+  const maCapitale = capitaleDe(state, me);
   const origine = maCapitale ?? { q: 0, r: 0 };
   const villes = Object.values(state.cities)
-    .filter((c) => c.owner !== me && !isBarbarian(c.owner) && ennemis.has(c.owner))
+    .filter((c) => c.owner === cible)
     .sort((a, b) => dist(state, origine, a) - dist(state, origine, b) || compareCityIds(a.id, b.id));
   const v = villes[0];
   return v ? { q: v.q, r: v.r, cityId: v.id } : null;
 }
 
-/** D1 · Pool EXCÉDENTAIRE : les combattantes terrestres qui restent APRÈS le
- *  remplissage de garnison (miroir de la boucle d'assignation — même tri,
- *  même choix de ville, quota dynamique BOT-EXPLORATION). Le scout hors
- *  urgence n'est jamais du pool (il patrouille, D1). Pur, déterministe. */
-export function poolExcedentaire(state: GameState, me: PlayerId, profile: BotProfileData): Unit[] {
+/**
+ * PAIX-RYTHME · conscription de garnison par appariement GLOBAL : répéter
+ * tant qu'une ville manque, en brouillant le couple (ville, unité) AU PLUS
+ * PRES — l'ancien parcours par ordre d'id rappelait les MARCHEURS de
+ * campagne (premiers ids traités) pendant que les recrues à domicile
+ * restaient chez elles, et l'armée se vidait en marche (sonde 27/10 :
+ * effectif au rayon plafonné à 1-2, fusion impossible). Les défenseurs EN
+ * PLACE ne sont jamais brouillés (D3 : garnisons stables) ; le scout hors
+ * urgence part en patrouille (pool). Pur, déterministe (R-81 : tie cityId
+ * puis unitId).
+ */
+export function planGarnison(
+  state: GameState,
+  me: PlayerId,
+  profile: BotProfileData,
+): { drafts: Map<string, string>; pool: Unit[] } {
   const mine = Object.values(state.units)
     .filter((u) => u.owner === me)
     .sort((a, b) => compareUnitIds(a.id, b.id)); // R-81
@@ -578,25 +636,69 @@ export function poolExcedentaire(state: GameState, me: PlayerId, profile: BotPro
       if (u.id !== scoutId && estCombattante(u) && u.q === c.q && u.r === c.r) enPlace.add(u.id);
     }
   }
-  const pool: Unit[] = [];
-  for (const unit of mine) {
-    if (!estCombattante(unit)) continue;
-    if (enPlace.has(unit.id)) continue;
-    if (capitale && !urgence && scoutId === unit.id) {
-      pool.push(unit);
-      continue;
-    }
-    const manque = myCities.filter((c) => (defenseurs.get(c.id) ?? 0) < besoinDe(c));
-    if (manque.length > 0) {
-      const cible = manque
-        .slice()
-        .sort((a, b) => dist(state, unit, a) - dist(state, unit, b) || compareCityIds(a.id, b.id))[0]!;
-      defenseurs.set(cible.id, (defenseurs.get(cible.id) ?? 0) + 1);
-    } else {
-      pool.push(unit);
+  // BOT-EXPLORATION : hors urgence le scout n'est ni brouillé ni poolé ici
+  // (patrouille — rajouté au pool plus bas) ; en guerre/urgence il est
+  // mobilisable comme les autres (rappel D3).
+  const disponibles = mine.filter(
+    (u) => estCombattante(u) && !enPlace.has(u.id) && (urgence || u.id !== scoutId),
+  );
+  const brouillon = myCities
+    .map((c) => ({ ville: c, n: besoinDe(c) - (defenseurs.get(c.id) ?? 0) }))
+    .filter((b) => b.n > 0);
+  if (process.env.DBG_GARN) console.log('[garn] urgence', urgence, 'quotaCap', quotaCap, 'brouillon', brouillon.map((b) => `${b.ville.id}:${b.n}`), 'dispo', disponibles.map((u) => u.id));
+  const drafts = new Map<string, string>();
+  // BOT-EXPLORATION D3 : à l'URGENCE, le scout RENTRE — brouillé d'office
+  // sur la capitale si elle manque (canon du rappel immédiat).
+  if (urgence && scoutId) {
+    const cap = myCities[0];
+    const entree = cap ? brouillon.find((b) => b.ville.id === cap.id) : undefined;
+    if (entree && entree.n > 0) {
+      drafts.set(scoutId, cap!.id);
+      entree.n -= 1;
     }
   }
-  return pool;
+  // Appariement global : villes en ordre canonique (capitale d'abord —
+  // canon T-A), puis pour chacune les unités AU PLUS PRES (tie unitId —
+  // R-81). Les recrues à domicile comblent ainsi leur ville pendant que les
+  // marcheurs de campagne continuent leur route.
+  // PAIX-RYTHME : une unité AU CONTACT d'une ville ennemie (dist ≤
+  // rayonRalliement — elle assiège) n'est brouillée qu'en DERNIER recours :
+  // la distance effective la relègue derrière toute recrue disponible
+  // (déterministe, R-81).
+  const villesEnnemies = Object.values(state.cities).filter((c) => c.owner !== me && !isBarbarian(c.owner));
+  const auContactEnnemi = (u: Unit): boolean =>
+    villesEnnemies.some((c) => dist(state, u, c) <= profile.rayonRalliement);
+  for (const b of brouillon) {
+    for (let k = 0; k < b.n; k++) {
+      let best: Unit | null = null;
+      let bestD = Infinity;
+      for (const u of disponibles) {
+        if (drafts.has(u.id)) continue;
+        const d = dist(state, u, b.ville) + (auContactEnnemi(u) ? 1000 : 0);
+        if (d < bestD || (d === bestD && best && compareUnitIds(u.id, best.id) < 0)) {
+          bestD = d;
+          best = u;
+        }
+      }
+      if (!best) break;
+      drafts.set(best.id, b.ville.id);
+    }
+  }
+  const pool = disponibles.filter((u) => !drafts.has(u.id));
+  // BOT-EXPLORATION D1 : hors urgence, le scout PATROUILLE — il est du pool
+  // (jamais brouillé ci-dessus), l'urgence le rappelle via le quota plein.
+  if (capitale && !urgence && scoutId) {
+    const scout = mine.find((u) => u.id === scoutId);
+    if (scout) pool.push(scout);
+  }
+  return { drafts, pool };
+}
+
+/** D1 · Pool EXCÉDENTAIRE : les combattantes terrestres qui restent APRÈS le
+ *  remplissage de garnison (planGarnison — appariement global au plus près,
+ *  PAIX-RYTHME). Pur, déterministe. */
+export function poolExcedentaire(state: GameState, me: PlayerId, profile: BotProfileData): Unit[] {
+  return planGarnison(state, me, profile).pool;
 }
 
 /** D1 · Les `tailleArmee` unités excédentaires LES PLUS PROCHES de la cible
@@ -619,38 +721,102 @@ export function assignerArmee(
   );
 }
 
-/** D1 · Point de RALLIEMENT : case praticable libre (pas d'unité, pas de
- *  ville) à exactement `rayonRalliement` de la cible, la plus proche de MA
- *  capitale (l'armée arrive du côté chez elle), tie-break clé croissant
- *  (R-81). Repli : la cible elle-même (île sans rivage praticable 🔶). */
+/** D1 · Les hex de l'ANNEAU de ralliement : cases praticables (hors villes)
+ *  à exactement `rayonRalliement` de la cible, triées (distance à MA
+ *  capitale, q, r — R-81). L'anneau est GÉOMÉTRIQUE — SANS exclusion des
+ *  cases occupées : la liste doit rester STABLE d'un tour à l'autre (une
+ *  case occupée par un co-membre fait déjà partie du rassemblement) ; un
+ *  arrivant bloqué s'arrête juste devant (R-30). Pur, déterministe. */
+export function anneauRalliement(
+  state: GameState,
+  cible: { q: number; r: number },
+  me: PlayerId,
+  profile: BotProfileData,
+): Array<{ q: number; r: number }> {
+  const maCapitale = Object.values(state.cities).find((c) => c.owner === me && c.capital)
+    ?? Object.values(state.cities).find((c) => c.owner === me);
+  const origine = maCapitale ?? { q: 0, r: 0 };
+  const villes = Object.values(state.cities);
+  const out: Array<{ q: number; r: number; d: number }> = [];
+  for (const [key, tile] of Object.entries(state.map)) {
+    const parts = key.split(',');
+    const hex = { q: Number(parts[0]), r: Number(parts[1]) };
+    if (hexDistanceW(hex, cible, state.mapWidth) !== profile.rayonRalliement) continue;
+    if (!TERRAINS[tile.terrain]?.passable) continue;
+    if (villes.some((c) => c.q === hex.q && c.r === hex.r)) continue;
+    out.push({ q: hex.q, r: hex.r, d: dist(state, hex, origine) });
+  }
+  return out
+    .sort((a, b) => a.d - b.d || a.q - b.q || a.r - b.r)
+    .map((h) => ({ q: h.q, r: h.r }));
+}
+
+/** D1 · Point de RALLIEMENT : la TÊTE de l'anneau (PAIX-RYTHME : le
+ *  ralliement est RÉPARTI sur l'anneau — voir anneauRalliement). Repli : la
+ *  cible elle-même (île sans rivage praticable 🔶). */
 export function pointRalliement(
   state: GameState,
   cible: { q: number; r: number },
   me: PlayerId,
   profile: BotProfileData,
 ): { q: number; r: number } {
-  const maCapitale = Object.values(state.cities).find((c) => c.owner === me && c.capital)
-    ?? Object.values(state.cities).find((c) => c.owner === me);
-  const origine = maCapitale ?? { q: 0, r: 0 };
-  const villes = Object.values(state.cities);
-  let best: { q: number; r: number } | null = null;
-  let bestD = Infinity;
-  for (const [key, tile] of Object.entries(state.map)) {
-    const parts = key.split(',');
-    const hex = { q: Number(parts[0]), r: Number(parts[1]) };
-    if (hexDistanceW(hex, cible, state.mapWidth) !== profile.rayonRalliement) continue;
-    if (!TERRAINS[tile.terrain]?.passable) continue;
-    if (unitAtHex(state, hex.q, hex.r)) continue;
-    if (villes.some((c) => c.q === hex.q && c.r === hex.r)) continue;
-    const d = dist(state, hex, origine);
-    // Tie-break NUMÉRIQUE (q, r) croissants : le tie lexicographique de clé
-    // casse le côté avec le wrap (carte ronde — « 10,x » < « 6,x »).
-    if (d < bestD || (d === bestD && best && (hex.q < best.q || (hex.q === best.q && hex.r < best.r)))) {
-      bestD = d;
-      best = hex;
+  return anneauRalliement(state, cible, me, profile)[0] ?? { q: cible.q, r: cible.r };
+}
+
+/**
+ * PAIX-RYTHME (Erik 27/10, D1 — CANON R-31) · Groupes de FUSION de siège :
+ * parmi les membres de l'armée AU RAYON de la campagne, les trios HOMOGÈNES
+ * (même type, hors armées — une armée ne re-fusionne pas) forment des
+ * groupes ; le point de rendez-vous = l'hex du membre le plus PROCHE de la
+ * campagne (tie-break id, R-81). La fusion passe par l'ordre canon
+ * FormArmy (3 membres mêmes type, A/D somme, PV ≤ 9) — le moteur revalide.
+ * Pur, déterministe.
+ */
+export interface GroupeFusion {
+  membres: [string, string, string];
+  rdv: { q: number; r: number };
+}
+
+export function groupesFusion(
+  state: GameState,
+  me: PlayerId,
+  profile: BotProfileData,
+  campagne: { q: number; r: number } | null,
+): GroupeFusion[] {
+  if (!campagne) return [];
+  const armee = assignerArmee(state, me, profile, campagne);
+  const membres = Object.values(state.units)
+    .filter(
+      (u) =>
+        u.owner === me && !u.aboard && !u.isArmy && armee.has(u.id) &&
+        dist(state, u, campagne) <= profile.rayonRalliement,
+    )
+    .sort((a, b) => compareUnitIds(a.id, b.id)); // R-81
+  const parType = new Map<string, typeof membres>();
+  for (const u of membres) {
+    const l = parType.get(u.type) ?? [];
+    l.push(u);
+    parType.set(u.type, l);
+  }
+  const groupes: GroupeFusion[] = [];
+  // Types dans l'ordre du tri par id (déterministe) ; paquets consécutifs de 3.
+  for (const type of [...parType.keys()].sort()) {
+    const l = parType.get(type)!;
+    for (let i = 0; i + ARMY_SIZE <= l.length; i += ARMY_SIZE) {
+      const trio = l.slice(i, i + ARMY_SIZE);
+      const rdv = trio
+        .slice()
+        .sort(
+          (a, b) =>
+            dist(state, a, campagne) - dist(state, b, campagne) || compareUnitIds(a.id, b.id),
+        )[0]!;
+      groupes.push({
+        membres: [trio[0]!.id, trio[1]!.id, trio[2]!.id],
+        rdv: { q: rdv.q, r: rdv.r },
+      });
     }
   }
-  return best ?? { q: cible.q, r: cible.r };
+  return groupes;
 }
 
 // ---------------------------------------------------------------------------
@@ -669,14 +835,19 @@ export type ObjectifKind =
   | 'espion'
   | 'offensiver'
   | 'rallier'
+  | 'fusionner'
+  | 'converger'
   | 'tenir';
 
 export interface Objectif {
   kind: ObjectifKind;
-  /** Cible hexagonale (attaque, chasse, exploration, repli). */
+  /** Cible hexagonale (attaque, chasse, exploration, repli, convergence). */
   cible?: { q: number; r: number };
   /** Ville visée (garnison) ou cible d'espionnage. */
   cityId?: string;
+  /** PAIX-RYTHME D1 : membres du trio de fusion (tri id, R-81) — l'émission
+   *  porte le FormArmy depuis le premier membre. */
+  membres?: string[];
 }
 
 /** Une cible d'attaque adjacente : unité ennemie ou ville ennemie sans
@@ -794,6 +965,9 @@ export function assignerObjectifs(
     (capitale ? menaceAutourCapitale(state, capitale, playerId, ennemis, profile.rayonMenace) : false);
   const quotaCap = quotaCapitale(profile, mine.length, urgence);
   const besoinDe = (c: City): number => (c.capital ? quotaCap : besoinDeVille(c));
+  // PAIX-RYTHME · PAIX-RYTHME conscription : brouillon global (ville, unité)
+  // au plus près — miroir exact de planGarnison (le pool en est le complément).
+  const drafts = planGarnison(state, playerId, profile).drafts;
 
   // Proies barbares (R-95) : unités vivantes, triées par id (R-81) — la
   // distance est évaluée par unité chasseuse au moment du choix.
@@ -811,11 +985,19 @@ export function assignerObjectifs(
   // membres vivants) — une armée entamée garde sa poussée (anéantissement
   // partiel ≠ campement éternel). Hors armée, l'excédent garde les objectifs
   // T-A (chasse/exploration) — D3, seul le détachement part en campagne.
-  const campagne = ennemis.size > 0 ? cibleCampagne(state, playerId) : null;
+  const campagne = ennemis.size > 0 ? cibleCampagne(state, playerId, profile) : null;
   const armee = campagne ? assignerArmee(state, playerId, profile, campagne) : new Set<string>();
   const membresArmee = campagne
     ? Object.values(state.units).filter((u) => u.owner === playerId && armee.has(u.id) && !u.aboard)
     : [];
+  // PAIX-RYTHME · D1 (canon R-31) : au siège, les trios homogènes de
+  // l'armée FUSENT — la conquête passe par la mécanique canon FormArmy.
+  const fusionDe = new Map<string, GroupeFusion>();
+  if (campagne) {
+    for (const g of groupesFusion(state, playerId, profile, campagne)) {
+      for (const id of g.membres) fusionDe.set(id, g);
+    }
+  }
 
   for (const unit of mine) {
     const stats = UNIT_TYPES[unit.type];
@@ -852,6 +1034,20 @@ export function assignerObjectifs(
       campagne !== null && armee.has(unit.id) &&
       membresArmee.filter((m) => dist(state, m, campagne) <= profile.rayonRalliement).length >=
         Math.min(profile.tailleArmee, membresArmee.length);
+
+    // PAIX-RYTHME · D1 : membre d'un trio de fusion — la formation d'armée
+    // (canon R-31) passe AVANT l'attaque (Erik : former l'armée, PUIS
+    // assiéger). Co-localisé au rendez-vous → fusionner ; sinon converger.
+    const fusion = fusionDe.get(unit.id);
+    if (fusion && campagne) {
+      objectifs.set(
+        unit.id,
+        fusion.rdv.q === unit.q && fusion.rdv.r === unit.r
+          ? { kind: 'fusionner', cible: fusion.rdv, membres: fusion.membres }
+          : { kind: 'converger', cible: fusion.rdv, membres: fusion.membres },
+      );
+      continue;
+    }
 
     // ② attaquer une cible adjacente au rapport favorable.
     const sAtt = forceAttaque(unit);
@@ -891,29 +1087,40 @@ export function assignerObjectifs(
       continue;
     }
 
-    // ③ garnisonner (unités de combat terrestres seulement).
-    if (estCombattante(unit)) {
-      const manque = myCities.filter((c) => (defenseurs.get(c.id) ?? 0) < besoinDe(c));
-      if (manque.length > 0) {
-        const cible = manque
-          .slice()
-          .sort((a, b) => dist(state, unit, a) - dist(state, unit, b) || compareCityIds(a.id, b.id))[0]!;
-        defenseurs.set(cible.id, (defenseurs.get(cible.id) ?? 0) + 1);
-        objectifs.set(unit.id, { kind: 'garnison', cityId: cible.id });
-        continue;
-      }
+    // ③ garnisonner (unités de combat terrestres seulement) — PAIX-RYTHME :
+    // brouillon GLOBAL au plus près (miroir planGarnison) ; les marcheurs de
+    // campagne ne sont plus rappelés quand une recrue à domicile convient.
+    const draftVille = drafts.get(unit.id);
+    if (estCombattante(unit) && draftVille) {
+      objectifs.set(unit.id, { kind: 'garnison', cityId: draftVille });
+      continue;
     }
 
     // BOT-ARMEE · D1/D2 : le détachement de campagne — rallier (incomplète)
     // ou offensiver (complète) vers la ville la plus proche. Les cibles
     // adjacentes (② ) restent prises en route par la re-assignation.
+    // PAIX-RYTHME · ralliement RÉPARTI : chaque membre reçoit UN hex distinct
+    // de l'anneau (rang du membre — tri distance/id R-81) — le rendez-vous
+    // unique embouteillait la colonne à dist 3-5 (sonde 27/10 : 1 seul membre
+    // au rayon, l'armée empilée derrière) et la fusion n'arrivait jamais.
     if (estCombattante(unit) && campagne && armee.has(unit.id)) {
       const effectif = membresArmee.filter((m) => dist(state, m, campagne) <= profile.rayonRalliement).length;
       const requis = Math.min(profile.tailleArmee, membresArmee.length);
       if (effectif >= requis) {
         objectifs.set(unit.id, { kind: 'offensiver', cible: { q: campagne.q, r: campagne.r }, cityId: campagne.cityId });
       } else {
-        objectifs.set(unit.id, { kind: 'rallier', cible: pointRalliement(state, campagne, playerId, profile), cityId: campagne.cityId });
+        const anneau = anneauRalliement(state, campagne, playerId, profile);
+        // Rang par DISTANCE (approche du bon côté — chaque membre reçoit un
+        // hex de l'anneau dans SA direction d'arrivée), tie id (R-81).
+        const rang = membresArmee
+          .slice()
+          .sort(
+            (a, b) =>
+              dist(state, a, campagne) - dist(state, b, campagne) || compareUnitIds(a.id, b.id),
+          )
+          .findIndex((m) => m.id === unit.id);
+        const hex = anneau.length > 0 ? anneau[((rang % anneau.length) + anneau.length) % anneau.length]! : pointRalliement(state, campagne, playerId, profile);
+        objectifs.set(unit.id, { kind: 'rallier', cible: hex, cityId: campagne.cityId });
       }
       continue;
     }
@@ -1384,10 +1591,16 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
   // de durée toursPaixMin reste du côté ACCEPTATION). D1 guerre : si en
   // paix, la cible (voisin le plus faible) est tirée selon l'agressivité de
   // MA civ — la déclaration est PUBLIQUE (événement DO).
+  // PAIX-RYTHME · D3 paix : le bot propose quand il PERD (canon BOT-TC)
+  // OU pour fermer une guerre JAMAIS bataillée arrivée à terme (paix
+  // administrative — réponse déterministe de l'adversaire, plus aucun
+  // tirage : les propositions répétées n'usent personne).
   for (const e of [...ennemis].sort((a, b) => (a < b ? -1 : 1))) {
     const sesForces = forcesDe(state, e);
     const perd = sesForces > 0 && forcesDe(state, playerId) < profile.seuilRatioPaix * sesForces;
-    if (perd && deciderPaix(state, playerId, e, profile, rng)) {
+    const videTerme =
+      bataillesDe(state, playerId, e) === 0 && dureeGuerre(state, playerId, e) >= profile.toursPaixMin;
+    if ((perd || videTerme) && deciderPaix(state, e, playerId, profile)) {
       actions.push({ type: 'ProposePeace', player: e });
     }
   }
@@ -1493,6 +1706,37 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
         }
         const step = pasVersRoutier(unit, state, cible) ?? pasVers(unit, state, cible);
         orders.push(step ? { type: 'Move', unitId: unit.id, path: [step] } : { type: 'Fortify', unitId: unit.id });
+        break;
+      }
+      // PAIX-RYTHME · D1 (canon R-31) : trio co-localisé au rendez-vous —
+      // le FormArmy est porté par le PREMIER membre (ordre non unitaire) ;
+      // les autres tiennent la case.
+      case 'fusionner': {
+        if (obj.membres && obj.membres[0] === unit.id && obj.cible) {
+          orders.push({
+            type: 'FormArmy',
+            members: [obj.membres[0], obj.membres[1]!, obj.membres[2]!],
+            rally: obj.cible,
+          });
+        } else {
+          orders.push({ type: 'Hold', unitId: unit.id });
+        }
+        break;
+      }
+      // PAIX-RYTHME · D1 : convergence vers le rendez-vous — le FormArmy est
+      // émis DÈS la convergence (l'exemption R-44 autorise l'entrée sur la
+      // case de rendez-vous occupée par un co-membre).
+      case 'converger': {
+        const cible = obj.cible ?? { q: unit.q, r: unit.r };
+        if (obj.membres && obj.membres[0] === unit.id) {
+          orders.push({
+            type: 'FormArmy',
+            members: [obj.membres[0], obj.membres[1]!, obj.membres[2]!],
+            rally: cible,
+          });
+        }
+        const step = pasVersRoutier(unit, state, cible) ?? pasVers(unit, state, cible);
+        orders.push(step ? { type: 'Move', unitId: unit.id, path: [step] } : { type: 'Hold', unitId: unit.id });
         break;
       }
       default:

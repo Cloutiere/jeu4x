@@ -441,11 +441,15 @@ export interface GameState {
    *  28 inchangée) — `warsDepuis` : tour de DÉBUT de chaque guerre (clé paire
    *  canonique « a,b ») pour la durée de guerre ; `dernieresGuerres` : tour
    *  de FIN de la dernière guerre par joueur (délai entre guerres). Absents
-   *  = guerres pré-BOT-TC de durée inconnue (0). */
+   *  = guerres pré-BOT-TC de durée inconnue (0).
+   *  PAIX-RYTHME (Erik 27/10) : `batailles` — nombre d'ÉCHANGES de combat
+   *  par paire en guerre (clé canonique « a,b ») pour la paix administrative
+   *  des guerres jamais bataillées. Absent = aucune bataille. */
   diplomacy: {
     war: Array<[PlayerId, PlayerId]>;
     warsDepuis?: Record<string, number>;
     dernieresGuerres?: Record<PlayerId, number>;
+    batailles?: Record<string, number>;
   };
   /** R-96/Phase 7d : villages barbares (portés du JSON de carte vers l'état). */
   villages: BarbarianVillage[];

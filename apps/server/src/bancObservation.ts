@@ -158,8 +158,7 @@ export function simulerPartieObservee(
         } else if (action.type === 'ProposePeace') {
           const fFrom = forcesDe(state, id);
           const fOn = forcesDe(state, action.player);
-          const rngPaix = createRng(botTurnSeed(seedPartie, state.turn, `paix:${action.player}`));
-          const accepte = deciderPaix(state, action.player, id, profils, rngPaix);
+          const accepte = deciderPaix(state, action.player, id, profils);
           const r = applyProposePeace(state, id, action.player, accepte);
           if (r.ok) {
             state = r.state;

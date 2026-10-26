@@ -62,6 +62,29 @@ function cleDepuis(a: PlayerId, b: PlayerId): string {
 }
 
 /**
+ * PAIX-RYTHME (Erik 27/10, D3) · Nombre de BATAILLES de la guerre (a, b) —
+ * les échanges de combat comptés par le moteur (compterBataille). 0 si
+ * absen­t/champ pré-PAIX-RYTHME.
+ */
+export function bataillesDe(state: GameState, a: PlayerId, b: PlayerId): number {
+  return state.diplomacy.batailles?.[cleDepuis(a, b)] ?? 0;
+}
+
+/**
+ * PAIX-RYTHME (Erik 27/10, D3) · Compte UNE bataille de la guerre (a, b) —
+ * appelé par le moteur à chaque échange de combat entre deux joueurs dont la
+ * paire est dans `diplomacy.war` (les barbares n'y figurent jamais). Mute
+ * l'état MOTEUR (contexte de résolution — miroir des compteurs du board) ;
+ * champ optionnel créé à la première bataille (zéro migration).
+ */
+export function compterBataille(state: GameState, a: PlayerId, b: PlayerId): void {
+  const cle = cleDepuis(a, b);
+  const batailles = { ...state.diplomacy.batailles };
+  batailles[cle] = (batailles[cle] ?? 0) + 1;
+  state.diplomacy.batailles = batailles;
+}
+
+/**
  * BOT-TC (Erik 25/10, D3) · Durée de la guerre (a, b) en tours — 0 si la
  * guerre est inconnue/pré-BOT-TC (pas d'entrée `warsDepuis`) ou finie.
  */
@@ -105,6 +128,10 @@ export function applyProposePeace(
   const warsDepuis = { ...st.diplomacy.warsDepuis };
   delete warsDepuis[cleDepuis(a, b)];
   st.diplomacy.warsDepuis = warsDepuis;
+  // PAIX-RYTHME : le compteur de batailles repart à zéro avec la guerre.
+  const batailles = { ...st.diplomacy.batailles };
+  delete batailles[cleDepuis(a, b)];
+  st.diplomacy.batailles = batailles;
   st.diplomacy.dernieresGuerres = {
     ...st.diplomacy.dernieresGuerres,
     [a]: st.turn,

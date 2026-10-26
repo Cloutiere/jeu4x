@@ -42,8 +42,9 @@
       "facteurAgressivite": 0.6,
       "delaiEntreGuerres": 30,
       "seuilRatioPaix": 0.5,
-      "chanceAccepteFaible": 0.6,
       "toursPaixMin": 20,
+      "toursPaixGagnant": 2,
+      "poidsDistanceCibleGuerre": 0.3,
       "tailleArmee": 4,
       "rayonRalliement": 2,
       "modulationSeuilAgressivite": 0.7
@@ -62,8 +63,9 @@
       "facteurAgressivite": 1,
       "delaiEntreGuerres": 20,
       "seuilRatioPaix": 0.6,
-      "chanceAccepteFaible": 0.75,
       "toursPaixMin": 12,
+      "toursPaixGagnant": 2,
+      "poidsDistanceCibleGuerre": 0.3,
       "tailleArmee": 6,
       "rayonRalliement": 2,
       "modulationSeuilAgressivite": 0.7
@@ -82,8 +84,9 @@
       "facteurAgressivite": 1.5,
       "delaiEntreGuerres": 12,
       "seuilRatioPaix": 0.7,
-      "chanceAccepteFaible": 0.85,
       "toursPaixMin": 8,
+      "toursPaixGagnant": 2,
+      "poidsDistanceCibleGuerre": 0.3,
       "tailleArmee": 8,
       "rayonRalliement": 2,
       "modulationSeuilAgressivite": 0.7

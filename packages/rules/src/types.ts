@@ -749,10 +749,16 @@ export interface BotProfileData {
   delaiEntreGuerres: number;
   /** D3 · le bot ACCEPTE la paix si forces(moi)/forces(proposeur) < seuil. */
   seuilRatioPaix: number;
-  /** D3 · tirage seedé quand écrasé : accepte si tirage < chanceAccepteFaible. */
-  chanceAccepteFaible: number;
-  /** D3 · après cette DURÉE de guerre, la paix est acceptée systématiquement. */
+  /** D3 · après cette DURÉE de guerre, une guerre JAMAIS bataillée se ferme
+   *  (paix administrative — les guerres vives attendent toursPaixGagnant). */
   toursPaixMin: number;
+  // --- PAIX-RYTHME (Erik 27/10) — le rythme des guerres. ---
+  /** D3 · paix du GAGNANT : au-delà de toursPaixGagnant × toursPaixMin, tout
+   *  côté accepte (réponse déterministe — chanceAccepteFaible abrogée). */
+  toursPaixGagnant: number;
+  /** D2 · cible de guerre PONDÉRÉE : score = forces × (1 + poids × distance
+   *  wrap entre capitales) — le plus faible PARMI LES PROCHES. */
+  poidsDistanceCibleGuerre: number;
   // --- BOT-ARMEE (Erik 26/10) — l'armée et la campagne. ---
   /** D1 · taille de l'ARMÉE offensive : la campagne n'attaque la cible
    *  qu'une fois cet effectif rassemblé au point de ralliement. */

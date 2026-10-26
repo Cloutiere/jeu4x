@@ -100,9 +100,10 @@ describe('BOT-TC · D1 — bloc diplomatie de bot.json (×3 profils)', () => {
       expect(p.facteurAgressivite, nom).toBeGreaterThan(0);
       expect(p.delaiEntreGuerres, nom).toBeGreaterThanOrEqual(0);
       expect(p.seuilRatioPaix, nom).toBeGreaterThan(0);
-      expect(p.chanceAccepteFaible, nom).toBeGreaterThan(0);
-      expect(p.chanceAccepteFaible, nom).toBeLessThanOrEqual(1);
+      // PAIX-RYTHME (27/10) : chanceAccepteFaible ABROGÉE — réponse
+      // déterministe ; toursPaixGagnant multiplie toursPaixMin.
       expect(p.toursPaixMin, nom).toBeGreaterThanOrEqual(0);
+      expect(p.toursPaixGagnant, nom).toBeGreaterThanOrEqual(1);
     }
   });
 });
@@ -357,7 +358,7 @@ describe('BOT-TC · D3 — ProposePeace : action, décision, purgation', () => {
     expect(r.events.map((e) => e.type)).toEqual(['PeaceRefused']);
   });
 
-  it('deciderPaix : écrasé ⇒ accepte (tirage), hors délai et fort ⇒ refuse', () => {
+  it('deciderPaix (PAIX-RYTHME) : guerre vide à min, paix du gagnant à 2×min, sinon refuse — déterministe', () => {
     const profile = profileDuBot('normal');
     let s = state({
       units: [
@@ -374,22 +375,19 @@ describe('BOT-TC · D3 — ProposePeace : action, décision, purgation', () => {
     const w = applyDeclareWar(s, ME, AUTRE);
     if (!w.ok) throw new Error('guerre attendue');
     s = w.state;
-    // AUTRE est écrasé (1 guerrier vs 3) : accepte dans le tirage favorable.
-    let acceptes = 0;
-    for (let seed = 1; seed <= 50; seed++) {
-      if (deciderPaix(s, AUTRE, ME, profile, createRng(seed))) acceptes++;
-    }
-    expect(acceptes).toBeGreaterThan(0);
-    expect(acceptes).toBeLessThan(50); // tirage seedé, pas automatique
-    // ME (fort, guerre jeune) refuse toujours.
-    for (let seed = 1; seed <= 50; seed++) {
-      expect(deciderPaix(s, ME, AUTRE, profile, createRng(seed))).toBe(false);
-    }
-    // après toursPaixMin de guerre : acceptation SYSTÉMATIQUE.
-    s.turn += profile.toursPaixMin + 1;
-    for (let seed = 1; seed <= 20; seed++) {
-      expect(deciderPaix(s, ME, AUTRE, profile, createRng(seed))).toBe(true);
-    }
+    // Guerre JEUNE (rien n'a lieu) : refuse — même écrasé (plus de tirage).
+    expect(deciderPaix(s, AUTRE, ME, profile)).toBe(false);
+    // Guerre vide à toursPaixMin : paix administrative.
+    s.turn += profile.toursPaixMin;
+    expect(deciderPaix(s, AUTRE, ME, profile)).toBe(true);
+    // Guerre bataillée : entre min et 2×min, le gagnant tient.
+    s.turn += 1;
+    s.diplomacy.batailles = { [ME < AUTRE ? `${ME},${AUTRE}` : `${AUTRE},${ME}`]: 3 };
+    expect(deciderPaix(s, AUTRE, ME, profile)).toBe(false);
+    // Au-delà de 2×min : paix du gagnant (déterministe, aucun tirage).
+    s.turn += profile.toursPaixMin;
+    expect(deciderPaix(s, AUTRE, ME, profile)).toBe(true);
+    expect(deciderPaix(s, ME, AUTRE, profile)).toBe(true);
   });
 
   it('les bots proposent la paix ENTRE EUX quand ils PERDENT (jamais en position de force)', () => {
@@ -415,7 +413,11 @@ describe('BOT-TC · D3 — ProposePeace : action, décision, purgation', () => {
     // ME est écrasé (2 vs 4 guerriers) : propose (durée ≥ toursPaixMin ⇒ oui).
     const plan = botPolicy(s, ME, createRng(7), 'normal');
     expect(plan.actions.some((a) => a.type === 'ProposePeace' && a.player === AUTRE)).toBe(true);
-    // AUTRE (fort) ne propose JAMAIS, même après une longue guerre.
+    // PAIX-RYTHME : AUTRE (fort) propose la fermeture d'une guerre VIDE
+    // (administrative à toursPaixMin) — mais JAMAIS d'une guerre vivante.
+    const planVide = botPolicy(s, AUTRE, createRng(7), 'normal');
+    expect(planVide.actions.some((a) => a.type === 'ProposePeace')).toBe(true);
+    s.diplomacy.batailles = { [ME < AUTRE ? `${ME},${AUTRE}` : `${AUTRE},${ME}`]: 3 };
     for (let seed = 1; seed <= 40; seed++) {
       const planFort = botPolicy(s, AUTRE, createRng(seed), 'normal');
       expect(planFort.actions.some((a) => a.type === 'ProposePeace')).toBe(false);

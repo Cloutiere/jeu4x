@@ -30,6 +30,7 @@ import {
 } from './hex.js';
 import type { Hex } from './hex.js';
 import { areAtWar, compareCityIds, compareIds, compareUnitIds, isBarbarian, nextId, allKnownTechs, activePlayerIds, FILE_PRODUCTION_PROFONDEUR } from './state.js';
+import { compterBataille } from './diplomatie.js';
 import type { BarbarianVillage, City, CityId, GameState, Order, Player, PlayerId, ProductionItem, TileKey, Unit, UnitId } from './state.js';
 import { BARBARIAN_ID, BARBARIANS, CULTURE, DEPLACEMENT, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, RESOURCES, isWaterTerrain, isSpyUnit } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable, estTerritoireEnnemi } from './economy.js';
@@ -1249,6 +1250,18 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
   // diplomatique, sans rupture de paix.
   if (!areAtWar(board.st, attacker.owner, defender.owner)) {
     emit(board, { type: 'DiplomaticIncident', between: [attacker.owner, defender.owner], at: combatTile });
+  }
+  // PAIX-RYTHME (Erik 27/10, D3) : chaque échange de combat entre deux
+  // joueurs dont la paire est dans `diplomacy.war` compte une bataille
+  // (paix administrative des guerres jamais bataillées ; les barbares n'y
+  // figurent jamais — R-95 est une guerre permanente hors diplomatie).
+  if (
+    board.st.diplomacy.war.some(
+      ([x, y]) =>
+        (x === attacker.owner && y === defender.owner) || (x === defender.owner && y === attacker.owner),
+    )
+  ) {
+    compterBataille(board.st, attacker.owner, defender.owner);
   }
   // 7n · R-149 · ÉCRASEMENT (Overrun — canon CivRev, mécanique ajoutée au
   // combat §7) : si la force d'attaque atteint `ratio` × la force défensive

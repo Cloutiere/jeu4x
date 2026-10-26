@@ -1451,8 +1451,9 @@ export class GameDO {
   /**
    * BOT-TC (Erik 25/10, D3) — ProposePeace : miroir EXACT de handleDeclareWar
    * (forme validée EN PREMIER — leçon 7f). La réponse du bot est calculée par
-   * deciderPaix (botPolicy) : accepte si écrasé (rapport < seuil + tirage
-   * seedé) ou si la guerre dure ≥ toursPaixMin, sinon refuse. La décision
+   * deciderPaix (botPolicy) : réponse DÉTERMINISTE — accepte au-delà de
+   * 2×toursPaixMin (paix du gagnant) ou dès toursPaixMin pour une guerre
+   * jamais bataillée (administrative), sinon refuse. La décision
    * s'applique aux DEUX sens : le bot cible peut être humain (multi — même
    * règle, consigné 🔶 au rapport) ; l'événement public PeaceAccepted/
    * PeaceRefused porte la réponse (Chroniques de tous, OrderAck au proposeur).
@@ -1467,15 +1468,14 @@ export class GameDO {
       return this.sendOrderRejection(ws, 'proposition impossible (résolution en cours)');
     }
     const engineId = this.engineIdOf(playerId);
-    // RNG seedé DÉDIÉ (dérivation par cible — indépendant des flux moteur et
-    // bot) : la décision de la cible est reproductible rejou après rejou.
-    const rng = createRng(botTurnSeed(this.meta.seed, this.game.turn, `paix:${target}`));
+    // PAIX-RYTHME (Erik 27/10) : réponse DÉTERMINISTE — plus aucun tirage
+    // (chanceAccepteFaible abrogée ; paix du gagnant à 2×min, paix
+    // administrative des guerres vides à min).
     const decision = deciderPaix(
       this.game,
       target as PlayerId,
       engineId,
       profileDuBot(this.meta.settings.botDifficulte),
-      rng,
     );
     const result = applyProposePeace(this.game, engineId, target as PlayerId, decision);
     if (!result.ok) return this.sendOrderRejection(ws, result.reason);
@@ -1696,10 +1696,10 @@ export class GameDO {
           }
         } else if (action.type === 'DeclareWar' || action.type === 'ProposePeace') {
           // BOT-TC (Erik 25/10) : diplomatie du bot — mêmes helpers purs que
-          // les humains ; la PAIX est DÉCIDÉE par la cible (deciderPaix, RNG
-          // seedé dédié par paire/tour — reproductible au rejeu), puis
-          // appliquée (guerre: WarDeclared, paix: PeaceAccepted/Refused —
-          // publics, au journal diffusé).
+          // les humains ; la PAIX est DÉCIDÉE par la cible (deciderPaix,
+          // déterministe — PAIX-RYTHME 27/10), puis appliquée (guerre:
+          // WarDeclared, paix: PeaceAccepted/Refused — publics, au journal
+          // diffusé).
           if (action.type === 'DeclareWar') {
             const result = applyDeclareWar(game, p.engineId, action.player);
             if (result.ok) {
@@ -1708,13 +1708,11 @@ export class GameDO {
               botEvents.push({ ...result.events[0]!, seq: game.lastEventSeq });
             }
           } else {
-            const rngPaix = createRng(botTurnSeed(this.meta.seed, game.turn, `paix:${action.player}`));
             const accepte = deciderPaix(
               game,
               action.player,
               p.engineId,
               profileDuBot(this.meta.settings.botDifficulte),
-              rngPaix,
             );
             const result = applyProposePeace(game, p.engineId, action.player, accepte);
             if (result.ok) {
