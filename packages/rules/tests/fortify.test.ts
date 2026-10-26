@@ -19,10 +19,20 @@ import type { GameEvent } from '../src/events.js';
  *  touché (roll < 0.5) mais le défenseur FORTIFIÉ (p = 1/(1+1.25²) ≈ 0.390)
  *  ne l'est pas. */
 function seedDiscriminatingFortify(): number {
-  const pFort = 1 / (1 + Math.pow(1 + FORTIFY_DEFENSE_BONUS, 2));
+  // BOT-ARMEE D4 : recherche par ISSUES RÉELLES (l'ancien scan sur le 1er
+  // tirage supposait que le jet de combat était le premier next() — faux en
+  // général ; ça ne tenait qu'à la fenêtre de l'ancien bonus).
   for (let s = 0; s < 10000; s++) {
-    const roll = createRng(s).next();
-    if (roll >= pFort && roll < 0.5) return s;
+    const plain = guerriersAffrontes();
+    const fort = guerriersAffrontes();
+    fort.units.u2!.fortified = true;
+    const ordres = { p1: [{ type: 'Attack' as const, unitId: 'u1', target: { q: 1, r: 0 } }], p2: [] };
+    const ep = exchangeOf(resolveTurn(plain, ordres, s).events);
+    const ef = exchangeOf(resolveTurn(fort, ordres, s).events);
+    if (
+      ep.defenderHpAfter === 2 && ep.attackerHpAfter === 3 &&
+      ef.defenderHpAfter === 3 && ef.attackerHpAfter === 2
+    ) return s;
   }
   throw new Error('pas de graine trouvée');
 }

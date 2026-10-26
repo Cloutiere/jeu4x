@@ -4,8 +4,10 @@ import { BARBARIANS, HUT_REWARDS, ESPIONNAGE_DATA } from './data.js';
 
 /** T-01 · Bonus de force d'une unité vétéran. */
 export const VETERAN_BONUS = 0.5;
-/** T-02 · Bonus défensif d'une case de ville. */
-export const CITY_DEFENSE_BONUS = 0.5;
+/** T-02 · Bonus défensif d'une case de ville. BOT-ARMEE D4 (Erik 26/10) :
+ *  0,5 → 0,25 — le mur de ville rendait toute percée impossible au banc
+ *  (75-92 % de guerres stériles, 1 capture/120). */
+export const CITY_DEFENSE_BONUS = 0.25;
 /** T-03 · Rounds contenus dans une attaque (un échange). */
 export const EXCHANGES_PER_ATTACK = 1;
 /** T-06 · Timers manqués consécutifs avant défaite par forfait. */
@@ -30,8 +32,9 @@ export const WATER_PASSABLE = false;
 export const SETTLER_BOOTY_GOLD = 10;
 /** T-13 · Portée des unités à distance (R-59). 🔶 */
 export const RANGED_RANGE = 1;
-/** T-17 · Bonus défensif d'une unité fortifiée (R-33, ajouté le 30/08). 🔶 */
-export const FORTIFY_DEFENSE_BONUS = 0.25;
+/** T-17 · Bonus défensif d'une unité fortifiée (R-33, ajouté le 30/08). 🔶
+ *  BOT-ARMEE D4 (Erik 26/10) : 0,25 → 0,15 — même cause que T-02. */
+export const FORTIFY_DEFENSE_BONUS = 0.1;
 
 // --- Constantes 🔶 introduites par l'implémentation (absentes de la table
 // RULES.md §11, défauts simples à calibrer) — signalées au rapport de session.

@@ -271,7 +271,40 @@ describe('7e · Remparts et Palais : défense de ville (S_def, §7.4)', () => {
       ],
       cities: [{ id: 'c1', owner: 'p2', q: 0, r: 0, capital: false, buildings: withWalls ? ['remparts'] : [] }],
     });
-    const { events } = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 0, r: 0 } }] }, 16); // graine recalée (ENGAGEMENT : tirage R-177 avant l'échange)
+    // BOT-ARMEE D4 : graine re-calée par balayage des issues réelles (les
+    // valeurs de Remparts/ Ville ont changé — 1,0 → 0,5 et case 0,5 → 0,25).
+    let graine = 0;
+    {
+      let trouvee = false;
+      for (let s = 0; s < 10000 && !trouvee; s++) {
+        const st = makeState({
+          terrainOverrides: { '0,0': 'ville' },
+          units: [
+            { id: 'u1', type: 'guerrier', owner: 'p1', q: 1, r: 0 },
+            { id: 'u2', type: 'guerrier', owner: 'p2', q: 0, r: 0 },
+          ],
+          cities: [{ id: 'c1', owner: 'p2', q: 0, r: 0, capital: false, buildings: [] }],
+        });
+        const ev = resolveTurn(st, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 0, r: 0 } }] }, s).events;
+        const ex = ev.find((e): e is Extract<GameEvent, { type: 'CombatExchange' }> => e.type === 'CombatExchange');
+        if (!ex || ex.defenderHpAfter !== 2 || ex.attackerHpAfter !== 3) continue;
+        // La graine doit DISCRIMINER : ville remparée, le même roll ne
+        // suffit plus (défenseur intact 3, assaillant 2).
+        const stW = makeState({
+          terrainOverrides: { '0,0': 'ville' },
+          units: [
+            { id: 'u1', type: 'guerrier', owner: 'p1', q: 1, r: 0 },
+            { id: 'u2', type: 'guerrier', owner: 'p2', q: 0, r: 0 },
+          ],
+          cities: [{ id: 'c1', owner: 'p2', q: 0, r: 0, capital: false, buildings: ['remparts'] }],
+        });
+        const exW = resolveTurn(stW, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 0, r: 0 } }] }, s).events
+          .find((e): e is Extract<GameEvent, { type: 'CombatExchange' }> => e.type === 'CombatExchange');
+        if (exW && exW.defenderHpAfter === 3 && exW.attackerHpAfter === 2) { graine = s; trouvee = true; }
+      }
+      if (!trouvee) throw new Error('pas de graine trouvée');
+    }
+    const { events } = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 0, r: 0 } }] }, graine);
     // ENGAGEMENT : après l'échange, l'attaquant COHABITE et la mêlée de
     // Phase E peut l'éliminer — on lit donc l'ÉCHANGE (Phase B), qui porte
     // seul la comparaison S_def nue vs Remparts.
@@ -279,12 +312,11 @@ describe('7e · Remparts et Palais : défense de ville (S_def, §7.4)', () => {
     return { attacker: ex.attackerHpAfter, defender: ex.defenderHpAfter };
   }
 
-  it('les Remparts (+100 %) durcissent la ville : même graine, le défenseur encaisse mieux (graine 16 : p 0,307 → 0,138 — graine recalée ENGAGEMENT)', () => {
+  it('les Remparts (+50 %) durcissent la ville : même graine, le défenseur encaisse mieux (graine recalée — BOT-ARMEE D4 : 1,0 → 0,5)', () => {
     const bare = hpAfter(false);
     const walled = hpAfter(true);
-    // Graine 29 (roll 0,2106) : le défenseur d'une ville NUE (S_def 1,5 →
-    // p_att 0,307) est touché ; avec Remparts (S_def 2,5 → p_att 0,138) le
-    // roll ne suffit plus et c'est l'ATTAQUANT qui perd 1 PV.
+    // Le défenseur d'une ville NUE (S_def 1,25) est touché ; avec Remparts
+    // (S_def 1,75) le roll ne suffit plus et c'est l'ATTAQUANT qui perd 1 PV.
     expect(bare.defender).toBe(2);
     expect(bare.attacker).toBe(3);
     expect(walled.defender).toBe(3); // encaisse mieux à même graine

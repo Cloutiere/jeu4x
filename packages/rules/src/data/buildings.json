@@ -7,7 +7,7 @@
     "tileBonus": null,
     "tech": null,
     "fixed": true,
-    "cityDefenseBonus": 0.5,
+    "cityDefenseBonus": 0.35,
     "effect": "Présent uniquement dans la capitale : +50 % de défense pour les unités en garnison, +1 Culture par citoyen (plafonné aux 5 premiers citoyens) (R-113 rév.)",
     "culturePerCitizenCap": {
       "perCitizen": 1,
@@ -134,8 +134,11 @@
     "workRadiusBonus": 0,
     "tileBonus": null,
     "tech": "maconnerie",
-    "cityDefenseBonus": 1.0,
-    "effect": "+100 % de défense en garnison et immunité contre la conversion culturelle (culture en 7f)"
+    "cityDefenseBonus": 0.5,
+    "effect": "+100 % de défense en garnison et immunité contre la conversion culturelle (culture en 7f)",
+    "notes": [
+      "BOT-ARMEE D4 (Erik 26/10) : 1,0 → 0,5"
+    ]
   },
   "aqueduc": {
     "id": "aqueduc",

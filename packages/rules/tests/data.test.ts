@@ -195,9 +195,11 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
   });
 
   it('7e : effets de ville — défense (Palais/Remparts), multiplicateurs (Marché/Banque/Université/Usine), Aqueduc', () => {
-    expect(buildingTable['palais']!.cityDefenseBonus).toBe(0.5);
+    // BOT-ARMEE D4 (Erik 26/10) : palais 0,5 → 0,35 (mur de ville assoupli).
+    expect(buildingTable['palais']!.cityDefenseBonus).toBe(0.35);
     expect(buildingTable['palais']!.fixed).toBe(true);
-    expect(buildingTable['remparts']!.cityDefenseBonus).toBe(1.0);
+    // BOT-ARMEE D4 (Erik 26/10) : remparts 1,0 → 0,5 (mur assoupli).
+    expect(buildingTable['remparts']!.cityDefenseBonus).toBe(0.5);
     expect(buildingTable['marche']!.goldMult).toBe(2);
     expect(buildingTable['banque']!.goldMult).toBe(4);
     expect(buildingTable['bibliotheque']!.scienceMult).toBe(1.5);
