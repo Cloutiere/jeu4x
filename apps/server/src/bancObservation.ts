@@ -19,7 +19,7 @@ import {
   resolveTurn,
 } from '@game/rules';
 import { hexDistanceW } from '@game/rules';
-import { agressiviteDe } from '@game/rules';
+import { agressiviteDe, techEraOf } from '@game/rules';
 import type { GameEvent } from '@game/rules';
 import type { BotDifficulte } from '@game/shared';
 import type { GameState, Order, PlayerId } from '@game/rules';
@@ -72,6 +72,11 @@ export interface TourObserve {
   posOf: Record<string, { q: number; r: number }>;
   /** Paires en guerre (clé canonique « a|b ») APRÈS le tour. */
   paires: string[];
+  /** HORLOGE-DISTANCE D3 — ère de chaque joueur CE tour (compage techs). */
+  eres: Record<string, string>;
+  /** HORLOGE-DISTANCE — distance de cible consignée par paire (miroir de
+   *  `diplomacy.distancesCible` CE tour, pour annoter les guerres). */
+  distancesCible: Record<string, number>;
   /** Largeur de carte (wrap Est↔Ouest des distances — CARTE-RONDE T1). */
   largeur: number;
   evenements: EvenementObserve[];
@@ -97,6 +102,11 @@ export interface ChronologieGuerre {
   tourFin: number | null;
   duree: number;
   issue: 'paix' | 'elimination-declarant' | 'elimination-cible' | 'enCours' | 'fin-inconnue';
+  /** HORLOGE-DISTANCE D3 — ère du DÉCLARANT à la déclaration (compage techs). */
+  ereDeclaration: string;
+  /** HORLOGE-DISTANCE — distance wrap entre capitales consignée à la
+   *  déclaration (diplomacy.distancesCible, 0 si pré-existante). */
+  distCible: number;
 }
 
 /** Chronologie complète d'UNE partie (D6 — artefact devtmp). */
@@ -107,7 +117,7 @@ export interface ChronologiePartie {
   winner: string | null;
   civs: Record<string, string>;
   guerres: ChronologieGuerre[];
-  captures: Array<{ tour: number; cityId: string; de: string; vers: string }>;
+  captures: Array<{ tour: number; cityId: string; de: string; vers: string; ere: string }>
   eliminations: Array<{ tour: number; joueur: string; par: string | null; cause: string }>;
 }
 
@@ -187,9 +197,11 @@ function observationTour(state: GameState, evenements: GameEvent[]): TourObserve
   const ownerOf: Record<string, string> = {};
   const posOf: Record<string, { q: number; r: number }> = {};
   const defaits: string[] = [];
+  const eres: Record<string, string> = {};
   for (const p of Object.values(state.players)) {
     forces[p.id] = forcesDe(state, p.id);
     civs[p.id] = p.civId;
+    eres[p.id] = techEraOf(p.techsUnlocked);
     const cap = Object.values(state.cities).find((c) => c.owner === p.id && c.capital)
       ?? Object.values(state.cities).find((c) => c.owner === p.id);
     capitale[p.id] = cap ? { q: cap.q, r: cap.r } : null;
@@ -200,6 +212,7 @@ function observationTour(state: GameState, evenements: GameEvent[]): TourObserve
     posOf[u.id] = { q: u.q, r: u.r };
   }
   const paires = (state.diplomacy.war ?? []).map(([a, b]) => `${a}|${b}`);
+  const distancesCible = { ...(state.diplomacy.distancesCible ?? {}) };
   return {
     tour: state.turn,
     largeur: state.mapWidth,
@@ -209,6 +222,8 @@ function observationTour(state: GameState, evenements: GameEvent[]): TourObserve
     ownerOf,
     posOf,
     paires,
+    eres,
+    distancesCible,
     evenements: evenements.flatMap((e) => (TYPES_OBSERVES.has(e.type) ? [e as EvenementObserve] : [])),
     winner: state.winner ?? null,
     defaits,
@@ -246,6 +261,8 @@ export function extraireChronologies(
           tourFin: null,
           duree: 0,
           issue: 'enCours',
+          ereDeclaration: obs.eres[ev.from] ?? 'inconnue',
+          distCible: obs.distancesCible[cle(ev.from, ev.on).replace('|', ',')] ?? 0,
         };
         guerres.push(g);
         actives.set(cle(ev.from, ev.on), g);
@@ -266,7 +283,13 @@ export function extraireChronologies(
           else if (ev.owner === g.cible) g.pertes.cible++;
         }
       } else if (ev.type === 'CityCaptured') {
-        captures.push({ tour: obs.tour, cityId: ev.cityId ?? '', de: ev.fromOwner ?? '', vers: ev.toOwner ?? '' });
+        captures.push({
+          tour: obs.tour,
+          cityId: ev.cityId ?? '',
+          de: ev.fromOwner ?? '',
+          vers: ev.toOwner ?? '',
+          ere: obs.eres[ev.fromOwner ?? ''] ?? 'inconnue',
+        });
       } else if (ev.type === 'PlayerDefeated' && ev.player) {
         eliminations.push({ tour: obs.tour, joueur: ev.player, par: ev.byPlayer ?? null, cause: ev.cause ?? '' });
       }

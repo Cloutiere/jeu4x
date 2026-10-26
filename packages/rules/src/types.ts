@@ -759,6 +759,11 @@ export interface BotProfileData {
   /** D2 · cible de guerre PONDÉRÉE : score = forces × (1 + poids × distance
    *  wrap entre capitales) — le plus faible PARMI LES PROCHES. */
   poidsDistanceCibleGuerre: number;
+  /** HORLOGE-DISTANCE (Erik 28/10) · D1 — la durée minimale de guerre devient
+   *  fonction de la distance de la cible : duréeMin = toursPaixMin +
+   *  distanceCible × facteurMarcheCible (distance wrap consignée à la
+   *  déclaration). La paix administrative attend duréeMin, le gagnant 2×. */
+  facteurMarcheCible: number;
   // --- BOT-ARMEE (Erik 26/10) — l'armée et la campagne. ---
   /** D1 · taille de l'ARMÉE offensive : la campagne n'attaque la cible
    *  qu'une fois cet effectif rassemblé au point de ralliement. */

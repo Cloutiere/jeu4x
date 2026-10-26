@@ -300,7 +300,7 @@ describe('PAIX-RYTHME · D3 — compteur de batailles et paix déterministe', ()
   it('guerre VIDE (0 bataille) : acceptée à toursPaixMin, refusée avant', () => {
     const profile = NORMAL;
     let s = enGuerre();
-    s.turn += profile.toursPaixMin - 1;
+    s.turn += profile.toursPaixMin + 3; // duréeMin = min + dist 4 (HORLOGE-DISTANCE)
     expect(deciderPaix(s, AUTRE, ME, profile)).toBe(false);
     s.turn += 1;
     expect(deciderPaix(s, AUTRE, ME, profile)).toBe(true);
@@ -313,7 +313,7 @@ describe('PAIX-RYTHME · D3 — compteur de batailles et paix déterministe', ()
     s.diplomacy.batailles = { [cle]: 5 };
     s.turn += profile.toursPaixMin + 1;
     expect(deciderPaix(s, AUTRE, ME, profile)).toBe(false); // guerre vivante : on continue
-    s.turn += profile.toursPaixMin; // ≥ 2×min
+    s.turn += profile.toursPaixMin + 7; // ≥ 2×duréeMin (min + dist 4)
     expect(deciderPaix(s, AUTRE, ME, profile)).toBe(true);
   });
 
@@ -325,7 +325,7 @@ describe('PAIX-RYTHME · D3 — compteur de batailles et paix déterministe', ()
 
   it('les bots PROPOSENT la paix administrative des guerres vides (même en position de force)', () => {
     let s = enGuerre();
-    s.turn += NORMAL.toursPaixMin;
+    s.turn += NORMAL.toursPaixMin + 4; // duréeMin = min + dist 4 (HORLOGE-DISTANCE)
     const plan = botPolicy(s, ME, rngFaux(), 'normal');
     expect(plan.actions).toContainEqual({ type: 'ProposePeace', player: AUTRE });
   });

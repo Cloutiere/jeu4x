@@ -12,6 +12,7 @@
 import type { GameEvent } from './events.js';
 import type { GameState, PlayerId } from './state.js';
 import { areAtWar, activePlayerIds } from './state.js';
+import { hexDistanceW } from './hex.js';
 
 export interface DeclareWarOk {
   ok: true;
@@ -51,8 +52,35 @@ export function applyDeclareWar(input: GameState, playerId: PlayerId, target: Pl
     (x, y) => x[0].localeCompare(y[0]) || x[1].localeCompare(y[1]),
   );
   st.diplomacy.warsDepuis = { ...st.diplomacy.warsDepuis, [`${a},${b}`]: st.turn };
+  // HORLOGE-DISTANCE (Erik 28/10) : la distance WRAP entre capitales
+  // effectives est FIGÉE à la déclaration — l'horloge de paix connaît le
+  // coût de la marche tel qu'il se présentait au départ de campagne.
+  st.diplomacy.distancesCible = {
+    ...(st.diplomacy.distancesCible ?? {}),
+    [`${a},${b}`]: distanceCapitales(st, playerId, target),
+  };
   const events: GameEvent[] = [{ seq: 0, type: 'WarDeclared', from: playerId, on: target }];
   return { ok: true, state: st, events };
+}
+
+/** Capitale effective (capitale, sinon première ville — tri (capital, id)). */
+function capitaleEffective(state: GameState, joueur: PlayerId): { q: number; r: number } | null {
+  const villes = Object.values(state.cities)
+    .filter((c) => c.owner === joueur)
+    .sort((x, y) =>
+      x.capital !== y.capital ? (x.capital ? -1 : 1) : x.id < y.id ? -1 : 1,
+    );
+  const c = villes[0];
+  return c ? { q: c.q, r: c.r } : null;
+}
+
+/** HORLOGE-DISTANCE · Distance wrap entre capitales effectives (0 si
+ *  capitale introuvable — cas dégénéré, repli du comportement historique). */
+function distanceCapitales(state: GameState, a: PlayerId, b: PlayerId): number {
+  const ca = capitaleEffective(state, a);
+  const cb = capitaleEffective(state, b);
+  if (!ca || !cb) return 0;
+  return hexDistanceW(ca, cb, state.mapWidth);
 }
 
 /** Clé canonique d'une paire dans `warsDepuis`. */
@@ -94,6 +122,15 @@ export function dureeGuerre(state: GameState, a: PlayerId, b: PlayerId): number 
 }
 
 /**
+ * HORLOGE-DISTANCE (Erik 28/10, D1) · Distance WRAP entre capitales
+ * effectives de la guerre (a, b), FIGÉE À LA DÉCLARATION (clé canonique).
+ * 0 si absente (guerre pré-existante — repli du comportement historique).
+ */
+export function distanceCibleGuerre(state: GameState, a: PlayerId, b: PlayerId): number {
+  return state.diplomacy.distancesCible?.[cleDepuis(a, b)] ?? 0;
+}
+
+/**
  * BOT-TC (Erik 25/10, D3) · ProposePeace { player } — action immédiate,
  * PUBLIQUE, même contrat que DeclareWar (forme validée EN PREMIER côté DO,
  * leçon 7f). La DÉCISION d'accepter est EXTERNE (le bot la calcule : écrasé
@@ -132,6 +169,10 @@ export function applyProposePeace(
   const batailles = { ...st.diplomacy.batailles };
   delete batailles[cleDepuis(a, b)];
   st.diplomacy.batailles = batailles;
+  // HORLOGE-DISTANCE : la distance consignée repart avec la guerre.
+  const distances = { ...(st.diplomacy.distancesCible ?? {}) };
+  delete distances[cleDepuis(a, b)];
+  st.diplomacy.distancesCible = distances;
   st.diplomacy.dernieresGuerres = {
     ...st.diplomacy.dernieresGuerres,
     [a]: st.turn,

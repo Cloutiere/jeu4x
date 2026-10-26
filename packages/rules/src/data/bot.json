@@ -45,6 +45,7 @@
       "toursPaixMin": 20,
       "toursPaixGagnant": 2,
       "poidsDistanceCibleGuerre": 0.3,
+      "facteurMarcheCible": 1,
       "tailleArmee": 4,
       "rayonRalliement": 2,
       "modulationSeuilAgressivite": 0.7
@@ -66,6 +67,7 @@
       "toursPaixMin": 12,
       "toursPaixGagnant": 2,
       "poidsDistanceCibleGuerre": 0.3,
+      "facteurMarcheCible": 1,
       "tailleArmee": 6,
       "rayonRalliement": 2,
       "modulationSeuilAgressivite": 0.7
@@ -87,6 +89,7 @@
       "toursPaixMin": 8,
       "toursPaixGagnant": 2,
       "poidsDistanceCibleGuerre": 0.3,
+      "facteurMarcheCible": 1,
       "tailleArmee": 8,
       "rayonRalliement": 2,
       "modulationSeuilAgressivite": 0.7

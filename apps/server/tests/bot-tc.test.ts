@@ -377,15 +377,15 @@ describe('BOT-TC · D3 — ProposePeace : action, décision, purgation', () => {
     s = w.state;
     // Guerre JEUNE (rien n'a lieu) : refuse — même écrasé (plus de tirage).
     expect(deciderPaix(s, AUTRE, ME, profile)).toBe(false);
-    // Guerre vide à toursPaixMin : paix administrative.
-    s.turn += profile.toursPaixMin;
+    // Guerre vide à duréeMin (= toursPaixMin + dist 4, HORLOGE-DISTANCE).
+    s.turn += profile.toursPaixMin + 4;
     expect(deciderPaix(s, AUTRE, ME, profile)).toBe(true);
     // Guerre bataillée : entre min et 2×min, le gagnant tient.
     s.turn += 1;
     s.diplomacy.batailles = { [ME < AUTRE ? `${ME},${AUTRE}` : `${AUTRE},${ME}`]: 3 };
     expect(deciderPaix(s, AUTRE, ME, profile)).toBe(false);
-    // Au-delà de 2×min : paix du gagnant (déterministe, aucun tirage).
-    s.turn += profile.toursPaixMin;
+    // Au-delà de 2×duréeMin : paix du gagnant (déterministe, aucun tirage).
+    s.turn += profile.toursPaixMin + 3;
     expect(deciderPaix(s, AUTRE, ME, profile)).toBe(true);
     expect(deciderPaix(s, ME, AUTRE, profile)).toBe(true);
   });

@@ -444,12 +444,17 @@ export interface GameState {
    *  = guerres pré-BOT-TC de durée inconnue (0).
    *  PAIX-RYTHME (Erik 27/10) : `batailles` — nombre d'ÉCHANGES de combat
    *  par paire en guerre (clé canonique « a,b ») pour la paix administrative
-   *  des guerres jamais bataillées. Absent = aucune bataille. */
+   *  des guerres jamais bataillées. Absent = aucune bataille.
+   *  HORLOGE-DISTANCE (Erik 28/10) : `distancesCible` — distance WRAP entre
+   *  capitales effectives À LA DÉCLARATION de chaque guerre (clé canonique
+   *  « a,b ») pour la durée minimale modulée (facteurMarcheCible). Absent =
+   *  guerre pré-existante (repli toursPaixMin, comportement historique). */
   diplomacy: {
     war: Array<[PlayerId, PlayerId]>;
     warsDepuis?: Record<string, number>;
     dernieresGuerres?: Record<PlayerId, number>;
     batailles?: Record<string, number>;
+    distancesCible?: Record<string, number>;
   };
   /** R-96/Phase 7d : villages barbares (portés du JSON de carte vers l'état). */
   villages: BarbarianVillage[];

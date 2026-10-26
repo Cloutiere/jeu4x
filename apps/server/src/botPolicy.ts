@@ -59,6 +59,7 @@ import {
   canSetProduction,
   compareCityIds,
   compareUnitIds,
+  distanceCibleGuerre,
   dureeGuerre,
   frontierRadius,
   growthThresholdFor,
@@ -530,9 +531,27 @@ export function deciderPaix(
 ): boolean {
   if (!areAtWar(state, decideur, proposeur)) return false;
   const duree = dureeGuerre(state, decideur, proposeur);
-  if (duree >= profile.toursPaixGagnant * profile.toursPaixMin) return true;
-  if (bataillesDe(state, decideur, proposeur) === 0 && duree >= profile.toursPaixMin) return true;
+  const dureeMin = dureeMinGuerre(state, decideur, proposeur, profile);
+  if (duree >= profile.toursPaixGagnant * dureeMin) return true;
+  if (bataillesDe(state, decideur, proposeur) === 0 && duree >= dureeMin) return true;
   return false;
+}
+
+/**
+ * HORLOGE-DISTANCE (Erik 28/10, D1) · La durée minimale de guerre connaît la
+ * DISTANCE de la cible : dureeMin = toursPaixMin + distanceCible ×
+ * facteurMarcheCible — la distance wrap entre capitales effectives, FIGÉE à
+ * la déclaration (diplomacy.distancesCible). Une guerre lointaine dure le
+ * temps de la campagne de son armée ; une guerre pré-existante (champ
+ * absent) retombe sur toursPaixMin (comportement historique). Pur.
+ */
+export function dureeMinGuerre(
+  state: GameState,
+  a: PlayerId,
+  b: PlayerId,
+  profile: BotProfileData,
+): number {
+  return profile.toursPaixMin + distanceCibleGuerre(state, a, b) * profile.facteurMarcheCible;
 }
 
 /** D2 · La capitale ennemie la plus proche de `me` (de SA capitale) :
@@ -1599,7 +1618,8 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
     const sesForces = forcesDe(state, e);
     const perd = sesForces > 0 && forcesDe(state, playerId) < profile.seuilRatioPaix * sesForces;
     const videTerme =
-      bataillesDe(state, playerId, e) === 0 && dureeGuerre(state, playerId, e) >= profile.toursPaixMin;
+      bataillesDe(state, playerId, e) === 0 &&
+      dureeGuerre(state, playerId, e) >= dureeMinGuerre(state, playerId, e, profile);
     if ((perd || videTerme) && deciderPaix(state, e, playerId, profile)) {
       actions.push({ type: 'ProposePeace', player: e });
     }

@@ -29,6 +29,8 @@ function fixture(): TourObserve[] {
     ownerOf: { u1: 'p1', u2: 'p2' },
     posOf: { u1: { q: 8, r: 5 }, u2: { q: 10, r: 5 } },
     paires: t >= 12 && t < 24 ? ['p1|p2'] : [],
+    eres: { p1: 'ancienne', p2: 'ancienne' },
+    distancesCible: t >= 12 ? { 'p1,p2': 5 } : {},
     evenements: [],
     winner: null,
     defaits: [],
@@ -102,7 +104,7 @@ describe('extraireChronologies — fixture à guerre connue', () => {
   });
 
   it('consigne captures et éliminations', () => {
-    expect(partie.captures).toEqual([{ tour: 30, cityId: 'c2', de: 'p2', vers: 'p1' }]);
+    expect(partie.captures).toEqual([{ tour: 30, cityId: 'c2', de: 'p2', vers: 'p1', ere: 'ancienne' }]);
     expect(partie.eliminations).toEqual([
       { tour: 30, joueur: 'p2', par: 'p1', cause: 'capitalCaptured' },
     ]);
