@@ -818,6 +818,33 @@ export interface BotEconomieData {
   techEconomiqueCle: string;
 }
 
+/** DIPLOMATIE-T2 (Erik 28/10) · D4 — grille de NÉGOCIATION du bot (bot.json,
+ *  bloc `negociation` — partagé par les profils, miroir `economie`). Le prix
+ *  de la paix et la marge tech sont pondérés par le RAPPORT DE FORCES et la
+ *  FIERTÉ (agressivité de la civ — une civ fière exige plus). */
+export interface BotNegociationData {
+  /** Or de base exigé pour accepter une paix compensée (× fierté × forces). */
+  prixPaixBase: number;
+  /** Sous cette fraction du prix : refus net ; entre zoneGrise et 1 : zone
+   *  grise → contre-proposition (tirage seedé) ; ≥ prix : acceptation. */
+  zoneGrise: number;
+  /** Marge d'échange de techs : la valeur reçue doit dépasser la valeur
+   *  donnée d'au moins margeTech × (fierté comprise). */
+  margeTech: number;
+  /** Poids de la fierté : prix × (1 + facteurFierte × (2 × agressivite − 1))
+   *  — les civs agressives exigent plus, les pacifiques négocient plus vite. */
+  facteurFierte: number;
+  /** Bornes de la pondération par rapport de forces (forces moi / forces
+   *  proposeur) — l'écrasement n'inflige pas un prix infini, la faiblesse ne
+   *  descend pas sous ce plancher. */
+  plancherRapportForces: number;
+  plafondRapportForces: number;
+  /** Zone grise : contre-proposition si tirage seedé < seuilContreTirage,
+   *  refus sinon (une seule itération — le tirage ne change PAS la réponse
+   *  à une offre identique, R-154 miroir). */
+  seuilContreTirage: number;
+}
+
 /** BOT-TA · Configuration data-driven du bot (bot.json) — hook de difficulté
  *  D5 : trois profils prévus, le profil actif est `profil`. BOT-TB ajoute le
  *  bloc `economie` (arbitres D1-D4). */
@@ -825,4 +852,6 @@ export interface BotSettingsData {
   profil: string;
   profiles: Record<string, BotProfileData>;
   economie: BotEconomieData;
+  /** DIPLOMATIE-T2 · D4 : grille de négociation (paix compensée, techs). */
+  negociation: BotNegociationData;
 }

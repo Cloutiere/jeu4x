@@ -66,6 +66,8 @@
   import { tileKeyOf } from '@game/rules';
   import GovernmentPanel from '../components/GovernmentPanel.svelte';
   import RegimesModale from '../components/RegimesModale.svelte';
+  // DIPLOMATIE-T2 (Erik 28/10, D5) : modale de négociation.
+  import NegociationModale from '../components/NegociationModale.svelte';
 
   let { code }: { code: string } = $props();
 
@@ -359,6 +361,24 @@
         pushErrorToast(`${nomJoueur(e.on)} REFUSE votre proposition de paix.`, 'bad');
       } else if (e.type === 'WarDeclared' && e.on === pid) {
         pushErrorToast(`${nomJoueur(e.from)} vous déclare la GUERRE !`, 'bad');
+      }
+      // DIPLOMATIE-T2 (Erik 28/10, D1/D5) : la réponse du bot à une NÉGOCIATION
+      // privée (acceptation compensée, refus d'offre, échange de techs) est
+      // annoncée EN DIRECT — la Chroniques la garde (événements privés).
+      else if (e.type === 'PeaceCompensated' && (e.from === pid || e.on === pid)) {
+        pushErrorToast(
+          e.from === pid ? `${nomJoueur(e.on)} ACCEPTE la paix contre ${e.gold} or — la guerre est finie.` : `Paix signée avec ${nomJoueur(e.from)} contre ${e.gold} or.`,
+          'good',
+        );
+      } else if (e.type === 'PeaceOfferRefused' && e.from === pid) {
+        pushErrorToast(`${nomJoueur(e.on)} REFUSE votre paix compensée (${e.gold} or).`, 'bad');
+      } else if (e.type === 'TechTraded' && (e.from === pid || e.on === pid)) {
+        pushErrorToast(
+          e.from === pid ? `${nomJoueur(e.on)} accepte l'échange : ${nomTechCourt(e.techRecue)} livrée.` : `Échange conclu : ${nomTechCourt(e.techRecue)} reçue.`,
+          'good',
+        );
+      } else if (e.type === 'TechTradeRefused' && e.from === pid) {
+        pushErrorToast(`${nomJoueur(e.on)} REFUSE l'échange (${nomTechCourt(e.techOfferte)}).`, 'bad');
       }
     }
     // 7h · R-122/R-124 : annonces conseiller (tech de gouvernement),
@@ -897,6 +917,9 @@
   let declarationGuerre = $state<{ id: string; nom: string } | null>(null);
   // BOT-TC (Erik 25/10, L3) : confirmation « Proposer la paix » (miroir).
   let propositionPaix = $state<{ id: string; nom: string } | null>(null);
+  // DIPLOMATIE-T2 (Erik 28/10, D5) : modale de NÉGOCIATION (paix compensée +
+  // échange de techs) — ouverte depuis la pastille de nation (bouton « 🤝 »).
+  let negociationCible = $state<{ id: string; nom: string; enGuerre: boolean; defeated: boolean } | null>(null);
   const myGovernment = $derived.by(() => {
     const id = myEngineId($view);
     return (id && $view.state ? $view.state.players[id]?.government : null) ?? 'despotisme';
@@ -939,6 +962,10 @@
     const civ = $view.state?.players[engineId]?.civId ?? 'neutre';
     if (!info) return civ !== 'neutre' ? civName(civ) : engineId;
     return civ !== 'neutre' ? `${info.name} (${civName(civ)})` : info.name;
+  }
+  // DIPLOMATIE-T2 : nom lisible d'une tech (toasts de négociation).
+  function nomTechCourt(techId: string): string {
+    return TECHS[techId]?.name ?? techId;
   }
   const oppCivId = $derived.by(() => {
     const id = myEngineId($view);
@@ -1360,6 +1387,15 @@
                       title={`Proposer la paix à ${a.nom} (publique — le bot répond selon le rapport de forces)`}
                       onclick={() => (propositionPaix = { id: a.id, nom: a.nom })}
                     >🕊</button>
+                    <!-- DIPLOMATIE-T2 · D5 : bouton « Négocier » — modale de
+                         négociation (paix COMPENSÉE privée + échange de
+                         techs) ; la réponse du bot arrive en direct. -->
+                    <button
+                      type="button"
+                      class="pastille-guerre declarer negocier"
+                      title={`Négocier avec ${a.nom} (privé — paix compensée, échange de technologies)`}
+                      onclick={() => (negociationCible = { id: a.id, nom: a.nom, enGuerre: a.enGuerre, defeated: a.defeated })}
+                    >🤝</button>
                   {/if}
                 {:else if !a.defeated}
                   <button
@@ -1368,6 +1404,14 @@
                     title={`Déclarer la guerre à ${a.nom} (publique et mutuelle)`}
                     onclick={() => (declarationGuerre = { id: a.id, nom: a.nom })}
                   >⚔</button>
+                  <!-- DIPLOMATIE-T2 · D5 : négocier en PAIX aussi (échange de
+                       techs ; l'échange avec un ennemi est interdit). -->
+                  <button
+                    type="button"
+                    class="pastille-guerre declarer negocier"
+                    title={`Négocier avec ${a.nom} (privé — échange de technologies)`}
+                    onclick={() => (negociationCible = { id: a.id, nom: a.nom, enGuerre: a.enGuerre, defeated: a.defeated })}
+                  >🤝</button>
                 {/if}
               </div>
             {/each}
@@ -1665,6 +1709,10 @@
 
   {#if showRegimesModale && $view.state}
     <RegimesModale view={$view} {client} onClose={() => (showRegimesModale = false)} />
+  {/if}
+  {#if negociationCible && $view.state}
+    <!-- DIPLOMATIE-T2 · D5 : modale de négociation (privée). -->
+    <NegociationModale view={$view} {client} cible={negociationCible} onClose={() => (negociationCible = null)} />
   {/if}
   {#if declarationGuerre && $view.state}
     <!-- DIPLOMATIE-T1 · D3 : confirmation — « La guerre est publique et mutuelle » -->

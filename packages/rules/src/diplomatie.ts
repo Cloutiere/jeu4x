@@ -13,6 +13,8 @@ import type { GameEvent } from './events.js';
 import type { GameState, PlayerId } from './state.js';
 import { areAtWar, activePlayerIds } from './state.js';
 import { hexDistanceW } from './hex.js';
+import { TECHS } from './techs.js';
+import { eraOfTechCount } from './civilizations.js';
 
 export interface DeclareWarOk {
   ok: true;
@@ -162,13 +164,31 @@ export function applyProposePeace(
   proposerId: PlayerId,
   target: PlayerId,
   accepte: boolean,
+  goldOffer?: number,
 ): DeclareWarOk | DeclareWarKo {
   if (proposerId === target) return { ok: false, reason: 'on ne se propose pas la paix à soi-même' };
   const actifs = activePlayerIds(input);
   if (!actifs.includes(proposerId)) return { ok: false, reason: `joueur inconnu ou éliminé : ${proposerId}` };
   if (!actifs.includes(target)) return { ok: false, reason: `nation inconnue ou éliminée : ${target}` };
   if (!areAtWar(input, proposerId, target)) return { ok: false, reason: 'pas en guerre' };
+  // DIPLOMATIE-T2 (Erik 28/10, D2) : la COMPENSATION est validée avec le
+  // reste de la forme métier — entier ≥ 0, trésorerie suffisante (le refus
+  // du bot ne passe JAMAIS par ici : l'or ne quitte que la trésorerie d'une
+  // paix SIGNÉE).
+  const or = goldOffer ?? 0;
+  if (!Number.isInteger(or) || or < 0) return { ok: false, reason: 'compensation invalide' };
+  if (input.players[proposerId]!.treasury < or) return { ok: false, reason: 'trésorerie insuffisante' };
   if (!accepte) {
+    // DIPLOMATIE-T2 · D1 : une offre NÉGOCIÉE (compensation présente) refusée
+    // reste PRIVÉE (PeaceOfferRefused) — miroir de l'acceptation compensée ;
+    // la paix sèche (T1) conserve son refus PUBLIC (crédibilité T1).
+    if (goldOffer !== undefined) {
+      return {
+        ok: true,
+        state: structuredClone(input),
+        events: [{ seq: 0, type: 'PeaceOfferRefused', from: proposerId, on: target, gold: or }],
+      };
+    }
     return {
       ok: true,
       state: structuredClone(input),
@@ -176,6 +196,11 @@ export function applyProposePeace(
     };
   }
   const st = structuredClone(input);
+  if (or > 0) {
+    // D2 : l'or passe À L'ACCEPTATION — atomique avec la purge de la guerre.
+    st.players[proposerId]!.treasury -= or;
+    st.players[target]!.treasury += or;
+  }
   const [a, b] = paireGuerre(proposerId, target);
   st.diplomacy.war = st.diplomacy.war.filter(([x, y]) => !(x === a && y === b));
   const warsDepuis = { ...st.diplomacy.warsDepuis };
@@ -194,5 +219,119 @@ export function applyProposePeace(
     [a]: st.turn,
     [b]: st.turn,
   };
-  return { ok: true, state: st, events: [{ seq: 0, type: 'PeaceAccepted', from: proposerId, on: target }] };
+  // DIPLOMATIE-T2 · D1/D2 : le FAIT de la paix reste public (PeaceAccepted
+  // sans montant — canon CivRev) ; la compensation, elle, est PRIVÉE.
+  const events: GameEvent[] = [{ seq: 0, type: 'PeaceAccepted', from: proposerId, on: target }];
+  if (or > 0) events.push({ seq: 0, type: 'PeaceCompensated', from: proposerId, on: target, gold: or });
+  return { ok: true, state: st, events };
+}
+
+// ---------------------------------------------------------------------------
+// DIPLOMATIE-T2 (décisions Erik 28/10) · D3 — ÉCHANGE de technologies :
+// TradeTechs { target, techOfferte, techDemandee?, goldDemande? } — action
+// IMMÉDIATE (résolue À LA RÉCEPTION, D6 : zéro état persisté, schemaVersion
+// 28 inchangée). Canon : JAMAIS d'échange avec une nation en GUERRE.
+// ---------------------------------------------------------------------------
+
+/** Forme canon d'une offre d'échange : 1:1 (techDemandee) OU tech contre or
+ *  (goldDemande) — exactement UNE des deux contreparties. */
+export interface OffreEchangeTechs {
+  techOfferte: string;
+  techDemandee?: string;
+  goldDemande?: number;
+}
+
+export interface EchangeOk {
+  ok: true;
+  state: GameState;
+  events: GameEvent[];
+}
+
+/** En anarchie ? (miroir R-122 — le canal est gelé.) */
+function enAnarchie(state: GameState, id: PlayerId): boolean {
+  const p = state.players[id];
+  return typeof p?.anarchyUntil === 'number' && state.turn < p.anarchyUntil;
+}
+
+/** Accorde une tech à un joueur (miroir complétion R-87 : tri + ère
+ *  recomptée ; le tirage Premier découvrir ne s'applique PAS — la tech est
+ *  déjà connue de quelqu'un). Vol Spatial 🔶 : la révélation de carte n'est
+ *  pas rejouée ici (le receveur la verra à sa prochaine résolution si elle
+ *  vient d'une récompense — cas marginal consigné au rapport). */
+function accorderTech(state: GameState, id: PlayerId, techId: string): void {
+  const p = state.players[id]!;
+  if (!p.techsUnlocked.includes(techId)) p.techsUnlocked.push(techId);
+  p.techsUnlocked.sort();
+  p.era = eraOfTechCount(p.techsUnlocked.length);
+}
+
+/**
+ * D3 · applyTradeTechs — applique la DÉCISION (le bot la calcule : botPolicy.
+ * deciderEchangeTechs) sur une offre validée. Validations métier (refus nommé,
+ * miroir applyProposePeace) : nations actives, PAS EN GUERRE (canon), pas en
+ * anarchie, techs existantes et connues de leurs donneurs, tech reçue
+ * INCONNUE du receveur, contrepartie exactement une (1:1 ou or), or
+ * disponible. À l'acceptation : échange ATOMIQUE (techs + or), événement
+ * PRIVÉ TechTraded ; au refus : rien ne bouge, événement PRIVÉ
+ * TechTradeRefused. La contre-proposition du bot ({ contreOr }) ne passe PAS
+ * ici — c'est une réponse textuelle (OrderAck), aucune application.
+ */
+export function applyTradeTechs(
+  input: GameState,
+  proposerId: PlayerId,
+  target: PlayerId,
+  offre: OffreEchangeTechs,
+  accepte: boolean,
+): EchangeOk | DeclareWarKo {
+  if (proposerId === target) return { ok: false, reason: 'on ne troque pas avec soi-même' };
+  const actifs = activePlayerIds(input);
+  if (!actifs.includes(proposerId)) return { ok: false, reason: `joueur inconnu ou éliminé : ${proposerId}` };
+  if (!actifs.includes(target)) return { ok: false, reason: `nation inconnue ou éliminée : ${target}` };
+  if (areAtWar(input, proposerId, target)) return { ok: false, reason: 'aucun échange avec une nation en guerre' };
+  if (enAnarchie(input, proposerId)) return { ok: false, reason: 'en anarchie : aucun échange' };
+  if (enAnarchie(input, target)) return { ok: false, reason: `${target} est en anarchie : aucun échange` };
+  const { techOfferte, techDemandee, goldDemande } = offre;
+  if (!TECHS[techOfferte]) return { ok: false, reason: `technologie inconnue : ${techOfferte}` };
+  const deuxContreparties = techDemandee !== undefined && goldDemande !== undefined;
+  if (deuxContreparties) return { ok: false, reason: 'une seule contrepartie (tech OU or)' };
+  if (techDemandee !== undefined && !TECHS[techDemandee]) return { ok: false, reason: `technologie inconnue : ${techDemandee}` };
+  const or = goldDemande ?? 0;
+  if (!Number.isInteger(or) || or < 0) return { ok: false, reason: 'or demandé invalide' };
+  const moi = input.players[proposerId]!;
+  const lui = input.players[target]!;
+  if (!moi.techsUnlocked.includes(techOfferte)) return { ok: false, reason: 'technologie offerte inconnue de vous' };
+  if (lui.techsUnlocked.includes(techOfferte)) return { ok: false, reason: `${target} connaît déjà ${techOfferte}` };
+  if (techDemandee !== undefined) {
+    if (!lui.techsUnlocked.includes(techDemandee)) return { ok: false, reason: `${target} ne connaît pas ${techDemandee}` };
+    if (moi.techsUnlocked.includes(techDemandee)) return { ok: false, reason: `vous connaissez déjà ${techDemandee}` };
+  }
+  if (techDemandee === undefined && or === 0) return { ok: false, reason: 'contrepartie absente' };
+  if (lui.treasury < or) return { ok: false, reason: `${target} n'a pas ${or} or` };
+  if (!accepte) {
+    return {
+      ok: true,
+      state: structuredClone(input),
+      events: [{ seq: 0, type: 'TechTradeRefused', from: proposerId, on: target, techOfferte, ...(techDemandee !== undefined ? { techDemandee } : {}), goldDemande: or }],
+    };
+  }
+  const st = structuredClone(input);
+  // Échange ATOMIQUE : techs + or basculent ensemble.
+  accorderTech(st, target, techOfferte);
+  if (techDemandee !== undefined) accorderTech(st, proposerId, techDemandee);
+  if (or > 0) {
+    st.players[target]!.treasury -= or;
+    st.players[proposerId]!.treasury += or;
+  }
+  const events: GameEvent[] = [
+    {
+      seq: 0,
+      type: 'TechTraded',
+      from: proposerId,
+      on: target,
+      techRecue: techOfferte,
+      ...(techDemandee !== undefined ? { techDonnee: techDemandee } : {}),
+      gold: or,
+    },
+  ];
+  return { ok: true, state: st, events };
 }

@@ -37,6 +37,8 @@ import {
   applyAngkorChoice,
   applyDeclareWar,
   applyProposePeace,
+  applyTradeTechs,
+  agressiviteDe,
   angkorEligibleWonders,
   artefactsPourCarteFraiche,
   greatPersonThresholdFor,
@@ -54,7 +56,7 @@ import { PROTO_VERSION, normaliseDifficulteBot } from '@game/shared';
 import type { ClientToServerMessage, ConfigPartie, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
-import { botPolicy, botTurnSeed, deciderPaix, profileDuBot } from './botPolicy.js';
+import { botPolicy, botTurnSeed, deciderPaix, deciderPaixNegociee, deciderEchangeTechs, negociationDuBot, profileDuBot } from './botPolicy.js';
 
 // CARTE-MULTI : jusqu'à 5 sièges moteur (p1..p5) — seuls les sièges présents
 // dans `meta.players` sont actifs (les parties 1v1 n'en instancient que 2).
@@ -370,12 +372,35 @@ export function orderShapeError(order: unknown): string | null {
       // en lice, pas déjà en guerre) est re-vérifiée par le moteur pur
       // applyDeclareWar.
       return typeof o.player === 'string' ? null : 'nation cible invalide';
-    case 'ProposePeace':
+    case 'ProposePeace': {
       // BOT-TC (Erik 25/10, D3) : miroir DeclareWar — la forme (player
       // requis) est validée EN PREMIER (leçon 7f) ; la validité métier
       // (nation connue, en lice, PAIRE EN GUERRE) est re-vérifiée par le
       // moteur pur applyProposePeace.
-      return typeof o.player === 'string' ? null : 'nation cible invalide';
+      // DIPLOMATIE-T2 (Erik 28/10, D2) : goldOffer optionnel (compensation
+      // privée) — entier ≥ 0 ; la trésorerie est re-vérifiée par le moteur.
+      if (typeof o.player !== 'string') return 'nation cible invalide';
+      if (o.goldOffer !== undefined && (!Number.isInteger(o.goldOffer) || (o.goldOffer as number) < 0)) {
+        return 'compensation invalide';
+      }
+      return null;
+    }
+    case 'TradeTechs': {
+      // DIPLOMATIE-T2 (Erik 28/10, D3) : la forme est validée EN PREMIER
+      // (leçon 7f) — cible + techOfferte + EXACTEMENT UNE contrepartie
+      // (techDemandee OU goldDemande ≥ 0) ; la validité métier (guerre,
+      // anarchie, techs connues/inconnues des receveurs, trésorerie) est
+      // re-vérifiée par le moteur pur applyTradeTechs.
+      if (typeof o.target !== 'string') return 'nation cible invalide';
+      if (typeof o.techOfferte !== 'string') return 'technologie offerte invalide';
+      const tech = o.techDemandee !== undefined;
+      const or = o.goldDemande !== undefined;
+      if (tech && or) return 'une seule contrepartie (tech OU or)';
+      if (!tech && !or) return 'contrepartie absente';
+      if (tech && typeof o.techDemandee !== 'string') return 'technologie demandée invalide';
+      if (or && (!Number.isInteger(o.goldDemande) || (o.goldDemande as number) < 0)) return 'or demandé invalide';
+      return null;
+    }
     case 'ToggleGodMode':
       // GOD-MODE (Erik 22/10, D3) : action immédiate — la forme (booléen on
       // requis) est validée EN PREMIER (leçon 7f) ; la validité métier (partie
@@ -1247,9 +1272,16 @@ export class GameDO {
         case 'DeclareWar':
           await this.handleDeclareWar(ws, att.playerId, (msg as { player: string }).player);
           break;
-        case 'ProposePeace':
-          await this.handleProposePeace(ws, att.playerId, (msg as { player: string }).player);
+        case 'ProposePeace': {
+          const m = msg as { player: string; goldOffer?: number };
+          await this.handleProposePeace(ws, att.playerId, m.player, m.goldOffer);
           break;
+        }
+        case 'TradeTechs': {
+          const m = msg as { target: string; techOfferte: string; techDemandee?: string; goldDemande?: number };
+          await this.handleTradeTechs(ws, att.playerId, m.target, m.techOfferte, m.techDemandee, m.goldDemande);
+          break;
+        }
         case 'ToggleGodMode':
           await this.handleToggleGodMode(ws, att.playerId, (msg as { on: boolean }).on);
           break;
@@ -1457,9 +1489,17 @@ export class GameDO {
    * s'applique aux DEUX sens : le bot cible peut être humain (multi — même
    * règle, consigné 🔶 au rapport) ; l'événement public PeaceAccepted/
    * PeaceRefused porte la réponse (Chroniques de tous, OrderAck au proposeur).
+   *
+   * DIPLOMATIE-T2 (Erik 28/10, D2/D4) — `goldOffer` : la paix NÉGOCIÉE est
+   * PRIVÉE (D1) — acceptation : PeaceAccepted public (le FAIT) + PeaceCompensated
+   * privé (le MONTANT, or transféré à l'acceptation) ; refus : PeaceOfferRefused
+   * PRIVÉ (rien de public). La réponse du bot passe par deciderPaixNegociee
+   * (seedée — tirage dédié miroir R-154, graine dérivée du seed de partie,
+   * tour, paire et nature de l'offre) : accepte / refuse / contre-proposition
+   * (l'Or exigé, porté par l'OrderAck — le joueur peut re-proposer).
    */
-  private async handleProposePeace(ws: WebSocket, playerId: PlayerId, target: string): Promise<void> {
-    const shapeError = orderShapeError({ type: 'ProposePeace', player: target });
+  private async handleProposePeace(ws: WebSocket, playerId: PlayerId, target: string, goldOffer?: number): Promise<void> {
+    const shapeError = orderShapeError({ type: 'ProposePeace', player: target, ...(goldOffer !== undefined ? { goldOffer } : {}) });
     if (shapeError) return this.sendOrderRejection(ws, shapeError);
     if (!this.game || !this.meta || this.meta.status !== 'active') {
       return this.sendOrderRejection(ws, 'proposition impossible (partie non active)');
@@ -1468,28 +1508,143 @@ export class GameDO {
       return this.sendOrderRejection(ws, 'proposition impossible (résolution en cours)');
     }
     const engineId = this.engineIdOf(playerId);
-    // PAIX-RYTHME (Erik 27/10) : réponse DÉTERMINISTE — plus aucun tirage
-    // (chanceAccepteFaible abrogée ; paix du gagnant à 2×min, paix
-    // administrative des guerres vides à min).
-    const decision = deciderPaix(
-      this.game,
-      target as PlayerId,
-      engineId,
-      profileDuBot(this.meta.settings.botDifficulte),
-    );
-    const result = applyProposePeace(this.game, engineId, target as PlayerId, decision);
+    const botCible = this.meta.players.find((p) => p.engineId === target && p.bot === true);
+    let decision: boolean;
+    let raison: string;
+    if (goldOffer === undefined) {
+      // PAIX-RYTHME (Erik 27/10) : réponse DÉTERMINISTE — plus aucun tirage
+      // (chanceAccepteFaible abrogée ; paix du gagnant à 2×min, paix
+      // administrative des guerres vides à min).
+      decision = deciderPaix(
+        this.game,
+        target as PlayerId,
+        engineId,
+        profileDuBot(this.meta.settings.botDifficulte),
+      );
+      raison = decision ? 'paix acceptée' : 'paix refusée';
+    } else {
+      if (!botCible) {
+        return this.sendOrderRejection(ws, 'la compensation ne se négocie qu\u2019avec un bot');
+      }
+      const negoc = negociationDuBot();
+      const agressivite = agressiviteDe(this.game.players[target as EnginePlayerId]?.civId);
+      // Tirage seedé DÉDIÉ (miroir R-154) : même partie + même tour + même
+      // paire → même réponse ; le RNG de résolution n'est jamais consommé.
+      const rng = createRng(botTurnSeed(this.meta.seed, this.game.turn, `negoc-paix-${engineId}-${target}`));
+      const reponse = deciderPaixNegociee(
+        this.game,
+        target as PlayerId,
+        engineId,
+        goldOffer,
+        profileDuBot(this.meta.settings.botDifficulte),
+        negoc,
+        rng,
+        agressivite,
+      );
+      if (reponse === 'accepte') {
+        decision = true;
+        raison = goldOffer > 0 ? `paix acceptée (${goldOffer} or versés)` : 'paix acceptée';
+      } else if (reponse === 'refuse') {
+        decision = false;
+        raison = 'paix refusée';
+      } else {
+        decision = false;
+        raison = `contre-proposition : ${botCible.name} exige ${reponse.contreOr} or`;
+      }
+    }
+    const result = applyProposePeace(this.game, engineId, target as PlayerId, decision, goldOffer);
     if (!result.ok) return this.sendOrderRejection(ws, result.reason);
     this.game = result.state;
-    this.game.lastEventSeq += 1;
-    const event: GameEvent = { ...result.events[0]!, seq: this.game.lastEventSeq };
-    this.lastEvents = [...this.lastEvents, event];
+    for (const e of result.events) {
+      this.game.lastEventSeq += 1;
+      this.lastEvents = [...this.lastEvents, { ...e, seq: this.game.lastEventSeq }];
+    }
     await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
     this.sendTo(ws, {
       proto: PROTO_VERSION,
       type: 'OrderAck',
       accepted: true,
       order: null,
-      reason: decision ? 'paix acceptée' : 'paix refusée',
+      reason: raison,
+    });
+    this.broadcast((pid) => this.snapshotFor(pid, null));
+  }
+
+  /**
+   * DIPLOMATIE-T2 (Erik 28/10, D3/D4) — TradeTechs : miroir des actions
+   * immédiates (forme validée EN PREMIER, leçon 7f). Résolu À LA RÉCEPTION
+   * (D6 : zéro état en attente, reprise de partie triviale). La réponse du
+   * bot est calculée par deciderEchangeTechs (seedée, tirage dédié) : accepte
+   * (échange ATOMIQUE, TechTraded PRIVÉ) / refuse (TechTradeRefused PRIVÉ) /
+   * contre-proposition (l'or maximal que le bot paierait — OrderAck, le
+   * joueur re-propose avec ce goldDemande). Les événements privés ne
+   * parviennent qu'aux DEUX parties (filterEventsForPlayer — eventRefs
+   * from/on, D1).
+   */
+  private async handleTradeTechs(
+    ws: WebSocket,
+    playerId: PlayerId,
+    target: string,
+    techOfferte: string,
+    techDemandee?: string,
+    goldDemande?: number,
+  ): Promise<void> {
+    const offre: { techOfferte: string; techDemandee?: string; goldDemande?: number } = {
+      techOfferte,
+      ...(techDemandee !== undefined ? { techDemandee } : {}),
+      ...(goldDemande !== undefined ? { goldDemande } : {}),
+    };
+    const shapeError = orderShapeError({ type: 'TradeTechs', target, ...offre });
+    if (shapeError) return this.sendOrderRejection(ws, shapeError);
+    if (!this.game || !this.meta || this.meta.status !== 'active') {
+      return this.sendOrderRejection(ws, 'échange impossible (partie non active)');
+    }
+    if (this.game.phase !== 'orders') {
+      return this.sendOrderRejection(ws, 'échange impossible (résolution en cours)');
+    }
+    const engineId = this.engineIdOf(playerId);
+    const botCible = this.meta.players.find((p) => p.engineId === target && p.bot === true);
+    let decision = true;
+    let raison = 'échange accepté';
+    if (botCible) {
+      const negoc = negociationDuBot();
+      const agressivite = agressiviteDe(this.game.players[target as EnginePlayerId]?.civId);
+      const rng = createRng(botTurnSeed(this.meta.seed, this.game.turn, `negoc-tech-${engineId}-${target}`));
+      const reponse = deciderEchangeTechs(
+        this.game,
+        target as PlayerId,
+        engineId,
+        offre,
+        profileDuBot(this.meta.settings.botDifficulte),
+        negoc,
+        rng,
+        agressivite,
+      );
+      if (reponse === 'accepte') {
+        decision = true;
+        raison = 'échange accepté';
+      } else if (reponse === 'refuse') {
+        decision = false;
+        raison = 'échange refusé';
+      } else {
+        decision = false;
+        raison = `contre-proposition : ${botCible.name} n\u2019offrira que ${reponse.contreOr} or`;
+      }
+    }
+    const result = applyTradeTechs(this.game, engineId, target as PlayerId, offre, decision);
+    if (!result.ok) return this.sendOrderRejection(ws, result.reason);
+    this.game = result.state;
+    for (const e of result.events) {
+      this.game.lastEventSeq += 1;
+      this.lastEvents = [...this.lastEvents, { ...e, seq: this.game.lastEventSeq }];
+    }
+    await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents });
+    this.sendTo(ws, {
+      proto: PROTO_VERSION,
+      type: 'OrderAck',
+      accepted: true,
+      order: null,
+      reason: raison,
     });
     this.broadcast((pid) => this.snapshotFor(pid, null));
   }

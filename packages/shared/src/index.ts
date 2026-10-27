@@ -164,8 +164,17 @@ export type ClientToServerMessage = ProtoMessage &
     /** BOT-TC (Erik 25/10, D3) · Proposition de paix — ACTION IMMÉDIATE
      *  (miroir DeclareWar, même contrat) : publique ; la cible DÉCIDE
      *  (bot : deciderPaix — écrasé ou guerre traînante ⇒ accepte) et la
-     *  réponse est diffusée (PeaceAccepted/PeaceRefused). */
-    | { type: 'ProposePeace'; player: string }
+     *  réponse est diffusée (PeaceAccepted/PeaceRefused).
+     *  DIPLOMATIE-T2 (Erik 28/10, D2) · `goldOffer` — compensation PRIVÉE
+     *  versée au bot SI acceptation (additif ; réponse seedée
+     *  deciderPaixNegociee : accepte / refuse / contre-proposition). */
+    | { type: 'ProposePeace'; player: string; goldOffer?: number }
+    /** DIPLOMATIE-T2 (Erik 28/10, D3) · Échange de technologies — ACTION
+     *  IMMÉDIATE (résolue à la réception, zéro état persisté) : échange 1:1
+     *  (`techDemandee` présent) OU ma tech contre de l'or (`goldDemande` —
+     *  exactement UNE contrepartie). Privé (TechTraded/TechTradeRefused),
+     *  jamais avec une nation en guerre, jamais en anarchie. */
+    | { type: 'TradeTechs'; target: string; techOfferte: string; techDemandee?: string; goldDemande?: number }
     /** GOD-MODE (Erik 22/10, D3) · Bascule de la révélation complète de la
      *  carte (outil d'observation des bots) — ACTION IMMÉDIATE : REFUSÉE si un
      *  autre humain participe (D1, solo/bots uniquement) ; flag de session

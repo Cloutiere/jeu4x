@@ -93,6 +93,21 @@ export const PUBLIC_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
   'PeaceRefused',
 ]);
 
+/**
+ * DIPLOMATIE-T2 (Erik 28/10, D1) : événements de NÉGOCIATION PRIVÉS —
+ * connus des DEUX parties uniquement (les refs from/on, jamais d'un tiers).
+ * Miroir exact des PUBLIC_EVENTS : un événement privé ne passe le filtre QUE
+ * s'il touche le lecteur (eventTouchesPlayer). Les refs joueurs seuls ne
+ * suffisaient pas : le filtre standard laisse passer tout événement sans
+ * case/unité/ville référencée.
+ */
+export const PRIVATE_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
+  'PeaceCompensated',
+  'PeaceOfferRefused',
+  'TechTraded',
+  'TechTradeRefused',
+]);
+
 /** L'événement implique-t-il directement le joueur (une de ses unités/villes) ? */
 function eventTouchesPlayer(event: GameEvent, playerId: PlayerId, state: GameState): boolean {
   const refs = eventRefs(event);
@@ -128,6 +143,8 @@ export function filterEventsForPlayer(
   const visible = new Set(vision.visible);
 
   return events.filter((event) => {
+    // DIPLOMATIE-T2 · D1 : la négociation n'est connue que des DEUX parties.
+    if (PRIVATE_EVENTS.has(event.type)) return eventTouchesPlayer(event, playerId, state);
     if (PUBLIC_EVENTS.has(event.type)) return true;
     if (eventTouchesPlayer(event, playerId, state)) return true;
     const refs = eventRefs(event);

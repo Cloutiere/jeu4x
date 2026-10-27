@@ -76,6 +76,7 @@ import {
 } from '@game/rules';
 import type {
   BotEconomieData,
+  BotNegociationData,
   BotProfileData,
   City,
   GameState,
@@ -572,6 +573,112 @@ export function dureeMinGuerre(
   profile: BotProfileData,
 ): number {
   return profile.toursPaixMin + distanceCibleGuerre(state, a, b) * profile.facteurMarcheCible;
+}
+
+// ---------------------------------------------------------------------------
+// DIPLOMATIE-T2 (décisions Erik 28/10) · D4 — la NÉGOCIATION : le bot répond
+// de façon seedée aux offres du JOUEUR (paix compensée, échange de techs).
+// Grille data-driven (bot.json `negociation`), pondérée par le RAPPORT DE
+// FORCES et la FIERTÉ (agressivité de la civ — une civ fière exige plus).
+// Trois réponses : accepter / refuser / contre-proposer (demande d'or — une
+// seule itération ; le joueur peut re-proposer, la réponse à une offre
+// identique est DÉTERMINISTE). Tirage seedé dédié (miroir R-154 : le RNG de
+// résolution du moteur n'est JAMAIS consommé). Canon : JAMAIS d'échange avec
+// une nation en guerre (la validation moteur refoule de toute façon).
+// Bots ENTRE EUX : pas de négociation (D5 — le joueur est le seul initiateur).
+// ---------------------------------------------------------------------------
+
+/** Accès au bloc négociation (bot.json). */
+export function negociationDuBot(): BotNegociationData {
+  return BOT_SETTINGS.negociation;
+}
+
+/** Les trois réponses possibles du bot à une offre. */
+export type ReponseNegociation = 'accepte' | 'refuse' | { contreOr: number };
+
+/** FIERTÉ : multiplicateur du prix exigé (≥ 1 agressive, < 1 pacifique). */
+function fierteDuBot(negoc: BotNegociationData, agressivite: number): number {
+  return 1 + negoc.facteurFierte * (2 * agressivite - 1);
+}
+
+/**
+ * PRIX DE LA PAIX (D2/D4) : prixPaixBase × fierté × rapport de forces borné
+ * (plancher/plafond données) — l'écrasé se rachète à bas prix, le fort fait
+ * payer. Pur.
+ */
+export function prixPaixDuBot(
+  state: GameState,
+  decideur: PlayerId,
+  proposeur: PlayerId,
+  negoc: BotNegociationData,
+  agressivite: number,
+): number {
+  const rapport = Math.min(
+    negoc.plafondRapportForces,
+    Math.max(negoc.plancherRapportForces, forcesDe(state, decideur) / Math.max(1, forcesDe(state, proposeur))),
+  );
+  return Math.round(negoc.prixPaixBase * fierteDuBot(negoc, agressivite) * rapport);
+}
+
+/**
+ * D2/D4 · Décision face à une PAIX COMPENSÉE (goldOffer) — réponse seedée :
+ *   - deciderPaix (administrative / gagnant) → accepte, l'or passe quand même
+ *     (le joueur est généreux, le bot ne refuse pas un cadeau) ;
+ *   - goldOffer ≥ prix → accepte ; < prix × zoneGrise → refuse (insulte) ;
+ *   - zone grise → tirage seedé : contre-proposition (le prix exigé) ou refus.
+ * Pur (le RNG ne consomme qu'un next en zone grise — déterminisme R-80).
+ */
+export function deciderPaixNegociee(
+  state: GameState,
+  decideur: PlayerId,
+  proposeur: PlayerId,
+  goldOffer: number,
+  profile: BotProfileData,
+  negoc: BotNegociationData,
+  rng: SeededRng,
+  agressivite: number,
+): ReponseNegociation {
+  if (deciderPaix(state, decideur, proposeur, profile)) return 'accepte';
+  const prix = prixPaixDuBot(state, decideur, proposeur, negoc, agressivite);
+  if (goldOffer >= prix) return 'accepte';
+  if (goldOffer < prix * negoc.zoneGrise) return 'refuse';
+  return rng.next() < negoc.seuilContreTirage ? { contreOr: prix } : 'refuse';
+}
+
+/**
+ * D3/D4 · Décision face à un ÉCHANGE de techs (le bot REÇOIT techOfferte et
+ * DONNE techDemandee ou goldDemande) : la valeur reçue (coût R-135 de la
+ * tech) doit dépasser la valeur donnée d'au moins la marge (fierté comprise)
+ * → accepte ; sous × zoneGrise → refuse (insulte) ; zone grise → tirage :
+ * contre-proposition (l'or maximal que le bot accepterait de payer — forme
+ * « tech contre or » SEULE 🔶 : en 1:1 la contrepartie est une tech, pas d'or
+ * à négocier) ou refus. Pur (un seul next en zone grise).
+ */
+export function deciderEchangeTechs(
+  state: GameState,
+  decideur: PlayerId,
+  proposeur: PlayerId,
+  offre: { techOfferte: string; techDemandee?: string; goldDemande?: number },
+  profile: BotProfileData,
+  negoc: BotNegociationData,
+  rng: SeededRng,
+  agressivite: number,
+): ReponseNegociation {
+  void state;
+  void decideur;
+  void proposeur;
+  void profile;
+  const valeurRecue = TECHS[offre.techOfferte]?.cost ?? 0;
+  const valeurDonnee =
+    offre.techDemandee !== undefined ? TECHS[offre.techDemandee]?.cost ?? 0 : offre.goldDemande ?? 0;
+  const marge = negoc.margeTech * fierteDuBot(negoc, agressivite);
+  const seuil = valeurDonnee * (1 + marge);
+  if (valeurRecue >= seuil) return 'accepte';
+  if (valeurRecue < seuil * negoc.zoneGrise) return 'refuse';
+  if (offre.techDemandee === undefined && rng.next() < negoc.seuilContreTirage) {
+    return { contreOr: Math.round(valeurRecue / (1 + marge)) };
+  }
+  return 'refuse';
 }
 
 /** D2 · La capitale ennemie la plus proche de `me` (de SA capitale) :

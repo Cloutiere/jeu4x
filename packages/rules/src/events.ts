@@ -194,6 +194,32 @@ export type GameEvent =
    */
   | { seq: number; type: 'PeaceRefused'; from: PlayerId; on: PlayerId }
   /**
+   * DIPLOMATIE-T2 (Erik 28/10, D1/D2) : paix ACCEPTÉE AVEC COMPENSATION —
+   * événement PRIVÉ (hors PUBLIC_EVENTS : la négociation n'est connue que des
+   * DEUX parties — filterEventsForPlayer ne la livre qu'à elles via eventRefs
+   * from/on). Le FAIT de la paix reste public (PeaceAccepted sans montant) ;
+   * celui-ci porte l'OR versé par le proposeur.
+   */
+  | { seq: number; type: 'PeaceCompensated'; from: PlayerId; on: PlayerId; gold: number }
+  /**
+   * DIPLOMATIE-T2 (Erik 28/10, D1) : offre de négociation (paix compensée ou
+   * échange de techs) REFUSÉE — PRIVÉ (miroir PeaceCompensated : le refus
+   * d'une OFFRE n'est pas une annonce, contrairement au refus public T1
+   * PeaceRefused d'une paix sèche).
+   */
+  | { seq: number; type: 'PeaceOfferRefused'; from: PlayerId; on: PlayerId; gold: number }
+  /**
+   * DIPLOMATIE-T2 (Erik 28/10, D3) : échange de technologies RÉALISÉ — PRIVÉ,
+   * ATOMIQUE à l'acceptation : `techRecue` = tech reçue par `from` (l'offre du
+   * proposeur), `techDonnee` = tech cédée en retour (échange 1:1 — absent si
+   * or), `gold` = or payé par `on` à `from` (0 si 1:1).
+   */
+  | { seq: number; type: 'TechTraded'; from: PlayerId; on: PlayerId; techRecue: string; techDonnee?: string; gold: number }
+  /**
+   * DIPLOMATIE-T2 (Erik 28/10, D1) : offre d'échange REFUSÉE — PRIVÉ.
+   */
+  | { seq: number; type: 'TechTradeRefused'; from: PlayerId; on: PlayerId; techOfferte: string; techDemandee?: string; goldDemande: number }
+  /**
    * DIPLOMATIE-T1 (Erik 19/10, D2) : une attaque a été REFUSÉE par la gate de
    * Paix (ordre Attack explicite, entrée ennemie de mouvement, entrée dans
    * une ville étrangère) — auparavant fizzle silencieux (R-58-a 🔶). Miroir
@@ -588,6 +614,14 @@ export function eventRefs(event: GameEvent): EventRefs {
       break;
     case 'PeaceAccepted':
     case 'PeaceRefused':
+      refs.players.push(event.from, event.on);
+      break;
+    // DIPLOMATIE-T2 : négociation PRIVÉE — from/on dans les refs, les deux
+    // parties reçoivent l'événement (filterEventsForPlayer), personne d'autre.
+    case 'PeaceCompensated':
+    case 'PeaceOfferRefused':
+    case 'TechTraded':
+    case 'TechTradeRefused':
       refs.players.push(event.from, event.on);
       break;
     case 'AttackRefused':

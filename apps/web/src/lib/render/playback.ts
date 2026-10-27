@@ -88,6 +88,11 @@ const DURATIONS: Record<GameEvent['type'], number> = {
   WarDeclared: 300,
   PeaceAccepted: 300,
   PeaceRefused: 260,
+  // DIPLOMATIE-T2 : négociation privée (aucune anim — flash court).
+  PeaceCompensated: 260,
+  PeaceOfferRefused: 260,
+  TechTraded: 300,
+  TechTradeRefused: 260,
   AttackRefused: 260,
   Victory: 400,
   // Phase 7h (R-122/R-124) : gouvernements & vaisseau spatial.

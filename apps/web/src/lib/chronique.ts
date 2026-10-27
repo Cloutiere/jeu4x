@@ -470,6 +470,30 @@ export function entreesChronique(events: GameEvent[], ctx: ContexteChronique, to
             : `${nomNation(ev.on, ctx)} refuse la paix de ${nomNation(ev.from, ctx)}`,
           ev.from === ctx.moi ? 'bad' : 'info', ev.seq);
         break;
+      // DIPLOMATIE-T2 (Erik 28/10, D1) : la NÉGOCIATION est PRIVÉE — ces
+      // événements n'arrivent que par les sockets des DEUX parties (filtre
+      // serveur PRIVATE_EVENTS) ; les branches tiers ci-dessous ne sont
+      // jamais atteintes en jeu réel (défensive).
+      case 'PeaceCompensated':
+        pousser('monde', ev.from === ctx.moi
+          ? `${nomNation(ev.on, ctx)} ACCEPTE la paix contre ${ev.gold} or — la guerre est finie`
+          : `Vous acceptez la paix de ${nomNation(ev.from, ctx)} contre ${ev.gold} or`,
+          'good', ev.seq);
+        break;
+      case 'PeaceOfferRefused':
+        if (ev.from === ctx.moi) pousser('monde', `${nomNation(ev.on, ctx)} REFUSE votre paix compensée (${ev.gold} or)`, 'bad', ev.seq);
+        break;
+      case 'TechTraded': {
+        const contrepartie = 'techDonnee' in ev && ev.techDonnee
+          ? `contre ${nomTech(ev.techDonnee)}`
+          : `contre ${ev.gold} or`;
+        if (ev.from === ctx.moi) pousser('decouvertes', `${nomNation(ev.on, ctx)} reçoit ${nomTech(ev.techRecue)} ${contrepartie}`, 'good', ev.seq);
+        else pousser('decouvertes', `Vous recevez ${nomTech(ev.techRecue)} ${contrepartie}`, 'good', ev.seq);
+        break;
+      }
+      case 'TechTradeRefused':
+        if (ev.from === ctx.moi) pousser('decouvertes', `${nomNation(ev.on, ctx)} REFUSE l'échange (${nomTech(ev.techOfferte)})`, 'bad', ev.seq);
+        break;
       case 'Victory':
         pousser('monde', `VICTOIRE de ${nomNation(ev.winner, ctx)} (${nomMotifVictoire(ev.reason)})`, ev.winner === ctx.moi ? 'good' : 'bad', ev.seq);
         break;

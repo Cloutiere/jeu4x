@@ -97,5 +97,14 @@
       "modulationSeuilAgressivite": 0.7,
       "delaiRedeclaration": 30
     }
+  },
+  "negociation": {
+    "prixPaixBase": 15,
+    "zoneGrise": 0.6,
+    "margeTech": 0.25,
+    "facteurFierte": 1,
+    "plancherRapportForces": 0.5,
+    "plafondRapportForces": 2,
+    "seuilContreTirage": 0.5
   }
 }

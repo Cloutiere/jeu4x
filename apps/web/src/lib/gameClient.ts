@@ -69,8 +69,13 @@ export interface GameClient {
    *  publique et mutuelle. */
   declareWar(playerId: string): void;
   /** BOT-TC (Erik 25/10, D3) : proposition de paix — miroir de DeclareWar ;
-   *  la réponse du bot arrive par le Snapshot (PeaceAccepted/PeaceRefused). */
-  proposePeace(playerId: string): void;
+   *  la réponse du bot arrive par le Snapshot (PeaceAccepted/PeaceRefused).
+   *  DIPLOMATIE-T2 (Erik 28/10, D2) : `goldOffer` — compensation privée
+   *  (réponse seedée : accepte / refuse / contre-proposition par OrderAck). */
+  proposePeace(playerId: string, goldOffer?: number): void;
+  /** DIPLOMATIE-T2 (Erik 28/10, D3) : échange de technologies — action
+   *  immédiée, privée ; 1:1 (techDemandee) ou tech contre or (goldDemande). */
+  tradeTechs(target: string, techOfferte: string, techDemandee?: string, goldDemande?: number): void;
   /** GOD-MODE (Erik 22/10, D3) : bascule la révélation complète — le serveur
    *  seul décide (refus si un autre humain participe) ; la confirmation
    *  arrive par le Snapshot (`godMode`). */
@@ -292,8 +297,17 @@ export function createGameClient(
     declareWar(playerId) {
       handle.send({ type: 'DeclareWar', player: playerId });
     },
-    proposePeace(playerId) {
-      handle.send({ type: 'ProposePeace', player: playerId });
+    proposePeace(playerId, goldOffer) {
+      handle.send({ type: 'ProposePeace', player: playerId, ...(goldOffer !== undefined ? { goldOffer } : {}) });
+    },
+    tradeTechs(target, techOfferte, techDemandee, goldDemande) {
+      handle.send({
+        type: 'TradeTechs',
+        target,
+        techOfferte,
+        ...(techDemandee !== undefined ? { techDemandee } : {}),
+        ...(goldDemande !== undefined ? { goldDemande } : {}),
+      });
     },
     toggleGodMode(on) {
       handle.send({ type: 'ToggleGodMode', on });
