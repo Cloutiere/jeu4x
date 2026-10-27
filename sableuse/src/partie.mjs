@@ -7,9 +7,13 @@
  */
 import {
   allKnownTechs,
+  applyDeclareWar,
+  applyProposePeace,
   applySetConversion,
   applySetGovernment,
   applySetResearch,
+  applyTradeTechs,
+  agressiviteDe,
   cityEconomyInputs,
   createInitialState,
   createRng,
@@ -19,8 +23,16 @@ import {
   resolveTurn,
   UNIT_TYPES,
 } from '@game/rules';
-import { botPolicy, botTurnSeed } from '../../apps/server/src/botPolicy.js';
+import {
+  botPolicy,
+  botTurnSeed,
+  deciderPaixNegociee,
+  deciderEchangeTechs,
+  negociationDuBot,
+  profileDuBot,
+} from '../../apps/server/src/botPolicy.js';
 import { fusionnerPlan, tourJev } from './adapter-jev.mjs';
+import { tourJevJoueur, memoRefusEchange } from './joueur.mjs';
 import { scoreEmpire } from './score.mjs';
 
 /**
@@ -42,8 +54,12 @@ import { scoreEmpire } from './score.mjs';
  * @param {object} [opts.civSetup] { engineId → { civId } } — R-150, identique
  *   au serveur (avantages de départ déterministes).
  * @param {boolean} [opts.sansJev=false] armée de contrôle D4 — zéro appel Jev.
+ * @param {boolean} [opts.modeJoueur=false] JEV-BANC-JOUEUR D1 — Jev JOUEUR
+ *   stratégique : recherche/conversion/production/diplomatie T2 via
+ *   tourJevJoueur ; le bot exécute le tactique (guerre/paix/échange
+ *   appliqués par le harnais avec réponse seedée du bot).
  */
-export async function jouerPartie({ client, config, seed, plafondTours = 50, journal, budgetUsd = 2, engineJev, scenario = null, playerCount = 2, civSetup = null, sansJev = false }) {
+export async function jouerPartie({ client, config, seed, plafondTours = 50, journal, budgetUsd = 2, engineJev, scenario = null, playerCount = 2, civSetup = null, sansJev = false, modeJoueur = false }) {
   const gen = generateProceduralMap(seed, playerCount >= 3 ? { playerCount } : undefined);
   let etat = createInitialState(gen.map, seed, civSetup ?? {});
   const joueurs = Object.keys(etat.players).sort();
@@ -127,8 +143,22 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       // D3 · scénario contact : unité ennemie FICTIVE dans le condensé SEULEMENT
       // (l'état moteur n'est jamais touché — l'outil reste hors ligne).
       if (scenario?.injectionMenace) injecterMenace(filtre, jev);
-      decision = await tourJev(client, config, filtre, jev, memo);
+      decision = modeJoueur
+        ? await tourJevJoueur(client, config, filtre, jev, memo)
+        : await tourJev(client, config, filtre, jev, memo);
       if (decision.erreur) erreurJev += 1;
+      // JEV-BANC-JOUEUR D1 : Jev a le dernier mot sur le timing des guerres.
+      // (a) La déclaration du plan bot de BASE de Jev est TOUJOURS retirée
+      //     (le bot tactique ne déclare pas à la place du joueur) ;
+      // (b) un choix 'guerre' de Jev (MÊME 'aucun') retire en plus les
+      //     déclarations des autres bots ce tour.
+      if (modeJoueur) {
+        for (let i = actionsAppliquees.length - 1; i >= 0; i--) {
+          const a = actionsAppliquees[i];
+          if (a.action?.type !== 'DeclareWar') continue;
+          if (a.id === jev || decision.bloqueGuerreBot) actionsAppliquees.splice(i, 1);
+        }
+      }
       // Ordres : les overrides Jev remplacent les ordres bot de même sujet.
       // Actions : appliquées APRÈS celles du bot (dernier mot à Jev).
       ordres[jev] = fusionnerPlan(ordres[jev] ?? [], decision.ordres, [], []).ordres;
@@ -156,6 +186,7 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
         plate: decision.plate,
         ordresJev: decision.ordres,
         actionsJev: decision.actions,
+        diplomatieJev: modeJoueur ? decision.diplomatie : undefined,
         latenceMs: decision.latenceMs,
         jetonsEntree: decision.jetonsEntree,
         coutUsd: (decision.jetonsEntree ?? 0) * 0.042 / 1_000_000,
@@ -168,16 +199,92 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       }
     }
 
-    // 3. Actions immédiates (recherche/régime) via les helpers purs du moteur.
+    // 3. Actions immédiates (recherche/régime/conversion/diplomatie bot) via
+    //    les helpers purs du moteur.
     for (const { id, action } of actionsAppliquees) {
       if (action.type === 'SetResearch') {
         const r = applySetResearch(etat, id, action.techId);
         if (r.ok) etat = r.state;
         else journal.ligne({ type: 'rejet_action', tour, joueur: id, action, raison: r.error ?? 'refus' });
+      } else if (action.type === 'SetConversion') {
+        const r = applySetConversion(etat, id, action.cityId, action.vers);
+        if (r.ok) etat = r.state;
+        else journal.ligne({ type: 'rejet_action', tour, joueur: id, action, raison: r.error ?? 'refus' });
+      } else if (action.type === 'DeclareWar') {
+        const r = applyDeclareWar(etat, id, action.player);
+        if (r.ok) {
+          etat = r.state;
+          for (const ev of r.events) journal.evenement(ev);
+        } else journal.ligne({ type: 'rejet_action', tour, joueur: id, action, raison: r.error ?? 'refus' });
+      } else if (action.type === 'ProposePeace') {
+        // BOT-TC : le bot propose quand il perd. Le DESTINATAIRE humain (Jev
+        // joueur) décide : acceptation SEULEMENT si Jev a choisi paix avec ce
+        // joueur ce tour (canon T2 : Jev a le dernier mot) ; sinon refus.
+        const accepte =
+          modeJoueur && id !== jev && action.player === jev
+            ? (decision?.diplomatie ?? []).some((d) => d.genre === 'paix' && d.cible === id)
+            : false;
+        const r = applyProposePeace(etat, id, action.player, accepte);
+        if (r.ok) {
+          etat = r.state;
+          for (const ev of r.events) journal.evenement(ev);
+        } else journal.ligne({ type: 'rejet_action', tour, joueur: id, action, raison: r.error ?? 'refus' });
       } else {
         const r = applySetGovernment(etat, id, action.government);
         if (r.ok) etat = r.state;
         else journal.ligne({ type: 'rejet_action', tour, joueur: id, action, raison: r.error ?? 'refus' });
+      }
+    }
+
+    // 3.7 · JEV-BANC-JOUEUR D1 — intentions diplomatiques de Jev, appliquées
+    //    sur l'état COMPLET avec réponse seedée du bot (grille negociation
+    //    canon DIPLOMATIE-T2, tirage dédié negoc-*, une seule itération).
+    if (modeJoueur && decision && !decision.repli) {
+      const profil = profileDuBot();
+      const negoc = negociationDuBot();
+      for (const d of decision.diplomatie) {
+        if (d.genre === 'guerre') {
+          const r = applyDeclareWar(etat, jev, d.cible);
+          journal.ligne({ type: 'diplomatie', tour, genre: 'guerre', de: jev, cible: d.cible, ok: r.ok, raison: r.ok ? null : r.reason });
+          if (r.ok) {
+            etat = r.state;
+            for (const ev of r.events) journal.evenement(ev);
+          }
+        } else if (d.genre === 'paix') {
+          const rng = createRng(botTurnSeed(seed, tour, `negoc-paix-${d.cible}-${jev}`));
+          const reponse = deciderPaixNegociee(
+            etat, d.cible, jev, d.or ?? 0, profil, negoc, rng, agressiviteDe(etat.players[d.cible]?.civId),
+          );
+          const accepte = reponse === 'accepte';
+          const r = applyProposePeace(etat, jev, d.cible, accepte, d.or > 0 ? d.or : undefined);
+          journal.ligne({
+            type: 'diplomatie', tour, genre: 'paix', de: jev, cible: d.cible, or: d.or ?? 0,
+            reponseBot: reponse, ok: r.ok, raison: r.ok ? null : r.reason,
+          });
+          if (r.ok) {
+            etat = r.state;
+            for (const ev of r.events) journal.evenement(ev);
+          }
+        } else if (d.genre === 'echange' && d.cible) {
+          const offre = { techOfferte: d.techOfferte, techDemandee: d.techDemandee };
+          const rng = createRng(botTurnSeed(seed, tour, `negoc-tech-${d.cible}-${jev}`));
+          const reponse = deciderEchangeTechs(
+            etat, d.cible, jev, offre, profil, negoc, rng, agressiviteDe(etat.players[d.cible]?.civId),
+          );
+          const accepte = reponse === 'accepte';
+          const r = applyTradeTechs(etat, jev, d.cible, offre, accepte);
+          journal.ligne({
+            type: 'diplomatie', tour, genre: 'echange', de: jev, cible: d.cible, offre,
+            reponseBot: reponse, ok: r.ok, raison: r.ok ? null : r.reason,
+          });
+          if (r.ok) {
+            etat = r.state;
+            for (const ev of r.events) journal.evenement(ev);
+            if (!accepte) memoRefusEchange(memo, d.techOfferte, d.techDemandee);
+          } else {
+            memoRefusEchange(memo, d.techOfferte, d.techDemandee);
+          }
+        }
       }
     }
 
@@ -306,6 +413,26 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     };
   });
 
+  // JEV-BANC-JOUEUR D3 : état militaire/éco de fin par joueur (villes, pop,
+  // techs, trésorerie, PV de forces — la table comparative du rapport).
+  const joueursFin = {};
+  for (const id of joueurs) {
+    const p = etat.players?.[id];
+    if (!p) continue;
+    const villes = Object.values(etat.cities ?? {}).filter((c) => c.owner === id);
+    joueursFin[id] = {
+      civId: p.civId,
+      defeated: !!p.defeated,
+      villes: villes.length,
+      pop: villes.reduce((s, c) => s + (c.pop ?? 0), 0),
+      techs: p.techsUnlocked?.length ?? 0,
+      tresorerie: p.treasury ?? 0,
+      forces: Object.values(etat.units ?? {})
+        .filter((u) => u.owner === id && !u.aboard)
+        .reduce((s, u) => s + (UNIT_TYPES[u.type]?.attack ?? 0), 0),
+    };
+  }
+
   journal.fin({
     gagnant: etat.winner,
     toursJoues: etat.turn,
@@ -316,6 +443,7 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     scores,
     rendementsFinaux,
     regleConversion: regle?.actif ? 'regle:conversion' : null,
+    joueursFin,
   });
   return { etat, jev, coupeParBudget };
 }
@@ -447,6 +575,11 @@ export function compterRejets(decision, etatAvant, resultat) {
       }
       case 'recherche': {
         // Validée au moment de l'application (applySetResearch → rejet_action).
+        break;
+      }
+      case 'conversion': {
+        const v = apres.cities?.[attente.cityId];
+        if (v && (v.conversion ?? 'gold') !== attente.vers) rejets.push(attente);
         break;
       }
       case 'fortifier': {

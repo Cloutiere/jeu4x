@@ -1,0 +1,70 @@
+{
+  "_commentaire": "Questions JEV-BANC-JOUEUR (décisions Erik 28/10) — Jev JOUEUR stratégique 1v1 vs bot standard : il décide UNE FOIS PAR TOUR la recherche (tenue), la conversion or/science (remplace la règle regle:conversion — actif:false ici), l'orientation de production de la capitale (militaire/éco), la diplomatie T2 (guerre, paix avec compensation, échange de techs). Le bot standard exécoute tout le tactique (marche, combats, garnisons, travail des tuiles, fondations). Les critères sont INJECTÉS par tour par le harnais (joueur.mjs) — candidats réels seulement, jamais de critère vide (directive n°3).",
+  "questions": {
+    "produire": {
+      "primitive": "choice",
+      "instructions": "Choisir l'item à produire dans la capitale ce tour (ORIENTATION de l'empire : unité de combat = posture militaire, colon/bâtiment = posture économique). Chaque critère est un item réellement productible avec son coût en marteaux et sa durée estimée en tours. Choisir 'aucun' laisse le bot arbitrer lui-même.",
+      "aucun": true
+    },
+    "rechercher": {
+      "primitive": "choice",
+      "instructions": "Choisir la PROCHAINE technologie de l'empire. Ce choix est TENU par le harnais jusqu'à sa complétion (jamais de changement en cours de route). Chaque critère est une technologie réellement disponible avec son coût en fioles."
+    },
+    "convertir": {
+      "primitive": "choice",
+      "instructions": "Orienter la conversion d'une ville : 'science' alimente la recherche, 'or' alimente la trésorerie (achat de rush, compensation de paix). Chaque critère décrit la ville et son orientation CIBLE (l'orientation actuelle figure dans empire.villes[].conversion). Choisir 'aucun' ne change rien ce tour.",
+      "aucun": true
+    },
+    "guerre": {
+      "primitive": "choice",
+      "instructions": "Déclarer la guerre à une nation rivale (acte PUBLIC — elle le saura). Chaque critère décrit le rival : sa civ, son ère, ses techs connues, sa puissance militaire VISIBLE par rapport à la nôtre et la distance entre capitales. Déclarer lance la campagne : le bot standard assemble l'armée et marche (les objectifs tactiques restent les siens). Choisir 'aucun' ne déclare RIEN ce tour (et bloque toute déclaration du bot pour nous ce tour).",
+      "aucun": true
+    },
+    "paix": {
+      "primitive": "choice",
+      "instructions": "Faire la paix avec une nation ennemie. Chaque critère décrit l'ennemi : durée de la guerre, batailles menées, rapport de forces visible. Choisir un ennemi PROPOSE la paix (l'ennemi accepte, refuse, ou contre-propose un prix) ; si l'ennemi nous a proposé la paix ce tour, ce choix l'ACCEPTE. Choisir 'aucun' refuse toute paix ce tour (les propositions ennemies sont rejetées).",
+      "aucun": true
+    },
+    "compensation": {
+      "primitive": "score",
+      "instructions": "Si la question paix a choisi un ennemi : quelle COMPENSATION d'or offrir avec la proposition de paix (partie de notre trésorerie, transférée SEULEMENT si la paix est signée — un refus ne coûte rien). 0 = paix sèche. Si la question paix a choisi 'aucun', cette réponse est ignorée.",
+      "criteria": [
+        "Aucune compensation (paix sèche).",
+        "Compensation symbolique (environ 10 % de la trésorerie).",
+        "Compensation modérée (environ 25 % de la trésorerie).",
+        "Compensation forte (environ 50 % de la trésorerie).",
+        "Racheter la paix à n'importe quel prix (trésorerie entière)."
+      ]
+    },
+    "techOfferte": {
+      "primitive": "choice",
+      "instructions": "Proposer un ÉCHANGE de technologies au rival (acte PRIVÉ, impossible en guerre) : choisir la technologie que nous OFFRONS. Chaque critère est une de nos techs que le rival ne connaît PAS, avec son coût en fioles. La contrepartie est choisie dans la question techDemandee ; les deux questions sont nécessaires. Choisir 'aucun' ne propose aucun échange ce tour.",
+      "aucun": true
+    },
+    "techDemandee": {
+      "primitive": "choice",
+      "instructions": "Choisir la technologie DEMANDÉE en contrepartie de l'échange (échange 1:1). Chaque critère est une tech du rival que nous ne connaissons PAS, avec son coût en fioles. Un échange équilibré demande une tech de coût comparable à celle offerte.",
+      "aucun": true
+    }
+  },
+  "seuils": {
+    "confianceChoixMin": 0.65,
+    "decisionMin": 0.5,
+    "compensationPaliers": [0, 0.1, 0.25, 0.5, 1]
+  },
+  "_commentaire_seuils": "Seuils PAR DOMAINE (canon v2) : produire/rechercher à 0,65 (comme les bancs v2) ; guerre/paix/convertir/échange à 0,5 — le banc joueur-2026-10-27 a montré que ces questions sont chroniquement sous-confiantes chez jev-latest (321 choix guerre:p2 et 1105 choix science:c1 refusés par la porte 0,65 ; précédent fonderMin 0,5 du banc v3). Une réponse indécise (sous seuil) = initiative du bot (canon D2).",
+  "_commentaire_regles": "JEV-BANC-JOUEUR D1 : la règle regle:conversion du harnais (v4) est DÉSACTIVÉE — Jev décide lui-même la conversion ville par ville (question convertir). Aucune autre règle automatique.",
+  "regles": {
+    "conversion": {
+      "actif": false
+    }
+  },
+  "_commentaire_score": "Mêmes pondérations que le banc v4 (comparabilité) — villes×10 + pop×2 + techs×30 + merveilles×100 + trésorerie/10.",
+  "score": {
+    "villes": 10,
+    "pop": 2,
+    "techs": 30,
+    "merveilles": 100,
+    "divTresorerie": 10
+  }
+}
