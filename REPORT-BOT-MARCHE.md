@@ -48,9 +48,14 @@ Comparateur `devtmp/banc-marche-analyse.mjs` :
 - **La fusion existe enfin** : `ArmyFormed` observés au banc (0 avant) ; captures par les déclarants ×2 à l'échelle du banc (5 → 10).
 - **Le prochain verrou est LOCALISÉ (D5-bis)** : l'effectif au rayon n'atteint `requis` que 6-12 % du temps. La marche converge (distMin 8-9), mais l'armée de 6-8 (difficile 8) s'assemble plus vite qu'elle n'est PRODUITE : le pool excédentaire met 40+ tours à naître, l'horloge (durée 37 en moyenne) ferme avant, et les arrivants précoces usent leurs PV aux assauts d'attente. Leviers candidats (Erik décide) : `tailleArmee` plus petite (assauts de trios R-31 dès 3-4), production offensive renforcée en guerre (poids marteaux/ordre de file), ou effectif requis dégradé par tierce partie. PÉRIMÈTRE INTACT (production/spawns = non touchés ici).
 
-## 5. God mode (`devtmp/bot-marche-gui.mjs` → `dev-logs/captures-bot-marche/`)
+## 5. God mode (`devtmp/bot-marche-gui.mjs` → `dev-logs/captures-bot-marche/`) 🔴
 
-Run 90 tours (log `devtmp/bot-marche-gui-run.log`, trace `trace-tours.json`) : guerre déclarée ✓, marche observée, captures d'écran aux moments forts (armée formée / siège / rassemblement / assaut). Verdicts consignés en fin de log — 🔶 à vérifier par Erik (le seed god mode donne une économie lente : bot à 1-2 unités jusqu'à t30, comme au run horloge).
+**3 exécutions (90-140 tours), 3 échecs — consignés honnêtement** (traces `trace-tours.json`/`trace.md`, sorties console) :
+- guerre déclarée ✓ à chaque run (t10, difficile) ;
+- **mur t90 systématique** : la résolution se fige (piège workerd connu — même symptôme que FLECHE-COUCHE/e2e tours longs), `finirTour` épuise ses essais ;
+- avant le mur, l'économie bot de ces seeds démarre lentement (1-2 unités jusqu'à t30, 6-11 à t90 — productions de colons précoces qui n'ont jamais fondé, vues au dump admin) : l'effectif 6-8 de l'armée n'est réuni nulle part dans l'horizon, et la préparation D2 ne s'arme pas contre un joueur humain (god mode) plus fort (guerreProbable = faux).
+
+**L'arbitre de la mission reste le banc** (ArmyFormed enfin observés, marche monotone, captures ×2) + la sonde seed 2896796234 (armée constituée, marche monotone, contact au mur, D2 vérifiée). Le critère d'acceptation 1 n'est PAS rempli en god mode ; le critère 2 l'est par localisation du verrou (§4). 🔶 à rejouer par Erik sur un seed fertile (les runs BOT-ARMEE/HORLOGE précédents montraient des rassemblements sur d'autres seeds).
 
 ## 6. À juger en jouant par Erik
 
