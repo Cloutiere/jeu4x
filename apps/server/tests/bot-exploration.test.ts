@@ -162,13 +162,25 @@ describe('BOT-EXPLORATION · D3 — rappel immédiat (menace ou guerre)', () => 
     expect(assignerObjectifs(s, BOT, profileDuBot()).get('b1')).toMatchObject({ kind: 'patrouiller' });
   });
 
-  it('(b) guerre déclarée : rappel immédiat (garnison du scout, jamais de patrouille)', () => {
+  it('(b) guerre déclarée avec MENACE capitale : rappel immédiat (garnison du scout, jamais de patrouille) — BOT-MARCHE D3 : la guerre calme ne suffit plus', () => {
+    const s = state({
+      units: [
+        { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 3 },
+        { id: 'x1', type: 'guerrier', owner: HUMAN, q: 2, r: 6 },
+      ],
+      cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2, capital: true }],
+      war: true,
+    });
+    expect(assignerObjectifs(s, BOT, profileDuBot()).get('b1')).toMatchObject({ kind: 'garnison', cityId: 'c1' });
+  });
+
+  it('(b-bis) BOT-MARCHE D3 : guerre SANS menace capitale → pas de rappel, le scout patrouille', () => {
     const s = state({
       units: [{ id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 3 }],
       cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2, capital: true }],
       war: true,
     });
-    expect(assignerObjectifs(s, BOT, profileDuBot()).get('b1')).toMatchObject({ kind: 'garnison', cityId: 'c1' });
+    expect(assignerObjectifs(s, BOT, profileDuBot()).get('b1')).toMatchObject({ kind: 'patrouiller' });
   });
 });
 

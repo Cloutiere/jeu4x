@@ -67,8 +67,11 @@ describe('BOT-TD · D2 — profil appliqué (bot.json)', () => {
         { id: 'g1', type: 'guerrier', owner: 'p1', q: 2, r: 2, aboard: null, cargo: null },
         { id: 'g2', type: 'guerrier', owner: 'p1', q: 2, r: 2, aboard: null, cargo: null },
         { id: 'g3', type: 'guerrier', owner: 'p1', q: 2, r: 2, aboard: null, cargo: null },
+        // BOT-MARCHE D3 : la conscription exige l'urgence capitale (menace).
+        { id: 'x1', type: 'guerrier', owner: 'barbarien', q: 2, r: 5, aboard: null, cargo: null },
       ],
       cities: [{ id: 'c1', owner: 'p1', q: 2, r: 2, capital: true }],
+      warPairs: [], // BOT-MARCHE D3 : conscription de garnison = urgence paix
     });
     const enGarnison = (difficulte: string): number => {
       const objectifs = assignerObjectifs(etat, 'p1', profileDuBot(difficulte));

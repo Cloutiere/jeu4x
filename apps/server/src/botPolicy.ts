@@ -59,6 +59,7 @@ import {
   canSetProduction,
   compareCityIds,
   compareUnitIds,
+  derniereDeclarationCible,
   distanceCibleGuerre,
   dureeGuerre,
   frontierRadius,
@@ -412,10 +413,21 @@ export function forcesDe(state: GameState, playerId: PlayerId): number {
  *  score = forces × (1 + poidsDistanceCibleGuerre × distance wrap entre
  *  capitales) — le poids affine sans renverser l'échelle des forces. Joueurs
  *  actifs ≠ moi, hors barbares, pas déjà en guerre, avec ville — tri (score,
- *  forces, distance, id) R-81. Null si aucun candidat. */
-export function cibleGuerre(state: GameState, me: PlayerId, profile?: BotProfileData): PlayerId | null {
+ *  forces, distance, id) R-81. BOT-MARCHE D4 : cibles verrouillées exclues
+ *  (re-déclaration). Null si aucun candidat. */
+export function cibleGuerre(
+  state: GameState,
+  me: PlayerId,
+  profile?: BotProfileData,
+  exclusions: ReadonlyArray<PlayerId> = [],
+): PlayerId | null {
   const prof = profile ?? BOT_SETTINGS.profiles[BOT_SETTINGS.profil] ?? Object.values(BOT_SETTINGS.profiles)[0]!;
-  return cibleGuerrePonderee(state, me, prof, candidatsGuerre(state, me));
+  return cibleGuerrePonderee(
+    state,
+    me,
+    prof,
+    candidatsGuerre(state, me).filter((id) => !exclusions.includes(id)),
+  );
 }
 
 /** Candidats à la déclaration (miroir de l'ancien filtre de cibleGuerre). */
@@ -501,7 +513,15 @@ export function deciderGuerre(
   if (state.turn < profile.tourMinGuerre) return null;
   const derniere = state.diplomacy.dernieresGuerres?.[me];
   if (derniere !== undefined && state.turn - derniere < profile.delaiEntreGuerres) return null;
-  const cible = cibleGuerre(state, me, profile);
+  // BOT-MARCHE · D4 — verrou de re-déclaration : une cible déjà déclarée il y
+  // a moins de delaiRedeclaration est EXCLUE (la meilleure cible restante est
+  // choisie ; null si toutes verrouillées) — les guerres en boucle entre
+  // voisins épuisés se tarissent.
+  const verrouillees = candidatsGuerre(state, me).filter((id) => {
+    const d = derniereDeclarationCible(state, me, id);
+    return d !== undefined && state.turn - d < profile.delaiRedeclaration;
+  });
+  const cible = cibleGuerre(state, me, profile, verrouillees);
   if (!cible) return null;
   const mesForces = forcesDe(state, me);
   if (mesForces <= 0) return null;
@@ -608,6 +628,45 @@ export function cibleCampagne(
 }
 
 /**
+ * BOT-MARCHE (Erik 28/10, D2) · Cible PROJETÉE en temps de paix : la cible
+ * de guerre pondérée (D2 PAIX-RYTHME) parmi les candidats EN PAIX — miroir
+ * exact de ce que deciderGuerre déclarerait — puis SA ville la plus proche
+ * de ma capitale. Sert à l'armée permanente : le pool se rassemble vers
+ * cette cible AVANT la déclaration (miroir du joueur qui prépare). Pur.
+ */
+export function cibleProjetee(
+  state: GameState,
+  me: PlayerId,
+  profile?: BotProfileData,
+): { q: number; r: number; owner: PlayerId; cityId: string } | null {
+  const prof = profile ?? BOT_SETTINGS.profiles[BOT_SETTINGS.profil] ?? Object.values(BOT_SETTINGS.profiles)[0]!;
+  const cible = cibleGuerre(state, me, prof);
+  if (!cible) return null;
+  const maCapitale = capitaleDe(state, me);
+  const origine = maCapitale ?? { q: 0, r: 0 };
+  const villes = Object.values(state.cities)
+    .filter((c) => c.owner === cible)
+    .sort((a, b) => dist(state, origine, a) - dist(state, origine, b) || compareCityIds(a.id, b.id));
+  const v = villes[0];
+  return v ? { q: v.q, r: v.r, owner: cible, cityId: v.id } : null;
+}
+
+/** La guerre est-elle PROBABLE (D2) : ratio de forces ≥ seuil effectif du
+ *  profil (même condition que la déclaration, sans le tirage). Pur. */
+export function guerreProbable(
+  state: GameState,
+  me: PlayerId,
+  profile: BotProfileData,
+  agressivite: number,
+): boolean {
+  const projet = cibleProjetee(state, me, profile);
+  if (!projet) return false;
+  const mesForces = forcesDe(state, me);
+  if (mesForces <= 0) return false;
+  return mesForces >= seuilGuerreEffectif(profile, agressivite) * forcesDe(state, projet.owner);
+}
+
+/**
  * PAIX-RYTHME · conscription de garnison par appariement GLOBAL : répéter
  * tant qu'une ville manque, en brouillant le couple (ville, unité) AU PLUS
  * PRES — l'ancien parcours par ordre d'id rappelait les MARCHEURS de
@@ -641,11 +700,23 @@ export function planGarnison(
   }
   const capitale = myCities[0];
   const ennemis = ennemisDe(state, me);
-  const urgence =
-    ennemis.size > 0 ||
-    (capitale ? menaceAutourCapitale(state, capitale, me, ennemis, profile.rayonMenace) : false);
+  // BOT-MARCHE · D3 — en guerre CIVILE active (campagne en cours), le
+  // détachement PRIME sur le recrutement de nouvelles garnisons : l'urgence
+  // n'est plus la guerre elle-même mais la MENACE AUTOUR DE LA CAPITALE
+  // (BOT-EXPLORATION D3 reste au-dessus de tout), et seules la capitale
+  // recrute — les villes secondaires attendent la paix.
+  const enGuerreCivile = [...ennemis].some((id) => !isBarbarian(id));
+  const urgence = enGuerreCivile
+    ? capitale
+      ? menaceAutourCapitale(state, capitale, me, ennemis, profile.rayonMenace)
+      : false
+    : ennemis.size > 0 ||
+      (capitale ? menaceAutourCapitale(state, capitale, me, ennemis, profile.rayonMenace) : false);
   const quotaCap = quotaCapitale(profile, mine.length, urgence);
-  const besoinDe = (c: City): number => (c.capital ? quotaCap : profile.garnisonsParVille);
+  const besoinDe = (c: City): number => {
+    if (enGuerreCivile && !urgence) return 0; // D3 : la campagne prime
+    return c.capital ? quotaCap : profile.garnisonsParVille;
+  };
   // BOT-ARMEE · les défenseurs EN PLACE (comptés dans le quota) ne sont
   // JAMAIS du pool — sinon la garnison se vide en campagne alors que le
   // quota la croit toujours là (D3 : garnisons stables).
@@ -780,6 +851,32 @@ export function pointRalliement(
   profile: BotProfileData,
 ): { q: number; r: number } {
   return anneauRalliement(state, cible, me, profile)[0] ?? { q: cible.q, r: cible.r };
+}
+
+/**
+ * BOT-MARCHE (Erik 28/10, D1) · Hex de ralliement STABLE d'un membre : rang
+ * du membre dans la liste triée PAR ID (R-81) sur l'anneau — plus JAMAIS le
+ * rang par distance au tour courant (l'ancien rang permutait à chaque pas,
+ * les membres changeaient de case cible et oscillaient — sonde L1 :
+ * d18→21→20 pendant 60 tours). L'anneau étant géométrique (stable), chaque
+ * membre garde SA case jusqu'à l'arrivée : la marche devient monotone.
+ * Pur, déterministe.
+ */
+export function hexRalliementMembre(
+  state: GameState,
+  campagne: { q: number; r: number },
+  me: PlayerId,
+  profile: BotProfileData,
+  membres: ReadonlyArray<Unit>,
+  unitId: string,
+): { q: number; r: number } {
+  const anneau = anneauRalliement(state, campagne, me, profile);
+  if (anneau.length === 0) return pointRalliement(state, campagne, me, profile);
+  const rang = membres
+    .slice()
+    .sort((a, b) => compareUnitIds(a.id, b.id))
+    .findIndex((m) => m.id === unitId);
+  return anneau[((rang % anneau.length) + anneau.length) % anneau.length]!;
 }
 
 /**
@@ -979,11 +1076,21 @@ export function assignerObjectifs(
   // BOT-EXPLORATION D1/D2/D3 : quota DYNAMIQUE de la capitale (0 à 1 unité,
   // 1 ensuite, profil complet au renfort) — relevé par toute urgence (D3).
   const capitale = myCities[0]; // triée : capitale d'abord (sinon première ville)
-  const urgence =
-    ennemis.size > 0 ||
-    (capitale ? menaceAutourCapitale(state, capitale, playerId, ennemis, profile.rayonMenace) : false);
+  // BOT-MARCHE · D3 — miroir exact de planGarnison : en guerre civile, la
+  // seule urgence est la MENACE AUTOUR DE LA CAPITALE (la guerre calme ne
+  // rappelle plus personne — la campagne prime).
+  const enGuerreCivile = [...ennemis].some((id) => !isBarbarian(id));
+  const urgence = enGuerreCivile
+    ? capitale
+      ? menaceAutourCapitale(state, capitale, playerId, ennemis, profile.rayonMenace)
+      : false
+    : ennemis.size > 0 ||
+      (capitale ? menaceAutourCapitale(state, capitale, playerId, ennemis, profile.rayonMenace) : false);
   const quotaCap = quotaCapitale(profile, mine.length, urgence);
-  const besoinDe = (c: City): number => (c.capital ? quotaCap : besoinDeVille(c));
+  const besoinDe = (c: City): number => {
+    if (enGuerreCivile && !urgence) return 0; // D3 : la campagne prime
+    return c.capital ? quotaCap : besoinDeVille(c);
+  };
   // PAIX-RYTHME · PAIX-RYTHME conscription : brouillon global (ville, unité)
   // au plus près — miroir exact de planGarnison (le pool en est le complément).
   const drafts = planGarnison(state, playerId, profile).drafts;
@@ -1009,6 +1116,13 @@ export function assignerObjectifs(
   const membresArmee = campagne
     ? Object.values(state.units).filter((u) => u.owner === playerId && armee.has(u.id) && !u.aboard)
     : [];
+  // BOT-MARCHE · D2 : l'armée PERMANENTE en paix — calculée une fois (le
+  // scout qui en fait partie ne patrouille plus, voir plus bas).
+  const agressivite = agressiviteDe(me.civId);
+  const prep = !campagne && guerreProbable(state, playerId, profile, agressivite)
+    ? cibleProjetee(state, playerId, profile)
+    : null;
+  const armeeProjetee = prep ? assignerArmee(state, playerId, profile, prep) : new Set<string>();
   // PAIX-RYTHME · D1 (canon R-31) : au siège, les trios homogènes de
   // l'armée FUSENT — la conquête passe par la mécanique canon FormArmy.
   const fusionDe = new Map<string, GroupeFusion>();
@@ -1069,10 +1183,18 @@ export function assignerObjectifs(
     }
 
     // ② attaquer une cible adjacente au rapport favorable.
+    // BOT-MARCHE · un membre d'armée dont la campagne est INCOMPLÈTE ne
+    // déclenche pas l'attaque : il camperait sinon le siège un par un en
+    // arrivant et mourrait en détail avant l'effectif (sonde : u32 au mur
+    // d0-t85, effectif jamais atteint). Arrivé → campement (rallier) ;
+    // l'assaut part à l'effectif (enSiege — priorité garnison).
+    const attaquePermise = !armee.has(unit.id) || campagne === null || enSiege;
     const sAtt = forceAttaque(unit);
-    const cibles = ciblesAttaquables(state, unit, playerId, ennemis, enSiege)
-      .filter((c) => sAtt > 0 && sAtt >= profile.ratioAttaqueMin * c.sDef)
-      .sort((a, b) => b.priorite - a.priorite || a.sDef - b.sDef || a.hex.q - b.hex.q || a.hex.r - b.hex.r);
+    const cibles = attaquePermise
+      ? ciblesAttaquables(state, unit, playerId, ennemis, enSiege)
+          .filter((c) => sAtt > 0 && sAtt >= profile.ratioAttaqueMin * c.sDef)
+          .sort((a, b) => b.priorite - a.priorite || a.sDef - b.sDef || a.hex.q - b.hex.q || a.hex.r - b.hex.r)
+      : [];
     if (cibles.length > 0) {
       objectifs.set(unit.id, { kind: 'attaquer', cible: cibles[0]!.hex });
       continue;
@@ -1100,7 +1222,12 @@ export function assignerObjectifs(
     // BOT-EXPLORATION D1 : hors urgence, le scout PATROUILLE en boucle autour
     // de la capitale au lieu de garnisonner (priorité entre ② et ③ — il n'abandonne
     // la boucle que pour soigner, attaquer ou replier).
-    if (capitale && !urgence && scoutId === unit.id && estCombattante(unit)) {
+    // BOT-MARCHE : sauf s'il est du détachement de campagne — en guerre le
+    // scout est mobilisable (pool), l'armée passe avant la patrouille.
+    if (
+      capitale && !urgence && scoutId === unit.id && estCombattante(unit) &&
+      !armee.has(unit.id) && !armeeProjetee.has(unit.id)
+    ) {
       const wp = prochainWaypointPatrouille(capitale, unit, profile.rayonPatrouille, state.mapWidth);
       objectifs.set(unit.id, { kind: 'patrouiller', cible: wp });
       continue;
@@ -1128,19 +1255,27 @@ export function assignerObjectifs(
       if (effectif >= requis) {
         objectifs.set(unit.id, { kind: 'offensiver', cible: { q: campagne.q, r: campagne.r }, cityId: campagne.cityId });
       } else {
-        const anneau = anneauRalliement(state, campagne, playerId, profile);
-        // Rang par DISTANCE (approche du bon côté — chaque membre reçoit un
-        // hex de l'anneau dans SA direction d'arrivée), tie id (R-81).
-        const rang = membresArmee
-          .slice()
-          .sort(
-            (a, b) =>
-              dist(state, a, campagne) - dist(state, b, campagne) || compareUnitIds(a.id, b.id),
-          )
-          .findIndex((m) => m.id === unit.id);
-        const hex = anneau.length > 0 ? anneau[((rang % anneau.length) + anneau.length) % anneau.length]! : pointRalliement(state, campagne, playerId, profile);
+        // BOT-MARCHE · D1 : hex de ralliement STABLE (rang par id sur
+        // l'anneau géométrique) — le rang par distance au tour courant
+        // permutait à chaque pas et la colonne oscillait sans jamais
+        // s'assembler (sonde L1).
+        const hex = hexRalliementMembre(state, campagne, playerId, profile, membresArmee, unit.id);
         objectifs.set(unit.id, { kind: 'rallier', cible: hex, cityId: campagne.cityId });
       }
+      continue;
+    }
+
+    // BOT-MARCHE · D2 — armée PERMANENTE en temps de paix : quand le rapport
+    // de forces annonce une guerre probable (seuil effectif du profil, même
+    // condition que la déclaration — miroir du joueur qui prépare), le pool
+    // se rassemble vers la cible PROJETÉE. À la déclaration, l'armée est
+    // déjà campée au bord ennemi : la guerre éclate en marche.
+    if (estCombattante(unit) && prep && armeeProjetee.has(unit.id)) {
+      const membresProjet = Object.values(state.units).filter(
+        (u) => u.owner === playerId && armeeProjetee.has(u.id) && !u.aboard,
+      );
+      const hex = hexRalliementMembre(state, prep, playerId, profile, membresProjet, unit.id);
+      objectifs.set(unit.id, { kind: 'rallier', cible: hex, cityId: prep.cityId });
       continue;
     }
 

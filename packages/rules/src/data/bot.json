@@ -48,7 +48,8 @@
       "facteurMarcheCible": 1,
       "tailleArmee": 4,
       "rayonRalliement": 2,
-      "modulationSeuilAgressivite": 0.7
+      "modulationSeuilAgressivite": 0.7,
+      "delaiRedeclaration": 30
     },
     "normal": {
       "seuilSoinPv": 2,
@@ -70,7 +71,8 @@
       "facteurMarcheCible": 1,
       "tailleArmee": 6,
       "rayonRalliement": 2,
-      "modulationSeuilAgressivite": 0.7
+      "modulationSeuilAgressivite": 0.7,
+      "delaiRedeclaration": 30
     },
     "difficile": {
       "seuilSoinPv": 3,
@@ -92,7 +94,8 @@
       "facteurMarcheCible": 1,
       "tailleArmee": 8,
       "rayonRalliement": 2,
-      "modulationSeuilAgressivite": 0.7
+      "modulationSeuilAgressivite": 0.7,
+      "delaiRedeclaration": 30
     }
   }
 }

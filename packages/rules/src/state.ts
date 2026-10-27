@@ -448,13 +448,18 @@ export interface GameState {
    *  HORLOGE-DISTANCE (Erik 28/10) : `distancesCible` — distance WRAP entre
    *  capitales effectives À LA DÉCLARATION de chaque guerre (clé canonique
    *  « a,b ») pour la durée minimale modulée (facteurMarcheCible). Absent =
-   *  guerre pré-existante (repli toursPaixMin, comportement historique). */
+   *  guerre pré-existante (repli toursPaixMin, comportement historique).
+   *  BOT-MARCHE (Erik 28/10) : `dernieresCibles` — tour de la DERNIÈRE
+   *  DÉCLARATION de chaque paire (clé canonique « a,b », posée à
+   *  DeclareWar, conservée après la paix) pour le verrou de re-déclaration
+   *  (delaiRedeclaration). Absent = jamais déclarée. */
   diplomacy: {
     war: Array<[PlayerId, PlayerId]>;
     warsDepuis?: Record<string, number>;
     dernieresGuerres?: Record<PlayerId, number>;
     batailles?: Record<string, number>;
     distancesCible?: Record<string, number>;
+    dernieresCibles?: Record<string, number>;
   };
   /** R-96/Phase 7d : villages barbares (portés du JSON de carte vers l'état). */
   villages: BarbarianVillage[];

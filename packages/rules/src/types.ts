@@ -777,6 +777,12 @@ export interface BotProfileData {
    *  (attaquent des voisins égaux), les pacifiques le relèvent (exigent
    *  l'écrasement). 0 = neutre. */
   modulationSeuilAgressivite: number;
+  // --- BOT-MARCHE (Erik 28/10) — la marche de l'armée. ---
+  /** D4 · pas de RE-DÉCLARATION contre la MÊME cible avant ce délai (tours
+   *  après la précédente déclaration) — les guerres en boucle entre voisins
+   *  épuisés (95 % stériles) se tarissent. Consigné dans
+   *  diplomacy.dernieresCibles (champ optionnel, schemaVersion 28). */
+  delaiRedeclaration: number;
 }
 
 /** BOT-TB · D1-D4 — arbitres économiques du bot (bot.json, partagés par les

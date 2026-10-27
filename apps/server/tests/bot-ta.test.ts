@@ -178,6 +178,9 @@ describe('BOT-TA · D1-③ garnison (capitale prioritaire, N par ville)', () => 
         { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 1 },
         { id: 'b2', type: 'guerrier', owner: BOT, q: 2, r: 2 },
         { id: 'b3', type: 'guerrier', owner: BOT, q: 6, r: 2 },
+        // BOT-MARCHE D3 : la conscription exige désormais l'URGENCE capitale
+        // (menace à ≤ rayonMenace) — en guerre calme, la campagne prime.
+        { id: 'x1', type: 'guerrier', owner: HUMAN, q: 2, r: 6 },
       ],
       cities: [
         { id: 'c2', owner: BOT, q: 6, r: 3, pop: 2 },
@@ -191,13 +194,20 @@ describe('BOT-TA · D1-③ garnison (capitale prioritaire, N par ville)', () => 
   });
 
   it('garnison comblée : l\'unité en place se FORTIFIE puis passe en VIGILANCE (jamais Passer)', () => {
+    // BOT-MARCHE D3 : la garnison d'urgence exige la menace capitale.
     const s = state({
-      units: [{ id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 3 }],
+      units: [
+        { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 3 },
+        { id: 'x1', type: 'guerrier', owner: HUMAN, q: 2, r: 6 },
+      ],
       cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2, capital: true }],
     });
     expect(orderOf(planOf(s), 'b1')).toMatchObject({ type: 'Fortify', unitId: 'b1' });
     const fortified = state({
-      units: [{ id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 3, fortified: true }],
+      units: [
+        { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 3, fortified: true },
+        { id: 'x1', type: 'guerrier', owner: HUMAN, q: 2, r: 6 },
+      ],
       cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2, capital: true }],
     });
     expect(orderOf(planOf(fortified), 'b1')).toMatchObject({ type: 'Sleep', unitId: 'b1' });

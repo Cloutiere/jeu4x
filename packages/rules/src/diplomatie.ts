@@ -59,6 +59,12 @@ export function applyDeclareWar(input: GameState, playerId: PlayerId, target: Pl
     ...(st.diplomacy.distancesCible ?? {}),
     [`${a},${b}`]: distanceCapitales(st, playerId, target),
   };
+  // BOT-MARCHE (Erik 28/10) : le tour de déclaration est consigné par PAIRE
+  // (conservé après la paix) — verrou de re-déclaration delaiRedeclaration.
+  st.diplomacy.dernieresCibles = {
+    ...(st.diplomacy.dernieresCibles ?? {}),
+    [`${a},${b}`]: st.turn,
+  };
   const events: GameEvent[] = [{ seq: 0, type: 'WarDeclared', from: playerId, on: target }];
   return { ok: true, state: st, events };
 }
@@ -128,6 +134,16 @@ export function dureeGuerre(state: GameState, a: PlayerId, b: PlayerId): number 
  */
 export function distanceCibleGuerre(state: GameState, a: PlayerId, b: PlayerId): number {
   return state.diplomacy.distancesCible?.[cleDepuis(a, b)] ?? 0;
+}
+
+/**
+ * BOT-MARCHE (Erik 28/10, D4) · Tour de la DERNIÈRE DÉCLARATION de la paire
+ * (a, b) — consigné à DeclareWar, CONSERVÉ après la paix (clé canonique).
+ * Undefined si jamais déclarée. Sert au verrou de re-déclaration
+ * (delaiRedeclaration côté botPolicy).
+ */
+export function derniereDeclarationCible(state: GameState, a: PlayerId, b: PlayerId): number | undefined {
+  return state.diplomacy.dernieresCibles?.[cleDepuis(a, b)];
 }
 
 /**

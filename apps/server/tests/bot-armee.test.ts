@@ -147,19 +147,21 @@ describe('BOT-ARMEE · D1 — assignation de l’armée', () => {
     });
     const cible = cibleCampagne(s, ME)!;
     const armee = assignerArmee(s, ME, NORMAL, cible);
-    // u1/u2 comblent la garnison de la capitale (quota 2) — le pool est
-    // {u3,u4,u5}, plus petit que tailleArmee : TOUT le pool part.
-    expect(armee.size).toBe(3);
-    expect(armee.has('u1')).toBe(false);
-    expect(armee.has('u2')).toBe(false);
+    // BOT-MARCHE D3 : en guerre SANS menace capitale, PLUS PERSONNE ne comble
+    // la garnison — le pool est tout l'empire {u1..u5}, plus petit que
+    // tailleArmee : TOUT le pool part.
+    expect(armee.size).toBe(5);
+    expect(armee.has('u1')).toBe(true);
+    expect(armee.has('u2')).toBe(true);
     expect(armee.has('u3')).toBe(true);
     expect(armee.has('u4')).toBe(true);
     expect(armee.has('u5')).toBe(true);
   });
 
-  it('pool plus petit que tailleArmee → tout le pool part (garnisseurs verrouillés)', () => {
-    // g2 est réquisitionné par le quota de capitale non comblé (et les
-    // défenseurs en place ne partent JAMAIS) ; le pool {u1} part en entier.
+  it('pool plus petit que tailleArmee → tout le pool part (défenseurs en place stables)', () => {
+    // BOT-MARCHE D3 : en guerre sans menace capitale, personne n'est
+    // réquisitionné ; les défenseurs EN PLACE (g1, g2) ne partent JAMAIS ;
+    // le pool {u1} part en entier.
     const s = state({
       ...base,
       units: [
@@ -170,8 +172,12 @@ describe('BOT-ARMEE · D1 — assignation de l’armée', () => {
     });
     const cible = cibleCampagne(s, ME)!;
     const armee = assignerArmee(s, ME, NORMAL, cible);
-    expect(armee.size).toBe(1);
+    // Le scout (g1, premier combattant R-81) est MOBILISABLE en guerre
+    // (BOT-EXPLORATION D3) — le pool est {u1, g1} ; u1 part aussi.
+    expect(armee.size).toBe(2);
     expect(armee.has('u1')).toBe(true);
+    expect(armee.has('g1')).toBe(true);
+    expect(armee.has('g2')).toBe(false);
   });
 
   it('déterminisme intégral : même état ⇒ même armée', () => {
