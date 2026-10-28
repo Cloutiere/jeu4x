@@ -43,6 +43,15 @@ Locale (wrangler dev, clé `.dev.vars`, script `devtmp/jev-fumee.mjs`) :
 - Repli : clé fausse → 3 échecs → `desactive: 'echecs'`, la partie continue (4 tours joués).
 Prod : déployée par push (CI Deploy) ; la première partie fumée d'Erik reste à jouer (1 tour suffit à la plomberie, une partie complète au verdict).
 
+## Déploiement prod (L4)
+- Commits 68cc82c → 56eacd9 → f766e88 ; **Deploy vert** sur f766e88 (les deux premiers runs ont échoué en CI — incidents ci-dessous, corrigés).
+- Vérification prod : accueil HTTP 200 sur game-4x-server-prod.erik-ai-studio.workers.dev ; bundle assets/index-DuKk-Q4Z.js contient « Jev 🤖 » et adversaireJev (sélecteur du lobby servi).
+- La partie fumée d'Erik reste à jouer en prod (critère 1 du handoff — remise de la main).
+
+## Incidents CI (corrigés, consignés)
+1. **carte-multi rouge** (68cc82c) : ma première restructuration appliquait les actions bot en DEUX passes (tous les plans d'abord, puis toutes les actions) — l'ordre canon BOT-SOLO est ENTRELACÉ (plan généré puis actions appliquées avant le bot suivant) ; les plans des bots suivants dépendaient de l'état post-actions des précédents (p5 sans recherche). Corrigé 56eacd9 : entrelacement rétabli, décision Jev en pré-passe sur l'état pré-actions (canon harnais).
+2. **tests-jev rouges en CI** : le harnais sableuse est HORS workspace — ses node_modules ne sont pas installés en CI et @game/rules n'était pas résoluble depuis sableuse/src/*.mjs (la remontée ne passe que localement). Corrigé f766e88 : alias Vite @game/rules → packages/rules/src/index.ts dans vitest.jev.config.ts.
+
 ## Suites
 - serveur **331 verts** (pool Workers) + **18 verts** (jev, Node) — `pnpm -C apps/server test` enchaîne les deux configs ;
 - web **700 verts**, rules **1101 verts**, `pnpm build` + `pnpm typecheck` 4/4.
