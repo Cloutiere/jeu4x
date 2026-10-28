@@ -1890,8 +1890,22 @@ export class GameDO {
     // ordres et attentes sont déjà persistés dans le motif (§3.5).
     const jevSeat = this.meta.players.find((p) => p.jev === true)?.engineId ?? null;
     let planJev: PlanJev | null = null;
-    const plansBot = new Map<EnginePlayerId, ReturnType<typeof botPolicy>>();
     if (!this.jevEtat && jevSeat) this.jevEtat = jevEtatInitial();
+    // JEV-FUMEE-LOBBY · L2 : la décision Jev est prise EN PRÉ-PASSE, sur
+    // l'état pré-actions (miroir du harnais), puis ses actions/diplomatie
+    // sont appliquées APRÈS celles des bots (dernier mot à Jev). Au rejeu
+    // idempotent, la décision N'EST PAS reprise : les ordres et attentes
+    // sont déjà persistés dans le motif (§3.5).
+    if (jevSeat && this.jevEtat && game.players[jevSeat]?.defeated !== true) {
+      planJev = await planifierJev({
+        client: this.env.TYPESAFE_API_KEY ? creerClientJev(this.env.TYPESAFE_API_KEY) : null,
+        game,
+        seed: this.meta.seed,
+        seat: jevSeat,
+        config: configQuestionsJev,
+        etat: this.jevEtat,
+      });
+    }
     for (const p of this.meta.players) {
       if (!p.bot) continue;
       if (game.players[p.engineId]?.defeated === true) continue; // bot éliminé : plus d'ordres
@@ -1900,34 +1914,22 @@ export class GameDO {
       // 'bot' conserve la dérivation d'origine (bot solo inchangé).
       const rng = createRng(botTurnSeed(this.meta.seed, game.turn, p.engineId));
       const plan = botPolicy(game, p.engineId, rng, this.meta.settings.botDifficulte);
-      plansBot.set(p.engineId, plan);
       for (const order of plan.orders) {
         if (orderShapeError(order) !== null) continue; // jamais un ordre mal formé
         this.orders[p.engineId] = upsertOrderPreservingPriority(this.orders[p.engineId] ?? [], order);
       }
-      if (p.jev === true && jevSeat && this.jevEtat) {
-        planJev = await planifierJev({
-          client: this.env.TYPESAFE_API_KEY ? creerClientJev(this.env.TYPESAFE_API_KEY) : null,
-          game,
-          seed: this.meta.seed,
-          seat: jevSeat,
-          config: configQuestionsJev,
-          etat: this.jevEtat,
-        });
+      if (p.jev === true && planJev && jevSeat) {
         // Discipline v3 : le bot tactique ne touche pas au colon d'une
         // fondation programmée (ses ordres pour CE colon sont retirés).
         for (const unitId of planJev.retiresUnitIds) {
-          this.orders[jevSeat] = (this.orders[jevSeat] ?? []).filter((o) => (o as { unitId?: string }).unitId !== unitId);
+          this.orders[jevSeat!] = (this.orders[jevSeat!] ?? []).filter((o) => (o as { unitId?: string }).unitId !== unitId);
         }
       }
-    }
-    // Actions immédiates du bot standard (recherche R-85, régime R-122,
-    // diplomatie BOT-TC) — mêmes helpers purs que les messages des humains.
-    // JEV-FUMEE-LOBBY : un choix `guerre` de Jev (même 'aucun') retire aussi
-    // les déclarations des autres bots ce tour (bloqueGuerreBot).
-    for (const p of this.meta.players) {
-      const plan = plansBot.get(p.engineId);
-      if (!plan) continue;
+      // Actions immédiates du bot (recherche R-85, régime R-122, diplomatie
+      // BOT-TC) — mêmes helpers purs que les messages des humains, entrelacées
+      // avec la génération des plans (ordre canon BOT-SOLO). JEV-FUMEE-LOBBY :
+      // un choix `guerre` de Jev (même 'aucun') retire aussi les déclarations
+      // des autres bots ce tour (bloqueGuerreBot) — planJev est connu (pré-passe).
       for (const action of plan.actions) {
         if (action.type === 'SetResearch') {
           const result = applySetResearch(game, p.engineId, action.techId);
