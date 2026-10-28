@@ -302,6 +302,158 @@ describe('partie complète en mode joueur (faux Jev, budget)', () => {
   });
 });
 
+describe('v2 — guerre argumentée, paix au juste prix, repli conversion (HANDOFF-JEV-CALIBRAGE-DECISIONS)', () => {
+  /** État 1v1 avec forces contrôlées : les unités des DEUX camps sont posées
+   * autour de la capitale de p1 (visibles sous le fog) pour piloter le rapport. */
+  function etatAvecForces({ fP1 = 3, fP2 = 1, tresorerie = 100, seed = 404 } = {}) {
+    const etat = etat1v1(seed);
+    // Capitale synthétique (les villes n'existent qu'après la résolution t1).
+    const cities = {
+      ...etat.cities,
+      cap1: { id: 'cap1', owner: 'p1', q: 5, r: 5, pop: 1, capital: true, buildings: [], workedTiles: [], wonders: [] },
+    };
+    const capitale = { q: 5, r: 5 };
+    const units = { ...etat.units };
+    for (let i = 0; i < fP1; i++) {
+      units[`u1_${i}`] = { id: `u1_${i}`, owner: 'p1', type: 'guerrier', q: capitale.q, r: capitale.r, hp: 100, mp: 0, fortified: false, aboard: false };
+    }
+    for (let j = 0; j < fP2; j++) {
+      units[`u2_${j}`] = { id: `u2_${j}`, owner: 'p2', type: 'guerrier', q: capitale.q + 1, r: capitale.r, hp: 100, mp: 0, fortified: false, aboard: false };
+    }
+    return {
+      ...etat,
+      units,
+      cities,
+      players: {
+        ...etat.players,
+        p1: { ...etat.players.p1, treasury: tresorerie, vision: { explored: ['5,5', '6,5'], visible: [] } },
+      },
+    };
+  }
+
+  /** Faux client v2 : répond à la guerre SELON le rapport de forces exposé
+   * (3× → oui, 0,5× → non), choisit le prix suggéré pour la paix, 'aucun'
+   * ailleurs — avec une confiance donnée pour la conversion. */
+  function clientV2({ confianceConversion = 0.9, repondsPaix = false } = {}) {
+    return {
+      async systemOne({ state, questions }) {
+        const ratio = state.diplomatie?.rivaux?.[0]?.rapportForces ?? 0;
+        const answers = {};
+        for (const [cle, q] of Object.entries(questions)) {
+          if (cle === 'guerre') {
+            const cible = state.diplomatie.rivaux[0];
+            const choix = ratio >= 1.5 && cible ? `guerre:${cible.id}` : 'aucun';
+            answers[cle] = { type: 'choice', choice: choix, confidence: 0.9, probabilities: { [choix]: 0.9 } };
+          } else if (cle === 'paix' && repondsPaix) {
+            const cible = Object.keys(q.criteria).find((k) => k.startsWith('paix:'));
+            answers[cle] = { type: 'choice', choice: cible ?? 'aucun', confidence: 0.9, probabilities: {} };
+          } else if (cle === 'compensation') {
+            const prixSuggere = Object.keys(q.criteria).find((k) => k.startsWith('or:') && k !== 'or:0');
+            answers[cle] = { type: 'choice', choice: prixSuggere ?? 'aucun', confidence: 0.8, probabilities: {} };
+          } else if (cle === 'convertir') {
+            answers[cle] = { type: 'choice', choice: 'aucun', confidence: confianceConversion, probabilities: { aucun: confianceConversion } };
+          } else {
+            answers[cle] = { type: 'choice', choice: 'aucun', confidence: 0.9, probabilities: {} };
+          }
+        }
+        return { model: 'faux-v2', answers, usage: { input_tokens: 100 } };
+      },
+    };
+  }
+
+  it('L2 : le condensé expose un rapportForces explicite par rival', () => {
+    const filtre = getFilteredState(etatAvecForces({ fP1: 4, fP2: 1 }), 'p1');
+    const bloc = blocDiplomatie(filtre, 'p1');
+    expect(typeof bloc.rivaux[0].rapportForces).toBe('number');
+    expect(bloc.rivaux[0].rapportForces).toBeGreaterThan(1.5);
+    const blocFaible = blocDiplomatie(getFilteredState(etatAvecForces({ fP1: 1, fP2: 4 }), 'p1'), 'p1');
+    expect(blocFaible.rivaux[0].rapportForces).toBeLessThan(1);
+  });
+
+  it('L2 : la question guerre est un OUI/NON sur UNE cible pré-triée (la plus faible)', () => {
+    const filtre = getFilteredState(etatAvecForces({ fP1: 3, fP2: 1 }), 'p1');
+    const { questions } = construireQuestionsJoueur(config, condenseJoueur(filtre, 'p1'), filtre, 'p1');
+    const cles = Object.keys(questions.guerre.criteria);
+    expect(cles.filter((c) => c.startsWith('guerre:'))).toHaveLength(1);
+    expect(cles).toContain('aucun');
+    // Le rapport de forces est PRÉSENT dans le libellé (argument explicite).
+    expect(Object.values(questions.guerre.criteria).join(' ')).toMatch(/rapport|forces/);
+  });
+
+  it('L2 fixture : forces 3× → Jev répond oui ; forces 0,5× → non', async () => {
+    const client = clientV2();
+    const fort = await tourJevJoueur(client, config, getFilteredState(etatAvecForces({ fP1: 4, fP2: 1 }), 'p1'), 'p1', {});
+    expect(fort.diplomatie.some((d) => d.genre === 'guerre')).toBe(true);
+    const faible = await tourJevJoueur(client, config, getFilteredState(etatAvecForces({ fP1: 1, fP2: 4 }), 'p1'), 'p1', {});
+    expect(faible.diplomatie.some((d) => d.genre === 'guerre')).toBe(false);
+    // Le non CONFIANT bloque quand même la déclaration du bot (canon D2).
+    expect(faible.bloqueGuerreBot).toBe(true);
+  });
+
+  it('L3 : la compensation expose une FOURCHETTE (0 + prix indicatif), plafonnée trésorerie', () => {
+    const etat = etatAvecForces({ fP1: 3, fP2: 1, tresorerie: 100 });
+    const enGuerre = { ...etat, diplomacy: { ...etat.diplomacy, war: [['p1', 'p2']], warsDepuis: { 'p1|p2': etat.turn }, batailles: { 'p1|p2': 2 } } };
+    const filtre = getFilteredState(enGuerre, 'p1');
+    const { questions } = construireQuestionsJoueur(config, condenseJoueur(filtre, 'p1'), filtre, 'p1');
+    expect(questions.compensation.type).toBe('choice');
+    const cles = Object.keys(questions.compensation.criteria).filter((k) => k.startsWith('or:'));
+    expect(cles).toContain('or:0');
+    const montants = cles.map((k) => Number(k.slice(3)));
+    expect(montants.every((n) => Number.isInteger(n) && n >= 0 && n <= 100)).toBe(true);
+    expect(montants.some((n) => n > 0)).toBe(true);
+    // Déterminisme : deux constructions identiques → mêmes critères.
+    const encore = construireQuestionsJoueur(config, condenseJoueur(getFilteredState(enGuerre, 'p1'), 'p1'), getFilteredState(enGuerre, 'p1'), 'p1');
+    expect(Object.keys(encore.questions.compensation.criteria).sort())
+      .toEqual(Object.keys(questions.compensation.criteria).sort());
+  });
+
+  it('L3 : le choix or:N de la fourchette devient une paix avec N or', async () => {
+    const etat = etatAvecForces({ fP1: 3, fP2: 1, tresorerie: 100, seed: 505 });
+    const enGuerre = { ...etat, diplomacy: { ...etat.diplomacy, war: [['p1', 'p2']], warsDepuis: { 'p1|p2': etat.turn }, batailles: { 'p1|p2': 2 } } };
+    const filtre = getFilteredState(enGuerre, 'p1');
+    const d = await tourJevJoueur(clientV2({ repondsPaix: true }), config, filtre, 'p1', {});
+    const paix = d.diplomatie.find((x) => x.genre === 'paix');
+    expect(paix).toBeDefined();
+    expect(paix.or).toBeGreaterThan(0);
+    expect(paix.or).toBeLessThanOrEqual(100);
+  });
+
+  it('L1 : réponse conversion INDÉCISE → repli règle conversion (bibliothèque → science)', async () => {
+    let etat = etatAvecForces({ fP1: 3, fP2: 1, seed: 606 });
+    etat = {
+      ...etat,
+      cities: {
+        ...etat.cities,
+        v_biblio: { id: 'v_biblio', owner: 'p1', q: 5, r: 5, pop: 3, capital: false, buildings: ['bibliotheque'], conversion: 'gold', workedTiles: [], wonders: [] },
+      },
+    };
+    const filtre = getFilteredState(etat, 'p1');
+    const memo = { colonProduit: new Set() };
+    const d = await tourJevJoueur(clientV2({ confianceConversion: 0.2 }), config, filtre, 'p1', memo);
+    const conv = d.actions.filter((a) => a.type === 'SetConversion');
+    expect(conv.some((a) => a.cityId === 'v_biblio' && a.vers === 'science')).toBe(true);
+    // Un 'aucun' CONFIANT reste une décision volontaire — pas de repli.
+    const d2 = await tourJevJoueur(clientV2({ confianceConversion: 0.9 }), config, filtre, 'p1', {});
+    expect(d2.actions.some((a) => a.type === 'SetConversion' && a.cityId === 'v_biblio')).toBe(false);
+  });
+
+  it('L1 : la question convertir est reformulée (science sous le seuil → critère science)', () => {
+    let etat = etat1v1();
+    etat = {
+      ...etat,
+      cities: {
+        ...etat.cities,
+        v_test: { id: 'v_test', owner: 'p1', q: 5, r: 5, pop: 2, capital: false, buildings: [], conversion: 'gold', workedTiles: [], wonders: [] },
+      },
+    };
+    const filtre = getFilteredState(etat, 'p1');
+    const { questions } = construireQuestionsJoueur(config, condenseJoueur(filtre, 'p1'), filtre, 'p1');
+    expect(Object.keys(questions.convertir.criteria)).toContain('science:v_test');
+    expect(Object.keys(questions.convertir.criteria)).not.toContain('or:v_test');
+    expect(Object.keys(questions.convertir.criteria)).toContain('aucun');
+  });
+});
+
 describe('déterminisme des tirages de négociation', () => {
   it('botTurnSeed negoc-* est stable pour la même paire/tour', () => {
     const a = botTurnSeed(123, 7, 'negoc-paix-p2-p1');

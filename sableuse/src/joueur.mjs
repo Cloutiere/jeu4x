@@ -12,7 +12,15 @@
  * VISIBLE seulement (fog), techs des rivaux visibles (canon T2 — l'UI de
  * négociation les expose), trésorerie ennemie JAMAIS (R-134).
  */
-import { canSetProduction, TECHS, UNIT_TYPES } from '@game/rules';
+import {
+  BOT_SETTINGS,
+  agressiviteDe,
+  allKnownTechs,
+  canSetProduction,
+  cityEconomyInputs,
+  TECHS,
+  UNIT_TYPES,
+} from '@game/rules';
 import { condenserEtat } from './condense.mjs';
 
 /** Civs / barbare exclus — seuls les vrais joueurs sont des partenaires. */
@@ -65,8 +73,11 @@ function distanceCapitales(etatFiltre, a, b) {
 }
 
 /** Bloc DIPLOMATIE du condensé joueur (canon T2 : techs des rivaux visibles,
- * trésorerie ennemie jamais — R-134 ; puissance visible seulement). */
+ * trésorerie ennemie jamais — R-134 ; puissance visible seulement).
+ * L2 v2 : rapportForces EXPLICITE par rival (nos forces visibles / les siennes,
+ * arrondi à 0,1 — l'argument de la guerre argumentée). */
 export function blocDiplomatie(etatFiltre, moi) {
+  const maPuissance = forcesVisibles(etatFiltre, moi);
   const rivaux = rivalsReels(etatFiltre, moi).map(({ id, p }) => ({
     id,
     civ: p.civId,
@@ -74,6 +85,7 @@ export function blocDiplomatie(etatFiltre, moi) {
     techsConnues: p.techsUnlocked?.length ?? 0,
     techs: [...(p.techsUnlocked ?? [])].sort(),
     forces: forcesVisibles(etatFiltre, id),
+    rapportForces: Math.round((maPuissance / Math.max(1, forcesVisibles(etatFiltre, id))) * 10) / 10,
     enGuerre: ennemisDeMoi(etatFiltre, moi).includes(id),
     distanceCapitale: distanceCapitales(etatFiltre, moi, id),
   }));
@@ -137,15 +149,23 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
     meta.rechercher = { genre: 'rechercher' };
   }
 
-  // Convertir — une orientation cible par ville (l'actuelle exclue), plafonné
-  // à 6 villes pour la taille de la requête.
+  // Convertir (L1 v2 — critères plats) : une ville n'est proposée vers la
+  // SCIENCE que si sa science/tour est SOUS le seuil (le goulot de
+  // l'empire) ; une ville déjà en science au-dessus du seuil peut repasser
+  // en OR (trésorerie — rush, compensations de paix). Plafonné à 6 villes.
   if (mesVilles.length > 0) {
     const criteria = { aucun: 'Ne rien changer ce tour.' };
+    const seuilScience = seuils.conversionScienceMin ?? 2;
+    let techsTour = null;
+    try { techsTour = allKnownTechs(etatFiltre); } catch { techsTour = techs; }
     for (const v of mesVilles.slice(0, 6)) {
       const actuelle = v.conversion === 'science' ? 'science' : 'or';
-      for (const cible of ['science', 'or']) {
-        if (cible === actuelle) continue;
-        criteria[`${cible}:${v.id}`] = `Orienter ${v.capitale ? 'la capitale' : 'la ville'} ${v.id} (${v.pop} pop, actuellement ${actuelle}) vers ${cible === 'science' ? 'la SCIENCE (recherche)' : "l'OR (trésorerie)"}.`;
+      let scienceVille = 0;
+      try { scienceVille = Math.round((cityEconomyInputs(etatFiltre, v, techsTour).science ?? 0) * 10) / 10; } catch { scienceVille = 0; }
+      if (actuelle !== 'science' && scienceVille < seuilScience) {
+        criteria[`science:${v.id}`] = `Orienter ${v.capitale ? 'la capitale' : 'la ville'} ${v.id} (${v.pop} pop, science ${scienceVille}/tour — SOUS le seuil de ${seuilScience}) vers la SCIENCE : la recherche est le goulot de l'empire.`;
+      } else if (actuelle !== 'or' && scienceVille >= seuilScience) {
+        criteria[`or:${v.id}`] = `Orienter ${v.capitale ? 'la capitale' : 'la ville'} ${v.id} (${v.pop} pop, science ${scienceVille}/tour — déjà au-dessus du seuil) vers l'OR : trésorerie pour les rushs et les compensations de paix.`;
       }
     }
     if (Object.keys(criteria).length > 1) {
@@ -154,17 +174,23 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
     }
   }
 
-  // Guerre — seulement en paix, un critère par rival réel.
+  // Guerre (L2 v2 — argumentée) : UNE cible pré-triée (le voisin le plus
+  // faible), décision oui/non, rapport de forces présenté EXPLICITEMENT
+  // (miroir de la question « attaquer » du banc v2 qui passait à 0,85).
   if (!enGuerre && rivaux.length > 0) {
-    const criteria = { aucun: 'Ne déclarer personne ce tour (le bot ne déclare pas non plus pour nous).' };
-    for (const r of rivaux) {
-      criteria[`guerre:${r.id}`] = `Déclarer la guerre à ${r.civ} (${r.id}) — ère ${r.era ?? '?'}, ${r.techsConnues} techs, forces visibles ${r.forces} vs nos ${condense.monde.puissance.amie}, capitale à ${r.distanceCapitale} cases.`;
-    }
+    const cible = [...rivaux].sort(
+      (a, b) => a.forces - b.forces || a.distanceCapitale - b.distanceCapitale || a.techsConnues - b.techsConnues,
+    )[0];
+    const criteria = {};
+    criteria[`guerre:${cible.id}`] = `OUI — déclarer la guerre à ${cible.civ} (${cible.id}), le voisin le PLUS FAIBLE : nos forces ${condense.monde.puissance.amie} vs les siennes ${cible.forces} (rapport ${cible.rapportForces}× en notre faveur), ère ${cible.era ?? '?'}, ${cible.techsConnues} techs, capitale à ${cible.distanceCapitale} cases. Déclarer lance la campagne : le bot assemble l'armée et marche.`;
+    criteria['aucun'] = 'NON — ne pas déclarer cette guerre ce tour (bloque aussi toute déclaration du bot pour nous).';
     q.guerre = { instructions: config.questions.guerre.instructions, criteria, type: 'choice' };
-    meta.guerre = { genre: 'guerre' };
+    meta.guerre = { genre: 'guerre', cible: cible.id };
   }
 
-  // Paix + compensation — seulement en guerre.
+  // Paix + compensation (L3 v2 — au juste prix) : fourchette d'or SUGGÉRÉE,
+  // miroir du prix indicatif T2 (prixPaixBase × fierté × rapport de forces
+  // borné, données negociation de bot.json), plafonnée à la trésorerie.
   if (enGuerre) {
     const criteria = { aucun: 'Refuser toute paix ce tour (les propositions ennemies sont rejetées).' };
     for (const e of condense.diplomatie.ennemis) {
@@ -173,12 +199,20 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
     }
     q.paix = { instructions: config.questions.paix.instructions, criteria, type: 'choice' };
     meta.paix = { genre: 'paix' };
-    q.compensation = {
-      instructions: config.questions.compensation.instructions,
-      criteria: config.questions.compensation.criteria,
-      type: 'score',
-    };
-    meta.compensation = { genre: 'compensation' };
+    const negoc = BOT_SETTINGS?.negociation ?? { prixPaixBase: 15, facteurFierte: 1, plancherRapportForces: 0.5, plafondRapportForces: 2 };
+    const e0 = condense.diplomatie.ennemis[0];
+    const r0 = rivaux.find((x) => x.id === e0?.id);
+    const treso = me?.treasury ?? 0;
+    const fourchette = prixPaixSuggere(negoc, agressiviteDe(etatFiltre.players?.[e0?.id]?.civId), r0?.rapportForces ?? 1, treso);
+    const critComp = { 'or:0': 'Paix sèche — aucun or (risque : refus sec).' };
+    for (const montant of fourchette) {
+      let nuance = '';
+      if (montant === fourchette[1]) nuance = ' (PRIX INDICATIF — ce que l\'ennemi exige probablement)';
+      else if (montant === fourchette[fourchette.length - 1]) nuance = ' (généreux — maximise l\'acceptation)';
+      critComp[`or:${montant}`] = `Offrir ${montant} or${nuance} avec la proposition de paix.`;
+    }
+    q.compensation = { instructions: config.questions.compensation.instructions, criteria: critComp, type: 'choice' };
+    meta.compensation = { genre: 'compensation', fourchette };
   }
 
   // Échange de techs (canon : JAMAIS en guerre) — techs Offertes (les nôtres
@@ -212,6 +246,24 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
   }
 
   return { questions: q, meta, seuils };
+}
+
+/** L3 v2 — fourchette de compensation suggérée, miroir du prix indicatif T2
+ * (prixPaixBase × fierté × rapport de forces borné — données negociation de
+ * bot.json), chaque montant plafonné à la trésorerie, dédupliqué et trié.
+ * `agressivite` est celle de la CIV ennemie (visible — canon T2). */
+export function prixPaixSuggere(negoc, agressivite, rapportForces, tresorerie) {
+  const fierte = negoc.facteurFierte ?? 1;
+  const rapport = Math.min(
+    negoc.plafondRapportForces ?? 2,
+    Math.max(negoc.plancherRapportForces ?? 0.5, rapportForces ?? 1),
+  );
+  const prix = Math.round((negoc.prixPaixBase ?? 15) * fierte * rapport * (agressivite ?? 1));
+  const plafond = Math.max(0, Math.floor(tresorerie ?? 0));
+  const montants = [...new Set([prix, Math.min(plafond, Math.ceil(prix / 2)), Math.min(plafond, Math.ceil(prix * 2))])]
+    .filter((n) => n > 0)
+    .sort((a, b) => a - b);
+  return montants;
 }
 
 /**
@@ -269,14 +321,12 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
   const confMin = seuils.confianceChoixMin ?? 0.65;
   // Seuil « dialogue » PAR DOMAINE (canon v2 : chaque question porte son
   // propre seuil) — les questions diplomatiques/conversion sont chroniquement
-  // sous-confiantes chez le modèle (banc joueur-2026-10-27 : 321 choix
-  // guerre:p2 et 1105 choix science:c1 refusés par la porte 0,65) ; le
-  // précédent fonderMin 0,5 du banc v3 s'applique.
+  // sous-confiantes chez le modèle.
   const confDial = seuils.decisionMin ?? confMin;
-  const paliers = seuils.compensationPaliers ?? [0, 0.1, 0.25, 0.5, 1];
   const confiance = (r, seuil = confMin) => (r?.confidence ?? 0) >= seuil ? r : null;
   const confDialMin = (r) => confiance(r, confDial);
   const me = etatFiltre.players?.[moi];
+  const mesVilles = Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner === moi);
 
   // Distribution plate = état insuffisant (directive n°3), consigné.
   const premier = Object.values(ans)[0];
@@ -311,7 +361,10 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     }
   }
 
-  // 3. Conversion d'une ville (remplace la règle regle:conversion — D1).
+  // 3. Conversion d'une ville (L1 v2). Repli : une réponse INDÉCISE (sous le
+  //    seuil) applique la règle regle:conversion en PLANCHER (miroir du repli
+  //    bot — bibliothèque posée/en cours ou capitale après premier colon →
+  //    science) ; un 'aucun' CONFIANT reste une décision volontaire.
   const convertir = confDialMin(ans.convertir);
   if (convertir?.choice && convertir.choice !== 'aucun') {
     const [vers, ...rest] = convertir.choice.split(':');
@@ -320,6 +373,14 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     if (ville && (vers === 'science' || vers === 'or') && (ville.conversion ?? 'gold') !== vers) {
       sortie.actions.push({ type: 'SetConversion', cityId, vers });
       sortie.attentes.push({ genre: 'conversion', cityId, vers });
+    }
+  } else if (mesVilles.length > 0 && (ans.convertir?.confidence ?? 1) < confDial) {
+    for (const v of mesVilles) {
+      const cible = cibleConversionRepli(v, moi, memo);
+      if (cible && (v.conversion ?? 'gold') !== cible) {
+        sortie.actions.push({ type: 'SetConversion', cityId: v.id, vers: cible });
+        sortie.attentes.push({ genre: 'conversion', cityId: v.id, vers: cible, repli: true });
+      }
     }
   }
 
@@ -334,15 +395,18 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     }
   }
 
-  // 5. Paix (+ compensation).
+  // 5. Paix (+ compensation au juste prix — L3 v2 : le choix 'or:N' de la
+  //    fourchette devient le montant transféré, plafonné trésorerie).
   const paix = confDialMin(ans.paix);
   if (paix?.choice && paix.choice.startsWith('paix:')) {
     const cible = paix.choice.slice('paix:'.length);
     if ((condense.diplomatie.guerreAvec ?? []).includes(cible)) {
-      const comp = ans.compensation;
-      const idx = Math.max(0, Math.min(paliers.length - 1, comp?.score ?? 0));
-      const fraction = paliers[idx] ?? 0;
-      const or = Math.min(me?.treasury ?? 0, Math.floor((me?.treasury ?? 0) * fraction));
+      let or = 0;
+      const choixComp = ans.compensation?.choice;
+      if (typeof choixComp === 'string' && choixComp.startsWith('or:')) {
+        or = Number.parseInt(choixComp.slice(3), 10) || 0;
+      }
+      or = Math.min(me?.treasury ?? 0, Math.max(0, or));
       sortie.diplomatie.push({ genre: 'paix', cible, or });
     }
   }
@@ -369,6 +433,23 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
   // est une décision VOLONTAIRE — pas un repli).
   sortie.repli = sortie.ordres.length === 0 && sortie.actions.length === 0 && sortie.diplomatie.length === 0;
   return sortie;
+}
+
+/** L1 v2 — repli de conversion (miroir exact de la règle regle:conversion du
+ * harnais, partie.changementsConversion, appliquée à la SEULE nation de Jev) :
+ * bibliothèque posée ou en production (université incluse) → science ;
+ * capitale après le premier colon produit (memo.colonProduit, alimenté par le
+ * harnais) → science. Idempotent (null si rien à changer). */
+export function cibleConversionRepli(ville, moi, memo) {
+  const buildings = ville.buildings ?? [];
+  const enProduction = ville.production?.item;
+  const biblioPosee = buildings.includes('bibliotheque') || buildings.includes('universite');
+  const biblioEnCours =
+    enProduction?.kind === 'building' &&
+    (enProduction.id === 'bibliotheque' || enProduction.id === 'universite');
+  if (biblioPosee || biblioEnCours) return 'science';
+  if (ville.capital && memo?.colonProduit?.has?.(moi)) return 'science';
+  return null;
 }
 
 /** Mémorise un échange refusé (réponse du bot) pour ne pas le re-proposer. */

@@ -12,12 +12,12 @@
     },
     "convertir": {
       "primitive": "choice",
-      "instructions": "Orienter la conversion d'une ville : 'science' alimente la recherche, 'or' alimente la trésorerie (achat de rush, compensation de paix). Chaque critère décrit la ville et son orientation CIBLE (l'orientation actuelle figure dans empire.villes[].conversion). Choisir 'aucun' ne change rien ce tour.",
+      "instructions": "Orienter la conversion d'une ville : 'science' alimente la recherche, 'or' alimente la trésorerie (achat de rush, compensation de paix). Seules les villes UTILES sont proposées : une ville dont la science par tour est SOUS le seuil est candidate à la SCIENCE (la recherche est le goulot de l'empire) ; une ville déjà en science au-dessus du seuil peut repasser à l'OR. Chaque critère donne la population et la science actuelle de la ville. Choisir 'aucun' ne change rien ce tour (si vous êtes indécis, la règle par défaut s'applique à votre place : bibliothèque et capitale post-colon passent en science).",
       "aucun": true
     },
     "guerre": {
       "primitive": "choice",
-      "instructions": "Déclarer la guerre à une nation rivale (acte PUBLIC — elle le saura). Chaque critère décrit le rival : sa civ, son ère, ses techs connues, sa puissance militaire VISIBLE par rapport à la nôtre et la distance entre capitales. Déclarer lance la campagne : le bot standard assemble l'armée et marche (les objectifs tactiques restent les siens). Choisir 'aucun' ne déclare RIEN ce tour (et bloque toute déclaration du bot pour nous ce tour).",
+      "instructions": "Décision de GUERRE argumentée : UNE cible pré-triée vous est présentée (le voisin le plus faible), avec le rapport de forces explicite. Répondez OUI (déclarer la guerre — acte PUBLIC, elle le saura ; le bot assemble ensuite l'armée et marche) ou NON (rien ce tour, et le bot ne déclare pas non plus pour vous). Ne dites OUI que si le rapport de forces vous est clairement favorable (≥ 1,5×) — une guerre perdante ruine l'empire.",
       "aucun": true
     },
     "paix": {
@@ -26,15 +26,9 @@
       "aucun": true
     },
     "compensation": {
-      "primitive": "score",
-      "instructions": "Si la question paix a choisi un ennemi : quelle COMPENSATION d'or offrir avec la proposition de paix (partie de notre trésorerie, transférée SEULEMENT si la paix est signée — un refus ne coûte rien). 0 = paix sèche. Si la question paix a choisi 'aucun', cette réponse est ignorée.",
-      "criteria": [
-        "Aucune compensation (paix sèche).",
-        "Compensation symbolique (environ 10 % de la trésorerie).",
-        "Compensation modérée (environ 25 % de la trésorerie).",
-        "Compensation forte (environ 50 % de la trésorerie).",
-        "Racheter la paix à n'importe quel prix (trésorerie entière)."
-      ]
+      "primitive": "choice",
+      "instructions": "Si la question paix a choisi un ennemi : quel montant d'or offrir avec la proposition de paix (transféré SEULEMENT si la paix est signée — un refus ne coûte rien). Une FOURCHETTE est suggérée : le prix indicatif est ce que l'ennemi exige probablement (il grandit avec sa fierté et son rapport de forces), le montant généreux maximise l'acceptation. Offrir MOINS que le prix indicatif sera probablement refusé. Si la question paix a choisi 'aucun', cette réponse est ignorée.",
+      "aucun": true
     },
     "techOfferte": {
       "primitive": "choice",
@@ -50,10 +44,11 @@
   "seuils": {
     "confianceChoixMin": 0.65,
     "decisionMin": 0.5,
+    "conversionScienceMin": 2,
     "compensationPaliers": [0, 0.1, 0.25, 0.5, 1]
   },
-  "_commentaire_seuils": "Seuils PAR DOMAINE (canon v2) : produire/rechercher à 0,65 (comme les bancs v2) ; guerre/paix/convertir/échange à 0,5 — le banc joueur-2026-10-27 a montré que ces questions sont chroniquement sous-confiantes chez jev-latest (321 choix guerre:p2 et 1105 choix science:c1 refusés par la porte 0,65 ; précédent fonderMin 0,5 du banc v3). Une réponse indécise (sous seuil) = initiative du bot (canon D2).",
-  "_commentaire_regles": "JEV-BANC-JOUEUR D1 : la règle regle:conversion du harnais (v4) est DÉSACTIVÉE — Jev décide lui-même la conversion ville par ville (question convertir). Aucune autre règle automatique.",
+  "_commentaire_seuils": "Seuils PAR DOMAINE (canon v2) : produire/rechercher à 0,65 ; guerre/paix/convertir/échange à 0,5 — ces questions sont chroniquement sous-confiantes chez jev-latest (banc joueur-2026-10-27). v2 CALIBRAGE-DECISIONS : une réponse conversion INDÉCISE (sous 0,5) déclenche le repli règle (plancher, miroir du repli bot) ; conversionScienceMin = seuil de science/tour sous lequel une ville est candidate à la SCIENCE. compensationPaliers conservé pour compatibilité (la fourchette d'or v2 est injectée par tour).",
+  "_commentaire_regles": "JEV-BANC-JOUEUR D1 + v2 CALIBRAGE-DECISIONS : la règle regle:conversion du harnais reste DÉSACTIVÉE GLOBALEMENT (le bot standard et le contrôle ne la subissent pas — D2 : rien d'autre ne change) ; elle vit en REPLI pour Jev seul, appliquée par joueur.mjs quand sa réponse conversion est indécise.",
   "regles": {
     "conversion": {
       "actif": false

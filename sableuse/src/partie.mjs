@@ -86,6 +86,9 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
   let erreurJev = 0;
   const guerres = new Set(); // §5 banc 2 : paires de nations ayant échangé des coups
   const colonProduit = new Set(); // V4 D1 : joueurs ayant produit un colon
+  // L1 v2 CALIBRAGE-DECISIONS : le repli de conversion de Jev (joueur.mjs) lit
+  // cet ensemble via memo — la règle « capitale après premier colon ».
+  memo.colonProduit = colonProduit;
   const regle = config?.regles?.conversion;
   const poidsScore = config?.score ?? undefined;
 
