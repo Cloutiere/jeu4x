@@ -28,7 +28,7 @@ import { contexteMelee, reduceContexteMelee } from './melee.js';
 export interface GameView {
   code: string;
   playerId: string | null;
-  players: Array<{ id: string; name: string; engineId: string; bot?: boolean; civId?: string; paletteId?: string; siege?: number }>;
+  players: Array<{ id: string; name: string; engineId: string; bot?: boolean; jev?: boolean; civId?: string; paletteId?: string; siege?: number }>;
   /** BOT-TD : difficulté des bots (Welcome — normalisée serveur, défaut normal). */
   botDifficulte: string;
   status: 'waiting' | 'active' | 'finished';

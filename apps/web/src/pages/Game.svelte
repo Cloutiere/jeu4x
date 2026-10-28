@@ -29,6 +29,9 @@
   import { resumesDeCase, casesDeCombat, derniereCaseDeCombat } from '../lib/rapport.js';
   import type { ResumeCase } from '../lib/rapport.js';
   import { playerColor } from '../lib/render/textures.js';
+  // JEV-FUMEE-LOBBY (retour Erik 28/10) : pastille de COULEUR par adversaire
+  // dans le bandeau — la même que ses bannières en carte (paletteId → factions4).
+  import { FACTIONS4, paletteDe } from '../lib/render/accents.js';
   import RapportCombat from '../components/RapportCombat.svelte';
   // FULLSCREEN-PERF · L0 : mini HUD perf (FPS + résolution rendue), calque dev seulement.
   import HudPerf from '../components/HudPerf.svelte';
@@ -974,22 +977,27 @@
   });
   // CARTE-MULTI : suffixe du bandeau — « Adversaire : X » à 2 sièges
   // (inchangé), « Adversaires : X · Y · Z » à 3+ (une entrée par joueur).
-  const adversairesBadge = $derived.by(() => {
+  const adversairesListe = $derived.by(() => {
     const id = myEngineId($view);
-    if (!id || !$view.state) return '';
+    if (!id || !$view.state) return [];
     const others = Object.keys($view.state.players).filter((p) => p !== id).sort();
-    if (others.length === 0) return '';
-    const label = others.length === 1 ? 'Adversaire' : 'Adversaires';
-    const noms = others
-      .map((p) => {
-        const info = $view.players.find((x) => x.engineId === p);
-        const civ = $view.state!.players[p]?.civId ?? 'neutre';
-        const base = civName(civ);
-        // Bots : « Bot 3 : civ » — humains : la civ seule (lisibilité).
-        return info?.bot ? `${info.name} : ${base}` : base;
-      })
-      .join(' · ');
-    return ` · ${label} : ${noms}`;
+    // Retour Erik 28/10 (JEV-FUMEE-LOBBY) : impossible de repérer Jev dans le
+    // bandeau (« Adversaires : Jev 🤖 · Grèce… » ne dit pas QUELLE couleur il
+    // porte sur la carte). Le bandeau porte désormais la PASTILLE DE COULEUR
+    // de chaque adversaire — exactement celle de ses bannières en carte
+    // (paletteId → factions4, miroir de paletteDe du rendu) ; la pastille de
+    // nation porte en plus un badge 🤖 visible sans survol pour Jev.
+    const liste = others.map((p) => {
+      const info = $view.players.find((x) => x.engineId === p);
+      const civ = $view.state!.players[p]?.civId ?? 'neutre';
+      const base = civName(civ);
+      const palette = FACTIONS4[paletteDe(p)];
+      const jev = info?.jev === true || (info?.name ?? '').startsWith('Jev');
+      // Bots : « Bot 3 : civ » — humains : la civ seule (lisibilité historique).
+      const label = info?.bot && !jev ? `${info.name} : ${base}` : base;
+      return { id: p, label, couleur: palette?.base ?? '#6E6E74', nomPalette: palette?.nom ?? '', jev };
+    });
+    return liste;
   });
   // UI-JEU-T2 · §1.5 → RÉVISION CHRONIQUES (Erik 04/10) : le détail des
   // adversaires quitte le panneau de la colonne pour les PASTILLES de
@@ -1013,6 +1021,7 @@
           id: p,
           nom: info?.name ?? p,
           bot: !!info?.bot,
+          jev: info?.jev === true || (info?.name ?? '').startsWith('Jev'),
           // BOT-TD : difficulté des bots (Welcome) — « Bot 🤖 · Difficile ».
           difficulte: $view.botDifficulte,
           civ,
@@ -1232,7 +1241,9 @@
           onclick={() => (showGovernment = !showGovernment)}
         >
           <span class="civname">{civName(myCivId)}</span>
-          <span class="eraname">{eraLabel(myEra)}{adversairesBadge}</span>
+          <span class="eraname">
+            {eraLabel(myEra)}{#if adversairesListe.length > 0} · {adversairesListe.length === 1 ? 'Adversaire' : 'Adversaires'} : {#each adversairesListe as a, i (a.id)}{#if i > 0} · {/if}<span class="couleur-joueur" style:background={a.couleur} title={a.nomPalette}></span>{a.label}{/each}{/if}
+          </span>
         </button>
       {/if}
       {#if $view.godMode}
@@ -1351,7 +1362,8 @@
                régime). Tranchages Erik : survol SEUL, éliminés visibles. -->
           <div class="portrait-site">
             {#each adversairesDetail as a (a.id)}
-              <div class="pastille" class:elimine={a.defeated} tabindex="0" aria-label={`${a.nom} — ${civName(a.civ)}`}>
+              <div class="pastille" class:elimine={a.defeated} class:jev={a.jev} tabindex="0" aria-label={`${a.nom} — ${civName(a.civ)}`}>
+                {#if a.jev}<span class="pastille-jev-badge" title="Jev — adversaire LLM">🤖</span>{/if}
                 <span class="pastille-cadre" class:logo={!nationDe(a.civ)?.logo}>
                   {#if nationDe(a.civ)?.logo}
                     <img
@@ -1897,6 +1909,13 @@
   }
   .civbadge .civname { font-weight: 700; font-size: 0.8rem; }
   .civbadge .eraname { font-size: 0.68rem; color: #9db8a6; }
+  /* JEV-FUMEE-LOBBY (retour Erik 28/10) : pastille de couleur alignée sur
+     les bannières de la carte — repérer « qui est qui » sans survol. */
+  .couleur-joueur {
+    display: inline-block; width: 0.55em; height: 0.55em; border-radius: 50%;
+    margin: 0 0.15em -0.05em 0.25em; border: 1px solid rgba(0, 0, 0, 0.45);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18); vertical-align: baseline;
+  }
   .net { font-size: 0.8rem; color: #8b98a5; }
   .gpt { font-size: 0.78rem; color: #a5d6a7; font-weight: 400; }
   .gpt.negative { color: #ef9a9a; }
@@ -2001,6 +2020,16 @@
   /* Pastille d'une nation adverse : rond or ~3,2rem (≈ 60 % du médaillon),
      logo de la nation ; éliminée = grisée + barrée (tranchage Erik). */
   .pastille { position: relative; display: flex; }
+  /* JEV-FUMEE-LOBBY (retour Erik 28/10) : badge 🤖 en coin de pastille —
+     l'adversaire LLM repérable d'un coup d'œil, sans survol. */
+  .pastille-jev-badge {
+    position: absolute; z-index: 2; top: -0.35rem; right: -0.35rem;
+    font-size: 0.95rem; line-height: 1;
+    background: rgba(13, 20, 32, 0.92); border: 1px solid var(--or, #c9a227);
+    border-radius: 50%; padding: 0.18rem 0.2rem;
+    filter: drop-shadow(0 0 4px rgba(201, 162, 39, 0.55));
+    pointer-events: none;
+  }
   .pastille-cadre {
     display: flex; align-items: center; justify-content: center;
     width: 3.4rem; height: 3.4rem; overflow: hidden;
