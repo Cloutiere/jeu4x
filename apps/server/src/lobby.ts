@@ -279,6 +279,9 @@ export class LobbyDO {
     const solo = (settings as { solo?: boolean }).solo === true;
     const rawBotDiff = (settings as { botDifficulte?: unknown }).botDifficulte;
     const rawBotCiv = (settings as { botCivId?: string }).botCivId;
+    // JEV-FUMEE-LOBBY (retour Erik 28/10) : le duel 1v1 miroir peut aussi
+    // être joué contre JEV — même champ méta que la voie 5 sièges.
+    const adversaireJev = (settings as { adversaireJev?: unknown }).adversaireJev === true;
     if (rawBotCiv !== undefined && rawBotCiv !== 'random' && !CIVILIZATIONS.civs[rawBotCiv]) {
       return this.sendError(ws, 'badMessage', 'civilisation du bot inconnue');
     }
@@ -349,6 +352,7 @@ export class LobbyDO {
         ...(sieges !== 2 ? { playerCount: sieges } : {}),
         ...(solo ? { solo: true } : {}),
         ...(solo && botCivIds[0] ? { botCivId: botCivIds[0] } : {}),
+        ...(solo && adversaireJev ? { adversaireJev: true } : {}),
         // BOT-TD : difficulté demandée (valeur inconnue ⇒ repli « normal »).
         ...(rawBotDiff !== undefined ? { botDifficulte: normaliseDifficulteBot(rawBotDiff) } : {}),
       },
@@ -365,14 +369,18 @@ export class LobbyDO {
       for (let si = 2; si <= sieges; si++) {
         const botId = si === 2 ? BOT_PLAYER_ID : `bot:${si}`;
         const civId = botCivIds[si - 2];
+        // JEV-FUMEE-LOBBY : en solo, le bot unique (siège 2) devient JEV
+        // quand l'adversaire Jev est choisi (nom « Jev 🤖 », flag méta jev).
+        const estJev = adversaireJev && si === 2;
+        const nomBot = estJev ? 'Jev 🤖' : si === 2 ? BOT_NAME : `${BOT_NAME} ${si - 1}`;
         const join = await this.gameStub(code).fetch('https://game.internal/internal/join', {
           method: 'POST',
-          body: JSON.stringify({ player: { id: botId, name: si === 2 ? BOT_NAME : `${BOT_NAME} ${si - 1}`, bot: true, civId } }),
+          body: JSON.stringify({ player: { id: botId, name: nomBot, bot: true, ...(estJev ? { jev: true } : {}), civId } }),
         });
         if (!join.ok) {
           return this.sendError(ws, 'internal', `démarrage du bot impossible (${join.status})`);
         }
-        game.players.push({ id: botId, name: si === 2 ? BOT_NAME : `${BOT_NAME} ${si - 1}`, bot: true, ...(civId ? { civId } : {}) });
+        game.players.push({ id: botId, name: nomBot, bot: true, ...(estJev ? { jev: true } : {}), ...(civId ? { civId } : {}) });
       }
       game.status = 'active';
     } else if (sieges !== 2) {

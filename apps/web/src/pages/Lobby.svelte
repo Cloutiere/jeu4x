@@ -37,6 +37,10 @@
   // siège bot — le bot standard ou JEV (LLM, badge « Jev 🤖 »). Jev n'est
   // PAS une difficulté : c'est un adversaire distinct.
   let adversaire = $state<'bot' | 'jev'>('bot');
+  // Retour Erik 28/10 : le duel 1v1 miroir (carte symétrique historique)
+  // revient au lobby — l'ancien flux solo du serveur, 2 sièges, démarrage
+  // immédiat. Jev y est disponible comme adversaire.
+  let mode = $state<'libre' | 'duel'>('libre');
   let config = $state<ConfigPartie>(configPartieDefaut('amerique'));
 
   // Jointure : partie sélectionnée (liste publique ou code saisi) + choix.
@@ -47,6 +51,19 @@
   const CIV_IDS = Object.keys(CIVILIZATIONS.civs).sort();
 
   function creerPartie(): void {
+    if (mode === 'duel') {
+      // Duel miroir 1v1 : ancien flux solo (2 sièges, démarrage immédiat).
+      client.createGame({
+        mapId: 'procedural-40',
+        turnTimerMinutes: timerMinutes > 0 ? timerMinutes : null,
+        isPublic,
+        playerCount: 2,
+        solo: true,
+        botDifficulte: difficulte,
+        ...(adversaire === 'jev' ? { adversaireJev: true } : {}),
+      });
+      return;
+    }
     client.createGame({
       mapId: 'procedural-40',
       turnTimerMinutes: timerMinutes > 0 ? timerMinutes : null,
@@ -101,8 +118,19 @@
 
   <div class="contenu">
     <section class="panneau creation">
-      <h2>Créer une partie — {SIEGES_PAR_PARTIE} sièges</h2>
-      <ConfigPartieEditor {config} editable banderoles onchange={(c) => (config = c)} />
+      <h2>Créer une partie</h2>
+      <label>
+        Configuration
+        <select bind:value={mode}>
+          <option value="libre">Libre — {SIEGES_PAR_PARTIE} sièges</option>
+          <option value="duel">Duel miroir — 1v1 symétrique</option>
+        </select>
+      </label>
+      {#if mode === 'libre'}
+        <ConfigPartieEditor {config} editable banderoles onchange={(c) => (config = c)} />
+      {:else}
+        <p class="note">Carte miroir symétrique 1v1 (l'historique) — la partie démarre immédiatement contre l'adversaire choisi.</p>
+      {/if}
       <div class="options">
         <label>
           Timer (minutes, 0 = aucun)
@@ -135,8 +163,9 @@
         </button>
       </div>
       <p class="note">
-        Le duel est une configuration : 2 humains + 3 bots. Les cartes préfabriquées
-        (miroir 1v1) restent disponibles au <a href="#/progen">labo</a>.
+        Libre = {SIEGES_PAR_PARTIE} sièges (humains/bots) sur la carte procédurale ;
+        le duel miroir est le 1v1 symétrique historique. Les cartes préfabriquées
+        restent disponibles au <a href="#/progen">labo</a>.
       </p>
     </section>
 

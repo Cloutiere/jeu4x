@@ -96,6 +96,22 @@ describe('CARTE-MULTI · Solo N sièges (1 humain + N−1 bots)', () => {
   });
 });
 
+  it('solo 1v1 miroir + adversaireJev : le bot est JEV (nom + flag méta)', async () => {
+    const code = await createGame({ id: 'dev:alice', name: 'Alice' }, { mapId: 'procedural-40', turnTimerMinutes: null, isPublic: false, solo: true, playerCount: 2, adversaireJev: true });
+    const dump = await adminDump(code);
+    expect(dump.meta?.status).toBe('active'); // démarrage immédiat au join du bot
+    const players = dump.meta?.players ?? [];
+    expect(players).toHaveLength(2);
+    // Le bot siège 2 est JEV : flag méta jev + nom « Jev 🤖 » (badge bandeau).
+    expect(players[1]).toMatchObject({ id: 'bot', bot: true, jev: true });
+    expect(players[1]?.name?.startsWith('Jev')).toBe(true); // badge « Jev 🤖 »
+    expect(dump.meta?.settings?.adversaireJev).toBe(true);
+    // La civ tirée reste appliquée (badge « Jev 🤖 (civ) » au lobby).
+    expect(players[1]?.civId).toBeTruthy();
+    // God mode autorisé : JEV est un bot (aucun autre humain).
+    expect(players.filter((p) => !p.bot)).toHaveLength(1);
+  });
+
 describe('CARTE-MULTI · Salle d\'attente multi (humains)', () => {
   it('4 sièges : démarre au 4e join ; le 5e est refusé (gameFull)', async () => {
     const code = await createGame({ id: 'dev:alice', name: 'Alice' }, LIBRE4);
