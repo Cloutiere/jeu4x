@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -7,7 +8,15 @@ import { defineConfig } from 'vitest/config';
  * utilise le pool Workers). Lancement :
  *   pnpm -C apps/server exec vitest run --config vitest.jev.config.ts
  */
+// Les tests croisés importent les modules .mjs du harnais sableuse (HORS
+// workspace — ses node_modules ne sont pas installés en CI) : l'alias
+// réérit '@game/rules' vers la source du paquet, résolu partout.
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@game/rules': fileURLToPath(new URL('../../packages/rules/src/index.ts', import.meta.url)),
+    },
+  },
   test: {
     environment: 'node',
     include: ['tests-jev/**/*.test.ts'],
