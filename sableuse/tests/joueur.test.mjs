@@ -24,6 +24,7 @@ import {
   construireQuestionsJoueur,
   tourJevJoueur,
   memoRefusEchange,
+  candidatsFondation,
 } from '../src/joueur.mjs';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -462,5 +463,222 @@ describe('déterminisme des tirages de négociation', () => {
     expect(a).toBe(b);
     expect(a).not.toBe(c);
     expect(createRng(a).next()).toBe(createRng(a).next());
+  });
+});
+
+describe('v3 — la fondation (HANDOFF-JEV-EXPANSION)', () => {
+  /** État 1v1 avec un colon p1 posé près de la capitale synthétique — les
+   * sites candidats existent donc avec les distances calées sur le colon. */
+  function etatAvecColon({ seed = 101, caseColon = null } = {}) {
+    let etat = etat1v1(seed);
+    etat = {
+      ...etat,
+      cities: {
+        ...etat.cities,
+        cap1: { id: 'cap1', owner: 'p1', q: 5, r: 5, pop: 1, capital: true, buildings: [], workedTiles: [], wonders: [] },
+      },
+      players: {
+        ...etat.players,
+        p1: { ...etat.players.p1, vision: { explored: ['5,5', '6,5', '6,6', '7,7'], visible: [] } },
+      },
+    };
+    // UN SEUL colon : les unités initiales (le colon u1 de départ) sont
+    // retirées pour que le site choisisse sans ambiguïté.
+    const units = caseColon
+      ? {
+          u_colon: { id: 'u_colon', owner: 'p1', type: 'colon', ...Object.fromEntries([['q', Number(caseColon.split(',')[0])], ['r', Number(caseColon.split(',')[1])]]), hp: 100, mp: 2, fortified: false, aboard: false },
+        }
+      : {};
+    etat = { ...etat, units };
+    return etat;
+  }
+
+  /** Faux client pilotable : répond au choix voulu pour `fonder`, 'aucun'
+   * partout ailleurs avec confiance pleine. */
+  function clientFonder(choixFonder, confiance = 0.9) {
+    return {
+      async systemOne({ questions }) {
+        const answers = {};
+        for (const [cle, q] of Object.entries(questions)) {
+          const choix = cle === 'fonder' ? choixFonder : 'aucun';
+          answers[cle] = { type: q.type, choice: choix, confidence: cle === 'fonder' ? confiance : 0.9, probabilities: { [choix]: 0.9 } };
+        }
+        return { model: 'faux-v3', answers, usage: { input_tokens: 100 } };
+      },
+    };
+  }
+
+  it('D1 : la question fonder expose JUSQU À 3 sites pré-triés avec leur score', () => {
+    // Position du colon résolue d'après les candidats ancrés capitale.
+    const probe = construireQuestionsJoueur(config, condenseJoueur(getFilteredState(etatAvecColon(), 'p1'), 'p1'), getFilteredState(etatAvecColon(), 'p1'), 'p1');
+    const caseSite = probe.questions.fonder
+      ? Object.keys(probe.questions.fonder.criteria).find((k) => k.startsWith('fonder:')).slice('fonder:'.length)
+      : '6,6';
+    const filtre = getFilteredState(etatAvecColon({ caseColon: caseSite }), 'p1');
+    const { questions } = construireQuestionsJoueur(config, condenseJoueur(filtre, 'p1'), filtre, 'p1');
+    expect(questions.fonder).toBeDefined();
+    const cles = Object.keys(questions.fonder.criteria).filter((k) => k.startsWith('fonder:'));
+    expect(cles.length).toBeGreaterThan(0);
+    expect(cles.length).toBeLessThanOrEqual(3);
+    expect(Object.keys(questions.fonder.criteria)).toContain('aucun');
+    // Le score (gainNet) est PRÉSENT dans le libellé (choix argumenté).
+    expect(Object.values(questions.fonder.criteria).join(' ')).toMatch(/score|rendements/);
+    // Tri décroissant par score — vérifié via candidatsFondation.
+    const candidats = candidatsFondation(filtre, 'p1', {});
+    const scores = candidats.map((s) => s.gainNet);
+    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+    expect(candidats.every((s) => s.gainNet > 0)).toBe(true);
+  });
+
+  it('D2 : colon sur place → le choix fonder traduit en FoundCity direct', async () => {
+    // Colon posé au pied de la capitale, puis sur la case d'un candidat —
+    // ce candidat reste proposé (son score ne fait que monter à distance 0).
+    let filtre = getFilteredState(etatAvecColon({ caseColon: '6,6' }), 'p1');
+    const caseSite = candidatsFondation(filtre, 'p1', {})[0].case;
+    filtre = getFilteredState(etatAvecColon({ caseColon: caseSite }), 'p1');
+    const surPlace = candidatsFondation(filtre, 'p1', {}).find((s) => s.case === caseSite);
+    expect(surPlace?.distanceColon).toBe(0);
+    const d = await tourJevJoueur(clientFonder(`fonder:${caseSite}`), config, filtre, 'p1', {});
+    const ordre = d.ordres.find((o) => o.type === 'FoundCity');
+    expect(ordre).toBeDefined();
+    expect(ordre.unitId).toBe('u_colon');
+    expect(d.fondationProgrammee?.unitId).toBe('u_colon');
+    expect(d.fondationProgrammee?.case).toBe(caseSite);
+    expect(d.fondationProgrammee?.nouvelle).toBe(true);
+    expect(d.attentes.some((a) => a.genre === 'fondation')).toBe(true);
+  });
+
+  it('D2 : colon à distance → le choix fonder traduit en MultiStep (marche + foundCity, R-158)', async () => {
+    // Colon au pied de la capitale ; un candidat à distance > 0 existe
+    // (les sites sont dispersés — un seul peut être sous le colon).
+    const filtre = getFilteredState(etatAvecColon({ caseColon: '6,6' }), 'p1');
+    const site = candidatsFondation(filtre, 'p1', {}).find((s) => s.distanceColon > 0);
+    expect(site).toBeTruthy();
+    const d = await tourJevJoueur(clientFonder(`fonder:${site.case}`), config, filtre, 'p1', {});
+    const ordre = d.ordres.find((o) => o.type === 'MultiStep');
+    expect(ordre).toBeDefined();
+    expect(ordre.unitId).toBe('u_colon');
+    expect(ordre.final).toBe('foundCity');
+    expect(ordre.path.length).toBeGreaterThan(0);
+    expect(d.fondationProgrammee?.unitId).toBe('u_colon');
+    expect(d.fondationProgrammee?.case).toBe(site.case);
+  });
+
+  it('D2 : complétion mécanique — colon SUR le site programmé → FoundCity (le tour suivant, PM frais)', async () => {
+    const filtre = getFilteredState(etatAvecColon({ caseColon: '8,8' }), 'p1');
+    const memo = { fondationEnCours: { case: '8,8', tour: 5, unitId: 'u_colon', productionLancee: false } };
+    const d = await tourJevJoueur(clientFonder('aucun'), config, filtre, 'p1', memo);
+    expect(d.ordres.some((o) => o.type === 'FoundCity' && o.unitId === 'u_colon')).toBe(true);
+    // Pas de re-question D3, mais la fondation est exécutée quand même.
+    expect(d.questions.fonder).toBeUndefined();
+  });
+
+  it('D2 : complétion mécanique — colon en marche → MultiStep re-planifié chaque tour', async () => {
+    const filtre = getFilteredState(etatAvecColon({ caseColon: '6,6' }), 'p1');
+    const site = candidatsFondation(filtre, 'p1', {}).find((s) => s.distanceColon > 0);
+    expect(site).toBeTruthy();
+    const memo = { fondationEnCours: { case: site.case, tour: 5, unitId: 'u_colon' } };
+    const d = await tourJevJoueur(clientFonder('aucun'), config, filtre, 'p1', memo);
+    const ordre = d.ordres.find((o) => o.type === 'MultiStep');
+    expect(ordre).toBeDefined();
+    expect(ordre.unitId).toBe('u_colon');
+    expect(ordre.final).toBe('foundCity');
+    expect(ordre.path.length).toBeGreaterThan(0);
+  });
+
+  it('D2 : pas de colon → le site choisi lance la PRODUCTION du colon (SetProduction)', async () => {
+    // Aucun colon (units vides) mais des sites candidats (ancrés capitale) :
+    // le choix fonder programme ET lance la production du colon.
+    const probe = getFilteredState(etatAvecColon(), 'p1');
+    const sites = candidatsFondation(probe, 'p1', {});
+    if (sites.length > 0) {
+      const d = await tourJevJoueur(clientFonder(`fonder:${sites[0].case}`), config, probe, 'p1', {});
+      const prod = d.ordres.find((o) => o.type === 'SetProduction' && o.item?.kind === 'unit');
+      expect(prod).toBeDefined();
+      expect(d.fondationProgrammee?.case).toBe(sites[0].case);
+      // Le tour suivant (mémo en cours, colon toujours absent) : la production
+      // du colon est RÉ-ÉMISE — un choix `produire` de Jev ne doit pas
+      // écraser le colon en phase production (banc v3a, parties 4/6).
+      const d2 = await tourJevJoueur(clientFonder('aucun'), config, probe, 'p1', { fondationEnCours: { ...d.fondationProgrammee } });
+      expect(d2.ordres.some((o) => o.type === 'SetProduction' && o.item?.kind === 'unit')).toBe(true);
+    }
+  });
+
+  it('D1 : un refus confiant (aucun) n émet AUCUN ordre de fondation', async () => {
+    const filtre = getFilteredState(etatAvecColon({ caseColon: '6,6' }), 'p1');
+    const d = await tourJevJoueur(clientFonder('aucun'), config, filtre, 'p1', {});
+    expect(d.ordres.some((o) => o.type === 'FoundCity' || o.type === 'MultiStep')).toBe(false);
+    expect(d.fondationProgrammee).toBeNull();
+  });
+
+  it('D1 : réponse indécise (sous seuil dialogue 0,5) → aucune fondation', async () => {
+    const filtre = getFilteredState(etatAvecColon({ caseColon: '6,6' }), 'p1');
+    const d = await tourJevJoueur(clientFonder('fonder:6,6', 0.2), config, filtre, 'p1', {});
+    expect(d.ordres.some((o) => o.type === 'FoundCity' || o.type === 'MultiStep')).toBe(false);
+  });
+
+  it('D3 : cadence — la question fonder est ABSENTE tant qu une fondation est programmée', () => {
+    const filtre = getFilteredState(etatAvecColon({ caseColon: '6,6' }), 'p1');
+    const memo = { fondationEnCours: { unitId: 'u_colon', case: '6,6', direct: false, tour: 1 } };
+    const { questions } = construireQuestionsJoueur(config, condenseJoueur(filtre, 'p1'), filtre, 'p1', memo);
+    expect(questions.fonder).toBeUndefined();
+  });
+
+  it('D3 : déroulé partie — fondation programmée puis consommée, le bot ne re-tourne JAMAIS le colon', async () => {
+    // Jev répond TOUJOURS le premier site fonder proposé (confiance pleine).
+    const client = {
+      async systemOne({ questions }) {
+        const answers = {};
+        for (const [cle, q] of Object.entries(questions)) {
+          const choix = cle === 'fonder'
+            ? Object.keys(q.criteria).find((k) => k.startsWith('fonder:')) ?? 'aucun'
+            : 'aucun';
+          answers[cle] = { type: q.type, choice: choix, confidence: 0.9, probabilities: { [choix]: 0.9 } };
+        }
+        return { model: 'faux-v3', answers, usage: { input_tokens: 100 } };
+      },
+    };
+    const journal = new Journal(join(racine, 'journaux', 'test-joueur-fonder.jsonl'));
+    await jouerPartie({
+      client, config, seed: 909, plafondTours: 40, journal, engineJev: 'p1', modeJoueur: true,
+      civSetup: { p1: { civId: 'rome' }, p2: { civId: 'egypte' } },
+    });
+    const lignes = readFileSync(join(racine, 'journaux', 'test-joueur-fonder.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    const programmees = lignes.filter((l) => l.type === 'fondation_programmee');
+    expect(programmees.length).toBeGreaterThan(0);
+    // Cadence D3 : jamais deux fondations programmées simultanément — chaque
+    // programmation est consommée (fondation ou abandon) avant la suivante.
+    let enCours = false;
+    for (const l of lignes) {
+      if (l.type === 'fondation_programmee') {
+        expect(enCours).toBe(false);
+        enCours = true;
+      }
+      if ((l.type === 'fondation' && l.piloteJev) || l.type === 'fondation_abandonnee') enCours = false;
+    }
+    // Discipline D2 : pendant une fondation programmée, aucun ordre bot
+    // (motif) ne porte sur le colon de Jev — seuls les ordres Jev le touchent.
+    const motifs = lignes.filter((l) => l.type === 'motif');
+    const colons = new Set(programmees.map((p) => p.unitId));
+    for (const m of motifs) {
+      for (const o of m.ordres.p1 ?? []) {
+        if (colons.has(o.unitId) && o.type !== 'MultiStep' && o.type !== 'FoundCity') {
+          // Un ordre bot (Move/FoundCity du plan de base) sur un colon en
+          // fondation serait une violation D2 — toléré UNIQUEMENT hors
+          // programmation ; vérifie via fondation_programmee/abandonnee aux
+          // tours encadrants.
+          const encadree = programmees.some((p) => p.tour === m.tour)
+            || lignes.some((l) => l.type === 'fondation_programmee' && l.tour === m.tour);
+          expect(encadree || false).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('déterminisme : mêmes état + memo → mêmes questions fonder', () => {
+    const filtre = getFilteredState(etatAvecColon({ caseColon: '6,6' }), 'p1');
+    const a = construireQuestionsJoueur(config, condenseJoueur(filtre, 'p1'), filtre, 'p1', {});
+    const b = construireQuestionsJoueur(config, condenseJoueur(filtre, 'p1'), filtre, 'p1', {});
+    expect(JSON.stringify(a.questions.fonder)).toBe(JSON.stringify(b.questions.fonder));
   });
 });

@@ -162,10 +162,30 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
           if (a.id === jev || decision.bloqueGuerreBot) actionsAppliquees.splice(i, 1);
         }
       }
+      // JEV-EXPANSION D3 — la fondation programmée est levée si le colon est
+      // perdu (unitId connu — phase marche ; la question `fonder` revient).
+      if (memo.fondationEnCours?.unitId && !etat.units[memo.fondationEnCours.unitId]) {
+        journal.ligne({ type: 'fondation_abandonnee', tour, ...memo.fondationEnCours });
+        delete memo.fondationEnCours;
+      }
+      // JEV-EXPANSION D2 — le bot tactique ne re-tourne JAMAIS un colon en
+      // fondation programmée (même discipline que la suppression des
+      // déclarations v1) : ses ordres pour CE colon sont retirés ; le chemin
+      // gelé MultiStep du moteur reprend tout seul les tours suivants.
+      if (memo.fondationEnCours) {
+        ordres[jev] = (ordres[jev] ?? []).filter((o) => o.unitId !== memo.fondationEnCours.unitId);
+      }
       // Ordres : les overrides Jev remplacent les ordres bot de même sujet.
       // Actions : appliquées APRÈS celles du bot (dernier mot à Jev).
       ordres[jev] = fusionnerPlan(ordres[jev] ?? [], decision.ordres, [], []).ordres;
       for (const action of decision.actions) actionsAppliquees.push({ id: jev, action });
+      // JEV-EXPANSION D2/D3 — le choix `fonder` de Jev PROGRAMME la fondation
+      // (le memo vit dans joueur.mjs, qui le met à jour ; on consigne ici la
+      // programmation NOUVELLE seulement — les complétions mécaniques ne
+      // re-journalisent pas).
+      if (decision.fondationProgrammee?.nouvelle) {
+        journal.ligne({ type: 'fondation_programmee', tour, ...decision.fondationProgrammee });
+      }
       // V4 D2 : mémorise la prédiction gainNet du site où Jev vient d'ordonner
       // une fondation (le comparatif prédiction vs réel est journalisé à la
       // CityFounded — la ville arrive différée, sur la case du colon).
@@ -362,7 +382,10 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       // V4 D1 : un colon produit = la capitale passe en science au tour suivant.
       if (ev.type === 'UnitProduced' && UNIT_TYPES[ev.unitType]?.canFoundCity) colonProduit.add(ev.owner);
       // V4 D2 : fondation réalisée → prédiction gainNet vs rendements réels.
+      // JEV-EXPANSION D3 : fondation de Jev → la fondation programmée est
+      // consommée (la question `fonder` peut revenir).
       if (ev.type === 'CityFounded') {
+        if (ev.owner === jev && memo.fondationEnCours) delete memo.fondationEnCours;
         const cle = `${ev.at?.q},${ev.at?.r}`;
         const predite = memo.gainNetPredits?.get(cle) ?? null;
         journal.ligne({

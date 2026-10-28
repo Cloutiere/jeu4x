@@ -6,6 +6,11 @@
       "instructions": "Choisir l'item à produire dans la capitale ce tour (ORIENTATION de l'empire : unité de combat = posture militaire, colon/bâtiment = posture économique). Chaque critère est un item réellement productible avec son coût en marteaux et sa durée estimée en tours. Choisir 'aucun' laisse le bot arbitrer lui-même.",
       "aucun": true
     },
+    "fonder": {
+      "primitive": "choice",
+      "instructions": "Décision de FONDATION argumentée (l'expansion est la compétence 4X fondamentale : une ville de plus = plus de rendements, de science et de production pour toujours) : jusqu'à TROIS sites pré-triés vous sont présentés, chacun avec son score (rendements/tour estimés une fois la ville peuplée) et sa distance. Répondez OUI sur le site qui vous semble le meilleur (l'ordre MultiStep est émis : le colon marche puis fonde — le moteur fait le reste) ou NON (aucune fondation ce tour). Une expansion précoce et proche de la capitale est presque toujours rentable ; fonder loin ou sous le nez d'un ennemi est risqué. Si aucun colon n'existe encore, il sera produit puis marchera vers le site.",
+      "aucun": true
+    },
     "rechercher": {
       "primitive": "choice",
       "instructions": "Choisir la PROCHAINE technologie de l'empire. Ce choix est TENU par le harnais jusqu'à sa complétion (jamais de changement en cours de route). Chaque critère est une technologie réellement disponible avec son coût en fioles."

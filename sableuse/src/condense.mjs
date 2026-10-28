@@ -232,13 +232,19 @@ export function puissanceMilitaire(filtre, moi) {
 }
 
 /** Sites de fondation viables : terre passable, à ≥ MIN_CITY_DISTANCE de
- * TOUTE ville connue, triés par valeur (décroissante) puis distance (croissante). */
-export function sitesFondation(etatFiltre, moi) {
+ * TOUTE ville connue, triés par valeur (décroissante) puis distance (croissante).
+ * v3 EXPANSION : `ancre` optionnelle (la capitale) — quand Jev n'a PAS ENCORE
+ * de colon mais peut en produire, les distances sont calées sur la capitale
+ * (même formule, PAS de nouvelle arithmétique). */
+export function sitesFondation(etatFiltre, moi, ancre = null) {
   const villes = Object.values(etatFiltre.cities ?? {});
   const colonnes = Object.values(etatFiltre.units ?? {}).filter(
     (u) => u.owner === moi && UNIT_TYPES[u.type]?.canFoundCity,
   );
-  if (colonnes.length === 0) return [];
+  if (colonnes.length === 0) {
+    if (!ancre) return [];
+    colonnes.push({ q: ancre.q, r: ancre.r });
+  }
   const sites = [];
   for (const [cle, tile] of Object.entries(etatFiltre.map ?? {})) {
     const [q, r] = cle.split(',').map(Number);

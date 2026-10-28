@@ -18,10 +18,12 @@ import {
   allKnownTechs,
   canSetProduction,
   cityEconomyInputs,
+  hexDistance,
   TECHS,
   UNIT_TYPES,
 } from '@game/rules';
-import { condenserEtat } from './condense.mjs';
+import { condenserEtat, gainNetSite, sitesFondation } from './condense.mjs';
+import { pasVersRoutier } from '../../apps/server/src/botPolicy.js';
 
 /** Civs / barbare exclus — seuls les vrais joueurs sont des partenaires. */
 function rivalsReels(etatFiltre, moi) {
@@ -110,6 +112,59 @@ function descriptionProduction(c) {
   return `${genre} — coût ${c.cout} marteaux, environ ${c.toursEst} tour(s) de production`;
 }
 
+/** JEV-EXPANSION D2 — chemin vers un site : pas ROUTIER BFS (pasVersRoutier,
+ * canon BOT-ARMEE — le pas glouton se colle aux obstacles et meurt dans les
+ * poches), re-planifié chaque tour. Le fog est respecté : le BFS vit sur
+ * l'état FILTRÉ (tuiles inconnues = intransitables, le moteur gèle le chemin
+ * à la frontière et le harnais re-planifie au tour suivant). */
+function cheminVers(etatFiltre, moi, colon, cible, maxPas = 10) {
+  const chemin = [];
+  let curseur = { q: colon.q, r: colon.r, type: colon.type };
+  for (let i = 0; i < maxPas; i++) {
+    const pas = pasVersRoutier(curseur, etatFiltre, cible);
+    if (!pas) break;
+    chemin.push(pas);
+    curseur = { q: pas.q, r: pas.r, type: colon.type };
+    if (pas.q === cible.q && pas.r === cible.r) break;
+  }
+  return chemin;
+}
+
+/** JEV-EXPANSION D2 — meilleur colon productible (tech débloquée, hors GP,
+ * le moins cher — miroir adapter-jev.colonProductible). */
+function colonProductible(techsUnlocked) {
+  return Object.values(UNIT_TYPES)
+    .filter((t) => t.canFoundCity && (t.tech == null || techsUnlocked.includes(t.tech)))
+    .sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0] ?? null;
+}
+
+/** JEV-EXPANSION D1 — candidats de sites de fondation, pré-triés par le
+ * harnais (score moteur existant : gainNet de condense.mjs, JAMAIS une
+ * nouvelle formule), filtrés par les cases en liste noire (fondations
+ * rejetées — partie.mjs) et par la rentabilité (gainNet > 0 — doctrine v3 :
+ * fonder un site non rentable n'est pas une décision). JUSQU'À 3 sites.
+ * Sans colon encore produit, les distances sont calées sur la capitale
+ * (ancre — même formule). */
+export function candidatsFondation(etatFiltre, moi, memo = {}) {
+  const colonne = Object.values(etatFiltre.units ?? {}).find(
+    (u) => u.owner === moi && UNIT_TYPES[u.type]?.canFoundCity && !u.aboard,
+  );
+  const capitale =
+    Object.values(etatFiltre.cities ?? {}).find((v) => v.owner === moi && v.capital)
+    ?? Object.values(etatFiltre.cities ?? {}).find((v) => v.owner === moi)
+    ?? null;
+  if (!colonne && !capitale) return [];
+  const echouees = memo.casesFondationEchouees ?? new Set();
+  return sitesFondation(etatFiltre, moi, colonne ? null : capitale)
+    .map((s) => ({ ...s, gainNet: s.gainNet ?? gainNetSite(etatFiltre, moi, s) }))
+    .filter((s) => s.gainNet > 0)
+    .filter((s) => !echouees.has(s.case))
+    .sort((a, b) => b.gainNet - a.gainNet || a.distance - b.distance || a.case.localeCompare(b.case))
+    .slice(0, 3)
+    .map((s) => ({ ...s, colonPresent: !!colonne, distanceColon: colonne ? hexDistance(colonne, s) : null }));
+}
+
+
 /**
  * Construit les questions SDK du tour : SEULEMENT les décisions décidables
  * (critères non vides — directive n°3). `criteres` documente la signification
@@ -137,6 +192,23 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
     criteria['aucun'] = 'Laisser le bot arbitrer la production ce tour.';
     q.produire = { instructions: config.questions.produire.instructions, criteria, type: 'choice' };
     meta.produire = { genre: 'produire' };
+  }
+
+  // Fonder (JEV-EXPANSION D1 — argumentée, miroir de la guerre v2) : JUSQU'À
+  // 3 sites pré-triés par le score moteur (gainNet), décision OUI/NON par
+  // site ou 'aucun'. Cadence D3 : pas plus d'UNE fondation programmée à la
+  // fois — la question est absente tant qu'une fondation est en cours.
+  if (!memo.fondationEnCours) {
+    const sites = candidatsFondation(etatFiltre, moi, memo);
+    if (sites.length > 0) {
+      const criteria = { aucun: 'NON — ne pas fonder ce tour (aucune ville de plus).' };
+      for (const s of sites) {
+        const ou = s.colonPresent ? `colon à ${s.distanceColon} case(s)` : 'pas encore de colon — il sera produit puis marchera (MultiStep)';
+        criteria[`fonder:${s.case}`] = `OUI — fonder une ville sur la case ${s.case} : score ${s.gainNet} rendements/tour estimés une fois peuplée (valeur du site ${s.valeurSite}), distance ${s.distance} case(s) — ${ou}.`;
+      }
+      q.fonder = { instructions: config.questions.fonder.instructions, criteria, type: 'choice' };
+      meta.fonder = { genre: 'fonder', sites: sites.map((s) => s.case) };
+    }
   }
 
   // Rechercher — omise tant qu'une tech tenue est en cours (le harnais
@@ -343,6 +415,91 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     if (valide && capitale && canSetProduction({ kind, id }, me?.techsUnlocked ?? [], capitale.buildings ?? [], me?.civId)) {
       sortie.ordres.push({ type: 'SetProduction', cityId: capitale.id, item: { kind, id } });
       sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: `${kind}:${id}` });
+    }
+  }
+
+  // 1.5 Fonder (JEV-EXPANSION D2 — exécution canon). Deux chemins :
+  //     (a) COMPLÉTION MÉCANIQUE d'une fondation programmée (Jev a déjà
+  //         choisi — D3, pas de re-question) : colon produit s'il manque
+  //         (SetProduction — « production du colon si absent », D2), marche
+  //         MultiStep re-planifiée chaque tour (le pas glouton converge ;
+  //         re-planifier contourne l'annulation R-161 sous le fog et les
+  //         chemins gelés tués), puis FoundCity DIRECT quand le colon est
+  //         SUR place (un MultiStep à l'arrivée consomme tous ses PM et
+  //         l'action finale est annulée « PM insuffisants » — canon moteur ;
+  //         la fondation doit être émise le tour SUIVANT, PM frais).
+  //     (b) NOUVEAU choix Jev (question `fonder`, absente tant qu'une
+  //         fondation est programmée) : site choisi → même exécution.
+  sortie.fondationProgrammee = null;
+  const echouees = memo.casesFondationEchouees ?? new Set();
+  const trouveColon = () =>
+    Object.values(etatFiltre.units ?? {}).find(
+      (u) => u.owner === moi && UNIT_TYPES[u.type]?.canFoundCity && !u.aboard,
+    );
+  const caseDe = (u) => `${u.q},${u.r}`;
+  if (memo.fondationEnCours) {
+    const cible = memo.fondationEnCours;
+    if (echouees.has(cible.case)) {
+      // Case invalidée par un rejet moteur (ville ennemie invisible,
+      // cohabitation…) — v3.1 : on n'y retourne JAMAIS, la question revient.
+      delete memo.fondationEnCours;
+    } else {
+      const [cq, cr] = cible.case.split(',').map(Number);
+      const colon = trouveColon();
+      if (colon) {
+        cible.unitId = colon.id;
+        if (colon.q === cq && colon.r === cr) {
+          sortie.ordres.push({ type: 'FoundCity', unitId: colon.id });
+          sortie.attentes.push({ genre: 'fondation', unitId: colon.id, case: cible.case });
+        } else {
+          const chemin = cheminVers(etatFiltre, moi, colon, { q: cq, r: cr });
+          if (chemin.length > 0) {
+            sortie.ordres.push({ type: 'MultiStep', unitId: colon.id, path: chemin, final: 'foundCity' });
+            sortie.attentes.push({ genre: 'mouvement', unitId: colon.id, attendu: `${chemin[0].q},${chemin[0].r}` });
+          } else {
+            // Site inatteignable au savoir actuel (fog, obstacle) — la
+            // programmation est levée, la question `fonder` revient.
+            delete memo.fondationEnCours;
+          }
+        }
+      } else {
+        // « Production du colon si absent » (D2) : ré-émise chaque tour —
+        // un autre choix `produire` de Jev écraserait sinon le colon (le
+        // dernier SetProduction gagne côté moteur) et l'expansion mourrait
+        // en phase production (vu au banc v3a, parties 4/6).
+        const capitale =
+          Object.values(etatFiltre.cities ?? {}).find((v) => v.owner === moi && v.capital)
+          ?? Object.values(etatFiltre.cities ?? {}).find((v) => v.owner === moi)
+          ?? null;
+        const typeColon = colonProductible(me?.techsUnlocked ?? []);
+        if (capitale && typeColon && canSetProduction({ kind: 'unit', id: typeColon.id }, me?.techsUnlocked ?? [], capitale.buildings ?? [], me?.civId)) {
+          sortie.ordres.push({ type: 'SetProduction', cityId: capitale.id, item: { kind: 'unit', id: typeColon.id } });
+          sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: `unit:${typeColon.id}` });
+        }
+      }
+    }
+  }
+  const fond = confDialMin(ans.fonder);
+  if (fond?.choice && fond.choice.startsWith('fonder:') && !memo.fondationEnCours) {
+    const caseCible = fond.choice.slice('fonder:'.length);
+    const site = candidatsFondation(etatFiltre, moi, memo).find((s) => s.case === caseCible);
+    const colon = trouveColon();
+    if (site) {
+      memo.fondationEnCours = { case: site.case, tour: etatFiltre.turn, unitId: colon?.id ?? null };
+      sortie.fondationProgrammee = { ...memo.fondationEnCours, nouvelle: true };
+      if (colon) {
+        const [cq, cr] = site.case.split(',').map(Number);
+        if (colon.q === cq && colon.r === cr) {
+          sortie.ordres.push({ type: 'FoundCity', unitId: colon.id });
+          sortie.attentes.push({ genre: 'fondation', unitId: colon.id, case: site.case });
+        } else {
+          const chemin = cheminVers(etatFiltre, moi, colon, { q: cq, r: cr });
+          if (chemin.length > 0) {
+            sortie.ordres.push({ type: 'MultiStep', unitId: colon.id, path: chemin, final: 'foundCity' });
+            sortie.attentes.push({ genre: 'mouvement', unitId: colon.id, attendu: `${chemin[0].q},${chemin[0].r}` });
+          }
+        }
+      }
     }
   }
 
