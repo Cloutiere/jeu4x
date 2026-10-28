@@ -18,6 +18,10 @@ export interface Env {
   DISCORD_CLIENT_ID?: string;
   DISCORD_CLIENT_SECRET?: string;
   APP_BASE_URL?: string;
+  /** JEV-FUMEE-LOBBY · D3 : clé API jev-latest — secret Cloudflare
+   *  (`wrangler secret put`), `.dev.vars` en local. Absente → Jev reste un
+   *  bot standard (repli permanent, aucune partie bloquée). */
+  TYPESAFE_API_KEY?: string;
 }
 
 /** JSON typé pour une Response. */

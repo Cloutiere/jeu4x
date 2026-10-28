@@ -21,5 +21,8 @@ export default defineConfig({
   ],
   test: {
     testTimeout: 30_000,
+    // JEV-FUMEE-LOBBY / BOT-TD : bancs et ports en Node pur — configs dédiées
+    // (vitest.jev.config.ts, vitest.banc.config.ts), jamais dans le pool Workers.
+    exclude: ['**/node_modules/**', 'tests-banc/**', 'tests-jev/**'],
   },
 });

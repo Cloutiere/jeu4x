@@ -57,6 +57,11 @@ import type { ClientToServerMessage, ConfigPartie, ErrorCode, GameCreationSettin
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
 import { botPolicy, botTurnSeed, deciderPaix, deciderPaixNegociee, deciderEchangeTechs, negociationDuBot, profileDuBot } from './botPolicy.js';
+import type { ActionJev, PlanJev } from './jev/orchestre.js';
+import { appliquerDiplomatieJev, attentesPostResolution, planifierJev } from './jev/orchestre.js';
+import { creerClientJev } from './jev/client.js';
+import { jevEtatInitial, type JevEtat, type JevJournalEntree } from './jev/etat.js';
+import configQuestionsJev from './jev/questions-joueur.json';
 
 // CARTE-MULTI : jusqu'à 5 sièges moteur (p1..p5) — seuls les sièges présents
 // dans `meta.players` sont actifs (les parties 1v1 n'en instancient que 2).
@@ -116,6 +121,12 @@ export interface GamePlayer {
   paletteId?: string;
   /** LOBBY-5 : index du siège dans `config.sieges` (méta lobby). */
   siege?: number;
+  /** JEV-FUMEE-LOBBY (Erik 28/10) · D1 : ce bot est JEV — adversaire LLM
+   *  (choisi au lobby, champ méta ; jamais une difficulté). Ses ordres
+   *  tactiques restent ceux du bot standard ; ses décisions stratégiques
+   *  (recherche, conversion, production, guerre/paix/échange, fondations)
+   *  viennent du pipeline v3 à chaque résolution (budget D3, replis D4). */
+  jev?: boolean;
 }
 
 export interface GameMeta {
@@ -148,6 +159,11 @@ export interface PendingResolution {
    *  régime R-122) survenus AVANT la résolution — rejoints au journal pour
    *  la diffusion (TurnResult) et le rejeu idempotent. */
   botEvents?: GameEvent[];
+  /** JEV-FUMEE-LOBBY : attentes de fondation de la décision Jev de CE tour —
+   *  rejouées après la résolution (liste noire des cases rejetées, idempotent). */
+  jevAttentes?: Array<{ genre: string; unitId?: string; case?: string }>;
+  /** JEV-FUMEE-LOBBY : siège moteur du pipeline Jev (post-résolution). */
+  jevSeat?: EnginePlayerId;
 }
 
 interface WsAttachment {
@@ -511,6 +527,9 @@ export class GameDO {
    *  moteur (aucune migration), persisté en storage (survit à la reconnexion
    *  et à l'hibernation). Clé = id de session réel. */
   private godMode: Record<string, boolean> = {};
+  /** JEV-FUMEE-LOBBY · D3/D4 : état Jev de la partie (budget, échecs, memo
+   *  inter-tours) — hors état moteur, persisté en storage (`jevEtat`). */
+  private jevEtat: JevEtat | null = null;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -551,6 +570,7 @@ export class GameDO {
     this.resolving = (await this.state.storage.get<PendingResolution>('resolving')) ?? null;
     this.lastEvents = (await this.state.storage.get<GameEvent[]>('lastEvents')) ?? [];
     this.godMode = (await this.state.storage.get<Record<string, boolean>>('godMode')) ?? {};
+    this.jevEtat = (await this.state.storage.get<JevEtat>('jevEtat')) ?? null;
     this.loaded = true;
     return this.ensureResolved();
   }
@@ -611,6 +631,8 @@ export class GameDO {
         return this.handleAdminDump();
       case '/internal/trace':
         return this.handleTrace(url);
+      case '/internal/jevjournal':
+        return this.handleJevJournal(url);
       default:
         break;
     }
@@ -677,7 +699,7 @@ export class GameDO {
    *  Chantier BOT-SOLO : le join peut porter le JOUEUR BOT (création solo —
    *  `bot: true`, id réservé 'bot', pas de session ni de socket). */
   private async handleJoin(request: Request): Promise<Response> {
-    const body = await this.readJson<{ player: { id: PlayerId; name: string; civId?: string; bot?: boolean; paletteId?: string; siege?: number }; demarrageManuel?: boolean }>(request);
+    const body = await this.readJson<{ player: { id: PlayerId; name: string; civId?: string; bot?: boolean; jev?: boolean; paletteId?: string; siege?: number }; demarrageManuel?: boolean }>(request);
     if (!body?.player) return jsonResponse({ error: 'badRequest' }, 400);
     if (!this.meta) return jsonResponse({ error: 'notFound' }, 404);
     if (this.meta.status !== 'waiting') return jsonResponse({ error: 'gameFull' }, 409);
@@ -696,10 +718,13 @@ export class GameDO {
     if (!engineId) return jsonResponse({ error: 'gameFull' }, 409);
     this.meta.players.push({
       id: body.player.id,
-      name: body.player.bot === true ? 'Bot' : body.player.name,
+      // JEV-FUMEE-LOBBY : le nom fourni par le lobby est respecté (le lobby
+      // nomme ses bots — « Bot », « Jev 🤖 ») ; défaut historique « Bot ».
+      name: body.player.name || 'Bot',
       engineId,
       ...(civId ? { civId } : {}),
       ...(body.player.bot === true ? { bot: true } : {}),
+      ...(body.player.jev === true ? { jev: true } : {}),
       ...(body.player.paletteId ? { paletteId: body.player.paletteId } : {}),
       ...(typeof body.player.siege === 'number' ? { siege: body.player.siege } : {}),
     });
@@ -846,6 +871,20 @@ export class GameDO {
     for (const cle of cles.slice(0, Math.max(0, cles.length - 20))) {
       await this.state.storage.delete(cle);
     }
+  }
+
+  /** JEV-FUMEE-LOBBY · L2 — journal de partie de Jev (debug admin).
+   *  ?tour=N : l'entrée complète (condensé + questions + réponses + décisions
+   *  — corpus de l'itération 4) ; sans : liste des tours + état (budget). */
+  private async handleJevJournal(url: URL): Promise<Response> {
+    const etat = this.jevEtat;
+    if (!etat) return jsonResponse({ journalTours: [], etat: null });
+    const param = url.searchParams.get('tour');
+    if (param === null) return jsonResponse({ journalTours: etat.journalTours, etat });
+    const tour = Number.parseInt(param, 10);
+    const entree = await this.state.storage.get<JevJournalEntree>(`jevjournal:${tour}`);
+    if (!entree) return jsonResponse({ error: 'notFound', journalTours: etat.journalTours }, 404);
+    return jsonResponse({ entree });
   }
 
   private handleAdminDump(): Response {
@@ -1106,6 +1145,19 @@ export class GameDO {
           }
         })()
       : null;
+    // JEV-FUMEE-LOBBY : état Jev de la partie (budget D3, replis D4, memo) +
+    // résumé de latence + tours journalisés (`jevjournal:<tour>` en storage —
+    // corpus de l'itération 4).
+    const jev = this.jevEtat
+      ? {
+          desactive: this.jevEtat.desactive,
+          budgetUsd: Math.round(this.jevEtat.budgetUsd * 10000) / 10000,
+          echecsConsecutifs: this.jevEtat.echecsConsecutifs,
+          journalTours: this.jevEtat.journalTours,
+          fondationEnCours: this.jevEtat.memo.fondationEnCours ?? null,
+          techTenue: this.jevEtat.memo.techRecherche ?? null,
+        }
+      : null;
     return jsonResponse({
       meta: this.meta,
       state: this.game,
@@ -1122,6 +1174,7 @@ export class GameDO {
       nucleaire,
       espionnage,
       artefacts,
+      jev,
     });
   }
 
@@ -1830,6 +1883,15 @@ export class GameDO {
     //    les messages des humains, événements au journal.
     let game = this.game;
     const botEvents: GameEvent[] = [];
+    // JEV-FUMEE-LOBBY · L2 : la décision Jev est prise AVANT l'application des
+    // actions bot (miroir du harnais — la décision vit sur l'état pré-actions)
+    // puis ses actions/diplomatie sont appliquées APRÈS celles du bot (dernier
+    // mot à Jev). Au rejeu idempotent, la décision N'EST PAS reprise : les
+    // ordres et attentes sont déjà persistés dans le motif (§3.5).
+    const jevSeat = this.meta.players.find((p) => p.jev === true)?.engineId ?? null;
+    let planJev: PlanJev | null = null;
+    const plansBot = new Map<EnginePlayerId, ReturnType<typeof botPolicy>>();
+    if (!this.jevEtat && jevSeat) this.jevEtat = jevEtatInitial();
     for (const p of this.meta.players) {
       if (!p.bot) continue;
       if (game.players[p.engineId]?.defeated === true) continue; // bot éliminé : plus d'ordres
@@ -1838,10 +1900,34 @@ export class GameDO {
       // 'bot' conserve la dérivation d'origine (bot solo inchangé).
       const rng = createRng(botTurnSeed(this.meta.seed, game.turn, p.engineId));
       const plan = botPolicy(game, p.engineId, rng, this.meta.settings.botDifficulte);
+      plansBot.set(p.engineId, plan);
       for (const order of plan.orders) {
         if (orderShapeError(order) !== null) continue; // jamais un ordre mal formé
         this.orders[p.engineId] = upsertOrderPreservingPriority(this.orders[p.engineId] ?? [], order);
       }
+      if (p.jev === true && jevSeat && this.jevEtat) {
+        planJev = await planifierJev({
+          client: this.env.TYPESAFE_API_KEY ? creerClientJev(this.env.TYPESAFE_API_KEY) : null,
+          game,
+          seed: this.meta.seed,
+          seat: jevSeat,
+          config: configQuestionsJev,
+          etat: this.jevEtat,
+        });
+        // Discipline v3 : le bot tactique ne touche pas au colon d'une
+        // fondation programmée (ses ordres pour CE colon sont retirés).
+        for (const unitId of planJev.retiresUnitIds) {
+          this.orders[jevSeat] = (this.orders[jevSeat] ?? []).filter((o) => (o as { unitId?: string }).unitId !== unitId);
+        }
+      }
+    }
+    // Actions immédiates du bot standard (recherche R-85, régime R-122,
+    // diplomatie BOT-TC) — mêmes helpers purs que les messages des humains.
+    // JEV-FUMEE-LOBBY : un choix `guerre` de Jev (même 'aucun') retire aussi
+    // les déclarations des autres bots ce tour (bloqueGuerreBot).
+    for (const p of this.meta.players) {
+      const plan = plansBot.get(p.engineId);
+      if (!plan) continue;
       for (const action of plan.actions) {
         if (action.type === 'SetResearch') {
           const result = applySetResearch(game, p.engineId, action.techId);
@@ -1856,6 +1942,7 @@ export class GameDO {
           // WarDeclared, paix: PeaceAccepted/Refused — publics, au journal
           // diffusé).
           if (action.type === 'DeclareWar') {
+            if (p.jev === true || (planJev?.bloqueGuerreBot === true && jevSeat !== null)) continue; // Jev a le dernier mot
             const result = applyDeclareWar(game, p.engineId, action.player);
             if (result.ok) {
               game = result.state;
@@ -1892,6 +1979,40 @@ export class GameDO {
         }
       }
     }
+    // JEV-FUMEE-LOBBY · L2 : actions immédiates de Jev APRÈS celles du bot
+    // (dernier mot — recherche tenue, conversion), puis diplomatie argumentée
+    // sur l'état complet (réponse seedée canon T2 de la cible).
+    if (planJev && jevSeat) {
+      for (const action of planJev.actions as ActionJev[]) {
+        if (action.type === 'SetResearch') {
+          const result = applySetResearch(game, jevSeat, action.techId);
+          if (result.ok) {
+            game = result.state;
+            if (result.events.length > 0) botEvents.push(...result.events);
+          }
+        } else {
+          const result = applySetConversion(game, jevSeat, action.cityId, action.vers);
+          if (result.ok) game = result.state;
+        }
+      }
+      const diplomatie = appliquerDiplomatieJev(game, this.meta.seed, jevSeat, planJev.intentions, this.jevEtat!);
+      game = diplomatie.game;
+      for (const ev of diplomatie.events) {
+        game.lastEventSeq += 1;
+        botEvents.push({ ...ev, seq: game.lastEventSeq });
+      }
+    }
+    if (this.jevEtat) {
+      // Persistance immédiate de l'état Jev (budget/échecs/memo) + journal de
+      // tour (condensé + questions + réponses + décisions — corpus itération 4).
+      await this.state.storage.put({ jevEtat: this.jevEtat });
+      const entree = planJev?.entreeJournal;
+      if (entree) {
+        await this.state.storage.put({ [`jevjournal:${entree.tour}`]: entree });
+        this.jevEtat.journalTours = [...new Set([...this.jevEtat.journalTours, entree.tour])].sort((a, b) => a - b);
+        await this.state.storage.put({ jevEtat: this.jevEtat });
+      }
+    }
     this.game = game;
     if (botEvents.length > 0) this.lastEvents = [...this.lastEvents, ...botEvents];
     // 1. Persister le motif AVANT de résoudre : un crash ici est repris par
@@ -1901,7 +2022,13 @@ export class GameDO {
       Object.fromEntries(ENGINE_IDS.map((id) => [id, [...(this.orders[id] ?? [])]])) as Record<EnginePlayerId, Order[]>,
       emptyOrders(),
     );
-    this.resolving = { turn: game.turn, orders, rngSeed: game.rngSeed, ...(botEvents.length > 0 ? { botEvents } : {}) };
+    this.resolving = {
+      turn: game.turn,
+      orders,
+      rngSeed: game.rngSeed,
+      ...(botEvents.length > 0 ? { botEvents } : {}),
+      ...(planJev && jevSeat ? { jevAttentes: planJev.attentes, jevSeat } : {}),
+    };
     game.phase = 'resolving';
     await this.state.storage.put({ game: this.game, resolving: this.resolving, orders: this.orders, lastEvents: this.lastEvents });
     // 2-3. Résoudre puis persister le résultat.
@@ -1934,6 +2061,13 @@ export class GameDO {
       await tx.put({ [`trace:${input.turn}`]: collecteur.trace });
     });
     await this.purgerTraces();
+    // JEV-FUMEE-LOBBY : post-traitement idempotent du memo v3 (liste noire
+    // des fondations rejetées, programmation consommée, colon produit) — au
+    // rejeu, rejoué depuis le même motif, même effet (ensembles additifs).
+    if (input.jevAttentes && input.jevSeat && this.jevEtat) {
+      attentesPostResolution(this.game, events, input.jevAttentes, this.jevEtat, input.jevSeat);
+      await this.state.storage.put({ jevEtat: this.jevEtat });
+    }
     if (this.game.winner) {
       // Motif de méta dérivé du dernier événement Victory (7f : victoire
       // culturelle → 'culture' ; les autres raisons restent 'domination').

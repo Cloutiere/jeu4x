@@ -33,6 +33,10 @@
   let joinCode = $state('');
   // BOT-TD (décisions Erik 24/10) : difficulté des bots — défaut Normal.
   let difficulte = $state<'facile' | 'normal' | 'difficile'>('normal');
+  // JEV-FUMEE-LOBBY (décisions Erik 28/10) · D1 : adversaire du premier
+  // siège bot — le bot standard ou JEV (LLM, badge « Jev 🤖 »). Jev n'est
+  // PAS une difficulté : c'est un adversaire distinct.
+  let adversaire = $state<'bot' | 'jev'>('bot');
   let config = $state<ConfigPartie>(configPartieDefaut('amerique'));
 
   // Jointure : partie sélectionnée (liste publique ou code saisi) + choix.
@@ -48,6 +52,7 @@
       turnTimerMinutes: timerMinutes > 0 ? timerMinutes : null,
       isPublic,
       botDifficulte: difficulte,
+      ...(adversaire === 'jev' ? { adversaireJev: true } : {}),
       config: $state.snapshot(config) as ConfigPartie,
     });
   }
@@ -114,6 +119,14 @@
             <option value="facile">Facile</option>
             <option value="normal">Normal</option>
             <option value="difficile">Difficile</option>
+          </select>
+        </label>
+        <!-- JEV-FUMEE-LOBBY · D1 : adversaire du premier siège bot. -->
+        <label>
+          Adversaire
+          <select bind:value={adversaire}>
+            <option value="bot">Bot standard</option>
+            <option value="jev">Jev 🤖</option>
           </select>
         </label>
         <button type="button" class="bouton-or creer" onclick={creerPartie}>

@@ -8,12 +8,13 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && vitest run --config vitest.jev.config.ts",
     "bot": "node src/bot.mjs"
   },
   "dependencies": {
     "@game/rules": "workspace:*",
-    "@game/shared": "workspace:*"
+    "@game/shared": "workspace:*",
+    "@typesafe-ai/sdk": "^0.6.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",

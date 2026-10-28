@@ -67,6 +67,11 @@ export interface GameCreationSettings {
    *  absent sur les parties créées avant la mission (flux historique 1v1
    *  inchangé — testé) ; présent ⇒ nouvelle voie de création unique. */
   config?: ConfigPartie;
+  /** JEV-FUMEE-LOBBY (décisions Erik 28/10) · D1 : adversaire JEV (LLM)
+   *  au premier siège bot — champ META (lobby/Welcome — aucun champ
+   *  GameState : pas de migration). Jev n'est PAS une difficulté : c'est un
+   *  adversaire distinct (badge « Jev 🤖 »), budget plafonné par partie. */
+  adversaireJev?: boolean;
   /** BOT-TD (décisions Erik 24/10) · difficulté du bot — champ META
    *  (lobby/Welcome — aucun champ GameState : pas de migration moteur).
    *  Absent/inconnu = « normal » (repli — normaliseDifficulteBot). */
@@ -115,7 +120,7 @@ export interface GameSummary {
   /** 7n : la civ choisie (optionnelle — affichage lobby) accompagne chaque joueur.
    *  Chantier BOT-SOLO : `bot: true` marque le joueur bot (badge « solo »).
    *  LOBBY-5 : `paletteId`/`siege` — couleur choisie + index de siège. */
-  players: Array<PlayerInfo & { civId?: string; bot?: boolean; paletteId?: string; siege?: number }>;
+  players: Array<PlayerInfo & { civId?: string; bot?: boolean; jev?: boolean; paletteId?: string; siege?: number }>;
   settings: GameCreationSettings;
   turn: number;
   /** Création, epoch ms (méta lobby — jamais dans le GameState moteur). */

@@ -21,6 +21,9 @@ jobs:
       # L'ID de compte n'est pas un secret ; explicite car wrangler est non
       # interactif en CI et le token est scoppé à un seul compte.
       CLOUDFLARE_ACCOUNT_ID: 02dd3eea63bdb31596a0d89636b2ea34
+      # JEV-FUMEE-LOBBY · D3 : clé jev-latest (secret GitHub → secret
+      # Cloudflare synchronisé à chaque déploiement par l'étape dédiée).
+      TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -49,3 +52,9 @@ jobs:
       - name: Deploy (wrangler --env prod)
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
         run: pnpm --filter @game/server exec wrangler deploy --env prod
+
+      # JEV-FUMEE-LOBBY · D3 : la clé jev-latest vit en secret Cloudflare
+      # (jamais dans le dépôt) ; wrangler la crée/met à jour idempotemment.
+      - name: Secret Jev (TYPESAFE_API_KEY → wrangler secret)
+        if: ${{ env.TYPESAFE_API_KEY != '' }}
+        run: echo "$TYPESAFE_API_KEY" | pnpm --filter @game/server exec wrangler secret put TYPESAFE_API_KEY --env prod

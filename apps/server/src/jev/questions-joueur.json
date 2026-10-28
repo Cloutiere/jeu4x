@@ -1,0 +1,70 @@
+{
+  "_commentaire": "Questions JEV-BANC-JOUEUR (décisions Erik 28/10) — Jev JOUEUR stratégique 1v1 vs bot standard : il décide UNE FOIS PAR TOUR la recherche (tenue), la conversion or/science (remplace la règle regle:conversion — actif:false ici), l'orientation de production de la capitale (militaire/éco), la diplomatie T2 (guerre, paix avec compensation, échange de techs). Le bot standard exécoute tout le tactique (marche, combats, garnisons, travail des tuiles, fondations). Les critères sont INJECTÉS par tour par le harnais (joueur.mjs) — candidats réels seulement, jamais de critère vide (directive n°3).",
+  "questions": {
+    "produire": {
+      "primitive": "choice",
+      "instructions": "Choisir l'item à produire dans la capitale ce tour (ORIENTATION de l'empire : unité de combat = posture militaire, colon/bâtiment = posture économique). Chaque critère est un item réellement productible avec son coût en marteaux et sa durée estimée en tours. Choisir 'aucun' laisse le bot arbitrer lui-même.",
+      "aucun": true
+    },
+    "fonder": {
+      "primitive": "choice",
+      "instructions": "Décision de FONDATION argumentée (l'expansion est la compétence 4X fondamentale : une ville de plus = plus de rendements, de science et de production pour toujours) : jusqu'à TROIS sites pré-triés vous sont présentés, chacun avec son score (rendements/tour estimés une fois la ville peuplée) et sa distance. Répondez OUI sur le site qui vous semble le meilleur (l'ordre MultiStep est émis : le colon marche puis fonde — le moteur fait le reste) ou NON (aucune fondation ce tour). Une expansion précoce et proche de la capitale est presque toujours rentable ; fonder loin ou sous le nez d'un ennemi est risqué. Si aucun colon n'existe encore, il sera produit puis marchera vers le site.",
+      "aucun": true
+    },
+    "rechercher": {
+      "primitive": "choice",
+      "instructions": "Choisir la PROCHAINE technologie de l'empire. Ce choix est TENU par le harnais jusqu'à sa complétion (jamais de changement en cours de route). Chaque critère est une technologie réellement disponible avec son coût en fioles."
+    },
+    "convertir": {
+      "primitive": "choice",
+      "instructions": "Orienter la conversion d'une ville : 'science' alimente la recherche, 'or' alimente la trésorerie (achat de rush, compensation de paix). Seules les villes UTILES sont proposées : une ville dont la science par tour est SOUS le seuil est candidate à la SCIENCE (la recherche est le goulot de l'empire) ; une ville déjà en science au-dessus du seuil peut repasser à l'OR. Chaque critère donne la population et la science actuelle de la ville. Choisir 'aucun' ne change rien ce tour (si vous êtes indécis, la règle par défaut s'applique à votre place : bibliothèque et capitale post-colon passent en science).",
+      "aucun": true
+    },
+    "guerre": {
+      "primitive": "choice",
+      "instructions": "Décision de GUERRE argumentée : UNE cible pré-triée vous est présentée (le voisin le plus faible), avec le rapport de forces explicite. Répondez OUI (déclarer la guerre — acte PUBLIC, elle le saura ; le bot assemble ensuite l'armée et marche) ou NON (rien ce tour, et le bot ne déclare pas non plus pour vous). Ne dites OUI que si le rapport de forces vous est clairement favorable (≥ 1,5×) — une guerre perdante ruine l'empire.",
+      "aucun": true
+    },
+    "paix": {
+      "primitive": "choice",
+      "instructions": "Faire la paix avec une nation ennemie. Chaque critère décrit l'ennemi : durée de la guerre, batailles menées, rapport de forces visible. Choisir un ennemi PROPOSE la paix (l'ennemi accepte, refuse, ou contre-propose un prix) ; si l'ennemi nous a proposé la paix ce tour, ce choix l'ACCEPTE. Choisir 'aucun' refuse toute paix ce tour (les propositions ennemies sont rejetées).",
+      "aucun": true
+    },
+    "compensation": {
+      "primitive": "choice",
+      "instructions": "Si la question paix a choisi un ennemi : quel montant d'or offrir avec la proposition de paix (transféré SEULEMENT si la paix est signée — un refus ne coûte rien). Une FOURCHETTE est suggérée : le prix indicatif est ce que l'ennemi exige probablement (il grandit avec sa fierté et son rapport de forces), le montant généreux maximise l'acceptation. Offrir MOINS que le prix indicatif sera probablement refusé. Si la question paix a choisi 'aucun', cette réponse est ignorée.",
+      "aucun": true
+    },
+    "techOfferte": {
+      "primitive": "choice",
+      "instructions": "Proposer un ÉCHANGE de technologies au rival (acte PRIVÉ, impossible en guerre) : choisir la technologie que nous OFFRONS. Chaque critère est une de nos techs que le rival ne connaît PAS, avec son coût en fioles. La contrepartie est choisie dans la question techDemandee ; les deux questions sont nécessaires. Choisir 'aucun' ne propose aucun échange ce tour.",
+      "aucun": true
+    },
+    "techDemandee": {
+      "primitive": "choice",
+      "instructions": "Choisir la technologie DEMANDÉE en contrepartie de l'échange (échange 1:1). Chaque critère est une tech du rival que nous ne connaissons PAS, avec son coût en fioles. Un échange équilibré demande une tech de coût comparable à celle offerte.",
+      "aucun": true
+    }
+  },
+  "seuils": {
+    "confianceChoixMin": 0.65,
+    "decisionMin": 0.5,
+    "conversionScienceMin": 2,
+    "compensationPaliers": [0, 0.1, 0.25, 0.5, 1]
+  },
+  "_commentaire_seuils": "Seuils PAR DOMAINE (canon v2) : produire/rechercher à 0,65 ; guerre/paix/convertir/échange à 0,5 — ces questions sont chroniquement sous-confiantes chez jev-latest (banc joueur-2026-10-27). v2 CALIBRAGE-DECISIONS : une réponse conversion INDÉCISE (sous 0,5) déclenche le repli règle (plancher, miroir du repli bot) ; conversionScienceMin = seuil de science/tour sous lequel une ville est candidate à la SCIENCE. compensationPaliers conservé pour compatibilité (la fourchette d'or v2 est injectée par tour).",
+  "_commentaire_regles": "JEV-BANC-JOUEUR D1 + v2 CALIBRAGE-DECISIONS : la règle regle:conversion du harnais reste DÉSACTIVÉE GLOBALEMENT (le bot standard et le contrôle ne la subissent pas — D2 : rien d'autre ne change) ; elle vit en REPLI pour Jev seul, appliquée par joueur.mjs quand sa réponse conversion est indécise.",
+  "regles": {
+    "conversion": {
+      "actif": false
+    }
+  },
+  "_commentaire_score": "Mêmes pondérations que le banc v4 (comparabilité) — villes×10 + pop×2 + techs×30 + merveilles×100 + trésorerie/10.",
+  "score": {
+    "villes": 10,
+    "pop": 2,
+    "techs": 30,
+    "merveilles": 100,
+    "divTresorerie": 10
+  }
+}

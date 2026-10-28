@@ -408,6 +408,9 @@ export class LobbyDO {
       config: cfg,
       // BOT-TD : difficulté des bots (sélecteur du lobby — inconnu ⇒ normal).
       ...(settings.botDifficulte !== undefined ? { botDifficulte: normaliseDifficulteBot(settings.botDifficulte) } : {}),
+      // JEV-FUMEE-LOBBY · D1 : adversaire Jev (sélecteur du lobby — champ
+      // méta, stocké avec la partie ; visible de tous).
+      ...(settings.adversaireJev === true ? { adversaireJev: true } : {}),
     };
 
     let code = '';
@@ -636,16 +639,19 @@ export class LobbyDO {
       if (siege.type !== 'bot' || game.players.some((p) => p.siege === i)) continue;
       rangBot++;
       const botId = rangBot === 1 ? BOT_PLAYER_ID : `bot:${i + 1}`;
-      const botName = rangBot === 1 ? BOT_NAME : `${BOT_NAME} ${rangBot}`;
+      // JEV-FUMEE-LOBBY · D1 : le PREMIER bot rempli porte le pipeline Jev
+      // (badge « Jev 🤖 ») quand l'adversaire Jev est choisi au lobby.
+      const estJev = game.settings.adversaireJev === true && rangBot === 1;
+      const botName = estJev ? 'Jev 🤖' : rangBot === 1 ? BOT_NAME : `${BOT_NAME} ${rangBot}`;
       const civId = siege.civId ?? undefined;
       const join = await this.gameStub(code).fetch('https://game.internal/internal/join', {
         method: 'POST',
         body: JSON.stringify({
-          player: { id: botId, name: botName, bot: true, ...(civId ? { civId } : {}), paletteId: siege.paletteId, siege: i },
+          player: { id: botId, name: botName, bot: true, ...(estJev ? { jev: true } : {}), ...(civId ? { civId } : {}), paletteId: siege.paletteId, siege: i },
         }),
       });
       if (!join.ok) return this.sendError(ws, 'internal', `démarrage du bot impossible (${join.status})`);
-      game.players.push({ id: botId, name: botName, bot: true, ...(civId ? { civId } : {}), paletteId: siege.paletteId, siege: i });
+      game.players.push({ id: botId, name: botName, bot: true, ...(estJev ? { jev: true } : {}), ...(civId ? { civId } : {}), paletteId: siege.paletteId, siege: i });
     }
 
     game.status = 'active';
