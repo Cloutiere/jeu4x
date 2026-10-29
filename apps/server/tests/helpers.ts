@@ -170,6 +170,10 @@ export interface AdminDump {
     >;
     vaisseau: Record<string, Record<string, boolean>>;
   };
+  /** CHAT-SOCLE : historique brut + rencontres (debug admin). */
+  chat?: { log: Array<{ partie: string; tour: number; auteur: string; canal: string; texte: string; horodatage: number }>; rencontres: Record<string, string[]> };
+  /** ZII-V1 : état Zii (budget, salutations, journal). */
+  zii?: { budgetUsd: number; desactive: string; salutationDebutFaite: boolean; salutationsRencontre: string[]; resumesPourJev: unknown[]; journal: unknown[] } | null;
 }
 
 /** Dump NON filtré d'une partie (endpoint admin, protégé par ADMIN_TOKEN). */

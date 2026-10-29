@@ -1,0 +1,60 @@
+{
+  "modele": "jev-latest",
+  "budgetPlafondUsd": 0.05,
+  "historiqueMax": 8,
+  "longueurMax": 300,
+  "tonMax": 1,
+  "tons": ["courtois", "ferme", "jovial", "froid"],
+  "intentions": {
+    "salutation": ["bonjour", "salutations", "greetings", "bienvenue", "hello", "bonjour ", "salut", "enchanté"],
+    "menace": ["guerre", "écraser", "détruire", "armée", "brûler", "envahir", "t'attends", "prépare"],
+    "demandePaix": ["paix", "cessez", "trêve", "arrêter la guerre", "paix immédiate"],
+    "offre": ["échange", "technologie", "offrir", "proposer", "or", "marché", "troquer"],
+    "question": ["?", "combien", "pourquoi", "où", "qui es", "quelle", "comment"]
+  },
+  "candidats": {
+    "salutationDebut": [
+      "Peuples de ce monde, que les dés (une nouvelle partie) commencent !",
+      "Salutations à tous. Que le meilleur empire l'emporte — avec honneur.",
+      "Une nouvelle page d'histoire s'ouvre. Nous serons attentifs à nos voisins.",
+      "Que chacun bâtisse en paix… tant que c'est possible."
+    ],
+    "salutationRencontre": [
+      "{toiDirigeant} de {toiCiv}, mes sentinelles ont aperçu vos bannières. Que notre rencontre demeure courtoise.",
+      "Ainsi nous voilà rencontrés, {toiDirigeant}. L'histoire retiendra nos noms côte à côte — espérons-le.",
+      "{toiCiv} ! Vos terres bordent les nôtres. J'espère que nos frontières resteront calmes."
+    ],
+    "reponses": {
+      "salutation": [
+        "Salutations à toi, {toiDirigeant}. Puissions-nous coexister paisiblement.",
+        "Bien le bonjour, {toiDirigeant} de {toiCiv}. Vos mots sont reçus avec courtoisie.",
+        "Enchanté. Les empires qui se parlent font rarement la guerre — continuez."
+      ],
+      "menace": [
+        "Sache, {toiDirigeant}, que nos murailles sont hautes et nos lames affûtées.",
+        "Vos paroles sont dures. Nous ne cherchons pas la guerre, mais nous ne la fuirons pas.",
+        "Les menaces voyagent vite ici. Nos généraux ont pris bonne note."
+      ],
+      "demandePaix": [
+        "La paix vous est accordée, {toiDirigeant}. Que les champs redeviennent des champs.",
+        "Nous écoutons votre appel à la paix. Nos conseillers l'examineront avec attention.",
+        "La guerre use les deux empires. Votre proposition sera considérée."
+      ],
+      "offre": [
+        "Un intérêt pour nos richesses, {toiDirigeant} ? Nos marchands sauront en parler.",
+        "Les échanges bâtissent plus que les épées. Votre offre sera étudiée.",
+        "Parlons d'échanges, si vous le souhaitez — mais parlons franchise."
+      ],
+      "question": [
+        "Bonne question, {toiDirigeant}. Notre empire observe le monde avec attention.",
+        "Les secrets d'État restent nos secrets — mais la courtoisie nous oblige : posez, nous verrons.",
+        "Nous répondrons à ce que nos scribes jugeront bon de répondre."
+      ],
+      "autre": [
+        "Vos mots sont notés, {toiDirigeant} de {toiCiv}.",
+        "Nous avons bien reçu votre message. L'histoire dira ce qu'il valait.",
+        "Ainsi parlent les souverains. Nos conseillers en débatteront."
+      ]
+    }
+  }
+}

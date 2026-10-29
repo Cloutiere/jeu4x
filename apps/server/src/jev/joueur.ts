@@ -147,6 +147,11 @@ export function blocDiplomatie(etatFiltre: AnyEtat, moi: string, memo: AnyEtat =
 export function condenseJoueur(etatFiltre: AnyEtat, moi: string, memo: AnyEtat = {}): AnyEtat {
   const condense = condenserEtat(etatFiltre, moi);
   condense.diplomatie = blocDiplomatie(etatFiltre, moi, memo);
+  // ZII-V1 · D5 : les résumés de chat en attente (resumePourJev) rejoignent le
+  // condensé — Jev lit ces résumés FACTUELS, jamais le chat brut. Champ absent
+  // du harnais : vide dans les tests croisés (bit-à-bit inchangé).
+  const resumes = memo?.resumesPourJev;
+  if (Array.isArray(resumes) && resumes.length > 0) condense.chatsPourJev = [...resumes];
   return condense;
 }
 

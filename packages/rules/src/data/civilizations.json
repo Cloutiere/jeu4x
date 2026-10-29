@@ -14,7 +14,8 @@
       "oracle_de_delphes"
     ],
     "egypteWonderNote": "Calibrage canon (rapports « Calibrage Mécaniques » + « Rules Research », Erik 06/09) : les 6 Merveilles Antiques du canon console ; la Merveille de l'Égypte est TIRÉE au RNG seedé de génération (pas de résolution) et construite gratuitement dans la capitale à la fondation — SANS choix du joueur. Éditable sans code.",
-    "agressiviteDefaut": 0.5
+    "agressiviteDefaut": 0.5,
+    "sociabiliteDefaut": 0.5
   },
   "civs": {
     "amerique": {
@@ -63,7 +64,8 @@
         "mustang",
         "flying_fortress"
       ],
-      "agressivite": 0.35
+      "agressivite": 0.35,
+      "sociabilite": 0.45
     },
     "arabie": {
       "id": "arabie",
@@ -115,7 +117,8 @@
         ]
       },
       "uniqueUnits": [],
-      "agressivite": 0.5
+      "agressivite": 0.5,
+      "sociabilite": 0.5
     },
     "azteques": {
       "id": "azteques",
@@ -161,7 +164,8 @@
       "uniqueUnits": [
         "guerrier_jaguar"
       ],
-      "agressivite": 0.9
+      "agressivite": 0.9,
+      "sociabilite": 0.75
     },
     "chine": {
       "id": "chine",
@@ -206,7 +210,8 @@
         ]
       },
       "uniqueUnits": [],
-      "agressivite": 0.5
+      "agressivite": 0.5,
+      "sociabilite": 0.4
     },
     "egypte": {
       "id": "egypte",
@@ -254,7 +259,8 @@
         ]
       },
       "uniqueUnits": [],
-      "agressivite": 0.45
+      "agressivite": 0.45,
+      "sociabilite": 0.5
     },
     "angleterre": {
       "id": "angleterre",
@@ -306,7 +312,8 @@
         "spitfire",
         "lancaster"
       ],
-      "agressivite": 0.5
+      "agressivite": 0.5,
+      "sociabilite": 0.5
     },
     "france": {
       "id": "france",
@@ -360,7 +367,8 @@
         "trebuchet",
         "obusier"
       ],
-      "agressivite": 0.8
+      "agressivite": 0.8,
+      "sociabilite": 0.65
     },
     "allemagne": {
       "id": "allemagne",
@@ -413,7 +421,8 @@
         "heinkel",
         "me109"
       ],
-      "agressivite": 0.7
+      "agressivite": 0.7,
+      "sociabilite": 0.6
     },
     "grece": {
       "id": "grece",
@@ -468,7 +477,8 @@
         "triheme",
         "hoplite"
       ],
-      "agressivite": 0.75
+      "agressivite": 0.75,
+      "sociabilite": 0.7
     },
     "inde": {
       "id": "inde",
@@ -514,7 +524,8 @@
         ]
       },
       "uniqueUnits": [],
-      "agressivite": 0.25
+      "agressivite": 0.25,
+      "sociabilite": 0.25
     },
     "japon": {
       "id": "japon",
@@ -572,7 +583,8 @@
         "zero",
         "val"
       ],
-      "agressivite": 0.4
+      "agressivite": 0.4,
+      "sociabilite": 0.45
     },
     "mongolie": {
       "id": "mongolie",
@@ -623,7 +635,8 @@
       "uniqueUnits": [
         "keshik"
       ],
-      "agressivite": 0.9
+      "agressivite": 0.9,
+      "sociabilite": 0.8
     },
     "rome": {
       "id": "rome",
@@ -672,7 +685,8 @@
       "uniqueUnits": [
         "cataphracte"
       ],
-      "agressivite": 0.7
+      "agressivite": 0.7,
+      "sociabilite": 0.6
     },
     "russie": {
       "id": "russie",
@@ -723,7 +737,8 @@
         "cossaque",
         "char_t34"
       ],
-      "agressivite": 0.6
+      "agressivite": 0.6,
+      "sociabilite": 0.55
     },
     "espagne": {
       "id": "espagne",
@@ -770,7 +785,8 @@
       "uniqueUnits": [
         "conquistador"
       ],
-      "agressivite": 0.55
+      "agressivite": 0.55,
+      "sociabilite": 0.55
     },
     "zoulous": {
       "id": "zoulous",
@@ -822,7 +838,8 @@
       "uniqueUnits": [
         "guerrier_impi"
       ],
-      "agressivite": 0.85
+      "agressivite": 0.85,
+      "sociabilite": 0.85
     }
   }
 }

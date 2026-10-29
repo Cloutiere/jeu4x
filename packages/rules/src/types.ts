@@ -689,6 +689,10 @@ export interface CivilizationData {
   /** BOT-TC (Erik 25/10, D1) : propension à DÉCLARER la guerre (0-1) —
    *  pondère le tirage seedé du bot du joueur (défaut canon 0,5). */
   agressivite: number;
+  /** ZII-V1 (Erik 29/10, D2) : propension à l'INITIATIVE de conversation de
+   *  Zii (0-1) — pondère le tirage seedé de la salutation de début de partie
+   *  (défaut canon 0,5 ; calibrage 🔶 à l'œil Erik). */
+  sociabilite: number;
 }
 
 /** R-99/R-145 · Configuration globale des civilisations (calibrage 🔶). */
@@ -702,6 +706,8 @@ export interface CivilizationsData {
     egypteWonderChoices: string[];
     /** BOT-TC (Erik 25/10, D1) : agressivité par défaut (civ sans valeur). */
     agressiviteDefaut: number;
+    /** ZII-V1 (Erik 29/10, D2) : sociabilité par défaut (civ sans valeur). */
+    sociabiliteDefaut: number;
   };
   civs: Record<string, CivilizationData>;
 }

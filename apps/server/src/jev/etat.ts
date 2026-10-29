@@ -23,6 +23,9 @@ export interface JevMemo {
   colonProduit?: string[];
   gainNetPredits?: Record<string, { gainNet: number | null; tour: number }>;
   relevesJeunes?: Array<{ ville: string; owner: string; tour: number; gainNetPredite: number | null }>;
+  /** ZII-V1 · D5 : résumés de chat en attente — injectés au condensé
+   *  (`chatsPourJev`) puis consommés par le GameDO. */
+  resumesPourJev?: Array<{ tour: number; de: string; resume: string }>;
 }
 
 export interface JevEtat {

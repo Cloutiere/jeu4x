@@ -62,6 +62,14 @@ import { appliquerDiplomatieJev, attentesPostResolution, planifierJev } from './
 import { creerClientJev } from './jev/client.js';
 import { jevEtatInitial, type JevEtat, type JevJournalEntree } from './jev/etat.js';
 import configQuestionsJev from './jev/questions-joueur.json';
+// ZII-V1 (Erik 29/10) : Zii, la bouche de Jev — salutations, dialogue naturel,
+// relais resumePourJev. Hors état moteur (storage `ziiEtat`), schemaVersion 28.
+import configZii from './zii/zii.json';
+import type { ConfigZii } from './zii/zii.js';
+import { repondreZii, salutationDebutZii, salutationRencontreZii, slotsRencontre, type ClientZii } from './zii/orchestre.js';
+import { creerClientZii } from './zii/client.js';
+import { ziiEtatInitial } from './zii/etat.js';
+import type { ZiiEtat } from './zii/etat.js';
 // CHAT-SOCLE (Erik 29/10) : noyau pur du chat (forme, hygiène, privacité,
 // rencontres) — hors état moteur, schemaVersion 28 inchangée.
 import {
@@ -554,6 +562,9 @@ export class GameDO {
    *  — mémoire vive du DO uniquement (l'hibernation la réinitialise : perte
    *  bénigne, l'hygiène reste effective sur les sessions actives). */
   private chatDebit: Record<string, number[]> = {};
+  /** ZII-V1 · D6 : état Zii de la partie (budget, salutations, relais) —
+   *  hors état moteur, persisté en storage (`ziiEtat`). */
+  private ziiEtat: ZiiEtat | null = null;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -598,6 +609,8 @@ export class GameDO {
     // CHAT-SOCLE : historique + rencontres (hors état moteur — défauts vides).
     this.chatLog = (await this.state.storage.get<ChatMessageData[]>('chatLog')) ?? [];
     this.rencontres = (await this.state.storage.get<Record<string, string[]>>('rencontres')) ?? {};
+    // ZII-V1 : état Zii (hors état moteur — défaut null, parties sans Jev).
+    this.ziiEtat = (await this.state.storage.get<ZiiEtat>('ziiEtat')) ?? null;
     this.loaded = true;
     return this.ensureResolved();
   }
@@ -786,6 +799,9 @@ export class GameDO {
     await this.state.storage.put({ meta: this.meta, game: this.game, orders: this.orders, locked: this.locked });
     await this.scheduleTimer();
     this.broadcast((playerId) => this.snapshotFor(playerId, null));
+    // ZII-V1 · D2a : salutation de début de partie (déterministe seedée —
+    // sociabilité de la civ de Jev × nombre de joueurs ; zéro appel LLM).
+    await this.ziiSaluerDebut();
     return jsonResponse({ ok: true });
   }
 
@@ -1205,6 +1221,8 @@ export class GameDO {
       // CHAT-SOCLE : historique brut + rencontres (debug admin — le dump est
       // le seul à tout montrer, protégé par ADMIN_TOKEN).
       chat: { log: this.chatLog, rencontres: this.rencontres },
+      // ZII-V1 : état Zii au dump admin (budget, salutations, journal).
+      zii: this.ziiEtat,
     });
   }
 
@@ -1471,6 +1489,12 @@ export class GameDO {
         ? this.meta.players.map((p) => p.engineId)
         : [engineId, cible!.engineId];
     this.envoyerAuxEngineIds(destinataires, msg);
+    // ZII-V1 · D1 : Zii répond SEULEMENT si le message s'adresse à Jev
+    // (canal individuel du siège Jev, ou Général) et vient d'un autre joueur.
+    const seat = this.seatJev();
+    if (seat && seat !== engineId && (canal === 'general' || canal === seat)) {
+      await this.ziiRepondre(engineId, canal, texte.trim());
+    }
   }
 
   /** D3 : historique COMPLET visible par le demandeur (prêt pour l'injection
@@ -1507,7 +1531,96 @@ export class GameDO {
         joueur: rencontre,
         tour: this.game.turn,
       });
+      // ZII-V1 · D2b : salutation de première rencontre — quand JEV rencontre
+      // un rival, Zii lui envoie une courtoisie individuelle (une fois par
+      // rencontre, marqueur d'état ; énoncé seedé).
+      const seat = this.seatJev();
+      if (seat && joueur === seat && this.ziiEtat) {
+        const salut = salutationRencontreZii(
+          configZii as ConfigZii,
+          this.ziiEtat,
+          this.meta.seed,
+          rencontre,
+          slotsRencontre(this.game, seat, rencontre as EnginePlayerId),
+        );
+        await this.state.storage.put({ ziiEtat: this.ziiEtat });
+        if (salut.message) await this.publierMessageZii(rencontre, salut.message);
+      }
     }
+  }
+
+  /** Id moteur du siège Jev de la partie (null = partie sans Jev — Zii muette). */
+  private seatJev(): EnginePlayerId | null {
+    return this.meta?.players.find((p) => p.jev === true)?.engineId ?? null;
+  }
+
+  /**
+   * ZII-V1 (Erik 29/10) — Zii, la bouche de Jev : salutations déterministes
+   * seedées (D2 — zéro LLM, idempotent au rejeu), réponses aux canaux de Jev
+   * (D1/D4 — repli silencieux sans clé/au-delà du budget), relais
+   * resumePourJev consommé au prochain tour de décision de Jev (D5). Les
+   * messages de Zii sont des messages de chat CANONS (CHAT-SOCLE) — jamais
+   * un ordre.
+   */
+
+  /** Publie un énoncé de Zii comme message de chat canon du siège Jev. */
+  private async publierMessageZii(canal: ChatCanal, texte: string): Promise<void> {
+    const seat = this.seatJev();
+    if (!this.game || !this.meta || !seat) return;
+    const message: ChatMessageData = {
+      partie: this.meta.code,
+      tour: this.game.turn,
+      auteur: seat,
+      canal,
+      texte,
+      horodatage: Date.now(),
+    };
+    this.chatLog = avecMessage(this.chatLog, message);
+    await this.state.storage.put({ chatLog: this.chatLog });
+    const msg: ServerToClientMessage = { proto: PROTO_VERSION, type: 'ChatMessage', message };
+    const destinataires: EnginePlayerId[] =
+      canal === 'general' ? this.meta.players.map((p) => p.engineId) : [seat, canal as EnginePlayerId];
+    this.envoyerAuxEngineIds(destinataires, msg);
+  }
+
+  /** D2a — salutation de début de partie (tirage sociabilité seedé). */
+  private async ziiSaluerDebut(): Promise<void> {
+    const seat = this.seatJev();
+    if (!this.game || !this.meta || !seat) return;
+    this.ziiEtat ??= ziiEtatInitial();
+    const salut = salutationDebutZii(
+      configZii as ConfigZii,
+      this.ziiEtat,
+      this.meta.seed,
+      this.game.players[seat]?.civId,
+      this.meta.players.length,
+    );
+    await this.state.storage.put({ ziiEtat: this.ziiEtat });
+    if (salut.message) await this.publierMessageZii('general', salut.message);
+  }
+
+  /** D1/D4/D5 — Zii répond à un message du joueur dans un de ses canaux. */
+  private async ziiRepondre(auteur: EnginePlayerId, canal: ChatCanal, texte: string): Promise<void> {
+    const seat = this.seatJev();
+    if (!this.game || !this.meta || !seat) return;
+    this.ziiEtat ??= ziiEtatInitial();
+    const client: ClientZii | null = this.env.TYPESAFE_API_KEY ? creerClientZii(this.env.TYPESAFE_API_KEY) : null;
+    const r = await repondreZii({
+      client,
+      config: configZii as ConfigZii,
+      game: this.game,
+      partie: this.meta.code,
+      seed: this.meta.seed,
+      seat,
+      rencontres: this.rencontres[seat] ?? [],
+      etat: this.ziiEtat,
+      auteur,
+      canal,
+      texte,
+      historique: historiquePour(this.chatLog, seat),
+    });
+    await this.state.storage.put({ ziiEtat: this.ziiEtat });
+    if (r.message) await this.publierMessageZii(canal, r.message.texte);
   }
 
   // -----------------------------------------------------------------------
@@ -2029,6 +2142,13 @@ export class GameDO {
     const jevSeat = this.meta.players.find((p) => p.jev === true)?.engineId ?? null;
     let planJev: PlanJev | null = null;
     if (!this.jevEtat && jevSeat) this.jevEtat = jevEtatInitial();
+    // ZII-V1 · D5 : les résumés d'échanges Zii en attente rejoignent le memo
+    // de Jev (il lira condense.chatsPourJev à CE tour), puis sont consommés.
+    if (this.ziiEtat && this.ziiEtat.resumesPourJev.length > 0 && this.jevEtat) {
+      this.jevEtat.memo.resumesPourJev = this.ziiEtat.resumesPourJev;
+      this.ziiEtat.resumesPourJev = [];
+      await this.state.storage.put({ ziiEtat: this.ziiEtat });
+    }
     // JEV-FUMEE-LOBBY · L2 : la décision Jev est prise EN PRÉ-PASSE, sur
     // l'état pré-actions (miroir du harnais), puis ses actions/diplomatie
     // sont appliquées APRÈS celles des bots (dernier mot à Jev). Au rejeu

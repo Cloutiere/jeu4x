@@ -84,6 +84,16 @@ export function agressiviteDe(civId: string | undefined): number {
 }
 
 /**
+ * ZII-V1 (Erik 29/10, D2) · Sociabilité d'une civilisation (0-1) — pondère le
+ * tirage seedé de la salutation de début de partie de Zii (la bouche de Jev).
+ * Défaut canon (params) pour une civ sans valeur ou inconnue.
+ */
+export function sociabiliteDe(civId: string | undefined): number {
+  const civ = civId ? CIVILIZATIONS.civs[civId] : undefined;
+  return civ?.sociabilite ?? CIVILIZATIONS.params.sociabiliteDefaut;
+}
+
+/**
  * R-145 · Traits ACTIFS d'un joueur : avantage de départ + bonus d'ère
  * « ancienne » (actifs dès le setup — le joueur commence dans l'ère Antique)
  * puis bonus de chaque ère ATTEINTE (Médiévale à 5 techs, Industrielle à 14,
