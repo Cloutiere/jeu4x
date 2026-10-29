@@ -62,6 +62,20 @@ import { appliquerDiplomatieJev, attentesPostResolution, planifierJev } from './
 import { creerClientJev } from './jev/client.js';
 import { jevEtatInitial, type JevEtat, type JevJournalEntree } from './jev/etat.js';
 import configQuestionsJev from './jev/questions-joueur.json';
+// CHAT-SOCLE (Erik 29/10) : noyau pur du chat (forme, hygiène, privacité,
+// rencontres) — hors état moteur, schemaVersion 28 inchangée.
+import {
+  CHAT_DEBIT_FENETRE_MS,
+  CHAT_DEBIT_MAX,
+  chatShapeError,
+  debitApres,
+  debitDepasse,
+  historiquePour,
+  nouvellesRencontres,
+  pairesRencontrees,
+  avecMessage,
+} from './chat.js';
+import type { ChatCanal, ChatMessageData } from '@game/shared';
 
 // CARTE-MULTI : jusqu'à 5 sièges moteur (p1..p5) — seuls les sièges présents
 // dans `meta.players` sont actifs (les parties 1v1 n'en instancient que 2).
@@ -530,6 +544,16 @@ export class GameDO {
   /** JEV-FUMEE-LOBBY · D3/D4 : état Jev de la partie (budget, échecs, memo
    *  inter-tours) — hors état moteur, persisté en storage (`jevEtat`). */
   private jevEtat: JevEtat | null = null;
+  /** CHAT-SOCLE (D3) : historique des messages de chat — hors état moteur,
+   *  persisté en storage (`chatLog`), plafonné (CHAT_LOG_MAX). */
+  private chatLog: ChatMessageData[] = [];
+  /** CHAT-SOCLE (D2) : rencontres par joueur (engineId → engineIds déjà
+   *  rencontrés) — hors état moteur, persisté en storage (`rencontres`). */
+  private rencontres: Record<string, string[]> = {};
+  /** CHAT-SOCLE (D4) : fenêtre glissante de débit PAR JOUEUR (id de session)
+   *  — mémoire vive du DO uniquement (l'hibernation la réinitialise : perte
+   *  bénigne, l'hygiène reste effective sur les sessions actives). */
+  private chatDebit: Record<string, number[]> = {};
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -571,6 +595,9 @@ export class GameDO {
     this.lastEvents = (await this.state.storage.get<GameEvent[]>('lastEvents')) ?? [];
     this.godMode = (await this.state.storage.get<Record<string, boolean>>('godMode')) ?? {};
     this.jevEtat = (await this.state.storage.get<JevEtat>('jevEtat')) ?? null;
+    // CHAT-SOCLE : historique + rencontres (hors état moteur — défauts vides).
+    this.chatLog = (await this.state.storage.get<ChatMessageData[]>('chatLog')) ?? [];
+    this.rencontres = (await this.state.storage.get<Record<string, string[]>>('rencontres')) ?? {};
     this.loaded = true;
     return this.ensureResolved();
   }
@@ -836,7 +863,7 @@ export class GameDO {
     this.orders[quitter.engineId] = [];
     this.locked[quitter.engineId] = true;
     await this.state.storage.put({ game: this.game, lastEvents: this.lastEvents, orders: this.orders, locked: this.locked });
-    this.broadcastTurnResult(events);
+    await this.broadcastTurnResult(events);
     return jsonResponse({ ok: true, finished: false });
   }
 
@@ -1175,6 +1202,9 @@ export class GameDO {
       espionnage,
       artefacts,
       jev,
+      // CHAT-SOCLE : historique brut + rencontres (debug admin — le dump est
+      // le seul à tout montrer, protégé par ADMIN_TOKEN).
+      chat: { log: this.chatLog, rencontres: this.rencontres },
     });
   }
 
@@ -1236,6 +1266,9 @@ export class GameDO {
       // BOT-TD : difficulté des bots (normalisée — reprise conservée, meta).
       botDifficulte: normaliseDifficulteBot(this.meta.settings.botDifficulte),
       locked: this.locked[engineId] === true,
+      // CHAT-SOCLE (D2) : les conversations déjà déverrouillées survivent à
+      // la reconnexion (le popup ne joue que sur le PlayerMet en direct).
+      ...(this.meta.status === 'active' ? { rencontres: this.rencontres[engineId] ?? [] } : {}),
     });
   }
 
@@ -1353,6 +1386,14 @@ export class GameDO {
             if (snap) this.sendTo(ws, snap);
           }
           break;
+        case 'ChatSend': {
+          const m = msg as { canal: ChatCanal; texte: string };
+          await this.handleChatSend(ws, att.playerId, m.canal, m.texte);
+          break;
+        }
+        case 'ChatHistory':
+          this.handleChatHistory(ws, att.playerId);
+          break;
         case 'CreateGame':
         case 'JoinGame':
         case 'ListGames':
@@ -1370,6 +1411,103 @@ export class GameDO {
 
   async webSocketClose(_ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): Promise<void> {
     // Hibernation : rien à faire — les brouillons et la partie persistent (§3.3).
+  }
+
+  // -----------------------------------------------------------------------
+  // CHAT-SOCLE (Erik 29/10) — messages temps réel + historique + rencontres
+  // -----------------------------------------------------------------------
+
+  /** Livre un message aux sockets des joueurs moteurs donnés (privacité D4 :
+   *  seuls les destinataires du canal reçoivent — miroir T2). */
+  private envoyerAuxEngineIds(engineIds: EnginePlayerId[], message: ServerToClientMessage): void {
+    for (const ws of this.state.getWebSockets()) {
+      const att = ws.deserializeAttachment() as WsAttachment | null;
+      if (!att) continue;
+      if (!this.meta?.players.some((p) => p.id === att.playerId && engineIds.includes(p.engineId))) continue;
+      this.sendTo(ws, message);
+    }
+  }
+
+  /**
+   * ChatSend — ACTION IMMÉDIATE (hors ordres de tour) : forme validée EN
+   * PREMIER (chatShapeError — leçon d'or 7f), hygiène (débit D4), persistance
+   * en storage (`chatLog`) puis livraison aux SEULS destinataires du canal.
+   * Les bots ne répondent pas (silence scripté — tranché).
+   */
+  private async handleChatSend(ws: WebSocket, playerId: PlayerId, canal: ChatCanal, texte: string): Promise<void> {
+    const shapeError = chatShapeError(canal, texte);
+    if (shapeError) return this.sendError(ws, 'badMessage', shapeError);
+    if (!this.game || !this.meta || this.meta.status !== 'active') {
+      return this.sendError(ws, 'badMessage', 'chat indisponible (partie non active)');
+    }
+    const engineId = this.engineIdOf(playerId);
+    const cible = canal === 'general' ? null : this.meta.players.find((p) => p.engineId === canal);
+    if (canal !== 'general' && (!cible || cible.engineId === engineId)) {
+      return this.sendError(ws, 'badMessage', 'canal invalide');
+    }
+    if (cible && !(this.rencontres[engineId] ?? []).includes(cible.engineId)) {
+      return this.sendError(ws, 'badMessage', 'joueur non rencontré (conversation verrouillée — fait de brouillard)');
+    }
+    // D4 : limite de débit — fenêtre glissante 10 messages / 30 s / joueur.
+    const horodatages = this.chatDebit[playerId] ?? [];
+    const maintenant = Date.now();
+    if (debitDepasse(horodatages, maintenant)) {
+      return this.sendError(ws, 'badMessage', `débit dépassé (${CHAT_DEBIT_MAX} messages / ${CHAT_DEBIT_FENETRE_MS / 1000} s)`);
+    }
+    this.chatDebit[playerId] = debitApres(horodatages, maintenant);
+    const message: ChatMessageData = {
+      partie: this.meta.code,
+      tour: this.game.turn,
+      auteur: engineId,
+      canal,
+      texte: texte.trim(),
+      horodatage: maintenant,
+    };
+    this.chatLog = avecMessage(this.chatLog, message);
+    await this.state.storage.put({ chatLog: this.chatLog });
+    const msg: ServerToClientMessage = { proto: PROTO_VERSION, type: 'ChatMessage', message };
+    const destinataires: EnginePlayerId[] =
+      canal === 'general'
+        ? this.meta.players.map((p) => p.engineId)
+        : [engineId, cible!.engineId];
+    this.envoyerAuxEngineIds(destinataires, msg);
+  }
+
+  /** D3 : historique COMPLET visible par le demandeur (prêt pour l'injection
+   *  au futur LLM — Zii lira ce format). */
+  private handleChatHistory(ws: WebSocket, playerId: PlayerId): void {
+    if (!this.meta) return;
+    const engineId = this.engineIdOf(playerId);
+    this.sendTo(ws, {
+      proto: PROTO_VERSION,
+      type: 'ChatHistory',
+      messages: historiquePour(this.chatLog, engineId),
+    });
+  }
+
+  /**
+   * D2 — détection des RENCONTRES (fait de fog R-73) : appelée à chaque
+   * diffusion de résolution, AVANT le TurnResult. Une première vision d'une
+   * entité adverse (unité ou ville) enregistre la paire UNE FOIS par partie
+   * (persisté — survit à la reconnexion) et livre PlayerMet au joueur
+   * concerné (popup client). Idempotent au rejeu de résolution.
+   */
+  private async detecterRencontres(): Promise<void> {
+    if (!this.game || !this.meta || this.meta.status !== 'active') return;
+    const avant = this.rencontres;
+    const apres = nouvellesRencontres(this.game, avant);
+    const paires = pairesRencontrees(avant, apres);
+    if (paires.length === 0) return;
+    this.rencontres = apres;
+    await this.state.storage.put({ rencontres: apres });
+    for (const { joueur, rencontre } of paires) {
+      this.envoyerAuxEngineIds([joueur as EnginePlayerId], {
+        proto: PROTO_VERSION,
+        type: 'PlayerMet',
+        joueur: rencontre,
+        tour: this.game.turn,
+      });
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -2098,11 +2236,16 @@ export class GameDO {
       return;
     }
     await this.scheduleTimer();
-    this.broadcastTurnResult(events);
+    await this.broadcastTurnResult(events);
   }
 
-  /** Diffuse les événements filtrés par joueur + l'état post-résolution (§3.4-2/4). */
-  private broadcastTurnResult(events: GameEvent[]): void {
+  /** Diffuse les événements filtrés par joueur + l'état post-résolution (§3.4-2/4).
+   *  CHAT-SOCLE (D2) : les rencontres (première vision d'une entité adverse)
+   *  sont détectées et annoncées AVANT le TurnResult — le popup joue avant
+   *  l'arrivée du nouvel état. */
+  private async broadcastTurnResult(events: GameEvent[]): Promise<void> {
+    if (!this.game) return;
+    await this.detecterRencontres();
     if (!this.game) return;
     this.broadcast((playerId) => {
       const engineId = this.engineIdOf(playerId);
@@ -2135,7 +2278,7 @@ export class GameDO {
     this.lastEvents = events; // journal de la fin de partie (TurnResult des clients)
     await this.state.storage.put({ meta: this.meta, game, lastEvents: events });
     await this.state.storage.deleteAlarm();
-    this.broadcastTurnResult(events);
+    await this.broadcastTurnResult(events);
     void this.notifyLobbyFinished();
   }
 

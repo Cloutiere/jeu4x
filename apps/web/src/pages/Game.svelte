@@ -66,6 +66,11 @@
   import Chroniques from '../components/Chroniques.svelte';
   import { chargerChronique, entreesChronique, oublierCleChronique, pousserEntrees, pousserInfo, resetChronique } from '../lib/chronique.js';
   import type { ContexteChronique } from '../lib/chronique.js';
+  // CHAT-SOCLE (Erik 29/10) : onglet 💬 de la colonne droite + popup de
+  // première rencontre (PlayerMet — fait de fog R-73).
+  import Chat from '../components/Chat.svelte';
+  import RencontreModale from '../components/RencontreModale.svelte';
+  import { chat, reinitialiserChat, fermerPopupRencontre } from '../lib/chat.js';
   import { tileKeyOf } from '@game/rules';
   import GovernmentPanel from '../components/GovernmentPanel.svelte';
   import RegimesModale from '../components/RegimesModale.svelte';
@@ -175,6 +180,9 @@
   oublierCleChronique();
   resetChronique();
   chargerChronique(code);
+  // CHAT-SOCLE : une partie = un chat (miroir de la Chronique — la SPA
+  // survit au changement de partie, le store est remis à zéro à l'entrée).
+  reinitialiserChat();
 
   const client: GameClient = createGameClient(code, {
     onMessage(message) {
@@ -182,6 +190,9 @@
       // REPLAY-RESOLUTION (L2) : un Snapshot purge aussi la paire (fait dans
       // gameClient) — la relecture en cours cesse, l'état reçu est l'autorité.
       if (message.type === 'Snapshot') terminerReplay();
+      // CHAT-SOCLE (D3) : à chaque accueil (connexion/reconnexion), tirer
+      // l'historique complet visible — le chat survit à la reconnexion.
+      if (message.type === 'Welcome') client.demanderHistoriqueChat();
       // REPLAY-RESOLUTION (D1) : un nouveau TurnResult remplace la paire —
       // la relecture en cours est quittée (elle portait l'ancien tour).
       if (message.type === 'TurnResult') terminerReplay();
@@ -916,6 +927,8 @@
   // REGIMES-MODALE (D1) : ouverte à la complétion d'une tech de gouvernement,
   // rejetable — ne bloque jamais le tour.
   let showRegimesModale = $state(false);
+  // CHAT-SOCLE (D5) : onglet de la colonne droite — Chroniques par défaut.
+  let ongletColonne = $state<'chroniques' | 'chat'>('chroniques');
   // DIPLOMATIE-T1 · D3 : confirmation « Déclarer la guerre » (cible = pastille).
   let declarationGuerre = $state<{ id: string; nom: string } | null>(null);
   // BOT-TC (Erik 25/10, L3) : confirmation « Proposer la paix » (miroir).
@@ -1674,8 +1687,34 @@
         <!-- HANDOFF-CHRONIQUES · L2 : la Chronique unifiée remplace
              Historique + Journal (D1). Un combat cliqué ouvre le rapport
              RAPPORT-ENGAGEMENT (D5) — recentrage (zoom préservé) puis
-             popover, même mécanique que le clic case. -->
-        <Chroniques view={$view} onCentrerHex={(hex) => canvasApi?.centerOnHex(hex)} onOuvrirCombat={ouvrirCombatChronique} />
+             popover, même mécanique que le clic case.
+             CHAT-SOCLE (Erik 29/10, D1/D5) : le chat s'ajoute EN ONGLET de
+             la colonne droite (la place libérée par les Chroniques) —
+             canaux Général + conversations par joueur rencontré. -->
+        <div class="onglets-colonne" role="tablist" aria-label="Panneaux de la colonne">
+          <button
+            type="button"
+            role="tab"
+            class:actif={ongletColonne === 'chroniques'}
+            aria-selected={ongletColonne === 'chroniques'}
+            onclick={() => (ongletColonne = 'chroniques')}
+          >Chroniques</button>
+          <button
+            type="button"
+            role="tab"
+            class:actif={ongletColonne === 'chat'}
+            aria-selected={ongletColonne === 'chat'}
+            onclick={() => (ongletColonne = 'chat')}
+          >💬 Messagerie</button>
+        </div>
+        {#if ongletColonne === 'chat'}
+          <Chat
+            view={$view}
+            onEnvoyer={(canal, texte) => client.envoyerChat(canal as 'general' | string, texte)}
+          />
+        {:else}
+          <Chroniques view={$view} onCentrerHex={(hex) => canvasApi?.centerOnHex(hex)} onOuvrirCombat={ouvrirCombatChronique} />
+        {/if}
         <!-- REPLAY-RESOLUTION (D4) : relecture du dernier tour résolu.
              Indisponible sans paire mémorisée (reconnexion/chargement : le
              pré-état n'existe pas localement — L2, défaut sûr).
@@ -1721,6 +1760,17 @@
 
   {#if showRegimesModale && $view.state}
     <RegimesModale view={$view} {client} onClose={() => (showRegimesModale = false)} />
+  {/if}
+  {#if $chat.popupRencontre && $view.state}
+    <!-- CHAT-SOCLE (D2) : popup de première rencontre (PlayerMet EN DIRECT —
+         jamais au chargement : les rencontres persistées reviennent par le
+         Welcome sans popup). -->
+    {@const rencontre = $view.players.find((p) => p.engineId === $chat.popupRencontre)}
+    <RencontreModale
+      nom={rencontre?.name ?? $chat.popupRencontre}
+      nation={rencontre ? civName(rencontre.civId) : ''}
+      couleur={rencontre ? (FACTIONS4[paletteDe(rencontre.engineId)]?.base ?? '#6E6E74') : '#6E6E74'}
+    />
   {/if}
   {#if negociationCible && $view.state}
     <!-- DIPLOMATIE-T2 · D5 : modale de négociation (privée). -->
@@ -1943,6 +1993,30 @@
        colonne se repeint proprement au scroll (artefact GPU « menus
        superposés » observé en coquille sur GTX 1060). */
     contain: paint;
+  }
+  /* CHAT-SOCLE (D5) — onglets de la colonne droite (Chroniques / 💬
+     Messagerie), même langage que les chips des Chroniques. */
+  .onglets-colonne {
+    display: flex;
+    gap: 0.25rem;
+  }
+  .onglets-colonne button {
+    flex: 1;
+    font-family: var(--serif-or, Georgia, serif);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.3rem;
+    border-radius: 999px;
+    border: 1px solid rgba(201, 162, 39, 0.3);
+    background: transparent;
+    color: var(--texte-doux, #b6ad93);
+    cursor: pointer;
+  }
+  .onglets-colonne button.actif {
+    color: var(--or-clair, #e8c96a);
+    border-color: var(--or, #c9a227);
+    background: rgba(201, 162, 39, 0.12);
   }
   /* D3 — bouton « ⟲ Rejouer la résolution » au niveau du reste (comportement
      intact). */

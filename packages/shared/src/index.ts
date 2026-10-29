@@ -185,6 +185,18 @@ export type ClientToServerMessage = ProtoMessage &
      *  autre humain participe (D1, solo/bots uniquement) ; flag de session
      *  GameDO hors état moteur (D2/D5), persisté à la reconnexion (D4). */
     | { type: 'ToggleGodMode'; on: boolean }
+    /** CHAT-SOCLE (Erik 29/10, D1/D3) · envoi d'un message de chat —
+     *  ACTION IMMÉDIATE (hors ordres de tour, hors état moteur) : validée en
+     *  forme (chatShapeError — leçon d'or), soumise à l'hygiène (débit,
+     *  longueur), PERSISTÉE en storage GameDO puis livrée aux seuls
+     *  destinataires du canal ('general' = tous les joueurs de la partie ;
+     *  engineId adverse = conversation individuelle PRIVÉE aux deux).
+     *  Les bots non-Jev ne répondent PAS (silence scripté — tranché). */
+    | { type: 'ChatSend'; canal: 'general' | string; texte: string }
+    /** CHAT-SOCLE (D3) · demande de l'historique complet visible par CE
+     *  joueur (général + conversations individuelles dont il fait partie) —
+     *  prêt pour l'injection au futur LLM (Zii), service après-vente client. */
+    | { type: 'ChatHistory' }
     | { type: 'ChooseWonder'; cityId: CityId; wonderId: string }
     /** --- Messages de lobby (socket LobbyDO) --- */
     | { type: 'CreateGame'; settings: GameCreationSettings }
@@ -238,6 +250,10 @@ export interface Welcome extends ProtoMessage {
   botDifficulte?: BotDifficulte;
   /** Ordres du joueur déjà verrouillés pour le tour courant. */
   locked: boolean;
+  /** CHAT-SOCLE (D2) : engineIds des joueurs DÉJÀ rencontrés par CE joueur
+   *  (persisté serveur — survit à la reconnexion ; le popup ne joue que sur
+   *  le message PlayerMet en direct). */
+  rencontres?: string[];
 }
 
 /**
@@ -295,6 +311,54 @@ export interface ErrorMessage extends ProtoMessage {
   message: string;
 }
 
+// ---------------------------------------------------------------------------
+// CHAT-SOCLE (Erik 29/10) — messages structurés HORS état moteur (D3) :
+// stockés en storage GameDO (clé `chatLog`), JAMAIS dans le GameState —
+// zéro migration, schemaVersion 28 inchangée. Le format est le contexte
+// futur de Zii (D6 : aucun LLM dans cette tranche).
+// ---------------------------------------------------------------------------
+
+/** Canal d'un message : 'general' (tous les joueurs de la partie) ou
+ *  l'engineId du DESTINATAIRE (conversation individuelle privée aux deux). */
+export type ChatCanal = 'general' | string;
+
+/** Message de chat structuré — persisté et rejoué tel quel. */
+export interface ChatMessageData {
+  /** Code de partie (D3 : les messages portent leur partie). */
+  partie: string;
+  /** Tour au moment de l'envoi (contexte Zii). */
+  tour: number;
+  /** Auteur : engineId dans le GameState ('p1'…). */
+  auteur: string;
+  /** Canal : 'general' ou engineId du destinataire. */
+  canal: ChatCanal;
+  texte: string;
+  /** Horodatage epoch ms (ordre d'affichage). */
+  horodatage: number;
+}
+
+/** Livraison temps réel d'un message (aux seuls destinataires du canal). */
+export interface ChatMessageMsg extends ProtoMessage {
+  type: 'ChatMessage';
+  message: ChatMessageData;
+}
+
+/** Réponse à ChatHistory — TOUT l'historique visible par le demandeur. */
+export interface ChatHistoryMsg extends ProtoMessage {
+  type: 'ChatHistory';
+  messages: ChatMessageData[];
+}
+
+/** CHAT-SOCLE (D2) · première vision d'une entité adverse (fait de fog
+ *  R-73) — une fois par paire par partie : déverrouille la conversation
+ *  individuelle et déclenche la popup de rencontre côté client. */
+export interface PlayerMetMsg extends ProtoMessage {
+  type: 'PlayerMet';
+  /** EngineId du joueur rencontré. */
+  joueur: string;
+  tour: number;
+}
+
 /** Listes de parties : publiques en attente + les miennes (actives). */
 export interface GameList extends ProtoMessage {
   type: 'GameList';
@@ -322,4 +386,7 @@ export type ServerToClientMessage =
   | ErrorMessage
   | GameList
   | GameCreated
-  | GameJoined;
+  | GameJoined
+  | ChatMessageMsg
+  | ChatHistoryMsg
+  | PlayerMetMsg;

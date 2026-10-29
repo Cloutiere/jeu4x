@@ -24,6 +24,8 @@ import type { NetStatus, SocketHandle } from './net.js';
 import { reducePaireReplay, replayPair } from './replay.js';
 // PLACEMENT-MELEE (D5) : mémoires client du placement en mêlée.
 import { contexteMelee, reduceContexteMelee } from './melee.js';
+// CHAT-SOCLE (Erik 29/10) : le store de chat est alimenté dans apply().
+import { appliquerMessageChat } from './chat.js';
 
 export interface GameView {
   code: string;
@@ -80,6 +82,11 @@ export interface GameClient {
    *  seul décide (refus si un autre humain participe) ; la confirmation
    *  arrive par le Snapshot (`godMode`). */
   toggleGodMode(on: boolean): void;
+  /** CHAT-SOCLE (D1) : envoi instantané d'un message ('general' ou engineId
+   *  du destinataire — action immédiate, sans attendre la résolution). */
+  envoyerChat(canal: 'general' | string, texte: string): void;
+  /** CHAT-SOCLE (D3) : demande l'historique complet visible par CE joueur. */
+  demanderHistoriqueChat(): void;
   resync(): void;
   close(): void;
 }
@@ -207,6 +214,10 @@ export function reduceView(v: GameView, message: ServerToClientMessage): GameVie
     case 'GameCreated':
     case 'GameJoined':
       return v; // messages de lobby
+    case 'ChatMessage':
+    case 'ChatHistory':
+    case 'PlayerMet':
+      return v; // CHAT-SOCLE : alimentés par appliquerMessageChat (store dédié)
     case 'Error':
       return v; // erreur exposée via le store `error`, pas la vue
   }
@@ -231,6 +242,9 @@ export function createGameClient(
     // ex. le playback sur un Snapshot, puis la souscription rejoue les
     // événements fraîchement ajoutés).
     hooks.onMessage?.(message);
+    // CHAT-SOCLE : ChatMessage / ChatHistory / PlayerMet / Welcome(rencontres)
+    // alimentent le store de chat (réducteur pur testé) — hors vue moteur.
+    appliquerMessageChat(message);
     if (message.type === 'Error') {
       error.set(`${message.code} : ${message.message}`);
       return;
@@ -311,6 +325,12 @@ export function createGameClient(
     },
     toggleGodMode(on) {
       handle.send({ type: 'ToggleGodMode', on });
+    },
+    envoyerChat(canal, texte) {
+      handle.send({ type: 'ChatSend', canal, texte });
+    },
+    demanderHistoriqueChat() {
+      handle.send({ type: 'ChatHistory' });
     },
     resync,
     close() {
