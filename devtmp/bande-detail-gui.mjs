@@ -403,6 +403,21 @@ await sleep(1500);
   await sleep(500);
 }
 
+// ---- t7 : survol du CERCLE POP (Erik 11/10) — répartition des citoyens ------
+{
+  // Z_CROISSANCE = (40, -62) ; le cercle pop est à x 40 DANS la bande : on
+  // survole (40, -86).
+  const pt = await pointZone(page, cap.id, 40, -86);
+  await survoler(page, pt);
+  const t = await tipTexte(page);
+  console.log(`[t7] tooltip pop : ${JSON.stringify(t)}`);
+  assert(!!t && /Population : \d+ citoyens?/.test(t), 't7 — « Population : N citoyen(s) »');
+  assert(!!t && t.includes('Sur les tuiles :'), 't7 — citoyens affectés aux tuiles');
+  assert(!!t && /Non affectés : \d+/.test(t), 't7 — citoyens non affectés avec bonus');
+  await page.screenshot({ path: `${CAP}/t7-survol-population.png` });
+  await page.mouse.move(10, 10);
+}
+
 // ---- t6 : lisible au zoom par défaut (capture pleine page déjà prise) -------
 {
   const pt = await pointZone(page, cap.id, Z_CROISSANCE[0], Z_CROISSANCE[1]);
