@@ -231,6 +231,33 @@ describe('Budget et replis (D3/D4)', () => {
   });
 });
 
+describe('fusionnerPlan — les ordres Jev remplacent les ordres bot par sujet', () => {
+  it('SetProduction Jev remplace le SetProduction bot de la même ville ; les autres ordres bot sont conservés', async () => {
+    const { fusionnerPlan } = await import('../src/jev/joueur.js');
+    const bot = [
+      { type: 'SetProduction', cityId: 'c1', item: { kind: 'wonder', id: 'grande_muraille' } },
+      { type: 'SetProduction', cityId: 'c2', item: { kind: 'unit', id: 'guerrier' } },
+      { type: 'Move', unitId: 'u1', path: [{ q: 1, r: 1 }] },
+    ];
+    const jev = [{ type: 'SetProduction', cityId: 'c1', item: { kind: 'unit', id: 'guerrier' } }];
+    const fusion = fusionnerPlan(bot, jev);
+    expect(fusion.filter((o) => o.type === 'SetProduction' && (o as any).cityId === 'c1')).toEqual(jev);
+    expect(fusion.some((o) => (o as any).cityId === 'c2')).toBe(true); // les autres villes : bot
+    expect(fusion.some((o) => (o as any).unitId === 'u1')).toBe(true); // tactique : bot
+  });
+
+  it('MultiStep Jev remplace tout ordre bot portant le même colon', async () => {
+    const { fusionnerPlan } = await import('../src/jev/joueur.js');
+    const bot = [
+      { type: 'Move', unitId: 'u9', path: [{ q: 2, r: 2 }] },
+      { type: 'FoundCity', unitId: 'u9' },
+    ];
+    const jev = [{ type: 'MultiStep', unitId: 'u9', path: [{ q: 5, r: 5 }], final: 'foundCity' }];
+    const fusion = fusionnerPlan(bot, jev);
+    expect(fusion).toEqual(jev);
+  });
+});
+
 describe('planifierJev (orchestre GameDO)', () => {
   const seed = 42;
   const etatMoteur = (() => {

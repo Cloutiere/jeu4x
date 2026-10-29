@@ -1924,6 +1924,20 @@ export class GameDO {
         for (const unitId of planJev.retiresUnitIds) {
           this.orders[jevSeat!] = (this.orders[jevSeat!] ?? []).filter((o) => (o as { unitId?: string }).unitId !== unitId);
         }
+        // FIX retour fumée Erik 28/10 : les ordres LLM de Jev (SetProduction
+        // de la capitale, MultiStep/FoundCity du colon) doivent REMPLACER les
+        // ordres bot de même sujet (fusionnerPlan du harnais) — ils étaient
+        // calculés puis jamais fusionnés : le bot standard jouait tout le
+        // siège (merveille systématique, guerrier en assemblage).
+        const sujetDe = (o: Order) => ('unitId' in o ? o.unitId : 'cityId' in o ? (o as { cityId: string }).cityId : null) as string | null;
+        let ordresSiege = [...(this.orders[jevSeat!] ?? [])];
+        for (const o of planJev.ordres) {
+          if (orderShapeError(o) !== null) continue; // jamais un ordre mal formé
+          const sujet = sujetDe(o);
+          if (sujet !== null) ordresSiege = ordresSiege.filter((b) => sujetDe(b) !== sujet);
+          ordresSiege.push(o);
+        }
+        this.orders[jevSeat!] = ordresSiege;
       }
       // Actions immédiates du bot (recherche R-85, régime R-122, diplomatie
       // BOT-TC) — mêmes helpers purs que les messages des humains, entrelacées
