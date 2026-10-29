@@ -63,11 +63,17 @@ describe('blocDiplomatie / condenseJoueur', () => {
 });
 
 describe('construireQuestionsJoueur', () => {
-  it('ne propose la guerre QUE si aucun ennemi actif, et la paix QUE si ennemi', () => {
+  it('ne propose la guerre QUE si aucun ennemi actif, et la paix QUE si ennemi (v5 : après contact + délai)', () => {
     const etat = etat1v1();
     const filtre = getFilteredState(etat, 'p1');
     const condense = condenseJoueur(filtre, 'p1');
-    const { questions: qPaix } = construireQuestionsJoueur(config, condense, filtre, 'p1');
+    const { questions: qSansContact } = construireQuestionsJoueur(config, condense, filtre, 'p1');
+    // v5 CONTACT-GUERRE D1 : PAS de question guerre avant rencontre + délai.
+    expect(qSansContact.guerre).toBeUndefined();
+    // Rival rencontré depuis ≥ delaiGuerreApresRencontre tours : la question revient.
+    const delai = config.seuils.delaiGuerreApresRencontre ?? 10;
+    const memoContact = { rencontres: { p2: filtre.turn - delai } };
+    const { questions: qPaix } = construireQuestionsJoueur(config, condenseJoueur(filtre, 'p1', memoContact), filtre, 'p1', memoContact);
     expect(qPaix.guerre).toBeDefined();
     expect(qPaix.paix).toBeUndefined();
     const enGuerre = { ...filtre, diplomacy: { ...filtre.diplomacy, war: [['p1', 'p2']], warsDepuis: { 'p1|p2': filtre.turn } } };
@@ -153,6 +159,11 @@ describe('tourJevJoueur — traduction (fausse LLM)', () => {
 });
 
 describe('harnais — application des intentions diplomatiques', () => {
+  // v5 CONTACT-GUERRE : la question guerre n'existe qu'après contact. Ces
+  // tests portent la TRADUCTION/application de l'intention (le délai est
+  // couvert par v5.test.mjs) — délai ramené à 0 et seed 97 (rencontre
+  // déterministe au tour 11, trouvé par sonde).
+  const configContact = { ...config, seuils: { ...config.seuils, delaiGuerreApresRencontre: 0 } };
   it('une décision guerre de Jev déclare la guerre ET bloque la déclaration du bot', async () => {
     // Faux Jev qui choisit TOUJOURS le premier critère ≠ aucun de chaque question.
     const client = {
@@ -175,10 +186,10 @@ describe('harnais — application des intentions diplomatiques', () => {
     };
     const journal = new Journal(join(racine, 'journaux', 'test-joueur-guerre.jsonl'));
     const { etat: fin } = await jouerPartie({
-      client, config, seed: 404, plafondTours: 6, journal, engineJev: 'p1', modeJoueur: true,
+      client, config: configContact, seed: 97, plafondTours: 30, journal, engineJev: 'p1', modeJoueur: true,
       civSetup: { p1: { civId: 'rome' }, p2: { civId: 'egypte' } },
     });
-    // La guerre a bien été déclarée par Jev au tour 1 (premier critère = guerre:p2).
+    // La guerre a bien été déclarée par Jev (premier critère = guerre:p2), APRÈS contact.
     const lignes = readFileSync(join(racine, 'journaux', 'test-joueur-guerre.jsonl'), 'utf8').trim().split('\n');
     const decl = lignes.map((l) => JSON.parse(l)).filter((o) => o.type === 'diplomatie' && o.genre === 'guerre');
     expect(decl.length).toBeGreaterThan(0);
@@ -221,7 +232,7 @@ describe('harnais — application des intentions diplomatiques', () => {
       },
     };
     await jouerPartie({
-      client: clientMixte, config, seed: 505, plafondTours: 5, journal, engineJev: 'p1', modeJoueur: true,
+      client: clientMixte, config: configContact, seed: 97, plafondTours: 30, journal, engineJev: 'p1', modeJoueur: true,
       civSetup: { p1: { civId: 'rome' }, p2: { civId: 'egypte' } },
     });
     const lignes = readFileSync(join(racine, 'journaux', 'test-joueur-paix.jsonl'), 'utf8').trim().split('\n');
@@ -373,7 +384,9 @@ describe('v2 — guerre argumentée, paix au juste prix, repli conversion (HANDO
 
   it('L2 : la question guerre est un OUI/NON sur UNE cible pré-triée (la plus faible)', () => {
     const filtre = getFilteredState(etatAvecForces({ fP1: 3, fP2: 1 }), 'p1');
-    const { questions } = construireQuestionsJoueur(config, condenseJoueur(filtre, 'p1'), filtre, 'p1');
+    // v5 : le rival est considéré rencontré depuis ≥ délai (l'arc est couvert par v5).
+    const memoVu = { rencontres: { p2: filtre.turn - (config.seuils.delaiGuerreApresRencontre ?? 10) } };
+    const { questions } = construireQuestionsJoueur(config, condenseJoueur(filtre, 'p1', memoVu), filtre, 'p1', memoVu);
     const cles = Object.keys(questions.guerre.criteria);
     expect(cles.filter((c) => c.startsWith('guerre:'))).toHaveLength(1);
     expect(cles).toContain('aucun');
@@ -383,9 +396,12 @@ describe('v2 — guerre argumentée, paix au juste prix, repli conversion (HANDO
 
   it('L2 fixture : forces 3× → Jev répond oui ; forces 0,5× → non', async () => {
     const client = clientV2();
-    const fort = await tourJevJoueur(client, config, getFilteredState(etatAvecForces({ fP1: 4, fP2: 1 }), 'p1'), 'p1', {});
+    const delai = config.seuils.delaiGuerreApresRencontre ?? 10;
+    const filtreFort = getFilteredState(etatAvecForces({ fP1: 4, fP2: 1 }), 'p1');
+    const fort = await tourJevJoueur(client, config, filtreFort, 'p1', { rencontres: { p2: filtreFort.turn - delai } });
     expect(fort.diplomatie.some((d) => d.genre === 'guerre')).toBe(true);
-    const faible = await tourJevJoueur(client, config, getFilteredState(etatAvecForces({ fP1: 1, fP2: 4 }), 'p1'), 'p1', {});
+    const filtreFaible = getFilteredState(etatAvecForces({ fP1: 1, fP2: 4 }), 'p1');
+    const faible = await tourJevJoueur(client, config, filtreFaible, 'p1', { rencontres: { p2: filtreFaible.turn - delai } });
     expect(faible.diplomatie.some((d) => d.genre === 'guerre')).toBe(false);
     // Le non CONFIANT bloque quand même la déclaration du bot (canon D2).
     expect(faible.bloqueGuerreBot).toBe(true);

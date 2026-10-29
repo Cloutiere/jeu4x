@@ -47,6 +47,38 @@ function ennemisDeMoi(etatFiltre, moi) {
   return out.sort();
 }
 
+/**
+ * JEV-CONTACT-GUERRE D1 (décisions Erik 29/10) — état de RENCONTRE construit
+ * à partir de la vision : un rival est « rencontré » dès qu'une de ses unités
+ * ou villes figure dans l'état FILTRÉ (fog) au moins une fois. La PREMIÈRE
+ * rencontre tient (memo inter-tours du harnais) ; les barbares ne comptent
+ * pas (rivalsReels). Retourne le memo pour lisibilité. */
+export function majRencontres(etatFiltre, moi, memo = {}) {
+  memo.rencontres = memo.rencontres ?? {};
+  const tour = etatFiltre.turn ?? 0;
+  const vus = new Set();
+  for (const u of Object.values(etatFiltre.units ?? {})) {
+    if (u.owner !== moi && u.owner !== 'barbarien' && !u.aboard) vus.add(u.owner);
+  }
+  for (const v of Object.values(etatFiltre.cities ?? {})) {
+    if (v.owner !== moi && v.owner !== 'barbarien') vus.add(v.owner);
+  }
+  for (const id of vus) {
+    if (memo.rencontres[id] == null) memo.rencontres[id] = tour;
+  }
+  return memo;
+}
+
+/** Provocations visibles d'un rival : ses unités dans le rayon de menace de
+ * NOS villes (miroir RAYON_MENACE du condensé — données honnêtes sous fog). */
+function provocationsDe(etatFiltre, moi, rival) {
+  const mesVilles = Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner === moi);
+  return Object.values(etatFiltre.units ?? {}).filter(
+    (u) => u.owner === rival && !u.aboard
+      && mesVilles.some((v) => hexDistance(u, v) <= 5),
+  ).length;
+}
+
 function dureeEtBatailles(etatFiltre, moi, ennemi) {
   const depuis = etatFiltre.diplomacy?.warsDepuis?.[[moi, ennemi].sort().join('|')] ?? etatFiltre.turn;
   const batailles = etatFiltre.diplomacy?.batailles?.[[moi, ennemi].sort().join('|')] ?? 0;
@@ -77,10 +109,15 @@ function distanceCapitales(etatFiltre, a, b) {
 /** Bloc DIPLOMATIE du condensé joueur (canon T2 : techs des rivaux visibles,
  * trésorerie ennemie jamais — R-134 ; puissance visible seulement).
  * L2 v2 : rapportForces EXPLICITE par rival (nos forces visibles / les siennes,
- * arrondi à 0,1 — l'argument de la guerre argumentée). */
-export function blocDiplomatie(etatFiltre, moi) {
+ * arrondi à 0,1 — l'argument de la guerre argumentée).
+ * v5 CONTACT-GUERRE D1/D2 : arc de la relation — rencontreTour (première vue),
+ * toursDepuisRencontre, provocations (unités hostiles près de nos villes). */
+export function blocDiplomatie(etatFiltre, moi, memo = {}) {
   const maPuissance = forcesVisibles(etatFiltre, moi);
-  const rivaux = rivalsReels(etatFiltre, moi).map(({ id, p }) => ({
+  const rencontres = memo?.rencontres ?? {};
+  const rivaux = rivalsReels(etatFiltre, moi).map(({ id, p }) => {
+    const rencontreTour = rencontres[id] ?? null;
+    return {
     id,
     civ: p.civId,
     era: p.era ?? null,
@@ -90,7 +127,11 @@ export function blocDiplomatie(etatFiltre, moi) {
     rapportForces: Math.round((maPuissance / Math.max(1, forcesVisibles(etatFiltre, id))) * 10) / 10,
     enGuerre: ennemisDeMoi(etatFiltre, moi).includes(id),
     distanceCapitale: distanceCapitales(etatFiltre, moi, id),
-  }));
+    rencontreTour,
+    toursDepuisRencontre: rencontreTour == null ? null : Math.max(0, (etatFiltre.turn ?? 0) - rencontreTour),
+    provocations: provocationsDe(etatFiltre, moi, id),
+    };
+  });
   const ennemis = ennemisDeMoi(etatFiltre, moi).map((id) => ({
     id,
     ...(dureeEtBatailles(etatFiltre, moi, id)),
@@ -98,10 +139,11 @@ export function blocDiplomatie(etatFiltre, moi) {
   return { guerreAvec: ennemisDeMoi(etatFiltre, moi), ennemis, rivaux };
 }
 
-/** Condensé joueur = condensé du banc + bloc diplomatie. */
-export function condenseJoueur(etatFiltre, moi) {
+/** Condensé joueur = condensé du banc + bloc diplomatie (memo v5 : arc de
+ * rencontre par rival). */
+export function condenseJoueur(etatFiltre, moi, memo = {}) {
   const condense = condenserEtat(etatFiltre, moi);
-  condense.diplomatie = blocDiplomatie(etatFiltre, moi);
+  condense.diplomatie = blocDiplomatie(etatFiltre, moi, memo);
   return condense;
 }
 
@@ -246,18 +288,29 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
     }
   }
 
-  // Guerre (L2 v2 — argumentée) : UNE cible pré-triée (le voisin le plus
-  // faible), décision oui/non, rapport de forces présenté EXPLICITEMENT
-  // (miroir de la question « attaquer » du banc v2 qui passait à 0,85).
+  // Guerre (L2 v2 — argumentée ; v5 CONTACT-GUERRE D1/D2) : UNE cible pré-triée
+  // (le voisin le plus faible) PARMI les rivaux RENCONTRÉS dont le délai
+  // minimal de coexistence est écoulé — pas de guerre dans le brouillard, la
+  // guerre est l'aboutissement d'un arc relationnel. Critères : rapport de
+  // forces explicite + âge de la relation + provocations.
   if (!enGuerre && rivaux.length > 0) {
-    const cible = [...rivaux].sort(
-      (a, b) => a.forces - b.forces || a.distanceCapitale - b.distanceCapitale || a.techsConnues - b.techsConnues,
-    )[0];
-    const criteria = {};
-    criteria[`guerre:${cible.id}`] = `OUI — déclarer la guerre à ${cible.civ} (${cible.id}), le voisin le PLUS FAIBLE : nos forces ${condense.monde.puissance.amie} vs les siennes ${cible.forces} (rapport ${cible.rapportForces}× en notre faveur), ère ${cible.era ?? '?'}, ${cible.techsConnues} techs, capitale à ${cible.distanceCapitale} cases. Déclarer lance la campagne : le bot assemble l'armée et marche.`;
-    criteria['aucun'] = 'NON — ne pas déclarer cette guerre ce tour (bloque aussi toute déclaration du bot pour nous).';
-    q.guerre = { instructions: config.questions.guerre.instructions, criteria, type: 'choice' };
-    meta.guerre = { genre: 'guerre', cible: cible.id };
+    const delai = seuils.delaiGuerreApresRencontre ?? 10;
+    const eligibles = rivaux.filter(
+      (r) => r.rencontreTour != null && (condense.tour - r.rencontreTour) >= delai,
+    );
+    if (eligibles.length > 0) {
+      const cible = [...eligibles].sort(
+        (a, b) => a.forces - b.forces || a.distanceCapitale - b.distanceCapitale || a.techsConnues - b.techsConnues,
+      )[0];
+      const provocation = cible.provocations > 0
+        ? `provocations : ${cible.provocations} unité(s) hostile(s) près de nos villes`
+        : 'provocations : aucune';
+      const criteria = {};
+      criteria[`guerre:${cible.id}`] = `OUI — déclarer la guerre à ${cible.civ} (${cible.id}), le voisin le PLUS FAIBLE : nos forces ${condense.monde.puissance.amie} vs les siennes ${cible.forces} (rapport ${cible.rapportForces}× en notre faveur), ère ${cible.era ?? '?'}, ${cible.techsConnues} techs, capitale à ${cible.distanceCapitale} cases. Relation : rencontré depuis ${condense.tour - cible.rencontreTour} tours (premier contact au tour ${cible.rencontreTour}), ${provocation}. Déclarer lance la campagne : le bot assemble l'armée et marche.`;
+      criteria['aucun'] = 'NON — ne pas déclarer cette guerre ce tour (bloque aussi toute déclaration du bot pour nous).';
+      q.guerre = { instructions: config.questions.guerre.instructions, criteria, type: 'choice' };
+      meta.guerre = { genre: 'guerre', cible: cible.id };
+    }
   }
 
   // Paix + compensation (L3 v2 — au juste prix) : fourchette d'or SUGGÉRÉE,
@@ -346,7 +399,10 @@ export function prixPaixSuggere(negoc, agressivite, rapportForces, tresorerie) {
  * côté harnais sur l'état COMPLET, pas sur le condensé fog).
  */
 export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) {
-  const condense = condenseJoueur(etatFiltre, moi);
+  // v5 CONTACT-GUERRE D1 : l'état de rencontre est mis à jour AVANT le
+  // condensé (le bloc diplomatie lit memo.rencontres).
+  majRencontres(etatFiltre, moi, memo);
+  const condense = condenseJoueur(etatFiltre, moi, memo);
   const { questions, meta, seuils } = construireQuestionsJoueur(config, condense, etatFiltre, moi, memo);
   const sortie = {
     condense,

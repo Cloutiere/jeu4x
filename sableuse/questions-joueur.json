@@ -50,9 +50,10 @@
     "confianceChoixMin": 0.65,
     "decisionMin": 0.5,
     "conversionScienceMin": 2,
+    "delaiGuerreApresRencontre": 10,
     "compensationPaliers": [0, 0.1, 0.25, 0.5, 1]
   },
-  "_commentaire_seuils": "Seuils PAR DOMAINE (canon v2) : produire/rechercher à 0,65 ; guerre/paix/convertir/échange à 0,5 — ces questions sont chroniquement sous-confiantes chez jev-latest (banc joueur-2026-10-27). v2 CALIBRAGE-DECISIONS : une réponse conversion INDÉCISE (sous 0,5) déclenche le repli règle (plancher, miroir du repli bot) ; conversionScienceMin = seuil de science/tour sous lequel une ville est candidate à la SCIENCE. compensationPaliers conservé pour compatibilité (la fourchette d'or v2 est injectée par tour).",
+  "_commentaire_seuils": "Seuils PAR DOMAINE (canon v2) : produire/rechercher à 0,65 ; guerre/paix/convertir/échange à 0,5 — ces questions sont chroniquement sous-confiantes chez jev-latest (banc joueur-2026-10-27). v2 CALIBRAGE-DECISIONS : une réponse conversion INDÉCISE (sous 0,5) déclenche le repli règle (plancher, miroir du repli bot) ; conversionScienceMin = seuil de science/tour sous lequel une ville est candidate à la SCIENCE. compensationPaliers conservé pour compatibilité (la fourchette d'or v2 est injectée par tour). JEV-CONTACT-GUERRE D1 (Erik 29/10) : delaiGuerreApresRencontre = tours de coexistence minimale entre la PREMIÈRE rencontre (unité/ville adverse vue sous le fog) et la première question guerre possible.",
   "_commentaire_regles": "JEV-BANC-JOUEUR D1 + v2 CALIBRAGE-DECISIONS : la règle regle:conversion du harnais reste DÉSACTIVÉE GLOBALEMENT (le bot standard et le contrôle ne la subissent pas — D2 : rien d'autre ne change) ; elle vit en REPLI pour Jev seul, appliquée par joueur.mjs quand sa réponse conversion est indécise.",
   "regles": {
     "conversion": {
