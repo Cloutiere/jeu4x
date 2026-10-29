@@ -52,6 +52,24 @@ Prod : déployée par push (CI Deploy) ; la première partie fumée d'Erik reste
 1. **carte-multi rouge** (68cc82c) : ma première restructuration appliquait les actions bot en DEUX passes (tous les plans d'abord, puis toutes les actions) — l'ordre canon BOT-SOLO est ENTRELACÉ (plan généré puis actions appliquées avant le bot suivant) ; les plans des bots suivants dépendaient de l'état post-actions des précédents (p5 sans recherche). Corrigé 56eacd9 : entrelacement rétabli, décision Jev en pré-passe sur l'état pré-actions (canon harnais).
 2. **tests-jev rouges en CI** : le harnais sableuse est HORS workspace — ses node_modules ne sont pas installés en CI et @game/rules n'était pas résoluble depuis sableuse/src/*.mjs (la remontée ne passe que localement). Corrigé f766e88 : alias Vite @game/rules → packages/rules/src/index.ts dans vitest.jev.config.ts.
 
+## Addendum session (28-29/10) — la fumée d'Erik et ses trois corrections
+
+La partie fumée réelle d'Erik (les deux configurations) a révélé trois problèmes, tous corrigés et déployés :
+
+1. **JEV-REPERAGE (30e2b48, Deploy vert)** : Erik ne savait pas quelle couleur portait Jev. Le bandeau « Adversaires » affiche désormais la pastille de couleur de chaque adversaire — exactement celle de ses bannières en carte (`paletteDe` → factions4, miroir du rendu) ; la pastille de nation (à gauche du médaillon) porte un badge 🤖 visible SANS survol pour Jev.
+2. **JEV-DUEL-MIROIR (f41779d, Deploy vert)** : le duel 1v1 symétrique revient au lobby (sélecteur « Configuration : Libre 5 sièges / Duel miroir ») et le flux solo historique honore `adversaireJev`. C'est le calibrage de référence du banc v3 (mirror1v1 40×40). Note : le labo #/progen ne crée PAS de parties — il n'existait donc AUCUNE UI pour le 1v1 miroir avant ce fix.
+3. **FIX JEV-ORDRES-JETÉS (c64fec4, Deploy vert)** — le bug majeur de l'intégration : les ordres LLM de Jev (SetProduction de la capitale, MultiStep/FoundCity du colon) étaient calculés, journalisés, facturés… puis JAMAIS fusionnés dans le motif. Le bot standard jouait tout son siège — d'où les observations d'Erik : « merveille systématique en début » (= arbitrage BOT-TB du bot) et « guerrier qui oscille sur deux cases » (= assemblage BOT-ARMEE du bot). Fix : fusion sujet-par-sujet canon `fusionnerPlan` du harnais dans startResolution ; tests jev 20 verts (2 nouveaux). **Après fix, vérifié en jeu par Erik : Jev explore et bâtit son colon rapidement.**
+
+### Observations d'Erik consignées → backlog itération 4 (v3 figée, hors périmètre)
+- **Guerre au premier contact** : la cible « voisin le plus faible » est calculée sur les forces VISIBLES — à zéro contact, le rapport est gonflé (ennemi à 0) et Jev déclare confiant. Levier itération 4 : ne proposer la question « guerre » qu'avec un contact réel (au moins une unité/ville ennemie visible).
+- **Huttes ignorées** : `botPolicy` n'a AUCUNE conscience des huttes (vérifié) — le tactique passe à côté sans intention ; les ouvertures ne se font qu'au hasard des poses. Levier : pondérer les huttes connues dans l'exploration du scout (profite à TOUS les bots, pas seulement Jev).
+- Comportement post-fix validé par Erik : exploration OK, colon rapide, guerre au contact = comportement v3 attendu (37 guerres/10 parties au banc).
+
+### État de clôture
+- Commits de la mission : 68cc82c, 56eacd9, f766e88, 376f2e1, 30e2b48, f41779d, c64fec4 — **Deploy vert sur c64fec4** (dernier commit de code), prod vérifiée par bundle.
+- Suites : serveur 332 + jev 20 (config Node dédiée) + web 700 verts ; svelte-check 0 erreurs.
+- Itération 4 (fin de partie + calibrages ci-dessus) : HORS périmètre — handoff à rédiger quand Erik décide d'enchaîner ; corpus prêt via `jevjournal:<tour>` (route admin `/admin/game/:code/jev[?tour=N]`).
+
 ## Suites
 - serveur **331 verts** (pool Workers) + **18 verts** (jev, Node) — `pnpm -C apps/server test` enchaîne les deux configs ;
 - web **700 verts**, rules **1101 verts**, `pnpm build` + `pnpm typecheck` 4/4.
