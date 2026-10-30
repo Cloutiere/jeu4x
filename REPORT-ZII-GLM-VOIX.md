@@ -83,3 +83,12 @@ gitignore, seuls des noms de variables dans le code).
    ligne à changer (repliReplique sur le chemin invalide).
 4. **Latence 4-9 s** : le message de Zii arrive après le message du joueur — l'UI
    chat-socle l'affiche en temps réel, rien à changer, mais c'est perceptible.
+
+## Déploiement
+
+CI/Deploy VERTES au 2e push (fix e2e : slots de la réplique calculés depuis les
+civIds réels du meta — la CI a de vraies civs, ex. Japon, pas « neutre »).
+**Prod déployée** : worker `game-4x-server-prod`, Current Version ID
+`80b07d9a-1eea-4d97-b909-31f37ee9820f` (30/10 12:07) — le secret prod
+`ZII_GLM_API_KEY` (posé par Erik) est actif. La validation finale est le
+dialogue d'Erik avec Zii en prod.
