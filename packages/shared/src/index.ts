@@ -335,6 +335,14 @@ export interface ChatMessageData {
   texte: string;
   /** Horodatage epoch ms (ordre d'affichage). */
   horodatage: number;
+  /** OFFICIALISATION (Erik 30/10) — bulles de Zii SEULEMENT : intention perçue
+   *  du message du joueur (demandePaix, offre…) qui déclenche le bouton
+   *  « ✍ Officieliser… » côté client. Jamais posé sur un message humain ni
+   *  sur une salutation (le bouton ne naît que face à une nation bot — R-190). */
+  intentionPercue?: string;
+  /** OFFICIALISATION — ton généré de Zii (purement informatif, calibrage à
+   *  l'œil). Absent sur les messages humains et les salutations. */
+  ton?: string;
 }
 
 /** Livraison temps réel d'un message (aux seuls destinataires du canal). */

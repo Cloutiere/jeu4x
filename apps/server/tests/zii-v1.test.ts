@@ -498,6 +498,54 @@ describe('ZII-V1 · e2e sans clé (repli gracieux)', () => {
     expect(dump.zii!.desactive).toBe('non');
     ws.close();
   });
+  it('OFFICIALISATION : la bulle Zii (repli) porte intentionPercue ; JAMAIS un message humain (test négatif)', async () => {
+    const code = await createGame(
+      { id: 'dev:zii-host3', name: 'ZiiHost3' },
+      { mapId: 'procedural-40', turnTimerMinutes: null, isPublic: false, solo: true, playerCount: 2, adversaireJev: true },
+    );
+    const token = await makeToken('dev:zii-host3', 'ZiiHost3');
+    const ws = await openGameSocket(code, token);
+    await ws.waitFor('Snapshot');
+    const dump0 = await adminDump(code);
+    const seatJev = dump0.meta!.players.find((p) => p.jev === true)?.engineId ?? 'p2';
+    // « paix » → intentionDe = demandePaix → le repli répliques porte l'intention.
+    ws.send({ type: 'ChatSend', canal: 'general', texte: 'Je demande la paix, Jev.' });
+    await ws.waitFor('ChatMessage');
+    let zii: AnyEtat[] = [];
+    for (let i = 0; i < 20 && zii.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      ws.send({ type: 'ChatHistory' });
+      const hist = await ws.waitFor('ChatHistory');
+      if (hist.type === 'ChatHistory') {
+        zii = (hist.messages as AnyEtat[]).filter((m) => m.auteur === seatJev && m.canal === 'general');
+      }
+    }
+    expect(zii.length).toBeGreaterThanOrEqual(1);
+    // La RÉPONSE (repli répliques) porte l'intention — relai client (bouton
+    // Officieliser). Une éventuelle salutation de début (sans intention) est
+    // exclue du contrôle.
+    const reponses = zii.filter((m) => m.intentionPercue !== undefined);
+    expect(reponses.length).toBeGreaterThanOrEqual(1);
+    for (const m of reponses) {
+      expect(m.intentionPercue).toBe('demandePaix');
+    }
+    // Test négatif : aucun message HUMAIN ne porte l'intention ni le ton,
+    // et la bulle de repli n'a pas de ton (génération absente).
+    const historique = (await (async () => {
+      ws.send({ type: 'ChatHistory' });
+      const h = await ws.waitFor('ChatHistory');
+      return h.type === 'ChatHistory' ? (h.messages as AnyEtat[]) : [];
+    })()) as AnyEtat[];
+    for (const m of historique) {
+      if (m.auteur !== seatJev) {
+        expect(m.intentionPercue).toBeUndefined();
+        expect(m.ton).toBeUndefined();
+      } else {
+        expect(m.ton).toBeUndefined(); // repli : pas de ton généré
+      }
+    }
+    ws.close();
+  });
 
   it('la salutation de début (déterministe, sans LLM) est un message canon du siège Jev', async () => {
     // Indépendant du tirage : on vérifie que TOUT message d'auteur = siège Jev

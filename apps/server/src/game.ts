@@ -1564,8 +1564,16 @@ export class GameDO {
    * un ordre.
    */
 
-  /** Publie un énoncé de Zii comme message de chat canon du siège Jev. */
-  private async publierMessageZii(canal: ChatCanal, texte: string): Promise<void> {
+  /** Publie un énoncé de Zii comme message de chat canon du siège Jev.
+   *  OFFICIALISATION (30/10) : intentionPercue/ton portés par la bulle quand
+   *  Zii répond (jamais sur une salutation) — le client s'en sert pour
+   *  afficher le bouton « ✍ Officieliser… » (donnée légère, R-190 intact). */
+  private async publierMessageZii(
+    canal: ChatCanal,
+    texte: string,
+    intentionPercue: string | null = null,
+    ton: string | null = null,
+  ): Promise<void> {
     const seat = this.seatJev();
     if (!this.game || !this.meta || !seat) return;
     const message: ChatMessageData = {
@@ -1575,6 +1583,8 @@ export class GameDO {
       canal,
       texte,
       horodatage: Date.now(),
+      ...(intentionPercue ? { intentionPercue } : {}),
+      ...(ton ? { ton } : {}),
     };
     this.chatLog = avecMessage(this.chatLog, message);
     await this.state.storage.put({ chatLog: this.chatLog });
@@ -1635,7 +1645,7 @@ export class GameDO {
       historique: historiquePour(this.chatLog, seat),
     });
     await this.state.storage.put({ ziiEtat: this.ziiEtat });
-    if (r.message) await this.publierMessageZii(canal, r.message.texte);
+    if (r.message) await this.publierMessageZii(canal, r.message.texte, r.intentionPercue, r.ton);
   }
 
   // -----------------------------------------------------------------------

@@ -11,8 +11,20 @@
   import type { GameView } from '../lib/gameClient.js';
   import { chat } from '../lib/chat.js';
   import { FACTIONS4, paletteDe } from '../lib/render/accents.js';
+  import { officielisable } from '../lib/officialisation.js';
+  import { civLeader } from '../lib/labels.js';
 
-  let { view, onEnvoyer }: { view: GameView; onEnvoyer: (canal: string, texte: string) => void } = $props();
+  let {
+    view,
+    onEnvoyer,
+    onOfficieliser,
+  }: {
+    view: GameView;
+    onEnvoyer: (canal: string, texte: string) => void;
+    /** OFFICIALISATION (D1) — clic « ✍ Officieliser… » : ouvre la
+     *  NegociationModale pré-ciblée (pure UI, zéro état serveur). */
+    onOfficieliser: (engineId: string, intention: string) => void;
+  } = $props();
 
   type Canal = { id: 'general' } | { id: string; label: string };
 
@@ -108,6 +120,15 @@
         <div class="bulle" class:moi={m.auteur === monEngineId} style="--accent: {couleur}">
           <span class="auteur">{nomDe(m.auteur)}</span>
           <span class="texte">{m.texte}</span>
+          {#if officielisable(m, monEngineId)}
+            {@const infos = view.players.find((pl) => pl.engineId === m.auteur)}
+            <button
+              type="button"
+              class="officieliser"
+              title={`Conclure un accord formel avec ${infos ? civLeader(infos.civId) : nomDe(m.auteur)}`}
+              onclick={() => onOfficieliser(m.auteur, m.intentionPercue!)}
+            >✍ Officieliser…</button>
+          {/if}
         </div>
       {/each}
     </div>
@@ -205,4 +226,21 @@
   }
   .saisie input:focus { outline: none; border-color: var(--or, #c9a227); }
   .hint { color: var(--texte-doux, #b6ad93); font-size: 0.8rem; margin: 0; }
+  /* OFFICIALISATION (D5) : bouton discret, cohérent avec les bulles accent. */
+  .officieliser {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--accent, #6e6e74);
+    background: transparent;
+    color: var(--texte-doux, #b6ad93);
+    cursor: pointer;
+    line-height: 1.5;
+  }
+  .officieliser:hover {
+    color: var(--or-clair, #e8c96a);
+    border-color: var(--or, #c9a227);
+    background: rgba(201, 162, 39, 0.1);
+  }
 </style>

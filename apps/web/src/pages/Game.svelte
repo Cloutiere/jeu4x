@@ -32,6 +32,7 @@
   // JEV-FUMEE-LOBBY (retour Erik 28/10) : pastille de COULEUR par adversaire
   // dans le bandeau — la même que ses bannières en carte (paletteId → factions4).
   import { FACTIONS4, paletteDe } from '../lib/render/accents.js';
+  import { sectionSuggeree } from '../lib/officialisation.js';
   import RapportCombat from '../components/RapportCombat.svelte';
   // FULLSCREEN-PERF · L0 : mini HUD perf (FPS + résolution rendue), calque dev seulement.
   import HudPerf from '../components/HudPerf.svelte';
@@ -936,6 +937,16 @@
   // DIPLOMATIE-T2 (Erik 28/10, D5) : modale de NÉGOCIATION (paix compensée +
   // échange de techs) — ouverte depuis la pastille de nation (bouton « 🤝 »).
   let negociationCible = $state<{ id: string; nom: string; enGuerre: boolean; defeated: boolean } | null>(null);
+  // OFFICIALISATION (30/10, D1) : ouverture depuis une bulle de Zii — section
+  // mise en avant (paix en guerre, sinon techs). MÊME état que la pastille :
+  // zéro modale dupliquée (L3).
+  let negociationSection = $state<'paix' | 'techs' | null>(null);
+  function officieliserDepuisChat(engineId: string, intention: string): void {
+    const a = adversairesDetail.find((x) => x.id === engineId);
+    if (!a) return;
+    negociationSection = sectionSuggeree(intention, a.enGuerre);
+    negociationCible = { id: a.id, nom: a.nom, enGuerre: a.enGuerre, defeated: a.defeated };
+  }
   const myGovernment = $derived.by(() => {
     const id = myEngineId($view);
     return (id && $view.state ? $view.state.players[id]?.government : null) ?? 'despotisme';
@@ -1711,6 +1722,7 @@
           <Chat
             view={$view}
             onEnvoyer={(canal, texte) => client.envoyerChat(canal as 'general' | string, texte)}
+            onOfficieliser={officieliserDepuisChat}
           />
         {:else}
           <Chroniques view={$view} onCentrerHex={(hex) => canvasApi?.centerOnHex(hex)} onOuvrirCombat={ouvrirCombatChronique} />
@@ -1774,7 +1786,16 @@
   {/if}
   {#if negociationCible && $view.state}
     <!-- DIPLOMATIE-T2 · D5 : modale de négociation (privée). -->
-    <NegociationModale view={$view} {client} cible={negociationCible} onClose={() => (negociationCible = null)} />
+    <NegociationModale
+      view={$view}
+      {client}
+      cible={negociationCible}
+      sectionSuggeree={negociationSection ?? undefined}
+      onClose={() => {
+        negociationCible = null;
+        negociationSection = null;
+      }}
+    />
   {/if}
   {#if declarationGuerre && $view.state}
     <!-- DIPLOMATIE-T1 · D3 : confirmation — « La guerre est publique et mutuelle » -->

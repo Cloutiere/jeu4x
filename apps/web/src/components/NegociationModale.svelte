@@ -26,9 +26,12 @@
     client: GameClient;
     cible: CibleNegociation;
     onClose: () => void;
+    /** OFFICIALISATION (D1) — ouverture depuis une bulle de Zii : section mise
+     *  en avant (paix en guerre, sinon échange de techs). Optionnel. */
+    sectionSuggeree?: 'paix' | 'techs';
   }
 
-  let { view, client, cible, onClose }: Props = $props();
+  let { view, client, cible, onClose, sectionSuggeree }: Props = $props();
 
   const moi = view.players.find((p) => p.engineId !== undefined && view.playerId !== null && p.id === view.playerId);
   const monEngineId = moi?.engineId ?? null;
@@ -91,7 +94,7 @@
       {#if cible.enGuerre}
         <!-- D2 : paix avec compensation — l'or ne passe qu'À L'ACCEPTATION ;
              la réponse du bot est seedée (prix = fierté × rapport de forces). -->
-        <section class="negociation-section">
+        <section class="negociation-section" class:suggeree={sectionSuggeree === 'paix'}>
           <h3>🕊 Proposer la paix</h3>
           <p class="negociation-hint">Proposition PRIVÉE. La compensation n'est versée que si l'échange est accepté ; sinon rien ne bouge.</p>
           <div class="negociation-ligne">
@@ -106,7 +109,7 @@
       {/if}
 
       <!-- D3 : échange de technologies — JAMAIS avec une nation en guerre. -->
-      <section class="negociation-section">
+      <section class="negociation-section" class:suggeree={sectionSuggeree === 'techs'}>
         <h3>🔬 Échanger des technologies</h3>
         {#if cible.enGuerre}
           <p class="negociation-hint">Impossible : aucun échange avec une nation EN GUERRE.</p>
@@ -191,6 +194,10 @@
     padding: 0.5rem 0.6rem;
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 8px;
+  }
+  .negociation-section.suggeree {
+    border-color: var(--or, #c9a227);
+    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
   }
   .negociation-section h3 {
     margin: 0 0 0.25rem;
