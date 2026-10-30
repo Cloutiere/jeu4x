@@ -22,6 +22,11 @@ export interface Env {
    *  (`wrangler secret put`), `.dev.vars` en local. Absente → Jev reste un
    *  bot standard (repli permanent, aucune partie bloquée). */
   TYPESAFE_API_KEY?: string;
+  /** ZII-GLM-VOIX (Erik 30/10) : clé GLM (Z.ai) pour la voix naturelle de
+   *  Zii + modèle optionnel (défaut : zii.json `modele`). Absente → répliques
+   *  v1 en repli. Jamais committée. */
+  ZII_GLM_API_KEY?: string;
+  ZII_GLM_MODELE?: string;
 }
 
 /** JSON typé pour une Response. */

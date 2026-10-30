@@ -1,5 +1,6 @@
 {
-  "modele": "jev-latest",
+  "modele": "glm-5.3-flash",
+  "fournisseur": "glm",
   "budgetPlafondUsd": 0.05,
   "historiqueMax": 8,
   "longueurMax": 300,

@@ -396,11 +396,21 @@ describe('ZII-V1 · repondreZii (FAUX LLM)', () => {
     expect(sain.appels).toBe(0);
   });
 
-  it('client null (clé absente) → repli silencieux total', async () => {
+  it('client null + fournisseur glm (ZII-GLM-VOIX) → réplique v1 en repli ; config rétro → silencieux total', async () => {
+    // zii.json actuel (fournisseur glm) sans clé → D2 : réplique v1, jamais de panne visible.
     const etat = ziiEtatInitial();
     const r = await repondreZii({ ...BASE, etat, client: null });
-    expect(r).toMatchObject({ message: null, repli: true, jetonsEntree: 0 });
-    expect(etat.journal).toHaveLength(0);
+    expect(r.repli).toBe(true);
+    expect(r.source).toBe('replique');
+    expect(r.message!.texte.length).toBeGreaterThan(0);
+    expect(etat.echecsConsecutifs).toBe(0); // pas d'échec compté (rien tenté)
+    expect(etat.journal[0]!.erreur).toContain('clé');
+    // Config rétro (sans fournisseur) → repli silencieux total inchangé.
+    const retro = { ...configZii, fournisseur: undefined } as unknown as ConfigZii;
+    const etat2 = ziiEtatInitial();
+    const r2 = await repondreZii({ ...BASE, config: retro, etat: etat2, client: null });
+    expect(r2).toMatchObject({ message: null, repli: true, jetonsEntree: 0 });
+    expect(etat2.journal).toHaveLength(0);
   });
 
   it('slotsRencontre : civs + dirigeants canon des données', () => {
@@ -445,14 +455,35 @@ describe('ZII-V1 · e2e sans clé (repli gracieux)', () => {
     // rencontre, fait de fog R-73).
     ws.send({ type: 'ChatSend', canal: 'general', texte: 'Bonjour Jev, que vaut ton armée ?' });
     await ws.waitFor('ChatMessage'); // le message du joueur est livré (canon)
-    // Aucune clé → aucun écho de Zii : l'historique ne porte QUE le message du joueur.
-    ws.send({ type: 'ChatHistory' });
-    const hist = await ws.waitFor('ChatHistory');
-    expect(hist.type).toBe('ChatHistory');
-    if (hist.type === 'ChatHistory') {
-      // Zii peut avoir SALUÉ à l'activation (D2a — déterministe, sans clé),
-      // mais ne RÉPOND jamais sans clé : au plus 1 message d'initiative.
-      expect(hist.messages.filter((m) => m.auteur === seatJev).length).toBeLessThanOrEqual(1);
+    // ZII-GLM-VOIX · D2 — sans clé GLM, Zii RÉPOND avec une RÉPLIQUE v1
+    // (repli prouvé : la réplique vient des candidats zii.json, jamais de panne visible).
+    // La réponse est asynchrone (après storage) : sondage borné de l'historique.
+    let zii: { texte: string }[] = [];
+    for (let i = 0; i < 20 && zii.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      ws.send({ type: 'ChatHistory' });
+      const hist = await ws.waitFor('ChatHistory');
+      if (hist.type === 'ChatHistory') {
+        zii = hist.messages.filter((m) => m.auteur === seatJev && m.canal === 'general');
+      }
+    }
+    expect(zii.length).toBeGreaterThanOrEqual(1);
+    const tousCandidats = Object.values(configZii.candidats.reponses).flatMap((arr) => arr ?? []);
+    // Slots RÉELS de la partie (Jev sans civId en test → neutre) — miroir repondreZii.
+    const slotsTest = {
+      moiCiv: 'neutre',
+      moiDirigeant: 'Chef neutre',
+      toiCiv: 'neutre',
+      toiDirigeant: 'Chef neutre',
+    };
+    const substitue = (t: string) =>
+      t
+        .replaceAll('{toiDirigeant}', slotsTest.toiDirigeant)
+        .replaceAll('{toiCiv}', slotsTest.toiCiv)
+        .replaceAll('{moiDirigeant}', slotsTest.moiDirigeant)
+        .replaceAll('{moiCiv}', slotsTest.moiCiv);
+    for (const m of zii) {
+      expect(tousCandidats.some((c) => m.texte === c || m.texte === substitue(c))).toBe(true);
     }
     // ziiEtat persisté (créé au premier échange — repli gracieux).
     const dump = await adminDump(code);

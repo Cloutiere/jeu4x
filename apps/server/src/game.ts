@@ -68,6 +68,7 @@ import configZii from './zii/zii.json';
 import type { ConfigZii } from './zii/zii.js';
 import { repondreZii, salutationDebutZii, salutationRencontreZii, slotsRencontre, type ClientZii } from './zii/orchestre.js';
 import { creerClientZii } from './zii/client.js';
+import { creerAppelGlm } from './zii/glm.js';
 import { ziiEtatInitial } from './zii/etat.js';
 import type { ZiiEtat } from './zii/etat.js';
 // CHAT-SOCLE (Erik 29/10) : noyau pur du chat (forme, hygiène, privacité,
@@ -1604,9 +1605,23 @@ export class GameDO {
     const seat = this.seatJev();
     if (!this.game || !this.meta || !seat) return;
     this.ziiEtat ??= ziiEtatInitial();
-    const client: ClientZii | null = this.env.TYPESAFE_API_KEY ? creerClientZii(this.env.TYPESAFE_API_KEY) : null;
+    // ZII-GLM-VOIX (Erik 30/10) : fournisseur data-driven (zii.json) — « glm »
+    // = génération naturelle (ZII_GLM_API_KEY, répliques v1 en repli) ;
+    // absent = pipeline typesafe v1 inchangé.
+    const modeGlm = (configZii as ConfigZii).fournisseur === 'glm';
+    const client: ClientZii | null =
+      !modeGlm && this.env.TYPESAFE_API_KEY ? creerClientZii(this.env.TYPESAFE_API_KEY) : null;
+    const glm =
+      modeGlm && this.env.ZII_GLM_API_KEY
+        ? creerAppelGlm(
+            this.env.ZII_GLM_API_KEY,
+            this.env.ZII_GLM_MODELE || (configZii as ConfigZii).modele,
+            (configZii as ConfigZii).longueurMax,
+          )
+        : null;
     const r = await repondreZii({
       client,
+      glm,
       config: configZii as ConfigZii,
       game: this.game,
       partie: this.meta.code,

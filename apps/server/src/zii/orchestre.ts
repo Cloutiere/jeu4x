@@ -19,12 +19,14 @@ import {
   intentionDe,
   paquetZii,
   probabiliteSalutation,
+  promptGlmZii,
   questionsZii,
   tirerSalutation,
   type ConfigZii,
   type IntentionZii,
   type SlotsZii,
 } from './zii.js';
+import type { AppelGlmZii } from './glm.js';
 import {
   avecEntreeJournal,
   enregistrerAppelZii,
@@ -93,6 +95,9 @@ export interface ResultatReponseZii {
   ton: string | null;
   intentionPercue: IntentionZii | null;
   repli: boolean;
+  /** ZII-GLM-VOIX — d'où vient le message : génération GLM, choix typesafe ou
+   *  réplique v1 (repli). null = aucun message (repli silencieux). */
+  source: 'glm' | 'typesafe' | 'replique' | null;
   latenceMs: number | null;
   jetonsEntree: number;
   erreur: string | null;
@@ -113,11 +118,56 @@ function entreeDe(
     intentionPercue: r.intentionPercue,
     resume: r.resume,
     repli: r.repli,
+    source: r.source,
     latenceMs: r.latenceMs,
     jetonsEntree: r.jetonsEntree,
     erreur: r.erreur,
     budgetApresUsd,
   };
+}
+
+/** ZII-GLM-VOIX · D2 — REPLI sur les RÉPLIQUES v1 (candidats zii.json pour
+ *  l'intention perçue) : jamais de panne visible côté joueur, Jev reste
+ *  informé (resumePourJev poussé). Énoncé seedé — même seed → même réplique. */
+function repliReplique(
+  opts: Parameters<typeof repondreZii>[0],
+  slots: SlotsZii,
+  intention: IntentionZii,
+  erreur: string,
+): ResultatReponseZii {
+  const rng = createRng(botTurnSeed(opts.seed, 0, `zii-repli-${opts.auteur}-${opts.game.turn}`));
+  const candidats = candidatsDe(opts.config, intention, slots);
+  const texte = candidats[Math.floor(rng.next() * candidats.length)] ?? null;
+  const resume = composerResume(
+    { auteur: opts.auteur, civ: civJoueur(opts.game, opts.auteur), texte: opts.texte, tour: opts.game.turn },
+    intention,
+  );
+  if (texte !== null) {
+    opts.etat.resumesPourJev = [...opts.etat.resumesPourJev, { tour: opts.game.turn, de: opts.auteur, resume }];
+  }
+  const message: ChatMessageData | null = texte === null
+    ? null
+    : {
+        partie: opts.partie,
+        tour: opts.game.turn,
+        auteur: opts.seat,
+        canal: opts.canal,
+        texte,
+        horodatage: Date.now(),
+      };
+  const out: ResultatReponseZii = {
+    message,
+    resume: texte !== null ? resume : null,
+    ton: null,
+    intentionPercue: intention,
+    repli: true,
+    source: 'replique',
+    latenceMs: null,
+    jetonsEntree: 0,
+    erreur,
+  };
+  avecEntreeJournal(opts.etat, entreeDe(opts, out, opts.etat.budgetUsd));
+  return out;
 }
 
 /**
@@ -126,7 +176,9 @@ function entreeDe(
  * clé absente, Zii désactivée (budget/échecs), réponse invalide, erreur API.
  */
 export async function repondreZii(opts: {
-  client: ClientZii | null;
+  client?: ClientZii | null;
+  /** ZII-GLM-VOIX · D1 — adaptateur GLM injectable (absent = pas de clé). */
+  glm?: AppelGlmZii | null;
   config: ConfigZii;
   game: GameState;
   partie: string;
@@ -145,12 +197,13 @@ export async function repondreZii(opts: {
     ton: null,
     intentionPercue: null,
     repli: true,
+    source: null,
     latenceMs: null,
     jetonsEntree: 0,
     erreur: null,
   };
   const { config, etat } = opts;
-  if (!opts.client || !ziiActif(etat, config.budgetPlafondUsd)) return vide;
+  if (!ziiActif(etat, config.budgetPlafondUsd)) return vide;
 
   const etatFiltre = getFilteredState(opts.game, opts.seat as any); // eslint-disable-line @typescript-eslint/no-explicit-any
   const paquet = paquetZii(etatFiltre, opts.seat, opts.rencontres, config, opts.historique);
@@ -162,13 +215,73 @@ export async function repondreZii(opts: {
     toiDirigeant: dirigeantDe(civAuteur),
   };
   const intention = intentionDe(opts.texte, config);
-  const { state, questions } = questionsZii(
-    config,
-    paquet,
-    { auteur: opts.auteur, civ: civAuteur, texte: opts.texte },
-    slots,
-    intention,
-  );
+  const recu = { auteur: opts.auteur, civ: civAuteur, texte: opts.texte };
+
+  // ------------------------------------------------------------------
+  // ZII-GLM-VOIX · D1/D2 — chemin GLM (génération naturelle réelle).
+  // Panne HTTP → repli RÉPLIQUES v1 ; non-JSON/invalide → repli silencieux.
+  // ------------------------------------------------------------------
+  if (opts.glm) {
+    const { messages } = promptGlmZii(config, paquet, recu, slots, intention);
+    const t0 = Date.now();
+    let reponse: { answers: unknown; usage?: { prompt_tokens?: number } | undefined };
+    try {
+      reponse = await opts.glm({ messages });
+    } catch (e) {
+      const erreur = String((e as Error)?.message ?? e);
+      enregistrerAppelZii(etat, false, 0, config.budgetPlafondUsd);
+      if (!ziiActif(etat, config.budgetPlafondUsd)) {
+        const out = { ...vide, latenceMs: Date.now() - t0, erreur };
+        avecEntreeJournal(etat, entreeDe(opts, out, etat.budgetUsd));
+        return out;
+      }
+      return repliReplique(opts, slots, intention, `GLM indisponible → repli : ${erreur}`);
+    }
+    const latenceMs = Date.now() - t0;
+    const decodee = reponse.answers === null ? null : decoderReponseZii(reponse.answers, config);
+    if (!decodee) {
+      // Repli silencieux (D4) — l'échec est compté, consigné.
+      enregistrerAppelZii(etat, false, 0, config.budgetPlafondUsd);
+      const out = { ...vide, latenceMs, erreur: 'réponse invalide (repli silencieux)' };
+      avecEntreeJournal(etat, entreeDe(opts, out, etat.budgetUsd));
+      return out;
+    }
+    const jetonsEntree = reponse.usage?.prompt_tokens ?? Math.ceil(JSON.stringify(paquet).length / 4);
+    enregistrerAppelZii(etat, true, jetonsEntree, config.budgetPlafondUsd);
+    const resume = composerResume({ ...recu, tour: opts.game.turn }, decodee.intentionPercue);
+    etat.resumesPourJev = [...etat.resumesPourJev, { tour: opts.game.turn, de: opts.auteur, resume }];
+    const message: ChatMessageData = {
+      partie: opts.partie,
+      tour: opts.game.turn,
+      auteur: opts.seat,
+      canal: opts.canal,
+      texte: decodee.message,
+      horodatage: Date.now(),
+    };
+    const out: ResultatReponseZii = {
+      message,
+      resume,
+      ton: decodee.ton,
+      intentionPercue: decodee.intentionPercue,
+      repli: false,
+      source: 'glm',
+      latenceMs,
+      jetonsEntree,
+      erreur: null,
+    };
+    avecEntreeJournal(etat, entreeDe(opts, out, etat.budgetUsd));
+    return out;
+  }
+
+  // ------------------------------------------------------------------
+  // Chemin typesafe v1 (rétrocompatibilité — config sans fournisseur).
+  // Config « glm » SANS clé → répliques v1 (jamais de panne visible).
+  // ------------------------------------------------------------------
+  if (!opts.client) {
+    if (config.fournisseur === 'glm') return repliReplique(opts, slots, intention, 'clé GLM absente → repli répliques v1');
+    return vide;
+  }
+  const { state, questions } = questionsZii(config, paquet, recu, slots, intention);
 
   const t0 = Date.now();
   let reponse: { answers: unknown; usage?: { input_tokens?: number } };
@@ -192,10 +305,7 @@ export async function repondreZii(opts: {
   }
   const jetonsEntree = reponse.usage?.input_tokens ?? Math.ceil(JSON.stringify(state).length / 4);
   enregistrerAppelZii(etat, true, jetonsEntree, config.budgetPlafondUsd);
-  const resume = composerResume(
-    { auteur: opts.auteur, civ: civAuteur, texte: opts.texte, tour: opts.game.turn },
-    decodee.intentionPercue,
-  );
+  const resume = composerResume({ ...recu, tour: opts.game.turn }, decodee.intentionPercue);
   etat.resumesPourJev = [...etat.resumesPourJev, { tour: opts.game.turn, de: opts.auteur, resume }];
   const message: ChatMessageData = {
     partie: opts.partie,
@@ -211,6 +321,7 @@ export async function repondreZii(opts: {
     ton: decodee.ton,
     intentionPercue: decodee.intentionPercue,
     repli: false,
+    source: 'typesafe',
     latenceMs,
     jetonsEntree,
     erreur: null,

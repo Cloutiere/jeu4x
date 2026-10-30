@@ -33,6 +33,8 @@ export interface ZiiJournalEntree {
   intentionPercue: string | null;
   resume: string | null;
   repli: boolean;
+  /** ZII-GLM-VOIX — source du message (glm / typesafe / réplique v1 ; null = aucun). */
+  source?: 'glm' | 'typesafe' | 'replique' | null;
   latenceMs: number | null;
   jetonsEntree: number;
   erreur: string | null;

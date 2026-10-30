@@ -15,6 +15,12 @@ export default defineConfig({
           AUTH_SECRET: 'test-secret',
           ADMIN_TOKEN: 'test-admin-token',
           DEV_STUB_AUTH: '1',
+          // ZII-GLM-VOIX / JEV : NE JAMAIS propager les clés réelles (.dev.vars)
+          // dans les tests — FAUSSE LLM obligatoire (zéro appel réseau).
+          // Chaîne vide = « clé absente » (falsy côté code).
+          TYPESAFE_API_KEY: '',
+          ZII_GLM_API_KEY: '',
+          ZII_GLM_MODELE: '',
         },
       },
     }),
