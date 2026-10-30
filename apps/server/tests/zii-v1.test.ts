@@ -13,6 +13,7 @@ import {
   candidatsDe,
   composerResume,
   decoderReponseZii,
+  dirigeantDe,
   intentionDe,
   paquetZii,
   probabiliteSalutation,
@@ -468,13 +469,19 @@ describe('ZII-V1 · e2e sans clé (repli gracieux)', () => {
       }
     }
     expect(zii.length).toBeGreaterThanOrEqual(1);
-    const tousCandidats = Object.values(configZii.candidats.reponses).flatMap((arr) => arr ?? []);
-    // Slots RÉELS de la partie (Jev sans civId en test → neutre) — miroir repondreZii.
+    const tousCandidats = [
+      ...Object.values(configZii.candidats.reponses).flatMap((arr) => arr ?? []),
+      ...configZii.candidats.salutationDebut, // initiative D2a possible dans le canal
+    ];
+    // Slots RÉELS de la partie (civIds du meta — miroir EXACT de repondreZii :
+    // civId brut + dirigeantDe, « neutre »/« Chef neutre » par défaut).
+    const civDe = (engineId: string) =>
+      dump0.meta!.players.find((p) => p.engineId === engineId)?.civId ?? 'neutre';
     const slotsTest = {
-      moiCiv: 'neutre',
-      moiDirigeant: 'Chef neutre',
-      toiCiv: 'neutre',
-      toiDirigeant: 'Chef neutre',
+      moiCiv: civDe(seatJev),
+      moiDirigeant: dirigeantDe(civDe(seatJev)),
+      toiCiv: civDe('p1'),
+      toiDirigeant: dirigeantDe(civDe('p1')),
     };
     const substitue = (t: string) =>
       t
