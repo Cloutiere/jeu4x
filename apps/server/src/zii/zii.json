@@ -1,5 +1,5 @@
 {
-  "modele": "glm-5.3-flash",
+  "modele": "glm-4.5-flash",
   "fournisseur": "glm",
   "budgetPlafondUsd": 0.05,
   "historiqueMax": 8,

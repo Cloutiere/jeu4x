@@ -9,9 +9,9 @@
  */
 export const URL_GLM = 'https://api.z.ai/api/paas/v4/chat/completions';
 
-/** GLM raisonne (reasoning_content) : latences observées 3,5-8 s, parfois +
- *  — plafond propre plus généreux que le SDK typesafe (TIMEOUT_ZII_MS). */
-export const TIMEOUT_GLM_MS = 20_000;
+/** ZII-FLASH-LITE (Erik 30/10) — thinking désactivé (D1) : latences attendues
+ * ≤ 2 s ; marge ×6, repli répliques v1 au timeout (jamais de panne visible). */
+export const TIMEOUT_GLM_MS = 12_000;
 
 export interface MessageGlm {
   role: 'system' | 'user';
@@ -69,10 +69,18 @@ export function creerAppelGlm(apiKey: string, modele: string, longueurMax?: numb
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
-        // max_tokens haut : glm-5.3-flash raisonne TOUJOURS (reasoning_content
-        // non désactivable — erreur 1210 « use low, high, or max ») et un
-        // plafond bas laisse un contenu vide (repli silencieux évitable).
-        body: JSON.stringify({ model: modele, messages, temperature: 0.8, max_tokens: 2000 }),
+        // D1 ZII-FLASH-LITE — thinking désactivé pour les modèles qui le
+        // tolèrent (glm-4.5/4.7-flash) ; envoyé inconditionnellement : les
+        // modèles qui refusent renvoient 1210 → repli v1 (déjà géré).
+        // D4 — max_tokens 2000 inchangé : glm-5.3-flash (reasoning forcé,
+        // erreur 1210 « use low, high, or max ») garde un contenu non vide.
+        body: JSON.stringify({
+          model: modele,
+          messages,
+          temperature: 0.8,
+          max_tokens: 2000,
+          thinking: { type: 'disabled' },
+        }),
         signal: controle.signal,
       });
     } finally {

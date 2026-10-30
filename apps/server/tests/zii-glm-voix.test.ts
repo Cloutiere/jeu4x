@@ -17,7 +17,7 @@ import { getFilteredState, makeState } from '@game/rules';
 import configZiiJson from '../src/zii/zii.json';
 import type { ConfigZii } from '../src/zii/zii.js';
 import { decoderReponseZii, intentionDe, paquetZii, promptGlmZii } from '../src/zii/zii.js';
-import { creerAppelGlm, decoderSortieGlm, type AppelGlmZii } from '../src/zii/glm.js';
+import { creerAppelGlm, decoderSortieGlm, TIMEOUT_GLM_MS, type AppelGlmZii } from '../src/zii/glm.js';
 import { repondreZii } from '../src/zii/orchestre.js';
 import { ziiEtatInitial } from '../src/zii/etat.js';
 
@@ -143,6 +143,43 @@ describe('ZII-GLM-VOIX · adaptateur (D1/D2)', () => {
     expect(decodee).not.toBeNull();
     expect(decodee!.message.length).toBe(configZii.longueurMax);
     expect(decodee!.message.endsWith('…')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ZII-FLASH-LITE — thinking désactivé + timeout 12 s (D1/D3)
+// ---------------------------------------------------------------------------
+
+describe('ZII-FLASH-LITE · thinking désactivé + timeout (D1/D3)', () => {
+  it('le corps d\'appel porte thinking.type = "disabled"', async () => {
+    const { impl, appels } = fauxFetch(corpsGlm(JSON_VALIDE));
+    const glm = appelGlmDe(impl);
+    await glm({ messages: [{ role: 'user', content: 'x' }] });
+    expect(appels).toHaveLength(1);
+    const corpsEmis = JSON.parse(appels[0]!.init.body);
+    expect(corpsEmis.thinking).toEqual({ type: 'disabled' });
+    // D4 — max_tokens reste 2000 (contrat : débordement tronqué, pas de panne).
+    expect(corpsEmis.max_tokens).toBe(2000);
+  });
+
+  it('timeout abaissé à 12 s (constante + AbortController câblé)', async () => {
+    expect(TIMEOUT_GLM_MS).toBe(12_000);
+    // Le signal d'abort est bien passé au fetch ET déclenché au timeout :
+    // fetch jouet qui rejette quand le signal s'allume.
+    const impl = (async (_url: string, init?: { signal?: AbortSignal }) => {
+      if (!init?.signal) throw new Error('signal manquant');
+      return await new Promise<AnyEtat>((_res, rej) => {
+        init.signal!.addEventListener('abort', () => rej(new Error('aborté')));
+      });
+    }) as typeof fetch;
+    const glm = appelGlmDe(impl);
+    await expect(glm({ messages: [{ role: 'user', content: 'x' }] })).rejects.toThrow('aborté');
+  }, 15_000);
+
+  it('modèle lu depuis zii.json (data-driven, inchangé)', async () => {
+    const { impl, appels } = fauxFetch(corpsGlm(JSON_VALIDE));
+    await appelGlmDe(impl)({ messages: [{ role: 'user', content: 'x' }] });
+    expect(JSON.parse(appels[0]!.init.body).model).toBe(configZii.modele);
   });
 });
 
