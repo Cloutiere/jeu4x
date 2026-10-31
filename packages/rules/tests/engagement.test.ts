@@ -139,10 +139,10 @@ describe('R-174/R-175 · Fortification : acquise seulement stabilisée, durable 
 });
 
 describe('R-176/R-177 · Engagement : un seul défenseur, ordre d’attaque, fin des replis', () => {
-  it('deux attaquants entrants ne combattent QUE le défenseur ; les deux finissent sur sa case (aucun repli)', () => {
+  it('deux attaquants entrants ne combattent QUE le défenseur — batailles complètes successives (R-176/#1, BATAILLE-COMPLETE 31/10)', () => {
     const s0 = makeState({
       units: [
-        { id: 'd1', type: 'guerrier', owner: 'p1', q: 4, r: 4, stabilized: true },
+        { id: 'd1', type: 'piquier', owner: 'p1', q: 4, r: 4, stabilized: true }, // déf 3 : écrase les guerriers
         { id: 'a1', type: 'guerrier', owner: 'p2', q: 4, r: 3 },
         { id: 'a2', type: 'guerrier', owner: 'p2', q: 3, r: 4 },
       ],
@@ -154,18 +154,20 @@ describe('R-176/R-177 · Engagement : un seul défenseur, ordre d’attaque, fin
       ],
     }, 7);
     const events = t1.events;
-    // les deux attaquants n'ont combattu QUE le défenseur (R-176/#1)
+    // les attaquants n'ont combattu QUE le défenseur (R-176/#1)
     const cibles = events.filter((e) => e.type === 'Attack').map((e) => (e as { defenderId: string }).defenderId);
     expect(cibles.length).toBeGreaterThanOrEqual(2);
     for (const c of cibles) expect(c).toBe('d1');
     // aucun événement Retreat (R-53/R-54/R-56 abrogées)
     expect(events.some((e) => e.type === 'Retreat')).toBe(false);
-    // R-178 rév. A : défenseur attaqué ce tour → PAS de mêlée le même tour.
+    // BATAILLE-COMPLETE : chaque bataille tue un camp ; le piquier tient les
+    // deux assauts, PLUS AUCUNE cohabitation ni mêlée reportée.
+    expect(unitOf(t1.newState, 'd1')).toBeDefined();
+    expect(t1.newState.units['a1']).toBeUndefined();
+    expect(t1.newState.units['a2']).toBeUndefined();
     expect(events.some((e) => e.type === 'MeleeResolved')).toBe(false);
-    // Tour 2 (tous demeurent) : la mêlée réunit défenseur et attaquants.
     const t2 = resolveTurn(t1.newState, {}, 20260916);
-    const melee = t2.events.find((e): e is Extract<GameEvent, { type: 'MeleeResolved' }> => e.type === 'MeleeResolved')!;
-    expect(new Set(melee.participants)).toEqual(new Set(['d1', 'a1', 'a2']));
+    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
   });
 
   it('R-177 : l’attaquant avec le plus de PM restants après l’entrée attaque en premier', () => {
@@ -204,35 +206,37 @@ describe('R-176/R-177 · Engagement : un seul défenseur, ordre d’attaque, fin
     expect(newState.units['d1']).toBeUndefined(); // mort
     const attaques = events.filter((e) => e.type === 'Attack').map((e) => (e as { attackerId: string }).attackerId);
     expect(attaques).toEqual(['a1']); // a2 n'attaque pas (séquence arrêtée, R-177)
-    // a1 (canon : à distance, R-59-a) est resté à (4,3) — pas de cohabitation
+    // a1 (canon : à distance, R-59-a) est resté à (4,3) — pas d'entrée
     expect(events.some((e) => e.type === 'MeleeResolved')).toBe(false);
     expect(events.some((e) => e.type === 'UnitExpelled')).toBe(false);
     expect([unitOf(newState, 'a1').q, unitOf(newState, 'a1').r]).toEqual([4, 3]);
-    // a2 (mêlée) a pris place sur la case libérée : seule → stabilisée
-    const surCase = Object.values(newState.units).filter((u) => u.q === 4 && u.r === 4);
-    expect(surCase.map((u) => u.id)).toEqual(['a2']);
+    // BATAILLE-COMPLETE (31/10) : a2 n'attaque plus une case sans défenseur —
+    // son ordre fizzle et il reste sur SA case (fini la prise de place).
+    expect([unitOf(newState, 'a2').q, unitOf(newState, 'a2').r]).toEqual([3, 4]);
     expect(unitOf(newState, 'a2').stabilized).toBe(true);
   });
 
-  it('R-181 (D4) : cohabitation attaquants/défenseur vivant en fin de tour → mêlée, pas de ré-attaque séquentielle', () => {
+  it('R-181 (D4) rév. BATAILLE-COMPLETE (31/10) : Move sur un défenseur = ATTAQUE résolue à la mort — jamais de cohabitation ni de mêlée reportée', () => {
     const s0 = makeState({
       units: [
-        { id: 'd1', type: 'piquier', owner: 'p1', q: 4, r: 4, stabilized: true }, // déf 3 : survit au guerrier
+        { id: 'd1', type: 'piquier', owner: 'p1', q: 4, r: 4, stabilized: true }, // déf 3 : écrase le guerrier
         { id: 'a1', type: 'guerrier', owner: 'p2', q: 4, r: 3 },
       ],
     });
     const t1 = resolveTurn(s0, { p2: [{ type: 'Move', unitId: 'a1', path: [{ q: 4, r: 4 }] }] }, 7);
-    // R-178 rév. A : défenseur attaqué → mêlée reportée au tour suivant.
+    // L'entrée planifie l'attaque (R-176) ; la bataille complète tue a1, le
+    // piquier tient — plus de cohabitation, plus de mêlée au tour suivant.
     expect(t1.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
+    expect(t1.newState.units['a1']).toBeUndefined();
+    expect(unitOf(t1.newState, 'd1')).toBeDefined();
     const t2 = resolveTurn(t1.newState, {}, 20260916);
-    const melee = t2.events.find((e): e is Extract<GameEvent, { type: 'MeleeResolved' }> => e.type === 'MeleeResolved');
-    expect(melee).toBeDefined();
-    expect(new Set(melee!.participants)).toEqual(new Set(['d1', 'a1']));
+    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
   });
 
-  it('R-178 rév. A · REPORT : entrée sur un défenseur stabilisé — attaques ce tour, mêlée AU TOUR SUIVANT (scénario du labo, seed 20260915)', () => {
+  it('R-176/R-177 rév. BATAILLE-COMPLETE (31/10) : entrées sur un défenseur stabilisé — attaques successives, blessures persistantes, PLUS de mêlée reportée (scénario du labo)', () => {
     // J2 (2,3) et J1 (1,4) entrent sur le barbare (2,4) : deux attaques à
-    // tour de rôle (le barbare perd au plus 2 PV), AUCUNE mêlée le même tour.
+    // tour de rôle ; chaque bataille complète tue l'attaquant, le barbare
+    // garde ses blessures ENTRE les batailles (B4).
     const s0 = makeState({
       units: [
         { id: 'u1', type: 'guerrier', owner: 'p2', q: 2, r: 3 },
@@ -243,20 +247,20 @@ describe('R-176/R-177 · Engagement : un seul défenseur, ordre d’attaque, fin
     const t1 = resolveTurn(s0, {
       p1: [{ type: 'Move', unitId: 'u2', path: [{ q: 2, r: 4 }] }],
       p2: [{ type: 'Move', unitId: 'u1', path: [{ q: 2, r: 4 }] }],
-    }, 20260915);
+    }, 7);
     // Tour 1 : deux attaques contre u3, jamais de mêlée.
     const attaques = t1.events.filter((e): e is Extract<GameEvent, { type: 'Attack' }> => e.type === 'Attack');
     expect(attaques.map((a) => a.attackerId).sort()).toEqual(['u1', 'u2']);
     expect(attaques.every((a) => a.defenderId === 'u3')).toBe(true);
     expect(t1.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
-    expect(unitOf(t1.newState, 'u3').hp).toBe(1); // 3 − 2 × 1
-    // Cohabitation instable : personne n'est stabilisé.
-    for (const u of Object.values(t1.newState.units)) expect(u.stabilized).toBe(false);
-    // Tour 2 (tout le monde demeure) : la MÊLÉE a lieu en Phase E.
+    // Chaque bataille tue un camp : les deux assiégeants tombent, le barbare
+    // tient avec ses blessures (3 → 2 PV, PERSISTENTES entre batailles).
+    expect(unitOf(t1.newState, 'u3').hp).toBe(2);
+    expect(t1.newState.units['u1']).toBeUndefined();
+    expect(t1.newState.units['u2']).toBeUndefined();
+    // Tour 2 : plus personne ne cohabite — aucune mêlée.
     const t2 = resolveTurn(t1.newState, {}, 20260916);
-    const melee = t2.events.find((e): e is Extract<GameEvent, { type: 'MeleeResolved' }> => e.type === 'MeleeResolved');
-    expect(melee).toBeDefined();
-    expect(new Set(melee!.participants)).toEqual(new Set(['u1', 'u2', 'u3']));
+    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
   });
 
   it('R-178 rév. A · le report NE s’applique PAS sans défenseur : entrée simultanée sur une case vide = mêlée immédiate (#2)', () => {
@@ -274,12 +278,11 @@ describe('R-176/R-177 · Engagement : un seul défenseur, ordre d’attaque, fin
     expect(events.some((e) => e.type === 'MeleeResolved')).toBe(true);
   });
 
-  it('R-175/R-178 rév. A · le défenseur qui DEMEURE pour la mêlée différée conserve ses bonus (fortifié + forêt)', () => {
-    // Tour 1 : un char fortifié en forêt est attaqué par deux guerriers
-    // (survie mutuelle — cohabitation, mêlée reportée). Tour 2 : la mêlée
-    // donne un poids écrasant au char (attaque² × [forêt +50 % + fortifié +25 %]
-    // contre guerrier¹²) — il sort GAGNANT, intacts.
-    let state = makeState({
+  it('R-175 · rév. BATAILLE-COMPLETE (31/10) : le défenseur fortifié en forêt ÉCRASE ses assiégeants — la bataille complète remplace la mêlée différée', () => {
+    // Deux guerriers attaquent un char fortifié en forêt : chaque bataille
+    // complète est gagnée par le char (attaque² × [forêt +50 % + fortifié
+    // +25 %] contre guerrier¹) — il sort GAGNANT, intact, sans mêlée.
+    const state = makeState({
       terrainOverrides: { '4,4': 'foret' },
       units: [
         { id: 'd1', type: 'char_d_assaut', owner: 'p1', q: 4, r: 4, fortified: true, stabilized: true },
@@ -293,15 +296,10 @@ describe('R-176/R-177 · Engagement : un seul défenseur, ordre d’attaque, fin
         { type: 'Attack', unitId: 'a2', target: { q: 4, r: 4 } },
       ],
     }, 20260915);
-    expect(t1.events.some((e) => e.type === 'MeleeResolved')).toBe(false); // report
-    expect(unitOf(t1.newState, 'd1').hp).toBeGreaterThanOrEqual(2); // défense solide (1 PV perdu au pire)
-    // Tour 2 : tous demeurent → mêlée. Le char fortifié + forêt domine le tirage.
-    const t2 = resolveTurn(t1.newState, {}, 20260916);
-    const melee = t2.events.find((e): e is Extract<GameEvent, { type: 'MeleeResolved' }> => e.type === 'MeleeResolved')!;
-    expect(melee).toBeDefined();
-    const roleD1 = melee!.results.find((r) => r.unitId === 'd1')!;
-    expect(roleD1.role).toBe('winner'); // ses bonus de demeure (R-175) pèsent dans le tirage
-    expect(roleD1.hpAfter).toBe(unitOf(t1.newState, 'd1').hp); // gagnant : 0 PV perdus
+    expect(t1.events.some((e) => e.type === 'MeleeResolved')).toBe(false); // plus de mêlée du tout
+    expect(unitOf(t1.newState, 'd1').hp).toBeGreaterThanOrEqual(1); // au pire 1 PV perdu par bataille
+    expect(t1.newState.units['a1']).toBeUndefined(); // chaque bataille tue un camp
+    expect(t1.newState.units['a2']).toBeUndefined(); // attaque séquentielle (R-177) — même sort
   });
 
   it('R-176a · COUP EN PASSANT : deux unités qui échangent leurs cases — l’attaque planifiée à l’entrée se résout sur la case de fuite (reproduction labo seed 20260915)', () => {
@@ -321,20 +319,22 @@ describe('R-176/R-177 · Engagement : un seul défenseur, ordre d’attaque, fin
       p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 2, r: 3 }] }],
       p2: [{ type: 'Move', unitId: 'u2', path: [{ q: 1, r: 3 }] }],
     }, 20260915);
-    // Croisement : positions échangées.
-    expect([unitOf(newState, 'u1').q, unitOf(newState, 'u1').r]).toEqual([2, 3]);
-    expect([unitOf(newState, 'u2').q, unitOf(newState, 'u2').r]).toEqual([1, 3]);
+    // Croisement : u2, rattrapé à (1,3) par le coup en passant, meurt ; u1
+    // occupe la case (avancée du vainqueur — B2).
     // Le coup en passant : attaque de u1 (en 2,3) SUR u2 (en 1,3).
     const att = events.find((e): e is Extract<GameEvent, { type: 'Attack' }> => e.type === 'Attack')!;
     expect(att.attackerId).toBe('u1');
     expect(att.defenderId).toBe('u2');
     expect(att.at).toEqual({ q: 1, r: 3 });
     const ex = events.find((e): e is Extract<GameEvent, { type: 'CombatExchange' }> => e.type === 'CombatExchange')!;
-    expect(ex.attackerHpAfter + ex.defenderHpAfter).toBe(5); // 1 PV perdu au total (T-03)
-    // Survie mutuelle : pas de mêlée, les deux cases se stabilisent.
+    // BATAILLE-COMPLETE (31/10) : la bataille va à la mort — le coup en
+    // passant se résout toujours (le défenseur parti se défend en VALEURS
+    // D'ATTAQUE, R-174). À cette graine l'attaquant u1 l'emporte et avance
+    // sur la case libérée ; plus de survie mutuelle.
+    expect(ex.detail!.issue).toBe('victoire-attaquant');
+    expect(newState.units['u2']).toBeUndefined(); // le défenseur perdant meurt
+    expect([unitOf(newState, 'u1').q, unitOf(newState, 'u1').r]).toEqual([1, 3]); // avancée du vainqueur
     expect(events.some((e) => e.type === 'MeleeResolved')).toBe(false);
-    expect(unitOf(newState, 'u1').stabilized).toBe(true);
-    expect(unitOf(newState, 'u2').stabilized).toBe(true);
   });
 });
 

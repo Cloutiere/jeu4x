@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveTurn } from '../src/turn.js';
 import { makeState } from '../src/fixtures.js';
 import { combatRound, effectiveStrength } from '../src/combat.js';
-import { EXCHANGES_PER_ATTACK, FORTIFY_DEFENSE_BONUS, VETERAN_BONUS } from '../src/constants.js';
+import { FORTIFY_DEFENSE_BONUS, VETERAN_BONUS } from '../src/constants.js';
 import { TERRAINS } from '../src/data.js';
 import type { GameEvent } from '../src/events.js';
 import type { CombatDetail, MeleeDetail } from '../src/events.js';
@@ -91,7 +91,9 @@ describe('COMBAT-EXPLIQUE · D1 — le moteur émet le détail', () => {
   it('chaque assaut porte son jet RNG et la cible des dégâts (D2, granularité par round)', () => {
     const r = combatMultiModificateurs(7);
     const { detail } = echangeDe(r.events);
-    expect(detail.rounds.length).toBe(EXCHANGES_PER_ATTACK);
+    // BATAILLE-COMPLETE (31/10) : la mêlée enchaîne les assauts jusqu'à la mort
+    // d'un camp — le détail porte TOUS les jets de la bataille.
+    expect(detail.rounds.length).toBeGreaterThan(0);
     for (const round of detail.rounds) {
       expect(round.jet).toBeGreaterThanOrEqual(0);
       expect(round.jet).toBeLessThan(1);
@@ -106,15 +108,11 @@ describe('COMBAT-EXPLIQUE · D1 — le moteur émet le détail', () => {
     const r = combatMultiModificateurs(7);
     const ex = echangeDe(r.events);
     const { detail } = ex;
-    // Un seul assaut (T-03 = 1) contre 3 PV : survie mutuelle quelle que soit la cible.
-    expect(detail.issue).toBe('survie-mutuelle');
-    if (detail.rounds.some((round) => round.touche === 'defenseur')) {
-      expect(ex.defenderHpAfter).toBe(2);
-      expect(ex.attackerHpAfter).toBe(3);
-    } else {
-      expect(ex.attackerHpAfter).toBe(2);
-      expect(ex.defenderHpAfter).toBe(3);
-    }
+    // BATAILLE-COMPLETE : la bataille mêlée se termine par la mort d'un camp —
+    // ici l'attaquant (vétéran + soutien naval 16,5) écrase le défenseur (1,75).
+    expect(detail.issue).toBe('victoire-attaquant');
+    expect(ex.defenderHpAfter).toBe(0);
+    expect(ex.attackerHpAfter).toBeGreaterThan(0);
     // Les PV d'événement reflètent l'état réel post-résolution.
     const u1 = r.newState.units.u1!;
     const u2 = r.newState.units.u2!;

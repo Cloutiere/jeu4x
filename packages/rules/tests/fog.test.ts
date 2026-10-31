@@ -232,8 +232,22 @@ describe('L5 · journal d’événements filtré', () => {
       p1: [{ type: 'Attack', unitId: 'u1', target: { q: 1, r: 0 } }],
       p2: [],
     };
-    const { newState, events } = resolveTurn(state, orders, 7);
+    // BATAILLE-COMPLETE (31/10) : graine où l'attaquant SURVIT à sa victoire —
+    // (avec l'ancien échange unique, les deux seeds passaient ; désormais une
+    // issue fatale retire l'unité du lecteur de l'état post-résolution et le
+    // filtre de brouillard ne peut plus lui attribuer l'événement).
+    let seed = -1;
+    for (let s = 0; s < 200; s++) {
+      const r = resolveTurn(state, orders, s);
+      if (r.newState.units.u1 && !r.newState.units.u2) { seed = s; break; }
+    }
+    expect(seed).toBeGreaterThanOrEqual(0);
+    const { newState, events } = resolveTurn(state, orders, seed);
+    // BATAILLE-COMPLETE : un des deux camps est DÉTRUIT — un joueur éliminé
+    // (plus aucune entité vivante) n'a plus de vision et ne reçoit plus le
+    // journal ; on vérifie la participation pour les deux joueurs EN VIE.
     for (const viewer of ['p1', 'p2'] as const) {
+      if (!Object.values(newState.units).some((u) => u.owner === viewer)) continue;
       const seen = filterEventsForPlayer(newState, viewer, events);
       expect(seen.some((e) => e.type === 'Attack')).toBe(true);
     }

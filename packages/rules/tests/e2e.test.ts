@@ -165,19 +165,18 @@ describe('Campagne multi-tours (critère 2)', () => {
 
     const exchanges = allEvents.filter((e) => e.type === 'CombatExchange');
     expect(exchanges.length).toBe(1);
-    // l'échange retire exactement 1 PV au total (T-03 = 1) entre 3 et 3 PV
+    // BATAILLE-COMPLETE (31/10) : l'attaque mêlée va à la MORT de l'un des
+    // deux camps — fini l'échange unique à 1 PV (T-03 abrogé).
     const ex = exchanges[0] as Extract<GameEvent, { type: 'CombatExchange' }>;
-    expect(ex.attackerHpAfter + ex.defenderHpAfter).toBe(5);
-    // ENGAGEMENT : après l'échange, u1 (entré sur la case) et u3 COHABITENT —
-    // R-178 rév. A : mêlée REPORTÉE au tour suivant (tour 6), elle tranche.
+    expect([ex.attackerHpAfter, ex.defenderHpAfter]).toContain(0);
+    // Plus de cohabitation ni de mêlée reportée : la bataille a déjà tranché.
     expect(allEvents.some((e) => e.type === 'MeleeResolved')).toBe(false);
     const r6 = resolveTurn(state, {}, 26);
     allEvents.push(...r6.events);
     state = r6.newState;
-    const melee = allEvents.find((e): e is Extract<GameEvent, { type: 'MeleeResolved' }> => e.type === 'MeleeResolved')!;
-    expect(new Set(melee.participants)).toEqual(new Set(['u1', 'u3']));
+    expect(allEvents.some((e) => e.type === 'MeleeResolved')).toBe(false);
     const vivants = ['u1', 'u3'].filter((id) => state.units[id]);
-    expect(vivants.length).toBeGreaterThanOrEqual(1); // le gagnant survit toujours
+    expect(vivants.length).toBe(1); // exactement le survivant de la bataille
     expect(state.winner).toBeNull();
     expect(state.turn).toBe(6);
   });

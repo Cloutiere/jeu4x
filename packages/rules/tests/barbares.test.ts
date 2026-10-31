@@ -481,7 +481,7 @@ describe('R-96 · Villages barbares', () => {
     expect(eventTypes(events)).toContain('BarbarianSpawned');
   });
 
-  it('ENGAGEMENT R-181 (rév. R-54) : survie mutuelle contre le GARDIEN → cohabitation, MÊLÉE de fin de tour, camp intact', () => {
+  it('ENGAGEMENT rév. BATAILLE-COMPLETE (31/10) : le GARDIEN tient la bataille complète — l\'attaquant meurt, camp intact, PLUS de mêlée reportée', () => {
     const build = () =>
       makeState({
         width: 12,
@@ -500,13 +500,14 @@ describe('R-96 · Villages barbares', () => {
     );
     expect(result.newState.villages).toHaveLength(1); // le camp tient toujours
     expect('hp' in result.newState.villages[0]!).toBe(false); // camps sans PV
-    expect(result.newState.units[id]).toBeDefined(); // le gardien a tenu
-    // Plus de repli : cohabitation (R-181). R-178 rév. A : le gardien a été
-    // attaqué → mêlée REPORTÉE au tour suivant.
+    expect(result.newState.units[id]).toBeDefined(); // le gardien a tenu la bataille complète
+    // BATAILLE-COMPLETE : l'attaquant perdant meurt sur SA case — plus de
+    // cohabitation, plus de mêlée reportée.
+    expect(result.newState.units['u1']).toBeUndefined();
     expect(result.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
     expect(result.events.some((e) => e.type === 'Retreat')).toBe(false);
     const t2 = resolveTurn(result.newState, {}, 1);
-    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(true);
+    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
   });
 
   it('BARBARES-PILES · un par un : l’attaquant faible meurt au PREMIER garde — la pile est intacte, pas de capture', () => {

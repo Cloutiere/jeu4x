@@ -161,8 +161,10 @@ describe('tourJevJoueur — traduction (fausse LLM)', () => {
 describe('harnais — application des intentions diplomatiques', () => {
   // v5 CONTACT-GUERRE : la question guerre n'existe qu'après contact. Ces
   // tests portent la TRADUCTION/application de l'intention (le délai est
-  // couvert par v5.test.mjs) — délai ramené à 0 et seed 97 (rencontre
-  // déterministe au tour 11, trouvé par sonde).
+  // couvert par v5.test.mjs) — délai ramené à 0 et seed 99 (rencontre +
+  // déclaration Jev déterministes, re-calé BATAILLE-COMPLETE 31/10 : la
+  // bataille complète change la consommation RNG, l'ancien seed 97 voit le
+  // bot déclarer avant Jev).
   const configContact = { ...config, seuils: { ...config.seuils, delaiGuerreApresRencontre: 0 } };
   it('une décision guerre de Jev déclare la guerre ET bloque la déclaration du bot', async () => {
     // Faux Jev qui choisit TOUJOURS le premier critère ≠ aucun de chaque question.
@@ -186,7 +188,7 @@ describe('harnais — application des intentions diplomatiques', () => {
     };
     const journal = new Journal(join(racine, 'journaux', 'test-joueur-guerre.jsonl'));
     const { etat: fin } = await jouerPartie({
-      client, config: configContact, seed: 97, plafondTours: 30, journal, engineJev: 'p1', modeJoueur: true,
+      client, config: configContact, seed: 99, plafondTours: 30, journal, engineJev: 'p1', modeJoueur: true,
       civSetup: { p1: { civId: 'rome' }, p2: { civId: 'egypte' } },
     });
     // La guerre a bien été déclarée par Jev (premier critère = guerre:p2), APRÈS contact.

@@ -42,15 +42,14 @@ describe('R-159 rév. B — co-destination amie avec ennemi présent', () => {
       p2: [],
     };
     const { newState, events } = resolveTurn(s, ordres, s.rngSeed);
-    // Les deux amies sont sur la case du défenseur (co-destination légale).
-    expect(newState.units['u1']!.q).toBe(4);
-    expect(newState.units['u1']!.r).toBe(3);
-    expect(newState.units['u2']!.q).toBe(4);
+    // BATAILLE-COMPLETE (31/10) : la première bataille tue le défenseur —
+    // la seconde amie n'attaque plus (B4, R-177) et ne prend pas place ;
+    // plus de co-attaque en pile, plus de mêlée reportée, pas de dispersion.
+    expect(newState.units['u3']).toBeUndefined(); // morte (bataille complète)
+    expect(events.filter((e) => e.type === 'Attack')).toHaveLength(1);
+    expect(newState.units['u2']!.q).toBe(4); // la vainqueure entre
     expect(newState.units['u2']!.r).toBe(3);
-    // Le défenseur a encaissé 2 attaques (3 PV, max −2) : vivant.
-    expect(newState.units['u3']).toBeTruthy();
-    expect(events.filter((e) => e.type === 'Attack')).toHaveLength(2);
-    // Défenseur stabilisé attaqué → mêlée reportée, PAS de mêlée immédiate ni de dispersion.
+    expect(newState.units['u1']!.q).toBe(3); // la co-destinataire reste chez elle
     expect(event(events, 'MeleeResolved')).toBeUndefined();
     expect(event(events, 'UnitDispersed')).toBeUndefined();
     expect(event(events, 'UnitExpelled')).toBeUndefined();
@@ -201,23 +200,19 @@ describe('R-159 rév. B — dispersion de pile amie (fin de R-179)', () => {
     expect(newState.units['u2']!.q !== 4 || newState.units['u2']!.r !== 3).toBe(true);
   });
 
-  it('résidu de combat (les deux attaquantes ont tué) : la pile PERSISTE au tour 1, dispersée au tour 2 (P2)', () => {
+  it('résidu de combat rév. BATAILLE-COMPLETE (31/10) : le défenseur meurt à la PREMIÈRE bataille — la seconde amie n\'attaque pas, aucune pile résiduelle (P2 caduc)', () => {
     const s = etat();
     s.units['u1'] = { id: 'u1', type: 'guerrier', owner: 'p1', q: 3, r: 3, hp: 3, mp: 1, veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false };
     s.units['u2'] = { id: 'u2', type: 'guerrier', owner: 'p1', q: 5, r: 3, hp: 3, mp: 1, veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: false };
     s.units['u3'] = { id: 'u3', type: 'guerrier', owner: 'p2', q: 4, r: 3, hp: 1, mp: 1, veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: true };
-    // Graine calée (sonde : 14) — les DEUX attaques touchent : défenseur 1 PV
-    // + 2 × (−1) → morte ; les deux amies demeurent ensemble (résidu, P2).
+    // BATAILLE-COMPLETE : une bataille = la mort d'un camp — u3 tombe à la
+    // première attaque ; la seconde n'a plus de cible (B4) et reste chez elle.
     const r1 = resolveTurn(s, { p1: [move('u1', [{ q: 4, r: 3 }]), move('u2', [{ q: 4, r: 3 }])], p2: [] }, 14);
-    expect(r1.newState.units['u3']).toBeUndefined(); // morte (2 × −1)
-    // Pile résiduelle : u1 et u2 demeurent ENSEMBLE au début du tour 2.
-    expect(r1.newState.units['u1']!.q).toBe(4);
-    expect(r1.newState.units['u2']!.q).toBe(4);
-    expect(event(r1.events, 'UnitDispersed')).toBeUndefined(); // pas de dispersion au tour du combat
-    const r2 = resolveTurn(r1.newState, {}, r1.newState.rngSeed);
-    expect(event(r2.events, 'UnitDispersed')).toBeTruthy(); // tour sans attaque → dispersion
-    const apres = r2.newState;
-    expect(apres.units['u1']!.q === 4 && apres.units['u2']!.q === 4).toBe(false);
+    expect(r1.newState.units['u3']).toBeUndefined(); // morte (bataille complète)
+    expect(r1.events.filter((e) => e.type === 'Attack')).toHaveLength(1);
+    expect(r1.newState.units['u2']!.q).toBe(4); // la vainqueure entre
+    expect(r1.newState.units['u1']!.q).toBe(3); // pas de pile résiduelle
+    expect(event(r1.events, 'UnitDispersed')).toBeUndefined();
   });
 
   it('H3 : l’ennemi entre sur la pile → pas de dispersion, mêlée immédiate avec étau amical', () => {

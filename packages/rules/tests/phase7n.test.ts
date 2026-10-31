@@ -414,14 +414,17 @@ describe('7n · R-149 · Traits — économie, croissance, combat, huttes', () =
     expect(rz.newState.units['at']!.hp).toBe(3); // intact (aucun round perdu)
     expect(rz.events.filter((e) => e.type === 'CombatExchange' && e.defenderId === 'df')).toHaveLength(1);
 
-    // Non-Zoulou (ratio 6) : 4 < 6 — PAS d'écrasement : survie mutuelle (le
-    // défenseur perd 1 PV, p = 16/17, et l'attaquant se replie — R-52).
+    // Non-Zoulou (ratio 6) : 4 < 6 — PAS d'écrasement : bataille complète
+    // (p = 16/17 par assaut pour l'attaquant) → le défenseur meurt quand même,
+    // mais avec des PERTES pour l'attaquant (BATAILLE-COMPLETE 31/10).
     const plain = zulu();
     plain.players['p1']!.civId = NEUTRAL_CIV;
     const rp = resolveTurn(plain, { p1: [{ type: 'Attack', unitId: 'at', target: { q: 0, r: 0 } }] }, 7);
-    expect(rp.newState.units['df']).toBeDefined(); // survivant
-    const exchange = rp.events.find((e) => e.type === 'CombatExchange' && e.defenderId === 'df');
-    expect(exchange && exchange.type === 'CombatExchange' ? exchange.defenderHpAfter : null).toBe(2);
+    expect(rp.newState.units['df']).toBeUndefined(); // la bataille va à la mort
+    expect(rp.newState.units['at']).toBeDefined(); // l'attaquant l'emporte presque toujours (p=16/17)
+    expect(rp.newState.units['at']!.hp).toBeLessThan(3); // mais il a encaissé (vs écrasement sans perte)
+    const exchange = rp.events.find((e) => e.type === 'CombatExchange' && (e as { defenderId?: string }).defenderId === 'df');
+    expect(exchange).toBeDefined();
   });
 
   it('soinVictoire (Aztèques) : l\'unité revient à ses PV max après une victoire', () => {

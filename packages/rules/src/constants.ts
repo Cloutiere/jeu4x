@@ -8,8 +8,9 @@ export const VETERAN_BONUS = 0.5;
  *  0,5 → 0,25 — le mur de ville rendait toute percée impossible au banc
  *  (75-92 % de guerres stériles, 1 capture/120). */
 export const CITY_DEFENSE_BONUS = 0.25;
-/** T-03 · Rounds contenus dans une attaque (un échange). */
-export const EXCHANGES_PER_ATTACK = 1;
+/** T-03 · RÉSOLU PAR LE CANON (BATAILLE-COMPLETE, Erik 31/10) : la constante
+ *  est supprimée — une attaque MÊLÉE enchaîne les assauts R-51 jusqu'à la mort
+ *  de l'un des deux camps ; la DISTANCE reste un assaut unique (R-59). */
 /** T-06 · Timers manqués consécutifs avant défaite par forfait. */
 export const FORFEIT_MISSED_TURNS = 3;
 /** T-07 · Rayon de vision des unités. */

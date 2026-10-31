@@ -238,7 +238,7 @@ describe('R-59 · Première implémentation réelle : Catapulte (unité à dista
     expect(cat.r).toBe(0);
   });
 
-  it('ENGAGEMENT R-181 (ancien R-59-d abrogé) : la catapulte attaquée en survie mutuelle COHABITE — mêlée de fin de tour', () => {
+  it('ENGAGEMENT rév. BATAILLE-COMPLETE (31/10) : la catapulte ATTAQUÉE en mêlée se défend — un camp meurt, jamais de cohabitation (R-178 rév. A abrogée)', () => {
     const state = makeState({
       units: [
         { id: 'u1', type: 'guerrier', owner: 'p1', q: 1, r: 0 },
@@ -250,13 +250,14 @@ describe('R-59 · Première implémentation réelle : Catapulte (unité à dista
       { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 0, r: 0 } }] },
       1,
     );
-    // Plus de repli systématique (R-59-d abrogée) : la catapulte demeure sur
-    // sa case (cohabitation). R-178 rév. A : mêlée REPORTÉE au tour suivant.
-    expect(newState.units['u2']).toBeDefined();
+    // Plus de repli, plus de survie mutuelle : la mêlée va à la mort.
     expect(events.some((e) => e.type === 'Retreat')).toBe(false);
+    const morts = (newState.units['u1'] ? 0 : 1) + (newState.units['u2'] ? 0 : 1);
+    expect(morts).toBe(1);
+    // Plus de mêlée reportée : rien à résoudre au tour suivant.
     expect(events.some((e) => e.type === 'MeleeResolved')).toBe(false);
     const t2 = resolveTurn(newState, {}, 2);
-    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(true);
+    expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
   });
 });
 
@@ -287,9 +288,11 @@ describe('7e · Remparts et Palais : défense de ville (S_def, §7.4)', () => {
         });
         const ev = resolveTurn(st, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 0, r: 0 } }] }, s).events;
         const ex = ev.find((e): e is Extract<GameEvent, { type: 'CombatExchange' }> => e.type === 'CombatExchange');
-        if (!ex || ex.defenderHpAfter !== 2 || ex.attackerHpAfter !== 3) continue;
-        // La graine doit DISCRIMINER : ville remparée, le même roll ne
-        // suffit plus (défenseur intact 3, assaillant 2).
+        // BATAILLE-COMPLETE : issue = mort d'un camp — ville NUE, l'ATTAQUANT
+        // l'emporte (S_def 1,25 < S_att 1 : p > 0,5 pour l'assaillant).
+        if (!ex || ex.defenderHpAfter !== 0 || ex.attackerHpAfter === 0) continue;
+        // La graine doit DISCRIMINER : ville remparée, le DÉFENSEUR l'emporte
+        // (S_def 1,75 → p < 0,5 pour l'assaillant).
         const stW = makeState({
           terrainOverrides: { '0,0': 'ville' },
           units: [
@@ -300,7 +303,7 @@ describe('7e · Remparts et Palais : défense de ville (S_def, §7.4)', () => {
         });
         const exW = resolveTurn(stW, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 0, r: 0 } }] }, s).events
           .find((e): e is Extract<GameEvent, { type: 'CombatExchange' }> => e.type === 'CombatExchange');
-        if (exW && exW.defenderHpAfter === 3 && exW.attackerHpAfter === 2) { graine = s; trouvee = true; }
+        if (exW && exW.defenderHpAfter > 0 && exW.attackerHpAfter === 0) { graine = s; trouvee = true; }
       }
       if (!trouvee) throw new Error('pas de graine trouvée');
     }
@@ -312,15 +315,17 @@ describe('7e · Remparts et Palais : défense de ville (S_def, §7.4)', () => {
     return { attacker: ex.attackerHpAfter, defender: ex.defenderHpAfter };
   }
 
-  it('les Remparts (+50 %) durcissent la ville : même graine, le défenseur encaisse mieux (graine recalée — BOT-ARMEE D4 : 1,0 → 0,5)', () => {
+  it('les Remparts (+50 %) durcissent la ville : même graine, l\'issue diverge (BATAILLE-COMPLETE — graine recalée 31/10)', () => {
     const bare = hpAfter(false);
     const walled = hpAfter(true);
-    // Le défenseur d'une ville NUE (S_def 1,25) est touché ; avec Remparts
-    // (S_def 1,75) le roll ne suffit plus et c'est l'ATTAQUANT qui perd 1 PV.
-    expect(bare.defender).toBe(2);
-    expect(bare.attacker).toBe(3);
-    expect(walled.defender).toBe(3); // encaisse mieux à même graine
-    expect(walled.attacker).toBe(2); // …et le durcissement se voit sur l'assaillant
+    // BATAILLE-COMPLETE (31/10) : une bataille = la mort d'un camp. Ville NUE
+    // (S_def 1,25) : l'ATTAQUANT l'emporte ; ville remparée (S_def 1,75) :
+    // le DÉFENSEUR l'emporte à la même graine — le durcissement se voit sur
+    // qui meurt.
+    expect(bare.defender).toBe(0);
+    expect(bare.attacker).toBeGreaterThan(0);
+    expect(walled.defender).toBeGreaterThan(0); // le rempart retourne l'issue
+    expect(walled.attacker).toBe(0);
   });
 
   it('le Palais (+50 %) est posé à la FONDATION de la capitale (moteur)', () => {

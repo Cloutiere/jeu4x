@@ -344,12 +344,23 @@ describe('Phase B · R-59 · unités à distance (aucune en v1, règles normativ
 });
 
 describe('Phase B · R-57 · bonus défensif de la case de ville (T-02)', () => {
-  it('ENGAGEMENT (rév.) : un défenseur STABILISÉ sur case de ville reçoit +50 % — lecture sur l’échange (l’attaquant cohabite ensuite)', () => {
-    // graine dont le premier tir t ∈ (p_ville, p_plaine) : p_ville = 1/(1+1.5²) ≈ 0.3077
+  it('ENGAGEMENT rév. BATAILLE-COMPLETE (31/10) : un défenseur STABILISÉ sur case de ville reçoit +50 % — le détail porte S_def bonifiée et le défenseur l\'emporte', () => {
+    // graine par ISSUE RÉELLE : le défenseur bonifié (S_def 1,5) gagne la
+    // bataille complète (fini l'ancien scan sur le premier tirage, calé sur
+    // l'échange unique).
     let seed = -1;
     for (let s = 0; s < 5000; s++) {
-      const t = createRng(s).next();
-      if (t > 0.32 && t < 0.48) { seed = s; break; }
+      const st = makeState({
+        terrainOverrides: { '1,0': 'ville' },
+        cities: [{ id: 'c1', owner: 'p2', q: 1, r: 0, capital: true }],
+        units: [
+          { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
+          { id: 'u2', type: 'guerrier', owner: 'p2', q: 1, r: 0 },
+        ],
+      });
+      const ev = resolveTurn(st, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 1, r: 0 } }] }, s).events;
+      const ex = ev.find((e): e is Extract<GameEvent, { type: 'CombatExchange' }> => e.type === 'CombatExchange');
+      if (ex && ex.attackerHpAfter === 0 && ex.defenderHpAfter > 0) { seed = s; break; }
     }
     expect(seed).toBeGreaterThanOrEqual(0);
     const state = makeState({
@@ -361,10 +372,13 @@ describe('Phase B · R-57 · bonus défensif de la case de ville (T-02)', () => 
       ],
     });
     const { events } = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 1, r: 0 } }] }, seed);
-    // S_att = 1, S_def = 1.5 → t ≥ p ⇒ l'attaquant encaisse le PV (échange Phase B)
+    // S_att = 1, S_def = 1.25 (T-02 case ville 0,25 — CANON-SIEGE 31/10) → le
+    // DÉFENSEUR gagne la bataille complète (BATAILLE-COMPLETE : issue = mort
+    // d'un camp), et le détail porte la force défensive bonifiée — verrou T-02.
     const ex = events.find((e): e is Extract<GameEvent, { type: 'CombatExchange' }> => e.type === 'CombatExchange')!;
-    expect(ex.attackerHpAfter).toBe(2);
-    expect(ex.defenderHpAfter).toBe(3);
+    expect(ex.attackerHpAfter).toBe(0);
+    expect(ex.defenderHpAfter).toBeGreaterThan(0);
+    expect(ex.detail!.defenseur.force).toBeCloseTo(1.25, 10);
   });
 });
 
@@ -540,8 +554,13 @@ describe('Phase C · R-64/R-65 · fondation et capture de ville', () => {
       ],
     });
     const { newState } = resolveTurn(state, { p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 5, r: 5 }] }] }, 5);
+    // La ville reste p2 — l'entrée déclenche l'ATTAQUE sur le défenseur
+    // (R-176), jamais une capture (R-65). BATAILLE-COMPLETE : l'assaut se
+    // termine par la mort d'un camp ; ici le défenseur l'emporte (seed 5) et
+    // p1, sans unité ni ville, est éliminée → victoire p2 (fini la
+    // cohabitation post-entrée qui laissait la partie ouverte).
     expect(cityAt(newState, 5, 5)!.owner).toBe('p2');
-    expect(newState.winner).toBeNull();
+    expect(newState.winner).toBe('p2');
   });
 });
 

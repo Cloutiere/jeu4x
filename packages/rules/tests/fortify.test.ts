@@ -15,9 +15,10 @@ import type { GameEvent } from '../src/events.js';
  *  - une unité fortifiée ne bouge pas ; soins R-71 normaux.
  */
 
-/** Graine dont le premier tir tombe dans [p_fort, 0.5) : le défenseur ÉGAL est
- *  touché (roll < 0.5) mais le défenseur FORTIFIÉ (p = 1/(1+1.25²) ≈ 0.390)
- *  ne l'est pas. */
+/** Graine dont la bataille complète diverge selon T-17 : SANS fortification
+ *  (p = 0,5) l'ATTAQUANT l'emporte ; AVEC (p = 1/(1+1,25²) ≈ 0,390 pour
+ *  l'attaquant) le DÉFENSEUR l'emporte. BATAILLE-COMPLETE (31/10) : une issue
+ *  = la mort d'un camp. */
 function seedDiscriminatingFortify(): number {
   // BOT-ARMEE D4 : recherche par ISSUES RÉELLES (l'ancien scan sur le 1er
   // tirage supposait que le jet de combat était le premier next() — faux en
@@ -30,8 +31,8 @@ function seedDiscriminatingFortify(): number {
     const ep = exchangeOf(resolveTurn(plain, ordres, s).events);
     const ef = exchangeOf(resolveTurn(fort, ordres, s).events);
     if (
-      ep.defenderHpAfter === 2 && ep.attackerHpAfter === 3 &&
-      ef.defenderHpAfter === 3 && ef.attackerHpAfter === 2
+      ep.defenderHpAfter === 0 && ep.attackerHpAfter > 0 &&
+      ef.attackerHpAfter === 0 && ef.defenderHpAfter > 0
     ) return s;
   }
   throw new Error('pas de graine trouvée');
@@ -65,10 +66,10 @@ describe('R-33 · Fortification', () => {
 
     const exPlain = exchangeOf(rPlain.events);
     const exFort = exchangeOf(rFort.events);
-    expect(exPlain.defenderHpAfter).toBe(2); // touché : roll < 0.5
-    expect(exPlain.attackerHpAfter).toBe(3);
-    expect(exFort.defenderHpAfter).toBe(3); // T-17 : p passe sous le tir → intact
-    expect(exFort.attackerHpAfter).toBe(2);
+    expect(exPlain.defenderHpAfter).toBe(0); // sans fortification : l'attaquant l'emporte
+    expect(exPlain.attackerHpAfter).toBeGreaterThan(0);
+    expect(exFort.attackerHpAfter).toBe(0); // T-17 : p passe sous le tir → le défenseur l'emporte
+    expect(exFort.defenderHpAfter).toBeGreaterThan(0);
   });
 
   it('R-33 : l’état fortifié persiste d’un tour à l’autre (ordre non consommé)', () => {
@@ -112,18 +113,20 @@ describe('R-33 · Fortification', () => {
     expect(r.newState.units.u2!.fortified).toBe(true);
   });
 
-  it('ENGAGEMENT R-175/R-181 (ancien R-52/R-54 abrogé) : survie mutuelle = cohabitation, mêlée de fin de tour', () => {
-    const seed = seedDiscriminatingFortify(); // survie mutuelle garantie
+  it('ENGAGEMENT R-175 (rév. BATAILLE-COMPLETE 31/10) : le défenseur fortifié l\'emporte, PAS de cohabitation ni de mêlée reportée', () => {
+    const seed = seedDiscriminatingFortify(); // issue divergente garantie
     const state = guerriersAffrontes();
     state.units.u2!.fortified = true;
     const r = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 1, r: 0 } }], p2: [] }, seed);
-    // Plus aucun repli : l'attaquant prend place sur la case (fin des replis).
+    // Plus aucun repli, et plus de cohabitation née d'attaque : la bataille
+    // complète se termine par la mort de l'ATTAQUANT (R-178 rév. A abrogée).
     expect(r.events.some((e) => e.type === 'Retreat')).toBe(false);
-    // R-178 rév. A : le défenseur fortifié a été attaqué → mêlée REPORTÉE au
-    // tour suivant (cohabitation au tour 1) ; elle résout bien au tour 2.
+    expect(r.newState.units.u1).toBeUndefined(); // l'attaquant perdant meurt
+    expect(r.newState.units.u2).toBeDefined(); // le défenseur fortifié tient
+    // Plus de mêlée reportée : rien à résoudre au tour suivant.
     expect(r.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
     const r2 = resolveTurn(r.newState, {}, seed + 1);
-    expect(r2.events.some((e) => e.type === 'MeleeResolved')).toBe(true);
+    expect(r2.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
   });
 
   it('ORDRES-UNITES (rév. 06/10) : fortifier NE soigne PLUS — le soin exige Heal', () => {

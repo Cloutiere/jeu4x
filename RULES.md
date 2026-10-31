@@ -184,7 +184,7 @@ Déclenchée quand **les deux joueurs ont verrouillé** ou à l'**échéance du 
 
 **R-50.** Tous les combats planifiés sont **systématiquement résolus**. Ordre de résolution : tri par case `(q, r)` croissante, puis `unitId` de l'attaquant croissant.
 
-**R-51 · Échange.** Une **attaque** = un échange de `T-03` round(s) (défaut : 1). Chaque round : le camp perdant du round perd **1 PV** (formule §7.4). Un combat ne va à mort que par **attaques répétées** (R-55).
+**R-51 · Bataille complète (rév. BATAILLE-COMPLETE — canon Erik du 31/10 : « une attaque égale la mort de l'une ou l'autre des unités »).** Une **attaque MÊLÉE** enchaîne les assauts R-51 (même formule §7.4, un jet seedé par assaut) **jusqu'à la mort de l'un des deux camps** — plus de plafond de dégâts, plus d'arrêt intermédiaire (`T-03`/`EXCHANGES_PER_ATTACK` supprimée). **Pas de retraite** : le perdant meurt sur place — l'attaquant perdant meurt sur SA case (il n'entre jamais), le défenseur perdant meurt sur la sienne, et l'attaquant vainqueur **avance et entre** (capture immédiate si la case était une ville sans autre défenseur, R-57/R-65). Il n'existe plus de « perdant qui cohabite » : la cohabitation (R-173/174) reste possible par les AUTRES chemins (renfort entré R-159-c…), seule la résolution d'attaque ne la crée plus. Les **blessures persistent** entre attaques (B4) et la DISTANCE reste régie par R-59 (un tir = 1 PV garanti, un seul assaut, jamais d'entrée).
 
 ### 7.2 Combat d'attaque (défenseur stationnaire)
 
@@ -219,7 +219,7 @@ roll = rng() ∈ [0,1)  →  roll < p : le défenseur perd 1 PV, sinon l'attaqua
 2. sinon une **case adjacente libre** à la case de combat, choisie par **proximité à la case d'origine** (distance hexagonale), puis `(q, r)` croissant ;
 3. sinon **pas de repli** → attaques répétées.
 
-**R-55 · Attaques répétées.** Sans case de repli, les échanges se répètent (toujours `T-03` round(s) par attaque) **jusqu'à l'élimination d'une des deux unités**. C'est le mécanisme assumé de « blocage » : encercler un attaquant force l'usure. La boucle est garantie terminale (chaque itération retire ≥ 1 PV).
+**R-55 · Attaques répétées — RÉSOLU PAR LE CANON (BATAILLE-COMPLETE, Erik 31/10).** Le mécanisme est absorbé par R-51 : une SEULE attaque mêlée enchaîne désormais les assauts jusqu'à l'élimination d'une des deux unités ; R-55 ne décrit plus un cas séparé.
 
 **R-56 · Allocation concurrente des replis (deux passes — validé le 29/08).** L'allocation des cases de repli est **globale, pas séquentielle** : (1) tous les combats de la phase se résolvent d'abord (R-50 → R-55) et les perdants devant se replier sont collectés ; (2) les cases de repli libres sont alors alluées **par perdant à PV décroissants** (tie : `unitId` croissant), chacun recevant sa meilleure case selon R-54 ; (3) les perdants sans case attribuée reprennent le combat avec une attaque supplémentaire contre le vainqueur de leur propre combat, jusqu'à élimination — les vainqueurs ne quittent jamais la case, donc l'adversaire est toujours présent. Corrige la première implémentation « premier résolu, premier servi » de la Phase 0.
 
@@ -870,17 +870,17 @@ Base documentaire : la spécification d'Erik [`Guide Civilisations Civilization 
   croissante**, puis plus de **PV** ; à égalité, **tirage aléatoire seedé** (une valeur par
   plan, tirée en tête de Phase B), puis unitId (R-81). La séquence s'arrête quand le
   défenseur est détruit (les attaquants suivants n'attaquent pas).
-- **R-178 · Mêlée d'instabilité (#2, #6, #9 — rév. A, décision d'Erik du 17/09).** Toute
+- **R-178 · Mêlée d'instabilité (#2, #6, #9 — rév. A Erik 17/09 ; rév. B BATAILLE-COMPLETE, Erik 31/10).** Toute
   case portant ≥ 2 unités militaires d'au moins DEUX propriétaires résout UNE MÊLÉE en fin
   de tour (Phase E, avant vision/soins), SAUF report (ci-dessous). Des unités qui y entrent
   en cours de tour se joignent ; sortir = échapper ; UNE mêlée par case et par tour.
-  **REPORT (rév. A)** : sur une case où un **défenseur STABILISÉ a été attaqué** ce tour
-  (entrées R-176, camp R-183 — qu'il survive ou non aux attaques), la mêlée est **REPORTÉE
-  au tour suivant** : les entrants se contentent de leurs attaques (le défenseur perd au
-  plus 1 PV par attaquant), et si toutes les unités y demeurent, la mêlée a lieu en Phase E
-  du tour suivant — le défenseur qui demeure **conserve ses bonus** (R-175 : fortification,
-  terrain, ville). Le report ne s'applique PAS à l'entrée simultanée sur une case SANS
-  défenseur (#2 : mêlée immédiate).
+  **RÉV. B (31/10) — REPORT rév. A ABROGÉ, cas principal CADUC** : une attaque mêlée va
+  désormais à la MORT d'un camp (R-51 bataille complète) — il n'existe plus de survie
+  mutuelle issue d'attaque ni de « défenseur attaqué qui demeure pour la mêlée différée » ;
+  l'entrée sur un défenseur (R-176) ne prend plus place : le vainqueur avance, le perdant
+  meurt, la case ne cohabite JAMAIS par effet d'attaque. La mêlée Phase E reste pour les
+  cohabitations nées des AUTRES chemins (entrées simultanées sur case sans défenseur #2,
+  résidus am R-179-b, renforts R-159-c).
 - **R-179 ABROGÉE → R-179-b · Dispersion de pile amie (LABO-ENGAGEMENT, Erik 17/09).** La
   cohabitation amie n'est plus expulsée au tour de sa formation : c'est un **état résiduel
   légal** qui persiste (ex. les deux attaquantes d'un même défenseur qui meurt). Le joueur a
@@ -952,7 +952,7 @@ case ne porterait que des amies).
 |---|---|---|
 | T-01 | `veteranBonus` | 0.5 |
 | T-02 | `cityDefenseBonus` | 0.5 |
-| T-03 | `exchangesPerAttack` | 1 |
+| T-03 | `exchangesPerAttack` | **SUPPRIMÉE** (BATAILLE-COMPLETE 31/10 : bataille mêlée illimitée jusqu'à la mort d'un camp ; distance = 1 assaut, R-59) |
 | T-06 | `forfeitMissedTurns` | 3 |
 | T-07 | `visionRadiusUnit` | 2 |
 | T-08 | `visionRadiusCity` | 3 |

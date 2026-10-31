@@ -47,7 +47,6 @@ import {
 import {
   ARMY_SIZE,
   CITY_WORK_RADIUS,
-  EXCHANGES_PER_ATTACK,
   FORTIFY_DEFENSE_BONUS,
   MIN_CITY_DISTANCE,
   POP_PRODUCTION_BONUS,
@@ -1169,10 +1168,11 @@ function combatStrengthsOf(
 }
 
 /**
- * Un échange (T-03 rounds). R-59-b : un défenseur non-à-distance ne riposte
- * jamais contre une unité à distance ; interprétation (documentée, 🔶) : le
- * round lui retire alors directement 1 PV (p = 1 côté attaquant), ce qui
- * garantit la terminaison de l'échange (« chaque itération retire ≥ 1 PV »).
+ * Un assaut (round R-51) — BATAILLE-COMPLETE (canon Erik 31/10) : une attaque
+ * MÊLÉE enchaîne les assauts JUSQU'À LA MORT de l'une des deux unités (fin de
+ * T-03/EXCHANGES_PER_ATTACK) ; une attaque à DISTANCE reste UN assaut unique
+ * (R-59 intacte : 1 PV garanti, jamais d'entrée). Chaque assaut re-jette la
+ * formule R-51 avec un jet seedé propre.
  */
 function performExchange(board: Board, attacker: Unit, defender: Unit, combatTile: Hex): void {
   const aStats = unitType(attacker.type);
@@ -1182,13 +1182,14 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
   const pTouche = sAtt * sAtt / (sAtt * sAtt + sDef * sDef);
   // COMBAT-EXPLIQUE (D2) : chaque assaut consigne son jet et sa cible.
   const rounds: CombatRoundDetail[] = [];
-  for (let i = 0; i < EXCHANGES_PER_ATTACK && attacker.hp > 0 && defender.hp > 0; i++) {
+  const batailleComplete = !isRanged(attacker); // B1/B5 : mêlée à la mort, distance = 1 assaut
+  for (let i = 0; attacker.hp > 0 && defender.hp > 0 && (batailleComplete || i < 1); i++) {
     if (noRiposte) {
       defender.hp -= 1;
       rounds.push({ round: i + 1, jet: null, pTouche: 1, touche: 'defenseur', pvPerdus: 1 });
       continue;
     }
-    const jet = rollTrace(board, `combat att=${attacker.id} def=${defender.id} round=${i + 1}/${EXCHANGES_PER_ATTACK} p(att)=${pTouche.toFixed(3)}`, () => board.rng.next());
+    const jet = rollTrace(board, `combat att=${attacker.id} def=${defender.id} assaut=${i + 1}${batailleComplete ? ' (bataille complète)' : ' (tir R-59)'} p(att)=${pTouche.toFixed(3)}`, () => board.rng.next());
     const winner = combatRound(sAtt, sDef, jet);
     if (winner === 'defender') {
       defender.hp -= 1;
@@ -1231,6 +1232,11 @@ function advanceIfMelee(board: Board, attacker: Unit, tile: Hex): void {
   if (isRanged(attacker)) return;
   if (!canEnter(board, attacker, tile)) return;
   if (attacker.q === tile.q && attacker.r === tile.r) return;
+  // BATAILLE-COMPLETE · B2/R-159-b (canon Erik 31/10) : le vainqueur n'entre
+  // PAS si la case reste défendue (un autre militaire ennemi y vit) — la ville
+  // n'est prise qu'à la mort de son DERNIER défenseur ; les suivants du même
+  // camp n'entrent pas (R-159 rév. B), le vainqueur non plus.
+  if (occupants(board, tile).some((u) => u.owner !== attacker.owner && !isPeaceful(u))) return;
   moveUnit(board, attacker, tile);
 }
 
@@ -1316,11 +1322,15 @@ function resolveAttack(board: Board, attacker: Unit, defender: Unit, combatTile:
     recordCombatVictory(board, defender); // 7h · R-123 (T-31)
     return;
   }
-  // ENGAGEMENT · fin des replis (R-54/R-55/R-56 abrogées) : survie mutuelle =
-  // COHABITATION. Les deux unités demeurent sur la case ; l'instabilité qui en
-  // résulte est résolue en Phase E par la mêlée pondérée (R-180/R-181).
-  // R-59-a : l'attaquant à distance est déjà resté sur sa case ; R-59-d est
-  // ABROGÉE — le défenseur à distance qui ne vainc pas cohabite aussi.
+  // BATAILLE-COMPLETE · B2/B3 (canon Erik 31/10) : pas de retraite, plus de
+  // survivance mutuelle POST-ATTAQUE — la mêlée se termine par la mort d'un
+  // camp (le perdant meurt sur place, le vainqueur mêlée avance/est entré).
+  // La cohabitation (R-173/174) reste possible par les AUTRES chemins
+  // (renfort entré, R-159-c…) — seule la résolution d'attaque ne la crée plus.
+  // R-178 rév. A est ABROGÉE (mêlée reportée en Phase E : plus d'issue).
+  // R-59 : l'attaquant à distance est resté sur sa case — une survie après
+  // TIR reste possible (1 PV garanti, jamais de mort directe d'un tir seul
+  // sauf PV déjà bas) et NE crée pas de cohabitation (pas d'entrée physique).
   return;
 }
 
@@ -5531,11 +5541,14 @@ export function resolveTurn(
         continue;
       }
       unit.mp -= 1;
-      // Interprétation ENGAGEMENT : une unité qui ne peut pas ENTRER sur la
-      // case (ex. navire en mer attaqué depuis la rive) attaque depuis sa
-      // position ; en survie mutuelle il n'y a alors pas de cohabitation
-      // (pas d'instabilité) — la case ne peut pas être occupée.
-      if (canEnter(board, unit, target)) moveUnit(board, unit, target);
+      // Interprétation ENGAGEMENT amendée BATAILLE-COMPLETE (canon Erik 31/10,
+      // B2/B3) : l'attaquant de mêlée N'ENTRE PLUS avant le combat tant qu'un
+      // défenseur désigné tient la case — le vainqueur AVANCE (advanceIfMelee),
+      // le perdant meurt sur SA case, plus aucune cohabitation née d'une
+      // attaque (R-178 rév. A abrogée). Exception : l'entrée PHYSIQUE sur un
+      // camp barbare reste en Phase A (R-183 — le vainqueur l'occupe).
+      const entreEnPhaseA = !defender || (campCible !== null && gardienCamp !== null);
+      if (entreEnPhaseA && canEnter(board, unit, target)) moveUnit(board, unit, target);
     }
     if (campCible && gardienCamp && !isBarbarian(unit.owner)) {
       // R-96 rév. ENGAGEMENT : attaquer le gardien du camp (capture à sa

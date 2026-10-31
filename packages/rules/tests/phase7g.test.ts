@@ -156,7 +156,7 @@ describe('Phase 7g · R-117 — mouvement naval', () => {
     expect(cargoCapacityOf({ type: 'galere', isArmy: true })).toBe(0);
   });
 
-  it('combat naval en mêlée : un échange R-51 entre deux galères en mer', () => {
+  it('combat naval en mêlée : bataille complète R-51 entre deux galères en mer (BATAILLE-COMPLETE 31/10)', () => {
     const state = coastalState({
       units: [
         { id: 'u1', type: 'galere', owner: 'p1', q: H(0, 3).q, r: H(0, 3).r },
@@ -167,7 +167,10 @@ describe('Phase 7g · R-117 — mouvement naval', () => {
     const exchanges = eventsOf(result.events, 'CombatExchange');
     expect(exchanges).toHaveLength(1);
     const ex = exchanges[0] as Extract<GameEvent, { type: 'CombatExchange' }>;
-    expect(ex.attackerHpAfter + ex.defenderHpAfter).toBe(5); // 3+3 PV, un round
+    // Bataille complète : la mort d'un camp ; le survivant peut être blessé.
+    expect([ex.attackerHpAfter, ex.defenderHpAfter]).toContain(0);
+    expect(ex.attackerHpAfter + ex.defenderHpAfter).toBeGreaterThan(0);
+    expect(ex.detail!.issue === 'victoire-attaquant' || ex.detail!.issue === 'victoire-defenseur').toBe(true);
   });
 
   it('production navale : ville côtière OK, ville intérieure refusée (R-117)', () => {
@@ -230,11 +233,13 @@ describe('Phase 7g · R-118 — soutien naval', () => {
     return { attacker: ex.attackerHpAfter, defender: ex.defenderHpAfter };
   }
 
-  it('un Galion en mer adjacente ajoute son navalSupport (15) à S_att — même graine, issue inversée', () => {
+  it('un Galion en mer adjacente ajoute son navalSupport (15) à S_att — même graine, issue inversée (BATAILLE-COMPLETE : qui meurt)', () => {
     const without = attackerHpAfter(duelState(false));
     const withShip = attackerHpAfter(duelState(true));
-    expect(without).toEqual({ attacker: 2, defender: 3 }); // p = 0.5 → l'attaquant encaisse
-    expect(withShip).toEqual({ attacker: 3, defender: 2 }); // p ≈ 0.96 → le défenseur encaisse
+    expect(without.attacker).toBe(0); // p = 0.5 à graine SEED : l'attaquant meurt
+    expect(without.defender).toBeGreaterThan(0);
+    expect(withShip.defender).toBe(0); // p ≈ 0.96 : le soutien naval retourne l'issue
+    expect(withShip.attacker).toBeGreaterThan(0);
   });
 
   it('prédicat pur : MAX d’un seul navire, port exclu, navire embarqué exclu, attaquant naval = 0', () => {

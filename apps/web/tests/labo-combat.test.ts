@@ -158,8 +158,10 @@ describe('labo-combat — M2 programmation et résolution seedée', () => {
   });
 
   it('le journal se lit combat par combat (attaques, échanges, gardes immobiles T-49)', () => {
+    // Seed 1 (re-calé BATAILLE-COMPLETE 31/10 : la consommation RNG des
+    // batailles a décalé le déroulement de l'assaut de pile du seed 42).
     const state = assautDePile();
-    const { events, newState } = resolveTurn(state, ordresAssaut(state), 42);
+    const { events, newState } = resolveTurn(state, ordresAssaut(state), 1);
     const lignes = events.map((ev) => formatEvent(state, ev as unknown as { type: string } & Record<string, unknown>));
     for (const l of lignes) expect(l.length).toBeGreaterThan(0);
     expect(lignes.some((l) => l.startsWith('ATTAQUE'))).toBe(true);
