@@ -520,3 +520,87 @@ describe('planifierJev (orchestre GameDO)', () => {
     expect(plan.entreeJournal!.jetonsEntree).toBe(1000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// JEV-CALIBRAGE-OFFENSIF (31/10) — v6c : théâtre, marche, D-B, D-C
+// ---------------------------------------------------------------------------
+import { calculerTheatre as theatreTs } from '../src/jev/joueur.js';
+const { calculerTheatre: theatreMjs } = await import('../../../sableuse/src/joueur.mjs');
+
+function etatGuerreV6c({ guerre = true, theatre = true } = {}) {
+  const seed = 101;
+  const gen = generateProceduralMap(seed);
+  let etat = createInitialState(gen.map, seed, { p1: { civId: 'rome' }, p2: { civId: 'egypte' } });
+  const cities = {
+    ...etat.cities,
+    cap1: { id: 'cap1', owner: 'p1', q: 5, r: 5, pop: 3, capital: true, buildings: [], workedTiles: [], wonders: [] },
+    cap2: { id: 'cap2', owner: 'p2', q: 8, r: 5, pop: 2, capital: true, buildings: [], workedTiles: [], wonders: [] },
+    v1_1: { id: 'v1_1', owner: 'p1', q: 6, r: 6, pop: 1, capital: false, buildings: [], workedTiles: [], wonders: [] },
+    v1_2: { id: 'v1_2', owner: 'p1', q: 7, r: 6, pop: 1, capital: false, buildings: [], workedTiles: [], wonders: [] },
+  };
+  const units = {
+    ...etat.units,
+    u_moi_0: { id: 'u_moi_0', owner: 'p1', type: 'legion', q: 6, r: 5, hp: 100, mp: 2, fortified: false, aboard: false },
+    u_moi_1: { id: 'u_moi_1', owner: 'p1', type: 'legion', q: 5, r: 6, hp: 100, mp: 2, fortified: false, aboard: false },
+  };
+  etat = {
+    ...etat,
+    turn: 40,
+    cities,
+    units,
+    diplomacy: guerre ? { ...etat.diplomacy, war: [['p1', 'p2']] } : etat.diplomacy,
+    players: {
+      ...etat.players,
+      p1: { ...etat.players.p1, vision: { explored: ['5,5', '6,5', '5,6', '8,5'], visible: ['5,5', '6,5', '5,6', '8,5'] } },
+      p2: { ...etat.players.p2 },
+    },
+  };
+  const memo = { finPartie: { mode: 'domination' } };
+  const filtre = getFilteredState(etat, 'p1');
+  if (theatre) filtre.theatre = theatreMjs(etat, 'p1', memo);
+  return { etat, filtre, memo };
+}
+
+describe('JEV-CALIBRAGE-OFFENSIF · v6c croisé (théâtre, marche, D-B, D-C)', () => {
+  it('calculerTheatre : harnais ⇄ port bit à bit (guerre, domination, vide)', () => {
+    const { etat } = etatGuerreV6c({ guerre: true });
+    const memo = { finPartie: { mode: 'domination' } };
+    expect(theatreTs(etat, 'p1', memo)).toEqual(theatreMjs(etat, 'p1', memo));
+    expect(theatreTs(etat, 'p1', {})).toEqual(theatreMjs(etat, 'p1', {}));
+    const calme = etatGuerreV6c({ guerre: false }).etat;
+    expect(theatreTs(calme, 'p1', {})).toEqual(theatreMjs(calme, 'p1', {}));
+  });
+
+  it('condenseJoueur avec théâtre : rivaux capitolent direction/distance identiques', () => {
+    const { etat, filtre, memo } = etatGuerreV6c();
+    filtre.theatre = theatreMjs(etat, 'p1', memo);
+    const cTs = JSON.parse(JSON.stringify(condenseJoueurTs(filtre, 'p1', memo)));
+    const cMjs = JSON.parse(JSON.stringify(condenseJoueurMjs(filtre, 'p1', memo)));
+    expect(cTs.diplomatie.rivaux[0].capitaleDirection).toBe('E');
+    expect(cTs).toEqual(cMjs);
+  });
+
+  it('D-C : paix/compensation absentes en domination (rapport ≥ 1) — questions identiques', () => {
+    const { filtre, memo } = etatGuerreV6c();
+    const cTs = condenseJoueurTs(filtre, 'p1', memo);
+    const cMjs = JSON.parse(JSON.stringify(condenseJoueurMjs(filtre, 'p1', memo)));
+    expect(cTs.diplomatie.rivaux[0].rapportForces).toBe(cMjs.diplomatie.rivaux[0].rapportForces);
+    const qTs = construireTs(configJev, cTs, filtre, 'p1', memo);
+    const qMjs = construireMjs(configJev, JSON.parse(JSON.stringify(cTs)), JSON.parse(JSON.stringify(filtre)), 'p1', memo);
+    expect(qTs.questions.paix).toBeUndefined();
+    expect(qMjs.questions.paix).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(qTs.questions))).toEqual(JSON.parse(JSON.stringify(qMjs.questions)));
+  });
+
+  it('marche (D-E2) : mêmes réponses ⇒ mêmes MultiStep bit à bit', async () => {
+    const { filtre, memo } = etatGuerreV6c();
+    const condense = condenseJoueurTs(filtre, 'p1', memo);
+    const faux = () => ({ async systemOne() { return { answers: {}, usage: { input_tokens: 100 } }; } });
+    const dTs = await tourTs(faux() as any, configJev, JSON.parse(JSON.stringify(filtre)), 'p1', { ...memo });
+    const dMjs = await tourMjs(faux(), configJev, JSON.parse(JSON.stringify(filtre)), 'p1', { ...memo });
+    const marcheTs = dTs.ordres.filter((o: any) => o.type === 'MultiStep');
+    const marcheMjs = dMjs.ordres.filter((o: any) => o.type === 'MultiStep');
+    expect(marcheTs.length).toBeGreaterThan(0);
+    expect(JSON.parse(JSON.stringify(marcheTs))).toEqual(JSON.parse(JSON.stringify(marcheMjs)));
+  });
+});

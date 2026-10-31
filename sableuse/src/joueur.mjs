@@ -19,6 +19,7 @@ import {
   canSetProduction,
   cityEconomyInputs,
   hexDistance,
+  TERRAINS,
   TECHS,
   UNIT_TYPES,
   BUILDINGS,
@@ -108,15 +109,88 @@ function distanceCapitales(etatFiltre, a, b) {
   return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr));
 }
 
+/** JEV-CALIBRAGE-OFFENSIF · D-E1 — le CADRE DU THÉÂTRE. Le diagnostic D-O
+ * (journaux it4b) : distanceCapitale reste 99 TOUTE la partie même après
+ * contact — Jev déclare la guerre sans jamais savoir OÙ marcher. Le remède
+ * voté au handoff (extension du principe « nation publique au lobby ») :
+ * le harnais calcule sur l'état COMPLET (le fog du condensé n'est jamais
+ * contourné par Jev lui-même) une DIRECTION (6 secteurs hex) et une
+ * distance APPROCHÉE (buckets 5/10/20/40) par rival éligible — JAMAIS de
+ * case exacte, jamais de coordonnée. Éligibilité : en guerre avec lui, ou
+ * mode domination/pousserCapitale actif (la voie de conquête est choisie).
+ * Retour : { [rivalId]: { direction, distance } } — {} si rien d'ouvert. */
+const SECTEURS_HEX = [
+  ['E', 1, 0],
+  ['O', -1, 0],
+  ['SE', 0, 1],
+  ['NO', 0, -1],
+  ['NE', 1, -1],
+  ['SO', -1, 1],
+];
+
+function capitaleDeEtat(etat, pid) {
+  const villes = Object.values(etat.cities ?? {}).filter((v) => v.owner === pid);
+  return villes.find((v) => v.capital) ?? villes[0] ?? null;
+}
+
+function secteurDe(de, vers) {
+  const dq = vers.q - de.q;
+  const dr = vers.r - de.r;
+  const norme = Math.max(1, Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)));
+  let meilleure = SECTEURS_HEX[0];
+  let meilleur = -Infinity;
+  for (const [nom, uq, ur] of SECTEURS_HEX) {
+    // Produit scalaire axial normalisé — le secteur qui pointe le plus vers la cible.
+    const dot = (dq * uq + dr * ur) / norme;
+    if (dot > meilleur) {
+      meilleur = dot;
+      meilleure = [nom, uq, ur];
+    }
+  }
+  return meilleure;
+}
+
+export function calculerTheatre(etat, moi, memo = {}) {
+  const modeFin = memo.finPartie?.mode;
+  const domination = modeFin === 'domination' || modeFin === 'pousserCapitale';
+  const guerre = new Set(ennemisDeMoi(etat, moi));
+  if (!domination && guerre.size === 0) return {};
+  const maCap = capitaleDeEtat(etat, moi);
+  if (!maCap) return {};
+  const theatre = {};
+  for (const [id, p] of Object.entries(etat.players ?? {})) {
+    if (id === moi || id === 'barbarien' || p?.defeated) continue;
+    if (!guerre.has(id) && !domination) continue;
+    const cap = capitaleDeEtat(etat, id);
+    if (!cap) continue;
+    const dist = hexDistance(maCap, cap);
+    const [direction, uq, ur] = secteurDe(maCap, cap);
+    theatre[id] = {
+      direction,
+      // Buckets grossiers — l'approximation est VOULUE (canon : pas de case exacte).
+      distance: dist <= 5 ? 5 : dist <= 10 ? 10 : dist <= 20 ? 20 : 40,
+      // Vecteur unitaire du secteur — usage interne de la MARCHE (D-E2),
+      // jamais sérialisé dans le condensé (exposition par blocDiplomatie).
+      uq,
+      ur,
+    };
+  }
+  return theatre;
+}
+
 /** Bloc DIPLOMATIE du condensé joueur (canon T2 : techs des rivaux visibles,
  * trésorerie ennemie jamais — R-134 ; puissance visible seulement).
  * L2 v2 : rapportForces EXPLICITE par rival (nos forces visibles / les siennes,
  * arrondi à 0,1 — l'argument de la guerre argumentée).
  * v5 CONTACT-GUERRE D1/D2 : arc de la relation — rencontreTour (première vue),
- * toursDepuisRencontre, provocations (unités hostiles près de nos villes). */
+ * toursDepuisRencontre, provocations (unités hostiles près de nos villes).
+ * JEV-CALIBRAGE-OFFENSIF · D-E1 : cadre du théâtre — capitaleDirection
+ * (6 secteurs) + capitaleDistance (bucket) depuis `etatFiltre.theatre`
+ * (injecté par le harnais via calculerTheatre), null sinon. */
 export function blocDiplomatie(etatFiltre, moi, memo = {}) {
   const maPuissance = forcesVisibles(etatFiltre, moi);
   const rencontres = memo?.rencontres ?? {};
+  const theatre = etatFiltre?.theatre ?? {};
   const rivaux = rivalsReels(etatFiltre, moi).map(({ id, p }) => {
     const rencontreTour = rencontres[id] ?? null;
     return {
@@ -129,6 +203,10 @@ export function blocDiplomatie(etatFiltre, moi, memo = {}) {
     rapportForces: Math.round((maPuissance / Math.max(1, forcesVisibles(etatFiltre, id))) * 10) / 10,
     enGuerre: ennemisDeMoi(etatFiltre, moi).includes(id),
     distanceCapitale: distanceCapitales(etatFiltre, moi, id),
+    // Cadre du théâtre (D-E1) — direction + bucket SEULEMENT (jamais uq/ur,
+    // jamais de case) ; null hors guerre hors domination.
+    capitaleDirection: theatre[id]?.direction ?? null,
+    capitaleDistance: theatre[id]?.distance ?? null,
     rencontreTour,
     toursDepuisRencontre: rencontreTour == null ? null : Math.max(0, (etatFiltre.turn ?? 0) - rencontreTour),
     provocations: provocationsDe(etatFiltre, moi, id),
@@ -170,6 +248,61 @@ function cheminVers(etatFiltre, moi, colon, cible, maxPas = 10) {
     chemin.push(pas);
     curseur = { q: pas.q, r: pas.r, type: colon.type };
     if (pas.q === cible.q && pas.r === cible.r) break;
+  }
+  return chemin;
+}
+
+/** JEV-CALIBRAGE-OFFENSIF · D-E2 — chemin de MARCHE sous le fog : pas
+ * glouton déterministe vers le point de passage (offsets en ordre fixe,
+ * amélioration STRICTE de la distance à chaque pas). Contrairement au BFS
+ * de fondation (cheminVers — tuiles inconnues intransitables), la marche
+ * TRAVERSE le fog : le moteur gèle le chemin à la frontière du connu
+ * (R-161) et le tour suivant re-planifie avec la vision étendue. Terrain
+ * connu impassable et cases occupées (unité visible) sont évités ; poche
+ * ou blocage ⇒ chemin vide (l'unité reste au tactique). */
+function cheminMarche(etatFiltre, moi, unite, passage, maxPas = 10) {
+  const OFFSETS = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+    [1, -1],
+    [-1, 1],
+  ];
+  const chemin = [];
+  let cur = { q: unite.q, r: unite.r };
+  for (let i = 0; i < maxPas; i++) {
+    if (cur.q === passage.q && cur.r === passage.r) break;
+    let meilleur = null;
+    let meilleureD = hexDistance(cur, passage);
+    for (const [dq, dr] of OFFSETS) {
+      const candidat = { q: cur.q + dq, r: cur.r + dr };
+      const d = hexDistance(candidat, passage);
+      if (d >= meilleureD) continue;
+      const tile = etatFiltre.map?.[`${candidat.q},${candidat.r}`];
+      if (tile && !TERRAINS[tile.terrain]?.passable) continue;
+      // Ville ennemie VUE sur la case → le chemin s'ARRÊTE DEVANT (le
+      // siège/l'assaut reste au tactique — BOT-ARMEE).
+      if (
+        Object.values(etatFiltre.cities ?? {}).some(
+          (v) => v.q === candidat.q && v.r === candidat.r && v.owner !== moi,
+        )
+      ) {
+        break;
+      }
+      if (
+        Object.values(etatFiltre.units ?? {}).some(
+          (u) => u.q === candidat.q && u.r === candidat.r && !u.aboard,
+        )
+      ) {
+        continue;
+      }
+      meilleur = candidat;
+      meilleureD = d;
+    }
+    if (!meilleur) break;
+    chemin.push(meilleur);
+    cur = meilleur;
   }
   return chemin;
 }
@@ -318,7 +451,17 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
   // Paix + compensation (L3 v2 — au juste prix) : fourchette d'or SUGGÉRÉE,
   // miroir du prix indicatif T2 (prixPaixBase × fierté × rapport de forces
   // borné, données negociation de bot.json), plafonnée à la trésorerie.
-  if (enGuerre) {
+  // JEV-CALIBRAGE-OFFENSIF · D-C — paix INTERDITE en mode domination : quand
+  // memo.finPartie est en mode domination/pousserCapitale ET que le rapport
+  // de forces global est ≥ 1, la question paix n'est PAS posée (fin des
+  // boucles 13-45 refus mesurées en it4b — Jev proposait la paix chaque tour
+  // de sa propre guerre totale). rapport < 1 → paix à nouveau possible
+  // (sauve-qui-peut légitime).
+  const modeFinPaix = memo.finPartie?.mode;
+  const enDomination =
+    (modeFinPaix === 'domination' || modeFinPaix === 'pousserCapitale') &&
+    (condense.monde.puissance?.rapport ?? 0) >= 1;
+  if (enGuerre && !enDomination) {
     const criteria = { aucun: 'Refuser toute paix ce tour (les propositions ennemies sont rejetées).' };
     for (const e of condense.diplomatie.ennemis) {
       const r = rivaux.find((x) => x.id === e.id);
@@ -379,7 +522,7 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
   // JEV-IT4B · D-B — 5e signal permis par Erik (les 3 parties stériles ne
   // satisfont AUCUN critère it4 : domination 10-40× muette) : la domination
   // MÉCANIQUE (rapport ≥ 2 ET ≥ 3 villes de plus que le leader) ouvre le gate.
-  const dominationMecanique = signalDominationMechanique(condense, etatFiltre, moi);
+  const dominationMecanique = signalDominationMechanique(condense, etatFiltre, moi, 2, seuils.dominationEcartVilles ?? 2);
   const signal = signalVictoire(condense) || dominationMecanique;
   if (signal) {
     // D2.1 — finPartie : que faire de la course ? cibles pré-triées :
@@ -484,10 +627,12 @@ export function signalVictoire(condense) {
 
 /** JEV-IT4B · D-B — 5e signal de gate (LE seul amendement permis) : la
  * domination est MÉCANIQUE — rapport de forces global ≥ 2 ET au moins
- * `ecart` (3) villes de plus que le leader en villes. C'est le profil exact
+ * `ecart` villes de plus que le leader en villes (3 en it4b ; 2 depuis le
+ * JEV-CALIBRAGE-OFFENSIF — data `seuils.dominationEcartVilles`, le seed
+ * 786078703, écart 2 et muet en it4b, doit déclencher le signal). C'est le profil exact
  * des parties stériles du banc it4 (seeds 3947827986, 4033602994,
  * 786078703 : 76 forces vs 0-11, aucun autre signal). */
-export function signalDominationMechanique(condense, etatFiltre, moi, seuilRapport = 2, ecart = 3) {
+export function signalDominationMechanique(condense, etatFiltre, moi, seuilRapport = 2, ecart = 2) {
   const rapport = condense?.monde?.puissance?.rapport ?? 0;
   if (rapport < seuilRapport) return false;
   const mesVilles = Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner === moi).length;
@@ -882,6 +1027,56 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     }
   } else if (fin?.choice === 'continuer') {
     delete memo.finPartie;
+  }
+
+  // 7.5 JEV-CALIBRAGE-OFFENSIF · D-E2 — la MARCHE. Le diagnostic D-O (banc
+  // it4b) : 33 combats, 0 capture, 2126 destinations de Move en guerre dont
+  // AUCUNE à moins de 16 cases de la capitale déclarée — le tactique garnit
+  // et patrouille, jamais la poussée. Traduction des choix en mouvements :
+  // quand memo.finPartie est en mode domination/pousserCapitale ET que Jev
+  // est en guerre avec un rival dont le théâtre est connu (D-E1) ou la
+  // capitale vue, les `seuils.marcheTaille` unités offensives les plus
+  // proches du point de passage reçoivent un MultiStep (ORDRE EXISTANT —
+  // re-planifié chaque tour, canon fondation). Les unités sous menace
+  // adjacente restent au tactique (combats), les cols ne partent jamais.
+  const modeMarche = memo.finPartie?.mode;
+  const marcheActif = seuils.marcheActif ?? true;
+  if ((modeMarche === 'domination' || modeMarche === 'pousserCapitale') && marcheActif) {
+    const theatre = etatFiltre.theatre ?? {};
+    const cibleMarche = (condense.diplomatie.guerreAvec ?? []).find((id) => theatre[id]);
+    if (cibleMarche && capitale) {
+      // Point de passage : capitale VUE au filtre sinon projection du
+      // secteur théâtre (direction × bucket — approximation voulue, canon
+      // D-E1 : jamais de case exacte).
+      const capVue = Object.values(etatFiltre.cities ?? {}).find(
+        (v) => v.owner === cibleMarche && v.capital,
+      ) ?? Object.values(etatFiltre.cities ?? {}).find((v) => v.owner === cibleMarche);
+      const t = theatre[cibleMarche];
+      const passage = capVue ?? { q: capitale.q + t.uq * t.distance, r: capitale.r + t.ur * t.distance };
+      const menaceAdjacente = (u) =>
+        Object.values(etatFiltre.units ?? {}).some(
+          (e) => e.owner !== moi && !e.aboard && hexDistance(e, u) <= 1,
+        );
+      const eligibles = Object.values(etatFiltre.units ?? {})
+        .filter(
+          (u) =>
+            u.owner === moi &&
+            !u.aboard &&
+            (UNIT_TYPES[u.type]?.canAttack ?? false) &&
+            !menaceAdjacente(u),
+        )
+        .sort(
+          (a, b) => hexDistance(a, passage) - hexDistance(b, passage) || a.id.localeCompare(b.id),
+        )
+        .slice(0, seuils.marcheTaille ?? 6);
+      for (const u of eligibles) {
+        const chemin = cheminMarche(etatFiltre, moi, u, passage);
+        if (chemin.length > 0) {
+          sortie.ordres.push({ type: 'MultiStep', unitId: u.id, path: chemin });
+          sortie.attentes.push({ genre: 'marche', unitId: u.id, attendu: `${chemin[0].q},${chemin[0].r}` });
+        }
+      }
+    }
   }
 
   // 8. productionVictoire — l'item choisi est DÉJÀ validé par

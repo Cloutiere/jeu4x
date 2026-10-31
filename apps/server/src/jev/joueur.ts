@@ -19,6 +19,7 @@ import {
   canSetProduction,
   cityEconomyInputs,
   hexDistance,
+  TERRAINS,
   TECHS,
   UNIT_TYPES,
   BUILDINGS,
@@ -119,9 +120,69 @@ function provocationsDe(etatFiltre: AnyEtat, moi: string, rival: string): number
   ).length;
 }
 
+/** JEV-CALIBRAGE-OFFENSIF · D-E1 — le CADRE DU THÉÂTRE (miroir harnais) :
+ * direction (6 secteurs hex) + distance APPROCHÉE (buckets 5/10/20/40) par
+ * rival éligible — JAMAIS de case exacte. Éligibilité : en guerre, ou mode
+ * domination/pousserCapitale actif. Injecté par le harnais (état complet). */
+const SECTEURS_HEX: Array<[string, number, number]> = [
+  ['E', 1, 0],
+  ['O', -1, 0],
+  ['SE', 0, 1],
+  ['NO', 0, -1],
+  ['NE', 1, -1],
+  ['SO', -1, 1],
+];
+
+function capitaleDeEtat(etat: AnyEtat, pid: string): AnyEtat {
+  const villes = vals(etat.cities ?? {}).filter((v: AnyEtat) => v.owner === pid);
+  return villes.find((v: AnyEtat) => v.capital) ?? villes[0] ?? null;
+}
+
+function secteurDe(de: AnyEtat, vers: AnyEtat): [string, number, number] {
+  const dq = vers.q - de.q;
+  const dr = vers.r - de.r;
+  const norme = Math.max(1, Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)));
+  let meilleure: [string, number, number] = SECTEURS_HEX[0]!;
+  let meilleur = -Infinity;
+  for (const [nom, uq, ur] of SECTEURS_HEX) {
+    const dot = (dq * uq + dr * ur) / norme;
+    if (dot > meilleur) {
+      meilleur = dot;
+      meilleure = [nom, uq, ur];
+    }
+  }
+  return meilleure;
+}
+
+export function calculerTheatre(etat: AnyEtat, moi: string, memo: AnyEtat = {}): AnyEtat {
+  const modeFin = memo.finPartie?.mode;
+  const domination = modeFin === 'domination' || modeFin === 'pousserCapitale';
+  const guerre = new Set<string>(ennemisDeMoi(etat, moi));
+  if (!domination && guerre.size === 0) return {};
+  const maCap = capitaleDeEtat(etat, moi);
+  if (!maCap) return {};
+  const theatre: AnyEtat = {};
+  for (const [id, p] of Object.entries(etat.players ?? {})) {
+    if (id === moi || id === 'barbarien' || (p as AnyEtat)?.defeated) continue;
+    if (!guerre.has(id) && !domination) continue;
+    const cap = capitaleDeEtat(etat, id);
+    if (!cap) continue;
+    const dist = hexDistance(maCap, cap);
+    const [direction, uq, ur] = secteurDe(maCap, cap);
+    theatre[id] = {
+      direction,
+      distance: dist <= 5 ? 5 : dist <= 10 ? 10 : dist <= 20 ? 20 : 40,
+      uq,
+      ur,
+    };
+  }
+  return theatre;
+}
+
 export function blocDiplomatie(etatFiltre: AnyEtat, moi: string, memo: AnyEtat = {}): AnyEtat {
   const maPuissance = forcesVisibles(etatFiltre, moi);
   const rencontres = memo?.rencontres ?? {};
+  const theatre = etatFiltre?.theatre ?? {};
   const rivaux = rivalsReels(etatFiltre, moi).map(({ id, p }: AnyEtat) => {
     const rencontreTour = rencontres[id] ?? null;
     return {
@@ -134,6 +195,10 @@ export function blocDiplomatie(etatFiltre: AnyEtat, moi: string, memo: AnyEtat =
     rapportForces: Math.round((maPuissance / Math.max(1, forcesVisibles(etatFiltre, id))) * 10) / 10,
     enGuerre: ennemisDeMoi(etatFiltre, moi).includes(id),
     distanceCapitale: distanceCapitales(etatFiltre, moi, id),
+    // Cadre du théâtre (JEV-CALIBRAGE-OFFENSIF D-E1) — direction + bucket
+    // SEULEMENT (jamais de case) ; null hors guerre hors domination.
+    capitaleDirection: theatre[id]?.direction ?? null,
+    capitaleDistance: theatre[id]?.distance ?? null,
     rencontreTour,
     toursDepuisRencontre: rencontreTour == null ? null : Math.max(0, (etatFiltre.turn ?? 0) - rencontreTour),
     provocations: provocationsDe(etatFiltre, moi, id),
@@ -171,6 +236,54 @@ function cheminVers(etatFiltre: AnyEtat, moi: string, colon: AnyEtat, cible: Any
     chemin.push(pas);
     curseur = { q: pas.q, r: pas.r, type: colon.type };
     if (pas.q === cible.q && pas.r === cible.r) break;
+  }
+  return chemin;
+}
+
+/** JEV-CALIBRAGE-OFFENSIF · D-E2 — chemin de MARCHE sous le fog (miroir
+ * harnais) : pas glouton déterministe, amélioration STRICTE, fog traversé
+ * (le moteur gèle à la frontière — R-161), ville ennemie vue = arrêt DEVANT. */
+function cheminMarche(etatFiltre: AnyEtat, moi: string, unite: AnyEtat, passage: AnyEtat, maxPas = 10): AnyEtat[] {
+  const OFFSETS: Array<[number, number]> = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+    [1, -1],
+    [-1, 1],
+  ];
+  const chemin: AnyEtat[] = [];
+  let cur = { q: unite.q, r: unite.r };
+  for (let i = 0; i < maxPas; i++) {
+    if (cur.q === passage.q && cur.r === passage.r) break;
+    let meilleur: AnyEtat = null;
+    let meilleureD = hexDistance(cur, passage);
+    for (const [dq, dr] of OFFSETS) {
+      const candidat = { q: cur.q + dq, r: cur.r + dr };
+      const d = hexDistance(candidat, passage);
+      if (d >= meilleureD) continue;
+      const tile = etatFiltre.map?.[`${candidat.q},${candidat.r}`];
+      if (tile && !TERRAINS[tile.terrain]?.passable) continue;
+      if (
+        vals(etatFiltre.cities ?? {}).some(
+          (v: AnyEtat) => v.q === candidat.q && v.r === candidat.r && v.owner !== moi,
+        )
+      ) {
+        break;
+      }
+      if (
+        vals(etatFiltre.units ?? {}).some(
+          (u: AnyEtat) => u.q === candidat.q && u.r === candidat.r && !u.aboard,
+        )
+      ) {
+        continue;
+      }
+      meilleur = candidat;
+      meilleureD = d;
+    }
+    if (!meilleur) break;
+    chemin.push(meilleur);
+    cur = meilleur;
   }
   return chemin;
 }
@@ -296,7 +409,13 @@ export function construireQuestionsJoueur(config: AnyEtat, condense: AnyEtat, et
     }
   }
 
-  if (enGuerre) {
+  // JEV-CALIBRAGE-OFFENSIF · D-C — paix INTERDITE en mode domination
+  // (rapport ≥ 1) ; rapport < 1 → paix à nouveau possible.
+  const modeFinPaix = memo.finPartie?.mode;
+  const enDomination =
+    (modeFinPaix === 'domination' || modeFinPaix === 'pousserCapitale') &&
+    (condense.monde.puissance?.rapport ?? 0) >= 1;
+  if (enGuerre && !enDomination) {
     const criteria: AnyEtat = { aucun: 'Refuser toute paix ce tour (les propositions ennemies sont rejetées).' };
     for (const e of condense.diplomatie.ennemis) {
       const r = rivaux.find((x: AnyEtat) => x.id === e.id);
@@ -354,8 +473,10 @@ export function construireQuestionsJoueur(config: AnyEtat, condense: AnyEtat, et
   // contre moi). Partie calme = prompt inchangé (non-régression v4).
   // JEV-IT4B · D-B — 5e signal permis par Erik (les 3 parties stériles ne
   // satisfont AUCUN critère it4 : domination 10-40× muette) : la domination
-  // MÉCANIQUE (rapport ≥ 2 ET ≥ 3 villes de plus que le leader) ouvre le gate.
-  const dominationMecanique = signalDominationMechanique(condense, etatFiltre, moi);
+  // MÉCANIQUE (rapport ≥ 2 ET ≥ ecart villes de plus que le leader —
+  // écart 3 en it4b ; 2 depuis JEV-CALIBRAGE-OFFENSIF, data
+  // `seuils.dominationEcartVilles`) ouvre le gate.
+  const dominationMecanique = signalDominationMechanique(condense, etatFiltre, moi, 2, (seuils as AnyEtat)?.dominationEcartVilles ?? 2);
   const signal = signalVictoire(condense) || dominationMecanique;
   if (signal) {
     // D2.1 — finPartie : que faire de la course ? cibles pré-triées :
@@ -463,7 +584,7 @@ export function signalVictoire(condense: AnyEtat): boolean {
  * `ecart` (3) villes de plus que le leader en villes. C'est le profil exact
  * des parties stériles du banc it4 (seeds 3947827986, 4033602994,
  * 786078703 : 76 forces vs 0-11, aucun autre signal). */
-export function signalDominationMechanique(condense: AnyEtat, etatFiltre: AnyEtat, moi: string, seuilRapport = 2, ecart = 3): boolean {
+export function signalDominationMechanique(condense: AnyEtat, etatFiltre: AnyEtat, moi: string, seuilRapport = 2, ecart = 2): boolean {
   const rapport = condense?.monde?.puissance?.rapport ?? 0;
   if (rapport < seuilRapport) return false;
   const mesVilles = vals(etatFiltre.cities ?? {}).filter((v: AnyEtat) => v.owner === moi).length;
@@ -828,6 +949,48 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
     }
   } else if (fin?.choice === 'continuer') {
     delete memo.finPartie;
+  }
+
+  // 7.5 JEV-CALIBRAGE-OFFENSIF · D-E2 — la MARCHE (miroir harnais). Pas
+  // glouton déterministe (cheminMarche) vers le point de passage — capitale
+  // vue sinon projection du secteur théâtre — pour les marcheTaille unités
+  // offensives hors menace adjacente ; re-planifié chaque tour.
+  const modeMarche = memo.finPartie?.mode;
+  const marcheActif = (seuils as AnyEtat).marcheActif ?? true;
+  if ((modeMarche === 'domination' || modeMarche === 'pousserCapitale') && marcheActif) {
+    const theatre = etatFiltre.theatre ?? {};
+    const cibleMarche = (condense.diplomatie.guerreAvec ?? []).find((id: string) => theatre[id]);
+    if (cibleMarche && capitale) {
+      const capVue =
+        vals(etatFiltre.cities ?? {}).find((v: AnyEtat) => v.owner === cibleMarche && v.capital) ??
+        vals(etatFiltre.cities ?? {}).find((v: AnyEtat) => v.owner === cibleMarche);
+      const t = theatre[cibleMarche];
+      const passage = capVue ?? { q: capitale.q + t.uq * t.distance, r: capitale.r + t.ur * t.distance };
+      const menaceAdjacente = (u: AnyEtat) =>
+        vals(etatFiltre.units ?? {}).some(
+          (e: AnyEtat) => e.owner !== moi && !e.aboard && hexDistance(e, u) <= 1,
+        );
+      const eligibles = vals(etatFiltre.units ?? {})
+        .filter(
+          (u: AnyEtat) =>
+            u.owner === moi &&
+            !u.aboard &&
+            (UNIT_TYPES[u.type]?.canAttack ?? false) &&
+            !menaceAdjacente(u),
+        )
+        .sort(
+          (a: AnyEtat, b: AnyEtat) =>
+            hexDistance(a, passage) - hexDistance(b, passage) || a.id.localeCompare(b.id),
+        )
+        .slice(0, (seuils as AnyEtat).marcheTaille ?? 6);
+      for (const u of eligibles) {
+        const chemin = cheminMarche(etatFiltre, moi, u, passage);
+        if (chemin.length > 0) {
+          sortie.ordres.push({ type: 'MultiStep', unitId: u.id, path: chemin });
+          sortie.attentes.push({ genre: 'marche', unitId: u.id, attendu: `${chemin[0].q},${chemin[0].r}` });
+        }
+      }
+    }
   }
 
   // 8. productionVictoire — l'item choisi est DÉJÀ validé par

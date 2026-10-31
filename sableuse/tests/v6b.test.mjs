@@ -244,8 +244,11 @@ describe('v6b · amendement aveugle (verdict Erik, banc v1) — rival jamais ren
     expect(memo.finPartie).toEqual({ mode: 'domination' });
   });
 
-  it('rival jamais rencontré, écart de villes < 3 (D-B muet) ⇒ toujours inoffrable', () => {
-    const filtre = getFilteredState(etatAveugle({ villesP1: 2, jalonsMoi: 12 }), 'p1');
+  it('rival jamais rencontré, écart de villes < 2 (D-B muet au seuil v7) ⇒ toujours inoffrable', () => {
+    // v6c · D-B : le seuil passe 3 → 2 (dominationEcartVilles) — l'écart 2
+    // OFFRE maintenant la guerreTotale (profil du seed 786078703) ; l'écart
+    // 1 reste muet. (Test v6b mis à jour — il verrouillait le seuil 3.)
+    const filtre = getFilteredState(etatAveugle({ villesP1: 1, jalonsMoi: 12 }), 'p1');
     const condense = condenseJoueur(filtre, 'p1', {});
     const { questions } = construireQuestionsJoueur(config, condense, filtre, 'p1', { finPartie: { mode: 'domination' } });
     expect(questions.finPartie).toBeDefined(); // gate ouvert par les jalons

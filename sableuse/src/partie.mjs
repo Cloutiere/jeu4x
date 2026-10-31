@@ -32,7 +32,7 @@ import {
   profileDuBot,
 } from '../../apps/server/src/botPolicy.js';
 import { fusionnerPlan, tourJev } from './adapter-jev.mjs';
-import { tourJevJoueur, memoRefusEchange } from './joueur.mjs';
+import { tourJevJoueur, memoRefusEchange, calculerTheatre } from './joueur.mjs';
 import { scoreEmpire } from './score.mjs';
 
 /**
@@ -143,6 +143,10 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     let decision = null;
     if (jev !== null && !etat.players[jev]?.defeated) {
       const filtre = getFilteredState(etat, jev);
+      // JEV-CALIBRAGE-OFFENSIF · D-E1 — cadre du théâtre : calculé sur
+      // l'état COMPLET (harnais), exposé au condensé par blocDiplomatie —
+      // direction (6 secteurs) + distance bucket, JAMAIS de case exacte.
+      filtre.theatre = calculerTheatre(etat, jev, memo);
       // D3 · scénario contact : unité ennemie FICTIVE dans le condensé SEULEMENT
       // (l'état moteur n'est jamais touché — l'outil reste hors ligne).
       if (scenario?.injectionMenace) injecterMenace(filtre, jev);
