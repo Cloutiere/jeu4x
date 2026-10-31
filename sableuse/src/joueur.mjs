@@ -376,7 +376,11 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
   // SEULEMENT si le bloc victoire montre un signal (jalons ≥ 10 chez
   // quelqu'un, ≥ 2 composants, merveille de victoire en chantier, ou guerre
   // contre moi). Partie calme = prompt inchangé (non-régression v4).
-  const signal = signalVictoire(condense);
+  // JEV-IT4B · D-B — 5e signal permis par Erik (les 3 parties stériles ne
+  // satisfont AUCUN critère it4 : domination 10-40× muette) : la domination
+  // MÉCANIQUE (rapport ≥ 2 ET ≥ 3 villes de plus que le leader) ouvre le gate.
+  const dominationMecanique = signalDominationMechanique(condense, etatFiltre, moi);
+  const signal = signalVictoire(condense) || dominationMecanique;
   if (signal) {
     // D2.1 — finPartie : que faire de la course ? cibles pré-triées :
     // leader de domination = rival vivant au PLUS de villes ; leader de
@@ -404,6 +408,22 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
       criteria[`contrerCourse:${leaderCourse.id}`] = `CONTRER la course de ${leaderCourse.civ} : ${leaderCourse.jalons}/20 jalons, ${leaderCourse.composants}/4 composants, merveilles de victoire en chantier ${JSON.stringify(leaderCourse.merveillesEnChantier)} — il mène vers une victoire non-domination.`;
     }
     criteria['viserMaVictoire:domination'] = 'VISER MA victoire par domination (voie principale) : tout à l\u2019effort de conquête.';
+    // JEV-IT4B · D-A — le levier du verdict Erik (3 parties stériles :
+    // domination 10-40× sans JAMAIS déclarer) : quand le MODE COURANT est
+    // déjà la domination (ou la poussée de capitale) et que le rapport de
+    // forces est favorable (≥ guerreTotaleRapportMin, data v6), la
+    // DÉCLARATION elle-même devient un choix de finPartie — vers une cible
+    // PRÉ-QUALIFIÉE (leader en villes, capitale connue, pas déjà en guerre
+    // avec elle). Acte PONCTUEL : jamais un mode persisté.
+    const modeFin = memo.finPartie?.mode;
+    if (modeFin === 'domination' || modeFin === 'pousserCapitale') {
+      const cibleGT = cibleGuerreTotale(condense, etatFiltre, moi, seuils.guerreTotaleRapportMin ?? 1.2, dominationMecanique);
+      if (cibleGT) {
+        criteria[`guerreTotale:${cibleGT.id}`] = cibleGT.aveugle
+          ? `DÉCLARER la guerre TOTALE à ${cibleGT.civ} (${cibleGT.id}), le rival en lice (JAMAIS rencontré — sa position est inconnue, mais sa nation est publique au lobby) : nos forces ${condense.monde.puissance.amie} vs les siennes visibles ${cibleGT.forces} (rapport ${cibleGT.rapportForces}×). C'est l'ACTE qui ouvre la voie de domination : sans déclaration, pas de conquête — et donc aucune victoire — possible.`
+          : `DÉCLARER la guerre TOTALE à ${cibleGT.civ} (${cibleGT.id}), leader en villes (${cibleGT.villes}) : nos forces ${condense.monde.puissance.amie} vs les siennes ${cibleGT.forces} (rapport ${cibleGT.rapportForces}× en notre faveur), capitale à ${cibleGT.distanceCapitale} cases. C'est l'ACTE qui ouvre la voie de domination : sans déclaration, pas de conquête possible.`;
+      }
+    }
     if (dominationBloquee) {
       criteria['viserMaVictoire:culture'] = `Viser MA victoire CULTURELLE (${moiV.jalons}/20 jalons) — la domination est bloquée ou trop coûteuse (rapport de forces ${(condense.monde.puissance?.rapport ?? 0)}×).`;
       criteria['viserMaVictoire:science'] = `Viser MA victoire SCIENTIFIQUE (${moiV.composants}/4 composants) — la domination est bloquée ou trop coûteuse.`;
@@ -460,6 +480,48 @@ export function signalVictoire(condense) {
   }
   if ((condense.diplomatie?.guerreAvec ?? []).length > 0) return true;
   return false;
+}
+
+/** JEV-IT4B · D-B — 5e signal de gate (LE seul amendement permis) : la
+ * domination est MÉCANIQUE — rapport de forces global ≥ 2 ET au moins
+ * `ecart` (3) villes de plus que le leader en villes. C'est le profil exact
+ * des parties stériles du banc it4 (seeds 3947827986, 4033602994,
+ * 786078703 : 76 forces vs 0-11, aucun autre signal). */
+export function signalDominationMechanique(condense, etatFiltre, moi, seuilRapport = 2, ecart = 3) {
+  const rapport = condense?.monde?.puissance?.rapport ?? 0;
+  if (rapport < seuilRapport) return false;
+  const mesVilles = Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner === moi).length;
+  const leaderVilles = Object.values(etatFiltre.cities ?? {})
+    .filter((v) => v.owner !== moi && v.owner !== 'barbarien' && etatFiltre.players?.[v.owner] && !etatFiltre.players[v.owner].defeated)
+    .reduce((m, v) => Math.max(m, villesDe(etatFiltre, v.owner)), 0);
+  return mesVilles >= leaderVilles + ecart;
+}
+
+function villesDe(etatFiltre, pid) {
+  return Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner === pid).length;
+}
+
+/** JEV-IT4B · D-A — cible pré-qualifiée de la guerre totale : un rival
+ * RENCONTRÉ (bloc diplomatie — fog respecté), PAS déjà en guerre avec lui,
+ * rapport de forces ≥ `seuilRapport` (1,2 — data v6), capitale CONNUE
+ * (distance < 99). Tri : le plus de villes (leader), puis le meilleur
+ * rapport, puis l'id (déterminisme). Null si personne n'est éligible.
+ * Amendement AVENIR (verdict Erik 31/10, banc v1) : avec `autoriserAveugle`
+ * (le signal D-B « domination mécanique » est actif), un rival JAMAIS
+ * rencontré devient une cible valable — la liste des joueurs est publique
+ * au lobby (canon T2 : l'UI de négociation expose les rivaux), et c'est le
+ * profil EXACT des parties stériles (domination à l'aveugle, distance 99). */
+export function cibleGuerreTotale(condense, etatFiltre, moi, seuilRapport = 1.2, autoriserAveugle = false) {
+  const enGuerre = new Set(condense?.diplomatie?.guerreAvec ?? []);
+  return (condense?.diplomatie?.rivaux ?? [])
+    .filter((r) => !enGuerre.has(r.id) && (r.rapportForces ?? 0) >= seuilRapport)
+    .map((r) => ({
+      ...r,
+      villes: villesDe(etatFiltre, r.id),
+      aveugle: (r.distanceCapitale ?? 99) >= 99,
+    }))
+    .filter((r) => (r.aveugle ? autoriserAveugle && r.rencontreTour == null : r.villes > 0))
+    .sort((a, b) => b.villes - a.villes || b.rapportForces - a.rapportForces || a.id.localeCompare(b.id))[0] ?? null;
 }
 
 /** JEV-IT4 · D2.2 — items de victoire productibles dans la capitale pour le
@@ -780,6 +842,24 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
           sortie.actions.push({ type: 'SetConversion', cityId: capitale.id, vers: 'science' });
           sortie.attentes.push({ genre: 'conversion', cityId: capitale.id, vers: 'science' });
         }
+      }
+    } else if (fin.choice.startsWith('guerreTotale:')) {
+      // JEV-IT4B · D-A — ACTE PONCTUEL : la déclaration est traduite en
+      // intention de guerre EXISTANTE (le harnais émet DeclareWar), JAMAIS
+      // persistée au memo — le mode courant (domination/pousserCapitale)
+      // est préservé et la question retrouve ses choix habituels. Double
+      // garde : mode courant + cible rencontrée, pas déjà en guerre avec
+      // elle, rapport ≥ seuil (miroir exact de la construction de question).
+      const cible = fin.choice.slice('guerreTotale:'.length);
+      const modeFin = memo.finPartie?.mode;
+      const seuil = seuils.guerreTotaleRapportMin ?? 1.2;
+      const r = (condense.diplomatie.rivaux ?? []).find((x) => x.id === cible);
+      const dejaEnGuerre = (condense.diplomatie.guerreAvec ?? []).includes(cible);
+      if (
+        (modeFin === 'domination' || modeFin === 'pousserCapitale') &&
+        r && !dejaEnGuerre && (r.rapportForces ?? 0) >= seuil
+      ) {
+        sortie.diplomatie.push({ genre: 'guerre', cible });
       }
     } else {
       const [modeF, cible] = fin.choice.split(':');

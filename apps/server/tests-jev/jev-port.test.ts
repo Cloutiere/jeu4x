@@ -275,6 +275,95 @@ describe('Tests croisés décisions (D2) — mêmes réponses ⇒ mêmes ordres'
     }
   });
 
+  it('JEV-IT4B : guerreTotale — questions et décision identiques harnais ⇄ serveur (acte ponctuel)', async () => {
+    const gen = generateProceduralMap(42);
+    let etat = createInitialState(gen.map, 42, {});
+    // Capitale p1 SYNTHÉTIQUE voisine (vue de p2) + légion p2 (rapport > 1,2)
+    // + signal de gate (12 jalons p2). Miroir etatCourse des tests v6b.
+    etat = {
+      ...etat,
+      turn: 40,
+      cities: {
+        ...etat.cities,
+        cap1: { id: 'cap1', owner: 'p1', q: 8, r: 5, pop: 2, capital: true, buildings: [], workedTiles: [], wonders: [] },
+        cap2: { id: 'cap2', owner: 'p2', q: 5, r: 5, pop: 3, capital: true, buildings: [], workedTiles: [], wonders: [] },
+      },
+      units: {
+        ...etat.units,
+        u_moi: { id: 'u_moi', owner: 'p2', type: 'legion', q: 6, r: 5, hp: 100, mp: 0, fortified: false, aboard: false },
+      },
+      players: {
+        ...etat.players,
+        p2: {
+          ...etat.players.p2,
+          cultureMilestones: 12,
+          vision: { explored: ['5,5', '6,5', '8,5'], visible: ['5,5', '6,5', '8,5'] },
+        },
+        p1: { ...etat.players.p1, cultureMilestones: 3 },
+      },
+    };
+    const filtre = getFilteredState(etat, 'p2');
+    const memoTs: any = { finPartie: { mode: 'domination' } };
+    const memoMjs: any = { finPartie: { mode: 'domination' } };
+    const a = construireTs(configJev, condenseJoueurTs(filtre, 'p2', memoTs), filtre, 'p2', memoTs);
+    const b = construireMjs(configJev, condenseJoueurMjs(filtre, 'p2', memoMjs), filtre, 'p2', memoMjs);
+    expect(a.questions.finPartie).toBeDefined();
+    expect(Object.keys(a.questions.finPartie!.criteria)).toContain('guerreTotale:p1');
+    expect(a.questions.finPartie).toEqual(JSON.parse(JSON.stringify(b.questions.finPartie)));
+    // Décision : la même réponse ⇒ la même intention de guerre, mémo inchangé.
+    const reponses: Record<string, unknown> = { finPartie: 'guerreTotale:p1' };
+    const dTs = await tourTs(fauxClient(reponses), configJev, filtre, 'p2', memoTs);
+    const dMjs = await tourMjs(fauxClient(reponses), configJev, filtre, 'p2', memoMjs);
+    expect(dTs.diplomatie).toEqual(dMjs.diplomatie);
+    expect(dTs.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p1' });
+    expect(memoCanon(memoTs).finPartie).toEqual({ mode: 'domination' });
+    expect(memoCanon(memoMjs).finPartie).toEqual({ mode: 'domination' });
+    // Cible invalide : même refus silencieux des deux côtés.
+    const dTs2 = await tourTs(fauxClient({ finPartie: 'guerreTotale:zz' }), configJev, filtre, 'p2', memoTs);
+    const dMjs2 = await tourMjs(fauxClient({ finPartie: 'guerreTotale:zz' }), configJev, filtre, 'p2', memoMjs);
+    expect(dTs2.diplomatie).toEqual([]);
+    expect(dTs2.diplomatie).toEqual(dMjs2.diplomatie);
+  });
+
+  it('JEV-IT4B · amendement aveugle : rival jamais rencontré + domination mécanique ⇒ questions/décision identiques', async () => {
+    const gen = generateProceduralMap(42);
+    let etat = createInitialState(gen.map, 42, {});
+    etat = {
+      ...etat,
+      turn: 40,
+      cities: {
+        ...etat.cities,
+        cap1: { id: 'cap1', owner: 'p2', q: 5, r: 5, pop: 3, capital: true, buildings: [], workedTiles: [], wonders: [] },
+        v1: { id: 'v1', owner: 'p2', q: 6, r: 6, pop: 1, capital: false, buildings: [], workedTiles: [], wonders: [] },
+        v2: { id: 'v2', owner: 'p2', q: 7, r: 6, pop: 1, capital: false, buildings: [], workedTiles: [], wonders: [] },
+        v3: { id: 'v3', owner: 'p2', q: 6, r: 4, pop: 1, capital: false, buildings: [], workedTiles: [], wonders: [] },
+        // cap p1 REPoussée hors du rayon de vision (canon fog) → jamais vue.
+        cap1adv: { id: 'cap1adv', owner: 'p1', q: 20, r: 5, pop: 1, capital: true, buildings: [], workedTiles: [], wonders: [] },
+      },
+      units: {
+        ...etat.units,
+        u_moi: { id: 'u_moi', owner: 'p2', type: 'legion', q: 4, r: 5, hp: 100, mp: 0, fortified: false, aboard: false },
+      },
+      players: {
+        ...etat.players,
+        p2: { ...etat.players.p2, cultureMilestones: 0 },
+        p1: { ...etat.players.p1, cultureMilestones: 0 },
+      },
+    };
+    const filtre = getFilteredState(etat, 'p2');
+    const memoTs: any = { finPartie: { mode: 'domination' } };
+    const memoMjs: any = { finPartie: { mode: 'domination' } };
+    const a = construireTs(configJev, condenseJoueurTs(filtre, 'p2', memoTs), filtre, 'p2', memoTs);
+    const b = construireMjs(configJev, condenseJoueurMjs(filtre, 'p2', memoMjs), filtre, 'p2', memoMjs);
+    expect(a.questions.finPartie).toBeDefined(); // signal D-B (4 villes, rapport ≥ 2)
+    expect(Object.keys(a.questions.finPartie!.criteria)).toContain('guerreTotale:p1');
+    expect(a.questions.finPartie).toEqual(JSON.parse(JSON.stringify(b.questions.finPartie)));
+    const dTs = await tourTs(fauxClient({ finPartie: 'guerreTotale:p1' }), configJev, filtre, 'p2', memoTs);
+    const dMjs = await tourMjs(fauxClient({ finPartie: 'guerreTotale:p1' }), configJev, filtre, 'p2', memoMjs);
+    expect(dTs.diplomatie).toEqual(dMjs.diplomatie);
+    expect(dTs.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p1' });
+  });
+
   it('erreur API : repli + erreur consignés à l’identique', async () => {    const filtre = fixture(1);
     const mauvaisClient = {
       async systemOne() {
