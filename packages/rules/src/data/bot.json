@@ -49,7 +49,9 @@
       "tailleArmee": 4,
       "rayonRalliement": 2,
       "modulationSeuilAgressivite": 0.7,
-      "delaiRedeclaration": 30
+      "delaiRedeclaration": 30,
+      "effectifAssaut": 3,
+      "ratioForcesAssaut": 2
     },
     "normal": {
       "seuilSoinPv": 2,
@@ -72,7 +74,9 @@
       "tailleArmee": 6,
       "rayonRalliement": 2,
       "modulationSeuilAgressivite": 0.7,
-      "delaiRedeclaration": 30
+      "delaiRedeclaration": 30,
+      "effectifAssaut": 4,
+      "ratioForcesAssaut": 2
     },
     "difficile": {
       "seuilSoinPv": 3,
@@ -95,7 +99,9 @@
       "tailleArmee": 8,
       "rayonRalliement": 2,
       "modulationSeuilAgressivite": 0.7,
-      "delaiRedeclaration": 30
+      "delaiRedeclaration": 30,
+      "effectifAssaut": 5,
+      "ratioForcesAssaut": 2
     }
   },
   "negociation": {
@@ -106,5 +112,9 @@
     "plancherRapportForces": 0.5,
     "plafondRapportForces": 2,
     "seuilContreTirage": 0.5
+  },
+  "victoire": {
+    "seuilJalonsCourseOnu": 16,
+    "jalonsMinPrioriteOnu": 12
   }
 }

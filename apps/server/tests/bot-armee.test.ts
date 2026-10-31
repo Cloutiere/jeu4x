@@ -326,6 +326,10 @@ describe('BOT-ARMEE · D1 — objectifs : rallier avant d’offensiver', () => {
         { id: 'u2', type: 'guerrier', owner: ME, q: 7, r: 2 },
         { id: 'u3', type: 'guerrier', owner: ME, q: 7, r: 3 },
         { id: 'u4', type: 'guerrier', owner: ME, q: 10, r: 10 }, // excédent loin
+        // TB-SIEGE-DEFENSE (Erik 31/10) : cible DÉFENDUE et garnison tenue —
+        // sans cela la porte A1 « ville vide » autorise l'offensive et tout
+        // le pool part (nouveau comportement couvert par bot-siege-defense).
+        { id: 'd1', type: 'piquier', owner: AUTRE, q: 8, r: 2 },
       ],
     });
     const objs = assignerObjectifs(s, ME, NORMAL);
@@ -368,6 +372,10 @@ describe('BOT-ARMEE · émission des ordres', () => {
         { id: 'u2', type: 'guerrier', owner: ME, q: 2, r: 4 },
         { id: 'u3', type: 'guerrier', owner: ME, q: 6, r: 2 },
         { id: 'u4', type: 'guerrier', owner: ME, q: 2, r: 7 },
+        // TB-SIEGE-DEFENSE (Erik 31/10) : cible défendue (piquier en ville,
+        // garnison tenue) — sans cela la porte A1 « ville vide » passe à
+        // l'assaut et u3 n' camperait plus (couvert par bot-siege-defense).
+        { id: 'd1', type: 'piquier', owner: AUTRE, q: 8, r: 2 },
       ],
     });
     const objs = assignerObjectifs(s, ME, NORMAL);

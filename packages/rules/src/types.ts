@@ -789,6 +789,26 @@ export interface BotProfileData {
    *  épuisés (95 % stériles) se tarissent. Consigné dans
    *  diplomacy.dernieresCibles (champ optionnel, schemaVersion 28). */
   delaiRedeclaration: number;
+  // --- TB-SIEGE-DEFENSE (Erik 31/10) — le siège qui tombe. ---
+  /** A1 · effectif d'armée assiégeant minimal AVANT de lancer l'assaut sur
+   *  la capitale — sous ce seuil, l'armée campe et rassemble (fini
+   *  l'assaut un par un). Leviers alternatifs : forces ≥ ratioForcesAssaut ×
+   *  garnison visible, ou ville sans défenseur. */
+  effectifAssaut: number;
+  /** A1 · rapport de forces assiégeants/garnison visible qui autorise
+   *  l'assaut même sous l'effectif (écrasement prouvé). */
+  ratioForcesAssaut: number;
+}
+
+/** TB-SIEGE-DEFENSE (Erik 31/10) · B1 — seuils de la course à l'ONU
+ *  (bot.json, bloc `victoire` — partagé par les profils). */
+export interface BotVictoireData {
+  /** Un adversaire vivant à ≥ ce nombre de jalons culturels rend le bot
+   *  ÉLIGIBLE à bâtir l'ONU en course (80 % du canon R-116). */
+  seuilJalonsCourseOnu: number;
+  /** Priorité production capitale en course si le bot a LUI-MÊME ≥ ce
+   *  nombre de jalons (sinon : arbitrage économique inchangé — consigné). */
+  jalonsMinPrioriteOnu: number;
 }
 
 /** BOT-TB · D1-D4 — arbitres économiques du bot (bot.json, partagés par les
@@ -860,4 +880,6 @@ export interface BotSettingsData {
   economie: BotEconomieData;
   /** DIPLOMATIE-T2 · D4 : grille de négociation (paix compensée, techs). */
   negociation: BotNegociationData;
+  /** TB-SIEGE-DEFENSE · B1 : seuils de la course à l'ONU. */
+  victoire: BotVictoireData;
 }

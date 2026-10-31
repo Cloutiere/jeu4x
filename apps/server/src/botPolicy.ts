@@ -788,6 +788,11 @@ export function planGarnison(
   state: GameState,
   me: PlayerId,
   profile: BotProfileData,
+  // TB-SIEGE-DEFENSE · A2 : ids des membres de l'armée de campagne — jamais
+  // brouillés comme garnison tant que la capitale n'est pas ASSAILLIE
+  // (l'appelant passe undefined quand l'assaut sur la capitale demande le
+  // rappel — B2). Le défaut (undefined) conserve le comportement historique.
+  exclus?: ReadonlySet<string>,
 ): { drafts: Map<string, string>; pool: Unit[] } {
   const mine = Object.values(state.units)
     .filter((u) => u.owner === me)
@@ -837,7 +842,9 @@ export function planGarnison(
   // (patrouille — rajouté au pool plus bas) ; en guerre/urgence il est
   // mobilisable comme les autres (rappel D3).
   const disponibles = mine.filter(
-    (u) => estCombattante(u) && !enPlace.has(u.id) && (urgence || u.id !== scoutId),
+    (u) =>
+      estCombattante(u) && !enPlace.has(u.id) && (urgence || u.id !== scoutId) &&
+      !(exclus?.has(u.id) ?? false), // TB-SIEGE A2 : l'armée de campagne n'est pas ré-absorbée
   );
   const brouillon = myCities
     .map((c) => ({ ville: c, n: besoinDe(c) - (defenseurs.get(c.id) ?? 0) }))
@@ -898,8 +905,14 @@ export function poolExcedentaire(state: GameState, me: PlayerId, profile: BotPro
   return planGarnison(state, me, profile).pool;
 }
 
-/** D1 · Les `tailleArmee` unités excédentaires LES PLUS PROCHES de la cible
- *  (ties id, R-81) forment l'armée. Pur, déterministe. */
+/** D1 · Les `tailleArmee` combattantes disponibles LES PLUS PROCHES de la
+ *  cible (ties id, R-81) forment l'armée. Pur, déterministe.
+ *  TB-SIEGE-DEFENSE · A2 — l'armée est calculée AVANT le brouillon de
+ *  garnison (candidats = combattantes hors défenseurs EN PLACE) : l'ancien
+ *  calcul depuis le pool POST-brouillon faisait absorber les futures
+ *  assiégeantes par les garnisons avant même que l'armée n'existe (urgence
+ *  capitale → armée vide, siège impossible). Les membres sont ensuite
+ *  exclus du brouillon par l'appelant (A2). */
 export function assignerArmee(
   state: GameState,
   me: PlayerId,
@@ -908,14 +921,23 @@ export function assignerArmee(
 ): Set<string> {
   const armee = new Set<string>();
   if (!cible) return armee;
-  const pool = poolExcedentaire(state, me, profile);
-  return new Set(
-    pool
-      .slice()
-      .sort((a, b) => dist(state, a, cible) - dist(state, b, cible) || compareUnitIds(a.id, b.id))
-      .slice(0, profile.tailleArmee)
-      .map((u) => u.id),
-  );
+  const estCombattante = (u: Unit): boolean =>
+    !u.aboard && (UNIT_TYPES[u.type]?.canAttack ?? false) && UNIT_TYPES[u.type]?.aquatic !== true;
+  // Le scout (première combattante, R-81) n'est JAMAIS un défenseur en place
+  // (miroir planGarnison — mobilisable, BOT-EXPLORATION D3).
+  const scoutId = Object.values(state.units)
+    .filter((u) => u.owner === me && estCombattante(u))
+    .sort((a, b) => compareUnitIds(a.id, b.id))[0]?.id;
+  const enPlace = new Set<string>();
+  for (const c of Object.values(state.cities).filter((c) => c.owner === me)) {
+    for (const u of Object.values(state.units)) {
+      if (u.owner === me && u.id !== scoutId && estCombattante(u) && u.q === c.q && u.r === c.r) enPlace.add(u.id);
+    }
+  }
+  const candidats = Object.values(state.units)
+    .filter((u) => u.owner === me && estCombattante(u) && !enPlace.has(u.id))
+    .sort((a, b) => dist(state, a, cible) - dist(state, b, cible) || compareUnitIds(a.id, b.id));
+  return new Set(candidats.slice(0, profile.tailleArmee).map((u) => u.id));
 }
 
 /** D1 · Les hex de l'ANNEAU de ralliement : cases praticables (hors villes)
@@ -1198,9 +1220,9 @@ export function assignerObjectifs(
     if (enGuerreCivile && !urgence) return 0; // D3 : la campagne prime
     return c.capital ? quotaCap : besoinDeVille(c);
   };
-  // PAIX-RYTHME · PAIX-RYTHME conscription : brouillon global (ville, unité)
-  // au plus près — miroir exact de planGarnison (le pool en est le complément).
-  const drafts = planGarnison(state, playerId, profile).drafts;
+  // PAIX-RYTHME · conscription : le brouillon global (ville, unité) au plus
+  // près est calculé PLUS BAS (TB-SIEGE A2 — il a besoin de l'armée de
+  // campagne pour l'exclure ; voir drafts ci-dessous).
 
   // Proies barbares (R-95) : unités vivantes, triées par id (R-81) — la
   // distance est évaluée par unité chasseuse au moment du choix.
@@ -1223,6 +1245,56 @@ export function assignerObjectifs(
   const membresArmee = campagne
     ? Object.values(state.units).filter((u) => u.owner === playerId && armee.has(u.id) && !u.aboard)
     : [];
+  // TB-SIEGE-DEFENSE · A1 — le siège qui tombe : l'assaut sur la ville de
+  // campagne n'est lancé que RASSEMBLÉ — effectif au rayon ≥ effectifAssaut
+  // (data), OU ville sans défenseur, OU forces ≥ ratioForcesAssaut × garnison
+  // visible à dist ≤ 1. Sinon : campement — l'armée agrège au lieu de mourir
+  // en détail (« 39 assauts, 0 chute »).
+  const auRayon = campagne
+    ? membresArmee.filter((m) => dist(state, m, campagne) <= profile.rayonRalliement)
+    : [];
+  const effectifSiege = auRayon.length;
+  let garnisonVisible = 0;
+  let villeDefendue = false;
+  if (campagne) {
+    for (const u of Object.values(state.units)) {
+      if (u.aboard || u.owner === playerId) continue;
+      if (u.q === campagne.q && u.r === campagne.r) villeDefendue = true;
+      if (dist(state, u, campagne) <= 1 && (ennemis.has(u.owner) || isBarbarian(u.owner))) {
+        garnisonVisible += forceDefense(state, u);
+      }
+    }
+  }
+  const forcesSiege = auRayon.reduce((s, m) => s + forceAttaque(m), 0);
+  const assautAutorise =
+    campagne !== null &&
+    effectifSiege > 0 && // l'assaut se juge AU rayon — jamais à distance
+    (effectifSiege >= profile.effectifAssaut ||
+      !villeDefendue ||
+      forcesSiege >= profile.ratioForcesAssaut * garnisonVisible);
+  // PAIX-RYTHME · conscription : brouillon global au plus près — miroir de
+  // planGarnison. TB-SIEGE · A2 : les membres de l'armée EN CAMPAGNE (loin de
+  // la capitale) sont EXCLUS du brouillon (fini la re-absorption en siège) —
+  // sauf si la capitale est ASSAILLIE (ennemi adjacent — B2 : le rappel
+  // défensif prime sur tout). Les membres proches de la capitale restent
+  // mobilisables par la garnison (défense locale d'abord).
+  const assautSurCapitale =
+    capitale !== undefined &&
+    Object.values(state.units).some(
+      (u) => !u.aboard && (ennemis.has(u.owner) || isBarbarian(u.owner)) && dist(state, u, capitale) <= 1,
+    );
+  const enCampagne = new Set(
+    [...armee].filter((id) => {
+      const u = state.units[id];
+      return u && (capitale === undefined || dist(state, u, capitale) > profile.rayonMenace);
+    }),
+  );
+  const drafts = planGarnison(
+    state,
+    playerId,
+    profile,
+    assautSurCapitale ? undefined : enCampagne,
+  ).drafts;
   // BOT-MARCHE · D2 : l'armée PERMANENTE en paix — calculée une fois (le
   // scout qui en fait partie ne patrouille plus, voir plus bas).
   const agressivite = agressiviteDe(me.civId);
@@ -1268,12 +1340,10 @@ export function assignerObjectifs(
       continue;
     }
 
-    // BOT-ARMEE · siège actif : membre d'armée, campagne complète → la
-    // garnison ennemie est prioritaire (voir ciblesAttaquables).
-    const enSiege =
-      campagne !== null && armee.has(unit.id) &&
-      membresArmee.filter((m) => dist(state, m, campagne) <= profile.rayonRalliement).length >=
-        Math.min(profile.tailleArmee, membresArmee.length);
+    // BOT-ARMEE · siège actif : membre d'armée, campagne complète ET assaut
+    // autorisé (TB-SIEGE A1 — rassemblé) → la garnison ennemie est
+    // prioritaire (voir ciblesAttaquables).
+    const enSiege = campagne !== null && armee.has(unit.id) && assautAutorise;
 
     // PAIX-RYTHME · D1 : membre d'un trio de fusion — la formation d'armée
     // (canon R-31) passe AVANT l'attaque (Erik : former l'armée, PUIS
@@ -1357,9 +1427,10 @@ export function assignerObjectifs(
     // unique embouteillait la colonne à dist 3-5 (sonde 27/10 : 1 seul membre
     // au rayon, l'armée empilée derrière) et la fusion n'arrivait jamais.
     if (estCombattante(unit) && campagne && armee.has(unit.id)) {
-      const effectif = membresArmee.filter((m) => dist(state, m, campagne) <= profile.rayonRalliement).length;
-      const requis = Math.min(profile.tailleArmee, membresArmee.length);
-      if (effectif >= requis) {
+      // TB-SIEGE · A1 : l'offensive ne part que si l'assaut est autorisé
+      // (effectif requis + rassemblement effectifAssaut / écrasement / ville
+      // vide) — sinon campement (rallier), l'armée agrège.
+      if (assautAutorise) {
         objectifs.set(unit.id, { kind: 'offensiver', cible: { q: campagne.q, r: campagne.r }, cityId: campagne.cityId });
       } else {
         // BOT-MARCHE · D1 : hex de ralliement STABLE (rang par id sur
@@ -1462,6 +1533,27 @@ function pickGovernment(
 function missingShipComponent(myCities: City[]): string | null {
   const batis = new Set(myCities.flatMap((c) => c.buildings ?? []));
   return SHIP_COMPONENTS.find((id) => !batis.has(id)) ?? null;
+}
+
+/**
+ * TB-SIEGE-DEFENSE · B1 (T-B voté, Erik 31/10) — la COURSE À L'ONU : un
+ * adversaire vivant (non barbare) à ≥ `victoire.seuilJalonsCourseOnu` jalons
+ * culturels (80 % du canon R-116) ET l'ONU PAS encore bâtie dans le monde →
+ * le bot devient ÉLIGIBLE à bâtir l'ONU en course (le filtre cultureVictory
+ * du menu merveilles devient conditionnel). Pur.
+ */
+export function courseOnuAdversaire(state: GameState, me: PlayerId): boolean {
+  const vict = BOT_SETTINGS.victoire;
+  if (Object.values(state.cities).some((c) => (c.wonders ?? []).includes('nations_unies'))) return false;
+  const actifs = new Set(activePlayerIds(state));
+  return Object.values(state.players).some(
+    (p) =>
+      p.id !== me &&
+      actifs.has(p.id) &&
+      !isBarbarian(p.id) &&
+      p.defeated !== true &&
+      (p.cultureMilestones ?? 0) >= vict.seuilJalonsCourseOnu,
+  );
 }
 
 /** R-117 · débarquement — première case terrestre connue, LIBRE, adjacente
@@ -1754,8 +1846,12 @@ export function arbitrerProduction(
   );
   const obsoleteWonders = new Set<string>();
   for (const techId of unlocked) for (const w of TECHS[techId]?.obsoleteWonders ?? []) obsoleteWonders.add(w);
+  // TB-SIEGE · B1 : les merveilles de victoire culturelle (l'ONU) sont
+  // éligibles en COURSE — un adversaire est près des jalons et l'ONU n'est
+  // pas bâtie. Hors course : filtre historique (jamais).
+  const courseOnu = courseOnuAdversaire(state, player.id);
   for (const w of Object.values(WONDERS)) {
-    if (w.implemented === false || w.cultureVictory) continue;
+    if (w.implemented === false || (w.cultureVictory && !courseOnu)) continue;
     if (w.tech && !unlocked.includes(w.tech)) continue;
     if (obsoleteWonders.has(w.id)) continue;
     if (empireWonders.has(w.id) || worldWonders.has(w.id) || empireChantiers.has(w.id)) continue;
@@ -2045,6 +2141,10 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
   // (R-116) et composants du vaisseau (R-124).
   const capitale = myCities.find((c) => c.capital) ?? myCities[0];
   const menace = capitale ? menaceAutourCapitale(state, capitale, playerId, ennemis, profile.rayonMenace) : false;
+  // TB-SIEGE · B1 : en course à l'ONU (adversaire à ≥ seuilJalonsCourseOnu,
+  // ONU non bâtie), la CAPITALE est priorisée si le bot a lui-même ≥
+  // jalonsMinPrioriteOnu jalons — sinon arbitrage inchangé (consigné).
+  const courseOnu = courseOnuAdversaire(state, playerId);
   for (const city of myCities) {
     if (city.production) continue;
     const component = (me.techsUnlocked ?? []).includes('vol_spatial') ? missingShipComponent(myCities) : null;
@@ -2052,6 +2152,12 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
       ? ({ kind: 'building', id: component } as ProductionItem)
       : null;
     if (!item && (me.cultureMilestones ?? 0) >= CULTURE.milestonesTarget) item = { kind: 'wonder', id: 'nations_unies' };
+    if (
+      !item && courseOnu && city.capital &&
+      (me.cultureMilestones ?? 0) >= BOT_SETTINGS.victoire.jalonsMinPrioriteOnu
+    ) {
+      item = { kind: 'wonder', id: 'nations_unies' };
+    }
     if (!item) item = arbitrerProduction(city, me, myCities, state, eco, enGuerre, menace, rng);
     if (item) orders.push({ type: 'SetProduction', cityId: city.id, item });
   }
