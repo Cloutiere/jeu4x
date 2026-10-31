@@ -16,6 +16,8 @@ import {
   TECHS,
   TERRAINS,
   UNIT_TYPES,
+  CULTURE,
+  WONDERS,
 } from '@game/rules';
 
 const RAYON_MENACE = 5;
@@ -293,6 +295,95 @@ export function ciblesAttaque(etatFiltre, moi) {
   return cibles.slice(0, MAX_CANDIDATS);
 }
 
+/**
+ * JEV-IT4 · D1 — bloc `victoire` du condensé : pur calcul depuis l'état
+ * FILTRÉ, zéro storage. Jalons culturels (mêmes compteurs que la gate ONU
+ * moteur, R-116), composants du Vaisseau spatial (suivi DÉRIVÉ des bâtiments
+ * des villes — R-124/R-66, miroir de SHIP_COMPONENTS de turn.ts), merveilles
+ * de victoire (ONU cultureVictory / Banque mondiale economicVictory) en
+ * chantier (files des villes) et déjà bâties par qui, trésorerie (mienne
+ * exacte — déjà exposée à empire.or ; rivaux ARRONDIE à la centaine — même
+ * économie de liste blanche que le reste du condensé : JAMAIS de positions
+ * d'unités ni de plans adverses ici). Rivaux ÉLIMINÉS exclus.
+ */
+export const COMPOSANTS_VAISSEAU = [
+  'vaisseau_habitation',
+  'vaisseau_support_vie',
+  'vaisseau_carburant',
+  'vaisseau_propulsion',
+]; // miroir SHIP_COMPONENTS (packages/rules/src/turn.ts, R-124)
+
+export function merveillesVictoire(id) {
+  const w = WONDERS[id];
+  return !!(w && (w.cultureVictory === true || w.economicVictory === true));
+}
+
+function merveillesEnChantier(villes, marteauxParVille) {
+  const out = [];
+  for (const v of villes) {
+    const p = v.production;
+    if (!p || p.item?.kind !== 'wonder' || !merveillesVictoire(p.item.id)) continue;
+    const cout = WONDERS[p.item.id]?.cost ?? 0;
+    const marteaux = Math.max(1, marteauxParVille.get(v.id) ?? 1);
+    out.push({
+      nom: p.item.id,
+      ville: v.id,
+      toursRestants: Math.ceil(Math.max(0, cout - (p.progress ?? 0)) / marteaux),
+    });
+  }
+  return out.sort((a, b) => a.ville.localeCompare(b.ville) || a.nom.localeCompare(b.nom));
+}
+
+function composantsPoses(villes) {
+  const poses = new Set();
+  for (const v of villes) for (const b of v.buildings ?? []) if (COMPOSANTS_VAISSEAU.includes(b)) poses.add(b);
+  return poses.size;
+}
+
+export function blocVictoire(etatFiltre, moi, marteauxParVille) {
+  const joueurs = etatFiltre.players ?? {};
+  const vivant = ([id, p]) => id !== 'barbarien' && p.defeated !== true;
+  const villesDe = (pid) => Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner === pid);
+  const jalonsDe = (p) => p.cultureMilestones ?? 0;
+  const autres = Object.entries(joueurs)
+    .filter(([id]) => id !== moi)
+    .filter(vivant);
+  const me = joueurs[moi] ?? {};
+  const mesVilles = villesDe(moi);
+  const mien = {
+    jalons: jalonsDe(me),
+    composants: composantsPoses(mesVilles),
+    merveillesEnChantier: merveillesEnChantier(mesVilles, marteauxParVille),
+    merveillesBatees: (mesVilles.reduce((a, v) => a + (v.buildings ?? []).filter((b) => merveillesVictoire(b)).length, 0)),
+  };
+  const rivaux = autres.map(([id, p]) => ({
+    id,
+    civ: p.civId,
+    jalons: jalonsDe(p),
+    composants: composantsPoses(villesDe(id)),
+    merveillesEnChantier: merveillesEnChantier(villesDe(id), marteauxParVille),
+    tresorerieApprox: Math.round((p.treasury ?? 0) / 100) * 100,
+    merveillesBatees: villesDe(id).reduce((a, v) => a + (v.buildings ?? []).filter((b) => merveillesVictoire(b)).length, 0),
+  }));
+  const merveillesBateesQui = autres
+    .map(([id, p]) => ({
+      civ: p.civId,
+      n: villesDe(id).reduce((a, v) => a + (v.buildings ?? []).filter((b) => merveillesVictoire(b)).length, 0),
+    }))
+    .filter((x) => x.n > 0);
+  if (mien.merveillesBatees > 0) merveillesBateesQui.push({ civ: me.civId, n: mien.merveillesBatees });
+  return {
+    cibles: {
+      jalons: CULTURE?.milestonesTarget ?? 20,
+      composants: COMPOSANTS_VAISSEAU.length,
+      or: WONDERS?.banque_mondiale?.treasuryRequired ?? 20000,
+    },
+    mien,
+    rivaux,
+    merveillesBateesQui,
+  };
+}
+
 export function condenserEtat(etatFiltre, moi) {
   const joueurs = etatFiltre.players ?? {};
   const me = joueurs[moi];
@@ -381,6 +472,10 @@ export function condenserEtat(etatFiltre, moi) {
       // D1 · v2 : puissance militaire connue (visible seulement) et rapport.
       puissance: puissanceMilitaire(etatFiltre, moi),
     },
+    // JEV-IT4 · D1 : la fin de partie devient VISIBLE (jalons, composants,
+    // merveilles de victoire, trésoreries approximées) — Jev ne peut viser
+    // une victoire qu'il ne voit pas.
+    victoire: blocVictoire(etatFiltre, moi, marteauxParVille),
     menaces,
     candidats: {
       fondation: sites,

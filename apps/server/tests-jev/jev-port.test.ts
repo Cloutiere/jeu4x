@@ -63,6 +63,76 @@ describe('Tests croisés condensé (D2)', () => {
       JSON.parse(JSON.stringify(condenseJoueurMjs(filtre, 'p2'))),
     );
   });
+
+  it('JEV-IT4 : bloc victoire identique (partie calme = bloc neutre ; en course = chiffres exacts)', () => {
+    // Partie calme : bloc présent, zéros.
+    const calme = fixture(1);
+    const cTs = condenseJoueurTs(calme, 'p2');
+    const cMjs = condenseJoueurMjs(calme, 'p2');
+    expect(cTs.victoire).toEqual(cMjs.victoire);
+    expect(cTs.victoire.cibles).toEqual({ jalons: 20, composants: 4, or: 20000 });
+    expect(cTs.victoire.mien.jalons).toBe(0);
+    // En course : jalons + trésorerie + chantier — port bit à bit.
+    const gen = generateProceduralMap(42);
+    let etat = createInitialState(gen.map, 42, {});
+    etat = {
+      ...etat,
+      turn: 40,
+      players: {
+        ...etat.players,
+        p2: { ...etat.players.p2, cultureMilestones: 13 },
+        p1: { ...etat.players.p1, cultureMilestones: 8, treasury: 1732 },
+      },
+    };
+    const course = getFilteredState(etat, 'p2');
+    expect(condenserEtatTs(course, 'p2').victoire).toEqual(condenserEtatMjs(course, 'p2').victoire);
+    expect(condenseJoueurTs(course, 'p2').victoire.rivaux[0].jalons).toBe(8);
+  });
+
+  it('JEV-IT4 · D3 : partie calme ⇒ AUCUNE question victoire (non-régression v4)', () => {
+    const filtre = fixture(1);
+    const condense = condenseJoueurTs(filtre, 'p2');
+    const { questions, meta } = construireTs(configJev, condense, filtre, 'p2', {});
+    expect(questions.finPartie).toBeUndefined();
+    expect(questions.productionVictoire).toBeUndefined();
+    expect(questions.protegerCapitale).toBeUndefined();
+    expect(meta.finPartie).toBeUndefined();
+    // Identique côté harnais (port bit à bit des questions).
+    const b = construireMjs(configJev, condenseJoueurMjs(filtre, 'p2'), filtre, 'p2', {});
+    expect(JSON.parse(JSON.stringify(questions))).toEqual(JSON.parse(JSON.stringify(b.questions)));
+  });
+
+  it('JEV-IT4 : en course, questions finPartie/productionVictoire identiques harnais ⇄ serveur', () => {
+    const gen = generateProceduralMap(42);
+    let etat = createInitialState(gen.map, 42, {});
+    // Capitale p2 SYNTHÉTIQUE (createInitialState ne pose pas de villes).
+    const cap: any = { id: 'cap2', owner: 'p2', q: 5, r: 5, pop: 3, capital: true, buildings: [], workedTiles: [], wonders: [] };
+    etat = {
+      ...etat,
+      turn: 40,
+      cities: {
+        ...etat.cities,
+        [cap.id]: { ...cap, buildings: ['vaisseau_habitation'] },
+      },
+      players: {
+        ...etat.players,
+        p2: { ...etat.players.p2, cultureMilestones: 13, techsUnlocked: [...(etat.players.p2?.techsUnlocked ?? []), 'vol_spatial'] },
+        p1: { ...etat.players.p1, cultureMilestones: 11 },
+      },
+    };
+    const filtre = getFilteredState(etat, 'p2');
+    const memoTs: any = { finPartie: { mode: 'science' } };
+    const memoMjs: any = { finPartie: { mode: 'science' } };
+    const a = construireTs(configJev, condenseJoueurTs(filtre, 'p2', memoTs), filtre, 'p2', memoTs);
+    const b = construireMjs(configJev, condenseJoueurMjs(filtre, 'p2', memoMjs), filtre, 'p2', memoMjs);
+    expect(a.questions.finPartie).toBeDefined(); // signal (13 jalons ≥ 10)
+    expect(JSON.parse(JSON.stringify(a.questions.productionVictoire))).toEqual(
+      JSON.parse(JSON.stringify(b.questions.productionVictoire)),
+    );
+    expect(JSON.parse(JSON.stringify(a.questions.finPartie))).toEqual(
+      JSON.parse(JSON.stringify(b.questions.finPartie)),
+    );
+  });
 });
 
 describe('Tests croisés questions (D2)', () => {
@@ -176,8 +246,36 @@ describe('Tests croisés décisions (D2) — mêmes réponses ⇒ mêmes ordres'
     expect(a.actions).toEqual(b.actions);
   });
 
-  it('erreur API : repli + erreur consignés à l’identique', async () => {
-    const filtre = fixture(1);
+  it('JEV-IT4 : finPartie domination ⇒ mêmes ordres et mêmes mémos', async () => {
+    const gen = generateProceduralMap(42);
+    let etat = createInitialState(gen.map, 42, {});
+    etat = {
+      ...etat,
+      turn: 40,
+      players: {
+        ...etat.players,
+        p2: { ...etat.players.p2, cultureMilestones: 12 },
+        p1: { ...etat.players.p1, cultureMilestones: 9 },
+      },
+    };
+    const filtre = getFilteredState(etat, 'p2');
+    const reponses: Record<string, unknown> = { finPartie: 'viserMaVictoire:domination' };
+    const memoTs: any = {};
+    const a = await tourTs(fauxClient(reponses), configJev, filtre, 'p2', memoTs);
+    const memoMjs: any = {};
+    const b = await tourMjs(fauxClient(reponses), configJev, filtre, 'p2', memoMjs);
+    expect(a.ordres).toEqual(b.ordres);
+    expect(a.attentes).toEqual(b.attentes);
+    expect(memoCanon(memoTs).finPartie ?? null).toEqual(memoCanon(memoMjs).finPartie ?? null);
+    expect(memoTs.finPartie).toEqual({ mode: 'domination' });
+    // L'ordre poussé est un candidat DÉJÀ listé (jamais d'ordre hors liste).
+    const item = a.ordres.find((o) => o.type === 'SetProduction')?.item;
+    if (item) {
+      expect((a.condense.candidats.productionCapitale ?? []).some((c: any) => c.cle === `${item.kind}:${item.id}`)).toBe(true);
+    }
+  });
+
+  it('erreur API : repli + erreur consignés à l’identique', async () => {    const filtre = fixture(1);
     const mauvaisClient = {
       async systemOne() {
         throw new Error('panne API');

@@ -21,8 +21,10 @@ import {
   hexDistance,
   TECHS,
   UNIT_TYPES,
+  BUILDINGS,
+  WONDERS,
 } from '@game/rules';
-import { condenserEtat, gainNetSite, sitesFondation } from './condense.mjs';
+import { condenserEtat, gainNetSite, sitesFondation, COMPOSANTS_VAISSEAU } from './condense.mjs';
 import { pasVersRoutier } from '../../apps/server/src/botPolicy.js';
 
 /** Civs / barbare exclus — seuls les vrais joueurs sont des partenaires. */
@@ -370,7 +372,121 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
     }
   }
 
+  // JEV-IT4 · D2/D3 — questions de FIN DE PARTIE, gate de bruit : posées
+  // SEULEMENT si le bloc victoire montre un signal (jalons ≥ 10 chez
+  // quelqu'un, ≥ 2 composants, merveille de victoire en chantier, ou guerre
+  // contre moi). Partie calme = prompt inchangé (non-régression v4).
+  const signal = signalVictoire(condense);
+  if (signal) {
+    // D2.1 — finPartie : que faire de la course ? cibles pré-triées :
+    // leader de domination = rival vivant au PLUS de villes ; leader de
+    // course = rival le plus proche d'un seuil (jalons puis composants).
+    const rivauxV = condense.victoire.rivaux ?? [];
+    const villesParRival = rivauxV
+      .map((r) => ({ id: r.id, civ: r.civ, villes: Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner === r.id).length }))
+      .sort((a, b) => b.villes - a.villes || a.id.localeCompare(b.id));
+    const leaderDomination = villesParRival[0] ?? null;
+    const leaderCourse = [...rivauxV].sort(
+      (a, b) => (b.jalons + 100 * b.composants) - (a.jalons + 100 * a.composants) || a.id.localeCompare(b.id),
+    )[0] ?? null;
+    const moiV = condense.victoire.mien ?? {};
+    // D4 — la domination reste la voie principale : viserMaVictoire
+    // non-domination n'est offert que si la domination est BLOQUÉE ou trop
+    // coûteuse (ratio de forces < 1, ou capitaux adverses introuvables).
+    const dominationBloquee =
+      (condense.monde.puissance?.rapport ?? 0) < 1 ||
+      (condense.diplomatie?.rivaux ?? []).every((r) => r.distanceCapitale == null || r.distanceCapitale >= 99);
+    const criteria = { continuer: 'Rien de spécial — poursuivre le plan courant (expansion + conquête).' };
+    if (leaderDomination && leaderDomination.id && leaderDomination.villes > 0) {
+      criteria[`pousserCapitale:${leaderDomination.id}`] = `Concentrer l'effort offensif sur la CAPITALE de ${leaderDomination.civ} (leader en villes : ${leaderDomination.villes}) — produire du militaire et marcher vers sa capitale.`;
+    }
+    if (leaderCourse && (leaderCourse.jalons > moiV.jalons || leaderCourse.composants > moiV.composants)) {
+      criteria[`contrerCourse:${leaderCourse.id}`] = `CONTRER la course de ${leaderCourse.civ} : ${leaderCourse.jalons}/20 jalons, ${leaderCourse.composants}/4 composants, merveilles de victoire en chantier ${JSON.stringify(leaderCourse.merveillesEnChantier)} — il mène vers une victoire non-domination.`;
+    }
+    criteria['viserMaVictoire:domination'] = 'VISER MA victoire par domination (voie principale) : tout à l\u2019effort de conquête.';
+    if (dominationBloquee) {
+      criteria['viserMaVictoire:culture'] = `Viser MA victoire CULTURELLE (${moiV.jalons}/20 jalons) — la domination est bloquée ou trop coûteuse (rapport de forces ${(condense.monde.puissance?.rapport ?? 0)}×).`;
+      criteria['viserMaVictoire:science'] = `Viser MA victoire SCIENTIFIQUE (${moiV.composants}/4 composants) — la domination est bloquée ou trop coûteuse.`;
+      criteria['viserMaVictoire:economique'] = `Viser MA victoire ÉCONOMIQUE (${condense.empire?.or ?? 0}/20000 or) — la domination est bloquée ou trop coûteuse.`;
+    }
+    q.finPartie = { instructions: config.questions.finPartie.instructions, criteria, type: 'choice' };
+    meta.finPartie = { genre: 'finPartie', signal: true };
+
+    // D2.3 — protegerCapitale : je suis en guerre ET des unités hostiles
+    // rôdent près de mes villes (menaces du condensé).
+    if (enGuerre && (condense.menaces ?? []).length > 0 && capitale) {
+      const criteriaP = {
+        aucun: 'Ne rien changer à la défense ce tour.',
+        proteger: `PRIORITÉ DÉFENSE — fortifier les unités autour de ${capitale.capitale ? 'la capitale' : 'la ville'} ${capitale.id} (${condense.menaces.length} unité(s) hostile(s) à proximité).`,
+      };
+      q.protegerCapitale = { instructions: config.questions.protegerCapitale.instructions, criteria: criteriaP, type: 'choice' };
+      meta.protegerCapitale = { genre: 'protegerCapitale' };
+    }
+  }
+  // D2.2 — productionVictoire : SEULEMENT si Jev a VISÉ sa victoire
+  // culture/science au tour précédent (memo.finPartie) et qu'un item de
+  // victoire est productible dans la capitale.
+  const mode = memo.finPartie?.mode;
+  if ((mode === 'culture' || mode === 'science') && capitale) {
+    const marteaux = Math.max(1, condense.empire?.villes?.find((v) => v.id === capitale.id)?.marteaux ?? 1);
+    const items = itemsVictoireProductibles(mode, etatFiltre, moi, capitale, marteaux);
+    if (items.length > 0) {
+      const criteria = { aucun: 'Ne pas orienter la production vers la victoire ce tour.' };
+      for (const it of items) {
+        criteria[`${it.kind}:${it.id}`] = `${it.nom} — coût ${it.cout} marteaux, environ ${Math.ceil(it.cout / marteaux)} tour(s).`;
+      }
+      q.productionVictoire = { instructions: config.questions.productionVictoire.instructions, criteria, type: 'choice' };
+      meta.productionVictoire = { genre: 'productionVictoire', mode };
+    }
+  }
+
   return { questions: q, meta, seuils };
+}
+
+/** JEV-IT4 · D3 — gate de bruit : un signal de fin de partie dans le bloc
+ * victoire (jalons ≥ 10 chez quelqu'un, ≥ 2 composants, merveille de
+ * victoire en chantier, ou guerre contre moi). */
+export function signalVictoire(condense) {
+  const v = condense?.victoire;
+  if (!v) return false;
+  const seuilJalons = Math.ceil((v.cibles?.jalons ?? 20) / 2);
+  if ((v.mien?.jalons ?? 0) >= seuilJalons) return true;
+  if ((v.mien?.composants ?? 0) >= 2) return true;
+  if ((v.mien?.merveillesEnChantier ?? []).length > 0) return true;
+  for (const r of v.rivaux ?? []) {
+    if ((r.jalons ?? 0) >= seuilJalons) return true;
+    if ((r.composants ?? 0) >= 2) return true;
+    if ((r.merveillesEnChantier ?? []).length > 0) return true;
+  }
+  if ((condense.diplomatie?.guerreAvec ?? []).length > 0) return true;
+  return false;
+}
+
+/** JEV-IT4 · D2.2 — items de victoire productibles dans la capitale pour le
+ * mode visé : culture → merveilles cultureVictory ; science → composants du
+ * Vaisseau. ORDRES EXISTANTS SEULEMENT (kind wonder/building + canSetProduction).
+ * JAMAIS de nouvel ordre moteur. */
+export function itemsVictoireProductibles(mode, etatFiltre, moi, capitale, marteaux = 1) {
+  const joueur = etatFiltre.players?.[moi];
+  const techs = joueur?.techsUnlocked ?? [];
+  const batiments = capitale.buildings ?? [];
+  const out = [];
+  if (mode === 'culture') {
+    for (const w of Object.values(WONDERS)) {
+      if (w.cultureVictory !== true || batiments.includes(w.id)) continue;
+      if (canSetProduction({ kind: 'wonder', id: w.id }, techs, batiments, joueur?.civId)) {
+        out.push({ kind: 'wonder', id: w.id, nom: `Merveille ${w.id} (victoire culturelle — ONU)`, cout: w.cost });
+      }
+    }
+  } else if (mode === 'science') {
+    for (const c of COMPOSANTS_VAISSEAU) {
+      if (batiments.includes(c)) continue;
+      if (canSetProduction({ kind: 'building', id: c }, techs, batiments, joueur?.civId)) {
+        out.push({ kind: 'building', id: c, nom: `Composant du Vaisseau spatial ${c}`, cout: BUILDINGS[c]?.cost ?? 0 });
+      }
+    }
+  }
+  return out.sort((a, b) => a.cout - b.cout || a.id.localeCompare(b.id)).slice(0, 4);
 }
 
 /** L3 v2 — fourchette de compensation suggérée, miroir du prix indicatif T2
@@ -455,6 +571,8 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
   const confDialMin = (r) => confiance(r, confDial);
   const me = etatFiltre.players?.[moi];
   const mesVilles = Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner === moi);
+  // JEV-IT4 · D2 : capitale de portée tour (décisions finPartie/proteger).
+  const capitale = mesVilles.find((v) => v.capital) ?? mesVilles[0] ?? null;
 
   // Distribution plate = état insuffisant (directive n°3), consigné.
   const premier = Object.values(ans)[0];
@@ -639,6 +757,76 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     );
     if ((me?.techsUnlocked ?? []).includes(techOfferte) && !dejaRefusee) {
       sortie.diplomatie.push({ genre: 'echange', cible: (condense.diplomatie.rivaux ?? [])[0]?.id, techOfferte, techDemandee });
+    }
+  }
+
+  // JEV-IT4 · D2 — traduction des décisions de fin de partie.
+
+  // 7. finPartie — le mode est PERSISTÉ au memo (les questions 2 en
+  // dépendent) ; pousserCapitale/contrerCourse/viserMaVictoire:domination
+  // orientent la production de la capitale vers le MEILLEUR candidat
+  // militaire déjà listé (ORDRES EXISTANTS — jamais de nouvel ordre).
+  const fin = confDialMin(ans.finPartie);
+  if (fin?.choice && fin.choice !== 'continuer') {
+    if (fin.choice === 'viserMaVictoire:domination') {
+      memo.finPartie = { mode: 'domination' };
+    } else if (fin.choice.startsWith('viserMaVictoire:')) {
+      const type = fin.choice.slice('viserMaVictoire:'.length);
+      memo.finPartie = { mode: type };
+      // culture/science : la recherche est le goulot — orienter la capitale
+      // vers la science (ORDRE EXISTANT SetConversion).
+      if ((type === 'culture' || type === 'science') && capitale) {
+        if ((capitale.conversion ?? 'gold') !== 'science') {
+          sortie.actions.push({ type: 'SetConversion', cityId: capitale.id, vers: 'science' });
+          sortie.attentes.push({ genre: 'conversion', cityId: capitale.id, vers: 'science' });
+        }
+      }
+    } else {
+      const [modeF, cible] = fin.choice.split(':');
+      memo.finPartie = { mode: modeF, cible: cible ?? null };
+    }
+    // Poussée militaire : produire le meilleur candidat de combat dans la
+    // capitale (parmi candidats productionCapitale DÉJÀ validés).
+    if (fin.choice.startsWith('pousserCapitale:') || fin.choice.startsWith('contrerCourse:') || fin.choice === 'viserMaVictoire:domination') {
+      const militaire = (condense.candidats.productionCapitale ?? [])
+        .filter((c) => c.attaque > 0)
+        .sort((a, b) => b.attaque - a.attaque || a.cout - b.cout || a.cle.localeCompare(b.cle))[0];
+      const prodCourante = capitale?.production ? `${capitale.production.item.kind}:${capitale.production.item.id}` : null;
+      if (militaire && capitale && prodCourante !== militaire.cle) {
+        const [kind, id] = militaire.cle.split(':');
+        if (canSetProduction({ kind, id }, me?.techsUnlocked ?? [], capitale.buildings ?? [], me?.civId)) {
+          sortie.ordres.push({ type: 'SetProduction', cityId: capitale.id, item: { kind, id } });
+          sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: militaire.cle });
+        }
+      }
+    }
+  } else if (fin?.choice === 'continuer') {
+    delete memo.finPartie;
+  }
+
+  // 8. productionVictoire — l'item choisi est DÉJÀ validé par
+  // canSetProduction à la construction de la question ; revalider quand même
+  // (le moteur est l'arbitre final).
+  const prodV = confiance(ans.productionVictoire);
+  if (prodV?.choice && prodV.choice !== 'aucun' && capitale) {
+    const [kind, id] = prodV.choice.split(':');
+    if ((kind === 'wonder' || kind === 'building') && canSetProduction({ kind, id }, me?.techsUnlocked ?? [], capitale.buildings ?? [], me?.civId)) {
+      sortie.ordres.push({ type: 'SetProduction', cityId: capitale.id, item: { kind, id } });
+      sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: prodV.choice });
+    }
+  }
+
+  // 9. protegerCapitale — fortifier les unités de combat NON fortifiées
+  // dans un rayon de 2 autour de la capitale (ORDRE EXISTANT Fortify).
+  const prot = confDialMin(ans.protegerCapitale);
+  if (prot?.choice === 'proteger' && capitale) {
+    const proches = Object.values(etatFiltre.units ?? {})
+      .filter((u) => u.owner === moi && !u.aboard && (UNIT_TYPES[u.type]?.canAttack ?? false) && !u.fortified)
+      .filter((u) => hexDistance(u, capitale) <= 2)
+      .sort((a, b) => `${a.q},${a.r}`.localeCompare(`${b.q},${b.r}`));
+    for (const u of proches.slice(0, 4)) {
+      sortie.ordres.push({ type: 'Fortify', unitId: u.id });
+      sortie.attentes.push({ genre: 'fortification', unitId: u.id });
     }
   }
 

@@ -1,5 +1,5 @@
 {
-  "_commentaire": "Questions JEV-BANC-JOUEUR (décisions Erik 28/10) — Jev JOUEUR stratégique 1v1 vs bot standard : il décide UNE FOIS PAR TOUR la recherche (tenue), la conversion or/science (remplace la règle regle:conversion — actif:false ici), l'orientation de production de la capitale (militaire/éco), la diplomatie T2 (guerre, paix avec compensation, échange de techs). Le bot standard exécoute tout le tactique (marche, combats, garnisons, travail des tuiles, fondations). Les critères sont INJECTÉS par tour par le harnais (joueur.mjs) — candidats réels seulement, jamais de critère vide (directive n°3).",
+  "_commentaire": "Questions JEV-BANC-JOUEUR (décisions Erik 28/10) — VERSION v5 JEV-IT4-FIN-PARTIE (31/10) : + finPartie / productionVictoire / protegerCapitale (gate de bruit D3 — posées seulement sur signal de fin de partie dans le bloc victoire du condensé). Base (v4, décisions Erik 28/10) — Jev JOUEUR stratégique 1v1 vs bot standard : il décide UNE FOIS PAR TOUR la recherche (tenue), la conversion or/science (remplace la règle regle:conversion — actif:false ici), l'orientation de production de la capitale (militaire/éco), la diplomatie T2 (guerre, paix avec compensation, échange de techs). Le bot standard exécoute tout le tactique (marche, combats, garnisons, travail des tuiles, fondations). Les critères sont INJECTÉS par tour par le harnais (joueur.mjs) — candidats réels seulement, jamais de critère vide (directive n°3).",
   "questions": {
     "produire": {
       "primitive": "choice",
@@ -43,6 +43,20 @@
     "techDemandee": {
       "primitive": "choice",
       "instructions": "Choisir la technologie DEMANDÉE en contrepartie de l'échange (échange 1:1). Chaque critère est une tech du rival que nous ne connaissons PAS, avec son coût en fioles. Un échange équilibré demande une tech de coût comparable à celle offerte.",
+      "aucun": true
+    },
+    "finPartie": {
+      "primitive": "choice",
+      "instructions": "JEV-IT4 · D2 — Décision de FIN DE PARTIE : le bloc victoire du condensé montre les courses en cours (jalons culturels /20, composants du Vaisseau /4, merveilles de victoire, trésoreries approximées). La DOMINATION reste votre voie principale (vous êtes joueur de conquête) : 'viserMaVictoire:domination' met tout à l'effort de conquête. 'pousserCapitale:<id>' concentre l'offensif sur la capitale du leader en villes ; 'contrerCourse:<id>' priorise le rival le plus proche d'une victoire non-domination ; 'viserMaVictoire:culture|science|economique' ne vous est offert que si la domination est bloquée ou trop coûteuse — la capitale passe alors en science (culture/science) et la question productionVictoire s'ouvre au tour suivant. 'continuer' poursuit le plan courant."
+    },
+    "productionVictoire": {
+      "primitive": "choice",
+      "instructions": "JEV-IT4 · D2 — Production de VICTOIRE : vous avez visé une victoire culturelle ou scientifique ; chaque critère est un item de victoire réellement productible dans la capitale (merveille ONU pour la culture, composant du Vaisseau spatial pour la science) avec son coût en marteaux. Choisir 'aucun' laisse la production courante telle quelle.",
+      "aucun": true
+    },
+    "protegerCapitale": {
+      "primitive": "choice",
+      "instructions": "JEV-IT4 · D2 — Un ennemi en guerre menace vos villes (unités hostiles à proximité). Choisir 'proteger' fortifie les unités de combat autour de la capitale (priorité défense) ; 'aucun' ne change rien à la défense ce tour.",
       "aucun": true
     }
   },
