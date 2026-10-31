@@ -72,10 +72,10 @@ describe('Données v1 (RULES.md §2-3)', () => {
     expect(terrainTable['eau']!.passable).toBe(false);
   });
 
-  it('bonus défensifs §2 révisé (30/08) : forêt +50 % = colline, ville +50 %', () => {
+  it('bonus défensifs §2 révisé (30/08) : forêt +50 % = colline ; CANON-SIEGE FIX 1 (31/10) : ville +25 % (T-02 branchée — la garnison n\'est plus une forteresse)', () => {
     expect(terrainTable['foret']!.defenseBonus).toBe(0.5);
     expect(terrainTable['colline']!.defenseBonus).toBe(0.5);
-    expect(terrainTable['ville']!.defenseBonus).toBe(0.5);
+    expect(terrainTable['ville']!.defenseBonus).toBe(0.25);
   });
 });
 

@@ -40,7 +40,7 @@ Le monde est un **CYLINDRE** : on sort par l'Est et on ressort par l'Ouest. Le N
 | Désert *(nouveau)* | oui | 0 % | **0/0/1** | Comptoir commercial | +2 Commerce |
 | Mer *(côte — l'ex-« eau », productive)* | **naval uniquement** (R-117, 7g) | — | **0/0/3** | Port | +1 Nourriture |
 | Océan *(nouveau 6c — eau profonde)* | **naval uniquement** (R-117, 7g) | — | **0/0/3** | — | — |
-| Case de ville | oui | +50 % (T-02) | 1/1/1 | — | — |
+| Case de ville | oui | **+25 % (T-02 — appliquée CANON-SIEGE 31/10)** | 0/0/0 | — | — |
 | Cratère *(7n — C15)* | oui | 0 % | **0/0/0 (stérile)** | — | — |
 
 - **Cratère (7n · C15)** : formé par l'annihilation nucléaire d'une ville ordinaire — la case (ex-case de ville) devient un terrain `cratere` stérile (rendements nuls, ressource effacée) et **non fondable** ; défaut 🔶 **permanent** (le canon est muet sur une réutilisation — alternative : réutilisable après N tours, données à venir). Les tirs sur des cases quelconques hors ville ne créent PAS de cratère.
@@ -100,7 +100,7 @@ Une unité qui survit à un combat où elle inflige le coup fatal devient vété
 | `Hold` | — | Ne rien faire (l'unité reste « stationnaire »). |
 | `Fortify` | — | **R-33** (ajouté le 30/08) : fortification permanente — voir ci-dessous. |
 | `SellUnit` | — | **ORDRES-UNITES** (ajouté le 06/10, décisions d'Erik) : vend l'unité — **+50 % du coût de production effectif** (traits compris, base R-135/`productionItemCostOf`) en or, unité détruite, événement `UnitSold` + Chroniques. **Interdits** (refus nommé `SellRefused`, ordre ignoré) : à **bord** d'un transport ; transport **porteur de cargaison** ; unité ayant **combattu ce tour** (siège/combat en cours — interdiction supplémentaire consignée). |
-| `Heal` | — | **ORDRES-UNITES** (06/10) : soin — l'unité est **immobile** et soigne au taux actuel (**R-71 inchangée : aucun soin après combat** ; +1 PV/tour, +2 en ville amie) **jusqu'à PV complets**, puis l'ordre **se termine** (unité sans ordres, événement `HealCompleted`). **Interdit en territoire ennemi** = anneaux culturels (R-162, `estTerritoireEnnemi`) — évalué **à la pose** (refus `HealRefused`) ; l'évolution ultérieure du territoire ne rompt pas un soin en cours 🔶. Ordre **persistant** (`unit.order`) — annulé par tout autre ordre touchant l'unité. |
+| `Heal` | — | **ORDRES-UNITES** (06/10) : soin — l'unité est **immobile** et soigne au taux actuel (**R-71 inchangée : aucun soin après combat** ; **+1 PV/tour PARTOUT — CANON-SIEGE 31/10 : la ville ne soigne plus plus vite**). Poser un soin **lève la fortification** (R-175 amendée) **jusqu'à PV complets**, puis l'ordre **se termine** (unité sans ordres, événement `HealCompleted`). **Interdit en territoire ennemi** = anneaux culturels (R-162, `estTerritoireEnnemi`) — évalué **à la pose** (refus `HealRefused`) ; l'évolution ultérieure du territoire ne rompt pas un soin en cours 🔶. Ordre **persistant** (`unit.order`) — annulé par tout autre ordre touchant l'unité. |
 | `Sleep` | — | **ORDRES-UNITES** (06/10) : vigilance — l'unité passe ses tours ; **réveil** dès qu'un **ennemi devient visible** (fog, évalué en Phase D après vision — une case explorée mais non visible ne réveille pas) : ordre nul + événement `SleepWoke` (toast). Ordre **persistant** (`unit.order`) — tout autre ordre (y compris `Hold`) lève la vigilance. |
 | `Pass` | — | **ORDRES-UNITES** (06/10) : passer — **inerte ce tour** (chemin gelé effacé, aucun déplacement) ; « sans ordres » au tour suivant (ordre consommé). |
 | `SetProduction` | ville, item | File de production à un élément, remplaçable (progression conservée). Items : unités **et bâtiments** (R-66). |
@@ -853,10 +853,12 @@ Base documentaire : la spécification d'Erik [`Guide Civilisations Civilization 
   joignent à l'instabilité (résolue en Phase E). Le défenseur d'une case = son unité
   stabilisée (défense décroissante, puis PV, puis R-81 en cas de double marquage transitoire).
 - **R-175 · Fortification durable.** La fortification est ACQUISE par l'ordre Fortify
-  (réservé au stabilisé) puis CONSERVÉE tant que l'unité est en vie et DEMEURE sur sa case —
-  même en mêlée, même en cohabitation — et perdue par tout déplacement. Le bonus de TERRAIN
-  et les bonus de VILLE suivent la même logique (l'avantage de l'occupation du terrain).
-  Ancien R-33 (« annulée par tout autre ordre ») abrogé.
+  (réservé au stabilisé) puis CONSERVÉE tant que l'unité est en vie, DEMEURE sur sa case et N'EST PAS en soin —
+  même en mêlée, même en cohabitation — et perdue par tout déplacement. **Exclusivité bilatérale
+  (CANON-SIEGE 31/10)** : un Fortify lève un soin en cours, poser un Heal lève la fortification
+  (l'unité doit re-fortifier pour retrouver le +10 % — perdu à chaque re-soumission de Heal).
+  Le bonus de TERRAIN et les bonus de VILLE suivent la même logique (l'avantage de l'occupation
+  du terrain). Ancien R-33 (« annulée par tout autre ordre ») abrogé.
 - **R-176 · Engagement (#1).** Peu importe le nombre d'unités qui entrent sur une case à
   défenseur (stabilisé) : chacune ne combat QU'avec le défenseur, jamais avec les autres
   entrantes (#1). Un attaquant de mêlée prend PLACE sur la case attaquée (fin des replis) ;
@@ -934,7 +936,7 @@ case ne porterait que des amies).
 ## 9. Phase D — Vision, soins, fin de tour
 
 - **R-70 · Vision** : rayon `T-07` (unité) / `T-08` (ville), **distance uniquement** — aucun blocage par terrain. Recalcul par joueur à chaque résolution ; 3 états (inexploré / exploré-masqué / visible). `getFilteredState(state, player)` ne diffuse jamais d'entité hors du champ visible.
-- **R-71 · Soins** 🔶 **RÉVISÉE le 06/10 (ORDRES-UNITES, Erik)** : **plus AUCUN soin passif** — une unité fortifiée ou oisive ne récupère plus de PV ; le soin exige l'ordre **`Heal`** (§4), qui applique le taux historique : **+1 PV/tour si l'unité n'a ni bougé ni combattu ; +2 dans une ville amie**, plafonné au PV max, **jusqu'à PV complets** puis l'ordre se termine. R-71 (aucun soin après combat) est inchangée et s'applique à `Heal`. Les barbares ne disposent pas de `Heal` (hors scope) : ils ne soignent plus du tout.
+- **R-71 · Soins** 🔶 **RÉVISÉE le 06/10 (ORDRES-UNITES, Erik)** : **plus AUCUN soin passif** — une unité fortifiée ou oisive ne récupère plus de PV ; le soin exige l'ordre **`Heal`** (§4), qui applique le taux **+1 PV/tour PARTOUT si l'unité n'a ni bougé ni combattu** (CANON-SIEGE 31/10 : l'ancien « +2 en ville » est abrogé — la ville ne soigne plus plus vite que la campagne), plafonné au PV max, **jusqu'à PV complets** puis l'ordre se termine. R-71 (aucun soin après combat) est inchangée et s'applique à `Heal`. Les barbares ne disposent pas de `Heal` (hors scope) : ils ne soignent plus du tout.
 - **R-72 · PM** : régénérés au maximum à chaque tour.
 - **R-73 · Journal d'événements** : chaque mutation émet un événement typé (`Move`, `CombatExchange`, `UnitDestroyed`, `Captured`, `CityFounded`, `CityCaptured`, `ArmyFormed`, `Retreat`, …) séquencé — base de l'animation client, des notifications et du replay.
 

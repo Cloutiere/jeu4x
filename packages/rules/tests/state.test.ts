@@ -134,10 +134,10 @@ describe('L2 · Structure du GameState (DESIGN.md §4.2)', () => {
     expect(state.winner).toBeNull();
   });
 
-  it('les terrains de données incluent la case de ville (RULES.md §2 : +50 % ; rendement 0/0/0 — ALIGNEMENT-CROISSANCE 13/09, socle abrogé)', () => {
+  it('les terrains de données incluent la case de ville (CANON-SIEGE FIX 1 31/10 : +25 % — T-02 branchée ; rendement 0/0/0 — ALIGNEMENT-CROISSANCE 13/09, socle abrogé)', () => {
     expect(TERRAINS['ville']).toMatchObject({
       passable: true,
-      defenseBonus: 0.5,
+      defenseBonus: 0.25,
       yields: { food: 0, production: 0, commerce: 0 },
     });
   });

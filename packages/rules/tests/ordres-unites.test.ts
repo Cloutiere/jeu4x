@@ -12,7 +12,9 @@ import type { GameEvent } from '../src/events.js';
  *  - SellUnit : 50 % du coût de production effectif (traits compris) en or,
  *    unité détruite ; interdits : à bord d'un transport, transport porteur de
  *    cargaison, unité ayant combattu ce tour (consigné) ;
- *  - Heal : immobile, soigne au taux R-71 (1 PV/tour, 2 en ville amie),
+ *  - Heal : immobile, soigne au taux R-71 amendée CANON-SIEGE (1 PV/tour
+ *    PARTOUT — la ville ne soigne plus plus vite), lève la fortification
+ *    (exclusivité bilatérale R-175),
  *    R-71 préservée (pas de soin après combat), JUSQU'À PV complets puis
  *    l'ordre se termine ; INTERDIT en territoire ennemi (anneaux R-162,
  *    évalués à la pose — l'évolution ultérieure du territoire ne rompt pas
@@ -118,14 +120,33 @@ describe('ORDRES-UNITES · Heal (soin)', () => {
     expect(r2.events.some((e) => e.type === 'HealCompleted')).toBe(true);
   });
 
-  it('soigne +2 en ville amie (taux R-71 inchangé)', () => {
+  it('CANON-SIEGE FIX 2b (31/10) : soin 1 PV/tour EN VILLE AUSSI (la ville ne soigne plus plus vite que la campagne)', () => {
     const state = makeState({
       units: [{ id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0, hp: 1 }],
       cities: [{ owner: 'p1', q: 0, r: 0 }],
     });
     const r = resolveTurn(state, { p1: [{ type: 'Heal', unitId: 'u1' }] }, 42);
-    expect(r.newState.units.u1!.hp).toBe(3);
-    expect(r.newState.units.u1!.order).toBeNull(); // PV complets : terminé
+    expect(r.newState.units.u1!.hp).toBe(2); // +1 comme en campagne (AVANT : +2)
+    expect(r.newState.units.u1!.order?.type).toBe('Heal'); // PV incomplets : persiste
+  });
+
+  it('CANON-SIEGE FIX 2a (31/10) : le soin lève la fortification — fortified=false ET soin actif (le +10 % est perdu le tour du soin)', () => {
+    const state = blesséeSeule(1);
+    state.units.u1!.stabilized = true;
+    state.units.u1!.fortified = true;
+    const r = resolveTurn(state, { p1: [{ type: 'Heal', unitId: 'u1' }] }, 42);
+    expect(r.newState.units.u1!.fortified).toBe(false);
+    expect(r.newState.units.u1!.order?.type).toBe('Heal');
+    expect(r.newState.units.u1!.hp).toBe(2); // le soin EST actif ce tour
+  });
+
+  it('CANON-SIEGE FIX 2a (miroir, non-régression) : un Fortify donné à une unité en soin lève le soin (la fortification prime)', () => {
+    const state = blesséeSeule(1);
+    state.units.u1!.stabilized = true;
+    const r = resolveTurn(state, { p1: [{ type: 'Heal', unitId: 'u1' }, { type: 'Fortify', unitId: 'u1' }] }, 42);
+    expect(r.newState.units.u1!.fortified).toBe(true);
+    expect(r.newState.units.u1!.order).toBeNull(); // R-175 : Fortify laisse « sans ordres » — soin levé
+    expect(r.newState.units.u1!.hp).toBe(1); // aucun soin ce tour
   });
 
   it('REFUS en territoire ennemi (anneaux culturels R-162) — évalué à la pose', () => {

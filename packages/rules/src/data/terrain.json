@@ -93,7 +93,7 @@
   "ville": {
     "id": "ville",
     "name": "Case de ville",
-    "defenseBonus": 0.5,
+    "defenseBonus": 0.25,
     "passable": true,
     "yields": {
       "food": 0,

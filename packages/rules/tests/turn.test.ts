@@ -565,7 +565,7 @@ describe('Phase D · R-70/R-71/R-72 · vision, soins, PM', () => {
       1,
     );
     expect(unit(newState, 'u1').hp).toBe(2); // +1 (Heal)
-    expect(unit(newState, 'u2').hp).toBe(3); // +2 en ville amie (taux R-71 inchangé)
+    expect(unit(newState, 'u2').hp).toBe(2); // +1 EN VILLE AUSSI (FIX 2b — fin du +2)
     expect(unit(newState, 'u3').hp).toBe(1); // a bougé : rien
   });
 

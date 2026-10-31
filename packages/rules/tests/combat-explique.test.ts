@@ -71,6 +71,23 @@ describe('COMBAT-EXPLIQUE · D1 — le moteur émet le détail', () => {
     expect(detail.defenseur.force).toBeCloseTo(1 * (1 + TERRAINS['colline']!.defenseBonus + FORTIFY_DEFENSE_BONUS), 10);
   });
 
+  it('CANON-SIEGE FIX 1 (31/10) : la case VILLE défend à +0,25 dans combatStrengthsOf (T-02 branchée)', () => {
+    const state = makeState({
+      units: [
+        { id: 'u1', type: 'guerrier', owner: 'p1', q: 0, r: 0 },
+        { id: 'u2', type: 'guerrier', owner: 'p2', q: 1, r: 0 },
+      ],
+      terrainOverrides: { '1,0': 'ville' },
+    });
+    state.units.u2!.stabilized = true;
+    const r = resolveTurn(state, { p1: [{ type: 'Attack', unitId: 'u1', target: { q: 1, r: 0 } }], p2: [] }, 7);
+    const { detail } = echangeDe(r.events);
+    const terrain = detail.defenseur.bonusDefPct.find((m) => m.label.toLowerCase().includes('ville'));
+    expect(terrain?.valeur).toBe(TERRAINS['ville']!.defenseBonus);
+    expect(TERRAINS['ville']!.defenseBonus).toBe(0.25); // source unique data-driven
+    expect(detail.defenseur.force).toBeCloseTo(1 * (1 + 0.25), 10);
+  });
+
   it('chaque assaut porte son jet RNG et la cible des dégâts (D2, granularité par round)', () => {
     const r = combatMultiModificateurs(7);
     const { detail } = echangeDe(r.events);

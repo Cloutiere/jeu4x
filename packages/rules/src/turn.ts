@@ -2443,6 +2443,11 @@ function applyPersistentUnitOrders(board: Board, ordersByPlayer: Record<PlayerId
         continue;
       }
       unit.order = { type: 'Heal', unitId };
+      // CANON-SIEGE FIX 2a (31/10) — miroir exact du Fortify-lève-Heal :
+      // poser un soin lève la fortification (exclusivité bilatérale R-175
+      // amendée). L'unité doit re-fortifier pour retrouver le +10 % — perdu
+      // à chaque re-soumission de Heal.
+      unit.fortified = false;
       decide(board, 'soin-pose', 'ORDRES-UNITES', `${unitId} se soigne (immobile) jusqu'à PV complets`, { unitId });
     } else if (order.type === 'Sleep') {
       unit.order = { type: 'Sleep', unitId };
@@ -2533,7 +2538,8 @@ function wakeSleepers(board: Board): void {
 /**
  * Phase D · ORDRES-UNITES · Soin (Heal) — l'UNIQUE canal de soin : fortifier
  * ne soigne plus, l'oisif non plus (décisions d'Erik du 06/10). Taux R-71
- * inchangé : +1 PV/tour, +2 en ville amie ; R-71 : une unité ayant bougé ou
+ * amendé CANON-SIEGE (31/10) : +1 PV/tour PARTOUT — la ville ne soigne plus
+ * plus vite que la campagne ; R-71 : une unité ayant bougé ou
  * combattu ce tour ne soigne pas (l'ordre demeure pour le tour suivant).
  * JUSQU'À PV COMPLETS puis l'ordre se termine (HealCompleted, unité sans
  * ordres). Évalué à la pose seulement : l'évolution du territoire ne rompt
@@ -2553,8 +2559,11 @@ function processHealOrders(board: Board): void {
       continue;
     }
     if (board.moved.has(id) || board.fought.has(id)) continue; // R-71 : pas de soin après combat
-    const city = cityAt(board, unit);
-    const heal = city && city.owner === unit.owner ? 2 : 1;
+    // CANON-SIEGE FIX 2b (31/10) : 1 PV/tour en ville COMME en campagne —
+    // fin de la régénération accélérée sous siège. HealRefused (R-162)
+    // inchangé : l'asymétrie canon reste (le défenseur soigne, l'assiégeant
+    // non) mais à 1 PV/tour.
+    const heal = 1;
     unit.hp = Math.min(cap, unit.hp + heal);
     if (unit.hp >= cap) {
       unit.order = null;
