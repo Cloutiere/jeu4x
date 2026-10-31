@@ -551,22 +551,13 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
       criteria[`contrerCourse:${leaderCourse.id}`] = `CONTRER la course de ${leaderCourse.civ} : ${leaderCourse.jalons}/20 jalons, ${leaderCourse.composants}/4 composants, merveilles de victoire en chantier ${JSON.stringify(leaderCourse.merveillesEnChantier)} — il mène vers une victoire non-domination.`;
     }
     criteria['viserMaVictoire:domination'] = 'VISER MA victoire par domination (voie principale) : tout à l\u2019effort de conquête.';
-    // JEV-IT4B · D-A — le levier du verdict Erik (3 parties stériles :
-    // domination 10-40× sans JAMAIS déclarer) : quand le MODE COURANT est
-    // déjà la domination (ou la poussée de capitale) et que le rapport de
-    // forces est favorable (≥ guerreTotaleRapportMin, data v6), la
-    // DÉCLARATION elle-même devient un choix de finPartie — vers une cible
-    // PRÉ-QUALIFIÉE (leader en villes, capitale connue, pas déjà en guerre
-    // avec elle). Acte PONCTUEL : jamais un mode persisté.
-    const modeFin = memo.finPartie?.mode;
-    if (modeFin === 'domination' || modeFin === 'pousserCapitale') {
-      const cibleGT = cibleGuerreTotale(condense, etatFiltre, moi, seuils.guerreTotaleRapportMin ?? 1.2, dominationMecanique);
-      if (cibleGT) {
-        criteria[`guerreTotale:${cibleGT.id}`] = cibleGT.aveugle
-          ? `DÉCLARER la guerre TOTALE à ${cibleGT.civ} (${cibleGT.id}), le rival en lice (JAMAIS rencontré — sa position est inconnue, mais sa nation est publique au lobby) : nos forces ${condense.monde.puissance.amie} vs les siennes visibles ${cibleGT.forces} (rapport ${cibleGT.rapportForces}×). C'est l'ACTE qui ouvre la voie de domination : sans déclaration, pas de conquête — et donc aucune victoire — possible.`
-          : `DÉCLARER la guerre TOTALE à ${cibleGT.civ} (${cibleGT.id}), leader en villes (${cibleGT.villes}) : nos forces ${condense.monde.puissance.amie} vs les siennes ${cibleGT.forces} (rapport ${cibleGT.rapportForces}× en notre faveur), capitale à ${cibleGT.distanceCapitale} cases. C'est l'ACTE qui ouvre la voie de domination : sans déclaration, pas de conquête possible.`;
-      }
-    }
+    // JEV-DECISIONNEL · D2 — l'ex-choix `guerreTotale` NE PLUS ÊTRE OFFERT :
+    // la déclaration en mode domination est la conséquence MÉCANIQUE du mode
+    // (verdict Erik 31/10, banc bataille : 2/10 offres, 2/2 choisies, mais
+    // 8/10 parties déjà en guerre — le LLM n'était PAS le verrou). Le harnais
+    // déclare directement (declarationMechanique, tourJevJoueur). La question
+    // garde pousserCapitale/contrerCourse/viserMaVictoire/continuer ; la
+    // question `guerre` classique reste INTACTE pour les guerres ordinaires.
     if (dominationBloquee) {
       criteria['viserMaVictoire:culture'] = `Viser MA victoire CULTURELLE (${moiV.jalons}/20 jalons) — la domination est bloquée ou trop coûteuse (rapport de forces ${(condense.monde.puissance?.rapport ?? 0)}×).`;
       criteria['viserMaVictoire:science'] = `Viser MA victoire SCIENTIFIQUE (${moiV.composants}/4 composants) — la domination est bloquée ou trop coûteuse.`;
@@ -669,6 +660,30 @@ export function cibleGuerreTotale(condense, etatFiltre, moi, seuilRapport = 1.2,
     .sort((a, b) => b.villes - a.villes || b.rapportForces - a.rapportForces || a.id.localeCompare(b.id))[0] ?? null;
 }
 
+/** JEV-DECISIONNEL · D1 (verdict Erik 31/10) — la DÉCLARATION de guerre en
+ * mode domination devient un ACTE MÉCANIQUE du harnais : mêmes conditions
+ * EXACTES que l'ex-choix `guerreTotale` (inchangées) — signal « domination
+ * mécanique » actif, mode courant domination/pousserCapitale, cible
+ * pré-qualifiée (rapport ≥ guerreTotaleRapportMin, pas déjà en guerre,
+ * contact réel + délai OU cas aveugle — D3). Débit BORNÉ (D4) : au plus UNE
+ * déclaration mécanique toutes les `guerreTotaleCooldown` tours (data v8,
+ * défaut 8). Retourne un snapshot { cible, tour, rapport, aveugle } pour le
+ * journal, ou null. */
+export function declarationMechanique(condense, etatFiltre, moi, memo, seuils, dominationMecanique) {
+  const mode = memo?.finPartie?.mode;
+  if (mode !== 'domination' && mode !== 'pousserCapitale') return null;
+  if (!dominationMecanique) return null;
+  const tour = condense?.tour ?? 0;
+  const cooldown = seuils?.guerreTotaleCooldown ?? 8;
+  const dernier = memo?.guerreMecaniqueTour;
+  if (dernier != null && tour - dernier < cooldown) return null;
+  const cible = cibleGuerreTotale(
+    condense, etatFiltre, moi, seuils?.guerreTotaleRapportMin ?? 1.2, true,
+  );
+  if (!cible) return null;
+  return { cible: cible.id, tour, rapport: cible.rapportForces ?? null, aveugle: cible.aveugle ?? false };
+}
+
 /** JEV-IT4 · D2.2 — items de victoire productibles dans la capitale pour le
  * mode visé : culture → merveilles cultureVictory ; science → composants du
  * Vaisseau. ORDRES EXISTANTS SEULEMENT (kind wonder/building + canSetProduction).
@@ -726,6 +741,17 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
   // condensé (le bloc diplomatie lit memo.rencontres).
   majRencontres(etatFiltre, moi, memo);
   const condense = condenseJoueur(etatFiltre, moi, memo);
+  // JEV-DECISIONNEL · D1 — l'acte mécanique PRÉCÈDE les questions : le memo
+  // bascule en pousserCapitale AVANT leur construction (la question finPartie
+  // du tour reflète déjà le nouveau mode). Le choix LLM n'est jamais consulté.
+  const declMec = declarationMechanique(
+    condense, etatFiltre, moi, memo, config.seuils ?? {},
+    signalDominationMechanique(condense, etatFiltre, moi, 2, config.seuils?.dominationEcartVilles ?? 2),
+  );
+  if (declMec) {
+    memo.guerreMecaniqueTour = declMec.tour;
+    memo.finPartie = { mode: 'pousserCapitale', cible: declMec.cible };
+  }
   const { questions, meta, seuils } = construireQuestionsJoueur(config, condense, etatFiltre, moi, memo);
   const sortie = {
     condense,
@@ -747,6 +773,11 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     erreur: null,
     meta,
   };
+  if (declMec) {
+    sortie.diplomatie.push({ genre: 'guerre', cible: declMec.cible, mecanique: true });
+    // Snapshot des conditions pour le journal (attribution au transcript).
+    meta.guerreMecanique = declMec;
+  }
 
   if (Object.keys(questions).length === 0) {
     // Rien de décidable ce tour (rare) — bot pur, aucun appel.
@@ -973,7 +1004,12 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
   // dépendent) ; pousserCapitale/contrerCourse/viserMaVictoire:domination
   // orientent la production de la capitale vers le MEILLEUR candidat
   // militaire déjà listé (ORDRES EXISTANTS — jamais de nouvel ordre).
-  const fin = confDialMin(ans.finPartie);
+  // JEV-DECISIONNEL · D1 — au tour de l'ACTE mécanique, la réponse finPartie
+  // du modèle est IGNORÉE (la bascule pousserCapitale du D4 prime — ni le
+  // LLM ni 'continuer' ne peuvent l'écraser le même tour ; dès le tour
+  // suivant, le modèle retrouve la main sur le mode, le cooldown garde le
+  // débit).
+  const fin = declMec ? null : confDialMin(ans.finPartie);
   if (fin?.choice && fin.choice !== 'continuer') {
     if (fin.choice === 'viserMaVictoire:domination') {
       memo.finPartie = { mode: 'domination' };
@@ -989,23 +1025,9 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
         }
       }
     } else if (fin.choice.startsWith('guerreTotale:')) {
-      // JEV-IT4B · D-A — ACTE PONCTUEL : la déclaration est traduite en
-      // intention de guerre EXISTANTE (le harnais émet DeclareWar), JAMAIS
-      // persistée au memo — le mode courant (domination/pousserCapitale)
-      // est préservé et la question retrouve ses choix habituels. Double
-      // garde : mode courant + cible rencontrée, pas déjà en guerre avec
-      // elle, rapport ≥ seuil (miroir exact de la construction de question).
-      const cible = fin.choice.slice('guerreTotale:'.length);
-      const modeFin = memo.finPartie?.mode;
-      const seuil = seuils.guerreTotaleRapportMin ?? 1.2;
-      const r = (condense.diplomatie.rivaux ?? []).find((x) => x.id === cible);
-      const dejaEnGuerre = (condense.diplomatie.guerreAvec ?? []).includes(cible);
-      if (
-        (modeFin === 'domination' || modeFin === 'pousserCapitale') &&
-        r && !dejaEnGuerre && (r.rapportForces ?? 0) >= seuil
-      ) {
-        sortie.diplomatie.push({ genre: 'guerre', cible });
-      }
+      // JEV-DECISIONNEL · D2 — forme RETIRÉE de la question (le harnais
+      // déclare mécaniquement, D1) : toute réponse résiduelle du modèle est
+      // IGNORÉE — aucune intention, mode courant préservé.
     } else {
       const [modeF, cible] = fin.choice.split(':');
       memo.finPartie = { mode: modeF, cible: cible ?? null };

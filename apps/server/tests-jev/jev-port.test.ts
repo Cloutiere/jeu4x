@@ -275,7 +275,7 @@ describe('Tests croisés décisions (D2) — mêmes réponses ⇒ mêmes ordres'
     }
   });
 
-  it('JEV-IT4B : guerreTotale — questions et décision identiques harnais ⇄ serveur (acte ponctuel)', async () => {
+  it('JEV-DECISIONNEL v8 : choix guerreTotale RETIRÉ — questions et refus identiques harnais ⇄ serveur', async () => {
     const gen = generateProceduralMap(42);
     let etat = createInitialState(gen.map, 42, {});
     // Capitale p1 SYNTHÉTIQUE voisine (vue de p2) + légion p2 (rapport > 1,2)
@@ -308,14 +308,17 @@ describe('Tests croisés décisions (D2) — mêmes réponses ⇒ mêmes ordres'
     const a = construireTs(configJev, condenseJoueurTs(filtre, 'p2', memoTs), filtre, 'p2', memoTs);
     const b = construireMjs(configJev, condenseJoueurMjs(filtre, 'p2', memoMjs), filtre, 'p2', memoMjs);
     expect(a.questions.finPartie).toBeDefined();
-    expect(Object.keys(a.questions.finPartie!.criteria)).toContain('guerreTotale:p1');
+    // v8 D2 : PLUS AUCUN critère guerreTotale dans la question (les deux côtés).
+    expect(Object.keys(a.questions.finPartie!.criteria)).not.toContain('guerreTotale:p1');
     expect(a.questions.finPartie).toEqual(JSON.parse(JSON.stringify(b.questions.finPartie)));
-    // Décision : la même réponse ⇒ la même intention de guerre, mémo inchangé.
+    // Décision : la réponse résiduelle est IGNORÉE à l'identique (aucune
+    // intention de guerre, mémo inchangé — l'acte mécanique seul émet).
     const reponses: Record<string, unknown> = { finPartie: 'guerreTotale:p1' };
     const dTs = await tourTs(fauxClient(reponses), configJev, filtre, 'p2', memoTs);
     const dMjs = await tourMjs(fauxClient(reponses), configJev, filtre, 'p2', memoMjs);
     expect(dTs.diplomatie).toEqual(dMjs.diplomatie);
-    expect(dTs.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p1' });
+    expect(dTs.diplomatie).not.toContainEqual({ genre: 'guerre', cible: 'p1' });
+    expect(dTs.diplomatie).toEqual([]);
     expect(memoCanon(memoTs).finPartie).toEqual({ mode: 'domination' });
     expect(memoCanon(memoMjs).finPartie).toEqual({ mode: 'domination' });
     // Cible invalide : même refus silencieux des deux côtés.
@@ -356,12 +359,18 @@ describe('Tests croisés décisions (D2) — mêmes réponses ⇒ mêmes ordres'
     const a = construireTs(configJev, condenseJoueurTs(filtre, 'p2', memoTs), filtre, 'p2', memoTs);
     const b = construireMjs(configJev, condenseJoueurMjs(filtre, 'p2', memoMjs), filtre, 'p2', memoMjs);
     expect(a.questions.finPartie).toBeDefined(); // signal D-B (4 villes, rapport ≥ 2)
-    expect(Object.keys(a.questions.finPartie!.criteria)).toContain('guerreTotale:p1');
+    expect(Object.keys(a.questions.finPartie!.criteria).some((k) => k.startsWith('guerreTotale:'))).toBe(false);
     expect(a.questions.finPartie).toEqual(JSON.parse(JSON.stringify(b.questions.finPartie)));
-    const dTs = await tourTs(fauxClient({ finPartie: 'guerreTotale:p1' }), configJev, filtre, 'p2', memoTs);
-    const dMjs = await tourMjs(fauxClient({ finPartie: 'guerreTotale:p1' }), configJev, filtre, 'p2', memoMjs);
+    // v8 D1 : l'acte MÉCANIQUE — la déclaration part SANS choix LLM
+    // (réponse 'continuer' ici), bit-à-bit des deux côtés, bascule memo D4.
+    const dTs = await tourTs(fauxClient({ finPartie: 'continuer' }), configJev, filtre, 'p2', memoTs);
+    const dMjs = await tourMjs(fauxClient({ finPartie: 'continuer' }), configJev, filtre, 'p2', memoMjs);
     expect(dTs.diplomatie).toEqual(dMjs.diplomatie);
-    expect(dTs.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p1' });
+    expect(dTs.diplomatie).toEqual([{ genre: 'guerre', cible: 'p1', mecanique: true }]);
+    expect(memoCanon(memoTs).finPartie).toEqual({ mode: 'pousserCapitale', cible: 'p1' });
+    expect(memoCanon(memoMjs).finPartie).toEqual({ mode: 'pousserCapitale', cible: 'p1' });
+    expect(memoTs.guerreMecaniqueTour).toBe(40);
+    expect(memoMjs.guerreMecaniqueTour).toBe(40);
   });
 
   it('erreur API : repli + erreur consignés à l’identique', async () => {    const filtre = fixture(1);

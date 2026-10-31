@@ -272,7 +272,10 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       for (const d of decision.diplomatie) {
         if (d.genre === 'guerre') {
           const r = applyDeclareWar(etat, jev, d.cible);
-          journal.ligne({ type: 'diplomatie', tour, genre: 'guerre', de: jev, cible: d.cible, ok: r.ok, raison: r.ok ? null : r.reason });
+          // JEV-DECISIONNEL · D1 — l'acte mécanique est horodaté avec son
+          // snapshot de conditions (meta.guerreMecanique) — attribution au
+          // transcript sans ambiguïté avec un choix LLM.
+          journal.ligne({ type: 'diplomatie', tour, genre: 'guerre', de: jev, cible: d.cible, mecanique: d.mecanique ?? undefined, conditions: d.mecanique ? decision.meta?.guerreMecanique ?? null : undefined, ok: r.ok, raison: r.ok ? null : r.reason });
           if (r.ok) {
             etat = r.state;
             for (const ev of r.events) journal.evenement(ev);

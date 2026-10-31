@@ -81,19 +81,20 @@ function fauxClient(reponses) {
   };
 }
 
-describe('v6b · D-A — le choix guerreTotale dans finPartie (construction)', () => {
-  it('mode domination + rapport favorable + pas en guerre ⇒ guerreTotale:p2 proposé', () => {
+describe('v6b · D-A — le choix guerreTotale dans finPartie (REVERSÉ v8 JEV-DECISIONNEL)', () => {
+  // v8 · D2 (verdict Erik 31/10, banc bataille) : le choix `guerreTotale`
+  // disparaît de la question — la déclaration devient un ACTE MÉCANIQUE du
+  // harnais (tests v8). Les conditions d'éligibilité restent verrouillées
+  // par cibleGuerreTotale (ci-dessous) et declarationMechanique (tests v8).
+  it('mode domination + rapport favorable + pas en guerre ⇒ guerreTotale:p2 PLUS proposé', () => {
     const { questions } = questionsPour(etatCourse({ jalonsMoi: 12 }), { finPartie: { mode: 'domination' } });
     expect(questions.finPartie).toBeDefined();
-    const cles = Object.keys(questions.finPartie.criteria);
-    expect(cles).toContain('guerreTotale:p2');
-    // Le critère est argumenté (rapport explicite — même famille que guerre).
-    expect(questions.finPartie.criteria['guerreTotale:p2']).toMatch(/guerre/);
+    expect(Object.keys(questions.finPartie.criteria)).not.toContain('guerreTotale:p2');
   });
 
-  it('mode pousserCapitale ⇒ proposé aussi (cible de la poussée)', () => {
+  it('mode pousserCapitale ⇒ PLUS proposé non plus (cible de la poussée)', () => {
     const { questions } = questionsPour(etatCourse({ jalonsMoi: 12 }), { finPartie: { mode: 'pousserCapitale', cible: 'p2' } });
-    expect(Object.keys(questions.finPartie.criteria)).toContain('guerreTotale:p2');
+    expect(Object.keys(questions.finPartie.criteria)).not.toContain('guerreTotale:p2');
   });
 
   it('SANS mode courant (memo vide) ⇒ PAS de guerreTotale', () => {
@@ -127,15 +128,15 @@ describe('v6b · D-A — le choix guerreTotale dans finPartie (construction)', (
   });
 });
 
-describe('v6b · D-A — traduction (acte PONCTUEL, jamais de mode persisté)', () => {
-  it('guerreTotale:p2 ⇒ intention de guerre EXISTANTE vers p2, memo INCHANGÉ', async () => {
+describe('v6b · D-A — traduction (REVERSÉE v8 : forme retirée, réponse résiduelle ignorée)', () => {
+  it('guerreTotale:p2 ⇒ IGNORÉE (aucune intention, memo INCHANGÉ — v8 D2)', async () => {
     const filtre = getFilteredState(etatCourse({ jalonsMoi: 12 }), 'p1');
     const condense = condenseJoueur(filtre, 'p1', {});
     const memo = { finPartie: { mode: 'domination' } };
     const d = await tourJevJoueur(fauxClient({ finPartie: 'guerreTotale:p2' }), config, filtre, 'p1', memo);
     expect(d.erreur).toBeNull();
-    expect(d.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p2' });
-    // ACTE PONCTUEL : le memo courant est préservé (domination), jamais réécrit.
+    expect(d.diplomatie).not.toContainEqual({ genre: 'guerre', cible: 'p2' });
+    // le mode courant est préservé (jamais réécrit par la forme retirée).
     expect(memo.finPartie).toEqual({ mode: 'domination' });
   });
 
@@ -215,14 +216,16 @@ describe('v6b · amendement aveugle (verdict Erik, banc v1) — rival jamais ren
     return etat;
   }
 
-  it('signal D-B actif + rival jamais rencontré ⇒ guerreTotale OFFERT (connaissance de lobby publique)', () => {
+  it('signal D-B actif + rival jamais rencontré ⇒ la cible aveugle reste QUALIFIÉE (mécanique v8 — cibleGuerreTotale)', () => {
     const filtre = getFilteredState(etatAveugle(), 'p1');
     const condense = condenseJoueur(filtre, 'p1', {});
     expect(signalDominationMechanique(condense, filtre, 'p1')).toBe(true);
     const { questions } = construireQuestionsJoueur(config, condense, filtre, 'p1', { finPartie: { mode: 'domination' } });
-    const cles = Object.keys(questions.finPartie.criteria);
-    expect(cles).toContain('guerreTotale:p2');
-    expect(questions.finPartie.criteria['guerreTotale:p2']).toMatch(/JAMAIS rencontré/);
+    // plus aucun choix guerreTotale dans la question (v8 D2)
+    expect(Object.keys(questions.finPartie.criteria).some((k) => k.startsWith('guerreTotale:'))).toBe(false);
+    // ... mais la cible pré-qualifiée existe toujours pour l'acte mécanique
+    expect(cibleGuerreTotale(condense, filtre, 'p1', 1.2, true)?.id).toBe('p2');
+    expect(cibleGuerreTotale(condense, filtre, 'p1', 1.2, true)?.aveugle).toBe(true);
   });
 
   it('SANS domination mécanique (signal jalons seulement) ⇒ PAS de guerreTotale aveugle (non-régression D-A)', () => {
@@ -235,13 +238,15 @@ describe('v6b · amendement aveugle (verdict Erik, banc v1) — rival jamais ren
     expect(Object.keys(questions.finPartie.criteria)).not.toContain('guerreTotale:p2');
   });
 
-  it('traduction aveugle : guerreTotale:p2 ⇒ intention de guerre, memo inchangé', async () => {
+  it('traduction aveugle : guerreTotale:p2 ⇒ IGNORÉE (v8 D2 — l\'acte mécanique prend le relais, tests v8)', async () => {
     const filtre = getFilteredState(etatAveugle(), 'p1');
     const memo = { finPartie: { mode: 'domination' } };
     const d = await tourJevJoueur(fauxClient({ finPartie: 'guerreTotale:p2' }), config, filtre, 'p1', memo);
     expect(d.erreur).toBeNull();
-    expect(d.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p2' });
-    expect(memo.finPartie).toEqual({ mode: 'domination' });
+    // la réponse résiduelle ne déclenche RIEN en DOUBLE : l'acte mécanique
+    // (même tour, ici déclenché par le signal + memo domination) est le SEUL
+    // émetteur d'intention de guerre — un seul élément, mecanique:true.
+    expect(d.diplomatie).toEqual([{ genre: 'guerre', cible: 'p2', mecanique: true }]);
   });
 
   it('rival jamais rencontré, écart de villes < 2 (D-B muet au seuil v7) ⇒ toujours inoffrable', () => {
@@ -261,10 +266,10 @@ describe('v6b · intégrité', () => {
     expect(config.seuils.guerreTotaleRapportMin).toBe(1.2);
   });
 
-  it('question finPartie : forme du critère guerreTotale argumentée sans position', () => {
+  it('question finPartie : AUCUN critère guerreTotale, quelle que soit la situation (v8 D2)', () => {
     const { questions } = questionsPour(etatCourse({ jalonsMoi: 12 }), { finPartie: { mode: 'domination' } });
-    const txt = questions.finPartie.criteria['guerreTotale:p2'];
-    expect(typeof txt).toBe('string');
-    expect(txt.length).toBeGreaterThan(20);
+    const cles = Object.keys(questions.finPartie.criteria);
+    expect(cles.some((k) => k.startsWith('guerreTotale:'))).toBe(false);
+    expect(cles.length).toBeGreaterThan(2);
   });
 });
