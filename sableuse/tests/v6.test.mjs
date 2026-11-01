@@ -270,6 +270,30 @@ describe('v6 · déterminisme et intégrité', () => {
     expect(a).toBe(b);
   });
 
+  it('T3 · muraille : le propriétaire de la Grande Muraille debout est visible (estMoi)', () => {
+    const etat = etatCourse({});
+    etat.cities.cap1.wonders = ['grande_muraille'];
+    const filtre = getFilteredState(etat, 'p1');
+    expect(blocVictoire(filtre, 'p1', new Map()).muraille).toEqual({ civ: filtre.players.p1.civId, estMoi: true });
+    // chez le rival :
+    const etat2 = etatCourse({});
+    etat2.cities.cap2.wonders = ['grande_muraille'];
+    const filtre2 = getFilteredState(etat2, 'p1');
+    const muraille = blocVictoire(filtre2, 'p1', new Map()).muraille;
+    expect(muraille?.estMoi).toBe(false);
+    expect(muraille?.civ).toBe(filtre2.players.p2.civId);
+  });
+
+  it('T3 · muraille : null sans muraille, null à Ingénierie (union des techs R-128)', () => {
+    const filtre = getFilteredState(etatCourse({}), 'p1');
+    expect(blocVictoire(filtre, 'p1', new Map()).muraille).toBeNull();
+    const etat = etatCourse({});
+    etat.cities.cap2.wonders = ['grande_muraille'];
+    etat.players.p1.techsUnlocked = ['ingenierie']; // union — obsolescence globale
+    const filtre2 = getFilteredState(etat, 'p1');
+    expect(blocVictoire(filtre2, 'p1', new Map()).muraille).toBeNull();
+  });
+
   it('itemsVictoireProductibles : science → composants manquants seulement', () => {
     const filtre = getFilteredState(etatCourse({ composantsMoi: 2, techsVol: true }), 'p1');
     const cap = Object.values(filtre.cities).find((v) => v.owner === 'p1');

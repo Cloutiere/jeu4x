@@ -197,6 +197,11 @@
       // REPLAY-RESOLUTION (D1) : un nouveau TurnResult remplace la paire —
       // la relecture en cours est quittée (elle portait l'ancien tour).
       if (message.type === 'TurnResult') terminerReplay();
+      // T3 (Erik 31/10, D2-a) : déclaration REFUSÉE par la Grande Muraille —
+      // raison nommée du moteur explicitée (miroir AttackRefused 'paix').
+      if (message.type === 'OrderAck' && !message.accepted && message.reason === 'grande_muraille') {
+        pushErrorToast('La GRANDE MURAILLE de cette nation IMPOSE la paix — déclaration de guerre impossible (obsolète : Ingénierie)');
+      }
       // Polish Phase 5 : un ordre écarté par le moteur à la résolution est
       // signalé (le hook voit les ordres d'AVANT la mise à jour de la vue).
       if (message.type === 'TurnResult') {

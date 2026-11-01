@@ -4082,6 +4082,38 @@ function completeWonder(board: Board, city: City, wonderId: string): void {
     }
   }
   applyWonderCompletionEffects(board, city, wonderData);
+  // T3 · HANDOFF-T3-ONU (Erik 31/10, D2-b) : la Grande Muraille achevée
+  // IMPOSE LA PAIX — chaque guerre en cours contre le propriétaire prend fin
+  // immédiatement, non négociée, gratuite (aucun or, aucun PeaceCompensated) ;
+  // événement PUBLIC PeaceAccepted motif 'grande_muraille' (from =
+  // propriétaire, on = l'autre belligérant). Purge MIROIR de
+  // applyProposePeace (warsDepuis, batailles, distancesCible ;
+  // dernieresGuerres posée — miroir de la paix canon ; dernieresCibles
+  // CONSERVÉE, comme après une paix négociée). Si la Muraille est DÉJÀ
+  // obsolète à l'achèvement (Ingénierie dans l'union R-128), aucun effet.
+  if (wonderId === 'grande_muraille' && !isWonderObsolete(wonderId, allKnownTechs(board.st))) {
+    const owner = city.owner;
+    for (const [a, b] of board.st.diplomacy.war) {
+      if (a !== owner && b !== owner) continue;
+      const autre = a === owner ? b : a;
+      board.st.diplomacy.war = board.st.diplomacy.war.filter(([x, y]) => !(x === a && y === b));
+      const warsDepuis = { ...board.st.diplomacy.warsDepuis };
+      delete warsDepuis[`${a},${b}`];
+      board.st.diplomacy.warsDepuis = warsDepuis;
+      const batailles = { ...board.st.diplomacy.batailles };
+      delete batailles[`${a},${b}`];
+      board.st.diplomacy.batailles = batailles;
+      const distances = { ...(board.st.diplomacy.distancesCible ?? {}) };
+      delete distances[`${a},${b}`];
+      board.st.diplomacy.distancesCible = distances;
+      board.st.diplomacy.dernieresGuerres = {
+        ...board.st.diplomacy.dernieresGuerres,
+        [a]: board.st.turn,
+        [b]: board.st.turn,
+      };
+      emit(board, { type: 'PeaceAccepted', from: owner, on: autre, motif: 'grande_muraille' });
+    }
+  }
   // R-116 : les Nations Unies achevées = VICTOIRE CULTURELLE.
   // 7l · R-137 : la Banque mondiale achevée = VICTOIRE ÉCONOMIQUE
   // (l'or n'est PAS débité — condition, pas un prix).

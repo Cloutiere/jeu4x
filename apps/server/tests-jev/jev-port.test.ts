@@ -89,6 +89,33 @@ describe('Tests croisés condensé (D2)', () => {
     expect(condenseJoueurTs(course, 'p2').victoire.rivaux[0].jalons).toBe(8);
   });
 
+  it('T3 · muraille : bloc victoire muraille identique (port bit à bit) + sémantique', () => {
+    const gen = generateProceduralMap(42);
+    let etat = createInitialState(gen.map, 42, {});
+    // p1 tient la Muraille, vue depuis p1 (une ville ennemie hors vision réelle
+    // resterait masquée par la brume — le condensé ne trahit pas R-73).
+    etat = {
+      ...etat,
+      cities: {
+        ...etat.cities,
+        cap1: {
+          id: 'cap1', owner: 'p1', q: 5, r: 5, pop: 2, capital: true,
+          buildings: [], workedTiles: [], wonders: ['grande_muraille'],
+        },
+      },
+    };
+    const filtre = getFilteredState(etat, 'p1');
+    expect(condenserEtatTs(filtre, 'p1').victoire).toEqual(condenserEtatMjs(filtre, 'p1').victoire);
+    expect(condenserEtatTs(filtre, 'p1').victoire.muraille).toEqual({
+      civ: etat.players.p1.civId,
+      estMoi: true,
+    });
+    // sans Muraille : null dans les deux ports.
+    const filtre2 = getFilteredState({ ...etat, cities: { ...etat.cities, cap1: { ...etat.cities.cap1!, wonders: [] } } }, 'p1');
+    expect(condenserEtatTs(filtre2, 'p1').victoire.muraille).toBeNull();
+    expect(condenserEtatMjs(filtre2, 'p1').victoire.muraille).toBeNull();
+  });
+
   it('JEV-IT4 · D3 : partie calme ⇒ AUCUNE question victoire (non-régression v4)', () => {
     const filtre = fixture(1);
     const condense = condenseJoueurTs(filtre, 'p2');

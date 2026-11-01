@@ -267,6 +267,10 @@ export function eventLabel(event: GameEvent, nameOf: PlayerNamer = IDENTITY): st
     case 'WarDeclared':
       return `${nameOf(event.from)} déclare la GUERRE à ${nameOf(event.on)} (publique et mutuelle — DIPLOMATIE-T1)`;
     case 'PeaceAccepted':
+      // T3 (Erik 31/10) : paix IMPOSÉE par l'achèvement de la Grande Muraille.
+      if (event.motif === 'grande_muraille') {
+        return `${nameOf(event.from)} achève la GRANDE MURAILLE — la paix est IMPOSÉE à ${nameOf(event.on)}`;
+      }
       return `${nameOf(event.from)} propose la PAIX et ${nameOf(event.on)} accepte (BOT-TC)`;
     case 'PeaceRefused':
       return `${nameOf(event.from)} propose la paix — ${nameOf(event.on)} REFUSE (BOT-TC)`;

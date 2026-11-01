@@ -21,7 +21,9 @@ import { creerFauxJev } from './faux-jev.mjs';
 
 const racine = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PLAFOND_TOURS = 150;
-const N_PARTIES = 10;
+// T3 (Erik 31/10, D5) : corpus ÉLARGI — 20 seeds (`--n-parties 20`) pour
+// trancher la VARIANCE des victoires Jev (fourchette annoncée au rapport).
+const N_PARTIES = Number(arg('n-parties', 10));
 const DIFFICULTE = 'normal';
 
 function arg(nom, defaut) {

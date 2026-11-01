@@ -64,7 +64,7 @@
     "cost": 150,
     "tech": "maconnerie",
     "obsoleteBy": "ingenierie",
-    "effect": "L'adversaire ne peut pas attaquer vos unités ni vos villes tant qu'elle est debout (décision d'Erik du 04/09, validée)",
+    "effect": "L'adversaire ne peut pas attaquer vos unités ni vos villes. IMPPOSE LA PAIX — déclaration de guerre impossible contre son propriétaire ; achevée, elle met fin aux guerres en cours. Obsolète : Ingénierie",
     "implemented": true,
     "blocksEnemyAttacks": true
   },
@@ -150,7 +150,7 @@
     "cost": 500,
     "tech": null,
     "cultureVictory": true,
-    "effect": "Condition (20 jalons culturels) — déclenche immédiatement la Victoire culturelle",
+    "effect": "Achèvement avec 20 jalons culturels = Victoire culturelle immédiate",
     "implemented": true
   },
   "banque_mondiale": {

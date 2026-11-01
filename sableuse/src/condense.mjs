@@ -372,6 +372,17 @@ export function blocVictoire(etatFiltre, moi, marteauxParVille) {
     }))
     .filter((x) => x.n > 0);
   if (mien.merveillesBatees > 0) merveillesBateesQui.push({ civ: me.civId, n: mien.merveillesBatees });
+  // T3 (Erik 31/10, D2) : la Grande Muraille IMPOSE LA PAIX — Jev doit voir
+  // QUI la tient (déclaration refusée contre ce propriétaire, paix rétroactive
+  // à son achèvement). Obsolescence GLOBALE R-128 : union des techs connues
+  // (l'état filtré expose les techsUnlocked de tous). Unique au monde : ≤ 1.
+  const unionTechs = [...new Set(Object.values(joueurs).flatMap((p) => p.techsUnlocked ?? []))];
+  const murailleObsolete = unionTechs.includes(WONDERS?.grande_muraille?.obsoleteBy ?? 'ingenierie');
+  const aMurailleDebout = (pid) =>
+    !murailleObsolete && villesDe(pid).some((v) => (v.wonders ?? []).includes('grande_muraille'));
+  const murailleDe =
+    [moi, ...autres.map(([id]) => id)].find((pid) => joueurs[pid] && aMurailleDebout(pid)) ?? null;
+  const muraille = murailleDe === null ? null : { civ: joueurs[murailleDe]?.civId, estMoi: murailleDe === moi };
   return {
     cibles: {
       jalons: CULTURE?.milestonesTarget ?? 20,
@@ -381,6 +392,7 @@ export function blocVictoire(etatFiltre, moi, marteauxParVille) {
     mien,
     rivaux,
     merveillesBateesQui,
+    muraille,
   };
 }
 

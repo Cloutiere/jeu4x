@@ -11,7 +11,8 @@
  */
 import type { GameEvent } from './events.js';
 import type { GameState, PlayerId } from './state.js';
-import { areAtWar, activePlayerIds } from './state.js';
+import { areAtWar, activePlayerIds, allKnownTechs } from './state.js';
+import { grandeMurailleImposantLaPaix } from './culture.js';
 import { hexDistanceW } from './hex.js';
 import { TECHS } from './techs.js';
 import { eraOfTechCount } from './civilizations.js';
@@ -48,6 +49,14 @@ export function applyDeclareWar(input: GameState, playerId: PlayerId, target: Pl
   if (!actifs.includes(playerId)) return { ok: false, reason: `joueur inconnu ou éliminé : ${playerId}` };
   if (!actifs.includes(target)) return { ok: false, reason: `nation inconnue ou éliminée : ${target}` };
   if (areAtWar(input, playerId, target)) return { ok: false, reason: 'déjà en guerre' };
+  // T3 · HANDOFF-T3-ONU (Erik 31/10, D2-a) : la Grande Muraille IMPOSE LA
+  // PAIX — déclaration REFUSÉE contre son propriétaire tant qu'elle est
+  // debout (raison explicite, style AttackRefused reason:'paix'). Obsolescence
+  // GLOBALE R-128 (union des techs). Le barbare n'est jamais une cible
+  // déclarable ici (activePlayerIds) — les barbares ignorent la diplomatie.
+  if (grandeMurailleImposantLaPaix(Object.values(input.cities), target, allKnownTechs(input))) {
+    return { ok: false, reason: 'grande_muraille' };
+  }
   const st = structuredClone(input);
   const [a, b] = paireGuerre(playerId, target);
   st.diplomacy.war = [...st.diplomacy.war, paireGuerre(playerId, target)].sort(

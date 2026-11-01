@@ -455,6 +455,15 @@ export function entreesChronique(events: GameEvent[], ctx: ContexteChronique, to
       // BOT-TC (Erik 25/10, D3) : la paix est une annonce PUBLIQUE —
       // Chroniques de TOUS ; la réponse du bot est visible par le proposeur.
       case 'PeaceAccepted':
+        // T3 (Erik 31/10, D2) : paix IMPOSÉE par la Grande Muraille achevée —
+        // non négociée, gratuite, PUBLIQUE (canon : l'annonce de la Muraille).
+        if (ev.motif === 'grande_muraille') {
+          pousser('monde', ev.on === ctx.moi
+            ? `La GRANDE MURAILLE de ${nomNation(ev.from, ctx)} IMPOSE la paix — votre guerre prend fin`
+            : `${nomNation(ev.from, ctx)} achève la GRANDE MURAILLE — paix imposée à ${nomNation(ev.on, ctx)}`,
+            ev.on === ctx.moi ? 'info' : 'good', ev.seq);
+          break;
+        }
         pousser('monde', ev.from === ctx.moi
           ? `${nomNation(ev.on, ctx)} ACCEPTE la paix — les guerres sont finies`
           : ev.on === ctx.moi

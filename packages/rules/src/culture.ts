@@ -600,3 +600,26 @@ export function wonderBlocksEnemyAttacks(
   }
   return false;
 }
+
+/** T3 · HANDOFF-T3-ONU (décisions Erik 31/10, D2) : la Grande Muraille
+ *  IMPOSE LA PAIX tant qu'elle est debout — la dimension DIPLOMATIQUE de son
+ *  effet d'attaque (R-132) : `DeclareWar` est refusé contre son propriétaire
+ *  (a) et son achèvement met fin aux guerres en cours (b, paix rétroactive —
+ *  see completeWonder). Même fenêtre temporelle que l'effet d'attaque :
+ *  non obsolète (obsolescence GLOBALE R-128 — union des techs). Portée
+ *  EMPIRE. Les barbares ignorent la diplomatie (c) — jamais concernés. */
+export function grandeMurailleImposantLaPaix(
+  cities: Array<{ owner: PlayerId; wonders: string[] }>,
+  owner: PlayerId,
+  techsUnlocked: readonly string[],
+): boolean {
+  for (const city of cities) {
+    if (city.owner !== owner) continue;
+    for (const wonderId of city.wonders) {
+      if (wonderId !== 'grande_muraille') continue;
+      if (isWonderObsolete(wonderId, techsUnlocked)) continue;
+      return true;
+    }
+  }
+  return false;
+}

@@ -185,8 +185,11 @@ export type GameEvent =
   /**
    * BOT-TC (Erik 25/10, D3) : paix acceptée — PUBLIQUE (miroir WarDeclared,
    * canon CivRev). La paire quitte `diplomacy.war` ; `from` = proposeur.
+   * T3 (Erik 31/10, D2) : paix IMPOSÉE par l'achèvement de la Grande Muraille
+   * — `motif: 'grande_muraille'`, `from` = propriétaire de la Muraille (celui
+   * qui impose), non négociée, gratuite (aucun PeaceCompensated associé).
    */
-  | { seq: number; type: 'PeaceAccepted'; from: PlayerId; on: PlayerId }
+  | { seq: number; type: 'PeaceAccepted'; from: PlayerId; on: PlayerId; motif?: 'grande_muraille' }
   /**
    * BOT-TC (Erik 25/10, D3) : proposition de paix REFUSÉE — PUBLIQUE
    * (crédibilité T1 : le refus est une annonce). `from` = proposeur,
