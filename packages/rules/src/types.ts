@@ -882,4 +882,8 @@ export interface BotSettingsData {
   negociation: BotNegociationData;
   /** TB-SIEGE-DEFENSE · B1 : seuils de la course à l'ONU. */
   victoire: BotVictoireData;
+  /** GUERRE-VIVANTE (Erik 02/11) · D-A/D-C : jugement de guerre stérile —
+   *  tours sans AUCUNE bataille avant tranchage (paix si perdant, assaut si
+   *  gagnant) ; cadence des propositions de paix stériles (anti-boucle D-C). */
+  guerreSterile: { tours: number; cooldown: number };
 }

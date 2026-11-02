@@ -65,8 +65,12 @@ function ennemisDeMoi(etatFiltre: AnyEtat, moi: string): string[] {
 }
 
 function dureeEtBatailles(etatFiltre: AnyEtat, moi: string, ennemi: string): AnyEtat {
-  const depuis = etatFiltre.diplomacy?.warsDepuis?.[[moi, ennemi].sort().join('|')] ?? etatFiltre.turn;
-  const batailles = etatFiltre.diplomacy?.batailles?.[[moi, ennemi].sort().join('|')] ?? 0;
+  // GUERRE-VIVANTE · FIX L1 : clé MIROIR de cleDepuis du moteur (paire triée
+  // jointe par VIRGULE) — l'ancien join('|') ne matchait jamais : depuis
+  // retombait sur turn → toursDeGuerre = 0 pour tout ennemi, tout tour.
+  const cle = [moi, ennemi].sort().join(',');
+  const depuis = etatFiltre.diplomacy?.warsDepuis?.[cle] ?? etatFiltre.turn;
+  const batailles = etatFiltre.diplomacy?.batailles?.[cle] ?? 0;
   return { toursDeGuerre: Math.max(0, etatFiltre.turn - depuis), batailles };
 }
 
@@ -221,6 +225,17 @@ export function condenseJoueur(etatFiltre: AnyEtat, moi: string, memo: AnyEtat =
   // du harnais : vide dans les tests croisés (bit-à-bit inchangé).
   const resumes = memo?.resumesPourJev;
   if (Array.isArray(resumes) && resumes.length > 0) condense.chatsPourJev = [...resumes];
+  // GUERRE-VIVANTE (Erik 02/11) · D-B(a) — poids militaires en guerre : les
+  // combattantes passent en tête des candidats de production de la capitale
+  // (data `seuils.guerrePoidsMilitaire`) — miroir bit-à-bit du harnais.
+  if (seuils.guerrePoidsMilitaire && (condense.diplomatie.guerreAvec ?? []).length > 0) {
+    const prod = condense.candidats.productionCapitale ?? [];
+    const estMilitaire = (c: AnyEtat) => {
+      const [kind, id] = c.cle.split(':');
+      return kind === 'unit' && (UNIT_TYPES[id]?.canAttack ?? false) && UNIT_TYPES[id]?.aquatic !== true;
+    };
+    condense.candidats.productionCapitale = [...prod.filter(estMilitaire), ...prod.filter((c: AnyEtat) => !estMilitaire(c))];
+  }
   return condense;
 }
 
@@ -484,6 +499,26 @@ export function construireQuestionsJoueur(config: AnyEtat, condense: AnyEtat, et
     }
   }
 
+  // GUERRE-VIVANTE · D-B(c) — jugement de guerre stérile (miroir harnais) :
+  // gate (enGuerre ≥ guerreSterileTours data ET 0 bataille) ; révision
+  // cadencée par opportuniteCooldown (memo.guerreSterile persisté).
+  const sterile = (condense.diplomatie.ennemis ?? []).filter(
+    (e: AnyEtat) => e.toursDeGuerre >= ((seuils as AnyEtat).guerreSterileTours ?? 30) && (e.batailles ?? 0) === 0,
+  );
+  const revisionSterile =
+    !memo.guerreSterile ||
+    condense.tour - (memo.guerreSterile.tour ?? 0) >= ((seuils as AnyEtat).opportuniteCooldown ?? 15);
+  if (sterile.length > 0 && revisionSterile) {
+    const criteria: AnyEtat = { continuer: 'Ne rien changer — la guerre reste nominale (le jugement sera révisé plus tard).' };
+    for (const e of sterile) {
+      const r = rivaux.find((x: AnyEtat) => x.id === e.id);
+      criteria[`paix:${e.id}`] = `Faire la paix avec ${r?.civ ?? e.id} — guerre stérile de ${e.toursDeGuerre} tours, 0 bataille : terminer sans combat.`;
+      criteria[`assauts:${e.id}`] = `ASSAILLER ${r?.civ ?? e.id} — convertir la guerre en campagne : pousser vers sa ville et l'assiéger (rapport de forces visible : ${condense.monde.puissance.amie} vs ${r?.forces ?? '?'}).`;
+    }
+    q.guerreSterile = { instructions: config.questions.guerreSterile.instructions, criteria, type: 'choice' };
+    meta.guerreSterile = { genre: 'guerreSterile', cibles: sterile.map((e: AnyEtat) => e.id) };
+  }
+
   // JEV-IT4 · D2/D3 — questions de FIN DE PARTIE, gate de bruit : posées
   // SEULEMENT si le bloc victoire montre un signal (jalons ≥ 10 chez
   // quelqu'un, ≥ 2 composants, merveille de victoire en chantier, ou guerre
@@ -546,12 +581,13 @@ export function construireQuestionsJoueur(config: AnyEtat, condense: AnyEtat, et
     q.finPartie = { instructions: config.questions.finPartie.instructions, criteria, type: 'choice' };
     meta.finPartie = { genre: 'finPartie', signal: true };
 
-    // D2.3 — protegerCapitale : je suis en guerre ET des unités hostiles
-    // rôdent près de mes villes (menaces du condensé).
-    if (enGuerre && (condense.menaces ?? []).length > 0 && capitale) {
+    // D2.3 — protegerCapitale : je suis en guerre (GUERRE-VIVANTE · D-B(b) :
+    // la guerre ELLE-MÊME ouvre la question — fortification EN PRÉVISION).
+    if (enGuerre && capitale) {
+      const nbMenaces = (condense.menaces ?? []).length;
       const criteriaP: AnyEtat = {
         aucun: 'Ne rien changer à la défense ce tour.',
-        proteger: `PRIORITÉ DÉFENSE — fortifier les unités autour de ${capitale.capitale ? 'la capitale' : 'la ville'} ${capitale.id} (${condense.menaces.length} unité(s) hostile(s) à proximité).`,
+        proteger: `PRIORITÉ DÉFENSE — fortifier les unités autour de ${capitale.capitale ? 'la capitale' : 'la ville'} ${capitale.id} (guerre en cours${nbMenaces > 0 ? ` — ${nbMenaces} unité(s) hostile(s) à proximité` : ' — en prévision, aucune menace visible à proximité'}).`,
       };
       q.protegerCapitale = { instructions: config.questions.protegerCapitale.instructions, criteria: criteriaP, type: 'choice' };
       meta.protegerCapitale = { genre: 'protegerCapitale' };
@@ -1142,6 +1178,55 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
     }
   } else if (fin?.choice === 'continuer') {
     delete memo.finPartie;
+  }
+
+  // 7.4 GUERRE-VIVANTE · D-B(c) — traduction du jugement de guerre stérile
+  // (miroir bit-à-bit du harnais — après finPartie, dédupliquée vs paix 5).
+  {
+    const sterileIds = new Set<string>(
+      (condense.diplomatie.ennemis ?? [])
+        .filter((e: AnyEtat) => e.toursDeGuerre >= ((config as AnyEtat).seuils.guerreSterileTours ?? 30) && (e.batailles ?? 0) === 0)
+        .map((e: AnyEtat) => e.id as string),
+    );
+    // GUERRE-VIVANTE · seuil de confiance DÉDIÉ (miroir harnais).
+    const gs = confiance(ans.guerreSterile, (config as AnyEtat).seuils.confianceGuerreSterile ?? 0.3);
+    const choix = gs?.choice;
+    if (choix && choix !== 'continuer') {
+      const [genre, cible] = choix.split(':');
+      if (genre === 'paix' && sterileIds.has(cible) && (condense.diplomatie.guerreAvec ?? []).includes(cible)) {
+        if (!sortie.diplomatie.some((d: AnyEtat) => d.genre === 'paix' && d.cible === cible)) {
+          sortie.diplomatie.push({ genre: 'paix', cible, or: 0 });
+        }
+        memo.guerreSterile = { choix: 'paix', cible, tour: condense.tour };
+      } else if (genre === 'assauts' && sterileIds.has(cible)) {
+        memo.finPartie = { mode: 'pousserCapitale', cible };
+        memo.guerreSterile = { choix: 'assauts', cible, tour: condense.tour };
+        const militaire = (condense.candidats.productionCapitale ?? [])
+          .filter((c: AnyEtat) => c.attaque > 0)
+          .sort((a: AnyEtat, b: AnyEtat) => b.attaque - a.attaque || a.cout - b.cout || a.cle.localeCompare(b.cle))[0];
+        const prodCourante = capitale?.production ? `${capitale.production.item.kind}:${capitale.production.item.id}` : null;
+        const colonEnProduction = memo.fondationEnCours && !trouveColon();
+        if (militaire && capitale && prodCourante !== militaire.cle && !colonEnProduction) {
+          const [kind, id] = militaire.cle.split(':');
+          if (canSetProduction({ kind, id }, me?.techsUnlocked ?? [], capitale.buildings ?? [], me?.civId)) {
+            sortie.ordres.push({ type: 'SetProduction', cityId: capitale.id, item: { kind, id } });
+            sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: militaire.cle });
+          }
+        }
+      }
+      // formes invalides : ignorées
+    } else if (choix === 'continuer') {
+      const ciblePersist = sterileIds.values().next().value ?? memo.guerreSterile?.cible ?? null;
+      memo.guerreSterile = { choix: 'continuer', cible: ciblePersist, tour: condense.tour };
+    } else if (
+      memo.guerreSterile?.choix === 'paix' &&
+      memo.guerreSterile.cible &&
+      sterileIds.has(memo.guerreSterile.cible)
+    ) {
+      if (!sortie.diplomatie.some((d: AnyEtat) => d.genre === 'paix' && d.cible === memo.guerreSterile.cible)) {
+        sortie.diplomatie.push({ genre: 'paix', cible: memo.guerreSterile.cible, or: 0 });
+      }
+    }
   }
 
   // 7.5 JEV-CALIBRAGE-OFFENSIF · D-E2 — la MARCHE (miroir harnais). Pas

@@ -575,6 +575,23 @@ export function dureeMinGuerre(
   return profile.toursPaixMin + distanceCibleGuerre(state, a, b) * profile.facteurMarcheCible;
 }
 
+/**
+ * GUERRE-VIVANTE (Erik 02/11, D-A) · Jugement de guerre stérile : la paire
+ * (me, e) est EN GUERRE depuis `guerreSterile.tours` (data, 30) sans AUCUNE
+ * bataille comptée (diplomacy.batailles — les barbares n'y figurent jamais).
+ * Pur, déterministe.
+ */
+export function guerreSterileDe(
+  state: GameState,
+  me: PlayerId,
+  e: PlayerId,
+  profile: BotProfileData,
+): boolean {
+  if (!areAtWar(state, me, e)) return false;
+  if (bataillesDe(state, me, e) !== 0) return false;
+  return dureeGuerre(state, me, e) >= BOT_SETTINGS.guerreSterile.tours;
+}
+
 // ---------------------------------------------------------------------------
 // DIPLOMATIE-T2 (décisions Erik 28/10) · D4 — la NÉGOCIATION : le bot répond
 // de façon seedée aux offres du JOUEUR (paix compensée, échange de techs).
@@ -1430,7 +1447,16 @@ export function assignerObjectifs(
       // TB-SIEGE · A1 : l'offensive ne part que si l'assaut est autorisé
       // (effectif requis + rassemblement effectifAssaut / écrasement / ville
       // vide) — sinon campement (rallier), l'armée agrège.
-      if (assautAutorise) {
+      // GUERRE-VIVANTE · D-A(b) : guerre stérile + rapport ≥ 1 → ASSAILLE :
+      // marche DIRECTE sur la ville (objectif offensiver existant) au lieu du
+      // campement d'anneau — convertir la guerre nominale en campagne ; la
+      // porte d'assaut (assautAutorise) juge au rayon comme toujours.
+      const proprietaireCible = state.cities[campagne.cityId]?.owner;
+      const sterileGagnant =
+        proprietaireCible !== undefined &&
+        guerreSterileDe(state, playerId, proprietaireCible, profile) &&
+        forcesDe(state, playerId) >= forcesDe(state, proprietaireCible);
+      if (assautAutorise || sterileGagnant) {
         objectifs.set(unit.id, { kind: 'offensiver', cible: { q: campagne.q, r: campagne.r }, cityId: campagne.cityId });
       } else {
         // BOT-MARCHE · D1 : hex de ralliement STABLE (rang par id sur
@@ -1958,6 +1984,24 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
     const videTerme =
       bataillesDe(state, playerId, e) === 0 &&
       dureeGuerre(state, playerId, e) >= dureeMinGuerre(state, playerId, e, profile);
+    // GUERRE-VIVANTE · D-A(b) + D-C : une guerre STÉRILE se tranche —
+    // rapport < 1 → il propose la paix LUI-MÊME, CADENCÉE
+    // `guerreSterile.cooldown` tours (déterministe — reste de la division de
+    // la durée, zéro état caché) ; la réception est réglée par la grille du
+    // receveur (R-189). Rapport ≥ 1 → PAS de proposition : il assaille
+    // (conversion en campagne — voir assignerObjectifs). Le videTerme canon
+    // (proposition chaque tour) est SUSPENDU pour les guerres stériles —
+    // plus jamais 320 tours de propositions-refusées chaque tour.
+    if (guerreSterileDe(state, playerId, e, profile)) {
+      if (
+        sesForces > 0 &&
+        forcesDe(state, playerId) < sesForces && // rapport < 1 (handoff D-A)
+        dureeGuerre(state, playerId, e) % BOT_SETTINGS.guerreSterile.cooldown === 0
+      ) {
+        actions.push({ type: 'ProposePeace', player: e });
+      }
+      continue;
+    }
     if ((perd || videTerme) && deciderPaix(state, e, playerId, profile)) {
       actions.push({ type: 'ProposePeace', player: e });
     }

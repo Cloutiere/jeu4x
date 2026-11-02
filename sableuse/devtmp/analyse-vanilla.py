@@ -17,6 +17,11 @@ def analyser(f):
     villes = {}; capitales = {}
     combats = []; fondations = 0; fondationsJev = 0
     proprio = {}; victoire = None  # (tour, winner, reason)
+    # GUERRE-VIVANTE · mètre de STÉRILITÉ : spans de guerre (paires inter-
+    # nations) + combats entre nations + paix + production militaire de Jev
+    # en guerre vs paix.
+    guerres = {}; guerresInterNations = []; paixAcceptees = []; refusPaix = 0
+    prodMilitaire = {'guerre': 0, 'paix': 0}; prodSpans = []
     for line in open(f, encoding='utf-8'):
         d = json.loads(line)
         t = d.get('type')
@@ -29,7 +34,19 @@ def analyser(f):
             if d.get('genre') == 'guerre': declarations.append(d)
         elif t == 'evenement':
             e = d['evenement']; k = e.get('type')
-            if k == 'CityFounded':
+            if k == 'WarDeclared':
+                paire = tuple(sorted([e.get('from'), e.get('on')]))
+                if 'barbarien' not in paire:
+                    guerres[paire] = tour
+            elif k == 'PeaceAccepted':
+                paixAcceptees.append((tour, e.get('from'), e.get('on')))
+                paire = tuple(sorted([e.get('from'), e.get('on')]))
+                if paire in guerres:
+                    debut = guerres.pop(paire)
+                    guerresInterNations.append((debut, tour, tour - debut))
+            elif k == 'PeaceRefused':
+                refusPaix += 1
+            elif k == 'CityFounded':
                 fondations += 1
                 villes[e['cityId']] = (e['owner'], e.get('at'), bool(e.get('capital')))
                 if e.get('capital'): capitales[e['owner']] = e['cityId']
@@ -41,11 +58,33 @@ def analyser(f):
                 if cid in villes: villes[cid] = (e.get('toOwner'), villes[cid][1], villes[cid][2])
             elif k == 'Victory':
                 victoire = (tour, e.get('winner'), e.get('reason'))
-            elif k == 'Move':
-                proprio[e.get('unitId')] = e.get('owner')
             elif k in ('UnitProduced', 'UnitSpawned', 'BarbarianSpawned'):
                 proprio[e.get('unitId') or e.get('id')] = e.get('owner')
+            elif k == 'Move':
+                proprio[e.get('unitId')] = e.get('owner')
+        elif t == 'motif':
+            # GUERRE-VIVANTE : SetProduction de Jev dans les ordres — production
+            # militaire (kind unit) en guerre vs paix.
+            for o in ((d.get('ordres') or {}).get('p1') or []):
+                if o.get('type') != 'SetProduction': continue
+                it = o.get('item') or {}
+                mil = it.get('kind') == 'unit'
+                prodMilitaire['guerre' if guerres else 'paix'] += 1 if mil else 0
+                prodSpans.append((tour, 'guerre' if guerres else 'paix', it.get('id')))
         elif t == 'fin': fin = d
+    for paire, debut in guerres.items():
+        guerresInterNations.append((debut, tour, tour - debut))  # guerre ouverte à la fin
+    # combats INTER-NATIONS : attaquants/défenseurs appartenant à la paire en guerre
+    combatsInter = []
+    for (tcomb, att, deff, at) in combats:
+        oa, od = proprio.get(att), proprio.get(deff)
+        if oa and od and oa != od and oa != 'barbarien' and od != 'barbarien':
+            combatsInter.append((tcomb, oa, od))
+    toursGuerre = sum(d for (_, _, d) in guerresInterNations)
+    toursGuerreSansCombat = 0
+    for (debut, finw, duree) in guerresInterNations:
+        toursCombat = len({t for (t, _, _) in combatsInter if debut <= t <= finw})
+        toursGuerreSansCombat += duree - toursCombat
     jev = fin.get('nationJev') or 'p1'
     gagnant = fin.get('gagnant')
     autres = [pid for pid in capitales if pid != jev]
@@ -84,6 +123,12 @@ def analyser(f):
         'fondationsJev': fondationsJev,
         'capCapturesJev': capCapturesJev, 'capCapturesContre': capCapturesContre,
         'erreurs': fin.get('erreursJev', 0),
+        # GUERRE-VIVANTE · stérilité
+        'guerresInter': [(d, t - d) for (d, t, _t) in [(g[0], g[1], g[2]) for g in guerresInterNations]],
+        'toursGuerre': toursGuerre, 'toursGuerreSansCombat': toursGuerreSansCombat,
+        'combatsInter': len(combatsInter),
+        'paixAcceptees': len(paixAcceptees), 'refusPaix': refusPaix,
+        'prodMilitaire': dict(prodMilitaire),
     }
 
 if __name__ == '__main__':
@@ -104,3 +149,12 @@ if __name__ == '__main__':
         print('fondations Jev/partie    :', round(sum(r['fondationsJev'] for r in res) / parties, 1))
         print('coût total $             :', round(sum(r['cout'] for r in res), 4))
         print('erreurs API              :', sum(r['erreurs'] for r in res))
+        # GUERRE-VIVANTE · le critère : 320+ tours de guerre sans combat → ≤ 30
+        print('tours de guerre (total)          :', sum(r['toursGuerre'] for r in res))
+        print('tours de guerre SANS combat (total):', sum(r['toursGuerreSansCombat'] for r in res))
+        for r in res:
+            print(f"  {r['fichier']}: guerres={r['guerresInter']} combatsInter={r['combatsInter']} sansCombat={r['toursGuerreSansCombat']} paix={r['paixAcceptees']} refus={r['refusPaix']} prodMil={r['prodMilitaire']}")
+        totG = sum(r['prodMilitaire']['guerre'] for r in res); totP = sum(r['prodMilitaire']['paix'] for r in res)
+        toursG = max(1, sum(r['toursGuerre'] for r in res))
+        toursP = max(1, sum((r['tours'] or 0) - r['toursGuerre'] for r in res))
+        print('production militaire Jev : guerre %.3f/tour, paix %.3f/tour' % (totG / toursG, totP / toursP))

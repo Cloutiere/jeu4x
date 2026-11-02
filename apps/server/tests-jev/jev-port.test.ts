@@ -755,3 +755,93 @@ describe('JEV-CROISSANCE — parité config gainSite (harnais ⇄ serveur)', () 
     expect(configMjs.gainSite.penaliteRisque).toBe(3); // risque INCHANGÉ (D1)
   });
 });
+
+// ---------------------------------------------------------------------------
+// GUERRE-VIVANTE (Erik 02/11) · croisés — guerreSterile + poids militaires.
+// ---------------------------------------------------------------------------
+
+/** Guerre STÉRILE : war posée, warsDepuis/batailles aux clés canoniques
+ *  (virgule — cleDepuis moteur), tour 60 depuis 10 → 50 tours, 0 bataille. */
+function etatGuerreSterilePort() {
+  const seed = 101;
+  const gen = generateProceduralMap(seed);
+  let etat = createInitialState(gen.map, seed, { p1: { civId: 'rome' }, p2: { civId: 'egypte' } });
+  etat = {
+    ...etat,
+    turn: 60,
+    cities: {
+      ...etat.cities,
+      cap1: { id: 'cap1', owner: 'p1', q: 5, r: 5, pop: 3, capital: true, buildings: [], workedTiles: [], wonders: [] },
+      cap2: { id: 'cap2', owner: 'p2', q: 8, r: 5, pop: 2, capital: true, buildings: [], workedTiles: [], wonders: [] },
+    },
+    units: {
+      u_moi_0: { id: 'u_moi_0', owner: 'p1', type: 'legion', q: 6, r: 5, hp: 100, mp: 2, fortified: false, aboard: false },
+      u_p2_0: { id: 'u_p2_0', owner: 'p2', type: 'legion', q: 7, r: 5, hp: 100, mp: 2, fortified: false, aboard: false },
+    },
+    diplomacy: {
+      ...etat.diplomacy,
+      war: [['p1', 'p2']],
+      warsDepuis: { 'p1,p2': 10 },
+      batailles: {},
+    },
+    players: {
+      ...etat.players,
+      p1: { ...etat.players.p1, vision: { explored: ['5,5', '6,5', '8,5', '5,6'], visible: ['5,5', '6,5', '8,5', '5,6'] } },
+      p2: { ...etat.players.p2 },
+    },
+  };
+  return getFilteredState(etat, 'p1');
+}
+
+describe('GUERRE-VIVANTE · croisés (guerreSterile, poids militaires, fix clé warsDepuis)', () => {
+  it('fix clé warsDepuis : toursDeGuerre = 50 (miroir cleDepuis, ancien join("|") donnait 0)', () => {
+    const filtre = etatGuerreSterilePort();
+    const a = condenseJoueurTs(filtre, 'p1', {}, configJev.seuils);
+    const b = condenseJoueurMjs(filtre, 'p1', {}, configJev.seuils);
+    expect(JSON.parse(JSON.stringify(a.diplomatie))).toEqual(JSON.parse(JSON.stringify(b.diplomatie)));
+    expect(a.diplomatie.ennemis[0].toursDeGuerre).toBe(50);
+    expect(a.diplomatie.ennemis[0].batailles).toBe(0);
+  });
+
+  it('question guerreSterile posée (gate 30 tours / 0 bataille) : harnais ⇄ port bit à bit', () => {
+    const filtre = etatGuerreSterilePort();
+    const condenseTs = condenseJoueurTs(filtre, 'p1', {}, configJev.seuils);
+    const condenseMjs = condenseJoueurMjs(filtre, 'p1', {}, configJev.seuils);
+    const qa = construireTs(configJev, condenseTs, filtre, 'p1', {});
+    const qb = construireMjs(configJev, condenseMjs, filtre, 'p1', {});
+    expect(JSON.parse(JSON.stringify(qa.questions.guerreSterile))).toEqual(
+      JSON.parse(JSON.stringify(qb.questions.guerreSterile)),
+    );
+    expect(Object.keys(qa.questions.guerreSterile.criteria)).toContain('paix:p2');
+    expect(Object.keys(qa.questions.guerreSterile.criteria)).toContain('assauts:p2');
+    expect(qa.questions.protegerCapitale).toBeDefined(); // D-B(b) : guerre SANS menaces
+  });
+
+  it('traduction des trois choix : harnais ⇄ port bit à bit (paix / assauts / continuer)', async () => {
+    for (const choix of ['paix:p2', 'assauts:p2', 'continuer']) {
+      const filtre = etatGuerreSterilePort();
+      const condenseTs = condenseJoueurTs(filtre, 'p1', {}, configJev.seuils);
+      const reponses: Record<string, unknown> = {
+        guerreSterile: choix, produire: 'aucun', finPartie: 'continuer', convertir: 'aucun',
+      };
+      const memoTs: any = {};
+      const a = await tourTs(fauxClient(reponses), configJev, filtre, 'p1', memoTs);
+      const memoMjs: any = {};
+      const b = await tourMjs(fauxClient(reponses), configJev, filtre, 'p1', memoMjs);
+      expect(a.ordres, choix).toEqual(b.ordres);
+      expect(a.diplomatie, choix).toEqual(b.diplomatie);
+      expect(JSON.parse(JSON.stringify(memoTs.guerreSterile))).toEqual(JSON.parse(JSON.stringify(memoMjs.guerreSterile)));
+      expect(JSON.parse(JSON.stringify(memoTs.finPartie ?? null))).toEqual(JSON.parse(JSON.stringify(memoMjs.finPartie ?? null)));
+    }
+  });
+
+  it('poids militaires en guerre : productionCapitale militaire en tête, bit à bit', () => {
+    const filtre = etatGuerreSterilePort();
+    const a = condenseJoueurTs(filtre, 'p1', {}, configJev.seuils);
+    const b = condenseJoueurMjs(filtre, 'p1', {}, configJev.seuils);
+    expect(JSON.parse(JSON.stringify(a.candidats.productionCapitale))).toEqual(
+      JSON.parse(JSON.stringify(b.candidats.productionCapitale)),
+    );
+    expect(a.candidats.productionCapitale[0].attaque).toBeGreaterThan(0);
+  });
+});

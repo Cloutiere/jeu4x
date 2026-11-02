@@ -249,11 +249,18 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
         } else journal.ligne({ type: 'rejet_action', tour, joueur: id, action, raison: r.error ?? 'refus' });
       } else if (action.type === 'ProposePeace') {
         // BOT-TC : le bot propose quand il perd. Le DESTINATAIRE humain (Jev
-        // joueur) décide : acceptation SEULEMENT si Jev a choisi paix avec ce
-        // joueur ce tour (canon T2 : Jev a le dernier mot) ; sinon refus.
+        // joueur) décide : acceptation si Jev a choisi paix avec ce joueur ce
+        // tour (canon T2 : Jev a le dernier mot) OU si son jugement persisté
+        // de guerre stérile est « paix » avec CE joueur (GUERRE-VIVANTE ·
+        // D-C — la boucle paix/refus se ferme dans les DEUX sens). Les
+        // sondes ProposePeace du plan de base du SIÈGE Jev (artefact
+        // botPolicy — Jev ne les a jamais décidées) sont IGNORÉES : sa paix
+        // passe par ses intentions diplomatie, jamais par ces sondes.
+        if (modeJoueur && id === jev) continue;
         const accepte =
           modeJoueur && id !== jev && action.player === jev
-            ? (decision?.diplomatie ?? []).some((d) => d.genre === 'paix' && d.cible === id)
+            ? (decision?.diplomatie ?? []).some((d) => d.genre === 'paix' && d.cible === id) ||
+              (memo.guerreSterile?.choix === 'paix' && memo.guerreSterile?.cible === id)
             : false;
         const r = applyProposePeace(etat, id, action.player, accepte);
         if (r.ok) {

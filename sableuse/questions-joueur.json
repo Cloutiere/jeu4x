@@ -62,6 +62,15 @@
     "conqueteEspace": {
       "primitive": "choice",
       "instructions": "JEV-STRATEGE — CONQUÊTE D'ESPACE : votre espace de fondation est SATURÉ (plus de site correct pour fonder une ville) et votre rapport de forces le permet : la croissance passe désormais par la CONQUÊTE. Les cibles pré-qualifiées vous sont présentées (garnison visible la plus faible d'abord, distance à notre capitale). Choisir une cible DÉCLARE la guerre (acte public, mécanique) et lance la campagne de prise de cette ville. Cette décision n'admet PAS de refus : quand les conditions sont réunies, prendre de l'espace est la seule façon de continuer à croître — vous choisissez SEULEMENT la cible."
+    },
+    "guerreSterile": {
+      "primitive": "choice",
+      "instructions": "Notre guerre est STÉRILE : aucune bataille depuis longtemps. Choisir un ennemi propose la PAIX (paix:pX — la grille du bot décide) ou ordonne les ASSAUTS (assauts:pX — la campagne marche sur sa ville et assiège). « continuer » garde la guerre en l'état. Un ennemi qui a proposé la paix nous attend : accepter règle la question.",
+      "criteria": {
+        "paix:pX": "Faire la paix avec pX — terminer la guerre sans combat.",
+        "assauts:pX": "Convertir la guerre en campagne : pousser vers la ville de pX et l'assiéger.",
+        "continuer": "Ne rien changer — la guerre reste nominale."
+      }
     }
   },
   "seuils": {
@@ -90,7 +99,10 @@
     "opportuniteCooldown": 15,
     "ecrasementRapport": 3,
     "sitesRestants": 1,
-    "conqueteRapportMin": 1
+    "conqueteRapportMin": 1,
+    "guerreSterileTours": 30,
+    "guerrePoidsMilitaire": true,
+    "confianceGuerreSterile": 0.3
   },
   "_commentaire_seuils": "Seuils PAR DOMAINE (canon v2) : produire/rechercher à 0,65 ; guerre/paix/convertir/échange à 0,5 — ces questions sont chroniquement sous-confiantes chez jev-latest (banc joueur-2026-10-27). v2 CALIBRAGE-DECISIONS : une réponse conversion INDÉCISE (sous 0,5) déclenche le repli règle (plancher, miroir du repli bot) ; conversionScienceMin = seuil de science/tour sous lequel une ville est candidate à la SCIENCE. compensationPaliers conservé pour compatibilité (la fourchette d'or v2 est injectée par tour). JEV-CONTACT-GUERRE D1 (Erik 29/10) : delaiGuerreApresRencontre = tours de coexistence minimale entre la PREMIÈRE rencontre (unité/ville adverse vue sous le fog) et la première question guerre possible. JEV-IT4B (Erik 31/10) : guerreTotaleRapportMin = rapport de forces minimal pour que le choix guerreTotale:<id> soit offert dans finPartie. | v7 CALIBRAGE-OFFENSIF : dominationEcartVilles 3→2 (D-B, seed 786078703) ; marcheActif/marcheTaille (D-E2, la marche vers la capitale déclarée). | v9 STRATEGE : opportunite {ecartTechs 8, rapportDomination 2, jalonsMin 12, tresorerieMin 10000} + opportuniteCooldown 15 (révision de voie) ; ecrasementRapport 3 (déclaration d'écrasement) ; sitesRestants 1 + conqueteRapportMin 1 (conquête d'espace).",
   "_commentaire_regles": "JEV-BANC-JOUEUR D1 + v2 CALIBRAGE-DECISIONS : la règle regle:conversion du harnais reste DÉSACTIVÉE GLOBALEMENT (le bot standard et le contrôle ne la subissent pas — D2 : rien d'autre ne change) ; elle vit en REPLI pour Jev seul, appliquée par joueur.mjs quand sa réponse conversion est indécise.",

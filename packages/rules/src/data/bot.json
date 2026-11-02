@@ -113,6 +113,10 @@
     "plafondRapportForces": 2,
     "seuilContreTirage": 0.5
   },
+  "guerreSterile": {
+    "tours": 30,
+    "cooldown": 10
+  },
   "victoire": {
     "seuilJalonsCourseOnu": 16,
     "jalonsMinPrioriteOnu": 12

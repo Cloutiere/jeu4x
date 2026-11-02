@@ -83,8 +83,13 @@ function provocationsDe(etatFiltre, moi, rival) {
 }
 
 function dureeEtBatailles(etatFiltre, moi, ennemi) {
-  const depuis = etatFiltre.diplomacy?.warsDepuis?.[[moi, ennemi].sort().join('|')] ?? etatFiltre.turn;
-  const batailles = etatFiltre.diplomacy?.batailles?.[[moi, ennemi].sort().join('|')] ?? 0;
+  // GUERRE-VIVANTE · FIX L1 : la clé doit MIROIRER cleDepuis du moteur
+  // (packages/rules/src/diplomatie.ts — paire triée jointe par VIRGULE).
+  // L'ancien join('|') ne matchait JAMAIS : depuis retombait sur turn →
+  // toursDeGuerre = 0 pour tout ennemi, tout tour (guerres lues « vides »).
+  const cle = [moi, ennemi].sort().join(',');
+  const depuis = etatFiltre.diplomacy?.warsDepuis?.[cle] ?? etatFiltre.turn;
+  const batailles = etatFiltre.diplomacy?.batailles?.[cle] ?? 0;
   return { toursDeGuerre: Math.max(0, etatFiltre.turn - depuis), batailles };
 }
 
@@ -226,6 +231,18 @@ export function condenseJoueur(etatFiltre, moi, memo = {}, seuils = {}) {
   const condense = condenserEtat(etatFiltre, moi);
   condense.diplomatie = blocDiplomatie(etatFiltre, moi, memo);
   condense.espace = blocEspace(etatFiltre, moi, memo, seuils);
+  // GUERRE-VIVANTE (Erik 02/11) · D-B(a) — poids militaires en guerre : les
+  // combattantes passent en tête des candidats de production de la capitale
+  // (data `seuils.guerrePoidsMilitaire`) — l'arbitrage « produire » voit le
+  // militaire D'ABORD ; ordre relatif sinon inchangé. En paix : canon.
+  if (seuils.guerrePoidsMilitaire && (condense.diplomatie.guerreAvec ?? []).length > 0) {
+    const prod = condense.candidats.productionCapitale ?? [];
+    const estMilitaire = (c) => {
+      const [kind, id] = c.cle.split(':');
+      return kind === 'unit' && (UNIT_TYPES[id]?.canAttack ?? false) && UNIT_TYPES[id]?.aquatic !== true;
+    };
+    condense.candidats.productionCapitale = [...prod.filter(estMilitaire), ...prod.filter((c) => !estMilitaire(c))];
+  }
   return condense;
 }
 
@@ -511,6 +528,28 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
     meta.compensation = { genre: 'compensation', fourchette };
   }
 
+  // GUERRE-VIVANTE · D-B(c) — jugement de guerre stérile : gate (enGuerre ≥
+  // guerreSterileTours data ET 0 bataille). Révision cadencée par
+  // opportuniteCooldown (miroir decisionVoieTour) — le choix persisté
+  // (memo.guerreSterile) est RÉÉMIS chaque tour par la traduction ; la
+  // question n'est re-posée qu'au cooldown.
+  const sterile = (condense.diplomatie.ennemis ?? []).filter(
+    (e) => e.toursDeGuerre >= (seuils.guerreSterileTours ?? 30) && (e.batailles ?? 0) === 0,
+  );
+  const revisionSterile =
+    !memo.guerreSterile ||
+    condense.tour - (memo.guerreSterile.tour ?? 0) >= (seuils.opportuniteCooldown ?? 15);
+  if (sterile.length > 0 && revisionSterile) {
+    const criteria = { continuer: 'Ne rien changer — la guerre reste nominale (le jugement sera révisé plus tard).' };
+    for (const e of sterile) {
+      const r = rivaux.find((x) => x.id === e.id);
+      criteria[`paix:${e.id}`] = `Faire la paix avec ${r?.civ ?? e.id} — guerre stérile de ${e.toursDeGuerre} tours, 0 bataille : terminer sans combat.`;
+      criteria[`assauts:${e.id}`] = `ASSAILLER ${r?.civ ?? e.id} — convertir la guerre en campagne : pousser vers sa ville et l'assiéger (rapport de forces visible : ${condense.monde.puissance.amie} vs ${r?.forces ?? '?'}).`;
+    }
+    q.guerreSterile = { instructions: config.questions.guerreSterile.instructions, criteria, type: 'choice' };
+    meta.guerreSterile = { genre: 'guerreSterile', cibles: sterile.map((e) => e.id) };
+  }
+
   // Échange de techs (canon : JAMAIS en guerre) — techs Offertes (les nôtres
   // inconnues du rival) et Demandées (les siennes que nous ignorons), triées
   // par coût ; les paires DÉJÀ refusées ne sont pas re-proposées (mémo).
@@ -610,12 +649,14 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
     q.finPartie = { instructions: config.questions.finPartie.instructions, criteria, type: 'choice' };
     meta.finPartie = { genre: 'finPartie', signal: true };
 
-    // D2.3 — protegerCapitale : je suis en guerre ET des unités hostiles
-    // rôdent près de mes villes (menaces du condensé).
-    if (enGuerre && (condense.menaces ?? []).length > 0 && capitale) {
+    // D2.3 — protegerCapitale : je suis en guerre (GUERRE-VIVANTE · D-B(b) :
+    // la guerre ELLE-MÊME ouvre la question — fortification EN PRÉVISION ;
+    // les menaces à rayon 5 restent mentionnées au libellé quand il y en a).
+    if (enGuerre && capitale) {
+      const nbMenaces = (condense.menaces ?? []).length;
       const criteriaP = {
         aucun: 'Ne rien changer à la défense ce tour.',
-        proteger: `PRIORITÉ DÉFENSE — fortifier les unités autour de ${capitale.capitale ? 'la capitale' : 'la ville'} ${capitale.id} (${condense.menaces.length} unité(s) hostile(s) à proximité).`,
+        proteger: `PRIORITÉ DÉFENSE — fortifier les unités autour de ${capitale.capitale ? 'la capitale' : 'la ville'} ${capitale.id} (guerre en cours${nbMenaces > 0 ? ` — ${nbMenaces} unité(s) hostile(s) à proximité` : ' — en prévision, aucune menace visible à proximité'}).`,
       };
       q.protegerCapitale = { instructions: config.questions.protegerCapitale.instructions, criteria: criteriaP, type: 'choice' };
       meta.protegerCapitale = { genre: 'protegerCapitale' };
@@ -1277,6 +1318,67 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     }
   } else if (fin?.choice === 'continuer') {
     delete memo.finPartie;
+  }
+
+  const seuilsConfianceGuerreSterile = () => config.seuils.confianceGuerreSterile ?? 0.3;
+  // 7.4 GUERRE-VIVANTE · D-B(c) — traduction du jugement de guerre stérile
+  // (APRÈS finPartie : le tranchage prime sur la continuation ; APRÈS la paix
+  // 5 : dédupliquée). Choix persisté (memo.guerreSterile) ; le choix « paix »
+  // persisté est RÉÉMIS chaque tour tant que la guerre reste stérile —
+  // boucle BORNÉE : la grille du bot accepte à dureeMin (deciderPaix), les
+  // propositions du bot sont cadencées (D-C côté botPolicy).
+  {
+    const sterileIds = new Set(
+      (condense.diplomatie.ennemis ?? [])
+        .filter((e) => e.toursDeGuerre >= (config.seuils.guerreSterileTours ?? 30) && (e.batailles ?? 0) === 0)
+        .map((e) => e.id),
+    );
+    // GUERRE-VIVANTE · seuil de confiance DÉDIÉ (canon v2 « chaque question
+    // porte son propre seuil ») — le jugement de guerre est chroniquement
+    // sous-confiant chez le modèle (banc : 0,35-0,48) ; le seuil dialogue 0,5
+    // le rendait structurellement muet (512 choix « paix » ignorés, partie 2).
+    const gs = confiance(ans.guerreSterile, seuilsConfianceGuerreSterile());
+    const choix = gs?.choice;
+    if (choix && choix !== 'continuer') {
+      const [genre, cible] = choix.split(':');
+      if (genre === 'paix' && sterileIds.has(cible) && (condense.diplomatie.guerreAvec ?? []).includes(cible)) {
+        if (!sortie.diplomatie.some((d) => d.genre === 'paix' && d.cible === cible)) {
+          sortie.diplomatie.push({ genre: 'paix', cible, or: 0 });
+        }
+        memo.guerreSterile = { choix: 'paix', cible, tour: condense.tour };
+      } else if (genre === 'assauts' && sterileIds.has(cible)) {
+        memo.finPartie = { mode: 'pousserCapitale', cible };
+        memo.guerreSterile = { choix: 'assauts', cible, tour: condense.tour };
+        // Poussée militaire immédiate (miroir exact du bloc finPartie
+        // pousserCapitale — ORDRES EXISTANTS, candidats déjà validés).
+        const militaire = (condense.candidats.productionCapitale ?? [])
+          .filter((c) => c.attaque > 0)
+          .sort((a, b) => b.attaque - a.attaque || a.cout - b.cout || a.cle.localeCompare(b.cle))[0];
+        const prodCourante = capitale?.production ? `${capitale.production.item.kind}:${capitale.production.item.id}` : null;
+        const colonEnProduction = memo.fondationEnCours && !trouveColon();
+        if (militaire && capitale && prodCourante !== militaire.cle && !colonEnProduction) {
+          const [kind, id] = militaire.cle.split(':');
+          if (canSetProduction({ kind, id }, me?.techsUnlocked ?? [], capitale.buildings ?? [], me?.civId)) {
+            sortie.ordres.push({ type: 'SetProduction', cityId: capitale.id, item: { kind, id } });
+            sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: militaire.cle });
+          }
+        }
+      }
+      // formes invalides (cible hors gate, genre inconnu) : ignorées
+    } else if (choix === 'continuer') {
+      const ciblePersist = sterileIds.values().next().value ?? memo.guerreSterile?.cible ?? null;
+      memo.guerreSterile = { choix: 'continuer', cible: ciblePersist, tour: condense.tour };
+    } else if (
+      memo.guerreSterile?.choix === 'paix' &&
+      memo.guerreSterile.cible &&
+      sterileIds.has(memo.guerreSterile.cible)
+    ) {
+      // Réémission du jugement persisté « paix » (question non re-posée au
+      // cooldown) — la guerre stérile doit se TERMINER.
+      if (!sortie.diplomatie.some((d) => d.genre === 'paix' && d.cible === memo.guerreSterile.cible)) {
+        sortie.diplomatie.push({ genre: 'paix', cible: memo.guerreSterile.cible, or: 0 });
+      }
+    }
   }
 
   // 7.5 JEV-CALIBRAGE-OFFENSIF · D-E2 — la MARCHE. Le diagnostic D-O (banc
