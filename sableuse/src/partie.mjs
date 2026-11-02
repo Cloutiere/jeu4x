@@ -59,7 +59,7 @@ import { scoreEmpire } from './score.mjs';
  *   tourJevJoueur ; le bot exécute le tactique (guerre/paix/échange
  *   appliqués par le harnais avec réponse seedée du bot).
  */
-export async function jouerPartie({ client, config, seed, plafondTours = 50, journal, budgetUsd = 2, engineJev, scenario = null, playerCount = 2, civSetup = null, sansJev = false, modeJoueur = false }) {
+export async function jouerPartie({ client, config, seed, plafondTours = 50, journal, budgetUsd = 2, engineJev, scenario = null, playerCount = 2, civSetup = null, sansJev = false, modeJoueur = false, sonde = null }) {
   const gen = generateProceduralMap(seed, playerCount >= 3 ? { playerCount } : undefined);
   let etat = createInitialState(gen.map, seed, civSetup ?? {});
   const joueurs = Object.keys(etat.players).sort();
@@ -148,6 +148,9 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       // l'état COMPLET (harnais), exposé au condensé par blocDiplomatie —
       // direction (6 secteurs) + distance bucket, JAMAIS de case exacte.
       filtre.theatre = calculerTheatre(etat, jev, memo);
+      // Sonde de diagnostic harnais (hors ligne) — reçoit l'état FILTRÉ du
+      // tour ; jamais utilisée par les bancs réels (null par défaut).
+      if (sonde) sonde(tour, filtre, jev, etat);
       // D3 · scénario contact : unité ennemie FICTIVE dans le condensé SEULEMENT
       // (l'état moteur n'est jamais touché — l'outil reste hors ligne).
       if (scenario?.injectionMenace) injecterMenace(filtre, jev);

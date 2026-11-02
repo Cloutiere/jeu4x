@@ -610,9 +610,13 @@ describe('v3 — la fondation (HANDOFF-JEV-EXPANSION)', () => {
     const probe = getFilteredState(etatAvecColon(), 'p1');
     const sites = candidatsFondation(probe, 'p1', {});
     if (sites.length > 0) {
+      // Recalé JEV-CROISSANCE : ce test était VACUEUX sous l'ancien calibrage
+      // (0 candidat sur la fixture — jamais exécuté). Le canon actuel : le tour
+      // du CHOIX programme la fondation (memo) ; le SetProduction du colon
+      // part du tour SUIVANT via le memo (re-émission anti-écrasement D2).
       const d = await tourJevJoueur(clientFonder(`fonder:${sites[0].case}`), config, probe, 'p1', {});
-      const prod = d.ordres.find((o) => o.type === 'SetProduction' && o.item?.kind === 'unit');
-      expect(prod).toBeDefined();
+      expect(d.ordres.find((o) => o.type === 'SetProduction' && o.item?.kind === 'unit')).toBeUndefined();
+      expect(d.fondationProgrammee?.nouvelle).toBe(true);
       expect(d.fondationProgrammee?.case).toBe(sites[0].case);
       // Le tour suivant (mémo en cours, colon toujours absent) : la production
       // du colon est RÉ-ÉMISE — un choix `produire` de Jev ne doit pas

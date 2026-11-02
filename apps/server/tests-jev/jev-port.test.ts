@@ -742,3 +742,16 @@ describe('JEV-STRATEGE v9 — tests croisés (bit à bit)', () => {
     }
   });
 });
+
+describe('JEV-CROISSANCE — parité config gainSite (harnais ⇄ serveur)', () => {
+  it('configCondense.gainSite est bit à bit des deux côtés (calibrage data JEV-CROISSANCE)', async () => {
+    const { configCondense: configTs } = await import('../src/jev/condense.js');
+    const { configCondense: configMjs } = await import('../../../sableuse/src/condense.mjs');
+    expect(configTs.gainSite).toEqual(configMjs.gainSite);
+    // verrou de valeurs (recalcul L1 : fenêtre ≥ 3 sites jusqu'à t300, 3 seeds)
+    expect(configMjs.gainSite.penaliteDistance).toBe(1);
+    expect(configMjs.gainSite.partCouronne1).toBe(0.75);
+    expect(configMjs.gainSite.partCouronne2).toBe(0.375);
+    expect(configMjs.gainSite.penaliteRisque).toBe(3); // risque INCHANGÉ (D1)
+  });
+});

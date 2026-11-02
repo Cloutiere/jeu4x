@@ -36,10 +36,14 @@ export const configCondense = {
   maxSitesValues: 3,
   maxCandidatsProduction: 8,
   maxTechsCandidates: 3,
+  // JEV-CROISSANCE (Erik 02/11) — fenêtre de fondation rouverte (recalcul L1,
+  // 3 seeds sans LLM : témoin 0 site dès t50-100 ; V2 = ≥ 3 sites jusqu'à
+  // t300 sur tous les seeds) : pd 2→1 + parts de couronne ×1,5. Risque
+  // INCHANGÉ. Data SEULE — logique intouchée. Port bit-à-bit du harnais.
   gainSite: {
-    partCouronne1: 0.5,
-    partCouronne2: 0.25,
-    penaliteDistance: 2,
+    partCouronne1: 0.75,
+    partCouronne2: 0.375,
+    penaliteDistance: 1,
     rayonRisque: 4,
     penaliteRisque: 3,
     seuilRentable: 2,
