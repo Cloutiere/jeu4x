@@ -83,6 +83,7 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
 
   const memo = {}; // mémoire inter-tours Jev (tenue de la recherche, D2)
   let coupeParBudget = false;
+  let raisonVictoire = null; // BANC-VANILLA L2 : raison de l'événement `Victory`
   let erreurJev = 0;
   const guerres = new Set(); // §5 banc 2 : paires de nations ayant échangé des coups
   const colonProduit = new Set(); // V4 D1 : joueurs ayant produit un colon
@@ -386,6 +387,9 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     }
     for (const ev of resultat.events) {
       journal.evenement(ev);
+      // BANC-VANILLA L2 — la RAISON de la victoire est consignée à la fin
+      // (domination / razedCapital / culture / science / économique).
+      if (ev.type === 'Victory') raisonVictoire = ev.reason;
       // V4 D1 : un colon produit = la capitale passe en science au tour suivant.
       if (ev.type === 'UnitProduced' && UNIT_TYPES[ev.unitType]?.canFoundCity) colonProduit.add(ev.owner);
       // V4 D2 : fondation réalisée → prédiction gainNet vs rendements réels.
@@ -468,6 +472,7 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
 
   journal.fin({
     gagnant: etat.winner,
+    raisonVictoire,
     toursJoues: etat.turn,
     coupeParBudget,
     erreursJev: erreurJev,

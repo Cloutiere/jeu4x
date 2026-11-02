@@ -13,17 +13,19 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { corpusBanc } from '../../apps/server/src/bancBotTd.js';
-import { tiragePaireCivs } from '../../apps/server/src/bancObservation.js';
 import { Journal } from './journal.mjs';
 import { jouerPartie } from './partie.mjs';
+import { construirePlan } from './vanilla.mjs';
 import { creerFauxJev } from './faux-jev.mjs';
 
 const racine = join(dirname(fileURLToPath(import.meta.url)), '..');
-const PLAFOND_TOURS = 150;
+const PLAFOND_TOURS = Number(arg('plafond', 150));
 // T3 (Erik 31/10, D5) : corpus ÉLARGI — 20 seeds (`--n-parties 20`) pour
 // trancher la VARIANCE des victoires Jev (fourchette annoncée au rapport).
+// BANC-VANILLA (Erik 01/11) : `--vanilla` neutralise les données de civ des
+// deux camps (neutre/neutre, P2) — l'expérience vit dans le plan SEULEMENT.
 const N_PARTIES = Number(arg('n-parties', 10));
+const VANILLA = arg('vanilla', false) === true;
 const DIFFICULTE = 'normal';
 
 function arg(nom, defaut) {
@@ -37,16 +39,11 @@ async function genererPlan() {
     console.error(`Refus : ${dossier}/plan.json existe déjà — jamais écraser un banc en cours.`);
     process.exit(1);
   }
-  const seeds = corpusBanc(40).slice(0, N_PARTIES);
-  const parties = seeds.map((seed, i) => {
-    const paire = tiragePaireCivs(seed);
-    return { idx: i + 1, seed, civs: { p1: paire.p1, p2: paire.p2 } };
-  });
-  const plan = { date: new Date().toISOString(), nParties: N_PARTIES, plafondTours: PLAFOND_TOURS, difficulte: DIFFICULTE, corpus: 'corpusBanc(40)[:10]', parties };
+  const plan = construirePlan({ n: N_PARTIES, vanilla: VANILLA, plafondTours: PLAFOND_TOURS, difficulte: DIFFICULTE });
   mkdirSync(dossier, { recursive: true });
   writeFileSync(join(dossier, 'plan.json'), JSON.stringify(plan, null, 2));
   writeFileSync(join(dossier, 'etat.json'), JSON.stringify({ parties: {} }, null, 2));
-  console.log(`Plan écrit : ${dossier}/plan.json (${N_PARTIES} parties 1v1, seeds corpus, civs P7 du seed)`);
+  console.log(`Plan écrit : ${dossier}/plan.json (${N_PARTIES} parties 1v1, seeds corpus, ${VANILLA ? 'civs NEUTRES (vanilla)' : 'civs P7 du seed'}, plafond ${PLAFOND_TOURS} tours)`);
 }
 
 async function creerClient(faux) {
@@ -104,10 +101,34 @@ async function executer() {
         const fin = { statut: coupeParBudget ? 'coupe-budget' : 'fait', fichier: basename(fichier), coutUsd: journal.coutUsd(), tours: etat.turn, gagnant: etat.winner, ms: Date.now() - t0 };
         etatBanc.parties[p.idx] = fin;
         ok = true;
+        // BANC-VANILLA L0 — un 402 attrapé en repli par le joueur ne jette PAS
+        // (bot pur silencieux = expérience faussée) : détection post-partie sur
+        // les SEULS champs `erreur` du journal (un « 402 » brut du texte —
+        // numéro de tour, jetons… — est un faux positif), ARRÊT immédiat.
+        const erreurs402 = readFileSync(fichier, 'utf8')
+          .split('\n')
+          .filter((l) => l.includes('"type":"decision"'))
+          .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+          .filter((d) => d?.erreur && /\b402\b/.test(String(d.erreur)));
+        if (erreurs402.length) {
+          fin.cause = '402 détecté dans le journal — ARRÊT du banc';
+          ecrire(cheminEtat, etatBanc);
+          console.error('ERREUR 402 détectée en repli — BANC ARRÊTÉ. Recharger les crédits puis relancer.');
+          process.exit(2);
+        }
         console.log(`[${p.idx}/${plan.parties.length}] seed ${p.seed} (${p.civs.p1} vs ${p.civs.p2}) → gagnant ${etat.winner ?? 'aucun'} en ${etat.turn} tours, coût ${journal.coutUsd().toFixed(4)} $, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
       } catch (e) {
-        console.error(`[${p.idx}] tentative ${tentative} échouée : ${e.message}`);
-        if (tentative === 2) etatBanc.parties[p.idx] = { statut: 'echec', cause: String(e.message ?? e) };
+        const msg = String(e?.message ?? e);
+        console.error(`[${p.idx}] tentative ${tentative} échouée : ${msg}`);
+        // BANC-VANILLA L0 — crédits épuisés : ARRÊT immédiat (consigne
+        // d'Erik : pas de relance, la partie repliée fausse l'expérience).
+        if (/\b402\b|crédit|credit|quota/i.test(msg)) {
+          etatBanc.parties[p.idx] = { statut: 'echec', cause: '402 crédits — ARRÊT du banc (consigne Erik)' };
+          ecrire(cheminEtat, etatBanc);
+          console.error('ERREUR 402 — BANC ARRÊTÉ. Recharger les crédits puis relancer (les parties faites sont conservées).');
+          process.exit(2);
+        }
+        if (tentative === 2) etatBanc.parties[p.idx] = { statut: 'echec', cause: msg };
       }
       ecrire(cheminEtat, etatBanc);
     }

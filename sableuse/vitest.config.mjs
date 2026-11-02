@@ -11,6 +11,14 @@ export default defineConfig({
         find: /.*apps[\/\\]server[\/\\]src[\/\\]botPolicy\.js$/,
         replacement: resolve(racine, '../apps/server/src/botPolicy.ts'),
       },
+      {
+        find: /.*apps[\/\\]server[\/\\]src[\/\\]bancBotTd\.js$/,
+        replacement: resolve(racine, '../apps/server/src/bancBotTd.ts'),
+      },
+      {
+        find: /.*apps[\/\\]server[\/\\]src[\/\\]bancObservation\.js$/,
+        replacement: resolve(racine, '../apps/server/src/bancObservation.ts'),
+      },
     ],
   },
   server: { fs: { allow: [resolve(racine, '..')] } },
