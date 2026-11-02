@@ -57,6 +57,11 @@ export interface PlanJev {
   /** Attentes de fondation — persistées dans le motif de résolution pour la
    * liste noire post-résolution (attentesPostResolution). */
   attentes: Array<{ genre: string; unitId?: string; case?: string }>;
+  /** OSCILLATION-MARCHE — garde de marche CAPTURÉE AVANT la décision (le
+   * memo.marche du tour PRÉCÉDENT) : les unités en marche que Jev ne couvre
+   * pas ce tour ne doivent pas être reparties en arrière par le plan bot
+   * (filtrerMarcheBot, appelé par le GameDO à la fusion). */
+  marcheGarde: Array<{ unitId: string; q: number; r: number }>;
   entreeJournal: JevJournalEntree | null;
 };
 
@@ -67,6 +72,7 @@ export const PLAN_JEV_VIDE: PlanJev = {
   retiresUnitIds: [],
   bloqueGuerreBot: false,
   attentes: [],
+  marcheGarde: [],
   entreeJournal: null,
 };
 
@@ -107,6 +113,11 @@ export async function planifierJev(opts: {
   if (!opts.client || !jevActif(etat)) return PLAN_JEV_VIDE;
 
   const filtre = getFilteredState(game, seat as AnyEtat);
+  // OSCILLATION-MARCHE — garde capturée AVANT la décision (memo du tour
+  // précédent ; la décision de CE tour la met à jour pour le tour suivant).
+  const marcheGarde = Object.entries(
+    (etat.memo.marche ?? {}) as Record<string, { q: number; r: number }>,
+  ).map(([unitId, p]) => ({ unitId, q: p.q, r: p.r }));
   let decision: DecisionJev;
   try {
     decision = await tourJevJoueur(opts.client, opts.config, filtre, seat, etat.memo);
@@ -118,7 +129,7 @@ export async function planifierJev(opts: {
 
   if (decision.erreur) {
     enregistrerAppel(etat, false, 0);
-    return { ...PLAN_JEV_VIDE, entreeJournal: entreeDe(seat, game.turn, decision, etat.budgetUsd) };
+    return { ...PLAN_JEV_VIDE, marcheGarde, entreeJournal: entreeDe(seat, game.turn, decision, etat.budgetUsd) };
   }
   enregistrerAppel(etat, true, decision.jetonsEntree);
 
@@ -137,6 +148,7 @@ export async function planifierJev(opts: {
     intentions: decision.diplomatie as PlanJev['intentions'],
     retiresUnitIds,
     bloqueGuerreBot: decision.bloqueGuerreBot,
+    marcheGarde,
     attentes: (decision.attentes ?? []).map((a: AnyEtat) => ({ genre: a.genre, unitId: a.unitId, case: a.case })),
     entreeJournal: entreeDe(seat, game.turn, decision, etat.budgetUsd),
   };

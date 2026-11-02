@@ -66,6 +66,7 @@ import {
   growthThresholdFor,
   hexDistanceW,
   isBarbarian,
+  normalizeHexW,
   rayonCulturelDe,
   rushBuyCostOf,
   techEraOf,
@@ -294,19 +295,29 @@ function enTerritoireEnnemi(state: GameState, playerId: PlayerId, hex: { q: numb
 /** Pas unitaire DÉTERMINISTE vers une cible : voisin praticable (classe
  *  navale respectée), libre de TOUTE unité (jamais d'entrée de combat non
  *  planifiée — D2), minimisant la distance à la cible ; tie-break = ordre
- *  canonique des directions (R-81). */
-function pasVers(
+ *  canonique des directions (R-81).
+ *  OSCILLATION-MARCHE (Erik 02/11) : la règle canon — un pas ne JAMAIS
+ *  augmenter la distance (wrappée) à la cible ; en cul-de-sac (baie,
+ *  isthme de la couture) le pas « moins pire » était la case d'où l'unité
+ *  venait → ping-pong éternel (u4 : 23,22 ⇄ 24,22, banc partie 2). Désormais
+ *  null → l'appelant émet l'arrêt explicite (Hold/Fortify). Le voisinage est
+ *  normalisé Est↔Ouest (normalizeHexW — canon CARTE-RONDE T1, cohérence
+ *  avec dist). */
+export function pasVers(
   unit: Unit,
   state: GameState,
   cible: { q: number; r: number },
 ): { q: number; r: number } | null {
   const stats = UNIT_TYPES[unit.type];
   const aquatic = stats?.aquatic === true;
+  const ici = { q: unit.q, r: unit.r };
+  const dIci = dist(state, ici, cible);
   let best: { q: number; r: number } | null = null;
-  let bestD = Infinity;
+  let bestD = dIci;
   for (const [dq, dr] of DIRS) {
-    const q = unit.q + dq;
-    const r = unit.r + dr;
+    const voisin = normalizeHexW({ q: unit.q + dq, r: unit.r + dr }, state.mapWidth);
+    const q = voisin.q;
+    const r = voisin.r;
     const tile = state.map[`${q},${r}`];
     if (!tile) continue;
     if (aquatic) {
@@ -359,7 +370,12 @@ export function pasVersRoutier(
   const queue: Array<{ q: number; r: number }> = [{ q: unit.q, r: unit.r }];
   while (queue.length > 0) {
     const current = queue.shift()!;
-    const voisins = DIRS.map(([dq, dr]) => ({ q: current.q + dq, r: current.r + dr }))
+    const voisins = DIRS.map(([dq, dr]) =>
+      // OSCILLATION-MARCHE : voisinage NORMALISÉ Est↔Ouest (normalizeHexW —
+      // canon CARTE-RONDE T1). Sans wrap, le BFS est null sur les isthmes de
+      // la couture (dist, elle, wrappe) → repli glouton constant → ping-pong.
+      normalizeHexW({ q: current.q + dq, r: current.r + dr }, state.mapWidth),
+    )
       .sort((a, b) => a.q - b.q || a.r - b.r); // R-81
     for (const n of voisins) {
       const k = `${n.q},${n.r}`;
@@ -385,6 +401,39 @@ export function pasVersRoutier(
 /** Unité amie sur la case (q, r) — miroir bot.mjs `unitAtHex`. */
 function unitAtHex(state: GameState, q: number, r: number, owner?: PlayerId): Unit | undefined {
   return Object.values(state.units).find((u) => u.q === q && u.r === r && (!owner || u.owner === owner));
+}
+
+/** OSCILLATION-MARCHE (Erik 02/11) — la GARDE DE MARCHE : les unités que Jev
+ *  a mises en marche (memo.marche — point de passage persisté) ne peuvent pas
+ *  être reparties EN ARRIÈRE par le plan bot les tours où Jev ne les couvre
+ *  pas (l'éligibilité menaceAdjacente clignote → tir à la corde, u87 :
+ *  0,20 ⇄ 1,20 toute la partie). Un ordre de MOUVEMENT du bot sur une unité
+ *  gardée est retiré SI sa destination finale augmente la distance (wrappée)
+ *  au passage ; les assauts (Move sur le passage lui-même, d=0) et les ordres
+ *  hors garde survivent. Pur, testable — appelé à la fusion bot/Jev
+ *  (game.ts côté prod, partie.mjs côté harnais). */
+export function filtrerMarcheBot(
+  ordresBot: Order[],
+  garde: Array<{ unitId: string; q: number; r: number }>,
+  units: Record<string, Unit>,
+  largeur: number,
+): Order[] {
+  if (garde.length === 0) return ordresBot;
+  const passageDe = new Map(garde.map((g) => [g.unitId, { q: g.q, r: g.r }]));
+  return ordresBot.filter((o) => {
+    if (o.type !== 'Move' && o.type !== 'MultiStep') return true;
+    const unitId = (o as { unitId: string }).unitId;
+    const passage = passageDe.get(unitId);
+    if (!passage) return true;
+    const unite = units[unitId];
+    if (!unite) return true;
+    const path = (o as { path: Array<{ q: number; r: number }> }).path ?? [];
+    const dest = path[path.length - 1];
+    if (!dest) return true; // pas de destination → pas un mouvement évaluable
+    const dAvant = hexDistanceW({ q: unite.q, r: unite.r }, passage, largeur);
+    const dApres = hexDistanceW(dest, passage, largeur);
+    return dApres <= dAvant; // assaut/davantage vers le passage : conservé
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1328,6 +1377,10 @@ export function assignerObjectifs(
     }
   }
 
+  // OSCILLATION-MARCHE (Erik 02/11) — cases d'exploration déjà attribuées
+  // CE tour (un scout par case ; l'attribution est séquentielle, tri R-81).
+  const explorationReservees = new Set<string>();
+
   for (const unit of mine) {
     const stats = UNIT_TYPES[unit.type];
     // R-117 : embarquée → débarquement (émission).
@@ -1498,22 +1551,33 @@ export function assignerObjectifs(
 
     // ⑤ explorer : la case la plus lointaine NON couverte par la vision
     // empire (deterministe : distance desc, clé asc) — pas d'errance.
+    // OSCILLATION-MARCHE (Erik 02/11) — stabilité de la cible : le classement
+    // est ANCRÉ À LA CAPITALE (distance indépendante de la position de
+    // l'unité). Mesurée depuis l'unité, la « plus lointaine » basculait à
+    // chaque pas (avancer rapproche une frontière et en éloigne une autre)
+    // → l'explorateur piétinait (u4 : 20,25-20,27, t9-18 au banc). La case
+    // est réservée à UN scout par tour (attribution séquentielle — sinon
+    // tous les scouts convergeaient vers la même cible ancrée).
+    const ancre = Object.values(state.cities).find((c) => c.owner === playerId && c.capital) ?? unit;
     let meilleure: { q: number; r: number } | null = null;
     let bestD = -1;
     let bestKey = '';
     for (const [key, tile] of Object.entries(state.map)) {
-      if (vision.has(key)) continue;
+      if (vision.has(key) || explorationReservees.has(key)) continue;
       const parts = key.split(',');
       const hex = { q: Number(parts[0]), r: Number(parts[1]) };
       if (!TERRAINS[tile.terrain]?.passable && !(stats?.aquatic && TERRAINS[tile.terrain]?.navalAccess)) continue;
-      const d = dist(state, unit, hex);
+      const d = dist(state, ancre, hex);
       if (d > bestD || (d === bestD && key < bestKey)) {
         bestD = d;
         bestKey = key;
         meilleure = hex;
       }
     }
-    if (meilleure) objectifs.set(unit.id, { kind: 'explorer', cible: meilleure });
+    if (meilleure) {
+      objectifs.set(unit.id, { kind: 'explorer', cible: meilleure });
+      explorationReservees.add(bestKey);
+    }
     else objectifs.set(unit.id, { kind: 'tenir' });
   }
   return objectifs;

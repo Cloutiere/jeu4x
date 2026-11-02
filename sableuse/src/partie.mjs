@@ -28,6 +28,7 @@ import {
   botTurnSeed,
   deciderPaixNegociee,
   deciderEchangeTechs,
+  filtrerMarcheBot,
   negociationDuBot,
   profileDuBot,
 } from '../../apps/server/src/botPolicy.js';
@@ -118,6 +119,16 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       const plan = botPolicy(etat, id, rng);
       ordres[id] = plan.orders;
       for (const action of plan.actions) actionsAppliquees.push({ id, action });
+    }
+    // OSCILLATION-MARCHE (Erik 02/11) — garde de marche (miroir game.ts) :
+    // les unités que Jev a mises en marche (memo.marche, tour précédent)
+    // ne sont pas reparties EN ARRIÈRE par le plan bot les tours où Jev ne
+    // les couvre pas. Le memo lu ici est PRÉ-décision (canon orchestre.ts).
+    if (jev !== null && memo.marche) {
+      const garde = Object.entries(memo.marche).map(([unitId, p]) => ({ unitId, ...p }));
+      if (garde.length > 0) {
+        ordres[jev] = filtrerMarcheBot(ordres[jev] ?? [], garde, etat.units, etat.mapWidth);
+      }
     }
 
     // D4 · scénario de production injectée : le bot re-émet un SetProduction

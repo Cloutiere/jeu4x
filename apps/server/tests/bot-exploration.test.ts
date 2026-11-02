@@ -107,7 +107,7 @@ describe('BOT-EXPLORATION · D2 — montée en défense (quota dynamique de capi
     const obj = assignerObjectifs(s, BOT, profileDuBot());
     expect(obj.get('b1')).toMatchObject({ kind: 'patrouiller' });
     expect(obj.get('b2')).toMatchObject({ kind: 'garnison', cityId: 'c1' });
-    expect(orderOf(planOf(s), 'b2')?.type).toBe('Move'); // b2 MARCHE vers la capitale pour la tenir
+    expect(orderOf(planOf(s), 'b2')?.type).toBe('Hold'); // OSCILLATION-MARCHE re-cal : b2 DÉJÀ adjacente à la capitale (occupée par b1) — aucun pas qui améliore ⇒ elle TIENT (garnison de fait) ; l'ancien glouton émettait un pas latéral « moins pire » (ping-pong autour de la capitale)
   });
 
   it('à ≥ unitesAvantRenfort : les quotas du profil s\'appliquent (2 en capitale pour « normal »)', () => {

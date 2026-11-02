@@ -56,7 +56,7 @@ import { PROTO_VERSION, normaliseDifficulteBot } from '@game/shared';
 import type { ClientToServerMessage, ConfigPartie, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
-import { botPolicy, botTurnSeed, deciderPaix, deciderPaixNegociee, deciderEchangeTechs, negociationDuBot, profileDuBot } from './botPolicy.js';
+import { botPolicy, botTurnSeed, deciderPaix, deciderPaixNegociee, deciderEchangeTechs, filtrerMarcheBot, negociationDuBot, profileDuBot } from './botPolicy.js';
 import type { ActionJev, PlanJev } from './jev/orchestre.js';
 import { appliquerDiplomatieJev, attentesPostResolution, planifierJev } from './jev/orchestre.js';
 import { creerClientJev } from './jev/client.js';
@@ -2200,6 +2200,17 @@ export class GameDO {
       for (const order of plan.orders) {
         if (orderShapeError(order) !== null) continue; // jamais un ordre mal formé
         this.orders[p.engineId] = upsertOrderPreservingPriority(this.orders[p.engineId] ?? [], order);
+      }
+      if (p.jev === true && planJev?.marcheGarde.length) {
+        // OSCILLATION-MARCHE (Erik 02/11) : les unités en marche Jev ne sont
+        // pas reparties en arrière par le plan bot (tir à la corde — les
+        // assauts survivent, filtrerMarcheBot).
+        this.orders[p.engineId] = filtrerMarcheBot(
+          this.orders[p.engineId] ?? [],
+          planJev.marcheGarde,
+          game.units,
+          game.mapWidth,
+        );
       }
       if (p.jev === true && planJev && jevSeat) {
         // Discipline v3 : le bot tactique ne touche pas au colon d'une

@@ -26,6 +26,10 @@ export interface JevMemo {
   /** ZII-V1 · D5 : résumés de chat en attente — injectés au condensé
    *  (`chatsPourJev`) puis consommés par le GameDO. */
   resumesPourJev?: Array<{ tour: number; de: string; resume: string }>;
+  /** OSCILLATION-MARCHE (Erik 02/11) · garde de marche : point de passage
+   *  persisté par unité en marche — filtrerMarcheBot s'y appuie pour ne
+   *  jamais repartir une unité en arrière. Levé hors marche (joueur.ts). */
+  marche?: Record<string, { q: number; r: number }>;
 }
 
 export interface JevEtat {

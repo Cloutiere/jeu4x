@@ -1394,8 +1394,7 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
   const modeMarche = memo.finPartie?.mode;
   const marcheActif = seuils.marcheActif ?? true;
   if ((modeMarche === 'domination' || modeMarche === 'pousserCapitale') && marcheActif) {
-    const theatre = etatFiltre.theatre ?? {};
-    const cibleMarche = (condense.diplomatie.guerreAvec ?? []).find((id) => theatre[id]);
+    const theatre = etatFiltre.theatre ?? {};    const cibleMarche = (condense.diplomatie.guerreAvec ?? []).find((id) => theatre[id]);
     if (cibleMarche && capitale) {
       // Point de passage : capitale VUE au filtre sinon projection du
       // secteur théâtre (direction × bucket — approximation voulue, canon
@@ -1421,6 +1420,12 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
           (a, b) => hexDistance(a, passage) - hexDistance(b, passage) || a.id.localeCompare(b.id),
         )
         .slice(0, seuils.marcheTaille ?? 6);
+      // OSCILLATION-MARCHE (Erik 02/11) — la GARDE DE MARCHE (miroir port TS
+      // joueur.ts) : passage persisté au memo — voir le commentaire là-bas.
+      const garde = (memo.marche ??= {});
+      const vivantes = new Set(Object.values(etatFiltre.units ?? {}).map((u) => u.id));
+      for (const uid of Object.keys(garde)) if (!vivantes.has(uid)) delete garde[uid];
+      for (const u of eligibles) garde[u.id] = { q: passage.q, r: passage.r };
       for (const u of eligibles) {
         const chemin = cheminMarche(etatFiltre, moi, u, passage);
         if (chemin.length > 0) {
@@ -1429,6 +1434,10 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
         }
       }
     }
+  } else {
+    // OSCILLATION-MARCHE — hors marche (paix, mode quitté), la garde est
+    // LEVÉE : les ralliements du plan bot redeviennent libres.
+    delete memo.marche;
   }
 
   // 8. productionVictoire — l'item choisi est DÉJÀ validé par

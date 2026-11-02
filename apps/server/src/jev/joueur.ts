@@ -1261,6 +1261,15 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
             hexDistance(a, passage) - hexDistance(b, passage) || a.id.localeCompare(b.id),
         )
         .slice(0, (seuils as AnyEtat).marcheTaille ?? 6);
+      // OSCILLATION-MARCHE (Erik 02/11) — la GARDE DE MARCHE : le passage de
+      // chaque unité en marche est PERSISTÉ au memo ; le tour suivant, les
+      // tours où l'unité redevient menacée (éligibilité clignotante) ne
+      // rendent plus le plan bot libre de la repartir en arrière (le filtre
+      // filtrerMarcheBot, appelé à la fusion, s'appuie sur cette garde).
+      const garde = memo.marche ?? (memo.marche = {} as Record<string, { q: number; r: number }>);
+      const vivantes = new Set(vals(etatFiltre.units ?? {}).map((u: AnyEtat) => u.id as string));
+      for (const uid of Object.keys(garde)) if (!vivantes.has(uid)) delete garde[uid];
+      for (const u of eligibles) garde[u.id] = { q: passage.q, r: passage.r };
       for (const u of eligibles) {
         const chemin = cheminMarche(etatFiltre, moi, u, passage);
         if (chemin.length > 0) {
@@ -1269,6 +1278,11 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
         }
       }
     }
+  } else {
+    // OSCILLATION-MARCHE — hors marche (paix, mode quitté), la garde est
+    // LEVÉE (miroir harnais joueur.mjs) : ralliements du bot redeviennent
+    // libres.
+    delete memo.marche;
   }
 
   // 8. productionVictoire — l'item choisi est DÉJÀ validé par
