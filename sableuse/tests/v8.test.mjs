@@ -102,7 +102,7 @@ describe('v8 · D1 — la déclaration mécanique (acte du harnais, sans choix L
     // Le LLM répond 'continuer' — la déclaration mécanique NE DÉPEND PAS de lui.
     const d = await tourJevJoueur(fauxClient({ finPartie: 'continuer' }), config, filtre, 'p1', memo);
     expect(d.erreur).toBeNull();
-    expect(d.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p2', mecanique: true });
+    expect(d.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p2', mecanique: true, motif: 'domination' });
   });
 
   it('acte PONCTUEL : memo bascule en pousserCapitale + horodatage cooldown (D4)', async () => {
@@ -116,7 +116,7 @@ describe('v8 · D1 — la déclaration mécanique (acte du harnais, sans choix L
   });
 
   it('condition EXACTE conservée : SANS signal mécanique ⇒ PAS de déclaration (jalons seuls insuffisants)', async () => {
-    const etat = etatCourse({ villesP1: 1 });
+    const etat = etatCourse({ villesP1: 1, legionsP2: 2 }); // rapport < 1,2 (v9 D-B : sinon l'écrasement tire)
     const filtre = getFilteredState(etat, 'p1');
     const condense = condenseJoueur(filtre, 'p1', {});
     expect(signalDominationMechanique(condense, filtre, 'p1')).toBe(false);
@@ -125,8 +125,8 @@ describe('v8 · D1 — la déclaration mécanique (acte du harnais, sans choix L
     expect(d.diplomatie).toHaveLength(0);
   });
 
-  it('memo vide (pas de mode courant) ⇒ PAS de déclaration', async () => {
-    const etat = etatCourse();
+  it('memo vide (pas de mode courant) + rapport non écrasant ⇒ PAS de déclaration (v9 : un rapport ≥ 3 déclare SANS mode — D-B)', async () => {
+    const etat = etatCourse({ legionsP2: 2 });
     const filtre = getFilteredState(etat, 'p1');
     const memo = {};
     const d = await tourJevJoueur(fauxClient({ finPartie: 'continuer' }), config, filtre, 'p1', memo);
@@ -154,7 +154,7 @@ describe('v8 · D1 — la déclaration mécanique (acte du harnais, sans choix L
     const filtre = getFilteredState(etat, 'p1');
     const memo = { finPartie: { mode: 'domination' } };
     const d = await tourJevJoueur(fauxClient({ finPartie: 'continuer' }), config, filtre, 'p1', memo);
-    expect(d.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p2', mecanique: true });
+    expect(d.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p2', mecanique: true, motif: 'domination' });
   });
 });
 
@@ -176,7 +176,7 @@ describe('v8 · D4 — débit borné (cooldown)', () => {
     const filtre = getFilteredState(etat, 'p1');
     const memo = { finPartie: { mode: 'pousserCapitale', cible: 'p2' }, guerreMecaniqueTour: 40 };
     const d = await tourJevJoueur(fauxClient({ finPartie: 'continuer' }), config, filtre, 'p1', memo);
-    expect(d.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p2', mecanique: true });
+    expect(d.diplomatie).toContainEqual({ genre: 'guerre', cible: 'p2', mecanique: true, motif: 'domination' });
   });
 
   it('declarationMechanique (helper pur) : null sous cooldown, snapshot sinon', () => {
@@ -207,7 +207,7 @@ describe('v8 · D2 — le choix guerreTotale disparaît de finPartie ; guerre cl
   });
 
   it('réponse LLM résiduelle guerreTotale:p2 ⇒ IGNORÉE (aucune intention, aucun memo)', async () => {
-    const etat = etatCourse({ villesP1: 1 }); // signal mécanique inactif
+    const etat = etatCourse({ villesP1: 1, legionsP2: 2 }); // rapport < 1,2 — aucune déclaration (v9 D-B)
     const filtre = getFilteredState(etat, 'p1');
     const memo = { finPartie: { mode: 'domination' } };
     const d = await tourJevJoueur(fauxClient({ finPartie: 'guerreTotale:p2' }), config, filtre, 'p1', memo);

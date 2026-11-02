@@ -220,10 +220,12 @@ export function blocDiplomatie(etatFiltre, moi, memo = {}) {
 }
 
 /** Condensé joueur = condensé du banc + bloc diplomatie (memo v5 : arc de
- * rencontre par rival). */
-export function condenseJoueur(etatFiltre, moi, memo = {}) {
+ * rencontre par rival) + bloc espace (v9 — pression d'espace, liste blanche).
+ * `seuils` optionnel (compat arrière : défauts canon). */
+export function condenseJoueur(etatFiltre, moi, memo = {}, seuils = {}) {
   const condense = condenserEtat(etatFiltre, moi);
   condense.diplomatie = blocDiplomatie(etatFiltre, moi, memo);
+  condense.espace = blocEspace(etatFiltre, moi, memo, seuils);
   return condense;
 }
 
@@ -322,7 +324,11 @@ function colonProductible(techsUnlocked) {
  * fonder un site non rentable n'est pas une décision). JUSQU'À 3 sites.
  * Sans colon encore produit, les distances sont calées sur la capitale
  * (ancre — même formule). */
-export function candidatsFondation(etatFiltre, moi, memo = {}) {
+/** JEV-STRATEGE C2 — TOUS les sites corrects (doctrine v3 : gainNet > 0 =
+ * rentable), sans la coupe aux 3 candidats — c'est le compteur de l'espace
+ * de fondation restant. Mêmes filtres que candidatsFondation (cases en liste
+ * noire, gainNet > 0, ancre capitale si pas de colon). */
+export function sitesCorrects(etatFiltre, moi, memo = {}) {
   const colonne = Object.values(etatFiltre.units ?? {}).find(
     (u) => u.owner === moi && UNIT_TYPES[u.type]?.canFoundCity && !u.aboard,
   );
@@ -336,9 +342,29 @@ export function candidatsFondation(etatFiltre, moi, memo = {}) {
     .map((s) => ({ ...s, gainNet: s.gainNet ?? gainNetSite(etatFiltre, moi, s) }))
     .filter((s) => s.gainNet > 0)
     .filter((s) => !echouees.has(s.case))
-    .sort((a, b) => b.gainNet - a.gainNet || a.distance - b.distance || a.case.localeCompare(b.case))
+    .sort((a, b) => b.gainNet - a.gainNet || a.distance - b.distance || a.case.localeCompare(b.case));
+}
+
+export function candidatsFondation(etatFiltre, moi, memo = {}) {
+  const colonne = Object.values(etatFiltre.units ?? {}).find(
+    (u) => u.owner === moi && UNIT_TYPES[u.type]?.canFoundCity && !u.aboard,
+  );
+  const sites = sitesCorrects(etatFiltre, moi, memo);
+  if (sites.length === 0 && !colonne) return [];
+  return sites
     .slice(0, 3)
     .map((s) => ({ ...s, colonPresent: !!colonne, distanceColon: colonne ? hexDistance(colonne, s) : null }));
+}
+
+/** JEV-STRATEGE C2 (Erik 01/11) — bloc ESPACE du condensé : la pression
+ * d'espace est un BOOLÉEN + le compteur de sites corrects restants (mêmes
+ * seuils de fondation moteur, réutilisés — jamais durcis). Liste blanche
+ * STRICTE : sature + sitesCorrects, JAMAIS de position, jamais de plan
+ * adverse. Saturé quand il reste ≤ `seuils.sitesRestants` (défaut 1) sites
+ * corrects — l'expansion ne peut plus passer par la fondation. */
+export function blocEspace(etatFiltre, moi, memo = {}, seuils = {}) {
+  const n = sitesCorrects(etatFiltre, moi, memo).length;
+  return { sature: n <= (seuils?.sitesRestants ?? 1), sitesCorrects: n };
 }
 
 
@@ -523,8 +549,16 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
   // satisfont AUCUN critère it4 : domination 10-40× muette) : la domination
   // MÉCANIQUE (rapport ≥ 2 ET ≥ 3 villes de plus que le leader) ouvre le gate.
   const dominationMecanique = signalDominationMechanique(condense, etatFiltre, moi, 2, seuils.dominationEcartVilles ?? 2);
+  // JEV-STRATEGE D-A — l'opportunité de voie : UNE voie favorable ouvre la
+  // question. Révision CADENCÉE : une re-décision possible tous les
+  // `opportuniteCooldown` tours (défaut 15 — changement de cap, pas de
+  // zapping). Hors opportunité ET hors signal, la question n'est PAS posée
+  // (gate de bruit D3 inchangée pour les parties calmes JEUNES).
+  const opportunites = opportunitesVoies(condense, etatFiltre, moi, seuils);
+  const revisionAutorisee =
+    !memo.decisionVoieTour || (condense.tour - memo.decisionVoieTour) >= (seuils.opportuniteCooldown ?? 15);
   const signal = signalVictoire(condense) || dominationMecanique;
-  if (signal) {
+  if (signal || (opportunites.length > 0 && revisionAutorisee)) {
     // D2.1 — finPartie : que faire de la course ? cibles pré-triées :
     // leader de domination = rival vivant au PLUS de villes ; leader de
     // course = rival le plus proche d'un seuil (jalons puis composants).
@@ -563,6 +597,16 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
       criteria['viserMaVictoire:science'] = `Viser MA victoire SCIENTIFIQUE (${moiV.composants}/4 composants) — la domination est bloquée ou trop coûteuse.`;
       criteria['viserMaVictoire:economique'] = `Viser MA victoire ÉCONOMIQUE (${condense.empire?.or ?? 0}/20000 or) — la domination est bloquée ou trop coûteuse.`;
     }
+    // JEV-STRATEGE D-A — critères opportunistes ADDITIFS : chaque voie
+    // favorable se propose AVEC ses données (jamais un doublon des critères
+    // ci-dessus) ; cadencés par la révision (hors signal, sinon les critères
+    // existants suffisent).
+    if (opportunites.length > 0 && revisionAutorisee) {
+      for (const { voie, donnees } of opportunites) {
+        const cle = `viserMaVictoire:${voie}`;
+        if (!criteria[cle]) criteria[cle] = texteOpportunite(voie, donnees, condense);
+      }
+    }
     q.finPartie = { instructions: config.questions.finPartie.instructions, criteria, type: 'choice' };
     meta.finPartie = { genre: 'finPartie', signal: true };
 
@@ -577,6 +621,21 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
       meta.protegerCapitale = { genre: 'protegerCapitale' };
     }
   }
+  // JEV-STRATEGE C2 — conquête d'ESPACE : la DÉCLARATION est MÉCANIQUE (les
+  // conditions — espaceSature, rapport ≥ 1, cible qualifiée, cooldown — sont
+  // du harnais, declarationEspace) ; le choix de la CIBLE reste LLM. Question
+  // SANS 'aucun' : les conditions réunies, la guerre est votée — seules les
+  // formes invalides sont ignorées.
+  const declEspace = declarationEspace(condense, etatFiltre, moi, memo, seuils);
+  if (declEspace) {
+    const criteriaEspace = {};
+    for (const c of declEspace.cibles) {
+      criteriaEspace[`conqueteEspace:${c.id}`] = `Déclarer la guerre à ${c.civ ?? c.id} et PRENDRE sa ville ${c.ville}${c.capitale ? ' (CAPITALE)' : ''} — garnison visible ${c.garnison} forces, à ${c.distance} case(s) de notre capitale. L'espace de fondation est saturé (${condense.espace.sitesCorrects} site(s) correct(s) restant) : c'est en prenant cette ville que nous continuons à croître.`;
+    }
+    q.conqueteEspace = { instructions: config.questions.conqueteEspace.instructions, criteria: criteriaEspace, type: 'choice' };
+    meta.conqueteEspace = { genre: 'conqueteEspace', motif: 'espace', rapport: declEspace.rapport, sitesCorrects: declEspace.sitesCorrects, cibles: declEspace.cibles.map((c) => c.id) };
+  }
+
   // D2.2 — productionVictoire : SEULEMENT si Jev a VISÉ sa victoire
   // culture/science au tour précédent (memo.finPartie) et qu'un item de
   // victoire est productible dans la capitale.
@@ -670,18 +729,157 @@ export function cibleGuerreTotale(condense, etatFiltre, moi, seuilRapport = 1.2,
  * défaut 8). Retourne un snapshot { cible, tour, rapport, aveugle } pour le
  * journal, ou null. */
 export function declarationMechanique(condense, etatFiltre, moi, memo, seuils, dominationMecanique) {
-  const mode = memo?.finPartie?.mode;
-  if (mode !== 'domination' && mode !== 'pousserCapitale') return null;
-  if (!dominationMecanique) return null;
   const tour = condense?.tour ?? 0;
   const cooldown = seuils?.guerreTotaleCooldown ?? 8;
   const dernier = memo?.guerreMecaniqueTour;
   if (dernier != null && tour - dernier < cooldown) return null;
-  const cible = cibleGuerreTotale(
-    condense, etatFiltre, moi, seuils?.guerreTotaleRapportMin ?? 1.2, true,
-  );
-  if (!cible) return null;
-  return { cible: cible.id, tour, rapport: cible.rapportForces ?? null, aveugle: cible.aveugle ?? false };
+  const rapportMin = seuils?.guerreTotaleRapportMin ?? 1.2;
+  // v8 — chaîne DOMINATION inchangée : mode courant domination/pousserCapitale
+  // + signal « domination mécanique » actif + cible qualifiée EXACTE (v8).
+  const mode = memo?.finPartie?.mode;
+  const modeDom = mode === 'domination' || mode === 'pousserCapitale';
+  if (modeDom && dominationMecanique) {
+    const cible = cibleGuerreTotale(condense, etatFiltre, moi, rapportMin, true);
+    if (cible) {
+      return { cible: cible.id, tour, rapport: cible.rapportForces ?? 0, aveugle: cible.aveugle ?? false, motif: 'domination' };
+    }
+  }
+  // JEV-STRATEGE D-B (Erik 01/11) — déclencheur SUPPLÉMENTAIRE : l'ÉCRASEMENT.
+  // Rapport de forces ≥ seuils.ecrasementRapport (défaut 3) — SANS exiger le
+  // signal domination, NI l'écart de villes, NI un mode finPartie (le cas
+  // partie 1 du banc vanilla : 2 941 vs 284, 1 ville, 600 tours de paix
+  // totale). Cible qualifiée au sens du handoff (cibleEcrasement — contact
+  // réel + délai OU aveugle voté), même cooldown.
+  const cibleEcr = cibleEcrasement(condense, etatFiltre, moi, seuils);
+  if (cibleEcr && (cibleEcr.rapportForces ?? 0) >= (seuils?.ecrasementRapport ?? 3)) {
+    return { cible: cibleEcr.id, tour, rapport: cibleEcr.rapportForces ?? 0, aveugle: cibleEcr.aveugle ?? false, motif: 'ecrasement' };
+  }
+  return null;
+}
+
+/** JEV-STRATEGE D-B bis — cible qualifiée pour l'ÉCRASEMENT, au sens EXACT du
+ * handoff (« contact réel + délai OU aveugle voté ») : c'est un SUR-ENSEMBLE
+ * de la qualification `cibleGuerreTotale` (v8, inchangée pour la chaîne
+ * domination) qui ferme le cas partie 1 du banc stratege — un rival
+ * RENCONTRÉ (unités croisées, t41) dont la capitale n'est JAMAIS vue
+ * (distanceCapitale 99) était rejeté des DEUX branches : l'aveugle exige
+ * rencontreTour == null, la non-aveugle exige la capitale vue → 600 tours de
+ * paix totale à rapport 10×. Trois portes : (1) capitale VUE (contact réel
+ * canon), (2) rencontré depuis ≥ delaiGuerreApresRencontre (coexistence
+ * écoulée — fog honnête, jamais de guerre dans le brouillard total), (3)
+ * jamais rencontré (aveugle voté — liste publique au lobby). */
+export function cibleEcrasement(condense, etatFiltre, moi, seuils = {}) {
+  const enGuerre = new Set(condense?.diplomatie?.guerreAvec ?? []);
+  const delai = seuils?.delaiGuerreApresRencontre ?? 10;
+  return (condense?.diplomatie?.rivaux ?? [])
+    .filter((r) => !enGuerre.has(r.id) && (r.rapportForces ?? 0) >= (seuils?.guerreTotaleRapportMin ?? 1.2))
+    .map((r) => ({
+      ...r,
+      villes: villesDe(etatFiltre, r.id),
+      aveugle: (r.distanceCapitale ?? 99) >= 99,
+    }))
+    .filter(
+      (r) =>
+        r.villes > 0 ||
+        (r.rencontreTour != null && (condense?.tour ?? 0) - r.rencontreTour >= delai) ||
+        (r.aveugle && r.rencontreTour == null),
+    )
+    .sort((a, b) => b.rapportForces - a.rapportForces || a.id.localeCompare(b.id))[0] ?? null;
+}
+
+/** JEV-STRATEGE C2 — cibles PRÉ-QUALIFIÉES de la conquête d'espace : villes
+ * VISIBLES (fog respecté) de rivaux vivants rencontrés et NON en guerre,
+ * avec leur GARNISON visible (somme des attaques des unités du propriétaire
+ * à ≤ 1 case) et leur distance à notre capitale. Tri : garnison la plus
+ * faible d'abord (récupérer une ville est plus facile que gagner une guerre
+ * totale), puis distance, puis case (déterminisme). ≤ 3 cibles. */
+export function ciblesConqueteEspace(etatFiltre, moi, condense, memo = {}) {
+  const enGuerre = new Set(condense?.diplomatie?.guerreAvec ?? []);
+  const joueurs = etatFiltre.players ?? {};
+  const maCap =
+    Object.values(etatFiltre.cities ?? {}).find((v) => v.owner === moi && v.capital)
+    ?? Object.values(etatFiltre.cities ?? {}).find((v) => v.owner === moi)
+    ?? null;
+  const out = [];
+  for (const v of Object.values(etatFiltre.cities ?? {})) {
+    if (v.owner === moi || v.owner === 'barbarien') continue;
+    const p = joueurs[v.owner];
+    if (!p || p.defeated) continue;
+    if (enGuerre.has(v.owner)) continue;
+    const garnison = Object.values(etatFiltre.units ?? {})
+      .filter((u) => u.owner === v.owner && !u.aboard && hexDistance(u, v) <= 1)
+      .reduce((s, u) => s + (UNIT_TYPES[u.type]?.attack ?? 0), 0);
+    out.push({
+      id: v.owner,
+      civ: p.civId ?? null,
+      ville: `${v.q},${v.r}`,
+      capitale: !!v.capital,
+      distance: maCap ? hexDistance(maCap, v) : 99,
+      garnison,
+    });
+  }
+  return out
+    .sort((a, b) => a.garnison - b.garnison || a.distance - b.distance || a.ville.localeCompare(b.ville))
+    .slice(0, 3);
+}
+
+/** JEV-STRATEGE C2 — DÉCLARATION OPPORTUNISTE MÉCANIQUE d'espace : la
+ * décision est du HARNAIS (espaceSature + rapport ≥ seuils.conqueteRapportMin
+ * (défaut 1) + cible qualifiée + cooldown `guerreTotaleCooldown`) ; le choix
+ * de la CIBLE reste LLM (question `conqueteEspace` sur les cibles pré-qualifiées
+ * de ciblesConqueteEspace). Snapshot pour le journal, ou null. */
+export function declarationEspace(condense, etatFiltre, moi, memo = {}, seuils = {}) {
+  if (!condense?.espace?.sature) return null;
+  const rapport = condense?.monde?.puissance?.rapport ?? 0;
+  if (rapport < (seuils?.conqueteRapportMin ?? 1)) return null;
+  const tour = condense?.tour ?? 0;
+  const cooldown = seuils?.guerreTotaleCooldown ?? 8;
+  const dernier = memo?.guerreMecaniqueTour;
+  if (dernier != null && tour - dernier < cooldown) return null;
+  const cibles = ciblesConqueteEspace(etatFiltre, moi, condense, memo);
+  if (cibles.length === 0) return null;
+  return { motif: 'espace', tour, rapport, sitesCorrects: condense.espace.sitesCorrects, cibles };
+}
+
+/** JEV-STRATEGE D-A — les OPPORTUNITÉS DE VOIE : UNE voie favorable suffit.
+ * Seuils DATA `seuils.opportunite` — science : écart de techs ≥ ecartTechs
+ * (8) avec le leader ; domination : rapport de forces ≥ rapportDomination (2) ;
+ * culture : jalons ≥ jalonsMin (12) ET en tête ; économique : trésorerie ≥
+ * tresorerieMin (10 000). Retour : [{ voie, donnees }] — [] si calme. */
+export function opportunitesVoies(condense, etatFiltre, moi, seuils = {}) {
+  const s = seuils?.opportunite ?? {};
+  const out = [];
+  const techsMien = condense?.empire?.techsConnues ?? 0;
+  const techsLeader = Math.max(0, ...(condense?.diplomatie?.rivaux ?? []).map((r) => r.techsConnues ?? 0));
+  const ecart = techsMien - techsLeader;
+  if (ecart >= (s.ecartTechs ?? 8)) out.push({ voie: 'science', donnees: { ecartTechs: ecart } });
+  const rapport = condense?.monde?.puissance?.rapport ?? 0;
+  if (rapport >= (s.rapportDomination ?? 2)) out.push({ voie: 'domination', donnees: { rapport } });
+  const jalonsM = condense?.victoire?.mien?.jalons ?? 0;
+  const jalonsRivauxMax = Math.max(0, ...(condense?.victoire?.rivaux ?? []).map((r) => r.jalons ?? 0));
+  if (jalonsM >= (s.jalonsMin ?? 12) && jalonsM > jalonsRivauxMax) {
+    out.push({ voie: 'culture', donnees: { jalons: jalonsM } });
+  }
+  const treso = condense?.empire?.or ?? 0;
+  if (treso >= (s.tresorerieMin ?? 10000)) out.push({ voie: 'economique', donnees: { or: treso } });
+  return out;
+}
+
+/** JEV-STRATEGE D-A — libellé de l'opportunité (données du condensé). */
+function texteOpportunite(voie, donnees, condense) {
+  if (voie === 'science') {
+    return `OPPORTUNITÉ SCIENTIFIQUE : ${donnees.ecartTechs} techs d'avance sur le leader — viser MA victoire scientifique (composants ${condense?.victoire?.mien?.composants ?? 0}/4) : la recherche est déjà notre goulot d'avance.`;
+  }
+  if (voie === 'domination') {
+    return `OPPORTUNITÉ DE DOMINATION : rapport de forces ${donnees.rapport}× en notre faveur — tout à l'effort de conquête.`;
+  }
+  if (voie === 'culture') {
+    return `OPPORTUNITÉ CULTURELLE : ${donnees.jalons}/${condense?.victoire?.cibles?.jalons ?? 20} jalons et EN TÊTE — viser MA victoire culturelle (merveilles ONU).`;
+  }
+  if (voie === 'economique') {
+    return `OPPORTUNITÉ ÉCONOMIQUE : ${donnees.or} or amassés (seuil ${condense?.victoire?.cibles?.or ?? 20000}) — viser MA victoire économique (Banque mondiale).`;
+  }
+  return `Opportunité ${voie}.`;
 }
 
 /** JEV-IT4 · D2.2 — items de victoire productibles dans la capitale pour le
@@ -774,7 +972,7 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     meta,
   };
   if (declMec) {
-    sortie.diplomatie.push({ genre: 'guerre', cible: declMec.cible, mecanique: true });
+    sortie.diplomatie.push({ genre: 'guerre', cible: declMec.cible, mecanique: true, motif: declMec.motif });
     // Snapshot des conditions pour le journal (attribution au transcript).
     meta.guerreMecanique = declMec;
   }
@@ -998,6 +1196,26 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     }
   }
 
+  // 6.5 JEV-STRATEGE C2 — conquête d'espace : la cible choisie par le LLM
+  // parmi les pré-qualifiées devient la DÉCLARATION MÉCANIQUE (même canal
+  // DeclareWar, cooldown partagé guerreMecaniqueTour). Formes invalides
+  // IGNORÉES (pas de refus possible : conditions du harnais réunies).
+  const conquete = confDialMin(ans.conqueteEspace);
+  if (conquete?.choice?.startsWith('conqueteEspace:')) {
+    const cibleEspace = conquete.choice.slice('conqueteEspace:'.length);
+    if (meta.conqueteEspace?.cibles?.includes(cibleEspace)) {
+      memo.guerreMecaniqueTour = condense.tour;
+      sortie.diplomatie.push({ genre: 'guerre', cible: cibleEspace, mecanique: true, motif: 'espace' });
+      meta.guerreEspace = {
+        motif: 'espace',
+        tour: condense.tour,
+        cible: cibleEspace,
+        rapport: meta.conqueteEspace.rapport,
+        sitesCorrects: meta.conqueteEspace.sitesCorrects,
+      };
+    }
+  }
+
   // JEV-IT4 · D2 — traduction des décisions de fin de partie.
 
   // 7. finPartie — le mode est PERSISTÉ au memo (les questions 2 en
@@ -1013,9 +1231,13 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
   if (fin?.choice && fin.choice !== 'continuer') {
     if (fin.choice === 'viserMaVictoire:domination') {
       memo.finPartie = { mode: 'domination' };
+      // JEV-STRATEGE D-A : le choix de voie est horodaté — la révision
+      // (changement de cap) est cadencée par opportuniteCooldown.
+      memo.decisionVoieTour = condense.tour;
     } else if (fin.choice.startsWith('viserMaVictoire:')) {
       const type = fin.choice.slice('viserMaVictoire:'.length);
       memo.finPartie = { mode: type };
+      memo.decisionVoieTour = condense.tour;
       // culture/science : la recherche est le goulot — orienter la capitale
       // vers la science (ORDRE EXISTANT SetConversion).
       if ((type === 'culture' || type === 'science') && capitale) {
@@ -1039,7 +1261,13 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
         .filter((c) => c.attaque > 0)
         .sort((a, b) => b.attaque - a.attaque || a.cout - b.cout || a.cle.localeCompare(b.cle))[0];
       const prodCourante = capitale?.production ? `${capitale.production.item.kind}:${capitale.production.item.id}` : null;
-      if (militaire && capitale && prodCourante !== militaire.cle) {
+      // JEV-STRATEGE C1 — fondation PARALLÈLE : en mode guerre, la production
+      // du colon (fondation programmée, colon encore absent — ré-émission D2)
+      // PRIME sur la poussée militaire (le dernier SetProduction gagne côté
+      // moteur — émettre le militaire après le colon tuerait l'expansion).
+      // Les deux avancent : le colon sort, le militaire vient ensuite.
+      const colonEnProduction = memo.fondationEnCours && !trouveColon();
+      if (militaire && capitale && prodCourante !== militaire.cle && !colonEnProduction) {
         const [kind, id] = militaire.cle.split(':');
         if (canSetProduction({ kind, id }, me?.techsUnlocked ?? [], capitale.buildings ?? [], me?.civId)) {
           sortie.ordres.push({ type: 'SetProduction', cityId: capitale.id, item: { kind, id } });

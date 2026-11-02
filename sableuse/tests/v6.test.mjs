@@ -36,7 +36,7 @@ function fixture(seed = 101, tour = 1) {
  * Capitale p1 SYNTHÉTIQUE (createInitialState ne pose pas de villes — miroir
  * etatAvecContact des tests v5) + capitale p2 voisine (distance < 99 pour la
  * voie domination D4) + un guerrier p1 (rapport de forces ≥ 1). */
-function etatCourse({ jalonsMoi = 0, jalonsRival = 0, composantsMoi = 0, chantierMoi = false, techsVol = false } = {}) {
+function etatCourse({ jalonsMoi = 0, jalonsRival = 0, composantsMoi = 0, chantierMoi = false, techsVol = false, legionsP2 = 0 } = {}) {
   const etat = etat1v1(101);
   const cap = { id: 'cap1', owner: 'p1', q: 5, r: 5, pop: 3, capital: true, buildings: [], workedTiles: [], wonders: [] };
   const buildings = composantsMoi > 0 ? COMPOSANTS_VAISSEAU.slice(0, composantsMoi) : [];
@@ -55,6 +55,11 @@ function etatCourse({ jalonsMoi = 0, jalonsRival = 0, composantsMoi = 0, chantie
     ...etat.units,
     u_moi: { id: 'u_moi', owner: 'p1', type: 'legion', q: 6, r: 5, hp: 100, mp: 0, fortified: false, aboard: false },
   };
+  // v9 D-B : rapports maîtrisés — des légions p2 empêchent l'écrasement (≥ 3)
+  // de tirer dans les tests de TRADUCTION de voie (non concernés).
+  for (let i = 0; i < legionsP2; i++) {
+    units[`u_p2_${i}`] = { id: `u_p2_${i}`, owner: 'p2', type: 'legion', q: 9, r: 5 + i, hp: 100, mp: 0, fortified: false, aboard: false };
+  }
   return {
     ...etat,
     turn: 40,
@@ -159,7 +164,7 @@ describe('v6 · L2 — gate de bruit (D3) et questions', () => {
   });
 
   it('productionVictoire : posée SEULEMENT après viserMaVictoire culture/science (memo), jamais avant', () => {
-    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12, composantsMoi: 1, techsVol: true }), 'p1');
+    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12, composantsMoi: 1, techsVol: true, legionsP2: 2 }), 'p1');
     const condense = condenseJoueur(filtre, 'p1', {});
     const sansMemo = construireQuestionsJoueur(config, condense, filtre, 'p1', {});
     expect(sansMemo.questions.productionVictoire).toBeUndefined();
@@ -173,7 +178,7 @@ describe('v6 · L2 — gate de bruit (D3) et questions', () => {
   });
 
   it('protegerCapitale : posée en guerre AVEC menaces, absente sinon', () => {
-    const etat = etatCourse({ jalonsMoi: 12 });
+    const etat = etatCourse({ jalonsMoi: 12, legionsP2: 2 });
     // guerre p1↔p2 + unité p2 proche de la capitale p1.
     etat.diplomacy = { ...etat.diplomacy, war: [['p1', 'p2']] };
     const cap = Object.values(etat.cities).find((v) => v.owner === 'p1');
@@ -201,7 +206,7 @@ describe('v6 · L2 — traduction des décisions (ORDRES EXISTANTS, D5)', () => 
   }
 
   it('viserMaVictoire:domination → memo + poussée militaire de la capitale', async () => {
-    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12 }), 'p1');
+    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12, legionsP2: 2 }), 'p1');
     const condense = condenseJoueur(filtre, 'p1', {});
     const memo = {};
     const d = await tourJevJoueur(fauxClient({ finPartie: 'viserMaVictoire:domination' }), config, filtre, 'p1', memo);
@@ -213,7 +218,7 @@ describe('v6 · L2 — traduction des décisions (ORDRES EXISTANTS, D5)', () => 
   });
 
   it('viserMaVictoire:science → memo + conversion science ; productionVictoire traduit en SetProduction', async () => {
-    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12, composantsMoi: 1, techsVol: true }), 'p1');
+    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12, composantsMoi: 1, techsVol: true, legionsP2: 2 }), 'p1');
     const memo = {};
     const d1 = await tourJevJoueur(fauxClient({ finPartie: 'viserMaVictoire:science' }), config, filtre, 'p1', memo);
     expect(memo.finPartie).toEqual({ mode: 'science' });
@@ -229,7 +234,7 @@ describe('v6 · L2 — traduction des décisions (ORDRES EXISTANTS, D5)', () => 
   });
 
   it('continuer efface le memo ; forme invalide → ignorée sans panne, repli compté', async () => {
-    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12 }), 'p1');
+    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12, legionsP2: 2 }), 'p1');
     const memo = { finPartie: { mode: 'science' } };
     await tourJevJoueur(fauxClient({ finPartie: 'continuer' }), config, filtre, 'p1', memo);
     expect(memo.finPartie).toBeUndefined();
@@ -242,7 +247,7 @@ describe('v6 · L2 — traduction des décisions (ORDRES EXISTANTS, D5)', () => 
   });
 
   it('protegerCapitale → ordres Fortify sur les unités proches non fortifiées', async () => {
-    const etat = etatCourse({ jalonsMoi: 12 });
+    const etat = etatCourse({ jalonsMoi: 12, legionsP2: 2 });
     etat.diplomacy = { ...etat.diplomacy, war: [['p1', 'p2']] };
     const cap = Object.values(etat.cities).find((v) => v.owner === 'p1');
     etat.units = {

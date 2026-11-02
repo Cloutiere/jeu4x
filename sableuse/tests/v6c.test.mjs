@@ -119,8 +119,8 @@ describe('v6c · D-B — seuil d\'écart de villes 3 → 2 (data dominationEcart
     expect(questions.finPartie).toBeDefined();
   });
 
-  it('écart 1 ⇒ PAS de signal (la partie calme reste muette — gate non ouvert)', () => {
-    const filtre = getFilteredState(etatCourse({ villesP1: 2 }), 'p1');
+  it('écart 1 ⇒ PAS de signal (la partie calme reste muette — gate non ouvert ; v9 : rapport < 2, opportunité muette aussi)', () => {
+    const filtre = getFilteredState(etatCourse({ villesP1: 2, legionsP2: 5 }), 'p1'); // rapport < 2 (v9 D-A : sinon l'opportunité domination ouvre la question)
     const condense = condenseJoueur(filtre, 'p1', {});
     expect(signalDominationMechanique(condense, filtre, 'p1')).toBe(false);
     const { questions } = construireQuestionsJoueur(config, condense, filtre, 'p1', {});

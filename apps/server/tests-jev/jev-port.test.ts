@@ -318,6 +318,10 @@ describe('Tests croisés décisions (D2) — mêmes réponses ⇒ mêmes ordres'
       units: {
         ...etat.units,
         u_moi: { id: 'u_moi', owner: 'p2', type: 'legion', q: 6, r: 5, hp: 100, mp: 0, fortified: false, aboard: false },
+        // v9 D-B : 2 légions p1 visibles — le rapport passe SOUS l'écrasement
+        // (≥ 3) pour que ce test reste un test de REFUS de la forme retirée.
+        u_adv0: { id: 'u_adv0', owner: 'p1', type: 'legion', q: 8, r: 5, hp: 100, mp: 0, fortified: false, aboard: false },
+        u_adv1: { id: 'u_adv1', owner: 'p1', type: 'legion', q: 8, r: 6, hp: 100, mp: 0, fortified: false, aboard: false },
       },
       players: {
         ...etat.players,
@@ -393,7 +397,7 @@ describe('Tests croisés décisions (D2) — mêmes réponses ⇒ mêmes ordres'
     const dTs = await tourTs(fauxClient({ finPartie: 'continuer' }), configJev, filtre, 'p2', memoTs);
     const dMjs = await tourMjs(fauxClient({ finPartie: 'continuer' }), configJev, filtre, 'p2', memoMjs);
     expect(dTs.diplomatie).toEqual(dMjs.diplomatie);
-    expect(dTs.diplomatie).toEqual([{ genre: 'guerre', cible: 'p1', mecanique: true }]);
+    expect(dTs.diplomatie).toEqual([{ genre: 'guerre', cible: 'p1', mecanique: true, motif: 'domination' }]);
     expect(memoCanon(memoTs).finPartie).toEqual({ mode: 'pousserCapitale', cible: 'p1' });
     expect(memoCanon(memoMjs).finPartie).toEqual({ mode: 'pousserCapitale', cible: 'p1' });
     expect(memoTs.guerreMecaniqueTour).toBe(40);
@@ -638,5 +642,103 @@ describe('JEV-CALIBRAGE-OFFENSIF · v6c croisé (théâtre, marche, D-B, D-C)', 
     const marcheMjs = dMjs.ordres.filter((o: any) => o.type === 'MultiStep');
     expect(marcheTs.length).toBeGreaterThan(0);
     expect(JSON.parse(JSON.stringify(marcheTs))).toEqual(JSON.parse(JSON.stringify(marcheMjs)));
+  });
+});
+
+describe('JEV-STRATEGE v9 — tests croisés (bit à bit)', () => {
+  /** Fixture 1v1 : Jev (p2) fort, voisine p1 vue — purge des unités de
+   * départ pour des rapports DÉTERMINISTES (2/légion). */
+  function fixtureStratege({ legionsMoi = 4, legionsAdv = 0, tour = 40 } = {}) {
+    const gen = generateProceduralMap(42);
+    let etat = createInitialState(gen.map, 42, {});
+    const units: any = {};
+    for (let i = 0; i < legionsMoi; i++) {
+      units[`u_moi_${i}`] = { id: `u_moi_${i}`, owner: 'p2', type: 'legion', q: 6, r: 5, hp: 100, mp: 0, fortified: false, aboard: false };
+    }
+    for (let i = 0; i < legionsAdv; i++) {
+      units[`u_adv_${i}`] = { id: `u_adv_${i}`, owner: 'p1', type: 'legion', q: 7, r: 5 + i, hp: 100, mp: 0, fortified: false, aboard: false };
+    }
+    etat = {
+      ...etat,
+      turn: tour,
+      cities: {
+        ...etat.cities,
+        cap1: { id: 'cap1', owner: 'p1', q: 8, r: 5, pop: 2, capital: true, buildings: [], workedTiles: [], wonders: [] },
+        cap2: { id: 'cap2', owner: 'p2', q: 5, r: 5, pop: 3, capital: true, buildings: [], workedTiles: [], wonders: [] },
+      },
+      units,
+      players: {
+        ...etat.players,
+        p2: { ...etat.players.p2, vision: { explored: ['5,5', '6,5', '8,5'], visible: ['5,5', '6,5', '8,5'] } },
+      },
+    };
+    return getFilteredState(etat, 'p2');
+  }
+
+  it('D-B écrasement : rapport ≥ 3 SANS mode ⇒ déclaration mécanique identique (motif ecrasement)', async () => {
+    const filtre = fixtureStratege();
+    const faux = () => ({ async systemOne() { return { answers: {}, usage: { input_tokens: 100 } }; } });
+    const memoTs: any = {};
+    const memoMjs: any = {};
+    const dTs = await tourTs(faux() as any, configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoTs);
+    const dMjs = await tourMjs(faux(), configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoMjs);
+    expect(dTs.diplomatie).toEqual(dMjs.diplomatie);
+    expect(dTs.diplomatie).toEqual([{ genre: 'guerre', cible: 'p1', mecanique: true, motif: 'ecrasement' }]);
+    expect(memoCanon(memoTs).finPartie).toEqual({ mode: 'pousserCapitale', cible: 'p1' });
+    expect(memoCanon(memoTs).finPartie).toEqual(memoCanon(memoMjs).finPartie);
+    expect(memoTs.guerreMecaniqueTour).toBe(40);
+  });
+
+  it('D-A opportunité : questions finPartie (opportuniste) identiques ; choix de voie ⇒ memo identique', async () => {
+    // rapport 2 (≥ 2 — opportunité domination) mais < 3 (pas d'écrasement).
+    const filtre = fixtureStratege({ legionsMoi: 1, tour: 40 });
+    const a = construireTs(configJev, condenseJoueurTs(filtre, 'p2', {}, configJev.seuils), filtre, 'p2', {});
+    const b = construireMjs(configJev, condenseJoueurMjs(filtre, 'p2', {}, configJev.seuils), filtre, 'p2', {});
+    expect(JSON.parse(JSON.stringify(a.questions))).toEqual(JSON.parse(JSON.stringify(b.questions)));
+    // choix de voie : memo persisté à l'identique.
+    const faux = () => ({ async systemOne() { return { answers: { finPartie: { choice: 'viserMaVictoire:domination', confidence: 0.9 } }, usage: { input_tokens: 100 } }; } });
+    const memoTs: any = {};
+    const memoMjs: any = {};
+    await tourTs(faux() as any, configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoTs);
+    await tourMjs(faux(), configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoMjs);
+    expect(memoCanon(memoTs).finPartie).toEqual({ mode: 'domination' });
+    expect(memoTs.decisionVoieTour).toBe(memoMjs.decisionVoieTour);
+  });
+
+  it('C2 espace : bloc espace identique + liste blanche (jamais de position ni de plan adverse)', () => {
+    const filtre = fixtureStratege({ legionsMoi: 1 });
+    const cTs = condenseJoueurTs(filtre, 'p2', {}, configJev.seuils);
+    const cMjs = condenseJoueurMjs(filtre, 'p2', {}, configJev.seuils);
+    expect(cTs.espace).toEqual(cMjs.espace);
+    expect(Object.keys(cTs.espace).sort()).toEqual(['sature', 'sitesCorrects']);
+    expect(JSON.stringify(cTs.espace)).not.toMatch(/"(q|r)":/);
+  });
+
+  it('C2 conquête d\'espace : question + traduction identiques (cible LLM, déclaration mécanique)', async () => {
+    const filtre = fixtureStratege({ legionsMoi: 1 });
+    const cTs = condenseJoueurTs(filtre, 'p2', {}, configJev.seuils);
+    const a = construireTs(configJev, cTs, filtre, 'p2', {});
+    const b = construireMjs(configJev, JSON.parse(JSON.stringify(cTs)), JSON.parse(JSON.stringify(filtre)), 'p2', {});
+    expect(JSON.parse(JSON.stringify(a.questions.conqueteEspace ?? null)))
+      .toEqual(JSON.parse(JSON.stringify(b.questions.conqueteEspace ?? null)));
+    if (a.questions.conqueteEspace) {
+      const cle = Object.keys(a.questions.conqueteEspace.criteria)[0];
+      const faux = (c: string) => ({ async systemOne() { return { answers: { conqueteEspace: { choice: c, confidence: 0.9 } }, usage: { input_tokens: 100 } }; } });
+      const memoTs: any = {};
+      const memoMjs: any = {};
+      const dTs = await tourTs(faux(cle) as any, configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoTs);
+      const dMjs = await tourMjs(faux(cle), configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoMjs);
+      expect(dTs.diplomatie).toEqual(dMjs.diplomatie);
+      expect(dTs.diplomatie).toEqual([{ genre: 'guerre', cible: 'p1', mecanique: true, motif: 'espace' }]);
+      expect(memoTs.guerreMecaniqueTour).toBe(memoMjs.guerreMecaniqueTour);
+      // forme invalide : ignorée à l'identique
+      const memoTs2: any = {};
+      const memoMjs2: any = {};
+      const eTs = await tourTs(faux('guerre:p1') as any, configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoTs2);
+      const eMjs = await tourMjs(faux('guerre:p1'), configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoMjs2);
+      expect(eTs.diplomatie).toEqual(eMjs.diplomatie);
+      expect(eTs.diplomatie).toEqual([]);
+      expect(memoTs2.guerreMecaniqueTour).toBeUndefined();
+    }
   });
 });

@@ -1,5 +1,5 @@
 {
-  "_commentaire": "Questions JEV-BANC-JOUEUR (décisions Erik 28/10) — VERSION v8 JEV-DECISIONNEL (31/10) : - le choix guerreTotale:<id> SORT de la question finPartie (v6/v7) — la DÉCLARATION de guerre en mode domination devient un ACTE MÉCANIQUE du harnais (signal « domination mécanique » actif + rapport ≥ guerreTotaleRapportMin + cible pré-qualifiée : pas déjà en guerre, contact réel + délai OU cas aveugle ; débit borné guerreTotaleCooldown, après l'acte le memo bascule en pousserCapitale). La question finPartie garde continuer/pousserCapitale/contrerCourse/viserMaVictoire ; la question guerre classique reste intacte. Historique : v7 dominationEcartVilles 3→2 + aveugle ; v6 choix guerreTotale + 5e signal de gate « domination mécanique » (rapport ≥ 2 ET écart de villes ≥ dominationEcartVilles) ; v5 finPartie/productionVictoire/protegerCapitale (gate de bruit D3) ; base v4 — Jev JOUEUR stratégique 1v1 vs bot standard : recherche (tenue), conversion or/science, orientation de production, diplomatie T2 ; le bot exécute le tactique.",
+  "_commentaire": "Questions JEV-BANC-JOUEUR (décisions Erik 28/10) — VERSION v9 JEV-STRATEGE (01/11) : D-A la question finPartie devient OPPORTUNISTE (une voie favorable — seuils.data `seuils.opportunite` : science écart de techs ≥ 8 avec le leader, domination rapport ≥ 2, culture jalons ≥ 12 ET en tête, économique trésorerie ≥ 10 000 — ouvre la question même SANS signal ; révision cadencée opportuniteCooldown 15) ; D-B declarationMechanique s'élargit à l'ÉCRASEMENT (rapport ≥ ecrasementRapport 3, sans signal domination ni mode) ; C2 conquête d'ESPACE : signal espaceSature au condensé (≤ sitesRestants 1 sites corrects) + déclaration mécanique (rapport ≥ conqueteRapportMin 1) dont la CIBLE est choisie par le LLM dans la nouvelle question conqueteEspace (sans 'aucun', formes invalides ignorées, cooldown partagé). Historique : v8 déclaration mécanique en mode domination (acte du harnais, cooldown 8) ; v7 dominationEcartVilles 3→2 + aveugle ; v6 choix guerreTotale + 5e signal ; v5 finPartie/productionVictoire/protegerCapitale ; base v4 — Jev JOUEUR stratégique 1v1 vs bot standard.",
   "questions": {
     "produire": {
       "primitive": "choice",
@@ -58,6 +58,10 @@
       "primitive": "choice",
       "instructions": "JEV-IT4 · D2 — Un ennemi en guerre menace vos villes (unités hostiles à proximité). Choisir 'proteger' fortifie les unités de combat autour de la capitale (priorité défense) ; 'aucun' ne change rien à la défense ce tour.",
       "aucun": true
+    },
+    "conqueteEspace": {
+      "primitive": "choice",
+      "instructions": "JEV-STRATEGE — CONQUÊTE D'ESPACE : votre espace de fondation est SATURÉ (plus de site correct pour fonder une ville) et votre rapport de forces le permet : la croissance passe désormais par la CONQUÊTE. Les cibles pré-qualifiées vous sont présentées (garnison visible la plus faible d'abord, distance à notre capitale). Choisir une cible DÉCLARE la guerre (acte public, mécanique) et lance la campagne de prise de cette ville. Cette décision n'admet PAS de refus : quand les conditions sont réunies, prendre de l'espace est la seule façon de continuer à croître — vous choisissez SEULEMENT la cible."
     }
   },
   "seuils": {
@@ -76,9 +80,19 @@
     "dominationEcartVilles": 2,
     "marcheActif": true,
     "marcheTaille": 6,
-    "guerreTotaleCooldown": 8
+    "guerreTotaleCooldown": 8,
+    "opportunite": {
+      "ecartTechs": 8,
+      "rapportDomination": 2,
+      "jalonsMin": 12,
+      "tresorerieMin": 10000
+    },
+    "opportuniteCooldown": 15,
+    "ecrasementRapport": 3,
+    "sitesRestants": 1,
+    "conqueteRapportMin": 1
   },
-  "_commentaire_seuils": "Seuils PAR DOMAINE (canon v2) : produire/rechercher à 0,65 ; guerre/paix/convertir/échange à 0,5 — ces questions sont chroniquement sous-confiantes chez jev-latest (banc joueur-2026-10-27). v2 CALIBRAGE-DECISIONS : une réponse conversion INDÉCISE (sous 0,5) déclenche le repli règle (plancher, miroir du repli bot) ; conversionScienceMin = seuil de science/tour sous lequel une ville est candidate à la SCIENCE. compensationPaliers conservé pour compatibilité (la fourchette d'or v2 est injectée par tour). JEV-CONTACT-GUERRE D1 (Erik 29/10) : delaiGuerreApresRencontre = tours de coexistence minimale entre la PREMIÈRE rencontre (unité/ville adverse vue sous le fog) et la première question guerre possible. JEV-IT4B (Erik 31/10) : guerreTotaleRapportMin = rapport de forces minimal pour que le choix guerreTotale:<id> soit offert dans finPartie. | v7 CALIBRAGE-OFFENSIF : dominationEcartVilles 3→2 (D-B, seed 786078703) ; marcheActif/marcheTaille (D-E2, la marche vers la capitale déclarée).",
+  "_commentaire_seuils": "Seuils PAR DOMAINE (canon v2) : produire/rechercher à 0,65 ; guerre/paix/convertir/échange à 0,5 — ces questions sont chroniquement sous-confiantes chez jev-latest (banc joueur-2026-10-27). v2 CALIBRAGE-DECISIONS : une réponse conversion INDÉCISE (sous 0,5) déclenche le repli règle (plancher, miroir du repli bot) ; conversionScienceMin = seuil de science/tour sous lequel une ville est candidate à la SCIENCE. compensationPaliers conservé pour compatibilité (la fourchette d'or v2 est injectée par tour). JEV-CONTACT-GUERRE D1 (Erik 29/10) : delaiGuerreApresRencontre = tours de coexistence minimale entre la PREMIÈRE rencontre (unité/ville adverse vue sous le fog) et la première question guerre possible. JEV-IT4B (Erik 31/10) : guerreTotaleRapportMin = rapport de forces minimal pour que le choix guerreTotale:<id> soit offert dans finPartie. | v7 CALIBRAGE-OFFENSIF : dominationEcartVilles 3→2 (D-B, seed 786078703) ; marcheActif/marcheTaille (D-E2, la marche vers la capitale déclarée). | v9 STRATEGE : opportunite {ecartTechs 8, rapportDomination 2, jalonsMin 12, tresorerieMin 10000} + opportuniteCooldown 15 (révision de voie) ; ecrasementRapport 3 (déclaration d'écrasement) ; sitesRestants 1 + conqueteRapportMin 1 (conquête d'espace).",
   "_commentaire_regles": "JEV-BANC-JOUEUR D1 + v2 CALIBRAGE-DECISIONS : la règle regle:conversion du harnais reste DÉSACTIVÉE GLOBALEMENT (le bot standard et le contrôle ne la subissent pas — D2 : rien d'autre ne change) ; elle vit en REPLI pour Jev seul, appliquée par joueur.mjs quand sa réponse conversion est indécise.",
   "regles": {
     "conversion": {

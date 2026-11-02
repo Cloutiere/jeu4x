@@ -130,7 +130,7 @@ describe('v6b · D-A — le choix guerreTotale dans finPartie (REVERSÉ v8 JEV-D
 
 describe('v6b · D-A — traduction (REVERSÉE v8 : forme retirée, réponse résiduelle ignorée)', () => {
   it('guerreTotale:p2 ⇒ IGNORÉE (aucune intention, memo INCHANGÉ — v8 D2)', async () => {
-    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12 }), 'p1');
+    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12, legionsP2: 3 }), 'p1'); // rapport < 1,2 (v9 D-B : sinon l'écrasement tire)
     const condense = condenseJoueur(filtre, 'p1', {});
     const memo = { finPartie: { mode: 'domination' } };
     const d = await tourJevJoueur(fauxClient({ finPartie: 'guerreTotale:p2' }), config, filtre, 'p1', memo);
@@ -141,7 +141,7 @@ describe('v6b · D-A — traduction (REVERSÉE v8 : forme retirée, réponse ré
   });
 
   it('cible invalide ⇒ ignorée sans panne (aucune diplomatie, repli compté)', async () => {
-    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12 }), 'p1');
+    const filtre = getFilteredState(etatCourse({ jalonsMoi: 12, legionsP2: 3 }), 'p1'); // rapport < 1,2 (v9 D-B)
     const memo = { finPartie: { mode: 'domination' } };
     const d = await tourJevJoueur(fauxClient({ finPartie: 'guerreTotale:zz' }), config, filtre, 'p1', memo);
     expect(d.erreur).toBeNull();
@@ -174,8 +174,8 @@ describe('v6b · D-B — 5e signal de gate « domination mécanique »', () => {
     expect(questions.finPartie).toBeDefined();
   });
 
-  it('écart de villes insuffisant (< 3) ⇒ PAS de signal (partie calme muette)', () => {
-    const filtre = getFilteredState(etatCourse({ villesP1: 2 }), 'p1');
+  it('écart de villes insuffisant (< 3) ⇒ PAS de signal (partie calme muette — v9 : ni signal ni opportunité)', () => {
+    const filtre = getFilteredState(etatCourse({ villesP1: 2, legionsP2: 5 }), 'p1'); // rapport < 2 — pas d'opportunité domination non plus
     const condense = condenseJoueur(filtre, 'p1', {});
     expect(signalDominationMechanique(condense, filtre, 'p1')).toBe(false);
     const { questions } = construireQuestionsJoueur(config, condense, filtre, 'p1', {});
@@ -246,7 +246,7 @@ describe('v6b · amendement aveugle (verdict Erik, banc v1) — rival jamais ren
     // la réponse résiduelle ne déclenche RIEN en DOUBLE : l'acte mécanique
     // (même tour, ici déclenché par le signal + memo domination) est le SEUL
     // émetteur d'intention de guerre — un seul élément, mecanique:true.
-    expect(d.diplomatie).toEqual([{ genre: 'guerre', cible: 'p2', mecanique: true }]);
+    expect(d.diplomatie).toEqual([{ genre: 'guerre', cible: 'p2', mecanique: true, motif: 'domination' }]);
   });
 
   it('rival jamais rencontré, écart de villes < 2 (D-B muet au seuil v7) ⇒ toujours inoffrable', () => {
