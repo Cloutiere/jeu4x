@@ -2133,12 +2133,26 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
         }
         break;
       }
-      // ④ chasse / BOT-EXPLORATION patrouille / ⑤ exploration : un pas
-      // déterministe vers la cible.
-      case 'chasser':
+      // ④ chasse : un pas glouton déterministe vers la cible (le contact est
+      // adjacent — pas de route à contourner).
+      case 'chasser': {
+        const step = obj.cible ? pasVers(unit, state, obj.cible) : null;
+        orders.push(step ? { type: 'Move', unitId: unit.id, path: [step] } : { type: 'Hold', unitId: unit.id });
+        break;
+      }
+      // BOT-EXPLORATION patrouille / ⑤ exploration : pas ROUTIER d'abord
+      // (BFS wrappé — canon BOT-ARMEE), glouton en repli. CONFIANCE-EXPLORATION
+      // (Erik 03/11, prod YU4SHH) : depuis une poche géométrique (u4 à
+      // (33,12) t16→24), le glouton strict renvoyait null — les seules
+      // sorties terrestres étaient non-améliorantes en distance cube — et
+      // l'unité tenait sur place POUR TOUJOURS, mp inutilisés. Le BFS route
+      // autour ; à défaut de route, tenue EXPLICITE (Hold émis — doctrine :
+      // jamais inactif sans ordre journalisé).
       case 'patrouiller':
       case 'explorer': {
-        const step = obj.cible ? pasVers(unit, state, obj.cible) : null;
+        const step = obj.cible
+          ? (pasVersRoutier(unit, state, obj.cible) ?? pasVers(unit, state, obj.cible))
+          : null;
         orders.push(step ? { type: 'Move', unitId: unit.id, path: [step] } : { type: 'Hold', unitId: unit.id });
         break;
       }

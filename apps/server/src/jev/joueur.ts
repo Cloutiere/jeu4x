@@ -949,6 +949,13 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
   const confDial = seuils.decisionMin ?? confMin;
   const confiance = (r: AnyEtat, seuil = confMin) => ((r?.confidence ?? 0) >= seuil ? r : null);
   const confDialMin = (r: AnyEtat) => confiance(r, confDial);
+  // CONFIANCE-EXPLORATION (Erik 03/11) — canon v2 : chaque question porte son
+  // propre seuil (miroir confianceGuerreSterile) ; minimums observés en prod
+  // réelle (YU4SHH t0-23). La gate générique ne s'applique qu'aux questions
+  // sans seuil dédié — un adversaire qui décide à 0,25 vaut mieux qu'un qui
+  // ne décide pas (risque assumé, consigné au handoff ; le banc arbitre).
+  const confQuestion = (q: string): number | null =>
+    (seuils.confianceParQuestion as Record<string, number> | undefined)?.[q] ?? null;
   const me = etatFiltre.players?.[moi];
   const mesVilles = vals(etatFiltre.cities ?? {}).filter((v: AnyEtat) => v.owner === moi);
   // JEV-IT4 · D2 : capitale de portée tour (décisions finPartie/proteger).
@@ -958,7 +965,7 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
   const probs = vals(premier?.probabilities ?? {}) as number[];
   if (probs.length > 1 && probs.every((p) => Math.abs(p - 1 / probs.length) < 0.02)) sortie.plate = true;
 
-  const produire = confiance(ans.produire);
+  const produire = confiance(ans.produire, confQuestion('produire') ?? confMin);
   if (produire && produire.choice && produire.choice !== 'aucun') {
     const valide = (condense.candidats.productionCapitale ?? []).some((c: AnyEtat) => c.cle === produire.choice);
     const capitale =
@@ -1011,7 +1018,7 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
       }
     }
   }
-  const fond = confDialMin(ans.fonder);
+  const fond = confiance(ans.fonder, confQuestion('fonder') ?? confDial);
   if (fond?.choice && fond.choice.startsWith('fonder:') && !memo.fondationEnCours) {
     const caseCible = fond.choice.slice('fonder:'.length);
     const site = candidatsFondation(etatFiltre, moi, memo).find((s: AnyEtat) => s.case === caseCible);
@@ -1041,7 +1048,7 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
     sortie.actions.push({ type: 'SetResearch', techId: techTenue });
     sortie.attentes.push({ genre: 'recherche', techId: techTenue, joueur: moi });
   } else {
-    const chercher = confiance(ans.rechercher);
+    const chercher = confiance(ans.rechercher, confQuestion('rechercher') ?? confMin);
     if (chercher?.choice && (condense.empire.recherche?.candidates ?? []).some((t: AnyEtat) => t.id === chercher.choice)) {
       memo.techRecherche = chercher.choice;
       sortie.actions.push({ type: 'SetResearch', techId: chercher.choice });
@@ -1049,7 +1056,8 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
     }
   }
 
-  const convertir = confDialMin(ans.convertir);
+  const confConvertir = confQuestion('convertir') ?? confDial;
+  const convertir = confiance(ans.convertir, confConvertir);
   if (convertir?.choice && convertir.choice !== 'aucun') {
     const [vers, ...rest] = convertir.choice.split(':');
     const cityId = rest.join(':');
@@ -1058,7 +1066,7 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
       sortie.actions.push({ type: 'SetConversion', cityId, vers });
       sortie.attentes.push({ genre: 'conversion', cityId, vers });
     }
-  } else if (mesVilles.length > 0 && (ans.convertir?.confidence ?? 1) < confDial) {
+  } else if (mesVilles.length > 0 && (ans.convertir?.confidence ?? 1) < confConvertir) {
     for (const v of mesVilles) {
       const cible = cibleConversionRepli(v, moi, memo);
       if (cible && (v.conversion ?? 'gold') !== cible) {
