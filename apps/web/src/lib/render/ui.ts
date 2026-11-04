@@ -23,6 +23,11 @@ export interface UiState {
    *  devient une sélection de cible, confirmée par une modale avant
    *  l'ordre `Launch` (action irréversible). */
   nukeArmed?: UnitId | null;
+  /** GESTE-ARMEE · D1 : mode formation d'armée armé — le chef est connu, les
+   *  coéquipiers se choisissent par clic sur les candidats surlignés, puis un
+   *  clic de case pose le rendez-vous (pré-vérifié client, tranché serveur).
+   *  Miroir du motif `nukeArmed` — store CLIENT uniquement. */
+  armyDraft?: { chef: UnitId; coequipiers: UnitId[] } | null;
 }
 
 export type UiStore = Writable<UiState>;

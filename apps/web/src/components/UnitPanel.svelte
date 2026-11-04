@@ -10,6 +10,7 @@
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
   import { consumeEffectLabel, settleEffectLabel, greatPersonLabel, SPY_ACTION_LABELS } from '../lib/labels.js';
+  import { candidatsArmee, libelleFormation, peutFormerArmee } from '../lib/geste-armee.js';
   import { libelleAnnulationOrdre } from '../lib/annul-ordre.js';
   import type { UiState } from '../lib/render/ui.js';
 
@@ -28,9 +29,16 @@
      *  une cible pressentie, confirmée par modale côté page avant l'ordre). */
     onArmNuke?(unitId: string): void;
     onCancelNuke?(): void;
+    /** GESTE-ARMEE · D1 : arme le mode formation d'armée (choix des 2
+     *  coéquipiers par clic, puis pose du rendez-vous). */
+    onArmArmy?(unitId: string): void;
+    onCancelArmy?(): void;
+    /** GESTE-ARMEE · D1-2 : toggle (choix/retrait) d'un coéquipier — miroir
+     *  du re-clic carte, la liste vit côté page (UiState). */
+    onPickArmyCoequipier?(unitId: string): void;
   }
 
-  let { view, ui, client, onCancelDraft, onCancelOrder, onConfirmDraft, onCenterUnit, onSelectUnit, onArmNuke, onCancelNuke }: Props = $props();
+  let { view, ui, client, onCancelDraft, onCancelOrder, onConfirmDraft, onCenterUnit, onSelectUnit, onArmNuke, onCancelNuke, onArmArmy, onCancelArmy, onPickArmyCoequipier }: Props = $props();
 
   const unit = $derived(view.state && ui.selectedUnitId ? view.state.units[ui.selectedUnitId] : null);
   const mine = $derived(!!unit && unit.owner === myEngineId(view));
@@ -46,8 +54,11 @@
     if (!tile?.resource) return null;
     return tile.resource === RESOURCE_UNKNOWN ? 'une ressource (identité non révélée)' : (RESOURCES[tile.resource]?.name ?? tile.resource);
   });
+  /** GESTE-ARMEE · D2 : un FormArmy n'a pas de unitId — il est porté par ses
+   *  MEMBRES (miroir annulationOrdre/interaction) : le panneau de chaque
+   *  membre montre l'ordre et son compteur n/3. */
   const currentOrder = $derived(
-    unit ? view.orders.find((o) => 'unitId' in o && o.unitId === unit.id) ?? null : null,
+    unit ? view.orders.find((o) => ('unitId' in o && o.unitId === unit.id) || (o.type === 'FormArmy' && o.members.includes(unit.id))) ?? null : null,
   );
 
   /** ANNUL-CHEMIN (Erik 24/10, D1) : un ordre PERSISTANT porté par unit.order
@@ -119,6 +130,24 @@
     client.submitOrder({ type: 'Pass', unitId: unit.id });
   }
 
+  // GESTE-ARMEE (04/11) · D1-D2 : le geste CivRev — bouton « ⚔ Former une
+  // armée » (D1-1), choix des 2 coéquipiers (D1-2, clics candidats surlignés
+  // sur la carte), pose du rendez-vous (D1-3, clic de case pré-vérifié), suivi
+  // n/3 sur l'ordre posé (D2). Aucune règle de fusion ici : l'ordre canon
+  // FormArmy est soumis, le serveur tranche, le moteur R-44 fusionne.
+  const formationEligible = $derived(!!unit && peutFormerArmee(view, unit));
+  const formationEnCours = $derived(!!unit && ui.armyDraft?.chef === unit.id);
+  const coequipiersChoisis = $derived(
+    formationEnCours
+      ? ui.armyDraft!.coequipiers.map((id) => view.state?.units[id]).filter((u): u is NonNullable<typeof u> => !!u)
+      : [],
+  );
+  const candidatsPanel = $derived(
+    formationEnCours && unit
+      ? candidatsArmee(view.state!, view, unit, myEngineId(view))
+      : [],
+  );
+
   /** Cibles d'attaque : UNITÉS ennemies VISIBLES adjacentes (état filtré).
    * Une ville vide adjacente ne se « combat » pas : on y entre (R-57/R-65). */
   const attackTargets = $derived.by(() => {
@@ -175,7 +204,7 @@
       case 'Pass':
         return 'Passe son tour';
       case 'FormArmy':
-        return 'Formation d\'armée';
+        return libelleFormation(view.state!, o);
       case 'SetProduction':
         return 'Production';
       case 'SetWorkedTile':
@@ -449,6 +478,15 @@
         <button type="button" class="danger" disabled={!peutVendre} title={unit?.aboard ? 'Vente refusée : l\'unité est à bord d\'un transport' : aCargaison ? 'Vente refusée : ce transport porte une cargaison' : `Vend l'unité — +${prixVente} or (50 % du coût de production, traits compris)`} onclick={vendre}>
           Vendre (+{prixVente} or)
         </button>
+        {#if formationEnCours}
+          <button type="button" class="danger" title="Annule la formation d'armée en cours — aucun ordre n'a été soumis." onclick={() => onCancelArmy?.()}>
+            ✕ Annuler la formation
+          </button>
+        {:else if formationEligible}
+          <button type="button" class="primary" title="GESTE-ARMEE (R-44) : forme une armée de 3 unités du même type — choisissez 2 coéquipiers sur la carte, puis cliquez la case de rendez-vous ; la fusion se produit à la résolution quand les trois sont réunis (armée définitive, vétéran si 2 membres vétérans, PV = somme plafonnée)." onclick={() => onArmArmy?.(unit.id)}>
+            ⚔ Former une armée…
+          </button>
+        {/if}
         {#if stats?.canFoundCity}
           {#if resourceOnTile}
             <p class="found-warning" title="R-64 (rév., 7i D5) : la ressource sous la ville serait effacée du jeu">
@@ -493,6 +531,37 @@
           </button>
         {/if}
       </div>
+      {#if formationEnCours}
+        <!-- GESTE-ARMEE · D1 : guidage du geste en 3 temps. -->
+        <p class="armee-note">
+          {#if coequipiersChoisis.length < 2}
+            ⚔ Formation d'armée — {coequipiersChoisis.length}/2 coéquipier{coequipiersChoisis.length > 1 ? 's' : ''} choisi{coequipiersChoisis.length > 1 ? 's' : ''} : cliquez une unité amie du même type sur la carte (candidates surlignées) ; re-cliquez pour retirer.
+          {:else}
+            ⚔ Formation d'armée — coéquipiers complets : cliquez la case de RENDEZ-VOUS (pré-vérifiée praticable par les trois). La fusion se produit à la résolution quand les trois y sont réunis.
+          {/if}
+        </p>
+        {#if coequipiersChoisis.length > 0}
+          <div class="btns">
+            {#each coequipiersChoisis as c (c.id)}
+              <button type="button" title="Retirer ce coéquipier de la formation" onclick={() => onPickArmyCoequipier?.(c.id)}>
+                {c.type} ({c.id}) ✓
+              </button>
+            {/each}
+          </div>
+        {/if}
+        {#if candidatsPanel.length > 0 && coequipiersChoisis.length < 2}
+          <!-- GESTE-ARMEE · D1-2 : candidats cliquables (couvre le cas empilé —
+               deux unités du même type sur la même case, où le re-clic carte
+               toggle le premier choisi). -->
+          <div class="btns">
+            {#each candidatsPanel as c (c.id)}
+              <button type="button" disabled={!editable || !onPickArmyCoequipier} title="Choisir ce candidat comme coéquipier (même effet que le clic sur la carte)" onclick={() => onPickArmyCoequipier?.(c.id)}>
+                + {c.type} ({c.id})
+              </button>
+            {/each}
+          </div>
+        {/if}
+      {/if}
       {#if attackTargets.length > 0}
         {#if oracleActive}<p class="oracle-note">🔮 Oracle (R-125) : l'issue exacte du combat est révélée — % de toucher par round, vainqueur attendu marqué ✓.</p>{/if}
         <div class="btns">
@@ -751,6 +820,7 @@
   .oracle-note { color: #ce93d8; font-size: 0.8rem; margin: 0.2rem 0; }
   .found-warning { color: #ffcc80; font-size: 0.78rem; margin: 0.2rem 0; }
   .nuke-armed { color: #ffb74d; font-weight: 600; font-size: 0.85rem; margin: 0.25rem 0; }
+  .armee-note { color: var(--or-clair, #e8c96a); font-size: 0.82rem; margin: 0.25rem 0; background: rgba(201, 162, 39, 0.08); border: 1px solid var(--panneau-bord-doux, rgba(201, 162, 39, 0.25)); border-radius: 6px; padding: 0.3rem 0.5rem; }
   .spy-title {
     margin: 0.5rem 0 0.1rem;
     font-family: var(--serif-or, Georgia, serif);

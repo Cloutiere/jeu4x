@@ -6,6 +6,7 @@
  * présentes dans `state.map`). La validation métier reste côté serveur.
  */
 import { hexDistanceW, hexToPixel, neighborsW, normalizeHexW, TERRAINS, tileKeyOf, unitType, workRadiusOf, canEnterTerrain, isCoastalCityHex, cargoCapacityOf } from '@game/rules';
+import { candidatsArmee, rallyValide } from '../geste-armee.js';
 import type { Hex } from '@game/rules';
 import type { CityId, GameState, UnitId } from '@game/shared';
 import type { GameView } from '../gameClient.js';
@@ -29,7 +30,13 @@ export type ClickAction =
   | { kind: 'setWorkedTile'; cityId: CityId; tile: string | null }
   /** 7m · R-139 : ciblage d'ICBM armée — la case cliquée devient la cible
    *  pressentie (la confirmation reste à l'écran, avant l'ordre `Launch`). */
-  | { kind: 'nukeTarget'; hex: Hex };
+  | { kind: 'nukeTarget'; hex: Hex }
+  /** GESTE-ARMEE · D1-2 : choix (ou retrait, toggle côté page) d'un
+   *  coéquipier candidat pendant la formation d'armée. */
+  | { kind: 'armyPick'; unitId: UnitId }
+  /** GESTE-ARMEE · D1-3 : pose du rendez-vous — case pré-vérifiée
+   *  praticable par les trois membres (le serveur tranche). */
+  | { kind: 'armyRally'; hex: Hex };
 
 export function unitAtHex(state: GameState, hex: Hex): { id: UnitId; owner: string } | null {
   for (const u of Object.values(state.units)) {
@@ -387,6 +394,26 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex, positions?: P
   // 7m · R-139 : ICBM ARMÉE — n'importe quel clic carte choisit une cible
   // (le lancement n'est soumis qu'après la modale de confirmation, côté page).
   if (ui.nukeArmed) return { kind: 'nukeTarget', hex };
+
+  // GESTE-ARMEE · D1 : mode formation armé — un clic sur un candidat choisit
+  // (ou retire, toggle côté page) un coéquipier ; les 2 coéquipiers choisis,
+  // un clic sur une case pré-vérifiée pose le rendez-vous. Toute autre case :
+  // aucun effet (pas de sélection parasite pendant le geste).
+  if (ui.armyDraft) {
+    const chef = state.units[ui.armyDraft.chef];
+    if (chef) {
+      const occupants2 = unitesSurHex(state, hex, positions);
+      const occ = occupants2[0];
+      if (occ && occ.owner === myEngineId(view) && occ.id !== chef.id) {
+        const ok = candidatsArmee(state, view, chef, myEngineId(view)).some((c) => c.id === occ.id);
+        if (ok) return { kind: 'armyPick', unitId: occ.id };
+      }
+      if (ui.armyDraft.coequipiers.length === 2 && rallyValide(state, view, chef, ui.armyDraft.coequipiers, hex)) {
+        return { kind: 'armyRally', hex };
+      }
+    }
+    return { kind: 'none' };
+  }
 
   // Occupants AU SENS DESSINÉ (position affichée prime sur la case moteur).
   const occupants = unitesSurHex(state, hex, positions);

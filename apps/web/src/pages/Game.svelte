@@ -46,6 +46,7 @@
   import type { UiStore } from '../lib/render/ui.js';
   import { Playback } from '../lib/render/playback.js';
   import { rightClickAction, annulationOrdre, unitsWithoutOrders, myEngineId, ordersEditable } from '../lib/render/interaction.js';
+  import { mouvementsVersRally } from '../lib/geste-armee.js';
   import type { ClickAction } from '../lib/render/interaction.js';
   import { unexecutedOrders } from '../lib/feedback.js';
   import { replayPair, cloneEtatReplay, appliquerEvenement } from '../lib/replay.js';
@@ -483,6 +484,40 @@
     }
     cancelNuke();
   }
+
+  // GESTE-ARMEE (04/11) · D1 : le geste CivRev en 3 temps — le mode vit dans
+  // l'UiState (`armyDraft`, miroir `nukeArmed`) ; les clics candidat/rendez-
+  // vous arrivent en `armyPick`/`armyRally` depuis `clickAction`. La soumission
+  // est l'ordre canon `FormArmy` : le serveur tranche (OrderAck), le moteur
+  // fusionne à la résolution (R-44).
+  function armFormArmy(unitId: string): void {
+    ui.set({ selectedUnitId: unitId, selectedCityId: null, draft: null, nukeArmed: null, armyDraft: { chef: unitId, coequipiers: [] } });
+  }
+  function cancelFormArmy(): void {
+    ui.update((u) => ({ ...u, armyDraft: null }));
+  }
+  function handleArmyPick(unitId: string): void {
+    const d = get(ui).armyDraft;
+    if (!d || unitId === d.chef) return;
+    const coequipiers = d.coequipiers.includes(unitId)
+      ? d.coequipiers.filter((c) => c !== unitId)
+      : d.coequipiers.length < 2 ? [...d.coequipiers, unitId] : d.coequipiers;
+    ui.update((u) => ({ ...u, armyDraft: { chef: d.chef, coequipiers } }));
+  }
+  function handleArmyRally(hex: Hex): void {
+    const d = get(ui).armyDraft;
+    const state = get(view).state;
+    if (!d || d.coequipiers.length !== 2 || !state) return;
+    // Le moteur ne déplace pas les membres (miroir botPolicy 'converger') :
+    // chaque membre reçoit son Move (BFS client) — le chef déjà au rendez-
+    // vous ne bouge pas. L'exemption R-44 autorise l'entrée sur la case de
+    // rendez-vous occupée par un co-membre.
+    for (const mvt of mouvementsVersRally(state, [d.chef, ...d.coequipiers], hex)) {
+      client.submitOrder({ type: 'Move', unitId: mvt.unitId, path: mvt.path });
+    }
+    client.submitOrder({ type: 'FormArmy', members: [d.chef, d.coequipiers[0]!, d.coequipiers[1]!], rally: { q: hex.q, r: hex.r } });
+    ui.update((u) => ({ ...u, armyDraft: null }));
+  }
   /** Avertissement SDI : la cible pressentie est-elle une ville visible à SDI ? */
   const nukeSdiWarning = $derived.by(() => {
     if (!nukePending || !$view.state) return null;
@@ -521,6 +556,14 @@
         // 7m · R-139 : cible pressentie — la confirmation reste à l'écran.
         nukePending = action.hex;
         break;
+      case 'armyPick':
+        // GESTE-ARMEE · D1-2 : choix/retrait (toggle) d'un coéquipier candidat.
+        handleArmyPick(action.unitId);
+        break;
+      case 'armyRally':
+        // GESTE-ARMEE · D1-3 : rendez-vous posé — ordre canon FormArmy soumis.
+        handleArmyRally(action.hex);
+        break;
       case 'none':
         break;
     }
@@ -544,6 +587,9 @@
   function handleRightClick(hex: Hex): void {
     // 7m · R-139 : ciblage ICBM armé — le clic droit reste le ciblage.
     if (get(ui).nukeArmed) return;
+    // GESTE-ARMEE : en mode formation, le clic droit est inerte (le rendez-
+    // vous se pose au clic gauche pré-vérifié ; pas d'annulation parasite).
+    if (get(ui).armyDraft) return;
     handleAction(rightClickAction(get(view), get(ui), hex));
   }
 
@@ -1698,7 +1744,7 @@
       {#if !vueVilleActive}
       <aside class="side">
         <!-- UI-JEU-T1 : « Vous jouez : X » a migré dans la barre AAA (D2). -->
-        <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onCancelOrder={handleCancelOrder} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onSelectUnit={(id) => ui.set({ selectedUnitId: id, selectedCityId: null, draft: null })} onArmNuke={armNuke} onCancelNuke={cancelNuke} />
+        <UnitPanel view={$view} ui={$ui} {client} onCancelDraft={cancelDraft} onCancelOrder={handleCancelOrder} onConfirmDraft={confirmDraft} onCenterUnit={(id) => canvasApi?.centerOnUnit(id)} onSelectUnit={(id) => ui.set({ selectedUnitId: id, selectedCityId: null, draft: null })} onArmNuke={armNuke} onCancelNuke={cancelNuke} onArmArmy={armFormArmy} onCancelArmy={cancelFormArmy} onPickArmyCoequipier={handleArmyPick} />
         {#if $view.state && myEngineId($view) && SHIP_COMPONENTS.some((c) => c.built)}
           <!-- RESOLUTION-DEPLACEMENTS §4 : la section « Course à l'espace »
                n'apparaît qu'à la PREMIÈRE complétion d'un composant du
