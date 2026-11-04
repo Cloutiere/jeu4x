@@ -127,7 +127,8 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     if (jev !== null && memo.marche) {
       const garde = Object.entries(memo.marche).map(([unitId, p]) => ({ unitId, ...p }));
       if (garde.length > 0) {
-        ordres[jev] = filtrerMarcheBot(ordres[jev] ?? [], garde, etat.units, etat.mapWidth);
+        // HUTTE-EXPLORATION D2 : entrer dans une hutte n'est jamais un pas arrière
+        ordres[jev] = filtrerMarcheBot(ordres[jev] ?? [], garde, etat.units, etat.mapWidth, etat.huts);
       }
     }
 

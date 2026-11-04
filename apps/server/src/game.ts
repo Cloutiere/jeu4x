@@ -2210,6 +2210,7 @@ export class GameDO {
           planJev.marcheGarde,
           game.units,
           game.mapWidth,
+          game.huts, // HUTTE-EXPLORATION D2 : entrer dans une hutte n'est jamais un pas arrière
         );
       }
       if (p.jev === true && planJev && jevSeat) {

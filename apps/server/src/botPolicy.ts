@@ -403,6 +403,55 @@ function unitAtHex(state: GameState, q: number, r: number, owner?: PlayerId): Un
   return Object.values(state.units).find((u) => u.q === q && u.r === r && (!owner || u.owner === owner));
 }
 
+/**
+ * HUTTE-EXPLORATION (Erik 04/11, prod ZWV7T5) · D1 — la hutte connue à
+ * portée de détour. Diagnostic L1 : u4 (21,5) contournait h9 (22,6)
+ * ADJACENTE — le classement d'exploration ignorait les huttes ET l'anti-recul
+ * jugeait le pas latéral non-améliorant (dIci=29, via hutte=29). Une hutte
+ * atteignable vaut mieux qu'une case lointaine : la PREMIÈRE hutte connue
+ * (vision.explored — le bot ne triche pas), praticable pour la classe de
+ * l'unité, LIBRE (jamais d'entrée de combat non planifiée), à
+ * dist ≤ hutteDetourMax (adjacente toujours — dist 1) et non réservée à un
+ * autre scout CE tour. Consommée → retirée de state.huts (openHutAt, turn.ts)
+ * → quitte le classement naturellement. Villages barbares EXCLUS (D3 — ce
+ * ne sont pas des huttes, l'attaque reste la porte de guerre R-65).
+ * Pur, déterministe (tri (dist, clé) R-81).
+ */
+function hutteConnueProche(
+  state: GameState,
+  unit: Unit,
+  playerId: PlayerId,
+  reservees: ReadonlySet<string>,
+  detourMax: number,
+): { q: number; r: number } | null {
+  const stats = UNIT_TYPES[unit.type];
+  const explorees = state.players[playerId]?.vision.explored ?? [];
+  let best: { q: number; r: number } | null = null;
+  let bestD = Infinity;
+  let bestKey = '';
+  for (const h of state.huts) {
+    const key = `${h.q},${h.r}`;
+    if (!explorees.includes(key) || reservees.has(key)) continue;
+    const tile = state.map[key];
+    if (!tile) continue;
+    if (stats?.aquatic) {
+      // hutte terrestre : une unité navale ne peut pas poser le pied dessus
+      if (!TERRAINS[tile.terrain]?.navalAccess) continue;
+    } else if (!TERRAINS[tile.terrain]?.passable) {
+      continue;
+    }
+    if (unitAtHex(state, h.q, h.r)) continue;
+    const d = dist(state, unit, h);
+    if (d > detourMax) continue;
+    if (d < bestD || (d === bestD && key < bestKey)) {
+      bestD = d;
+      bestKey = key;
+      best = { q: h.q, r: h.r };
+    }
+  }
+  return best;
+}
+
 /** OSCILLATION-MARCHE (Erik 02/11) — la GARDE DE MARCHE : les unités que Jev
  *  a mises en marche (memo.marche — point de passage persisté) ne peuvent pas
  *  être reparties EN ARRIÈRE par le plan bot les tours où Jev ne les couvre
@@ -410,16 +459,22 @@ function unitAtHex(state: GameState, q: number, r: number, owner?: PlayerId): Un
  *  0,20 ⇄ 1,20 toute la partie). Un ordre de MOUVEMENT du bot sur une unité
  *  gardée est retiré SI sa destination finale augmente la distance (wrappée)
  *  au passage ; les assauts (Move sur le passage lui-même, d=0) et les ordres
- *  hors garde survivent. Pur, testable — appelé à la fusion bot/Jev
- *  (game.ts côté prod, partie.mjs côté harnais). */
+ *  hors garde survivent. HUTTE-EXPLORATION (Erik 04/11) · D2 : un pas QUI
+ *  ENTRE dans une case hutte (paramètre `huttes` — state.huts) n'est JAMAIS
+ *  un pas arrière — le ramassage des bonus prime (exception ciblée, zéro
+ *  autre : le ping-pong reste mort). Pur, testable — appelé à la fusion
+ *  bot/Jev (game.ts côté prod, partie.mjs côté harnais). */
 export function filtrerMarcheBot(
   ordresBot: Order[],
   garde: Array<{ unitId: string; q: number; r: number }>,
   units: Record<string, Unit>,
   largeur: number,
+  huttes?: ReadonlyArray<{ q: number; r: number }>,
 ): Order[] {
   if (garde.length === 0) return ordresBot;
   const passageDe = new Map(garde.map((g) => [g.unitId, { q: g.q, r: g.r }]));
+  const surHutte = (h: { q: number; r: number }): boolean =>
+    huttes?.some((t) => t.q === h.q && t.r === h.r) ?? false;
   return ordresBot.filter((o) => {
     if (o.type !== 'Move' && o.type !== 'MultiStep') return true;
     const unitId = (o as { unitId: string }).unitId;
@@ -430,6 +485,8 @@ export function filtrerMarcheBot(
     const path = (o as { path: Array<{ q: number; r: number }> }).path ?? [];
     const dest = path[path.length - 1];
     if (!dest) return true; // pas de destination → pas un mouvement évaluable
+    // D2 : entrer dans une hutte n'est jamais un pas arrière (ramassage).
+    if (path.some(surHutte) || surHutte(dest)) return true;
     const dAvant = hexDistanceW({ q: unite.q, r: unite.r }, passage, largeur);
     const dApres = hexDistanceW(dest, passage, largeur);
     return dApres <= dAvant; // assaut/davantage vers le passage : conservé
@@ -1462,6 +1519,22 @@ export function assignerObjectifs(
         .sort((a, b) => dist(state, unit, a) - dist(state, unit, b) || compareCityIds(a.id, b.id))[0];
       if (refuge) {
         objectifs.set(unit.id, { kind: 'repli', cible: { q: refuge.q, r: refuge.r }, cityId: refuge.id });
+        continue;
+      }
+    }
+
+    // HUTTE-EXPLORATION (Erik 04/11) · D1 : la hutte connue à portée de
+    // détour est une cible PRIORITAIRE — l'unité ENTRAÎNE (jamais le
+    // contournement ZWV7T5). Les urgences passent avant (soigner/attaquer/
+    // repli, au-dessus) ; l'armée de campagne NE se disperse PAS (colonne —
+    // le rallié de PRÉPARATION, lui, ramasse : le cas u4) ; le brouillon de
+    // garnison non plus (sa mission est la défense). La case d'exploration
+    // far se re-tire au tour suivant : l'objectif hutte n'est qu'un détour.
+    if (!armee.has(unit.id) && !drafts.has(unit.id)) {
+      const hutte = hutteConnueProche(state, unit, playerId, explorationReservees, profile.hutteDetourMax);
+      if (hutte) {
+        objectifs.set(unit.id, { kind: 'explorer', cible: hutte });
+        explorationReservees.add(`${hutte.q},${hutte.r}`);
         continue;
       }
     }

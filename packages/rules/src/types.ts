@@ -740,6 +740,10 @@ export interface BotProfileData {
   /** BOT-EXPLORATION D3 : rappel immédiat du scout si un camp barbare ou une
    *  unité ennemie est à ≤ ce rayon de la capitale. */
   rayonMenace: number;
+  /** HUTTE-EXPLORATION (Erik 04/11) · D1 : une hutte CONNUE (vision.explored)
+   *  à ≤ ce détour devient une cible d'exploration PRIORITAIRE — l'unité
+   *  entre, jamais contournée (hutte adjacente toujours couverte : dist 1). */
+  hutteDetourMax: number;
   /** BOT-TB · D3 : objectif de recherche du bot — « militaire » (chemin vers
    *  techMilitaireCle), « economique » (techEconomiqueCle) ou « auto »
    *  (chemin le moins cher vers l'ère suivante). */
