@@ -57,6 +57,8 @@
   import Minimap from '../lib/render/Minimap.svelte';
   import { filtresCarte, cycleRendements } from '../lib/filtresCarte.js';
   import UnitPanel from '../components/UnitPanel.svelte';
+  import PropositionArmee from '../components/PropositionArmee.svelte';
+  import { propositionsArmees, type PropositionArmee as PropositionArmeeT } from '../lib/geste-armee.js';
   // MENU-VILLE-QUEUE · D4 : CityView (vue ville zoomée) est DORMANT — plus
   // aucun montage ; le code reste réactivable. Le panneau de ville GAUCHE le
   // remplace au clic simple (D3).
@@ -591,6 +593,29 @@
     // vous se pose au clic gauche pré-vérifié ; pas d'annulation parasite).
     if (get(ui).armyDraft) return;
     handleAction(rightClickAction(get(view), get(ui), hex));
+  }
+
+  // GESTE-ARMEE rév. 2 (retour d'Erik du 04/11) : la proposition AUTOMATIQUE
+  // — ≥ 3 unités du même type programmées pour finir au même endroit (ou déjà
+  // co-localisées) → le jeu demande la formation, refusable ; au-delà de 3,
+  // sélection par clic. Ignorances par clé type|case, expirées au changement
+  // de tour (la clé porte le tour).
+  let propositionsIgnorees = $state<Set<string>>(new Set());
+  const propositionsArmee = $derived.by<PropositionArmeeT[]>(() =>
+    propositionsArmees($view).filter((p) => !propositionsIgnorees.has(cleProposition($view.turn, p))),
+  );
+  function cleProposition(tour: number, p: PropositionArmeeT): string {
+    return `${tour}|${p.type}|${p.rally.q},${p.rally.r}`;
+  }
+  function ignorerPropositionArmee(p: PropositionArmeeT): void {
+    propositionsIgnorees = new Set([...propositionsIgnorees, cleProposition($view.turn, p)]);
+  }
+  function formerArmeeProposee(membres: string[], rally: { q: number; r: number }): void {
+    // Les Move programmés persistent (le FormArmy n'est pas leur sujet) : la
+    // fusion se produit à la résolution quand les trois sont au rendez-vous.
+    const type = $view.state?.units[membres[0]!]?.type ?? '';
+    client.submitOrder({ type: 'FormArmy', members: [membres[0]!, membres[1]!, membres[2]!], rally: { q: rally.q, r: rally.r } });
+    ignorerPropositionArmee({ type, rally, membres: [] });
   }
 
   // ---------------------------------------------------------------------
@@ -1444,6 +1469,12 @@
           casesRapport={casesRapport}
           onRapport={ouvrirRapport}
         />
+        {#if !vueVilleActive && propositionsArmee.length > 0}
+          <!-- GESTE-ARMEE rév. 2 : proposition automatique de formation
+               (≥ 3 unités même type même arrivée) — refusable, sélection
+               par clic au-delà de 3. -->
+          <PropositionArmee propositions={propositionsArmee} onFormer={formerArmeeProposee} onIgnorer={ignorerPropositionArmee} />
+        {/if}
         {#if !vueVilleActive && $view.state}
           <!-- UI-JEU-T1 · D4 : médaillon du dirigeant (droite sous la barre,
                façon Civ VI). Portrait dessiné si la civ en a un, sinon logo

@@ -1,13 +1,31 @@
 # REPORT-GESTE-ARMEE — Le geste joueur : former une armée de 3 unités depuis l'UI
 
-**Livrée 04/11 — mission HANDOFF-GESTE-ARMEE exécutée.** La fusion d'armées existait au
-moteur (R-44 / `packages/rules/src/army.ts`, `processFormArmy` dans turn.ts) et les bots
-l'utilisaient (BOT-ARMEE) ; aucune UI ne créait l'ordre. Le geste CivRev est branché :
-bouton → 2 coéquipiers → rendez-vous → fusion à la résolution → armée définitive jouable.
-**Zéro changement moteur/serveur** — le contrat `FormArmy` existant est consommé tel quel ;
+**Livrée 04/11, RÉV. 2 (retour d'Erik le jour même) — le geste demandé n'est pas un
+geste manuel mais une PROPOSITION AUTOMATIQUE.** Quand ≥ 3 unités amies du même type
+sont programmées pour finir la prochaine résolution sur la MÊME case (ou y sont déjà
+co-localisées — production empilée, garnison), le jeu DEMANDE la formation ; le joueur
+peut refuser (objectif tactique sans fusion). Au-delà de 3, il sélectionne les unités
+en cliquant chacune (chips, exactement 3). Les Move déjà programmés persistent (le
+FormArmy n'est pas leur sujet) : la fusion se produit à la résolution quand les trois
+sont réunies — échec propre R-44 sinon. Le geste manuel par bouton (b3fca04) reste
+disponible pour les convergences lointaines. **Zéro changement moteur/serveur** ;
 `schemaVersion` 28 intacte.
 
-## 1. Ce qui est livré (D1-D3)
+## 0. Rév. 2 — ce qui est livré
+
+- **Helper pur `propositionsArmees(view)`** (geste-armee.ts) : groupes de ≥ 3 unités
+  amies du même type par ARRÊT de la prochaine résolution (`arretProchaineResolution`
+  sur l'ordre frais du jour OU le chemin gelé R-158, sinon la case courante) ;
+  exclusions : armées, membres d'un FormArmy en cours, à bord, navales, ennemies.
+  Déterministe (membres triés par id, propositions par type puis case).
+- **Carte `PropositionArmee.svelte`** au-dessus de la carte : « N Guerriers sont
+  réunis en (q,r) — les convertir en armée ? » ; boutons « ⚔ Former l'armée » /
+  « Non, pas maintenant » ; au-delà de 3, chips cliquables avec compteur (x/3),
+  confirmation à exactement 3. Ignorance par clé tour|type|case (expire au tour).
+- **Confirmation → ordre canon `FormArmy` seul** : les Move programmés restent, la
+  fusion moteur (processFormArmy) fait le reste à la résolution.
+
+## 1. Ce qui était livré en rév. 1 (b3fca04, conservé)
 
 ### D1 — Le geste en 3 temps
 - **Helper pur `apps/web/src/lib/geste-armee.ts`** : `peutFormerArmee` (éligibilité du
@@ -41,42 +59,49 @@ bouton → 2 coéquipiers → rendez-vous → fusion à la résolution → armé
   (somme plafonnée R-31), et reçoit des ordres comme toute unité. Aucun cas `isArmy`
   manquant au panneau ; aucun bouton de scission (canon : définitive).
 
-## 2. Tests FIRST (web) — 18 verts, 5 rouges avant implémentation
+## 2. Tests FIRST (web) — 27 verts geste-armee, suites 751/751
 
-`tests/geste-armee.test.ts` : bouton visible/absent (même type ×3, navale, armée,
-membre FormArmy), candidats (exclusions : type/ennemi/à bord/armée/membre), rendez-vous
-(praticable ×3, eau/inconnue, membre manquant), mode formation via `clickAction`
-(armyPick/none/armyRally/toggle), `mouvementsVersRally` (membre au rendez-vous exclu, à
-bord/mort exclu), `libelleFormation` (0/3, 1/3, coords). Suites AVANT commit :
-**web 742/742** (724 + 18), **svelte-check 0 erreur**.
+`tests/geste-armee.test.ts` (18) : bouton visible/absent, candidats, rendez-vous,
+mode formation via `clickAction`, `mouvementsVersRally`, `libelleFormation`.
+`tests/geste-armee-propositions.test.ts` (9, rév. 2) : co-localisées sans mouvement,
+Move programmés (arrêt ≠ destination), convergence même case, chemin multi-tours
+(l'arrêt compte), exclusions (armée/FormArmy/à bord/ennemi/navire), plus de 3 (toutes
+listées), deux groupes distincts, déterminisme. Suites AVANT commit :
+**web 751/751**, **svelte-check 0 erreur**.
 
-## 3. Captures GUI locales AVANT commit (1280×720, solo vs bots)
+## 3. Captures GUI locales AVANT commit (1280×720, solo vs bots, partie Z55C3M)
 
-`dev-logs/captures-geste-armee/` — script `devtmp/geste-armee-gui.mjs` (partie KPD2KE) :
-1. `1-bouton-former-armee.png` — bouton visible sur le guerrier sélectionné ;
-2. `2-mode-formation-arme.png` — mode armé ;
-3. `3-coequipiers-choisis.png` — chips « guerrier (u6) ✓ / guerrier (u7) ✓ », consigne
-   de rendez-vous ;
-4. `4-rendez-vous-ordre-n3.png` — « Ordre : Formation d'armée — en route vers le
-   rendez-vous (1/3) (-3,20) » ;
-5. `5-armee-formee-jouable.png` — « Guerrier (armée) » sélectionné, chronique
-   « Armée formée près de Ville1 » (tour 15 — fusion 1 tour après le rendez-vous).
+`dev-logs/captures-geste-armee/` — script `devtmp/geste-armee-gui.mjs` (croissance +
+convergence vers la ville pilotées headless par WS, la page n'ouvre que pour le geste) :
+1. `1-proposition-automatique.png` — la carte propose sans AUCUN clic de geste ;
+2. `2-proposition-confirmee.png` — confirmée ;
+3. `5-armee-formee-jouable.png` — « Guerrier (armée) » sélectionné, chronique
+   « Armée formée près de Ville1 » (tour 15 — fusion 1 tour après confirmation).
 
-## 4. Pièges consignés (exécutions 04/11)
+## 4. Pièges consignés (exécutions 04/11, rév. 1 + 2)
 
-1. **Le socket headless ÉVINE la page** (piège 2e socket du même joueur, inversé) : le
-   ws de croissance resté connecté fait que les soumissions de la page partent dans le
-   vide — et l'UI optimiste les affiche quand même (rejet `OrderAck` INVISIBLE :
-   `feedback.ts` ne toast pas FormArmy). Fermer tout socket avant d'ouvrir le navigateur.
-2. **Un socket à demi-mort avale les EndTurn sans erreur** — recréer la connexion
-   inconditionnellement après fermeture de la page.
-3. **Résolution locale figée tant qu'un navigateur tient un socket** — la croissance et
-   la fusion se pilotent headless (WS, `TurnResult` porte l'état résolu — PAS un nouveau
-   Snapshot), le navigateur n'ouvre que pour le geste et la capture.
+1. **LE PIÈGE MAJEUR — double worker et proxy Vite figé 8787** : la page (5174) parle au
+   worker **8787** via le proxy Vite ; un second worker sur 8798 (ws headless + admin)
+   partage le même sqlite mais pas la mémoire DO → ordres acceptés côté page puis
+   « perdus » côté admin/résolution, rejets invisibles, diagnostics fous. TOUT (page,
+   ws headless, admin) doit partager LE MÊME worker. Diagnostics qui ont mené là :
+   socket headless resté connecté évine la page ; socket à demi-mort avale les EndTurn
+   sans erreur ; rejet OrderAck INVISIBLE (FormArmy ne toast pas) ; résolution locale
+   figée tant qu'un navigateur tient un socket → croissance/convergence headless par WS
+   (`TurnResult` porte l'état résolu, PAS un nouveau Snapshot).
+2. **Le moteur ne déplace pas les membres d'un FormArmy** — l'émetteur fournit les Move
+   (bots : botPolicy `converger` ; geste manuel : `mouvementsVersRally` ; proposition
+   automatique : les Move SONT déjà programmés par le joueur — c'est son scénario).
+3. **Troncature R-159** : deux amies co-destinataires d'une case ordinaire sans menace
+   ennemie sont tronquées (l'une s'arrête avant) — le scénario de convergence vers une
+   case quelconque ne « réussit » pas sans le FormArmy ; la garnison de ville accepte la
+   co-location (et le FormArmy soumis exempte tout le groupe, R-44). La détection
+   client, elle, lit les arrêts PROGRAMMÉS — la carte apparaît avant la résolution,
+   exactement le flux demandé par Erik.
 4. **FIN-DE-TOUR-PRODUCTION** : après la 3e unité produite, la ville à marteaux sans
    production bloque le EndTurn (« sélectionnez une production ») — réarmer Guerrier.
-5. **Le moteur ne déplace pas les membres d'un FormArmy** — c'est l'émetteur qui fournit
-   les Move (bots : botPolicy `converger` ; joueur : `mouvementsVersRally`).
+5. Monde cylindrique : q négatif est VALIDE (E↔O) — un filtrage de bornes `[0, W)` sur
+   q casse toute l'adjacence à l'Ouest de la couture (2 exécutions perdues).
 6. Le polling admin trop serré étrangle le DO local (mémoire e2e-tours-long, confirmée).
 
 ## 5. Intouchés respectés

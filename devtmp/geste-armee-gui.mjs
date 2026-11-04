@@ -18,7 +18,7 @@ import * as fs from 'node:fs';
 const require = createRequire('C:/Users/Erik/ZCodeProject/desktop/package.json');
 const { chromium } = require('playwright-core');
 
-const PORTW = process.argv[2] ?? '8798';
+const PORTW = process.argv[2] ?? '8787'; // PIÈGE : le proxy Vite (5174) vise 8787 — la page, les ws et l'admin doivent partager LE MÊME worker, sinon ordres perdus (mémoires DO séparées).
 // Piège connu (mémoire serveurs-locaux-dev) : Vite est FIXÉ au port 5174.
 const PORTG = '5174';
 const BASE = `http://127.0.0.1:${PORTW}`;
@@ -43,7 +43,7 @@ async function demarrerWrangler() {
   wrangler = spawn('npx', ['wrangler', 'dev', '--port', PORTW, '--local'], {
     cwd: 'C:/Users/Erik/ZCodeProject/apps/server',
     shell: true,
-    stdio: 'ignore',
+    stdio: ['ignore', fs.openSync('C:/Users/Erik/ZCodeProject/devtmp/wrangler-geste.log', 'w'), fs.openSync('C:/Users/Erik/ZCodeProject/devtmp/wrangler-geste.err.log', 'w')],
   });
   for (let i = 0; i < 60; i++) {
     await sleep(1000);
@@ -147,21 +147,108 @@ async function croissanceHeadless(ws, etatInitial) {
 }
 
 /** Fin de tour headless jusqu'à ce qu'un prédicat soit vrai sur l'état. */
-async function toursJusqua(ws, etat, predicat, tours, label) {
-  for (let i = 0; i < tours; i++) {
-    if (predicat(etat)) return etat;
-    // FIN-DE-TOUR-PRODUCTION : toute ville p1 à marteaux sans production
-    // bloque le EndTurn (rejet « sélectionnez une production ») — on arme
-    // Guerrier avant de verrouiller.
-    for (const ville of Object.values(etat.cities ?? {}).filter((c) => c.owner === 'p1')) {
-      if (!ville.production) {
-        ws.send({ proto: 1, type: 'SubmitOrder', order: { type: 'SetProduction', cityId: ville.id, item: { kind: 'unit', id: 'guerrier' } } });
+async function endTurnHeadless(ws, etat) {
+  // FIN-DE-TOUR-PRODUCTION : toute ville p1 à marteaux sans production
+  // bloque le EndTurn — on arme Guerrier avant de verrouiller.
+  for (const ville of Object.values(etat.cities ?? {}).filter((c) => c.owner === 'p1')) {
+    if (!ville.production) {
+      ws.send({ proto: 1, type: 'SubmitOrder', order: { type: 'SetProduction', cityId: ville.id, item: { kind: 'unit', id: 'guerrier' } } });
+      await ws.waitFor('OrderAck');
+    }
+  }
+  ws.send({ proto: 1, type: 'EndTurn' });
+  const resultat = await ws.waitFor('TurnResult');
+  return resultat.state;
+}
+
+// BFS terrestre (passable engine : terrains passables, unités contournées) —
+// miroir simplifié de pathTo client, suffisant pour la convergence de mise
+// en scène. Retourne le chemin SANS l'origine, ou null.
+function voisinsHex(h, W, H) {
+  // Monde cylindrique E↔O : q boucle (négatif valide), r borné.
+  return [[h[0] + 1, h[1]], [h[0] - 1, h[1]], [h[0], h[1] + 1], [h[0], h[1] - 1], [h[0] + 1, h[1] - 1], [h[0] - 1, h[1] + 1]]
+    .filter(([, r]) => r >= 0 && r < H);
+}
+function bfsChemin(state, from, to) {
+  const W = state.mapWidth, H = state.mapHeight;
+  const tile = (q, r) => state.map[`${q},${r}`];
+  const passable = (q, r) => {
+    const t = tile(q, r);
+    return !!t && t.terrain !== 'eau' && t.terrain !== 'ocean' && t.terrain !== 'montagne';
+  };
+  const occupé = (q, r) => unitesP1(state).some((u) => u.q === q && u.r === r) || unitesP1(state).length < 0; // unités contournées
+  const debut = [from.q, from.r], but = [to.q, to.r];
+  if (debut[0] === but[0] && debut[1] === but[1]) return [];
+  const came = new Map([[debut.join(','), null]]);
+  const file = [debut];
+  while (file.length) {
+    const cur = file.shift();
+    for (const n of voisinsHex(cur, W, H)) {
+      const k = n.join(',');
+      if (came.has(k)) continue;
+      const estBut = n[0] === but[0] && n[1] === but[1];
+      if (!estBut && (!passable(n[0], n[1]) || occupé(n[0], n[1]))) continue;
+      came.set(k, cur.join(','));
+      if (estBut) {
+        const chemin = [];
+        let c = k;
+        while (c && c !== debut.join(',')) {
+          const [q, r] = c.split(',').map(Number);
+          chemin.unshift({ q, r });
+          c = came.get(c);
+        }
+        return chemin;
+      }
+      file.push(n);
+    }
+  }
+  return null;
+}
+
+/**
+ * GESTE-ARMEE rév. 2 — convergence vers la VILLE (la garnison autorise la
+ * co-location ; une case ordinaire tronquerait les co-destinations amies,
+ * R-159) : chaque guerrier marche vers la ville ; quand tous sont adjacents
+ * ou dessus, les Move finaux vers la ville sont soumis SANS EndTurn — les
+ * ordres persistent, la page ouverte ensuite montre la carte de proposition.
+ */
+async function convergerVersVille(ws, etatInitial) {
+  let etat = etatInitial;
+  const ville = villeP1(etat);
+  if (!ville) throw new Error('ville absente pour la convergence');
+  const rally = { q: ville.q, r: ville.r };
+  for (let i = 0; i < 25; i++) {
+    const gs = unitesP1(etat).filter((u) => u.type === 'guerrier');
+    const hors = gs.filter((u) => !(u.q === rally.q && u.r === rally.r));
+    const adjacenteOuSur = (u) => u.q === rally.q && u.r === rally.r
+      || voisinsHex([u.q, u.r], etat.mapWidth, etat.mapHeight).some(([q, r]) => q === rally.q && r === rally.r);
+    console.log(`[conv-diag] tour ${etat.turn} hors=${hors.length} ${hors.map((u) => `${u.id}(${u.q},${u.r})${adjacenteOuSur(u) ? '✓' : '✗'}`).join(' ')}`);
+    if (hors.every(adjacenteOuSur)) {
+      for (const u of hors) {
+        ws.send({ proto: 1, type: 'SubmitOrder', order: { type: 'Move', unitId: u.id, path: [rally] } });
+        await ws.waitFor('OrderAck');
+      }
+      console.log(`[convergence] Move finaux soumis (tour ${etat.turn}) — ${hors.length} unités`);
+      return etat;
+    }
+    for (const u of hors) {
+      const chemin = bfsChemin(etat, u, rally);
+      if (chemin && chemin.length > 0) {
+        ws.send({ proto: 1, type: 'SubmitOrder', order: { type: 'Move', unitId: u.id, path: [chemin[0]] } });
         await ws.waitFor('OrderAck');
       }
     }
-    ws.send({ proto: 1, type: 'EndTurn' });
-    const resultat = await ws.waitFor('TurnResult');
-    etat = resultat.state;
+    etat = await endTurnHeadless(ws, etat);
+    console.log(`[convergence] tour ${etat.turn}`);
+  }
+  throw new Error('convergence non aboutie en 25 tours');
+}
+
+/** Fin de tour headless jusqu'à ce qu'un prédicat soit vrai sur l'état. */
+async function toursJusqua(ws, etat, predicat, tours, label) {
+  for (let i = 0; i < tours; i++) {
+    if (predicat(etat)) return etat;
+    etat = await endTurnHeadless(ws, etat);
     console.log(`[tour] ${label} — tour ${etat.turn}`);
   }
   throw new Error(`${label} non atteint en ${tours} tours`);
@@ -190,71 +277,43 @@ try {
   const { etat: etatFin, guerriers } = await croissanceHeadless(ws, premier.state);
   console.log(`[croissance] OK — ${guerriers.length} guerriers p1 (tour ${etatFin.turn})`);
 
+  // Convergence vers la ville (garnison = co-location légale), Move finaux
+  // soumis SANS EndTurn : la carte de proposition doit apparaître à l'ouverture.
+  const etatConvergence = await convergerVersVille(ws, etatFin);
+
   // Piège (exécutions 04/11) : le socket headless qui reste connecté ÉVINE
   // la page (2e socket du même joueur) — les soumissions de la page partent
   // alors dans le vide. Fermeture AVANT d'ouvrir le navigateur.
   ws.close();
 
-  // Le geste : navigateur 1280×720 (1280×720 — piège connu).
+  // Navigateur 1280×720 (piège connu).
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
   await ctx.addCookies([{ name: 'session', value: token, url: GUI }]);
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-  page.on('console', (m) => { if (m.text().startsWith('[geste-diag]')) console.log('[page]', m.text()); });
   await page.goto(`${GUI}/#/game/${code}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!window.__game, null, { timeout: 30000 });
   await sleep(3000);
 
-  async function clicHex(q, r) {
-    await page.evaluate(([qq, rr]) => window.__game.clickHex(qq, rr), [q, r]);
-    await sleep(600);
-  }
+  // GESTE-ARMEE rév. 2 : la PROPOSITION automatique — les 3 guerriers
+  // produits sont co-localisés (production de la capitale) : la carte doit
+  // proposer la formation sans aucun clic de geste.
+  const carte = page.locator('.prop-armee');
+  if (!(await carte.isVisible().catch(() => false))) throw new Error('carte de proposition absente (3 guerriers co-localisés attendus)');
+  const texte = (await carte.textContent()) ?? '';
+  console.log('[proposition]', texte.replace(/\s+/g, ' ').trim());
+  await page.screenshot({ path: `${CAP}/1-proposition-automatique.png` });
 
-  const [chef, c1, c2] = guerriers;
-  await clicHex(chef.q, chef.r);
-  const bouton = page.locator('button', { hasText: 'Former une armée' }).first();
-  if (!(await bouton.isVisible().catch(() => false))) throw new Error('bouton « Former une armée » invisible (conditions D1 non réunies ?)');
-  await page.screenshot({ path: `${CAP}/1-bouton-former-armee.png` });
-  await bouton.click();
-  await sleep(500);
-  await page.screenshot({ path: `${CAP}/2-mode-formation-arme.png` });
-
-  await clicHex(c1.q, c1.r);
-  const note1 = await page.locator('.armee-note').textContent().catch(() => '');
-  console.log('[geste] après clic c1 :', (note1 ?? '').trim());
-  if (c1.q === c2.q && c1.r === c2.r) {
-    // Candidats EMPILÉS (production de la capitale) : le re-clic carte toggle
-    // le premier choisi — le second se choisit par la chip du panneau.
-    const chip = page.locator('.btns button', { hasText: `+ ${c2.type} (${c2.id})` }).first();
-    if (!(await chip.isVisible().catch(() => false))) throw new Error(`chip candidat ${c2.id} invisible`);
-    await chip.click();
-    await sleep(500);
-  } else {
-    await clicHex(c2.q, c2.r);
-  }
-  const note = await page.locator('.armee-note').textContent().catch(() => '');
-  if (!note || !note.includes('complets')) {
-    const sonde = await page.evaluate(() => {
-      const s = window.__game.sondePile?.() ?? {};
-      return { myId: s.myId, positions: Object.keys(s.positions ?? {}) };
-    });
-    console.log('[diag] sondePile :', JSON.stringify(sonde), '— chef', chef.id, `(${chef.q},${chef.r})`, 'c1', c1.id, `(${c1.q},${c1.r})`, 'c2', c2.id, `(${c2.q},${c2.r})`);
-    throw new Error(`coéquipiers non retenus : ${note}`);
-  }
-  console.log('[geste] 2 coéquipiers choisis');
-  await page.screenshot({ path: `${CAP}/3-coequipiers-choisis.png` });
-
-  // Rendez-vous : la case du chef (praticable par les trois par construction
-  // du geste — le panneau pré-vérifie, le serveur tranche).
-  await clicHex(chef.q, chef.r);
-  const ordre = await page.locator('.order').textContent().catch(() => '');
-  if (!ordre || !ordre.includes("Formation d'armée")) throw new Error(`ordre FormArmy absent du panneau : ${ordre}`);
-  console.log('[geste] rendez-vous posé :', ordre.trim());
-  await page.screenshot({ path: `${CAP}/4-rendez-vous-ordre-n3.png` });
-  const dumpOrdres = await dumpFull(code);
-  console.log('[diag] ordres p1 :', JSON.stringify(dumpOrdres.orders?.p1 ?? []));
-  console.log('[diag] net chip :', await page.locator('.bar-dev .net').textContent().catch(() => '?'), '— page URL ok');
+  // Confirmation → FormArmy soumis (les unités sont déjà au rendez-vous).
+  await carte.locator('button', { hasText: "Former l'armée" }).first().click();
+  await sleep(600);
+  if (await carte.isVisible().catch(() => false)) throw new Error('carte toujours visible après confirmation');
+  console.log('[geste] proposition confirmée — FormArmy soumis');
+  await sleep(2000);
+  const dumpConfirm = await dumpFull(code);
+  console.log('[diag] ordres p1 après confirmation :', JSON.stringify(dumpConfirm.orders?.p1 ?? []));
+  await page.screenshot({ path: `${CAP}/2-proposition-confirmee.png` });
 
   // Résolution : la page est FERMÉE (piège de l'exécution 04/11 — le DO ne
   // résout quasiment plus tant qu'un navigateur tient un socket). La page a
@@ -271,8 +330,7 @@ try {
   await wsFin.waitFor('Welcome');
   const snapFin = await wsFin.waitFor('Snapshot');
   const etatCourant = snapFin.state;
-  const tourAvant = etatCourant.turn;
-  const etatFinal = await toursJusqua(
+  const tourAvant = etatCourant.turn;  const etatFinal = await toursJusqua(
     wsFin, etatCourant,
     (s) => unitesP1(s).some((u) => u.isArmy),
     6, 'fusion armée',

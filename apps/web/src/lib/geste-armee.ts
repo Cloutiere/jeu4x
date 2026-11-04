@@ -9,11 +9,11 @@
  * D4 : zéro logique de fusion ici — le contrat moteur (3 membres, co-location
  * R-44, fusion à la résolution) n'est PAS dupliqué.
  */
-import { unitType } from '@game/rules';
+import { unitType, tileKeyOf } from '@game/rules';
 import type { GameState, Hex } from '@game/rules';
 import type { Order, UnitId } from '@game/shared';
 import type { GameView } from './gameClient.js';
-import { enterableKnown, myEngineId, ordersEditable, passableKnown, pathTo, unitAtHex } from './render/interaction.js';
+import { arretProchaineResolution, enterableKnown, myEngineId, ordersEditable, passableKnown, pathTo, unitAtHex } from './render/interaction.js';
 
 /** Le joueur a-t-il déjà posé un FormArmy porté par cette unité ce tour ? */
 export function estMembreFormArmy(view: GameView, unitId: UnitId): boolean {
@@ -89,6 +89,73 @@ export function rallyValide(
     if (m.q === hex.q && m.r === hex.r) return true;
     return pathTo(state, m, hex) !== null;
   });
+}
+
+/**
+ * GESTE-ARMEE rév. 2 (retour d'Erik du 04/11) — la proposition AUTOMATIQUE.
+ * Groupes de ≥ 3 unités amies du même type dont l'ARRÊT de la prochaine
+ * résolution coïncide (programmées vers la même case OU déjà co-localisées) :
+ * le jeu propose la formation — refusable (objectif tactique sans fusion).
+ * Au-delà de 3, le joueur sélectionne les unités en cliquant chacune.
+ * Exclusions : armées (définitives), membres d'un FormArmy en cours, à bord,
+ * navales (fusion navale au backlog), ennemies. Pur, testé.
+ *
+ * Arrêt = `arretProchaineResolution` sur le chemin (ordre frais du jour OU
+ * chemin gelé R-158), sinon la case courante. rally = la case d'arrêt
+ * commune ; la fusion moteur (processFormArmy) la confirmera si les membres
+ * y sont tous à la résolution — sinon échec propre R-44.
+ */
+export interface PropositionArmee {
+  type: string;
+  rally: Hex;
+  /** Membres triés par id (déterminisme R-81). */
+  membres: UnitId[];
+}
+
+/** Arrêt de la prochaine résolution d'une unité (ordre frais → gelé → case courante). */
+function arretUnite(state: GameState, view: GameView, u: NonNullable<GameView['state']>['units'][UnitId]): Hex {
+  const frais = view.orders.find(
+    (o) => 'unitId' in o && o.unitId === u.id && (o.type === 'Move' || o.type === 'MultiStep'),
+  ) as { path: Hex[] } | undefined;
+  const gele =
+    u.order && (u.order.type === 'Move' || u.order.type === 'MultiStep') ? u.order.path : [];
+  const path = frais ? frais.path : gele;
+  if (path.length > 0) {
+    return arretProchaineResolution(path, unitType(u.type).movement) ?? { q: u.q, r: u.r };
+  }
+  return { q: u.q, r: u.r };
+}
+
+export function propositionsArmees(view: GameView): PropositionArmee[] {
+  const state = view.state;
+  const myId = myEngineId(view);
+  if (!state || !myId) return [];
+  // Un FormArmy en cours retire ses membres du classement (déjà programmés).
+  const dejaProgrammes = new Set<UnitId>();
+  for (const o of view.orders) {
+    if (o.type === 'FormArmy') for (const m of o.members) dejaProgrammes.add(m);
+  }
+  const groupes = new Map<string, UnitId[]>();
+  for (const u of Object.values(state.units)) {
+    if (u.owner !== myId || u.aboard || u.isArmy) continue;
+    if (unitType(u.type).aquatic) continue;
+    if (dejaProgrammes.has(u.id)) continue;
+    const arret = arretUnite(state, view, u);
+    const key = `${u.type}|${tileKeyOf(arret)}`;
+    const g = groupes.get(key);
+    if (g) g.push(u.id);
+    else groupes.set(key, [u.id]);
+  }
+  const out: PropositionArmee[] = [];
+  for (const [key, membres] of groupes) {
+    if (membres.length < 3) continue;
+    membres.sort();
+    const [type, caseKey] = key.split('|');
+    const [q, r] = caseKey!.split(',').map(Number);
+    out.push({ type: type!, rally: { q: q!, r: r! }, membres });
+  }
+  out.sort((a, b) => a.type.localeCompare(b.type) || a.rally.q - b.rally.q || a.rally.r - b.rally.r);
+  return out;
 }
 
 /**
