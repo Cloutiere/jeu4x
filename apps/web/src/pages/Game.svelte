@@ -38,6 +38,8 @@
   import HudPerf from '../components/HudPerf.svelte';
   // FULLSCREEN-PERF · L2 (c) : curseur « Qualité de rendu » (calque dev).
   import { QUALITES, changerQualiteRendu, qualiteDepuisValeur, qualiteRendu } from '../lib/qualiteRendu.js';
+  // GODMODE-BOUTON (Erik 04/11) : garde de visibilité + reconnaissance du chord.
+  import { autreHumainPresent, actionGodMode } from '../lib/godmode.js';
   import { createGameClient } from '../lib/gameClient.js';
   import type { GameClient, GameView } from '../lib/gameClient.js';
   import { createUiState, selectNothing, createVueVille } from '../lib/render/ui.js';
@@ -153,27 +155,33 @@
         break;
     }
   }
-  // GOD-MODE (décisions d'Erik du 22/10, D3) : combo Ctrl+J puis W (chord —
+  // GOD-MODE (décisions d'Erik du 22/10, D3) : combo Ctrl+J puis G (chord —
   // deux touches simultanées étant impossibles) bascule la révélation
   // complète de la carte. Gardes habituelles : jamais pendant une saisie
   // texte ; partie active requise. Le client n'active JAMAIS localement :
   // le serveur confirme par le Snapshot (`godMode` — refus si un autre
-  // humain participe, D1).
+  // humain participe, D1). GODMODE-BOUTON (Erik 04/11, D2) : l'ancien
+  // second doigt W est RETIRÉ — Ctrl+W ferme l'onglet en navigateur ;
+  // G = god. Le bouton « God mode » de la barre DEV appelle la MÊME bascule.
   let godModeArme = 0;
+  function basculerGodMode(): void {
+    const v = get(view);
+    if (!v.state || v.status !== 'active') return;
+    client.toggleGodMode(!v.godMode);
+  }
   function raccourciGodMode(e: KeyboardEvent): void {
     const cible = e.target as HTMLElement | null;
     if (cible && (cible.tagName === 'INPUT' || cible.tagName === 'TEXTAREA' || cible.tagName === 'SELECT' || cible.isContentEditable)) return;
-    if (e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'j') {
+    const action = actionGodMode(e.key.toLowerCase(), e.ctrlKey, e.altKey, e.metaKey, godModeArme, Date.now());
+    if (action === 'armer') {
       godModeArme = Date.now();
       e.preventDefault();
       return;
     }
-    if (e.key.toLowerCase() === 'w' && godModeArme > 0 && Date.now() - godModeArme < 1500) {
+    if (action === 'basculer') {
       godModeArme = 0;
-      const v = get(view);
-      if (!v.state || v.status !== 'active') return;
       e.preventDefault();
-      client.toggleGodMode(!v.godMode);
+      basculerGodMode();
     }
   }
   // D7 : une partie = une Chronique persistante (charge à l'entrée, purge le
@@ -1278,7 +1286,7 @@
       {#if $view.godMode}
         <!-- GOD-MODE (Erik 22/10, D3) : bandeau discret tant que la révélation
              est active — or-sur-sombre, piloté par l'état serveur. -->
-        <span class="godmode" title="GOD MODE — carte entièrement révélée (Ctrl+J puis W pour basculer)">GOD MODE</span>
+        <span class="godmode" title="GOD MODE — carte entièrement révélée (bouton God mode ou Ctrl+J puis G pour basculer)">GOD MODE</span>
       {/if}
       {#if vueVilleActive}<span class="chip">Vue ville — Échap ou double-clic hors de la ville pour sortir</span>{/if}
     </div>
@@ -1315,6 +1323,17 @@
           <span class="net net-{$status}">{$status}</span>
           {#if $view.locked}<span class="chip locked">Verrouillé</span>{/if}
           <button type="button" onclick={() => client.resync()}>Resync</button>
+          {#if $view.state && !autreHumainPresent($view.players, $view.playerId)}
+            <!-- GODMODE-BOUTON (Erik 04/11, D1/D3) : la MÊME bascule que le
+                 chord Ctrl+J→G, visible solo/bots uniquement (garde miroir du
+                 refus serveur — le serveur tranche en dernier ressort). -->
+            <button
+              type="button"
+              class:active-toggle={$view.godMode}
+              title="God mode — carte entièrement révélée (solo/bots uniquement). Raccourci : Ctrl+J puis G"
+              onclick={basculerGodMode}
+            >God mode</button>
+          {/if}
           <!-- UI-JEU-T3 · D4 : le bouton « Rendements » a migré dans le panneau
                de filtres au-dessus de la minimap (store persistant filtresCarte). -->
           {#if config.rendu3d}
@@ -1899,6 +1918,12 @@
   }
   /* FULLSCREEN-PERF · L2 (c) — curseur Qualité de rendu (calque dev). */
   .qualite { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--texte-doux, #b6ad93); }
+  /* GODMODE-BOUTON (Erik 04/11, D1) — état ACTIF du bouton God mode
+     (miroir de l'engrenage actif ; vaut aussi pour le bouton 3D du calque). */
+  .bar-dev .active-toggle {
+    color: var(--or-clair, #e8c96a); background: rgba(201, 162, 39, 0.18);
+    border-color: var(--or, #c9a227); box-shadow: 0 0 8px rgba(201, 162, 39, 0.35);
+  }
   .qualite select {
     background: #1f2a33; color: var(--texte, #e9e4d3); border: 1px solid #3c4a55;
     border-radius: 6px; padding: 0.05rem 0.3rem; font: inherit; cursor: pointer;
