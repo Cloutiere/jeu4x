@@ -9,7 +9,7 @@
  * vers /art/icone_unite_<type>.png ; l'ABSENCE du PNG est l'état « initiale
  * en repli » (aucun trou visuel — D1).
  */
-import type { ProductionItem } from '@game/rules';
+import { ARMY_SIZE, type ProductionItem } from '@game/rules';
 
 /** R-148 · ALIAS des unités uniques (source partagée avec textures.ts) :
  *  chaque unique sans art dédiée rend le sprite — ici l'ICÔNE — de l'unité
@@ -150,6 +150,46 @@ export function geometrieBarre(avecIcone: boolean): {
     largeurInterieure: interieure,
     largeurCellule: (interieure - 2 * 3) / 3, // 3 cellules, 2 encoches de 3 (historique)
   };
+}
+
+/** VISUEL-ARMEE (décision Erik 05/11) — une armée se voit : 3 fois l'icône
+ *  de l'unité sur une PREMIÈRE ligne de la bannière, barre de vie en
+ *  dessous. L'asset de l'unité reste INTOUCHÉ — rendu pur, zéro logique.
+ *  Constantes de calibrage (éditables à l'œil SANS code, motif ICONES_UNITES). */
+export const ARMEE_BANNIERE = {
+  /** Une icône par membre (armée pleine = 3). */
+  nombreIcones: 3,
+  /** Côté du mini carré (comme le carré simple, liseré inclus au dessin). */
+  cote: 18,
+  /** Gap entre carrés. */
+  gap: 4,
+  /** Taille de l'icône posée dans le carré. */
+  tailleIcone: 14,
+  /** Distance (px) entre le SOMMET de la barre et l'AXE vertical de la
+   *  rangée d'icônes — la rangée flotte au-dessus de la barre, sans la
+   *  toucher (carré 18 → bas de rangée à sommet−2). */
+  ecartAxe: 11,
+} as const;
+
+/** Géométrie de la rangée de 3 mini-icônes d'armée — positions x relatives
+ *  au centre de l'unité (repère du conteneur), rangée CENTRÉE, emprise
+ *  ≤ largeurTotale (80). Pur, testé. */
+export function geometrieIconesArmee(): { xs: number[]; cote: number; tailleIcone: number; ecartAxe: number } {
+  const { nombreIcones, cote, gap, tailleIcone, ecartAxe } = ARMEE_BANNIERE;
+  const total = nombreIcones * cote + (nombreIcones - 1) * gap;
+  const x0 = -total / 2;
+  const xs = Array.from({ length: nombreIcones }, (_, i) => x0 + i * (cote + gap));
+  return { xs, cote, tailleIcone, ecartAxe };
+}
+
+/** VISUEL-ARMEE · D3 — plafond de PV AFFICHÉ : une armée porte
+ *  ARMY_SIZE × hpMax (9 pour une unité à 3 vies — turn.ts : PV ≤ 9) alors
+ *  que `unitType(type).hpMax` reste celui du premier membre (3). Sans ce
+ *  plafond, le ratio côté affichage s'écrase à 1 : une armée blessée
+ *  montrait une barre PLEINE. Correction CÔTÉ AFFICHAGE seulement (D4 :
+ *  moteur intouché). Pur, testé. */
+export function pvMaxAffiche(hpMax: number, isArmy: boolean): number {
+  return isArmy ? ARMY_SIZE * hpMax : hpMax;
 }
 
 /** D3 — état d'affichage GARNISON d'une unité posée sur une case de ville

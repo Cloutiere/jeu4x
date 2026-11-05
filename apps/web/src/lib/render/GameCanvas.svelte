@@ -38,7 +38,7 @@
   import { BANDE_VILLE, construireBanniere, etaProductionBanniere, lignesTooltipCroissance, lignesTooltipPopulation, lignesTooltipProduction, rectBanniereLocale, rectZoneCroissanceLocale, rectZonePopLocale, rectZoneProductionLocale, seuilCroissanceVille, toursCroissanceBanniere } from './bande-ville.js';
   import type { DetailTooltip } from './bande-ville.js';
   // ICONES-UNITES (décisions Erik 07/10) : mapping pur (D1/D2/D3/D4).
-  import { ICONES_UNITES, geometrieBarre, iconeBannierePour, modeGarnison, nomIconeBatiment, nomIconeMerveille, nomIconeUnite, typeBaseIcone } from './icones-unites.js';
+  import { ARMEE_BANNIERE, ICONES_UNITES, geometrieBarre, geometrieIconesArmee, iconeBannierePour, modeGarnison, nomIconeBatiment, nomIconeMerveille, nomIconeUnite, pvMaxAffiche, typeBaseIcone } from './icones-unites.js';
   import { flipUnite, faceGaucheAffichee } from './orientation-unites.js';
   import { cleSpriteVille, ERRES_VILLE, type EraVille } from './sprites-villes.js';
   import { logosNation, nationDe } from '../nations.js';
@@ -932,8 +932,15 @@
       if (!scene.visible.has(key)) continue; // ennemi hors vision : absent de l'état de toute façon
       seenUnits.add(unit.id);
       let c = unitSprites.get(unit.id);
-      if (!c) {
-        c = buildUnitContainer(unit.id, unit.type, unit.owner);
+      // VISUEL-ARMEE : la bannière 3 icônes est POSÉE AU BUILD (isArmy) —
+      // une armée étant une unité NOUVELLE (fusion R-44, nextId) le flag ne
+      // bascule jamais en place ; le garde reconstruit proprement si jamais.
+      if (!c || (c as Container & { __estArmee?: boolean }).__estArmee !== !!unit.isArmy) {
+        if (c) {
+          entitiesLayer.removeChild(c);
+          c.destroy({ children: true });
+        }
+        c = buildUnitContainer(unit.id, unit.type, unit.owner, !!unit.isArmy);
         entitiesLayer.addChild(c);
         unitSprites.set(unit.id, c);
       }
@@ -1038,7 +1045,11 @@
       }
       // PV (override de combat pendant le playback).
       const hp = playback.hpOf(unit.id, unit.hp);
-      const ratio = Math.max(0, Math.min(1, hp / unitType(unit.type).hpMax));
+      // VISUEL-ARMEE · D3 : une armée porte ARMY_SIZE × hpMax (9) alors que
+      // unitType(type).hpMax reste 3 (celui du premier membre) — sans le
+      // plafond armée, le ratio s'écrase à 1 et une armée blessée montrait
+      // une barre PLEINE. Chaque bloc ≈ un membre (5/9 → ~1,7 blocs).
+      const ratio = Math.max(0, Math.min(1, hp / pvMaxAffiche(unitType(unit.type).hpMax, unit.isArmy)));
       // PROTO-3-VIES : un compartiment par vie — chaque cellule est pleine
       // si sa vie est acquise, partiellement remplie pour la vie en cours.
       // ICONES-UNITES (D2) : la géométrie suit la présence d'icône (barre
@@ -1066,6 +1077,17 @@
         iconeFond.visible = true;
         iconeImg.visible = true;
         iconeFond.tint = playerColor(unit.owner);
+      }
+      // VISUEL-ARMEE : les 3 mini-icônes d'armée s'affichent ssi isArmy
+      // (l'unité simple garde exactement son carré — contraste 1 vs 3).
+      for (let i = 0; i < ARMEE_BANNIERE.nombreIcones; i++) {
+        const fondArmee = c.getChildByLabel(`iconeArmeeFond${i}`) as Graphics | null;
+        const imgArmee = c.getChildByLabel(`iconeArmee${i}`) as Sprite | null;
+        if (fondArmee) {
+          fondArmee.visible = unit.isArmy;
+          fondArmee.tint = playerColor(unit.owner);
+        }
+        if (imgArmee) imgArmee.visible = unit.isArmy;
       }
       // ICONES-UNITES (D3) : badge de pile « ×N » porté par la première
       // unité garnisonnée ; GARNISON-SELECTION : le porteur garde son badge
@@ -1096,7 +1118,7 @@
           Object.values(state.cities).some((c) => c.q === unit.q && c.r === unit.r);
       }
       // CARTE-RONDE T2 (D2) : copies d'affichage au voisinage de la couture.
-      gererCopies(unitCopies, c, unit.id, () => buildUnitContainer(unit.id, unit.type, unit.owner), vusCopiesUnits);
+      gererCopies(unitCopies, c, unit.id, () => buildUnitContainer(unit.id, unit.type, unit.owner, !!unit.isArmy), vusCopiesUnits);
     }
     for (const [id, c] of unitSprites) {
       if (!seenUnits.has(id)) {
@@ -1432,8 +1454,10 @@
     prunerCopies(artefactCopies, vusCopiesArtefacts);
   }
 
-  function buildUnitContainer(unitId: string, type: string, owner: string): Container {
-    const c = new Container();
+  function buildUnitContainer(unitId: string, type: string, owner: string, estArmee = false): Container {
+    const c = new Container() as Container & { __estArmee?: boolean };
+    // VISUEL-ARMEE : mémorisé pour le garde de rebuild (rebuildEntities).
+    c.__estArmee = estArmee;
     // R-95 (Phase 7d) : les unités barbares ont leurs propres sprites
     // (`barbare_<type>`, accent de repli = rouge sang de la palette accents.json).
     const tex =
@@ -1463,8 +1487,11 @@
     // ICONES-UNITES (D2/D4) : icône du type si l'art est chargée — la barre
     // cède carré+gap (géométrie pure geometrieBarre, largeur totale
     // invariante) ; sans art : géométrie historique, initiale en repli.
+    // VISUEL-ARMEE (Erik 05/11) : une ARMÉE ne prend PAS le carré latéral —
+    // ses 3 mini-icônes vivent sur leur propre ligne AU-DESSUS de la barre,
+    // qui reprend la géométrie historique PLEINE (fond 80).
     const texIcone = textures!.iconesUnites?.[typeBaseIcone(type)] ?? null;
-    const geo = geometrieBarre(!!texIcone);
+    const geo = geometrieBarre(!!texIcone && !estArmee);
     let base: Sprite;
     let accent: Sprite | null = null;
     if (cuite) {
@@ -1519,7 +1546,7 @@
     // ICONES-UNITES (D2) : carré à l'accent de civilisation À GAUCHE de la
     // barre (fond sombre + liseré blanc teinté joueur au rebuild), icône
     // d'Erik posée dedans. Masqués par défaut — le rebuild les affiche.
-    if (texIcone) {
+    if (texIcone && !estArmee) {
       const ligne = sommet + 4; // axe vertical de la rangée (barre sommet−1 → +9)
       const carre = new Graphics();
       carre.label = 'iconeFond';
@@ -1535,6 +1562,33 @@
       img.scale.set(ICONES_UNITES.tailleIcone / Math.max(1, texIcone.width, texIcone.height));
       img.visible = false;
       c.addChild(carre, img);
+    }
+    // VISUEL-ARMEE (décision Erik 05/11) : 3 fois l'icône de l'unité sur une
+    // PREMIÈRE ligne, barre de vie en dessous — le contraste 1 vs 3 est le
+    // signal (D2). Asset unité INTOUCHÉ ; rendu pur. Masqués par défaut —
+    // la boucle de rendu les affiche ssi isArmy (labels iconeArmeeFond{i}/
+    // iconeArmee{i}). Icône quasi symétrique : pas de flip (consigné, motif
+    // ORIENTATION-UNITES).
+    if (texIcone && estArmee) {
+      const g = geometrieIconesArmee();
+      const axe = sommet - 1 - g.ecartAxe; // AU-DESSUS du sommet de la barre
+      for (let i = 0; i < g.xs.length; i++) {
+        const x = g.xs[i]!;
+        const carreA = new Graphics();
+        carreA.label = `iconeArmeeFond${i}`;
+        carreA
+          .roundRect(x, axe - g.cote / 2, g.cote, g.cote, 4)
+          .fill({ color: 0x1b1b22 })
+          .stroke({ width: ICONES_UNITES.liserCarre, color: 0xffffff });
+        carreA.visible = false;
+        const imgA = new Sprite(texIcone);
+        imgA.label = `iconeArmee${i}`;
+        imgA.anchor.set(0.5, 0.5);
+        imgA.position.set(x + g.cote / 2, axe);
+        imgA.scale.set(g.tailleIcone / Math.max(1, texIcone.width, texIcone.height));
+        imgA.visible = false;
+        c.addChild(carreA, imgA);
+      }
     }
     c.addChild(base);
     if (accent) c.addChild(accent);

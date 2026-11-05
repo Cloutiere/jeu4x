@@ -7,8 +7,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  ARMEE_BANNIERE,
   ICONES_UNITES,
   iconeBannierePour,
+  geometrieIconesArmee,
+  pvMaxAffiche,
   geometrieBarre,
   modeGarnison,
   nomIconeBatiment,
@@ -125,6 +128,42 @@ describe('D2 — geometrieBarre (largeur totale ≤ barre historique)', () => {
     expect(g.xCellule).toBe(-16);
     expect(g.largeurCellule).toBeGreaterThan(0);
     expect(g.largeurCellule).toBeLessThan(70 / 3); // la barre cède la place au carré
+  });
+});
+
+describe('VISUEL-ARMEE (Erik 05/11) — bannière d\'armée : 3 icônes, barre proportionnelle', () => {
+  it('D1 — geometrieIconesArmee : 3 positions, dans l\'emprise 80, sans chevauchement', () => {
+    const g = geometrieIconesArmee();
+    expect(g.xs).toHaveLength(3);
+    const total = g.xs[2] + g.cote - g.xs[0];
+    expect(total).toBeLessThanOrEqual(ICONES_UNITES.largeurTotale);
+    for (let i = 0; i < 2; i++) {
+      expect(g.xs[i + 1]).toBeGreaterThanOrEqual(g.xs[i] + g.cote); // gap ≥ 0
+    }
+  });
+  it('D1 — rangée CENTRÉE sur l\'unité (symétrie de l\'emprise)', () => {
+    const g = geometrieIconesArmee();
+    expect(g.xs[0]).toBeCloseTo(-(g.xs[2] + g.cote));
+  });
+  it('D1 — les mini-icônes tiennent dans leur carré (taille < côté)', () => {
+    const g = geometrieIconesArmee();
+    expect(g.tailleIcone).toBeLessThan(g.cote);
+  });
+  it('D1 — la rangée d\'icônes est AU-DESSUS de la barre (écart d\'axe positif)', () => {
+    const g = geometrieIconesArmee();
+    expect(g.ecartAxe).toBeGreaterThan(0);
+  });
+  it('D2 — une unité simple n\'appelle pas cette géométrie : 3 icônes ssi isArmy (constante)', () => {
+    expect(ARMEE_BANNIERE.nombreIcones).toBe(3);
+  });
+  it('D3 — pvMaxAffiche : unité simple = hpMax ; armée = ARMY_SIZE × hpMax (9 pour 3 vies)', () => {
+    expect(pvMaxAffiche(3, false)).toBe(3);
+    expect(pvMaxAffiche(3, true)).toBe(9);
+  });
+  it('D3 — armée blessée 5/9 : ratio ~0,56 → la barre n\'est PAS pleine', () => {
+    const ratio = Math.max(0, Math.min(1, 5 / pvMaxAffiche(3, true)));
+    expect(ratio).toBeGreaterThan(0.5);
+    expect(ratio).toBeLessThan(0.6);
   });
 });
 
