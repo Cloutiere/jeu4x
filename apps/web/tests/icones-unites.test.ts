@@ -13,6 +13,7 @@ import {
   geometrieIconesArmee,
   pvMaxAffiche,
   geometrieBarre,
+  geometrieBarreArmee,
   modeGarnison,
   nomIconeBatiment,
   nomIconeMerveille,
@@ -155,6 +156,17 @@ describe('VISUEL-ARMEE (Erik 05/11) — bannière d\'armée : 3 icônes, barre p
   });
   it('D2 — une unité simple n\'appelle pas cette géométrie : 3 icônes ssi isArmy (constante)', () => {
     expect(ARMEE_BANNIERE.nombreIcones).toBe(3);
+  });
+  it('retour Erik — geometrieBarreArmee : barre ALIGNÉE sur l\'emprise de la rangée d\'icônes', () => {
+    const g = geometrieIconesArmee();
+    const b = geometrieBarreArmee();
+    expect(b.xFond).toBe(g.xs[0]); // commence à la 1re icône
+    expect(b.xFond + b.largeurFond).toBe(g.xs[2] + g.cote); // finit à la 3e
+    // centrée sous la rangée (symétrie) : fond ni à gauche ni à droite
+    expect(b.xFond).toBeCloseTo(-(b.xFond + b.largeurFond));
+    // les 3 cellules tiennent DANS le fond (padding + 2 encoches)
+    expect(3 * b.largeurCellule + 2 * 3).toBeLessThanOrEqual(b.largeurInterieure);
+    expect(b.largeurCellule).toBeGreaterThan(0);
   });
   it('D3 — pvMaxAffiche : unité simple = hpMax ; armée = ARMY_SIZE × hpMax (9 pour 3 vies)', () => {
     expect(pvMaxAffiche(3, false)).toBe(3);

@@ -182,6 +182,32 @@ export function geometrieIconesArmee(): { xs: number[]; cote: number; tailleIcon
   return { xs, cote, tailleIcone, ecartAxe };
 }
 
+/** VISUEL-ARMEE (retour Erik 05/11) — géométrie de la barre de vie d'une
+ *  armée : ALIGNÉE sur l'emprise de la rangée d'icônes (le fond commence à
+ *  la première icône et finit à la dernière — centré SOUS la rangée, pas la
+ *  barre historique 80 plus large que les icônes). Mêmes encoches 3 px et
+ *  padding 2 px que geometrieBarre. Pur, testé. */
+export function geometrieBarreArmee(): {
+  xFond: number;
+  largeurFond: number;
+  xCellule: number;
+  largeurInterieure: number;
+  largeurCellule: number;
+} {
+  const g = geometrieIconesArmee();
+  const xFond = g.xs[0]!;
+  const largeurFond = g.xs[g.xs.length - 1]! + g.cote - xFond;
+  const xCellule = xFond + ICONES_UNITES.paddingBarre;
+  const largeurInterieure = largeurFond - 2 * ICONES_UNITES.paddingBarre;
+  return {
+    xFond,
+    largeurFond,
+    xCellule,
+    largeurInterieure,
+    largeurCellule: (largeurInterieure - (ARMEE_BANNIERE.nombreIcones - 1) * 3) / ARMEE_BANNIERE.nombreIcones,
+  };
+}
+
 /** VISUEL-ARMEE · D3 — plafond de PV AFFICHÉ : une armée porte
  *  ARMY_SIZE × hpMax (9 pour une unité à 3 vies — turn.ts : PV ≤ 9) alors
  *  que `unitType(type).hpMax` reste celui du premier membre (3). Sans ce

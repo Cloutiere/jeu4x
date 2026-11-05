@@ -38,7 +38,7 @@
   import { BANDE_VILLE, construireBanniere, etaProductionBanniere, lignesTooltipCroissance, lignesTooltipPopulation, lignesTooltipProduction, rectBanniereLocale, rectZoneCroissanceLocale, rectZonePopLocale, rectZoneProductionLocale, seuilCroissanceVille, toursCroissanceBanniere } from './bande-ville.js';
   import type { DetailTooltip } from './bande-ville.js';
   // ICONES-UNITES (décisions Erik 07/10) : mapping pur (D1/D2/D3/D4).
-  import { ARMEE_BANNIERE, ICONES_UNITES, geometrieBarre, geometrieIconesArmee, iconeBannierePour, modeGarnison, nomIconeBatiment, nomIconeMerveille, nomIconeUnite, pvMaxAffiche, typeBaseIcone } from './icones-unites.js';
+  import { ARMEE_BANNIERE, ICONES_UNITES, geometrieBarre, geometrieBarreArmee, geometrieIconesArmee, iconeBannierePour, modeGarnison, nomIconeBatiment, nomIconeMerveille, nomIconeUnite, pvMaxAffiche, typeBaseIcone } from './icones-unites.js';
   import { flipUnite, faceGaucheAffichee } from './orientation-unites.js';
   import { cleSpriteVille, ERRES_VILLE, type EraVille } from './sprites-villes.js';
   import { logosNation, nationDe } from '../nations.js';
@@ -1054,7 +1054,15 @@
       // si sa vie est acquise, partiellement remplie pour la vie en cours.
       // ICONES-UNITES (D2) : la géométrie suit la présence d'icône (barre
       // réduite cédant la place au carré, largeur totale invariante).
-      const geoBarre = geometrieBarre(!!(textures.iconesUnites?.[typeBaseIcone(unit.type)]));
+      // VISUEL-ARMEE (retour Erik) : la géométrie de barre doit MATCHER le
+      // build — armée AVEC icônes = barre alignée sur la rangée (le bug
+      // d'origine : geometrieBarre(true) recalait fond et cellules à droite
+      // de la rangée d'icônes centrée). Le test est la présence des labels
+      // posés au build (icônes d'armée seulement si l'art existe).
+      const geoBarre =
+        unit.isArmy && c.getChildByLabel('iconeArmeeFond0')
+          ? geometrieBarreArmee()
+          : geometrieBarre(!!(textures.iconesUnites?.[typeBaseIcone(unit.type)]) && !unit.isArmy);
       const barreFond = c.getChildByLabel('barreFond') as Sprite | null;
       if (barreFond) barreFond.width = geoBarre.largeurFond;
       const largeurCellule = geoBarre.largeurCellule;
@@ -1491,6 +1499,9 @@
     // ses 3 mini-icônes vivent sur leur propre ligne AU-DESSUS de la barre,
     // qui reprend la géométrie historique PLEINE (fond 80).
     const texIcone = textures!.iconesUnites?.[typeBaseIcone(type)] ?? null;
+    // VISUEL-ARMEE (retour Erik) : barre de l'armée ALIGNÉE sur l'emprise de
+    // la rangée d'icônes (geometrieBarreArmee) — pas la barre 80 historique.
+    const geoArmee = texIcone && estArmee ? geometrieBarreArmee() : null;
     const geo = geometrieBarre(!!texIcone && !estArmee);
     let base: Sprite;
     let accent: Sprite | null = null;
@@ -1521,26 +1532,26 @@
     }
     const bg = new Sprite(textures!.px);
     bg.label = 'barreFond';
-    bg.width = geo.largeurFond;
+    bg.width = geoArmee ? geoArmee.largeurFond : geo.largeurFond;
     bg.height = 10;
     bg.tint = 0x1b1b22;
     // CALIBRATION-UNITES (retour Erik 20/09) : barre de PV RAPPROCHÉE —
     // collée au sommet du sprite (l'ancien écart était de 8 px au-dessus).
-    bg.position.set(geo.xFond, sommet - 1);
+    bg.position.set(geoArmee ? geoArmee.xFond : geo.xFond, sommet - 1);
     // PROTO-3-VIES (demande Erik 20/09) : la barre est divisée en 3
     // compartiments (1 compartiment = 1 vie, hpMax = 3 partout), séparés
     // par de fines encoches du fond. Le remplissage par compartiment est
     // piloté dans la boucle de rendu (labels hpFill0/1/2).
     const CELLULES_PV = 3;
     const ENCOche = 3;
-    const largeurCellule = geo.largeurCellule;
+    const largeurCellule = (geoArmee ?? geo).largeurCellule;
     const fills: Sprite[] = [];
     for (let i = 0; i < CELLULES_PV; i++) {
       const fill = new Sprite(textures!.px);
       fill.label = `hpFill${i}`;
       fill.width = largeurCellule;
       fill.height = 10;
-      fill.position.set(geo.xCellule + i * (largeurCellule + ENCOche), sommet + 1);
+      fill.position.set((geoArmee ?? geo).xCellule + i * (largeurCellule + ENCOche), sommet + 1);
       fills.push(fill);
     }
     // ICONES-UNITES (D2) : carré à l'accent de civilisation À GAUCHE de la
