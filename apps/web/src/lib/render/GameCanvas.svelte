@@ -19,6 +19,8 @@
   import type { UiState, UiStore } from './ui.js';
   import type { Playback } from './playback.js';
   import { Camera } from './camera.js';
+  // FLUIDITE-SELECTION (Erik 05/11) : easing du glissement de caméra.
+  import { easingGlissement } from './fsm-interaction.js';
   import { loadTextures, playerColor, textureDegradeCulturel } from './textures.js';
   import { definirPalettesJoueurs, paletteDe } from './accents.js';
   import type { GameTextures } from './textures.js';
@@ -99,7 +101,7 @@
     /** Soumission clavier (Entrée) d'un brouillon — optionnel depuis la soumission auto (Phase 5 L1). */
     onConfirmDraft?(): void;
     onCancelDraft(): void;
-    onReady?(api: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void; hexEcran(hex: Hex): { x: number; y: number } | null; centrerSurMonde(x: number, y: number): void; poseCamera(): { x: number; y: number; scale: number }; dimsVue(): { w: number; h: number }; bornesMonde(): Rect }): void;
+    onReady?(api: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void; hexEcran(hex: Hex): { x: number; y: number } | null; centrerSurMonde(x: number, y: number): void; poseCamera(): { x: number; y: number; scale: number }; dimsVue(): { w: number; h: number }; bornesMonde(): Rect; centerOnHexAnime(hex: Hex, dureeMs: number): void }): void;
     /** Signal d'activité du playback (bannière « Relecture » côté page). */
     onPlaybackActive?(active: boolean): void;
     /** Phase 6 L3 : overlay des rendements N/P/C (bouton de bascule). */
@@ -3000,6 +3002,8 @@
     const dt = Math.min(100, now - lastFrame);
     lastFrame = now;
     playback.update(dt);
+    // FLUIDITE-SELECTION : avance le glissement de caméra en cours (cyclage).
+    tickLerp();
     // VUE-VILLE-PERF · D3 : pendant l'animation d'entrée/sortie de la vue
     // ville, la frame ne fait qu'INTERPOLER la pose du conteneur monde
     // (comme la molette — prouvé fluide). Les flags d'invalidation restent
@@ -4045,6 +4049,7 @@
     const dy = p.y - pointer.y;
     if (!dragging && Math.hypot(dx, dy) > PAN_THRESHOLD) dragging = true;
     if (dragging) {
+      couperLerp(); // prise de main utilisateur : le glissement cède
       if (mode3dActif()) {
         stage3d!.cam.panBy(dx, dy, vh);
         stage3d!.cam.clamp(vw, vh);
@@ -4130,6 +4135,7 @@
       ? stage3d!.cam.zoomAt(p.x, p.y, vw, vh, factor)
       : camera.zoomAt(p.x, p.y, factor);
     if (changed) {
+      couperLerp(); // prise de main utilisateur : le glissement cède
       if (mode3dActif()) stage3d!.cam.clamp(vw, vh);
       else {
         camera.wrapClamp(bounds, vw, vh, periodeActive());
@@ -4223,6 +4229,7 @@
 
   function centerOnHex(hex: Hex): void {
     if (!app) return;
+    couperLerp(); // centrage direct : un glissement en cours cède
     if (mode3dActif()) {
       const { x, z } = hexWorldPos(hex);
       stage3d!.cam.centerOn(x, z);
@@ -4246,6 +4253,63 @@
     if (unit) centerOnHex(unit);
   }
 
+  // FLUIDITE-SELECTION (Erik 05/11, D-B/D-C) — glissement de caméra (camera
+  // lerp, §2 du document d'Erik) : le centrage sur l'unité cyclée INTERPOLE
+  // (easeInOutCubic, durée `dureeMs` data-driven — 400 ms par défaut, au
+  // labo à l'œil) au lieu d'un saut sec. Vise la copie la plus proche sur le
+  // cylindre (CARTE-RONDE — delta X le plus court, jamais le grand tour).
+  // En 3D et hors montage : repli sur le centrage instantané historique.
+  let lerpAnim: { x0: number; y0: number; x1: number; y1: number; debut: number; duree: number } | null = null;
+  function centerOnHexAnime(hex: Hex, dureeMs: number): void {
+    if (!app || mode3dActif()) {
+      centerOnHex(hex);
+      return;
+    }
+    const p = hexToPixel(hex, HEX_SIZE);
+    // Cible en coordonnées MONDE du centre caméra désiré (copies ramenées à
+    // ±P/2 du centre courant — le saut éventuel de ±P est invisible, la scène
+    // étant dessinée périodiquement).
+    const centre = centreMondeDe(camera.x, camera.scale, vw);
+    let x1 = p.x;
+    const periode = periodeActive();
+    if (Number.isFinite(periode)) {
+      const k = Math.round((x1 - centre) / periode);
+      if (k !== 0) x1 -= k * periode;
+    }
+    const cx = (vw / 2 - camera.x) / camera.scale;
+    const cy = (vh / 2 - camera.y) / camera.scale;
+    if (dureeMs <= 0) {
+      camera.centerOn(x1, p.y, vw, vh);
+      camera.wrapClamp(bounds, vw, vh, periodeActive());
+      cameraChanged = true;
+      entitiesDirty = true;
+      overlayDirty = true;
+      return;
+    }
+    lerpAnim = { x0: cx, y0: cy, x1, y1: p.y, debut: performance.now(), duree: dureeMs };
+  }
+
+  /** Avance le glissement en cours (appelé à chaque tick Pixi). */
+  function tickLerp(): void {
+    if (!lerpAnim) return;
+    const a = lerpAnim;
+    const t = Math.min(1, (performance.now() - a.debut) / a.duree);
+    const e = easingGlissement(t);
+    camera.x = vw / 2 - (a.x0 + (a.x1 - a.x0) * e) * camera.scale;
+    camera.y = vh / 2 - (a.y0 + (a.y1 - a.y0) * e) * camera.scale;
+    cameraChanged = true;
+    if (t >= 1) {
+      lerpAnim = null;
+      camera.wrapClamp(bounds, vw, vh, periodeActive());
+      entitiesDirty = true;
+      overlayDirty = true;
+    }
+  }
+  /** Toute prise de main utilisateur (pan, zoom, centrage direct) coupe le glissement. */
+  function couperLerp(): void {
+    lerpAnim = null;
+  }
+
   /**
    * RAPPORT-ENGAGEMENT (D4) : projection hex → écran (px CSS relatifs au
    * canvas) pour ancrer le popover près de la case. Pose 2D courante (vue
@@ -4266,6 +4330,7 @@
   // de caméra et la conversion inverse.
   function centrerSurMonde(worldX: number, worldY: number): void {
     if (!app) return;
+    couperLerp();
     camera.centerOn(worldX, worldY, vw, vh);
     camera.wrapClamp(bounds, vw, vh, periodeActive());
     cameraChanged = true;
@@ -4609,7 +4674,7 @@
     unsubscribes.push(client.view.subscribe(onNewView));
     unsubscribes.push(ui.subscribe(onNewUi));
     maybeCenter();
-    onReady?.({ centerOnHex, centerOnUnit, hexEcran, centrerSurMonde, poseCamera, dimsVue, bornesMonde });
+    onReady?.({ centerOnHex, centerOnUnit, hexEcran, centrerSurMonde, poseCamera, dimsVue, bornesMonde, centerOnHexAnime });
     // Debug console (dev uniquement) : état interne inspectable via la console.
     (window as unknown as Record<string, unknown>).__gameCanvas = {
       /** App Pixi (debug : inspection de la scène). */

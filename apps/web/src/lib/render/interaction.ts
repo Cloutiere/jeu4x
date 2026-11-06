@@ -7,6 +7,10 @@
  */
 import { hexDistanceW, hexToPixel, neighborsW, normalizeHexW, TERRAINS, tileKeyOf, unitType, workRadiusOf, canEnterTerrain, isCoastalCityHex, cargoCapacityOf } from '@game/rules';
 import { candidatsArmee, rallyValide } from '../geste-armee.js';
+// FLUIDITE-SELECTION (Erik 05/11, D-A) : les guards de clic lisent l'état
+// dérivé de la machine à états explicite (ré-attachement de l'UiState —
+// zéro changement de comportement, verrouillé par les tests existants).
+import { etatInteraction } from './fsm-interaction.js';
 import type { Hex } from '@game/rules';
 import type { CityId, GameState, UnitId } from '@game/shared';
 import type { GameView } from '../gameClient.js';
@@ -391,16 +395,22 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex, positions?: P
   const state = view.state;
   if (!state) return { kind: 'none' };
 
-  // 7m · R-139 : ICBM ARMÉE — n'importe quel clic carte choisit une cible
-  // (le lancement n'est soumis qu'après la modale de confirmation, côté page).
-  if (ui.nukeArmed) return { kind: 'nukeTarget', hex };
+  // FLUIDITE-SELECTION · D-A : l'état courant pilote les guards — mêmes
+  // priorités que le FSM (nukeArmed écrase tout, formationArmee ensuite).
+  switch (etatInteraction(ui)) {
+    // 7m · R-139 : ICBM ARMÉE — n'importe quel clic carte choisit une cible
+    // (le lancement n'est soumis qu'après la modale de confirmation, côté page).
+    case 'nukeArmed':
+      return { kind: 'nukeTarget', hex };
 
-  // GESTE-ARMEE · D1 : mode formation armé — un clic sur un candidat choisit
-  // (ou retire, toggle côté page) un coéquipier ; les 2 coéquipiers choisis,
-  // un clic sur une case pré-vérifiée pose le rendez-vous. Toute autre case :
-  // aucun effet (pas de sélection parasite pendant le geste).
-  if (ui.armyDraft) {
-    const chef = state.units[ui.armyDraft.chef];
+    // GESTE-ARMEE · D1 : mode formation armé — un clic sur un candidat choisit
+    // (ou retire, toggle côté page) un coéquipier ; les 2 coéquipiers choisis,
+    // un clic sur une case pré-vérifiée pose le rendez-vous. Toute autre case :
+    // aucun effet (pas de sélection parasite pendant le geste).
+    case 'formationArmee': {
+    const brouillonArmee = ui.armyDraft;
+    if (!brouillonArmee) break; // (narrowing — l'état dérivé garantit sa présence)
+    const chef = state.units[brouillonArmee.chef];
     if (chef) {
       const occupants2 = unitesSurHex(state, hex, positions);
       const occ = occupants2[0];
@@ -408,11 +418,16 @@ export function clickAction(view: GameView, ui: UiState, hex: Hex, positions?: P
         const ok = candidatsArmee(state, view, chef, myEngineId(view)).some((c) => c.id === occ.id);
         if (ok) return { kind: 'armyPick', unitId: occ.id };
       }
-      if (ui.armyDraft.coequipiers.length === 2 && rallyValide(state, view, chef, ui.armyDraft.coequipiers, hex)) {
+      if (brouillonArmee.coequipiers.length === 2 && rallyValide(state, view, chef, brouillonArmee.coequipiers, hex)) {
         return { kind: 'armyRally', hex };
       }
     }
     return { kind: 'none' };
+    }
+    // inactif / uniteSelectionnee / previsualisation : le corps historique
+    // (sélection, cycle de pile, worked tiles) s'applique inchangé.
+    default:
+      break;
   }
 
   // Occupants AU SENS DESSINÉ (position affichée prime sur la case moteur).

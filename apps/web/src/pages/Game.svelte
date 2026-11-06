@@ -46,6 +46,8 @@
   import type { UiStore } from '../lib/render/ui.js';
   import { Playback } from '../lib/render/playback.js';
   import { rightClickAction, annulationOrdre, unitsWithoutOrders, myEngineId, ordersEditable } from '../lib/render/interaction.js';
+  // FLUIDITE-SELECTION (Erik 05/11, tranche 1) : cyclage des unités + caméra glissante.
+  import { prochaineUniteDisponible, SEUILS_FLUIDITE, etatInteraction } from '../lib/render/fsm-interaction.js';
   import { mouvementsVersRally } from '../lib/geste-armee.js';
   import type { ClickAction } from '../lib/render/interaction.js';
   import { unexecutedOrders } from '../lib/feedback.js';
@@ -167,6 +169,48 @@
   // second doigt W est RETIRÉ — Ctrl+W ferme l'onglet en navigateur ;
   // G = god. Le bouton « God mode » de la barre DEV appelle la MÊME bascule.
   let godModeArme = 0;
+  // FLUIDITE-SELECTION (Erik 05/11, D-D) : le cyclage AUTOMATIQUE est
+  // désactivable (toggle barre DEV à côté de God mode) ; état par défaut =
+  // ACTIVÉ. Le cyclage MANUEL (touche N, D-C) n'est jamais touché.
+  let cyclageAuto = $state(true);
+  function basculerCyclageAuto(): void {
+    cyclageAuto = !cyclageAuto;
+  }
+
+  /**
+   * FLUIDITE-SELECTION (D-B/D-C) — le cyclage : sélectionne la PROCHAINE
+   * unité du joueur disponible (helper pur `prochaineUniteDisponible`, ordre
+   * stable par id) et fait GLISSER la caméra vers sa case (400 ms, data
+   * driven — au labo à l'œil). Auto (`manuel: false`) : fin de file =
+   * retour à l'état inactif (pas de rebouclage vertigineux) ; manuel (N) :
+   * rebouclage. Le compteur « en attente d'ordres » reste.
+   */
+  function cyclerUnite(manuel: boolean): void {
+    const v = get(view);
+    if (!v.state || !ordersEditable(v)) return;
+    if (!manuel && (replayActif || get(vueVille) !== null || showRegimesModale || showVictory || showIdleDialog)) return;
+    const courante = get(ui).selectedUnitId;
+    const next = prochaineUniteDisponible(v, courante, { boucler: manuel });
+    if (!next) {
+      if (!manuel && etatInteraction(get(ui)) === 'uniteSelectionnee') selectNothing(ui);
+      return;
+    }
+    const u = v.state.units[next]!;
+    ui.set({ selectedUnitId: next, selectedCityId: null, draft: null });
+    canvasApi?.centerOnHexAnime({ q: u.q, r: u.r }, SEUILS_FLUIDITE.cameraLerpMs);
+  }
+
+  /** D-C — la touche N : cyclage manuel (Espace est pris par la fin de tour). */
+  function raccourciCyclage(e: KeyboardEvent): void {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key.toLowerCase() !== 'n') return;
+    const cible = e.target as HTMLElement | null;
+    if (cible && (cible.tagName === 'INPUT' || cible.tagName === 'TEXTAREA' || cible.tagName === 'SELECT' || cible.isContentEditable)) return;
+    if (showRegimesModale || showVictory || replayActif || get(vueVille) !== null) return;
+    e.preventDefault();
+    cyclerUnite(true);
+  }
+
   function basculerGodMode(): void {
     const v = get(view);
     if (!v.state || v.status !== 'active') return;
@@ -213,6 +257,16 @@
       if (message.type === 'OrderAck' && !message.accepted && message.reason === 'grande_muraille') {
         pushErrorToast('La GRANDE MURAILLE de cette nation IMPOSE la paix — déclaration de guerre impossible (obsolète : Ingénierie)');
       }
+      // FLUIDITE-SELECTION (Erik 05/11, D-B) : ordre PASSIF accepté sur
+      // l'unité sélectionnée (Fortifier/Vigilance/Sommeil/Passer/Fonder —
+      // le raccourci clavier ET le bouton du panneau passent ici) → la
+      // sélection bascule automatiquement sur la prochaine unité disponible,
+      // caméra glissante (toggle cyclageAuto).
+      if (message.type === 'OrderAck' && message.accepted && message.order && cyclageAuto) {
+        const o = message.order;
+        const passif = o.type === 'Fortify' || o.type === 'Sleep' || o.type === 'Heal' || o.type === 'Pass' || o.type === 'FoundCity';
+        if (passif && 'unitId' in o && o.unitId === get(ui).selectedUnitId) cyclerUnite(false);
+      }
       // Polish Phase 5 : un ordre écarté par le moteur à la résolution est
       // signalé (le hook voit les ordres d'AVANT la mise à jour de la vue).
       if (message.type === 'TurnResult') {
@@ -237,6 +291,19 @@
           } else if (ev.type === 'HealRefused' && ev.owner === moi) {
             pushErrorToast(`Soin refusé (${ev.unitId}) — territoire ennemi`, 'bad');
           }
+        }
+        // FLUIDITE-SELECTION (Erik 05/11, D-B) : l'unité sélectionnée a
+        // ÉPUISÉ ses PM à la résolution — son Move/MultiStep du tour
+        // précédent est entièrement consommé (plus d'ordre soumis, pas de
+        // chemin gelé, pas de fortification) → cyclage auto (caméra
+        // glissante) vers la prochaine unité en attente d'ordres.
+        const couranteSelection = get(ui).selectedUnitId;
+        if (cyclageAuto && couranteSelection && !replayActif) {
+          const uResolue = message.state.units[couranteSelection];
+          const avaitOrdre = previous.some(
+            (o) => 'unitId' in o && o.unitId === couranteSelection && (o.type === 'Move' || o.type === 'MultiStep'),
+          );
+          if (uResolue && !uResolue.aboard && !uResolue.order && !uResolue.fortified && avaitOrdre) cyclerUnite(false);
         }
         // HANG-LOCAL UX (Erik 01/10 · option 2) : apparition d'un blocage de
         // fin de tour dans le nouvel état → orienter vers la ville fautive
@@ -464,7 +531,7 @@
   // Actions (L3) : décision de clic pure → ordres soumis au serveur.
   // ---------------------------------------------------------------------
 
-  let canvasApi: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void; hexEcran(hex: Hex): { x: number; y: number } | null; centrerSurMonde(x: number, y: number): void; poseCamera(): { x: number; y: number; scale: number }; dimsVue(): { w: number; h: number }; bornesMonde(): { x: number; y: number; w: number; h: number } } | null = $state(null);
+  let canvasApi: { centerOnHex(hex: Hex): void; centerOnUnit(unitId: string): void; hexEcran(hex: Hex): { x: number; y: number } | null; centrerSurMonde(x: number, y: number): void; poseCamera(): { x: number; y: number; scale: number }; dimsVue(): { w: number; h: number }; bornesMonde(): { x: number; y: number; w: number; h: number }; centerOnHexAnime(hex: Hex, dureeMs: number): void } | null = $state(null);
 
   // 7m · R-139 : ciblage d'ICBM — `nukeArmed` vit dans l'UiState (le clic
   // carte produit alors un `nukeTarget`) ; la cible pressentie attend la
@@ -1292,6 +1359,9 @@
     // modale ouverte (régimes, victoire, relecture), en vue ville, hors
     // tour éditable, ou sans unité à soi sélectionnée.
     raccourciOrdreUnite(e);
+    // FLUIDITE-SELECTION (Erik 05/11, D-C) : N = prochaine unité disponible,
+    // caméra glissante (les raccourcis F/H/S/Z/Espace/B restent INTACTS).
+    raccourciCyclage(e);
     // GOD-MODE (Erik 22/10, D3) : Ctrl+J puis W — bascule de la révélation
     // complète (solo/bots uniquement, confirmée par le serveur).
     raccourciGodMode(e);
@@ -1394,6 +1464,15 @@
           <span class="net net-{$status}">{$status}</span>
           {#if $view.locked}<span class="chip locked">Verrouillé</span>{/if}
           <button type="button" onclick={() => client.resync()}>Resync</button>
+          <!-- FLUIDITE-SELECTION (Erik 05/11, D-D) : le cyclage automatique
+               des unités (sélection suivante + caméra glissante) est
+               désactivable ici ; la touche N (cyclage manuel) reste active. -->
+          <button
+            type="button"
+            class:active-toggle={cyclageAuto}
+            title="Cyclage automatique : dès qu'une unité finit (ordre passif ou PM épuisées), la sélection bascule sur la suivante et la caméra glisse. Touche N = cyclage manuel."
+            onclick={basculerCyclageAuto}
+          >Cyclage auto</button>
           {#if $view.state && !autreHumainPresent($view.players, $view.playerId)}
             <!-- GODMODE-BOUTON (Erik 04/11, D1/D3) : la MÊME bascule que le
                  chord Ctrl+J→G, visible solo/bots uniquement (garde miroir du
