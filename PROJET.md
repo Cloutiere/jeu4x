@@ -27,7 +27,8 @@
 
 ## 🚧 En cours — LA mission active
 
-- **HANDOFF-FONDATION-PREVIEW** (prêt, non lancé — micro-mission rendu, demande Erik 05/11) : la case destination d'un colon sous ordre de fondation se teinte **à la couleur de la nation, style territoire culturel** (dégradé existant réutilisé, opacité d'aperçu au labo) — l'ordre passé se VOIT. Rendu pur, les deux cas couverts (sur place et fin de chemin), disparition dérivée de l'état.
+- **HANDOFF-CIVS-NEUTRES-LOBBY** (prêt, non lancé — demande Erik 08/11) : la civ **neutre** (R-147, zéro trait) devient sélectionnable au lobby pour chaque siège (joueur ET bot/Jev) — « Sans civilisation », pour ses duels de test sans interférence des traits ; **jamais tirée au hasard**, défauts des parties normales intacts.
+- **FONDATION-PREVIEW livré + accepté** (08/11, « c'est parfait ») : la case de fondation du colon se teinte à la couleur de la nation (liseré hexagonal + dégradé culturel en miroir, alpha 0,5 validé à l'œil) ; web 785 verts.
 - **FLUIDITE-SELECTION livré** (rapport à la racine, labo caméra en attente) : FSM d'interaction explicite (774 tests verts, zéro changement de comportement) + **cyclage automatique avec caméra qui glisse** (lerp 400 ms, prouvé par sonde) + `N` + toggle DEV. 🔶 Reste : Erik tranche la vitesse de caméra en jouant (`cameraLerpMs`, un seul chiffre).
 - **VISUEL-ARMEE livré + rév.2** (`7192f49` puis `6cd899a`) : 3× l'icône de l'unité sur la bannière, barre segmentée proportionnelle puis ALIGNÉE sous les icônes ; asset unité intouché ; web 759 verts.
 - **GESTE-ARMEE livré + rev.2** (`b3fca04` puis `fa5a32f`) : geste manuel en 3 temps + **proposition automatique** (≥ 3 unités même type convergeant → le jeu demande la conversion, refusable, chips au-delà de 3) ; armée définitive jouable (« Guerrier (armée) », PV 9/3) ; zéro changement moteur. 🔶 Fusion navale au backlog.
