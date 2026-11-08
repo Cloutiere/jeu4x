@@ -27,7 +27,10 @@
 
 ## 🚧 En cours — LA mission active
 
-- **HANDOFF-GODMODE-BOUTON** (prêt, non lancé — micro-mission UI) : `Ctrl+J→W` ferme l'onglet en navigateur (réservation `Ctrl+W`, non interceptable) → bouton god mode dans la barre de dev + raccourci secondaire `Ctrl+J→G` ; l'ancien W retiré. Garde multi humain intacte.
+- **HANDOFF-FLUIDITE-SELECTION** (prêt, non lancé — tranche 1 votée Erik 05/11 d'après SON document « Architecture des Contrôles 4X », spécification de référence) : D-A la FSM d'interaction explicite (refactor interne bit-à-bit), D-B le cyclage automatique des unités avec **caméra qui glisse** (lerp ~400 ms, à l'œil Erik), D-C le raccourci `N`, D-D toggle de désactivation. Tranche 2 (tactile complet) au backlog branchée sur Steam.
+- **VISUEL-ARMEE livré + rév.2** (`7192f49` puis `6cd899a`) : 3× l'icône de l'unité sur la bannière, barre segmentée proportionnelle puis ALIGNÉE sous les icônes ; asset unité intouché ; web 759 verts.
+- **GESTE-ARMEE livré + rev.2** (`b3fca04` puis `fa5a32f`) : geste manuel en 3 temps + **proposition automatique** (≥ 3 unités même type convergeant → le jeu demande la conversion, refusable, chips au-delà de 3) ; armée définitive jouable (« Guerrier (armée) », PV 9/3) ; zéro changement moteur. 🔶 Fusion navale au backlog.
+- **GODMODE-BOUTON livré** (`2006dd7`) : bouton `God mode` dans la barre DEV + chord `Ctrl+J→G` (le W n'est plus écouté — réservation navigateur `Ctrl+W`) ; garde solo/bots intacte ; web 724 verts.
 - **HUTTE-EXPLORATION livré** (`ae63a12`) : hutte connue = cible d'exploration prioritaire (détour ≤ data), exception testée à la règle anti-recul ; **13 huttes ouvertes par Jev / 5 parties** (vs 1,75 baseline), ZWV7T5 corrigé bit-à-bit, victoires et anti-piétinement en non-régression. Le bot classique en profite aussi (botPolicy partagé).
 - **CONFIANCE-EXPLORATION livré** (`3f71087`) : seuils de confiance PAR QUESTION calibrés sur le journal prod réel (fonder 0,2, convertir 0,25, produire 0,3, rechercher 0,25) + doctrine « jamais inactif » + la poche u4 réparée. Banc : **9,0 fondations/partie** (critère ≥ 4), science plus rapide (t306-312).
 - 🔧 **Triage prod opérationnel** : routes admin (`/admin/game/<CODE>`, `/trace?turn=N`, `/jev`) avec le token d'Erik — un code de partie suffit au diagnostic. 🔶 La trace prend `?turn=`, pas `?tour=`.
@@ -35,7 +38,7 @@
 
 ## 📋 File d'attente (dans l'ordre convenu avec Erik)
 
-1. **BANC-VANILLA** (handoff prêt — la mission active) ;
+1. **GESTE-ARMEE** (handoff prêt — la mission active) ;
 2. **Miroir Jev vs Jev** (backlog) : équilibre attaque/défense du canon + exam de la chaîne conquête des deux côtés ;
 3. Atelier voix de Zii (Erik écrit la personnalité dans `zii.json`), vieux 🔶 ci-dessous.
 

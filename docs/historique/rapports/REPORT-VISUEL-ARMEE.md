@@ -49,3 +49,7 @@ Partie solo vs bots (pangee-40), mise en scène headless par WS : croissance 3 g
 1. Une armée se distingue d'une unité en un coup d'œil (3 icônes) — capture 1b. ✓ (à l'œil Erik)
 2. La vie restante d'une armée blessée se lit (8/9 → ~2,7 blocs) — capture 2. ✓ (à l'œil Erik)
 3. Zéro changement hors bannière ; asset unité intact ; suites web vertes ; captures avant commit. ✓
+
+## 4. Rév. 2 (retour Erik, photo zoomée) — 6cd899a
+
+Les carrés de la ligne de vie étaient décalés de la barre noire, barre non centrée sous les icônes. Cause : la boucle de rendu recalculait la géométrie avec `geometrieBarre(avecIcône)` SANS `isArmy` — le build posait la géométrie armée mais la boucle l'écrasait par la géométrie unité-avec-icône (fond 58 recalé à droite de la rangée centrée). Fix : `geometrieBarreArmee()` — fond sur l'emprise exacte de la rangée d'icônes (62 px), build ET boucle sur la MÊME géométrie (test par présence des labels `iconeArmeeFond*`). Unité simple strictement inchangée. Web 759/759, svelte-check 0. Recapture 6R8D7G : pleine 9/9 alignée, blessée 7/9 (2 blocs + 1/3) alignée. Piège au passage : module modifié servi STALE par le dev-server Vite tant qu'il tournait depuis avant l'édition — redémarrer Vite avant recapture.
