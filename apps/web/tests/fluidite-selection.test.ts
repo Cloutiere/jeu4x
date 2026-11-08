@@ -211,4 +211,10 @@ describe('FLUIDITE-SELECTION · câblage Game.svelte / GameCanvas.svelte', () =>
   it('les raccourcis existants restent ENTIERS (test verrou : F/H/S/Z/Espace/B)', () => {
     expect(src).toContain("['f', 'h', 's', 'z', ' ', 'b']");
   });
+
+  it('Erik 06/11 — destination confirmée (clic droit) : cyclage auto, sinon désélection ; jamais l unité programmée encore sélectionnée', () => {
+    const bloc = src.slice(src.indexOf("case 'moveDraft':"), src.indexOf("case 'cancelOrder':"));
+    expect(bloc).toContain('if (cyclageAuto) cyclerUnite(false);');
+    expect(bloc).toContain('if (get(ui).selectedUnitId === action.unitId) selectNothing(ui);');
+  });
 });

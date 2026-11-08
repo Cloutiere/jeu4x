@@ -613,6 +613,13 @@
       case 'moveDraft':
         // Clic droit = DESTINATION du déplacement : chemin complet soumis.
         client.submitOrder({ type: 'Move', unitId: action.unitId, path: action.path });
+        // Erik 06/11 : destination confirmée = la sélection LIBÈRE l'unité.
+        // Cyclage auto ACTIVÉ : bascule sur la prochaine unité disponible
+        // (caméra glissante — la programmation FLUIDITE-SELECTION) ; sinon,
+        // ou fin de file : tout se désélectionne.
+        if (cyclageAuto) cyclerUnite(false);
+        // Garde : jamais l'unité programmée encore sélectionnée après confirmation.
+        if (get(ui).selectedUnitId === action.unitId) selectNothing(ui);
         break;
       case 'cancelOrder':
         // Clic droit sans destination valide : purge unifiée (M2).
