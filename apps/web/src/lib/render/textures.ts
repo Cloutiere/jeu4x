@@ -17,6 +17,7 @@ import { ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, UNIT_TYPES, WONDERS 
 import { CLES_JOUEURS, ORDRE_JOUEURS4, couleurBaseJoueur, suffixeCuit, suffixeCuitPalette } from './accents.js';
 import { UNIQUE_UNIT_ALIASES, nomIconeBatiment, nomIconeMerveille, nomIconeUnite } from './icones-unites.js';
 import { arretsCanvas, CALIBRAGE_ZONE_CULTURELLE } from './zone-culturelle.js';
+import { arretsCanvasApercu } from './fondation-preview.js';
 import { ERRES_VILLE, type EraVille } from './sprites-villes.js';
 
 /** 7o · R-151 : les 6 artefacts du jeu de base (DLC jamais générés). */
@@ -1108,4 +1109,28 @@ export function textureDegradeCulturel(): Texture {
   ctx.fillRect(0, 0, n, n);
   cacheDegradeCulturel = Texture.from(canvas);
   return cacheDegradeCulturel;
+}
+
+/** FONDATION-PREVIEW (demande Erik 05/11) : texture radiale de l'APERÇU de
+ *  fondation — le MÊME profil smoothstep que le dégradé culturel, mais
+ *  renormalisé (bord → alpha 1) pour que la teinte du sprite porte seule
+ *  l'opacité d'aperçu (APERCU_FONDATION.fondationPreviewAlpha). Construite
+ *  UNE FOIS depuis le profil pur et mise en cache module (même discipline
+ *  D5 que textureDegradeCulturel : zéro génération par frame). */
+let cacheApercuFondation: Texture | null = null;
+export function textureApercuFondation(): Texture {
+  if (cacheApercuFondation) return cacheApercuFondation;
+  const n = CALIBRAGE_ZONE_CULTURELLE.resolutionTexture;
+  const canvas = document.createElement('canvas');
+  canvas.width = n;
+  canvas.height = n;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  for (const [t, a] of arretsCanvasApercu(CALIBRAGE_ZONE_CULTURELLE)) {
+    g.addColorStop(t, `rgba(255, 255, 255, ${a})`);
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, n, n);
+  cacheApercuFondation = Texture.from(canvas);
+  return cacheApercuFondation;
 }

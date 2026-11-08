@@ -21,7 +21,9 @@
   import { Camera } from './camera.js';
   // FLUIDITE-SELECTION (Erik 05/11) : easing du glissement de caméra.
   import { easingGlissement } from './fsm-interaction.js';
-  import { loadTextures, playerColor, textureDegradeCulturel } from './textures.js';
+  import { loadTextures, playerColor, textureApercuFondation, textureDegradeCulturel } from './textures.js';
+  // FONDATION-PREVIEW (Erik 05/11) : la case de fondation du colon teintée à sa nation.
+  import { APERCU_FONDATION, casesApercuFondation } from './fondation-preview.js';
   import { definirPalettesJoueurs, paletteDe } from './accents.js';
   import type { GameTextures } from './textures.js';
   import { HEX_SIZE, hexesInRectW, mapBounds, poseVueVillePour, mondeSousEcranVueVille, ZOOM_DEPART } from './hexView.js';
@@ -2388,6 +2390,42 @@
     // d'attaque, cases disputées, fantômes, chemins gelés, badges) — les
     // unités sont masquées, on se concentre sur la ville.
     const vueActif = vueVilleActif();
+    // FONDATION-PREVIEW (demande Erik 05/11) : la case visée par un colon
+    // sous fondation (ordre FoundCity direct SUR PLACE ou action finale
+    // `foundCity` en fin de chemin — scenePreviews couvre l'ordre posé ET
+    // le chemin gelé, tous propriétaires : Jev et les bots en profitent)
+    // reçoit le rendu du territoire culturel DE SA NATION à l'opacité
+    // d'aperçu (texture radiale renormalisée en cache module — même
+    // discipline D5 que le dégradé culturel). Tout dérive de l'état
+    // (casesApercuFondation sur l'aperçu déjà calculé) : annulation, vente,
+    // mort ou fondation effacent la teinte sans état caché (D3). Le
+    // contour du chemin gelé et le marqueur ⌂ se dessinent PAR-DESSUS.
+    if (!vueActif && !mode3dActif() && scene.state) {
+      const texApercu = textureApercuFondation();
+      const etat = scene.state;
+      for (const c of casesApercuFondation({
+        previews: scenePreviews,
+        orders: scene.orders,
+        uniteDe: (id) => etat.units[id] ?? null,
+      })) {
+        const p = hexToPixel(c, HEX_SIZE);
+        avecCopies(p.x, (dx) => {
+          const sp = new Sprite(texApercu);
+          sp.anchor.set(0.5);
+          sp.tint = playerColor(c.owner);
+          sp.alpha = APERCU_FONDATION.fondationPreviewAlpha;
+          sp.width = sp.height = APERCU_FONDATION.haloTuiles * 2 * HEX_SIZE;
+          sp.position.set(p.x + dx, p.y);
+          overlayLayer.addChild(sp);
+          // Liseré hexagonal (couleur nation) : la case se lit d'un coup
+          // d'œil, même langage que la possession de ville / liseré culturel.
+          const lisere = new Graphics();
+          lisere.poly(hexLocalPoints(HEX_SIZE - 4)).stroke({ width: 3.5, color: playerColor(c.owner), alpha: APERCU_FONDATION.alphaLisere });
+          lisere.position.set(p.x + dx, p.y);
+          overlayLayer.addChild(lisere);
+        });
+      }
+    }
     if (!vueActif) for (const p of scenePreviews) {
       const origin = scene.state.units[p.unitId];
       if (!origin || p.path.length === 0) continue;
