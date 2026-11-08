@@ -13,7 +13,7 @@
    */
   import { onDestroy } from 'svelte';
   import type { ConfigPartie } from '@game/shared';
-  import { CIVILIZATIONS, TOPOGRAPHIES } from '@game/rules';
+  import { CIVILIZATIONS, NEUTRAL_CIV, TOPOGRAPHIES } from '@game/rules';
   import { configPartieDefaut, SIEGES_PAR_PARTIE } from '@game/shared';
   import { createLobbyClient } from '../lib/lobbyClient.js';
   import { civName } from '../lib/labels.js';
@@ -42,6 +42,12 @@
   // immédiat. Jev y est disponible comme adversaire.
   let mode = $state<'libre' | 'duel'>('libre');
   let config = $state<ConfigPartie>(configPartieDefaut('amerique'));
+  // CIVS-NEUTRES-LOBBY (demande Erik 08/11) · D1 : le duel miroir choisit
+  // SES deux civilisations — défaut « Sans civilisation » (neutre R-147,
+  // zéro trait : calibrage IA propre). « Aléatoire » pour l'adversaire =
+  // le comportement historique (tirage seedé parmi les 16).
+  let duelCivHote = $state<string>(NEUTRAL_CIV);
+  let duelCivBot = $state<string>(NEUTRAL_CIV);
 
   // Jointure : partie sélectionnée (liste publique ou code saisi) + choix.
   let jointure = $state<{ code: string; civsAleatoires: boolean; prises: Record<string, string | undefined> } | null>(null);
@@ -60,6 +66,8 @@
         playerCount: 2,
         solo: true,
         botDifficulte: difficulte,
+        ...(duelCivHote !== '' ? { civId: duelCivHote } : {}),
+        ...(duelCivBot === 'random' || duelCivBot === '' ? {} : { botCivId: duelCivBot }),
         ...(adversaire === 'jev' ? { adversaireJev: true } : {}),
       });
       return;
@@ -130,6 +138,30 @@
         <ConfigPartieEditor {config} editable banderoles onchange={(c) => (config = c)} />
       {:else}
         <p class="note">Carte miroir symétrique 1v1 (l'historique) — la partie démarre immédiatement contre l'adversaire choisi.</p>
+        <!-- CIVS-NEUTRES-LOBBY · D1 : choisir les DEUX civilisations du duel.
+            Défaut « Sans civilisation » des deux camps (duels de test neutre
+            vs neutre) ; « Aléatoire » pour l'adversaire = tirage historique. -->
+        <div class="duel-civs">
+          <label>
+            Votre civilisation
+            <select bind:value={duelCivHote}>
+              <option value={NEUTRAL_CIV}>Sans civilisation</option>
+              {#each CIV_IDS as id (id)}
+                <option value={id}>{civName(id)}</option>
+              {/each}
+            </select>
+          </label>
+          <label>
+            Civilisation de l'adversaire
+            <select bind:value={duelCivBot}>
+              <option value={NEUTRAL_CIV}>Sans civilisation</option>
+              <option value="random">Aléatoire</option>
+              {#each CIV_IDS as id (id)}
+                <option value={id}>{civName(id)}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
       {/if}
       <div class="options">
         <label>
@@ -236,6 +268,7 @@
               <label>
                 Civilisation
                 <select bind:value={joinCiv}>
+                  <option value={NEUTRAL_CIV}>Sans civilisation</option>
                   {#each CIV_IDS as id (id)}
                     <option value={id}>{civName(id)}</option>
                   {/each}
@@ -269,6 +302,8 @@
 
   .options { display: flex; gap: 1rem; align-items: center; margin-top: 0.9rem; flex-wrap: wrap; }
   label { display: flex; gap: 0.5rem; margin-right: 1rem; align-items: center; }
+  /* CIVS-NEUTRES-LOBBY : les deux civs du duel, côte à côte. */
+  .duel-civs { display: flex; gap: 1rem; margin-top: 0.6rem; flex-wrap: wrap; }
   .creer { margin-left: auto; }
 
   .colonne { display: flex; flex-direction: column; gap: 1rem; min-height: 0; }

@@ -33,6 +33,16 @@ export const ERAS: ErasData = erasJson as unknown as ErasData;
  *  des fixtures — AUCUN trait, aucune unité unique (migration 17). */
 export const NEUTRAL_CIV: string = CIVILIZATIONS.params.civNeutre;
 
+/**
+ * CIVS-NEUTRES-LOBBY · Une civ SÉLECTIONNABLE au lobby = les 16 canon OU la
+ * neutre (R-147 — choix explicite « Sans civilisation » des duels de test
+ * d'Erik). Les tirages aléatoires, eux, continuent de lire uniquement
+ * `CIVILIZATIONS.civs` : la neutre n'entre JAMAIS dans un tirage.
+ */
+export function estCivSelectionnable(civId: string): boolean {
+  return civId === NEUTRAL_CIV || !!CIVILIZATIONS.civs[civId];
+}
+
 const ERA_ORDER: TechEra[] = ['ancienne', 'medievale', 'industrielle', 'moderne'];
 
 /** Ordre croissant des ères (index 0 = ancienne). */

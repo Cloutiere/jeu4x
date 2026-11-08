@@ -12,7 +12,7 @@
    * banderole de la nation choisie à droite de chaque rangée (D3 : bandeau
    * neutre tant qu'aucun choix).
    */
-  import { CIVILIZATIONS, TOPOGRAPHIES } from '@game/rules';
+  import { CIVILIZATIONS, NEUTRAL_CIV, TOPOGRAPHIES } from '@game/rules';
   import type { ConfigPartie } from '@game/shared';
   import { resoutConflitsPalettes } from '@game/shared';
   import Nuancier from './Nuancier.svelte';
@@ -44,7 +44,9 @@
   const civPrisePar = $derived.by(() => {
     const map: Record<string, string | undefined> = {};
     config.sieges.forEach((s, i) => {
-      if (s.civId) map[s.civId] = occupants[i];
+      // La neutre est PORTABLE par plusieurs sièges (duel neutre vs neutre) —
+      // jamais marquée « prise ».
+      if (s.civId && s.civId !== NEUTRAL_CIV) map[s.civId] = occupants[i];
     });
     return map;
   });
@@ -107,6 +109,9 @@
           onchange={(e) => maj((c) => { const v = (e.currentTarget as HTMLSelectElement).value; c.sieges[i]!.civId = v || null; })}
         >
           <option value="">— Choisir —</option>
+          <!-- CIVS-NEUTRES-LOBBY · D1 : « Sans civilisation » (neutre R-147,
+              zéro trait — duels de test d'Erik). Jamais tirée au hasard (D2). -->
+          <option value={NEUTRAL_CIV}>Sans civilisation</option>
           {#each CIV_IDS as id (id)}
             {@const priseParAutre = civPrisePar[id] && config.sieges[i]?.civId !== id}
             <option value={id} disabled={!!priseParAutre}>

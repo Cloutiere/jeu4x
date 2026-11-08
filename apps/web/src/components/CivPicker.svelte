@@ -7,7 +7,7 @@
    * au RNG seedé par le moteur — l'UI ne propose plus de sélection.
    * Le client ne calcule aucune règle : tout est lu des données partagées.
    */
-  import { CIVILIZATIONS } from '@game/rules';
+  import { CIVILIZATIONS, NEUTRAL_CIV } from '@game/rules';
   import { civName, civLeader, civStartLabels, civEraSummary, civUniqueSummary } from '../lib/labels.js';
 
   interface Props {
@@ -29,6 +29,21 @@
 </script>
 
 <div class="civpicker" class:compact>
+  <!-- CIVS-NEUTRES-LOBBY · D1 : « Sans civilisation » en tête — zéro trait,
+      zéro unique (neutre R-147, choix explicite des duels de test). -->
+  <button
+    type="button"
+    class="card neutre"
+    class:selected={value === NEUTRAL_CIV || value === null}
+    onclick={() => pick(NEUTRAL_CIV)}
+    title="Sans civilisation — aucun trait, aucune unité unique"
+  >
+    <span class="name">Sans civilisation</span>
+    <span class="leader">—</span>
+    <span class="start">Aucun avantage de départ</span>
+    <span class="eras">Aucun bonus d'ère</span>
+    <span class="uniques">Aucune unité unique</span>
+  </button>
   {#each civIds as id (id)}
     {@const civ = CIVILIZATIONS.civs[id]!}
     <button
@@ -57,6 +72,11 @@
   }
   .card:hover { border-color: #7fc79a; }
   .card.selected { border-color: #ffd54f; background: #2b3a24; box-shadow: 0 0 0 1px #ffd54f; }
+  /* CIVS-NEUTRES-LOBBY : la carte « Sans civilisation » se distingue (gris
+      neutre — aucun trait à mettre en valeur). */
+  .card.neutre { background: #232830; border-color: #4a5462; }
+  .card.neutre:hover { border-color: #7c8798; }
+  .card.neutre .leader, .card.neutre .start, .card.neutre .eras, .card.neutre .uniques { color: #9aa3af; }
   .name { font-weight: 700; font-size: 0.92rem; }
   .leader { color: #ffd54f; font-size: 0.75rem; }
   .start { font-size: 0.72rem; color: #bfe8cc; }

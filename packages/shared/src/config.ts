@@ -10,7 +10,7 @@
  * que le serveur valide sans duplication ; la topographie est la liste
  * data-driven `TOPOGRAPHIES` de @game/rules (D4 : l'existant, rien de neuf).
  */
-import { CIVILIZATIONS } from '@game/rules';
+import { NEUTRAL_CIV, estCivSelectionnable } from '@game/rules';
 import { TOPOGRAPHIES } from '@game/rules';
 import accentsBrut from '../../../apps/web/src/lib/render/accents.json';
 
@@ -82,10 +82,14 @@ export function configPartieErreur(config: unknown): string | null {
     }
     vuesPalettes.add(s.paletteId);
     if (c.civsAleatoires !== true && s.civId) {
-      if (typeof s.civId !== 'string' || !CIVILIZATIONS.civs[s.civId]) {
+      // CIVS-NEUTRES-LOBBY · D1 : la neutre (R-147, « Sans civilisation »)
+      // est sélectionnable comme les autres — et plusieurs sièges peuvent la
+      // PORTER en même temps (duel miroir neutre vs neutre des tests d'Erik :
+      // c'est justement l'absence de choix qui se partage).
+      if (typeof s.civId !== 'string' || !estCivSelectionnable(s.civId)) {
         return `siège ${i + 1} : civilisation inconnue (${String(s.civId)})`;
       }
-      if (vuesCivs.has(s.civId)) {
+      if (s.civId !== NEUTRAL_CIV && vuesCivs.has(s.civId)) {
         return `siège ${i + 1} : civilisation déjà prise par un autre siège`;
       }
       vuesCivs.add(s.civId);

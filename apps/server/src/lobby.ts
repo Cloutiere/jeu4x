@@ -8,7 +8,7 @@
  * WebSocket hibernation : chaque socket est authentifié au connect (JWT en
  * query param ou cookie) et porte `{ playerId, name }` en attachment.
  */
-import { CIVILIZATIONS, createRng } from '@game/rules';
+import { CIVILIZATIONS, NEUTRAL_CIV, createRng, estCivSelectionnable } from '@game/rules';
 import type { PlayerId } from '@game/rules';
 import { PROTO_VERSION } from '@game/shared';
 import type {
@@ -268,7 +268,7 @@ export class LobbyDO {
     // 7n · R-145 : la civ de l'hôte est validée (connue des données). La
     // Merveille Antique (Égypte) est TIRÉE par le moteur — plus de choix.
     const hostCiv = (settings as { civId?: string }).civId;
-    if (hostCiv !== undefined && !CIVILIZATIONS.civs[hostCiv]) {
+    if (hostCiv !== undefined && !estCivSelectionnable(hostCiv)) {
       return this.sendError(ws, 'badMessage', 'civilisation inconnue');
     }
     // Chantier BOT-SOLO (L2) : la case à cocher « Partie solo » crée la
@@ -282,7 +282,7 @@ export class LobbyDO {
     // JEV-FUMEE-LOBBY (retour Erik 28/10) : le duel 1v1 miroir peut aussi
     // être joué contre JEV — même champ méta que la voie 5 sièges.
     const adversaireJev = (settings as { adversaireJev?: unknown }).adversaireJev === true;
-    if (rawBotCiv !== undefined && rawBotCiv !== 'random' && !CIVILIZATIONS.civs[rawBotCiv]) {
+    if (rawBotCiv !== undefined && rawBotCiv !== 'random' && !estCivSelectionnable(rawBotCiv)) {
       return this.sendError(ws, 'badMessage', 'civilisation du bot inconnue');
     }
     // Génération du code avec vérification de collision (L4).
@@ -492,8 +492,11 @@ export class LobbyDO {
     if (siegeLibre < 0) return this.sendError(ws, 'gameFull', 'aucun siège humain libre');
     const preneur = game.players.find((p) => p.paletteId === paletteId);
     if (preneur) return this.sendError(ws, 'badMessage', `couleur déjà prise par ${preneur.name}`);
-    const civ = cfg.civsAleatoires ? undefined : civId && CIVILIZATIONS.civs[civId] ? civId : undefined;
-    if (civ) {
+    // CIVS-NEUTRES-LOBBY · D1 : la neutre (« Sans civilisation ») est un
+    // choix de jointure ; D3 : plusieurs humains peuvent la PORTER (aucune
+    // civ à se partager — le duel miroir neutre vs neutre passe par ici).
+    const civ = cfg.civsAleatoires ? undefined : civId && estCivSelectionnable(civId) ? civId : undefined;
+    if (civ && civ !== NEUTRAL_CIV) {
       const occupant = game.players.find((p) => p.civId === civ);
       if (occupant) return this.sendError(ws, 'badMessage', `civilisation déjà prise par ${occupant.name}`);
     }

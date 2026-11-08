@@ -50,6 +50,7 @@ import {
   WONDERS,
   isWonderObsolete,
   normalizeHexW,
+  estCivSelectionnable,
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, LoadedMap, Order, PlayerId, ProgenReport, UnitId } from '@game/rules';
 import { PROTO_VERSION, normaliseDifficulteBot } from '@game/shared';
@@ -716,7 +717,9 @@ export class GameDO {
         id: body.host.id,
         name: body.host.name,
         engineId: 'p1',
-        ...(body.host.civId && CIVILIZATIONS.civs[body.host.civId] ? { civId: body.host.civId } : {}),
+        // CIVS-NEUTRES-LOBBY : la neutre explicite persiste (« Sans
+        // civilisation » affiché à l'attente) — les inconnues restent évincées.
+        ...(body.host.civId && estCivSelectionnable(body.host.civId) ? { civId: body.host.civId } : {}),
         ...(body.host.paletteId ? { paletteId: body.host.paletteId } : {}),
         ...(typeof body.host.siege === 'number' ? { siege: body.host.siege } : {}),
       }],
@@ -751,7 +754,7 @@ export class GameDO {
     // 7n · R-145 : validation de la civ du joueur B (connue des données ;
     // défaut = neutre). Calibrage canon (Erik 06/09) : la Merveille Antique
     // (Égypte) est TIRÉE par le moteur — plus aucun choix ni exclusion R-129.
-    const civId = body.player.civId && CIVILIZATIONS.civs[body.player.civId] ? body.player.civId : undefined;
+    const civId = body.player.civId && estCivSelectionnable(body.player.civId) ? body.player.civId : undefined;
 
     // Prochain siège moteur libre (p2, puis p3..p5) — attribution dans
     // l'ordre d'arrivée (convention conservée : l'hôte est p1).
@@ -826,7 +829,7 @@ export class GameDO {
     for (const j of body.joueurs) {
       const p = this.meta.players.find((q) => q.id === j.id);
       if (!p) continue;
-      if (j.civId && CIVILIZATIONS.civs[j.civId]) p.civId = j.civId;
+      if (j.civId && estCivSelectionnable(j.civId)) p.civId = j.civId;
       if (j.paletteId) p.paletteId = j.paletteId;
     }
     await this.state.storage.put({ meta: this.meta });
