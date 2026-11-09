@@ -263,19 +263,23 @@ describe('R-176/R-177 · Engagement : un seul défenseur, ordre d’attaque, fin
     expect(t2.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
   });
 
-  it('R-178 rév. A · le report NE s’applique PAS sans défenseur : entrée simultanée sur une case vide = mêlée immédiate (#2)', () => {
+  it('R-178 rév. A amendée COHABITATION-HOSTILE (09/11) · le report NE s’applique PAS sans défenseur : entrée simultanée sur une case vide = BATAILLE COMPLÈTE immédiate (R-51, cas 5633Y3)', () => {
     const s0 = makeState({
       units: [
         { id: 'u1', type: 'guerrier', owner: 'p1', q: 2, r: 3 },
         { id: 'u2', type: 'guerrier', owner: 'p2', q: 1, r: 4 },
       ],
     });
-    const { events } = resolveTurn(s0, {
+    const { events, newState } = resolveTurn(s0, {
       p1: [{ type: 'Move', unitId: 'u1', path: [{ q: 2, r: 4 }] }],
       p2: [{ type: 'Move', unitId: 'u2', path: [{ q: 2, r: 4 }] }],
     }, 20260915);
-    // Aucun défenseur sur (2,4) : instabilité résolue le tour même de l'entrée.
-    expect(events.some((e) => e.type === 'MeleeResolved')).toBe(true);
+    // Aucun défenseur sur (2,4) : les entrants convergents se battent le tour
+    // même — bataille complète (un mort), JAMAIS la mêlée pondérée.
+    expect(events.some((e) => e.type === 'MeleeResolved')).toBe(false);
+    expect(events.some((e) => e.type === 'CombatExchange')).toBe(true);
+    const morts = (newState.units.u1 ? 0 : 1) + (newState.units.u2 ? 0 : 1);
+    expect(morts).toBe(1);
   });
 
   it('R-175 · rév. BATAILLE-COMPLETE (31/10) : le défenseur fortifié en forêt ÉCRASE ses assiégeants — la bataille complète remplace la mêlée différée', () => {

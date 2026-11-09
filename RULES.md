@@ -863,7 +863,13 @@ Base documentaire : la spécification d'Erik [`Guide Civilisations Civilization 
   défenseur (stabilisé) : chacune ne combat QU'avec le défenseur, jamais avec les autres
   entrantes (#1). Un attaquant de mêlée prend PLACE sur la case attaquée (fin des replis) ;
   une unité qui ne peut pas ENTRER (navire en mer depuis la rive) attaque depuis sa position
-  (pas de cohabitation possible).
+  (pas de cohabitation possible). **Rév. COHABITATION-HOSTILE (09/11)** : à DÉFAUT de
+  défenseur, des entrants de camps HOSTILES co-localisés par leurs entrées du tour
+  (« convergence sans défenseur » — cas capturé 5633Y3) ne cohabitent JAMAIS : bataille
+  COMPLÈTE (R-51), ordre déterministe seedé (plus faible unitId d'abord), jusqu'à ce qu'il
+  ne reste que des unités d'UN même camp ; le survivant tient la case. Le cas « entrant vs
+  défenseur » et les co-locations amies (R-44/R-159) restent inchangés — avec un RÉSIDENT
+  sur la case (pile résiduelle, R-181), la mêlée pondérée R-180 demeure.
 - **R-176a · Coup en passant (interprétation R-176 — décision d'Erik du 17/09, « j'adore le coup en passant »).** Une attaque planifiée à l'entrée (R-176) se résout **même si le défenseur a quitté la case visée** pendant la Phase A, tant qu'il reste À PORTÉE de l'attaquant (distance ≤ portée — contact en v1) : l'échange a lieu sur la case où se trouve le défenseur. Le défenseur parti se défend selon R-174 — ayant bougé, il n'est plus stabilisé : **valeurs d'attaque**, sans bonus de terrain ni fortification. Survie mutuelle : personne ne cohabite (l'attaquant demeure sur la case échangée, le défenseur sur la sienne) — pas de mêlée, les deux cases se stabilisent. Deux unités qui échangent leurs cases se croisent donc TOUJOURS (plus de collision, R-53 abrogée) et échangent au passage un échange R-51. Verrouillé par le test de reproduction du labo (seed 20260915, `engagement.test.ts` R-176a).
 - **R-177 · Ordre d'attaque (#5).** Sur une même case, les attaquants résolvent un par un :
   plus de **PM restants** après l'entrée, puis plus forte **ATTAQUE**, puis **DÉFENSE

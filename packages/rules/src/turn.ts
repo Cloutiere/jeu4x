@@ -5134,6 +5134,48 @@ function processStability(board: Board): void {
         decide(board, 'melee-reportee-phase-e', 'R-178 rév. A', `Instabilité (${tile.q},${tile.r}) : mêlée REPORTÉE au tour suivant (un défenseur stabilisé y a été attaqué)`, { case: tile, participants: participants.map((u) => u.id) });
         continue;
       }
+      // COHABITATION-HOSTILE (canon Erik 09/11) : des ENTRANTS de camps
+      // hostiles convergés sur une case SANS défenseur ne cohabitent JAMAIS —
+      // ils se battent en BATAILLE COMPLÈTE (R-51 : assauts jusqu'à la mort de
+      // l'un, pas de retraite), ordre déterministe seedé (plus faible unitId
+      // d'abord — même discipline que R-177), jusqu'à ce qu'il ne reste que
+      // des unités d'UN même camp (miroir R-177 : on arrête quand il n'y a
+      // plus d'hostilité sur la case). Périmètre D1 : la règle vise les
+      // co-localisations nées des ENTRÉES DU TOUR (le cas « convergence sans
+      // défenseur » capturé en 5633Y3) — si un RÉSIDENT demeure sur la case
+      // (pile amie résiduelle, défenseur, R-44/R-159/R-181), l'ancienne mêlée
+      // pondérée R-180 s'applique (ci-dessous), inchangée.
+      const residentPresent = participants.some((u) => !board.moved.has(u.id));
+      if (!residentPresent) {
+        decide(board, 'cohabitation-hostile', 'R-176 rév. COHABITATION-HOSTILE', `Cohabitation hostile (${tile.q},${tile.r}) sans défenseur : les entrants convergents se battent en bataille complète (R-51), plus faible unitId d'abord — jusqu'à ce qu'un seul camp tienne la case`, { case: tile, participants: participants.map((u) => u.id) });
+        for (;;) {
+          const vivants = participants.filter((u) => st.units[u.id])
+            .sort((a, b) => compareUnitIds(a.id, b.id));
+          let attaquant: Unit | undefined;
+          let defenseur: Unit | undefined;
+          recherche: for (const a of vivants) {
+            for (const b of vivants) {
+              if (a !== b && areAtWar(st, a.owner, b.owner)) {
+                attaquant = a;
+                defenseur = b;
+                break recherche;
+              }
+            }
+          }
+          if (!attaquant || !defenseur) break; // plus d'hostilité sur la case
+          performExchange(board, attaquant, defenseur, tile);
+          const mort = defenseur.hp <= 0 ? defenseur : attaquant.hp <= 0 ? attaquant : null;
+          if (mort) {
+            const vainqueur = mort === defenseur ? attaquant : defenseur;
+            kill(board, mort, 'combat', vainqueur.id);
+            vainqueur.veteran = true; // R-32 : coup fatal
+            recordCombatVictory(board, vainqueur); // 7h · R-123 (T-31) + soin Aztèque
+          }
+          // Bataille complète : pas de survie mutuelle — on ne boucle que si
+          // d'autres camps hostiles demeurent sur la case (D2).
+        }
+        continue;
+      }
       // Poids = attaque effective² × étau. Les bonus de DEMEURE (terrain,
       // fortification, bâtiments de ville) tiennent pour l'unité qui n'a pas
       // bougé ce tour (R-175 : l'avantage de l'occupation du terrain).

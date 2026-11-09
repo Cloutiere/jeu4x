@@ -10,7 +10,7 @@ import { resolveTurn } from '../src/turn.js';
 import { makeState, pathBetween } from '../src/fixtures.js';
 import { barbarianOrders, barbarianUnitType, createBarbarianUnit, drawHutReward, spawnInitialGarrisons } from '../src/barbares.js';
 import { BARBARIAN_ID, BARBARIANS, HUT_REWARDS, UNIT_TYPES, registerTestUnitType } from '../src/data.js';
-import { hexDistance, tileKeyOf, neighbors } from '../src/hex.js';
+import { hexDistance, tileKeyOf, neighbors, neighborsW } from '../src/hex.js';
 import { createRng } from '../src/rng.js';
 import { getFilteredState, filterEventsForPlayer } from '../src/fog.js';
 import { checkForfeit } from '../src/forfeit.js';
@@ -391,7 +391,7 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
     state.units['sat'] = { ...structuredClone(gabarit), id: 'sat', q: 5, r: 5 };
     state.villages[0]!.spawnedUnits.push('sat');
     // Ennemi posé sur le premier voisin du satellite qui n'est PAS le camp.
-    const cible = neighbors({ q: 5, r: 5 }, state.mapWidth).find((h) => !(h.q === 6 && h.r === 5))!;
+    const cible = neighborsW({ q: 5, r: 5 }, state.mapWidth).find((h) => !(h.q === 6 && h.r === 5))!;
     state.units['e1'] = {
       ...structuredClone(gabarit),
       id: 'e1',
