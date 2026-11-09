@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveTurn } from '../src/turn.js';
 import { createRng } from '../src/rng.js';
+import { jetDeBataille } from '../src/derive.js'; // ORACLE-VERDICT · re-cal des graines
 import { makeState, unit, unitAt, cityAt } from '../src/fixtures.js';
 import { registerTestUnitType } from '../src/data.js';
 import type { GameState, Order } from '../src/state.js';
@@ -40,21 +41,20 @@ function eventsOf(result: { events: GameEvent[] }): GameEvent[] {
   return result.events;
 }
 
-/** Graine dont le premier tir fait perdre 1 PV au défenseur (p = 0.5 entre égaux). */
+/** ORACLE-VERDICT (re-cal 09/11) : le jet d'assaut mêlée vient du dérivé par
+ *  bataille (plus du flux) — les graines sont cherchées SUR LE DÉRIVÉ (p = 0.5
+ *  entre égaux : jet < 0.5 touche le défenseur, >= 0.5 touche l'attaquant ;
+ *  entrée simultanée : attaquant et défenseur sur la même case (1,0)). */
 function seedWhereDefenderIsHit(): number {
   for (let s = 0; s < 1000; s++) {
-    if (createRng(s).next() < 0.5) return s;
+    if (jetDeBataille(s, 'u1', 'u2', '1,0', '1,0', 1) < 0.5) return s;
   }
   throw new Error('pas de graine trouvée');
 }
 /** Graine dont le premier tir fait perdre 1 PV à l'attaquant. */
 function seedWhereAttackerIsHit(): number {
-  // R-177 : le 1er tir du RNG va au tirage d'ordre des plans ; l'échange lit
-  // le 2e tir — la graine doit donner roll >= 0.5 sur CE tir (p = 0.5).
   for (let s = 0; s < 1000; s++) {
-    const rng = createRng(s);
-    rng.next(); // tirage d'ordre (R-177 ENGAGEMENT)
-    if (rng.next() >= 0.5) return s;
+    if (jetDeBataille(s, 'u1', 'u2', '1,0', '1,0', 1) >= 0.5) return s;
   }
   throw new Error('pas de graine trouvée');
 }

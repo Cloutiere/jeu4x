@@ -26,6 +26,8 @@ import { reducePaireReplay, replayPair } from './replay.js';
 import { contexteMelee, reduceContexteMelee } from './melee.js';
 // CHAT-SOCLE (Erik 29/10) : le store de chat est alimenté dans apply().
 import { appliquerMessageChat } from './chat.js';
+// ORACLE-VERDICT (canon Erik 09/11) : verdict de bataille certain (store dédié).
+import { enregistrerPrediction, purgePrediction } from './oracle.js';
 
 export interface GameView {
   code: string;
@@ -87,6 +89,9 @@ export interface GameClient {
   envoyerChat(canal: 'general' | string, texte: string): void;
   /** CHAT-SOCLE (D3) : demande l'historique complet visible par CE joueur. */
   demanderHistoriqueChat(): void;
+  /** ORACLE-VERDICT (D2) : demande de révélation de bataille — réponse
+   *  PRIVÉE BattlePrediction (store `predictionBataille`, lib/oracle.ts). */
+  predireBataille(attaquant: UnitId, cible: { q: number; r: number }): void;
   resync(): void;
   close(): void;
 }
@@ -218,6 +223,8 @@ export function reduceView(v: GameView, message: ServerToClientMessage): GameVie
     case 'ChatHistory':
     case 'PlayerMet':
       return v; // CHAT-SOCLE : alimentés par appliquerMessageChat (store dédié)
+    case 'BattlePrediction':
+      return v; // ORACLE-VERDICT : store dédié (lib/oracle.ts), hors vue moteur
     case 'Error':
       return v; // erreur exposée via le store `error`, pas la vue
   }
@@ -245,6 +252,15 @@ export function createGameClient(
     // CHAT-SOCLE : ChatMessage / ChatHistory / PlayerMet / Welcome(rencontres)
     // alimentent le store de chat (réducteur pur testé) — hors vue moteur.
     appliquerMessageChat(message);
+    // ORACLE-VERDICT (D2) : verdict privé → store dédié ; un tour résolu ou
+    // un snapshot rend le verdict caduc (purge + cadence ré-armée).
+    if (message.type === 'BattlePrediction') {
+      enregistrerPrediction(message.attaquant, { q: message.cibleQ, r: message.cibleR }, message.verdict);
+      return;
+    }
+    // Un ordre accusé (OrderAck) change l'hypothèse simulée : purge aussi
+    // (sinon un verdict caduc resterait affiché après un autre ordre).
+    if (message.type === 'TurnResult' || message.type === 'Snapshot' || message.type === 'OrderAck') purgePrediction();
     if (message.type === 'Error') {
       error.set(`${message.code} : ${message.message}`);
       return;
@@ -331,6 +347,9 @@ export function createGameClient(
     },
     demanderHistoriqueChat() {
       handle.send({ type: 'ChatHistory' });
+    },
+    predireBataille(attaquant, cible) {
+      handle.send({ type: 'PredictBattle', attaquant, cible });
     },
     resync,
     close() {

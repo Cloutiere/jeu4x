@@ -5,9 +5,10 @@
    * Le client ne calcule aucune règle : les boutons reflètent ce que l'état
    * filtré autorise ; la validation finale reste serveur.
    */
-  import { CITY_DEFENSE_BONUS, FORTIFY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, TERRAINS, RESOURCES, RESOURCE_UNKNOWN, SPY_STEAL_GOLD_PCT, combatOdds, effectiveStrength, estTerritoireEnnemi, hexDistanceW, isWonderObsolete, landCombatBonus, neighborsW, unitType, wonderAttackBonusEmpireOf, allKnownTechs, explorerGoldInjectionForEra, eraOfPlayer, civIdOf, productionItemCostOf } from '@game/rules';
+  import { CITY_DEFENSE_BONUS, MIN_CITY_DISTANCE, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, SPY_STEAL_GOLD_PCT, estTerritoireEnnemi, hexDistanceW, neighborsW, unitType, oracleActif, explorerGoldInjectionForEra, eraOfPlayer, civIdOf, productionItemCostOf } from '@game/rules';
   import type { Order, SpyActionKind } from '@game/shared';
   import type { GameClient, GameView } from '../lib/gameClient.js';
+  import { cleOracle, demanderPrediction, libelleVerdict, predictionsBataille } from '../lib/oracle.js'; // ORACLE-VERDICT
   import { myEngineId, ordersEditable, unitAtHex, cityAtHex, enterableKnown } from '../lib/render/interaction.js';
   import { consumeEffectLabel, settleEffectLabel, greatPersonLabel, SPY_ACTION_LABELS } from '../lib/labels.js';
   import { candidatsArmee, libelleFormation, peutFormerArmee } from '../lib/geste-armee.js';
@@ -345,58 +346,30 @@
   }
 
   /**
-   * 7h · R-125 · Oracle : pré-confirmation de combat avec l'issue exacte
-   * (🔶 simple) — probabilité de toucher par round p = S_att²/(S_att²+S_def²)
-   * (même formule que le moteur, §7.4). Actif si l'empire contrôle l'Oracle
-   * (non obsolète — Religion, R-110). Interprétation : le tir seedé reste à
-   * la résolution ; l'UI affiche les probabilités exactes et le vainqueur
-   * attendu.
+   * ORACLE-VERDICT (canon Erik 09/11, Chemin B) · R-125 : l'Oracle révèle
+   * l'issue CERTAINE des batailles planifiées — les jets mêlée sont un dérivé
+   * déterministe par bataille, le serveur l'exécute (PredictBattle) et rend
+   * VICTOIRE/DÉFAITE. Plus de pourcentages : l'Oracle ne se trompe pas.
+   * Gate partagée moteur/UI (oracleActif : battleForeknowledge non obsolète,
+   * obsolescence GLOBALE R-128). Tirs R-59 : pas de révélation (D1).
    */
   const oracleActive = $derived.by(() => {
     const id = myEngineId(view);
     if (!id || !view.state) return false;
-    // 7k · M1/R-128 : obsolescence GLOBALE — l'Oracle meurt si QUI QUE CE SOIT
-    // découvre la Religion (union des techs de toutes les civilisations).
-    const allTechs = allKnownTechs(view.state);
-    return Object.values(view.state.cities).some(
-      (c) => c.owner === id && c.wonders.includes('oracle_de_delphes') && !isWonderObsolete('oracle_de_delphes', allTechs),
-    );
+    return oracleActif(view.state, id);
   });
 
-  const attackPreviews = $derived.by(() => {
-    if (!oracleActive || !unit || !stats || !view.state) return new Map<string, number>();
-    const me = view.state.players[unit.owner]!;
-    const allTechs = allKnownTechs(view.state); // M1/R-128 : union pour Himeji
-    const cities = Object.values(view.state.cities);
-    const effects = { ...(me.government ? { landAttackBonus: undefined } : {}) };
-    void effects;
-    const preview = new Map<string, number>();
-    for (const t of attackTargets) {
-      const defender = view.state.units[t.label];
-      if (!defender) continue;
-      const dStats = unitType(defender.type);
-      const tile = view.state.map[`${t.hex.q},${t.hex.r}`];
-      const terrainBonus = tile ? TERRAINS[tile.terrain]?.defenseBonus ?? 0 : 0;
-      const city = cities.find((c) => c.q === t.hex.q && c.r === t.hex.r && c.owner === defender.owner);
-      let cityBonus = 0;
-      if (city) for (const b of city.buildings) cityBonus += BUILDINGS[b]?.cityDefenseBonus ?? 0;
-      const sAtt =
-        effectiveStrength(stats.attack, unit.veteran) +
-        wonderAttackBonusEmpireOf(cities, unit.owner, allTechs) +
-        landCombatBonus({ landAttackBonus: 1 }, { aquatic: stats.aquatic }, 'attack') *
-          (me.government === 'fondamentalisme' ? 1 : 0);
-      const sDef =
-        effectiveStrength(
-          dStats.defense,
-          defender.veteran,
-          terrainBonus + (defender.fortified ? FORTIFY_DEFENSE_BONUS : 0) + cityBonus,
-        ) +
-        landCombatBonus({ landDefenseBonus: 1 }, { aquatic: dStats.aquatic }, 'defense') *
-          (view.state.players[defender.owner]?.government === 'fondamentalisme' ? 1 : 0);
-      preview.set(t.label, combatOdds(sAtt, sDef));
-    }
-    return preview;
+  // Cadencé (D2) : une demande par (tour, attaquant, cible) — les cibles
+  // adjacentes du panneau d'attaque sont demandées à la sélection.
+  $effect(() => {
+    if (!oracleActive || !unit || !stats || stats.isRanged || !editable) return;
+    for (const t of attackTargets) demanderPrediction(client, view, unit.id, t.hex);
   });
+
+  function verdictPour(hex: { q: number; r: number }): string | null {
+    if (!oracleActive || !unit) return null;
+    return libelleVerdict($predictionsBataille[cleOracle(unit.id, hex)]);
+  }
 </script>
 
 <section class="panel">
@@ -563,7 +536,7 @@
         {/if}
       {/if}
       {#if attackTargets.length > 0}
-        {#if oracleActive}<p class="oracle-note">🔮 Oracle (R-125) : l'issue exacte du combat est révélée — % de toucher par round, vainqueur attendu marqué ✓.</p>{/if}
+        {#if oracleActive && !stats?.isRanged}<p class="oracle-note">🔮 Oracle (R-125) : l'issue du combat est révélée — l'Oracle ne se trompe jamais.</p>{/if}
         <div class="btns">
           {#each attackTargets as t (t.hex.q + ',' + t.hex.r)}
             <button
@@ -573,7 +546,7 @@
               title={stats?.isRanged ? 'Attaque à distance (R-59) : vous restez sur votre case' : undefined}
               onclick={() => submitAttack(t.hex)}
             >
-              {stats?.isRanged ? 'Tirer sur' : 'Attaquer'} {t.label} ({t.hex.q},{t.hex.r}){#if oracleActive && attackPreviews.has(t.label)}<span class="odds"> — {Math.round((attackPreviews.get(t.label) ?? 0) * 100)} %/round{#if (attackPreviews.get(t.label) ?? 0) >= 0.5} ✓{/if}</span>{/if}
+              {stats?.isRanged ? 'Tirer sur' : 'Attaquer'} {t.label} ({t.hex.q},{t.hex.r}){#if verdictPour(t.hex)}<span class="odds"> — 🔮 {verdictPour(t.hex)}</span>{/if}
             </button>
           {/each}
         </div>

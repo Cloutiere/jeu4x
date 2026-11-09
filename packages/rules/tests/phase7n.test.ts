@@ -419,7 +419,7 @@ describe('7n · R-149 · Traits — économie, croissance, combat, huttes', () =
     // mais avec des PERTES pour l'attaquant (BATAILLE-COMPLETE 31/10).
     const plain = zulu();
     plain.players['p1']!.civId = NEUTRAL_CIV;
-    const rp = resolveTurn(plain, { p1: [{ type: 'Attack', unitId: 'at', target: { q: 0, r: 0 } }] }, 7);
+    const rp = resolveTurn(plain, { p1: [{ type: 'Attack', unitId: 'at', target: { q: 0, r: 0 } }] }, 5); // ORACLE-VERDICT re-cal 09/11 (dérivé par bataille)
     expect(rp.newState.units['df']).toBeUndefined(); // la bataille va à la mort
     expect(rp.newState.units['at']).toBeDefined(); // l'attaquant l'emporte presque toujours (p=16/17)
     expect(rp.newState.units['at']!.hp).toBeLessThan(3); // mais il a encaissé (vs écrasement sans perte)

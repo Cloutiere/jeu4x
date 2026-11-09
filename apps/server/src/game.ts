@@ -53,6 +53,7 @@ import {
   estCivSelectionnable,
 } from '@game/rules';
 import type { CityId, GameEvent, GameState, LoadedMap, Order, PlayerId, ProgenReport, UnitId } from '@game/rules';
+import { predireBataille } from './prediction.js'; // ORACLE-VERDICT (canon Erik 09/11)
 import { PROTO_VERSION, normaliseDifficulteBot } from '@game/shared';
 import type { ClientToServerMessage, ConfigPartie, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import type { Env } from './env.js';
@@ -1416,6 +1417,25 @@ export class GameDO {
         case 'ChatHistory':
           this.handleChatHistory(ws, att.playerId);
           break;
+        case 'PredictBattle': {
+          // ORACLE-VERDICT (D2) : révélation PRIVÉE — le verdict ne quitte
+          // jamais le socket du demandeur (fog refusé en amont).
+          const m = msg as { attaquant: UnitId; cible: { q: number; r: number } };
+          if (!this.game) {
+            this.sendError(ws, 'badMessage', 'partie absente');
+            break;
+          }
+          const verdict = predireBataille(this.game, this.orders, att.playerId, { attaquant: m.attaquant, cible: m.cible });
+          this.sendTo(ws, {
+            type: 'BattlePrediction',
+            proto: PROTO_VERSION,
+            attaquant: m.attaquant,
+            cibleQ: m.cible.q,
+            cibleR: m.cible.r,
+            verdict,
+          });
+          break;
+        }
         case 'CreateGame':
         case 'JoinGame':
         case 'ListGames':

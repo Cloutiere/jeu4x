@@ -35,6 +35,7 @@ import type { BarbarianVillage, City, CityId, GameState, Order, Player, PlayerId
 import { BARBARIAN_ID, BARBARIANS, CULTURE, DEPLACEMENT, TERRAINS, unitType, building, BUILDINGS, HUT_REWARDS, RESOURCES, isWaterTerrain, isSpyUnit } from './data.js';
 import { tileYield, workRadiusOf, tileWorkable, estTerritoireEnnemi } from './economy.js';
 import { combatRound, effectiveStrength } from './combat.js';
+import { jetDeBataille } from './derive.js'; // ORACLE-VERDICT · D1
 import type { CombatDetail, CombatForceDetail, CombatMod, CombatRoundDetail, MeleeDetail } from './combat.js';
 import { computeVisibleTiles, recomputeVision } from './fog.js';
 import {
@@ -197,6 +198,12 @@ interface FormGroup {
 interface Board {
   st: GameState;
   rng: SeededRng;
+  /**
+   * ORACLE-VERDICT · D1 : la graine du tour telle qu'entrée dans resolveTurn —
+   * composante du dérivé par bataille (jetDeBataille). Interne au Board,
+   * jamais sérialisé.
+   */
+  seedTour: number;
   seq: number;
   events: GameEvent[];
   planned: CombatPlan[];
@@ -1189,7 +1196,31 @@ function performExchange(board: Board, attacker: Unit, defender: Unit, combatTil
       rounds.push({ round: i + 1, jet: null, pTouche: 1, touche: 'defenseur', pvPerdus: 1 });
       continue;
     }
-    const jet = rollTrace(board, `combat att=${attacker.id} def=${defender.id} assaut=${i + 1}${batailleComplete ? ' (bataille complète)' : ' (tir R-59)'} p(att)=${pTouche.toFixed(3)}`, () => board.rng.next());
+    // ORACLE-VERDICT · D1 : le jet d'un assaut MÊLÉE vient du dérivé par
+    // bataille (hash graine+ids+cases+assaut) — indépendant du flux, donc
+    // calculable avant la résolution (l'Oracle révèle l'issue). Le tir
+    // R-59 (distance vs distance, jamais à la mort) reste sur le flux.
+    // ORACLE-VERDICT · D1 : le jet d'un assaut MÊLÉE vient du dérivé par
+    // bataille (hash graine+ids+cases+assaut) — indépendant du flux, donc
+    // calculable avant la résolution (l'Oracle révèle l'issue). Le tir
+    // R-59 (distance vs distance, jamais à la mort) reste sur le flux.
+    // ⚠ rollTrace consomme TOUJOURS le flux (il ignore sa closure tirer) —
+    // le dérivé est rapporté à la trace manuellement via board.trace.roll.
+    const usage = `combat att=${attacker.id} def=${defender.id} assaut=${i + 1}${batailleComplete ? ' (bataille complète, dérivé)' : ' (tir R-59)'} p(att)=${pTouche.toFixed(3)}`;
+    let jet: number;
+    if (batailleComplete) {
+      jet = jetDeBataille(
+        board.seedTour,
+        attacker.id,
+        defender.id,
+        tileKeyOf({ q: attacker.q, r: attacker.r }),
+        tileKeyOf(combatTile),
+        i + 1,
+      );
+      board.trace?.roll(jet, usage);
+    } else {
+      jet = rollTrace(board, usage, () => board.rng.next());
+    }
     const winner = combatRound(sAtt, sDef, jet);
     if (winner === 'defender') {
       defender.hp -= 1;
@@ -5382,6 +5413,7 @@ export function resolveTurn(
   const board: Board = {
     st,
     rng: createRng(rngSeed),
+    seedTour: rngSeed,
     seq: st.lastEventSeq,
     events: [],
     planned: [],

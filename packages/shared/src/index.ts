@@ -143,6 +143,12 @@ export type ClientToServerMessage = ProtoMessage &
       { type: 'EndTurn' }
     | /** Demande un snapshot complet (trou de seq détecté, §3.4-3). `lastSeq` = dernier seq reçu par le client (null si jamais reçu). */
       { type: 'ResyncRequest'; lastSeq: number | null }
+    /** ORACLE-VERDICT (canon Erik 09/11, D2) · demande de révélation de
+     *  bataille : « si j'attaque `cible` avec `attaquant`, quelle est
+     *  l'issue ? » — gated Oracle actif + fog (cible invisible = refus,
+     *  jamais d'info). Réponse PRIVÉE BattlePrediction, cadencée côté client
+     *  (une prédiction par planning, pas de spam). */
+    | { type: 'PredictBattle'; attaquant: UnitId; cible: { q: number; r: number } }
     /** R-85 · Choix/changement de technologie — ACTION IMMÉDIATE (hors ordres
      *  de tour) : validée et appliquée à la réception, diffusion immédiate. */
     | { type: 'SetResearch'; techId: string }
@@ -357,6 +363,18 @@ export interface ChatHistoryMsg extends ProtoMessage {
   messages: ChatMessageData[];
 }
 
+/** ORACLE-VERDICT (D2) · réponse PRIVÉE à PredictBattle — verdict CERTAIN
+ *  (les jets mêlée sont un dérivé déterministe : l'Oracle ne se trompe pas).
+ *  `refus` = demande hors périmètre (sans Oracle, cible invisible, tir R-59,
+ *  pas de bataille simulable) — aucune info n'en dérive. */
+export interface BattlePredictionMsg extends ProtoMessage {
+  type: 'BattlePrediction';
+  attaquant: UnitId;
+  cibleQ: number;
+  cibleR: number;
+  verdict: 'victoire' | 'defaite' | 'refus';
+}
+
 /** CHAT-SOCLE (D2) · première vision d'une entité adverse (fait de fog
  *  R-73) — une fois par paire par partie : déverrouille la conversation
  *  individuelle et déclenche la popup de rencontre côté client. */
@@ -397,4 +415,5 @@ export type ServerToClientMessage =
   | GameJoined
   | ChatMessageMsg
   | ChatHistoryMsg
+  | BattlePredictionMsg
   | PlayerMetMsg;

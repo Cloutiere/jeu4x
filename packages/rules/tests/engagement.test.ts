@@ -254,8 +254,10 @@ describe('R-176/R-177 · Engagement : un seul défenseur, ordre d’attaque, fin
     expect(attaques.every((a) => a.defenderId === 'u3')).toBe(true);
     expect(t1.events.some((e) => e.type === 'MeleeResolved')).toBe(false);
     // Chaque bataille tue un camp : les deux assiégeants tombent, le barbare
-    // tient avec ses blessures (3 → 2 PV, PERSISTENTES entre batailles).
-    expect(unitOf(t1.newState, 'u3').hp).toBe(2);
+    // tient. ORACLE-VERDICT (re-cal 09/11) : les jets dérivés par bataille
+    // donnent au barbare DEUX victoires sans perdre un round — 3 → 3 PV
+    // (l'issue attendue change, l'assertion reste stricte).
+    expect(unitOf(t1.newState, 'u3').hp).toBe(3);
     expect(t1.newState.units['u1']).toBeUndefined();
     expect(t1.newState.units['u2']).toBeUndefined();
     // Tour 2 : plus personne ne cohabite — aucune mêlée.

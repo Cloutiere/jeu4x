@@ -11,7 +11,8 @@
   import { Application, Container, Graphics, Sprite, Text } from 'pixi.js';
   import type { Texture, TextStyleOptions } from 'pixi.js';
   import * as THREE from 'three';
-  import { hexToPixel, inRectangle, tileKeyOf, unitType, allKnownTechs, previewPrograms, directionOrientante, fondeAFinDuChemin, fondateursDe, colOf, colRowToHex, hexesWithinRadiusW, normalizeHexW, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius, economieVilleDetail } from '@game/rules';
+  import { hexToPixel, inRectangle, tileKeyOf, unitType, allKnownTechs, previewPrograms, directionOrientante, fondeAFinDuChemin, fondateursDe, colOf, colRowToHex, hexesWithinRadiusW, normalizeHexW, ARTEFACTS, BUILDINGS, RESOURCES, RESOURCE_UNKNOWN, TERRAINS, resourceBonus, resourceAccessible, civToutesRessources, BARBARIAN_ID, BARBARIANS, workRadiusOf, rayonCulturelDe, frontierRadius, economieVilleDetail, oracleActif } from '@game/rules';
+  import { cleOracle, demanderPrediction, libelleVerdict, predictionsBataille } from '../oracle.js'; // ORACLE-VERDICT (canon Erik 09/11)
   import type { CityId, GameState, Hex, ProgramPreview } from '@game/rules';
   import type { Order } from '@game/shared';
   import { onDestroy } from 'svelte';
@@ -3830,6 +3831,12 @@
           )
         : null;
     const couleurCible = ennemiVise ? COULEUR_ARRIVEE_ENNEMIE : COULEUR_SURVOL;
+    // ORACLE-VERDICT (D2/D3) : la tuile visée porte un ennemi VISIBLE et
+    // l'Oracle est actif → demande cadencée du verdict certain (le serveur
+    // refuse toute cible invisible ; l'infobulle l'affiche à réception).
+    if (ennemiVise && stateSurvol && scene.myId && scene.view && !unitType(unit.type).isRanged && oracleActif(stateSurvol, scene.myId)) {
+      demanderPrediction(client, scene.view, unit.id, cible);
+    }
     // CARTE-RONDE T2 (D2/D3) : encadré et flèche dépliés et dupliqués à la couture.
     const cibleP = hexToPixel(cible, HEX_SIZE);
     avecCopies(cibleP.x, (dx) => {
@@ -3981,6 +3988,16 @@
     }
     // ARRIVEE-ENNEMIE : nommer l'incertitude — aperçu d'arrivée, JAMAIS une
     // promesse de résultat de combat (résolution simultanée, modèle Diplomacy).
+    // ORACLE-VERDICT (D2) : SEULE exception — l'Oracle actif révèle le verdict
+    // CERTAIN de la bataille planifiée vers une cible visible (demandé au
+    // survol, accordé par le serveur) ; sinon rien.
+    if (hoverUnitId && hoverPath && hoverPath.length > 0) {
+      const fin = hoverPath[hoverPath.length - 1]!;
+      if (fin.q === hex.q && fin.r === hex.r) {
+        const verdict = libelleVerdict(get(predictionsBataille)[cleOracle(hoverUnitId, hex)]);
+        if (verdict) lines.push(`🔮 Oracle : ${verdict}`);
+      }
+    }
     for (const d of arriveesEnnemies().values()) {
       if (d.hex.q === hex.q && d.hex.r === hex.r) {
         lines.push('Arrivée sur ennemi : aperçu seulement — l\'ennemi peut avoir bougé (résolution simultanée).');
@@ -4058,6 +4075,15 @@
       tip = { ...tip, x: p.x, y: p.y };
     }
   }
+
+  // ORACLE-VERDICT (D2) : le verdict arrive APRÈS le survol (réponse serveur)
+  // — l'infobulle de la case survolée est reconstruite à réception.
+  const desabonnerOracle = predictionsBataille.subscribe(() => {
+    if (!tip || !tipHex) return;
+    const [q, r] = tipHex.split(',').map(Number);
+    tip = { ...tip, lines: buildTipLines({ q: q!, r: r! }) };
+  });
+  onDestroy(desabonnerOracle);
 
   function onPointerLeave(): void {
     tip = null;

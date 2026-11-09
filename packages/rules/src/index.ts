@@ -48,3 +48,6 @@ export * from './fixtures.js';
 /** Phase 6b — générateur procédural de cartes (pur, seedé, sans IO). */
 export * from './progen/index.js';
 export * from './trace.js';
+/** ORACLE-VERDICT (canon Erik 09/11) — oracleActif + jet de bataille dérivé. */
+export * from './oracle.js';
+export * from './derive.js';

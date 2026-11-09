@@ -41,7 +41,9 @@ describe('R-159 rév. B — co-destination amie avec ennemi présent', () => {
       p1: [move('u1', [{ q: 4, r: 3 }]), move('u2', [{ q: 4, r: 3 }])],
       p2: [],
     };
-    const { newState, events } = resolveTurn(s, ordres, s.rngSeed);
+    // ORACLE-VERDICT (re-cal 09/11) : graine re-sondée sous le dérivé par
+    // bataille (les jets mêlée ne viennent plus du flux).
+    const { newState, events } = resolveTurn(s, ordres, 0);
     // BATAILLE-COMPLETE (31/10) : la première bataille tue le défenseur —
     // la seconde amie n'attaque plus (B4, R-177) et ne prend pas place ;
     // plus de co-attaque en pile, plus de mêlée reportée, pas de dispersion.
@@ -101,7 +103,7 @@ describe('R-159 rév. B — entrée conditionnelle à la mort du défenseur', ()
       p1: [move('u1', [{ q: 4, r: 3 }]), move('u2', [{ q: 4, r: 3 }])],
       p2: [move('u4', [{ q: 4, r: 3 }])],
     };
-    const { newState, events } = resolveTurn(s, ordres, 3);
+    const { newState, events } = resolveTurn(s, ordres, 0); // ORACLE-VERDICT re-cal 09/11 (dérivé par bataille)
     expect(events.some((e) => e.type === 'UnitDestroyed' && e.unitId === 'u3')).toBe(true);
     // u4 ennemie est entrée (jamais retenue) et u2 amie entre : ennemi présent (P1).
     expect(newState.units['u4']!.q).toBe(4);
@@ -207,7 +209,7 @@ describe('R-159 rév. B — dispersion de pile amie (fin de R-179)', () => {
     s.units['u3'] = { id: 'u3', type: 'guerrier', owner: 'p2', q: 4, r: 3, hp: 1, mp: 1, veteran: false, isArmy: false, order: null, detainedBy: null, fortified: false, aboard: null, cargo: null, stabilized: true };
     // BATAILLE-COMPLETE : une bataille = la mort d'un camp — u3 tombe à la
     // première attaque ; la seconde n'a plus de cible (B4) et reste chez elle.
-    const r1 = resolveTurn(s, { p1: [move('u1', [{ q: 4, r: 3 }]), move('u2', [{ q: 4, r: 3 }])], p2: [] }, 14);
+    const r1 = resolveTurn(s, { p1: [move('u1', [{ q: 4, r: 3 }]), move('u2', [{ q: 4, r: 3 }])], p2: [] }, 0); // ORACLE-VERDICT re-cal 09/11 (dérivé par bataille)
     expect(r1.newState.units['u3']).toBeUndefined(); // morte (bataille complète)
     expect(r1.events.filter((e) => e.type === 'Attack')).toHaveLength(1);
     expect(r1.newState.units['u2']!.q).toBe(4); // la vainqueure entre
