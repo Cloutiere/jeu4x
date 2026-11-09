@@ -346,10 +346,10 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
     const moves = orders.filter((o) => o.type === 'Move');
     expect(moves).toHaveLength(1); // le satellite à distance 2 sort (aggro)
     expect(moves[0]).toMatchObject({ unitId: 'sat' }); // jamais le gardien
-    expect(orders.find((o) => o.type === 'Hold' && o.unitId === v.spawnedUnits[0])).toBeDefined(); // le gardien tient
+    expect(orders.find((o) => o.type === 'Fortify' && o.unitId === v.spawnedUnits[0])).toBeDefined(); // le gardien se fortifie (rév. 08/11 Erik)
   });
 
-  it('ENGAGEMENT R-183 : gardien SEUL au camp — il ne sort jamais (Hold), personne ne sort', () => {
+  it('ENGAGEMENT R-183 : gardien SEUL au camp — il ne sort jamais (Fortify), personne ne sort', () => {
     const state = makeState({
       width: 14,
       height: 12,
@@ -361,11 +361,11 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
     for (const id of v.spawnedUnits.slice(1)) delete state.units[id];
     v.spawnedUnits = [v.spawnedUnits[0]!];
     const orders = barbarianOrders(state);
-    expect(orders.filter((o) => o.type === 'Hold' && o.unitId === v.spawnedUnits[0])).toHaveLength(1);
+    expect(orders.filter((o) => o.type === 'Fortify' && o.unitId === v.spawnedUnits[0])).toHaveLength(1);
     expect(orders.filter((o) => o.type === 'Move')).toHaveLength(0);
   });
 
-  it('C3 · T-49 : la garde n’empêche jamais le combat défensif — l’unité au camp ATTAQUE l’ennemi adjacent', () => {
+  it('C3 · T-49 RÉV. 08/11 Erik : la garde NE S’ATTAQUE JAMAIS — l’unité au camp SE FORTIFIE, même face à un ennemi adjacent', () => {
     const state = makeState({
       width: 14,
       height: 12,
@@ -375,7 +375,33 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
     // La dotation T-50 (1 barbare) est EN PILE sur la case même du camp.
     const dotation = state.villages[0]!.spawnedUnits[0]!;
     const orders = barbarianOrders(state);
-    expect(orders).toContainEqual({ type: 'Attack', unitId: dotation, target: { q: 6, r: 4 } });
+    expect(orders.find((o) => 'unitId' in o && o.unitId === dotation)).toMatchObject({ type: 'Fortify' });
+    expect(orders).not.toContainEqual({ type: 'Attack', unitId: dotation, target: { q: 6, r: 4 } });
+  });
+
+  it('C3 · T-49 RÉV. 08/11 Erik : le SATELLITE (hors camp) ATTAQUE toujours l’ennemi adjacent', () => {
+    const state = makeState({
+      width: 14,
+      height: 12,
+      villages: [{ q: 6, r: 5, spawnCountdown: 99 }],
+      units: [],
+    });
+    const dotation = state.villages[0]!.spawnedUnits[0]!;
+    const gabarit = state.units[dotation]!;
+    state.units['sat'] = { ...structuredClone(gabarit), id: 'sat', q: 5, r: 5 };
+    state.villages[0]!.spawnedUnits.push('sat');
+    // Ennemi posé sur le premier voisin du satellite qui n'est PAS le camp.
+    const cible = neighbors({ q: 5, r: 5 }, state.mapWidth).find((h) => !(h.q === 6 && h.r === 5))!;
+    state.units['e1'] = {
+      ...structuredClone(gabarit),
+      id: 'e1',
+      owner: 'p1',
+      q: cible.q,
+      r: cible.r,
+    };
+    const orders = barbarianOrders(state);
+    expect(orders).toContainEqual({ type: 'Attack', unitId: 'sat', target: { q: cible.q, r: cible.r } });
+    expect(orders.find((o) => 'unitId' in o && o.unitId === dotation)).toMatchObject({ type: 'Fortify' }); // le gardien, lui, se fortifie
   });
 });
 

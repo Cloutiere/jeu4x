@@ -45,7 +45,7 @@ describe('CIVS-NEUTRES-LOBBY · la neutre sélectionnable', () => {
     expect(configPartieErreur(deux)).toBeNull();
 
     const mixte = configPartieDefaut(NEUTRAL_CIV);
-    mixte.sieges[1]!.civId = CIVS[0];
+    mixte.sieges[1]!.civId = CIVS[0]!;
     expect(configPartieErreur(mixte)).toBeNull();
 
     // Une civ inconnue reste refusée (comportement inchangé).

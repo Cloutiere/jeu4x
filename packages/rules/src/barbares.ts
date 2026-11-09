@@ -46,7 +46,8 @@ export function createBarbarianUnit(state: GameState, hex: Hex, type: string): U
     isArmy: false,
     order: null,
     detainedBy: null,
-    // R-95 : un barbare ne se fortifie jamais (aucun ordre Fortify généré).
+    // R-95 (rév. 08/11 Erik) : seul le GARDIEN au camp se fortifie (ordre
+    // Fortify émis par barbarianOrders) — les barbares hors camp jamais.
     fortified: false,
     aboard: null, // 7g : les barbares n'embarquent jamais (aucun navire)
     cargo: null,
@@ -93,6 +94,9 @@ function passable(state: GameState, hex: Hex): boolean {
  *     rayon d'aggro T-19 (pas de la ligne hexagonale ; si bloqué, premier pas
  *     réducteur de distance) ;
  *  3. sinon tenir (Hold).
+ * RÉV. 08/11 (Erik) : le GARDIEN du camp NE S'ATTAQUE plus JAMAIS — il émet
+ * un ordre `Fortify` (défense renforcée tant qu'il tient le camp). Seules les
+ * unités HORS camp suivent les phases 1-3.
  * BARBARES-PILES : les `gardeMinimale` premiers barbares vivants de chaque
  * `spawnedUnits` (le plus ancien garde, le dernier arrivé sort — R-81) ne
  * SORTENT jamais (pas de Move) ; seul l'explorateur suit les phases 2-3.
@@ -137,8 +141,14 @@ export function barbarianOrders(state: GameState): Order[] {
   for (const id of ids) {
     const unit = state.units[id]!;
     const here = { q: unit.q, r: unit.r };
-    // BARBARES-PILES : une garde ne SORT jamais (Hold ou défense adjacente).
+    // BARBARES-PILES · rév. 08/11 (Erik) : une garde ne SORT jamais ET ne
+    // S'ATTAQUE jamais — elle SE FORTIFIE (R-95 amendé : seul ordre émis par
+    // un barbare au camp). Seules les unités HORS camp suivent R-97.
     const gardeBloque = gardes.has(id);
+    if (gardeBloque) {
+      orders.push({ type: 'Fortify', unitId: id });
+      continue;
+    }
 
     // (1) attaque adjacente — voisins déjà triés (q, r) croissant.
     let acted = false;
@@ -148,15 +158,12 @@ export function barbarianOrders(state: GameState): Order[] {
       const enemyOnTile = defender && defender.owner !== BARBARIAN_ID;
       if (!enemyOnTile && !city) continue;
       if (enemyOnTile) {
-        // Combat défensif sur place : toujours permis (hors garde).
+        // Combat défensif sur place : toujours permis (hors garde — la garde
+        // a déjà été servie en Fortify plus haut).
         orders.push({ type: 'Attack', unitId: id, target: next });
       } else {
-        // Ville sans défenseur : entrer = SORTIE → soumise à la garde (T-49).
-        if (gardeBloque) {
-          orders.push({ type: 'Hold', unitId: id }); // garde minimale : tenir le camp
-        } else {
-          orders.push({ type: 'Move', unitId: id, path: [next] });
-        }
+        // Ville sans défenseur : entrer = SORTIE → jamais pour la garde.
+        orders.push({ type: 'Move', unitId: id, path: [next] });
       }
       acted = true;
       break;
@@ -171,10 +178,6 @@ export function barbarianOrders(state: GameState): Order[] {
     const target = inAggro[0]?.t;
     if (!target) {
       orders.push({ type: 'Hold', unitId: id });
-      continue;
-    }
-    if (gardeBloque) {
-      orders.push({ type: 'Hold', unitId: id }); // garde minimale : tenir le camp
       continue;
     }
     const step = advanceStep(state, here, target);
