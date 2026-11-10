@@ -45,8 +45,10 @@
 ## 📋 File d'attente (dans l'ordre convenu avec Erik)
 
 1. **Erik joue contre le Jev complet** (l'arbitre réel) — verdict ressenti sur victoires Jev 15 %, Oracle, armées ×3 ;
-2. **Miroir Jev vs Jev** (backlog) : équilibre attaque/défense du canon + exam de la chaîne conquête des deux côtés ;
-3. Atelier voix de Zii (Erik écrit la personnalité dans `zii.json`), vieux 🔶 ci-dessous.
+2. **BOT-GATE-ATTAQUE** (handoff prêt, 10/11 — diagnostic D3UUQJ : le guerrier de Jev s'est suicidé sur un gardien fortifié t5 sans que Jev ne décide, couche tactique bot sans évaluation) : gate d'attaque à l'espérance de gain (k=2) pondérée par valeur tactique + qualification Jev catégorielle bornée ×0,5-×2 ;
+3. **JEV-ESCORTE** (à cadrer, couplé au gate) : 0 unité combattante + colon sortant → production pivote sur guerrier ;
+4. **Miroir Jev vs Jev** (backlog) : équilibre attaque/défense du canon + exam de la chaîne conquête des deux côtés ;
+5. Atelier voix de Zii (Erik écrit la personnalité dans `zii.json`), vieux 🔶 ci-dessous.
 
 ## 🔶 À trancher par Erik (ouverts)
 
