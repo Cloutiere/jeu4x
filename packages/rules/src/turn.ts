@@ -1076,21 +1076,21 @@ function combatStrengthsOf(
   // (Arabie cavaliers/chevaliers, France canons, Japon samouraïs) et
   // navalAttack pour les unités navales (Angleterre/Espagne). S'ajoutent à
   // la force de base (indépendants de l'Anarchie — traits, pas régimes).
-  const sAttBase =
-    effectiveStrength(
-      aStats.attack +
-        civUnitStatBonusOf(attPlayer, 'unitAttack', attacker.type) +
-        (aStats.aquatic ? civNavalAttackBonusOf(attPlayer) : 0),
-      attacker.veteran,
-    );
+  // ARMEE-STRENGTH (canon Erik 09/11, R-31) : une armée attaque à la SOMME
+  // des membres — base du type × ARMY_SIZE, traits de type inclus (3 samouraïs
+  // = 3× le bonus samouraï) ; la vétéran ×1,5 s'applique APRÈS le ×3.
+  const multAtt = attacker.isArmy ? ARMY_SIZE : 1;
+  const bonusTypeAtt = civUnitStatBonusOf(attPlayer, 'unitAttack', attacker.type);
+  const bonusNavalAtt = aStats.aquatic ? civNavalAttackBonusOf(attPlayer) : 0;
+  const sAttBase = effectiveStrength(
+    (aStats.attack + bonusTypeAtt + bonusNavalAtt) * multAtt,
+    attacker.veteran,
+  );
   // Détail attaquant — même arithmetic, décomposée nommément (aucun recalcul).
   const modsBaseAtt: CombatMod[] = [];
-  const bonusTypeAtt = civUnitStatBonusOf(attPlayer, 'unitAttack', attacker.type);
-  if (bonusTypeAtt) modsBaseAtt.push({ label: `Trait national — ${attacker.type} (R-149)`, valeur: bonusTypeAtt });
-  if (aStats.aquatic) {
-    const naval = civNavalAttackBonusOf(attPlayer);
-    if (naval) modsBaseAtt.push({ label: `Trait naval national — ${attacker.type} (R-149)`, valeur: naval });
-  }
+  if (bonusTypeAtt) modsBaseAtt.push({ label: `Trait national — ${attacker.type} (R-149)`, valeur: bonusTypeAtt * multAtt });
+  if (bonusNavalAtt) modsBaseAtt.push({ label: `Trait naval national — ${attacker.type} (R-149)`, valeur: bonusNavalAtt * multAtt });
+  if (attacker.isArmy) modsBaseAtt.push({ label: `Armée ×${ARMY_SIZE} (R-31)`, valeur: aStats.attack * (ARMY_SIZE - 1) });
   const modsPostAtt: CombatMod[] = [];
   if (support) modsPostAtt.push({ label: 'Soutien naval (R-118)', valeur: support });
   const attWonders = attPlayer && !attAnarchy
@@ -1127,9 +1127,15 @@ function combatStrengthsOf(
   // cohabitation : c'est l'avantage de l'occupation du terrain.
   const stabilise = defender.stabilized;
   const demeure = !board.moved.has(defender.id);
-  const baseDefense = stabilise
-    ? dStats.defense + civUnitStatBonusOf(defPlayer, 'unitDefense', defender.type)
-    : dStats.attack + civUnitStatBonusOf(defPlayer, 'unitAttack', defender.type);
+  // ARMEE-STRENGTH (canon Erik 09/11, R-31) : une armée DÉFEND aussi à la
+  // somme des membres (×3 sur la base, traits inclus) — les bonus % (terrain
+  // T-02, fortification T-17, bâtiments) s'appliquent APRÈS le ×3 (ordre
+  // canon : 3 × 1,6 = 4,8 pour l'armée fortifiée sur colline).
+  const multDef = defender.isArmy ? ARMY_SIZE : 1;
+  const statDefenseBrute = stabilise ? dStats.defense : dStats.attack;
+  const cleTraitDef = stabilise ? 'unitDefense' : 'unitAttack';
+  const baseDefense =
+    (statDefenseBrute + civUnitStatBonusOf(defPlayer, cleTraitDef, defender.type)) * multDef;
   const bonusDefense =
     stabilise || (defender.fortified && demeure)
       ? terrainDefenseBonus(board, combatTile) +
@@ -1138,10 +1144,11 @@ function combatStrengthsOf(
       : 0;
   // Détail défenseur — décomposition nommée des bonus de demeure.
   const modsBaseDef: CombatMod[] = [];
-  const bonusTypeDef = civUnitStatBonusOf(defPlayer, stabilise ? 'unitDefense' : 'unitAttack', defender.type);
+  const bonusTypeDef = civUnitStatBonusOf(defPlayer, cleTraitDef, defender.type);
   if (bonusTypeDef) {
-    modsBaseDef.push({ label: `Trait national — ${defender.type} (R-149)`, valeur: bonusTypeDef });
+    modsBaseDef.push({ label: `Trait national — ${defender.type} (R-149)`, valeur: bonusTypeDef * multDef });
   }
+  if (defender.isArmy) modsBaseDef.push({ label: `Armée ×${ARMY_SIZE} (R-31)`, valeur: statDefenseBrute * (ARMY_SIZE - 1) });
   const bonusDefPct: CombatMod[] = [];
   if (stabilise || (defender.fortified && demeure)) {
     const tileDef = board.st.map[tileKeyOf(combatTile)];
@@ -5226,8 +5233,11 @@ function processStability(board: Board): void {
             (u.fortified ? FORTIFY_DEFENSE_BONUS : 0) +
             cityBuildingDefenseBonus(board, tile, u.owner)
           : 0;
+        // ARMEE-STRENGTH (R-31, canon Erik 09/11) : une armée pèse aussi ×3
+        // en mêlée pondérée (somme des membres — base du type × ARMY_SIZE).
+        const multMelee = u.isArmy ? ARMY_SIZE : 1;
         const eff = effectiveStrength(
-          stats.attack + civUnitStatBonusOf(st.players[u.owner], 'unitAttack', u.type),
+          (stats.attack + civUnitStatBonusOf(st.players[u.owner], 'unitAttack', u.type)) * multMelee,
           u.veteran,
           bonus,
         );
@@ -5245,7 +5255,7 @@ function processStability(board: Board): void {
         }
         detailMelee.participants.push({
           unitId: u.id,
-          base: stats.attack,
+          base: stats.attack * multMelee, // armée : base ×3 (R-31), mod non décomposé ici
           veteran: u.veteran,
           bonusDefPct: bonusMods,
           force: eff,

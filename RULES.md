@@ -82,7 +82,7 @@ Une case contient **au plus une entité amie** (unité ou armée). Exceptions :
 
 - Formation : **3 unités du même type** via l'ordre `FormArmy` (case de rendez-vous). À la résolution, si les 3 membres atteignent le rendez-vous → fusion en une entité unique.
 - L'armée est **définitive** : pas de scission (conforme Civ Rev).
-- Statistiques : A et D = **somme** des membres (3 Guerriers → A3 D3) ; PV = somme des PV courants, plafonnée à `3 × PV max` (= 9). M = celle du type (les membres sont du même type).
+- Statistiques : A et D = **somme** des membres (3 Guerriers → A3 D3) ; PV = somme des PV courants, plafonnée à `3 × PV max` (= 9). M = celle du type (les membres sont du même type). **BRANCHÉE AU COMBAT (canon Erik 09/11, ARMEE-STRENGTH)** : `combatStrengthsOf` multiplie la base du type × `ARMY_SIZE` (traits de type R-149 inclus — 3 samouraïs = 3× le bonus), vétéran ×1,5 APRÈS le ×3, bonus % défensifs (terrain T-02, fortification T-17, bâtiments) APRÈS le ×3 (ex. armée fortifiée sur colline = 3 × 1,6 = 4,8) ; la mêlée pondérée R-180 pèse l'armée ×3 aussi ; le détail de combat (CombatForceDetail) porte le mod nommé **« Armée ×3 (R-31) »**.
 - Vétéran 🔶 : l'armée est vétéran si **au moins 2 membres** le sont.
 
 ### 3.4 R-32 · Vétérans
