@@ -2,7 +2,7 @@
 
 **Tenue par le pilot, mise à jour à chaque acceptation de phase — dernier point complet : 10/11.** Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md). Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md).
 
-**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **~2 500 tests verts** (rules 1146 / server 443 / web 793 / jev-port 40 / sableuse 228) · `schemaVersion` **28** · budget Cloudflare tenu (~5 $/mois). Coquille Electron de distribution Windows en place.
+**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **~2 500 tests verts** (rules 1154 / server 443 / web 793 / jev-port 40 / sableuse 228) · `schemaVersion` **28** · budget Cloudflare tenu (~5 $/mois). Coquille Electron de distribution Windows en place.
 
 ---
 
@@ -27,7 +27,7 @@
 
 ## 🚧 En cours — LA mission active
 
-- **HANDOFF-ARMEE-STRENGTH** (prêt, non lancé — **PRIORITÉ**, bogue R-31 capturé en prod BJ5VC5 t26, canon confirmé Erik : **A et D ×3**) : les armées formées frappent/encaissent à base ×1 (`combatStrengthsOf` ignore `isArmy`) — former une armée AFFAIBLIT. Fix : base × ARMY_SIZE les deux côtés, mod « Armée ×3 (R-31) » au détail, vétéran ×1,5 après ; re-verrouillage des tests de combat + re-baseline bancs.
+- **ARMEE-STRENGTH livrée + acceptée** (`e0b67b9`, 10/11 — bogue R-31 capturé en prod BJ5VC5 t26) : `combatStrengthsOf` branche enfin `isArmy` — une armée **attaque ET défend à la somme des membres** (base ×3, traits R-149 inclus, vétéran ×1,5 après le ×3, bonus % défensifs après le ×3 ; armée fortifiée colline = 4,8) ; écrasement et mêlée pondérée au vrai poids ; mod « Armée ×3 (R-31) » au détail de combat (zéro modif client). Former une armée n'affaiblit plus. Tests : rules **1154** (+8, cas BJ5VC5 reconstitué p 0,236 → 0,782), re-verrouillage SANS aucune assertion changée ; banc bot AVANT/APRÈS zéro collapse (banc Jev reporté au prochain naturel — c'est lui qui forme de vraies armées). 🔶 Capture GUI d'un combat d'armée à l'œil d'Erik en prod (le mod ×3 doit apparaître au détail).
 - **ORACLE-VERDICT livré + accepté** (`c2a8c34`, Deploy SUCCESS vérifié, rapport à la racine) : jets de combat mêlée dérivés par **hash** (indépendants du flux — preuve L1 bit à bit sur 30 seeds) ; l'Oracle affiche **VICTOIRE/DÉFAITE certain** au panneau et dans la préview vivante (fog filtré, `PredictBattle`) ; bancs re-baselinés sans collapse. 🔶 Erik valide en jouant (Oracle + attaque risquée).
 - **CIVS-NEUTRES-LOBBY livrée** (38b7c32) : « Sans civilisation » sélectionnable au lobby pour chaque siège (joueur ET bot/Jev), jamais tirée au hasard — les duels de test d'Erik sont propres.
 - **COHABITATION-HOSTILE livrée** (`138dece`, acceptée) : les entrants hostiles convergents se battent en bataille complète (gate `residentPresent` — l'ancienne mêlée pondérée vit pour les résiduels) ; le trou 5633Y3 est fermé, les convergences barbares/joueur tuent désormais.
@@ -44,7 +44,7 @@
 
 ## 📋 File d'attente (dans l'ordre convenu avec Erik)
 
-1. **GESTE-ARMEE** (handoff prêt — la mission active) ;
+1. **Erik joue contre le Jev complet** (l'arbitre réel) — verdict ressenti sur victoires Jev 15 %, Oracle, armées ×3 ;
 2. **Miroir Jev vs Jev** (backlog) : équilibre attaque/défense du canon + exam de la chaîne conquête des deux côtés ;
 3. Atelier voix de Zii (Erik écrit la personnalité dans `zii.json`), vieux 🔶 ci-dessous.
 

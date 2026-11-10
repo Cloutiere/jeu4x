@@ -51,7 +51,7 @@ Data-driven (zéro durcissement), test-first citant les R-xx, déterminisme (RNG
 
 ## 4. État actuel (10/11 — la vue synthétique est dans PROJET.md)
 
-**Suites vertes au 09/11** (rules 1146 / server 443 / web 793 / jev-port 40 / sableuse 228), `schemaVersion` **28**, CI et prod saines (Deploy SUCCESS vérifié sur `c2a8c34`).
+**Suites vertes au 10/11** (rules 1154 / server 443 / web 793 / jev-port 40 / sableuse 228 — rules re-jouée en local à l'acceptation), `schemaVersion` **28**, CI et prod saines (Deploy SUCCESS vérifié sur `e0b67b9`, prod 200).
 
 **La révolution du 31/10-04/11 : le canon de combat est complet.** Erik a tranché une série de règles canon (elles font foi) : **BATAILLE-COMPLETE** (`11b285b` — une attaque = la mort de l'un des deux, sans retraite, T-03 enterré), **CANON-SIEGE** (`b43f298` — bonus ville 0,25 révision T-02 enfin branchée, soin 1 PV partout, le soin lève la fortification), **COHABITATION-HOSTILE** (`138dece` — les entrants hostiles convergents se battent en bataille complète, gate residentPresent), **T3** (`1e63239` — la Grande Muraille impose la paix ; ONU jalons 20 + victoire immédiate confirmés, Banque mondiale 20 000 confirmée). Les 5 voies de victoire sont jouables ; culture/éco restent humaines au banc (filtres bots + seuils).
 
@@ -59,13 +59,13 @@ Data-driven (zéro durcissement), test-first citant les R-xx, déterminisme (RNG
 
 **La couche UI/joueur a sauté au niveau AAA** (d'après LE document d'Erik « Architecture des Contrôles 4X », spécification de référence dans son historique) : FSM d'interaction explicite + cyclage automatique + caméra qui glisse + raccourci N + toggle (FLUIDITE-SELECTION, labo caméra 🔶 400 ms), geste armée + proposition automatique (GESTE-ARMEE rev.2 `fa5a32f`), visuel armée 3 icônes + barre alignée (VISUEL-ARMEE rév.2 `6cd899a`), god mode par bouton (GODMODE-BOUTON `2006dd7`), case de fondation teintée nation (FONDATION-PREVIEW, accepté « c'est parfait »), ORACLE-VERDICT (`c2a8c34` — l'Oracle révèle VICTOIRE/DÉFAITE certain via dérivé par hash).
 
-**🔶 Priorité absolue : ARMEE-STRENGTH (session d'agent EN COURS)** — bogue R-31 capturé en prod (BJ5VC5 t26) : les armées formées frappent/encaissent à base ×1 au lieu de ×3 (`combatStrengthsOf` ignore `isArmy`) — former une armée AFFAIBLIT. Canon confirmé Erik : **A et D ×3**. Handoff `HANDOFF-ARMEE-STRENGTH.md`, rapports attendu `REPORT-ARMEE-STRENGTH.md`. Ne pas toucher à son périmètre (combatStrengthsOf, processFormArmy, décodeur de combat).
+**✅ ARMEE-STRENGTH ACCEPTÉE (`e0b67b9`, 10/11)** — bogue R-31 capturé en prod (BJ5VC5 t26) fermé : `combatStrengthsOf` branche `isArmy`, les armées attaquent ET défendent à base ×3 (traits inclus, vétéran et bonus % après), écrasement et mêlée pondérée R-180 au vrai poids, mod « Armée ×3 (R-31) » au détail. rules 1154 (+8), aucune assertion existante changée, banc bot sans drift, Deploy SUCCESS. Handoff + rapport archivés à `docs/historique/`. 🔶 Restent à l'œil d'Erik : capture GUI d'un combat d'armée en prod (non produite par l'agent) ; `MeleeDetail` ne nomme pas le mod ×3 (base affichée ×3, poids correct) ; banc Jev reporté au prochain naturel — c'est LUI qui révélera l'effet (Jev forme de vraies armées).
 
 **Triage prod opérationnel (outil majeur)** : Erik donne un CODE DE PARTIE, le pilot tire tout via les routes admin (`/admin/game/<CODE>` dump non filtré, `/admin/game/<CODE>/trace?turn=N` — paramètre **turn** pas tour, rétention 20 tours, `/admin/game/<CODE>/jev?tour=N` le journal de Jev) avec le `ADMIN_TOKEN` du `.dev.vars` local (= prod, tourné le 02/11). Trois diagnostics prod faits ainsi : YU4SHH (gate de confiance 0,5 écrasait fonder/convertir → seuils par question), 5633Y3 (trou cohabitation hostile), BJ5VC5 (bogue R-31). dumps archivés à `devtmp/etat-<CODE>/`.
 
 **Les calibrages profitent AUSSI au bot classique** (botPolicy partagé : anti-piétinement, guerre vivante, huttes, gainSite est Jev-seul) — les bancs bot 40×3 montrent pop/techs en hausse ; les difficultés R-90 méritent un re-regard (🔶).
 
-**La suite votée** : accepter ARMEE-STRENGTH (la session en cours), puis Erik joue contre le Jev complet (l'arbitre réel), puis le backlog : gate stérile aux combats disséminés, oscillation résiduelle (coudes d'occupation + armée bot qui campe — cause fine non élucidée), conquête par direction (fog), zapping de voie, miroir Jev vs Jev, atelier voix de Zii, vieux 🔶 de PROJET.md.
+**La suite votée** : Erik joue contre le Jev complet (l'arbitre réel — armées ×3 et Oracle compris), puis le backlog : gate stérile aux combats disséminés, oscillation résiduelle (coudes d'occupation + armée bot qui campe — cause fine non élucidée), conquête par direction (fog), zapping de voie, miroir Jev vs Jev, atelier voix de Zii, vieux 🔶 de PROJET.md.
 
 ## 5. Environnement & pièges connus
 
@@ -85,7 +85,7 @@ Data-driven (zéro durcissement), test-first citant les R-xx, déterminisme (RNG
 ## 7. Ta première action (posture de reprise du 10/11)
 
 1. **Prendre connaissance de l'état** : PROJET.md (état du jeu), ce document §3-§5 (rituel + pièges), `git log` (la semaine du 31/10-10/11 a produit ~15 missions livrées — les handoffs/rapports sont archivés à `docs/historique/`).
-2. **La mission ARMEE-STRENGTH est EN COURS chez un autre agent** : ne toucher à AUCUN fichier de son périmètre (`combatStrengthsOf`/`processFormArmy` dans `packages/rules/src/turn.ts`, `botPolicy.ts`, décodeur de combat client, tests de combat). **Attendre le rapport `REPORT-ARMEE-STRENGTH.md`** qu'Erik apportera.
-3. **À la réception du rapport** : vérifier (git log, suites — le rappel des comptes attendus est dans le handoff, prod health, affirmations), ACCEPTER, archiver handoff+rapport à `docs/historique/`, mettre PROJET.md à jour, puis proposer la suite : Erik joue contre le Jev complet (l'arbitre réel), puis le backlog (§4).
+2. **Aucune mission d'agent en cours** (ARMEE-STRENGTH acceptée `e0b67b9` le 10/11). Vérifier quand même l'état du dépôt avant d'écrire — Erik pilote parfois en parallèle.
+3. **La main est à Erik** : il joue contre le Jev complet en prod (l'arbitre réel) ; ses retours ouvrent la suite — sinon le backlog (§4).
 4. **Les pièges récents à ne pas retomber** : cache vitest à la RACINE avant re-mesure de banc ; `rollTrace` consomme TOUJOURS le flux (closure) ; banc via tsx ; jev-port via `vitest.jev.config.ts` (exclue du filtre par défaut) ; UN SEUL worker 8787 (double worker = deux mémoires DO, ordres perdus) ; redémarrer Vite avant recapture (module STALE) ; la trace prod prend `?turn=` ; les fichiers personnels d'Erik (images, Techtree/, scripts-tmp) ne se committent JAMAIS.
 5. Rappels : les règles d'engagement et les valeurs se règlent au labo avec Erik ; Recraft = plan payant, déclaration IA obligatoire à la soumission Steam ; ne jamais itérer en prod ; les verdicts de design subjectif (visuel, fluidité, voix) sont des ARRÊTS-POUR-APPROBATION.

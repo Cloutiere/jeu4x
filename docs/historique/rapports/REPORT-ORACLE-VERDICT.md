@@ -42,7 +42,7 @@
   | difficile | 1,9→1,8 | 12,9→11,8 | 84,0→72,8 | 474→564 | 235→206 | 142→126 |
 
   **Zéro collapse** : villes stables (±0,1), population −7 %, unités −10 % (normal/difficile) — l'écart d'issue attendu des dés recomposés ; trésorerie en hausse (moins d'entretien). **Banc Jev : reporté au prochain banc naturel** (pas de drift structurel — consigné, canon du handoff).
-- ⚠ **CI / Deploy prod : NON vérifiés** (push à vérifier dans les runs).
+- ✅ **CI/Deploy vérifiés** : run **Deploy SUCCESS sur c2a8c34** (le Deploy en échec de 0f55d11 — flocon consigné — est couvert/repassé par celui-ci) ; prod HTTP 200.
 - Sonde crédits Z.ai : HTTP 200 en tête de session (aucune quille).
 
 ## 5. Remise de la main (L4)
