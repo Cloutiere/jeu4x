@@ -899,11 +899,14 @@ export interface BotSettingsData {
 /** BOT-GATE-ATTAQUE · D1/D2 — tables data-driven du gate. Valeurs en « points
  *  de valeur tactique » (monnaie arbitraire commune aux deux camps). */
 export interface BotGateAttaqueData {
-  /** Aversion au risque MODULÉE (canon Erik 11/11) : k hors guerre déclarée
-   *  (barbares compris — le refus D3UUQJ reste vert) ; k abaissé en guerre
-   *  déclarée pour garder les accrochages de contact (GUERRE-VIVANTE). */
+  /** PRESSION DE CAMPAGNE (canon Erik 11/11 — remplace la modulation plate) :
+   *  entre belligérants d'une guerre DÉCLARÉE, k = max(kPlancher ;
+   *  kHorsGuerre − kPente × tours depuis déclaration) — k décroît avec la
+   *  durée (1,3 à t=7, 1,1 à t=9 avec les valeurs canon) ; hors guerre
+   *  déclarée et barbares : kHorsGuerre (D3UUQJ protégé). */
   kHorsGuerre: number;
-  kEnGuerre: number;
+  kPente: number;
+  kPlancher: number;
   /** Base de valeur par rôle. */
   baseRole: {
     standard: number;

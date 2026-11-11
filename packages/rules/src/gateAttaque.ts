@@ -28,6 +28,7 @@
  */
 import { BOT_SETTINGS, UNIT_TYPES } from './data.js';
 import { isBarbarian } from './state.js';
+import { dureeGuerre } from './diplomatie.js';
 import { hexDistanceW } from './hex.js';
 import { combatOdds } from './combat.js';
 import { forcesProspectives } from './turn.js';
@@ -41,6 +42,23 @@ export type CategorieTactique = 'jeGarde' | 'sacrifiable' | 'positionDecisive';
 /** Table du gate (bot.json `gateAttaque`). */
 export function gateAttaqueDuBot() {
   return BOT_SETTINGS.gateAttaque;
+}
+
+/**
+ * PRESSION DE CAMPAGNE (canon Erik 11/11) — le k EFFECTIF entre belligérants :
+ * hors guerre déclarée (et barbares, jamais en guerre — D3UUQJ protégé),
+ * k = kHorsGuerre ; en guerre déclarée, k décroît avec la durée de campagne :
+ * k = max(kPlancher ; kHorsGuerre − kPente × toursDepuisDeclaration) —
+ * contact dès p ≈ 0,524 au plancher ; le suicide pur (p < 0,5) reste fermé
+ * À TOUT moment. Pur, déterministe.
+ */
+export function kEffectif(
+  d: ReturnType<typeof gateAttaqueDuBot>,
+  toursDepuisDeclaration: number,
+  enGuerreDeclaree: boolean,
+): number {
+  if (!enGuerreDeclaree) return d.kHorsGuerre;
+  return Math.max(d.kPlancher, d.kHorsGuerre - d.kPente * toursDepuisDeclaration);
 }
 
 /**
@@ -213,11 +231,13 @@ export function deciderAttaqueUnitaire(
     (w) => (w[0] === attaquant.owner && w[1] === defenseur.owner) ||
       (w[1] === attaquant.owner && w[0] === defenseur.owner),
   );
-  // BOT-GATE-K-GUERRE (canon Erik 11/11) : k MODULÉ — strict hors guerre
-  // (kHorsGuerre 2), abaissé en guerre déclarée (kEnGuerre 1,3) pour garder
-  // les accrochages de contact (GUERRE-VIVANTE 868452e) ; le suicide pur
-  // (p < 0,5) reste fermé des deux côtés.
-  const k = enGuerreDeclaree ? d.kEnGuerre : d.kHorsGuerre;
+  // BOT-GATE-PRESSION-CAMPAGNE (canon Erik 11/11 — remplace la modulation
+  // plate K-GUERRE) : k décroît avec la DURÉE de la guerre déclarée —
+  // max(kPlancher ; kHorsGuerre − kPente × tours depuis déclaration). Une
+  // campagne qui traîne accepte le contact de plus en plus tôt ; le suicide
+  // pur (p < 0,5) reste fermé À TOUT moment. Source unique de la durée :
+  // dureeGuerre (GUERRE-VIVANTE — warsDepuis).
+  const k = kEffectif(d, enGuerreDeclaree ? dureeGuerre(state, attaquant.owner, defenseur.owner) : 0, enGuerreDeclaree);
   let gain = valeurTactique(state, defenseur, defenseur.owner);
   if (estGardienCamp(state, defenseur)) gain += d.valeurButinCamp;
   // Sécurité locale (D3) : la cible est évaluée par la même monnaie — tuer un

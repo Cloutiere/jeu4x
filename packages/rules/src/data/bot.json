@@ -149,6 +149,7 @@
     "bonusSecuriteGuerre": 50,
     "bonusSecuriteVille": 60,
     "kHorsGuerre": 2,
-    "kEnGuerre": 1.3
+    "kPente": 0.1,
+    "kPlancher": 1.1
   }
 }
