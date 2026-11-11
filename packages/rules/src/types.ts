@@ -899,8 +899,11 @@ export interface BotSettingsData {
 /** BOT-GATE-ATTAQUE · D1/D2 — tables data-driven du gate. Valeurs en « points
  *  de valeur tactique » (monnaie arbitraire commune aux deux camps). */
 export interface BotGateAttaqueData {
-  /** Aversion au risque : le gain doit dépasser k fois la perte pondérée. */
-  k: number;
+  /** Aversion au risque MODULÉE (canon Erik 11/11) : k hors guerre déclarée
+   *  (barbares compris — le refus D3UUQJ reste vert) ; k abaissé en guerre
+   *  déclarée pour garder les accrochages de contact (GUERRE-VIVANTE). */
+  kHorsGuerre: number;
+  kEnGuerre: number;
   /** Base de valeur par rôle. */
   baseRole: {
     standard: number;

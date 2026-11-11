@@ -206,19 +206,25 @@ export function deciderAttaqueUnitaire(
   const d = gateAttaqueDuBot();
   const { sAtt, sDef } = forcesProspectives(state, attaquant, defenseur);
   const p = combatOdds(sAtt, sDef);
+  // État de guerre DÉCLARÉE entre l'attaquant et le défenseur — les barbares
+  // ne sont jamais dans diplomacy.war (R-95 guerre permanente de fait) : ils
+  // restent à kHorsGuerre, le refus D3UUQJ reste vert.
+  const enGuerreDeclaree = !isBarbarian(defenseur.owner) && state.diplomacy.war.some(
+    (w) => (w[0] === attaquant.owner && w[1] === defenseur.owner) ||
+      (w[1] === attaquant.owner && w[0] === defenseur.owner),
+  );
+  // BOT-GATE-K-GUERRE (canon Erik 11/11) : k MODULÉ — strict hors guerre
+  // (kHorsGuerre 2), abaissé en guerre déclarée (kEnGuerre 1,3) pour garder
+  // les accrochages de contact (GUERRE-VIVANTE 868452e) ; le suicide pur
+  // (p < 0,5) reste fermé des deux côtés.
+  const k = enGuerreDeclaree ? d.kEnGuerre : d.kHorsGuerre;
   let gain = valeurTactique(state, defenseur, defenseur.owner);
   if (estGardienCamp(state, defenseur)) gain += d.valeurButinCamp;
   // Sécurité locale (D3) : la cible est évaluée par la même monnaie — tuer un
-  // ennemi EN GUERRE DÉCLARÉE fait vivre la guerre (sinon le gate k=2 rend
-  // toute guerre à forces égales stérile — banc horloge 10/11) ; un ennemi
-  // qui menace une de mes villes (dist ≤ 2) vaut encore plus à abattre. Les
-  // barbares ne sont jamais en guerre déclarée — D3UUQJ reste refusé.
+  // ennemi EN GUERRE DÉCLARÉE fait vivre la guerre ; un ennemi qui menace une
+  // de mes villes (dist ≤ 2) vaut encore plus à abattre.
+  if (enGuerreDeclaree) gain += d.bonusSecuriteGuerre;
   if (!isBarbarian(defenseur.owner)) {
-    const enGuerreDeclaree = state.diplomacy.war.some(
-      (w) => (w[0] === attaquant.owner && w[1] === defenseur.owner) ||
-        (w[1] === attaquant.owner && w[0] === defenseur.owner),
-    );
-    if (enGuerreDeclaree) gain += d.bonusSecuriteGuerre;
     const menaceVille = Object.values(state.cities).some(
       (v) => v.owner === attaquant.owner &&
         hexDistanceW({ q: defenseur.q, r: defenseur.r }, v, state.mapWidth) <= 2,
@@ -229,5 +235,5 @@ export function deciderAttaqueUnitaire(
   // qui écrase la nôtre (la cible est évaluée par la même monnaie — D3).
   if (sDef >= d.gainNulRatio * sAtt) gain *= d.gainNulFacteur;
   const perte = valeurTactique(state, attaquant, attaquant.owner, categorieAttaquant);
-  return { p, gain, perte, k: d.k, passe: gateAttaque(p, gain, perte, d.k) };
+  return { p, gain, perte, k, passe: gateAttaque(p, gain, perte, k) };
 }

@@ -22,6 +22,7 @@ import {
   deciderAttaqueUnitaire,
   forcesProspectives,
   gateAttaque,
+  gateAttaqueDuBot,
   valeurTactique,
   type CategorieTactique,
 } from '../src/gateAttaque.js';
@@ -271,6 +272,72 @@ describe('BOT-GATE-ATTAQUE · déterminisme (30 seeds)', () => {
       expect(v.gain).toBeCloseTo(premier.gain, 10);
       expect(v.perte).toBeCloseTo(premier.perte, 10);
     }
+  });
+});
+
+describe('BOT-GATE-K-GUERRE (canon Erik 11/11) · k modulé par la guerre déclarée', () => {
+  /** Deux guerriers de part et d'autre (n = 2 chacun → valeurs symétriques),
+   *  le MÊME accrochage : la seule différence est l'état de guerre déclaré. */
+  function accrochage(opts: { guerre: boolean }): { state: GameState; a: Unit; d: Unit } {
+    const state = makeState({
+      players: ['jev', 'p2'],
+      ...(opts.guerre ? {} : { warPairs: [] as Array<[string, string]> }),
+      units: [
+        { id: 'a1', type: 'guerrier', owner: 'jev', q: 1, r: 1 },
+        { id: 'a2', type: 'guerrier', owner: 'jev', q: 5, r: 5 },
+        { id: 'd1', type: 'guerrier', owner: 'p2', q: 1, r: 2 },
+        { id: 'd2', type: 'guerrier', owner: 'p2', q: 6, r: 6 },
+      ],
+    });
+    return { state, a: state.units['a1']!, d: state.units['d1']! };
+  }
+
+  it('le MÊME accrochage : REFUS hors guerre (k = 2), AUTORISÉ en guerre déclarée (k = 1,3)', () => {
+    const paix = accrochage({ guerre: false });
+    const vPaix = deciderAttaqueUnitaire(paix.state, paix.a, paix.d);
+    expect(vPaix.k).toBe(2);
+    expect(vPaix.passe).toBe(false);
+
+    const guerre = accrochage({ guerre: true });
+    const vGuerre = deciderAttaqueUnitaire(guerre.state, guerre.a, guerre.d);
+    expect(vGuerre.k).toBe(1.3);
+    expect(vGuerre.passe).toBe(true);
+  });
+
+  it('arithmétique canon : p ≈ 0,6 passe à k = 1,3, refuse à k = 2 (hors guerre)', () => {
+    expect(gateAttaque(0.6, 87.5, 37.5, 1.3)).toBe(true); // contact de guerre dès p ≥ 0,57
+    expect(gateAttaque(0.6, 37.5, 37.5, 2)).toBe(false);
+  });
+
+  it('le suicide pur (p < 0,5) reste fermé même à k = 1,3 (valeurs symétriques — contact dès p ≥ 0,565)', () => {
+    expect(gateAttaque(0.5, 37.5, 37.5, 1.3)).toBe(false);
+    expect(gateAttaque(0.4525, 37.5, 37.5, 1.3)).toBe(false); // le p exact de D3UUQJ
+    expect(gateAttaque(0.6, 37.5, 37.5, 1.3)).toBe(true);
+  });
+
+  it('NON-RÉGRESSION D3UUQJ : les barbares restent à kHorsGuerre (le gardien fortifié refuse toujours)', () => {
+    const { state, guerrier, gardien } = etatD3UUQJ();
+    const verdict = deciderAttaqueUnitaire(state, guerrier, gardien);
+    expect(verdict.k).toBe(2); // jamais en guerre déclarée
+    expect(verdict.passe).toBe(false);
+    expect(verdict.p).toBeCloseTo(0.4525, 3);
+  });
+
+  it('déterminisme 30 seeds : le verdict d’accrochage en guerre est identique (aucun tir)', () => {
+    const temoin = accrochage({ guerre: true });
+    const premier = deciderAttaqueUnitaire(temoin.state, temoin.a, temoin.d);
+    for (let seed = 2; seed <= 30; seed++) {
+      const { state, a, d } = accrochage({ guerre: true });
+      const v = deciderAttaqueUnitaire(state, a, d);
+      expect(v.passe).toBe(premier.passe);
+      expect(v.p).toBeCloseTo(premier.p, 10);
+    }
+  });
+
+  it('la table est lisible dans bot.json (kHorsGuerre 2 / kEnGuerre 1,3)', () => {
+    const d = gateAttaqueDuBot();
+    expect(d.kHorsGuerre).toBe(2);
+    expect(d.kEnGuerre).toBe(1.3);
   });
 });
 

@@ -126,7 +126,6 @@
   },
   "gateAttaque": {
     "_commentaire": "BOT-GATE-ATTAQUE (canon Erik 10/11, prod D3UUQJ) — une attaque se décide à l'ESPÉRANCE DE GAIN : P(victoire)×valeur(gain) ≥ k×P(défaite)×valeur(perte). La valeur tactique est en « points » arbitraires (monnaie commune aux deux camps). Categories Jev : multiplicateur sur la VALEUR DE L'ATTAQUANT, borné [categorieMin, categorieMax] — jamais un float libre. SECURITE LOCALE (D3) : bonusSecuriteGuerre s'ajoute au gain quand l'ennemi est en guerre DÉCLARÉE (les batailles font vivre la guerre) ; bonusSecuriteVille renforcé s'il menace une de mes villes (dist ≤ 2). Les barbares ne sont jamais en guerre déclarée — D3UUQJ reste refusé.",
-    "k": 2,
     "baseRole": {
       "standard": 25,
       "colonSansSite": 200,
@@ -148,6 +147,8 @@
     "categorieMin": 0.5,
     "categorieMax": 2,
     "bonusSecuriteGuerre": 50,
-    "bonusSecuriteVille": 60
+    "bonusSecuriteVille": 60,
+    "kHorsGuerre": 2,
+    "kEnGuerre": 1.3
   }
 }
