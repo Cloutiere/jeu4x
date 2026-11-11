@@ -1493,12 +1493,16 @@ export function assignerObjectifs(
     }
 
     // ② attaquer une cible adjacente au rapport favorable.
-    // BOT-MARCHE · un membre d'armée dont la campagne est INCOMPLÈTE ne
-    // déclenche pas l'attaque : il camperait sinon le siège un par un en
-    // arrivant et mourrait en détail avant l'effectif (sonde : u32 au mur
-    // d0-t85, effectif jamais atteint). Arrivé → campement (rallier) ;
-    // l'assaut part à l'effectif (enSiege — priorité garnison).
-    const attaquePermise = !armee.has(unit.id) || campagne === null || enSiege;
+    // BOT-ESCARMOUCHE-GATE (canon Erik 11/11) — le gate REMPLACE le ban
+    // structurel hérité d'avant le gate : un membre d'armée en campagne peut
+    // ESCARMOUQUER un ennemi adjacent si l'espérance passe (courbe de
+    // pression conservée — k décroissant avec la durée de guerre). Le
+    // rassemblement et le siège restent prioritaires : le refus du gate
+    // laisse tomber aux priorités suivantes (rallier/offensiver), l'assaut
+    // complet part toujours à l'effectif (enSiege — priorité garnison).
+    // Hors campagne (paix, patrouille, exploration) : personne n'attaque via
+    // ② — la chasse aux barbares reste la porte ④.
+    const attaquePermise = campagne !== null || enSiege;
     const sAtt = forceAttaque(unit);
     // BOT-GATE-ATTAQUE (canon Erik 10/11) : le rapport de forces simple ne
     // suffit plus — chaque cible adjacente passe le gate d'ESPÉRANCE

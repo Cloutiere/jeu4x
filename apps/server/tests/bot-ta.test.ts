@@ -81,13 +81,16 @@ describe('BOT-TA · D1-① soigner les blessés (ordre Heal, jamais sous menace)
     expect(orderOf(planOf(s), 'b1')?.type).not.toBe('Heal');
   });
 
-  it('une unité blessée MENACÉE (ennemi adjacent) ne se soigne pas — elle combat ou replie', () => {
+  it('une unité blessée MENACÉE (ennemi adjacent) ne se soigne pas — elle combat (BOT-ESCARMOUCHE : campagne existe) ou replie', () => {
     const s = state({
       units: [
         { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2, hp: 1 },
         { id: 'e1', type: 'guerrier', owner: HUMAN, q: 3, r: 2 },
       ],
-      cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 }],
+      cities: [
+        { id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 },
+        { id: 'c9', owner: HUMAN, q: 7, r: 7, pop: 1 }, // BOT-ESCARMOUCHE : campagne possible → combat (sinon repli)
+      ],
     });
     const o = orderOf(planOf(s), 'b1');
     expect(o?.type).not.toBe('Heal');
@@ -97,8 +100,21 @@ describe('BOT-TA · D1-① soigner les blessés (ordre Heal, jamais sous menace)
 });
 
 describe('BOT-TA · D1-②/D2 — attaquer à portée selon le rapport de force', () => {
-  it('R-95 : un barbare adjacent est une proie légitime MÊME en paix générale (BOT-GATE-ATTAQUE : à espérance PASSANTE — armée ×3 vs guerrier entamé)', () => {
+  it('R-95 : un barbare adjacent est une proie légitime SANS déclaration contre lui (BOT-ESCARMOUCHE : en campagne ; en paix générale plus aucune attaque ② — la chasse ④ reste la porte)', () => {
     const s = state({
+      units: [
+        { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2, isArmy: true },
+        { id: 'b2', type: 'guerrier', owner: BOT, q: 1, r: 1 },
+        { id: 'x1', type: 'guerrier', owner: BARBARIAN_ID, q: 3, r: 2 },
+      ],
+      cities: [
+        { id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 },
+        { id: 'c9', owner: HUMAN, q: 7, r: 7, pop: 1 }, // campagne p1 → ② autorisée (BOT-ESCARMOUCHE)
+      ],
+    });
+    expect(orderOf(planOf(s), 'b1')).toMatchObject({ type: 'Attack', target: { q: 3, r: 2 } });
+    // Paix générale : aucune attaque ② (canon §2.1 — jamais en patrouille).
+    const paix = state({
       units: [
         { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2, isArmy: true },
         { id: 'b2', type: 'guerrier', owner: BOT, q: 1, r: 1 },
@@ -107,10 +123,10 @@ describe('BOT-TA · D1-②/D2 — attaquer à portée selon le rapport de force'
       cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 }],
       peace: true,
     });
-    expect(orderOf(planOf(s), 'b1')).toMatchObject({ type: 'Attack', target: { q: 3, r: 2 } });
+    expect(orderOf(planOf(paix), 'b1')?.type).not.toBe('Attack');
   });
 
-  it('gardien de CAMP barbare (village porté par l\'état) : attaque la pile (BOT-GATE-ATTAQUE : armée ×3 vs gardien entamé)', () => {
+  it('gardien de CAMP barbare (village porté par l\'état) : attaque la pile (BOT-GATE-ATTAQUE : armée ×3 ; BOT-ESCARMOUCHE : campagne requise)', () => {
     const s = state({
       units: [
         { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2, isArmy: true },
@@ -118,7 +134,10 @@ describe('BOT-TA · D1-②/D2 — attaquer à portée selon le rapport de force'
         { id: 'x1', type: 'guerrier', owner: BARBARIAN_ID, q: 3, r: 2 },
       ],
       villages: [{ q: 3, r: 2 }],
-      cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 }],
+      cities: [
+        { id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 },
+        { id: 'c9', owner: HUMAN, q: 7, r: 7, pop: 1 }, // campagne p1 (BOT-ESCARMOUCHE)
+      ],
     });
     expect(orderOf(planOf(s), 'b1')).toMatchObject({ type: 'Attack', target: { q: 3, r: 2 } });
   });
@@ -160,13 +179,16 @@ describe('BOT-TA · D1-②/D2 — attaquer à portée selon le rapport de force'
     expect(orderOf(planOf(s), 'b1')?.type).not.toBe('Attack');
   });
 
-  it('guerre seule : unité ennemie attaquée si `wars`, sinon jamais (BOT-GATE-ATTAQUE : armée ×3 vs blessé — espérance passante)', () => {
+  it('guerre seule : unité ennemie attaquée si `wars`, sinon jamais (BOT-GATE-ATTAQUE : espérance passante ; BOT-ESCARMOUCHE : campagne requise)', () => {
     const units = [
       { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2, isArmy: true },
       { id: 'b2', type: 'guerrier', owner: BOT, q: 1, r: 1 },
       { id: 'e1', type: 'guerrier', owner: HUMAN, q: 3, r: 2 },
     ];
-    const cities = [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 }];
+    const cities = [
+      { id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 },
+      { id: 'c9', owner: HUMAN, q: 7, r: 7, pop: 1 }, // campagne p1 (BOT-ESCARMOUCHE)
+    ];
     const enGuerre = state({ units, cities });
     expect(orderOf(planOf(enGuerre), 'b1')).toMatchObject({ type: 'Attack' });
     const enPaix = state({ units, cities, peace: true });
@@ -310,5 +332,80 @@ describe('BOT-TA · D4 — production pondérée (unités si en guerre)', () => 
       if (prod?.type === 'SetProduction') items.add(JSON.stringify(prod.item));
     }
     expect(items.size).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BOT-ESCARMOUCHE-GATE (canon Erik 11/11) — le gate REMPLACE le ban
+// structurel : une unité de l'armée en campagne peut escarmoucher un ennemi
+// adjacent SI l'espérance passe (courbe de pression conservée). L'escarmouche
+// est une opportunité, jamais un objectif : hors campagne, personne
+// n'attaque ; hors guerre déclarée, le gate reste à k=2 (D3UUQJ vert).
+// ---------------------------------------------------------------------------
+describe('BOT-ESCARMOUCHE-GATE · le gate remplace le ban de campagne', () => {
+  /** Armée p2 (b1, guerrier isArmy) en campagne contre p1 (ville à (6,6),
+   *  capitale p2 à (0,0)) ; un ennemi p1 adjacent à b1 en (3,3) ; durée de
+   *  guerre réglée par warsDepuis (turn 20). */
+  function campagneEscarmouche(opts: { duree: number; ennemiHp?: number; ennemiType?: string }) {
+    const s = state({
+      turn: 20,
+      units: [
+        { id: 'b1', type: 'guerrier', owner: BOT, q: 3, r: 3, isArmy: true },
+        { id: 'e1', type: opts.ennemiType ?? 'guerrier', owner: HUMAN, q: 3, r: 4, hp: opts.ennemiHp ?? 3 },
+        { id: 'e2', type: 'guerrier', owner: HUMAN, q: 6, r: 7 },
+      ],
+      cities: [
+        { id: 'cap', owner: BOT, q: 0, r: 0, capital: true, pop: 2 },
+        { id: 'ville1', owner: HUMAN, q: 6, r: 6, pop: 1 },
+      ],
+    });
+    s.diplomacy.warsDepuis = { 'p1,p2': 20 - opts.duree };
+    return s;
+  }
+
+  it('ROUGE AVANT FIX — armée en campagne en guerre LONGUE (t=9) attaque l’ennemi adjacent qui passe le gate', () => {
+    const s = campagneEscarmouche({ duree: 9, ennemiHp: 1 });
+    const o = orderOf(planOf(s), 'b1');
+    expect(o).toMatchObject({ type: 'Attack', unitId: 'b1' });
+  });
+
+  it('guerre fraîche + ennemi FORT adjacent (p bas, gate refuse partout) → rassemblement inchangé (Move, jamais Attack)', () => {
+    const s = campagneEscarmouche({ duree: 2, ennemiType: 'piquier', ennemiHp: 3 });
+    // piquier fortifié en défense à ~2 vs guerrier 1 : p très bas — refus à toute durée.
+    const o = orderOf(planOf(s), 'b1');
+    expect(o?.type).not.toBe('Attack');
+    expect(['Move', 'Fortify', 'Hold']).toContain(o?.type); // marche/rassemblement
+  });
+
+  it('hors campagne (paix générale) : personne n’attaque — ni patrouille ni exploration (canon §2.1)', () => {
+    const paix = state({
+      peace: true,
+      units: [
+        { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2 },
+        { id: 'x1', type: 'guerrier', owner: BARBARIAN_ID, q: 3, r: 2 },
+      ],
+      cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 }],
+    });
+    expect(orderOf(planOf(paix), 'b1')?.type).not.toBe('Attack');
+  });
+
+  it('D3UUQJ vert : scout en paix vs gardien barbare fortifié — jamais d’attaque (hors campagne ET k=2)', () => {
+    const { state: s } = { state: state({
+      peace: true,
+      villages: [{ q: 5, r: 5 }],
+      units: [
+        { id: 'u1', type: 'guerrier', owner: BOT, q: 5, r: 6 },
+        { id: 'g1', type: 'guerrier', owner: BARBARIAN_ID, q: 5, r: 5, fortified: true },
+      ],
+      cities: [{ id: 'c1', owner: BOT, q: 0, r: 0, capital: true, pop: 2 }],
+    }) };
+    expect(orderOf(planOf(s), 'u1')?.type).not.toBe('Attack');
+  });
+
+  it('déterminisme 30 seeds : le verdict d’escarmouche en guerre longue est identique', () => {
+    const temoin = orderOf(planOf(campagneEscarmouche({ duree: 9, ennemiHp: 1 })), 'b1');
+    for (let seed = 8; seed < 38; seed++) {
+      expect(orderOf(planOf(campagneEscarmouche({ duree: 9, ennemiHp: 1 }), seed), 'b1')).toEqual(temoin);
+    }
   });
 });
