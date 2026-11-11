@@ -58,6 +58,7 @@ rules **1174/1174** (+20) · serveur **443/443** · web **793/793** (zéro modif
 ## 3. Périmètre interdit — respecté
 `combatStrengthsOf` (seulement `export` du wrapper, zéro modif), `processFormArmy`, décodeur client, PV armée, dérivé de jets ORACLE-VERDICT, gardien Fortify, Zii, gainSite, `schemaVersion` 28. Aucune nouvelle forme d'ordre.
 
-## 4. ⚠ CI / Deploy à vérifier après push (rapport écrit avant push).
+## 4. CI / Deploy — VÉRIFIÉS
+Push `33d8379` → workflow **Deploy : completed success** (API GitHub). Prod sonde `https://game-4x-server-prod.erik-ai-studio.workers.dev/` → **200** ; le bundle servi (`/assets/index-BwWSm_cU.js`) porte les symboles du gate (`jeGarde` / `sacrifiable` / `positionDecisive`).
 
 **Fin de session — remise de la main.** Pièges respectés : cache vitest racine purgé avant re-mesures, bancs via config dédiée, un seul worker, banques JSON copiées AVANT modification.
