@@ -2219,7 +2219,18 @@ export class GameDO {
       // bots d'une partie tireraient des plans identiques). L'id historique
       // 'bot' conserve la dérivation d'origine (bot solo inchangé).
       const rng = createRng(botTurnSeed(this.meta.seed, game.turn, p.engineId));
-      const plan = botPolicy(game, p.engineId, rng, this.meta.settings.botDifficulte);
+      const plan = botPolicy(
+        game,
+        p.engineId,
+        rng,
+        this.meta.settings.botDifficulte,
+        // BOT-GATE-ATTAQUE (Erik 10/11) : la qualification tactique Jev
+        // (memo persisté — jeGarde/sacrifiable/positionDecisive) borne la
+        // valeur de ses attaquants dans le gate d'espérance.
+        p.jev === true
+          ? { categoriesTactiques: this.jevEtat?.memo.categoriesTactiques ?? {} }
+          : undefined,
+      );
       for (const order of plan.orders) {
         if (orderShapeError(order) !== null) continue; // jamais un ordre mal formé
         this.orders[p.engineId] = upsertOrderPreservingPriority(this.orders[p.engineId] ?? [], order);

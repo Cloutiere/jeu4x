@@ -19,7 +19,7 @@ const HUMAN = 'p1';
 /** État de base : prairie 8×8, le bot et l'humain (guerre par défaut des
  *  fixtures — passer warPairs: [] pour la paix R-187). */
 function state(opts: {
-  units?: Array<{ id: string; type: string; owner: string; q: number; r: number; hp?: number; fortified?: boolean; aboard?: string | null; cargo?: string | null }>;
+  units?: Array<{ id: string; type: string; owner: string; q: number; r: number; hp?: number; fortified?: boolean; isArmy?: boolean; aboard?: string | null; cargo?: string | null }>;
   cities?: Array<{ id: string; owner: string; q: number; r: number; pop?: number; capital?: boolean; buildings?: string[]; production?: GameState['cities'][string]['production'] }>;
   villages?: Array<{ q: number; r: number }>;
   peace?: boolean;
@@ -97,10 +97,11 @@ describe('BOT-TA · D1-① soigner les blessés (ordre Heal, jamais sous menace)
 });
 
 describe('BOT-TA · D1-②/D2 — attaquer à portée selon le rapport de force', () => {
-  it('R-95 : un barbare adjacent est une proie légitime MÊME en paix générale', () => {
+  it('R-95 : un barbare adjacent est une proie légitime MÊME en paix générale (BOT-GATE-ATTAQUE : à espérance PASSANTE — armée ×3 vs guerrier entamé)', () => {
     const s = state({
       units: [
-        { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2 },
+        { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2, isArmy: true },
+        { id: 'b2', type: 'guerrier', owner: BOT, q: 1, r: 1 },
         { id: 'x1', type: 'guerrier', owner: BARBARIAN_ID, q: 3, r: 2 },
       ],
       cities: [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 }],
@@ -109,10 +110,11 @@ describe('BOT-TA · D1-②/D2 — attaquer à portée selon le rapport de force'
     expect(orderOf(planOf(s), 'b1')).toMatchObject({ type: 'Attack', target: { q: 3, r: 2 } });
   });
 
-  it('gardien de CAMP barbare (village porté par l\'état) : attaque la pile', () => {
+  it('gardien de CAMP barbare (village porté par l\'état) : attaque la pile (BOT-GATE-ATTAQUE : armée ×3 vs gardien entamé)', () => {
     const s = state({
       units: [
-        { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2 },
+        { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2, isArmy: true },
+        { id: 'b2', type: 'guerrier', owner: BOT, q: 1, r: 1 },
         { id: 'x1', type: 'guerrier', owner: BARBARIAN_ID, q: 3, r: 2 },
       ],
       villages: [{ q: 3, r: 2 }],
@@ -158,10 +160,11 @@ describe('BOT-TA · D1-②/D2 — attaquer à portée selon le rapport de force'
     expect(orderOf(planOf(s), 'b1')?.type).not.toBe('Attack');
   });
 
-  it('guerre seule : unité ennemie attaquée si `wars`, sinon jamais', () => {
+  it('guerre seule : unité ennemie attaquée si `wars`, sinon jamais (BOT-GATE-ATTAQUE : armée ×3 vs blessé — espérance passante)', () => {
     const units = [
-      { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2 },
-      { id: 'e1', type: 'guerrier', owner: HUMAN, q: 3, r: 2, hp: 1 },
+      { id: 'b1', type: 'guerrier', owner: BOT, q: 2, r: 2, isArmy: true },
+      { id: 'b2', type: 'guerrier', owner: BOT, q: 1, r: 1 },
+      { id: 'e1', type: 'guerrier', owner: HUMAN, q: 3, r: 2 },
     ];
     const cities = [{ id: 'c1', owner: BOT, q: 2, r: 3, pop: 2 }];
     const enGuerre = state({ units, cities });

@@ -14,6 +14,7 @@ import type { Hex } from './hex.js';
 import { BARBARIAN_ID, BARBARIANS, HUT_REWARDS, TERRAINS, unitType } from './data.js';
 import type { GameState, Order, Unit } from './state.js';
 import { compareUnitIds, nextId } from './state.js';
+import { deciderAttaqueUnitaire } from './gateAttaque.js'; // BOT-GATE-ATTAQUE (Erik 10/11)
 import type { HutReward } from './events.js';
 import type { SeededRng } from './rng.js';
 
@@ -158,9 +159,18 @@ export function barbarianOrders(state: GameState): Order[] {
       const enemyOnTile = defender && defender.owner !== BARBARIAN_ID;
       if (!enemyOnTile && !city) continue;
       if (enemyOnTile) {
-        // Combat défensif sur place : toujours permis (hors garde — la garde
-        // a déjà été servie en Fortify plus haut).
-        orders.push({ type: 'Attack', unitId: id, target: next });
+        // BOT-GATE-ATTAQUE (canon Erik 10/11) : le satellite n'attaque un
+        // civil que si l'ESPÉRANCE passe (D5 — k=2, valeur tactique) ; sinon
+        // il TIENT (Hold — jamais le suicide, jamais inactif). Les attaques
+        // VERS un camp (R-183, civil entrant) ne changent PAS : le camp se
+        // défend toujours (côté moteur, hors de ce module). Gardien Fortify
+        // (BARBARES-GARDE-FORTIFIE 412d7d0) intact — servi plus haut.
+        const verdict = deciderAttaqueUnitaire(state, unit, defender!);
+        if (verdict.passe) {
+          orders.push({ type: 'Attack', unitId: id, target: next });
+        } else {
+          orders.push({ type: 'Hold', unitId: id });
+        }
       } else {
         // Ville sans défenseur : entrer = SORTIE → jamais pour la garde.
         orders.push({ type: 'Move', unitId: id, path: [next] });

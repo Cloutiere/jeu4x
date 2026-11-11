@@ -41,6 +41,8 @@ import {
   ARMY_SIZE,
   BARBARIAN_ID,
   BOT_SETTINGS,
+  // BOT-GATE-ATTAQUE (canon Erik 10/11) — gate d'espérance + valeur tactique.
+  deciderAttaqueUnitaire,
   BUILDINGS,
   CITY_DEFENSE_BONUS,
   CITY_WORK_RADIUS,
@@ -75,6 +77,7 @@ import {
   workRadiusOf,
   workableTilesFor,
 } from '@game/rules';
+import type { CategorieTactique } from '@game/rules';
 import type {
   BotEconomieData,
   BotNegociationData,
@@ -1293,6 +1296,9 @@ export function assignerObjectifs(
   state: GameState,
   playerId: PlayerId,
   profile: BotProfileData,
+  // BOT-GATE-ATTAQUE (Erik 10/11) : catégories tactiques Jev (L3) —
+  // multiplicateur borné sur la valeur de l'attaquant, défaut ×1 (absent).
+  categories?: Readonly<Record<string, string>>,
 ): Map<string, Objectif> {
   const objectifs = new Map<string, Objectif>();
   const me = state.players[playerId];
@@ -1494,9 +1500,22 @@ export function assignerObjectifs(
     // l'assaut part à l'effectif (enSiege — priorité garnison).
     const attaquePermise = !armee.has(unit.id) || campagne === null || enSiege;
     const sAtt = forceAttaque(unit);
+    // BOT-GATE-ATTAQUE (canon Erik 10/11) : le rapport de forces simple ne
+    // suffit plus — chaque cible adjacente passe le gate d'ESPÉRANCE
+    // (P×gain ≥ k×(1−P)×perte, k=2, valeur tactique). Refus → la cible est
+    // écartée ; si TOUTES le sont, l'unité tombe aux priorités suivantes
+    // (repli/garnison/explorer — doctrine « jamais inactif »). Les villes
+    // sans défenseur (capture par entrée) ne sont pas des batailles : pas
+    // de gate.
+    const categorie = categories?.[unit.id];
     const cibles = attaquePermise
       ? ciblesAttaquables(state, unit, playerId, ennemis, enSiege)
-          .filter((c) => sAtt > 0 && sAtt >= profile.ratioAttaqueMin * c.sDef)
+          .filter((c) => {
+            if (!(sAtt > 0 && sAtt >= profile.ratioAttaqueMin * c.sDef)) return false;
+            const defenseur = ennemiSurHex(state, c.hex.q, c.hex.r, playerId, ennemis);
+            if (!defenseur) return true; // ville vide — entrée, pas bataille
+            return deciderAttaqueUnitaire(state, unit, defenseur, categorie).passe;
+          })
           .sort((a, b) => b.priorite - a.priorite || a.sDef - b.sDef || a.hex.q - b.hex.q || a.hex.r - b.hex.r)
       : [];
     if (cibles.length > 0) {
@@ -1615,7 +1634,10 @@ export function assignerObjectifs(
       const proie = barbares
         .slice()
         .sort((a, b) => dist(state, unit, a) - dist(state, unit, b) || compareUnitIds(a.id, b.id))
-        .find((b) => sAtt >= profile.ratioAttaqueMin * forceDefense(state, b));
+        .find((b) => sAtt >= profile.ratioAttaqueMin * forceDefense(state, b) &&
+          // BOT-GATE-ATTAQUE : la chasse passe aussi par l'espérance —
+          // fini le guerrier isolé sacrifié au gardien fortifié (D3UUQJ t5).
+          deciderAttaqueUnitaire(state, unit, b, categorie).passe);
       if (proie) {
         objectifs.set(unit.id, { kind: 'chasser', cible: { q: proie.q, r: proie.r } });
         continue;
@@ -2073,7 +2095,18 @@ export function arbitrerProduction(
  *        data-driven bot.json (`profileDuBot`) ; absent = comportement
  *        historique (profil « normal »).
  */
-export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, difficulte?: string): BotPlan {
+export function botPolicy(
+  state: GameState,
+  playerId: PlayerId,
+  rng: SeededRng,
+  difficulte?: string,
+  // BOT-GATE-ATTAQUE (Erik 10/11) : qualification Jev (jeGarde/sacrifiable/
+  // positionDecisive par unité — multiplicateur borné ×0,5–×2 sur la valeur
+  // de l'attaquant). Absent/illisible → neutre (×1), le moteur calcule.
+  // Record<string, string> volontaire : une catégorie inconnue/illisible
+  // vaut neutre (×1) — multiplicateurCategorie rejette ce qu'elle ne connaît pas.
+  opts?: { categoriesTactiques?: Readonly<Record<string, string>> },
+): BotPlan {
   const orders: Order[] = [];
   const actions: BotAction[] = [];
   const me = state.players[playerId];
@@ -2148,7 +2181,7 @@ export function botPolicy(state: GameState, playerId: PlayerId, rng: SeededRng, 
     if (cible) actions.push({ type: 'DeclareWar', player: cible });
   }
 
-  const objectifs = assignerObjectifs(state, playerId, profile);
+  const objectifs = assignerObjectifs(state, playerId, profile, opts?.categoriesTactiques);
   if (fondateurId) objectifs.set(fondateurId, { kind: 'tenir' as const });
 
   for (const unit of mine) {

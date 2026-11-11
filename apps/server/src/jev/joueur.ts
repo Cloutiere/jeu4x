@@ -519,6 +519,42 @@ export function construireQuestionsJoueur(config: AnyEtat, condense: AnyEtat, et
     meta.guerreSterile = { genre: 'guerreSterile', cibles: sterile.map((e: AnyEtat) => e.id) };
   }
 
+  // BOT-GATE-ATTAQUE (Erik 10/11) · L3 — Jev QUALIFIE, le moteur calcule :
+  // pour chaque unité combattante ADJACENTE à un ennemi visible (en guerre),
+  // Jev peut rendre une catégorie (jeGarde / sacrificiable / positionDecisive)
+  // → multiplicateur BORNÉ ×0,5–×2 sur la valeur tactique de l'attaquant dans
+  // le gate d'espérance. Gate de bruit : posée seulement s'il existe de telles
+  // unités (max 4 — tri id, R-81) ; défaut = neutre ×1.
+  if (enGuerre) {
+    const idsEnnemis = new Set((ennemis ?? []).map((e: AnyEtat) => e.id ?? e));
+    const estEnnemi = (owner: string) => idsEnnemis.has(owner);
+    const engagees = vals(etatFiltre.units ?? {})
+      .filter(
+        (u: AnyEtat) =>
+          u.owner === moi && !u.aboard && UNIT_TYPES[u.type]?.canAttack &&
+          vals(etatFiltre.units ?? {}).some(
+            (e: AnyEtat) => !e.aboard && e.owner !== moi && estEnnemi(e.owner) &&
+              Math.abs(e.q - u.q) + Math.abs(e.r - u.r) <= 3, // ≤ 2 en hex (borne cube large)
+          ),
+      )
+      .map((u: AnyEtat) => u.id)
+      .sort()
+      .slice(0, 4);
+    if (engagees.length > 0) {
+      const criteria: AnyEtat = {
+        aucun: 'Aucune qualification particulière ce tour — le moteur calcule normalement (×1).',
+      };
+      for (const id of engagees) {
+        const u = (etatFiltre.units ?? {})[id];
+        criteria[`jeGarde:${id}`] = `GARDER — ${id} (${u.type}, ${u.hp}/${UNIT_TYPES[u.type]?.hpMax ?? '?'} PV) protège quelque chose d'irremplaçable (capitale, colon, dernier défenseur) : le moteur exigera le DOUBLE de gain pour la risquer.`;
+        criteria[`sacrifiable:${id}`] = `SACRIFIABLE — ${id} (${u.type}) est échangeable : une perte acceptable pour un gain réel (le moteur acceptera la MOITIÉ du gain).`;
+        criteria[`positionDecisive:${id}`] = `POSITION DÉCISIVE — ${id} verrouille un passage ou une escorte décisive (comme jeGarde : le double de gain exigé).`;
+      }
+      q.tactique = { instructions: config.questions.tactique.instructions, criteria, type: 'choice' };
+      meta.tactique = { genre: 'tactique', unites: engagees };
+    }
+  }
+
   // JEV-IT4 · D2/D3 — questions de FIN DE PARTIE, gate de bruit : posées
   // SEULEMENT si le bloc victoire montre un signal (jalons ≥ 10 chez
   // quelqu'un, ≥ 2 composants, merveille de victoire en chantier, ou guerre
@@ -878,6 +914,10 @@ export interface DecisionJev {
   attentes: AnyEtat[];
   diplomatie: AnyEtat[];
   bloqueGuerreBot: boolean;
+  /** BOT-GATE-ATTAQUE (Erik 10/11) · L3 : qualification tactique Jev —
+   *  unitId → catégorie (jeGarde/sacrifiable/positionDecisive), BORNÉE
+   *  ×0,5–×2 côté moteur. Vide = neutre (×1). */
+  categoriesTactiques: Record<string, string>;
   fondationProgrammee: AnyEtat | null;
   erreur: string | null;
   meta: AnyEtat;
@@ -916,6 +956,7 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
     attentes: [],
     diplomatie: [],
     bloqueGuerreBot: false,
+    categoriesTactiques: {},
     fondationProgrammee: null,
     erreur: null,
     meta,
@@ -1234,6 +1275,22 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
       if (!sortie.diplomatie.some((d: AnyEtat) => d.genre === 'paix' && d.cible === memo.guerreSterile.cible)) {
         sortie.diplomatie.push({ genre: 'paix', cible: memo.guerreSterile.cible, or: 0 });
       }
+    }
+  }
+
+  // BOT-GATE-ATTAQUE (Erik 10/11) · L3 — la qualification tactique : UNE
+  // catégorie pour UNE unité engagee (énumération fermée, unité de la liste
+  // posée — sinon ignorée). Vide/absent/illisible → neutre ×1 (le moteur
+  // calcule ; repli canon).
+  const tactique = confiance(ans.tactique, confQuestion('tactique') ?? confMin);
+  if (tactique?.choice && tactique.choice !== 'aucun') {
+    const [cat, unitId] = String(tactique.choice).split(':');
+    const unites: string[] = (meta.tactique as AnyEtat)?.unites ?? [];
+    if (
+      (cat === 'jeGarde' || cat === 'sacrifiable' || cat === 'positionDecisive') &&
+      unitId && unites.includes(unitId)
+    ) {
+      sortie.categoriesTactiques = { [unitId]: cat };
     }
   }
 

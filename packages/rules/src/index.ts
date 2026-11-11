@@ -51,3 +51,5 @@ export * from './trace.js';
 /** ORACLE-VERDICT (canon Erik 09/11) — oracleActif + jet de bataille dérivé. */
 export * from './oracle.js';
 export * from './derive.js';
+/** BOT-GATE-ATTAQUE (canon Erik 10/11) — gate d'espérance + valeur tactique. */
+export * from './gateAttaque.js';

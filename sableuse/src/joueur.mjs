@@ -550,6 +550,41 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
     meta.guerreSterile = { genre: 'guerreSterile', cibles: sterile.map((e) => e.id) };
   }
 
+  // BOT-GATE-ATTAQUE (Erik 10/11) · L3 — Jev QUALIFIE, le moteur calcule :
+  // catégorie (jeGarde / sacrificiable / positionDecisive) par unité
+  // combattante adjacente à un ennemi visible (en guerre) → multiplicateur
+  // BORNÉ ×0,5–×2 côté moteur. Gate de bruit : seulement s'il existe de
+  // telles unités (max 4 — tri id). Miroir EXACT du port TS (jev-port).
+  if (enGuerre) {
+    const idsEnnemis = new Set((ennemis ?? []).map((e) => e.id ?? e));
+    const estEnnemi = (owner) => idsEnnemis.has(owner);
+    const engagees = Object.values(etatFiltre.units ?? {})
+      .filter(
+        (u) =>
+          u.owner === moi && !u.aboard && UNIT_TYPES[u.type]?.canAttack &&
+          Object.values(etatFiltre.units ?? {}).some(
+            (e) => !e.aboard && e.owner !== moi && estEnnemi(e.owner) &&
+              Math.abs(e.q - u.q) + Math.abs(e.r - u.r) <= 3,
+          ),
+      )
+      .map((u) => u.id)
+      .sort()
+      .slice(0, 4);
+    if (engagees.length > 0) {
+      const criteria = {
+        aucun: 'Aucune qualification particulière ce tour — le moteur calcule normalement (×1).',
+      };
+      for (const id of engagees) {
+        const u = (etatFiltre.units ?? {})[id];
+        criteria[`jeGarde:${id}`] = `GARDER — ${id} (${u.type}, ${u.hp}/${UNIT_TYPES[u.type]?.hpMax ?? '?'} PV) protège quelque chose d'irremplaçable (capitale, colon, dernier défenseur) : le moteur exigera le DOUBLE de gain pour la risquer.`;
+        criteria[`sacrifiable:${id}`] = `SACRIFIABLE — ${id} (${u.type}) est échangeable : une perte acceptable pour un gain réel (le moteur acceptera la MOITIÉ du gain).`;
+        criteria[`positionDecisive:${id}`] = `POSITION DÉCISIVE — ${id} verrouille un passage ou une escorte décisive (comme jeGarde : le double de gain exigé).`;
+      }
+      q.tactique = { instructions: config.questions.tactique.instructions, criteria, type: 'choice' };
+      meta.tactique = { genre: 'tactique', unites: engagees };
+    }
+  }
+
   // Échange de techs (canon : JAMAIS en guerre) — techs Offertes (les nôtres
   // inconnues du rival) et Demandées (les siennes que nous ignorons), triées
   // par coût ; les paires DÉJÀ refusées ne sont pas re-proposées (mémo).

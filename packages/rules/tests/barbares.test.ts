@@ -246,12 +246,12 @@ describe('R-95 · Faction barbare (pseudo-joueur)', () => {
 // ---------------------------------------------------------------------------
 
 describe('R-97 · IA barbare (priorités 1-2-3)', () => {
-  it('R-97-1 : priorité à l’attaque d’une unité ennemie adjacente', () => {
+  it('R-97-1 : priorité à l’attaque d’une unité ennemie adjacente (BOT-GATE-ATTAQUE : espérance passante — armée barbare vs guerrier)', () => {
     const state = makeState({
       width: 12,
       height: 10,
       units: [
-        { id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 5, r: 5 },
+        { id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 5, r: 5, isArmy: true },
         { id: 'u1', type: 'guerrier', owner: 'p1', q: 5, r: 6 },
         { id: 'u2', type: 'guerrier', owner: 'p2', q: 9, r: 1 }, // plus loin
       ],
@@ -388,7 +388,9 @@ describe('R-97 · IA barbare (priorités 1-2-3)', () => {
     });
     const dotation = state.villages[0]!.spawnedUnits[0]!;
     const gabarit = state.units[dotation]!;
-    state.units['sat'] = { ...structuredClone(gabarit), id: 'sat', q: 5, r: 5 };
+    // BOT-GATE-ATTAQUE (Erik 10/11) : le satellite n'attaque plus « toujours »
+    // mais À ESPÉRANCE PASSANTE (k=2) — l'armée ×3 vs guerrier plein passe.
+    state.units['sat'] = { ...structuredClone(gabarit), id: 'sat', q: 5, r: 5, isArmy: true };
     state.villages[0]!.spawnedUnits.push('sat');
     // Ennemi posé sur le premier voisin du satellite qui n'est PAS le camp.
     const cible = neighborsW({ q: 5, r: 5 }, state.mapWidth).find((h) => !(h.q === 6 && h.r === 5))!;

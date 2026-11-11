@@ -1182,6 +1182,29 @@ function combatStrengthsOf(
 }
 
 /**
+ * BOT-GATE-ATTAQUE (canon Erik 10/11) — forces PROSPECTIVES d'une attaque
+ * adjacente planifiée : S_att / S_def par combatStrengthsOf (le socle
+ * ARMEE-STRENGTH — zéro formule parallèle), sur un Board de PLANIFICATION
+ * (aucune unité n'a bougé → R-175 : un défenseur fortifié qui demeure garde
+ * ses bonus ; approximation consignée : à la résolution, un défenseur ayant
+ * déjà bougé perdrait ses bonus de demeure — le gate juge AVANT le tour).
+ * Pur : ne mute jamais l'état. Consommateurs : gateAttaque (botPolicy,
+ * barbares R-97 gate).
+ */
+export function forcesProspectives(
+  state: GameState,
+  attaquant: Unit,
+  defenseur: Unit,
+): { sAtt: number; sDef: number } {
+  const board = { st: state, moved: new Set<UnitId>() } as unknown as Board;
+  const { sAtt, sDef } = combatStrengthsOf(board, attaquant, defenseur, {
+    q: defenseur.q,
+    r: defenseur.r,
+  });
+  return { sAtt, sDef };
+}
+
+/**
  * Un assaut (round R-51) — BATAILLE-COMPLETE (canon Erik 31/10) : une attaque
  * MÊLÉE enchaîne les assauts JUSQU'À LA MORT de l'une des deux unités (fin de
  * T-03/EXCHANGES_PER_ATTACK) ; une attaque à DISTANCE reste UN assaut unique

@@ -890,4 +890,44 @@ export interface BotSettingsData {
    *  tours sans AUCUNE bataille avant tranchage (paix si perdant, assaut si
    *  gagnant) ; cadence des propositions de paix stériles (anti-boucle D-C). */
   guerreSterile: { tours: number; cooldown: number };
+  /** BOT-GATE-ATTAQUE (canon Erik 10/11) : table du gate d'espérance —
+   *  P(victoire)×valeur(gain) ≥ k×P(défaite)×valeur(perte), toute table
+   *  éditable (zéro durcissement). */
+  gateAttaque: BotGateAttaqueData;
+}
+
+/** BOT-GATE-ATTAQUE · D1/D2 — tables data-driven du gate. Valeurs en « points
+ *  de valeur tactique » (monnaie arbitraire commune aux deux camps). */
+export interface BotGateAttaqueData {
+  /** Aversion au risque : le gain doit dépasser k fois la perte pondérée. */
+  k: number;
+  /** Base de valeur par rôle. */
+  baseRole: {
+    standard: number;
+    colonSansSite: number;
+    colonAvecSite: number;
+    gardienCapitale: number;
+    eraDepassee: number;
+  };
+  /** Multiplicateur « dernière combattante » : n combattantes →
+   *  1 + (mult−1)/n (1 sur 1 vaut mult, 1 sur 4 en garde une part). */
+  multDerniereCombattante: number;
+  /** Modificateurs : vétéran (+50 %), position critique, butin d'un camp. */
+  bonusVeteran: number;
+  bonusPositionCritique: number;
+  valeurButinCamp: number;
+  /** « Ennemi écrasant = gain quasi nul » : sDef ≥ ratio × sAtt →
+   *  gain × facteur. */
+  gainNulRatio: number;
+  gainNulFacteur: number;
+  /** Sécurité locale (D3) : bonus au GAIN — ennemi en guerre déclarée
+   *  (les batailles font vivre la guerre), renforcé s'il menace une de mes
+   *  villes (dist ≤ 2). Les barbares ne sont jamais en guerre déclarée. */
+  bonusSecuriteGuerre: number;
+  bonusSecuriteVille: number;
+  /** Jev qualifie (L3) : multiplicateur borné sur la valeur de l'attaquant. */
+  categoriesJev: { jeGarde: number; sacrifiable: number; positionDecisive: number };
+
+  categorieMin: number;
+  categorieMax: number;
 }

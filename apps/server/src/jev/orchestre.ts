@@ -133,6 +133,16 @@ export async function planifierJev(opts: {
   }
   enregistrerAppel(etat, true, decision.jetonsEntree);
 
+  // BOT-GATE-ATTAQUE (Erik 10/11) · L3 — la qualification tactique vit dans
+  // le memo (persisté avec l'état Jev) : le GameDO la passe au botPolicy du
+  // siège Jev (multiplicateur borné dans le gate d'espérance). Tour sans
+  // qualification → neutre ×1 (mémo nettoyé).
+  if (Object.keys(decision.categoriesTactiques ?? {}).length > 0) {
+    etat.memo.categoriesTactiques = decision.categoriesTactiques;
+  } else {
+    delete etat.memo.categoriesTactiques;
+  }
+
   // Discipline v3 (canon harnais) : le bot tactique ne touche pas au colon
   // d'une fondation programmée ; fondation perdue → programmation levée.
   const fondation = etat.memo.fondationEnCours;

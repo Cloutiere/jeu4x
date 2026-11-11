@@ -62,6 +62,7 @@ describe('confiance-exploration · D-A — data seuils par question', () => {
       convertir: 0.25, // observé 0,25-0,38 (science:c3 constant t21-23)
       produire: 0.3, // observé 0,33-0,49 (unit:guerrier, 12 écrasements)
       rechercher: 0.25, // observé 0,28 (alphabet t0)
+      tactique: 0.25, // BOT-GATE-ATTAQUE (10/11) : qualification bornée, risque assumé comme guerre
     });
   });
   it('copie serveur identique (questions-joueur.json)', () => {

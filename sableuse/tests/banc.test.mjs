@@ -51,7 +51,7 @@ describe('banc de calibrage (faux client)', () => {
   it('exécute le banc (faux client) avec reprise après interruption simulée', async () => {
     // exécution complète en fond, puis interruption simulée : on vérifie que
     // etat.json trace chaque partie et qu'un 2e passage saute les faites.
-    execFileSync('node', ['--import', 'tsx', 'src/banc.mjs', '--plan', bancDir, '--faux', '--base', '0'], { cwd: racine, timeout: 300_000 });
+    execFileSync('node', ['--import', 'tsx', 'src/banc.mjs', '--plan', bancDir, '--faux', '--base', '0'], { cwd: racine, timeout: 600_000 }); // BOT-GATE-ATTAQUE : bots plus survivants → parties plus longues (le faux banc dépassait 300 s)
     const etatBanc = JSON.parse(readFileSync(join(bancDir, 'etat.json'), 'utf8'));
     expect(Object.keys(etatBanc.parties)).toHaveLength(5);
     for (const [, p] of Object.entries(etatBanc.parties)) {
@@ -112,7 +112,7 @@ describe('banc de calibrage (faux client)', () => {
     ];
     writeFileSync(join(dirSiege, 'plan.json'), JSON.stringify({ planSeed: 2, nJev: 2, nControle: 0, playerCount: 5, plafondTours: 6, parties }));
     writeFileSync(join(dirSiege, 'etat.json'), JSON.stringify({ parties: {} }));
-    execFileSync('node', ['--import', 'tsx', 'src/banc.mjs', '--plan', dirSiege, '--faux', '--base', '0'], { cwd: racine, timeout: 300_000 });
+    execFileSync('node', ['--import', 'tsx', 'src/banc.mjs', '--plan', dirSiege, '--faux', '--base', '0'], { cwd: racine, timeout: 600_000 }); // BOT-GATE-ATTAQUE : bots plus survivants → parties plus longues (le faux banc dépassait 300 s)
     const etatBanc = JSON.parse(readFileSync(join(dirSiege, 'etat.json'), 'utf8'));
     expect(etatBanc.parties[1].statut).toBe('fait');
     expect(etatBanc.parties[2].statut).toBe('fait');

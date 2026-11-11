@@ -30,6 +30,10 @@ export interface JevMemo {
    *  persisté par unité en marche — filtrerMarcheBot s'y appuie pour ne
    *  jamais repartir une unité en arrière. Levé hors marche (joueur.ts). */
   marche?: Record<string, { q: number; r: number }>;
+  /** BOT-GATE-ATTAQUE (Erik 10/11) · L3 : qualification tactique persistée —
+   *  unitId → jeGarde/sacrifiable/positionDecisive (bornage ×0,5–×2 côté
+   *  moteur). Nettoyé chaque tour sans qualification (neutre ×1). */
+  categoriesTactiques?: Record<string, string>;
 }
 
 export interface JevEtat {

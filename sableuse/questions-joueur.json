@@ -71,6 +71,11 @@
         "assauts:pX": "Convertir la guerre en campagne : pousser vers la ville de pX et l'assiéger.",
         "continuer": "Ne rien changer — la guerre reste nominale."
       }
+    },
+    "tactique": {
+      "primitive": "choice",
+      "instructions": "Qualification TACTIQUE d'une unité engageable (gate d'espérance du moteur — canon du 10/11). Pour l'unité présentée, choisissez UNE catégorie : jeGarde = cette unité protège quelque chose d'irremplaçable (capitale, colon, dernier défenseur — le moteur exigera le DOUBLE de gain pour la risquer) ; sacrificiable = unité échangeable, une perte acceptable pour un gain réel (le moteur acceptera la MOITIÉ du gain) ; positionDecisive = elle verrouille un passage ou une escorte décisive (comme jeGarde) ; aucun = pas de qualification particulière ce tour (le moteur calcule normalement).",
+      "aucun": true
     }
   },
   "seuils": {
@@ -107,7 +112,8 @@
       "fonder": 0.2,
       "convertir": 0.25,
       "produire": 0.3,
-      "rechercher": 0.25
+      "rechercher": 0.25,
+      "tactique": 0.25
     }
   },
   "_commentaire_seuils": "Seuils PAR DOMAINE (canon v2) : produire/rechercher à 0,65 ; guerre/paix/convertir/échange à 0,5 — ces questions sont chroniquement sous-confiantes chez jev-latest (banc joueur-2026-10-27). v2 CALIBRAGE-DECISIONS : une réponse conversion INDÉCISE (sous 0,5) déclenche le repli règle (plancher, miroir du repli bot) ; conversionScienceMin = seuil de science/tour sous lequel une ville est candidate à la SCIENCE. compensationPaliers conservé pour compatibilité (la fourchette d'or v2 est injectée par tour). JEV-CONTACT-GUERRE D1 (Erik 29/10) : delaiGuerreApresRencontre = tours de coexistence minimale entre la PREMIÈRE rencontre (unité/ville adverse vue sous le fog) et la première question guerre possible. JEV-IT4B (Erik 31/10) : guerreTotaleRapportMin = rapport de forces minimal pour que le choix guerreTotale:<id> soit offert dans finPartie. | v7 CALIBRAGE-OFFENSIF : dominationEcartVilles 3→2 (D-B, seed 786078703) ; marcheActif/marcheTaille (D-E2, la marche vers la capitale déclarée). | v9 STRATEGE : opportunite {ecartTechs 8, rapportDomination 2, jalonsMin 12, tresorerieMin 10000} + opportuniteCooldown 15 (révision de voie) ; ecrasementRapport 3 (déclaration d'écrasement) ; sitesRestants 1 + conqueteRapportMin 1 (conquête d'espace). | confianceParQuestion (CONFIANCE-EXPLORATION 03/11) : seuil de confiance PAR question (canon v2, miroir confianceGuerreSterile) — minimums observés en prod réelle YU4SHH t0-23 ; la gate générique (confianceChoixMin/decisionMin) ne s’applique qu’aux questions sans seuil dédié.",
