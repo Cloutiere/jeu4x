@@ -2,7 +2,7 @@
 
 **Tenue par le pilot, mise à jour à chaque acceptation de phase — dernier point complet : 10/11.** Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md). Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md).
 
-**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **~2 500 tests verts** (rules 1154 / server 443 / web 793 / jev-port 40 / sableuse 228) · `schemaVersion` **28** · budget Cloudflare tenu (~5 $/mois). Coquille Electron de distribution Windows en place.
+**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **~2 500 tests verts** (rules 1180 / server 448 / web 793 / jev-port 40 / sableuse 228) · `schemaVersion` **28** · budget Cloudflare tenu (~5 $/mois). Coquille Electron de distribution Windows en place.
 
 ---
 
@@ -28,6 +28,7 @@
 ## 🚧 En cours — LA mission active
 
 - **ARMEE-STRENGTH livrée + acceptée** (`e0b67b9`, 10/11 — bogue R-31 capturé en prod BJ5VC5 t26) : `combatStrengthsOf` branche enfin `isArmy` — une armée **attaque ET défend à la somme des membres** (base ×3, traits R-149 inclus, vétéran ×1,5 après le ×3, bonus % défensifs après le ×3 ; armée fortifiée colline = 4,8) ; écrasement et mêlée pondérée au vrai poids ; mod « Armée ×3 (R-31) » au détail de combat (zéro modif client). Former une armée n'affaiblit plus. Tests : rules **1154** (+8, cas BJ5VC5 reconstitué p 0,236 → 0,782), re-verrouillage SANS aucune assertion changée ; banc bot AVANT/APRÈS zéro collapse (banc Jev reporté au prochain naturel — c'est lui qui forme de vraies armées). 🔶 Capture GUI d'un combat d'armée à l'œil d'Erik en prod (le mod ×3 doit apparaître au détail).
+- **BOT-GATE-ATTAQUE + K-GUERRE + PRESSION-CAMPAGNE + ESCARMOUCHE-GATE — le chapitre « gate d'attaque » accepté et poussé** (`33d8379` → `bbafd98`, 10-11/11, diagnostic déclencheur D3UUQJ t5 : suicide du guerrier de Jev sur un gardien fortifié sans que Jev ne décide) : **R-190** — toute attaque du bot/barbare passe un gate à l'**espérance de gain** `P(v)×gain ≥ k×P(d)×perte` pondérée par la **valeur tactique** (rôle, dernière combattante, vétéran, PV, position critique) + **qualification Jev catégorielle bornée** ×0,5-×2 (689 questions posées au banc, ~115 vraies catégories). Canon final après 3 mesures du seuil insensibles à la stérilité (métrique falsifiée par la géométrie : anneaux de ralliement disjoints) : **k décroissant avec la durée de guerre** (max(1,1 ; 2 − 0,1×durée), barbares à 2 — D3UUQJ vert) et **le gate remplace le ban structurel des armées** (escarmouche adjacente en guerre si le calcul passe, siège prioritaire). Résultat banc horloge : **captures +78 %** (27 vs 15), guerres plus longues, vrai coût de guerre (difficile saigne mais reste > baseline e0b67b9) ; zéro suicide D3UUQJ sur 10 parties Jev réelles. Suites rules 1180 / server 448. 🔶 Verdict ressenti d'Erik en jouant vs Jev ; leviers géométriques (anneau dist 1, chasse du campement) au backlog SI les guerres paraissent muettes. Piège consigné : le commit `704ec5b` décrivait du code jamais committé — complété par `d28725e`.
 - **ORACLE-VERDICT livré + accepté** (`c2a8c34`, Deploy SUCCESS vérifié, rapport à la racine) : jets de combat mêlée dérivés par **hash** (indépendants du flux — preuve L1 bit à bit sur 30 seeds) ; l'Oracle affiche **VICTOIRE/DÉFAITE certain** au panneau et dans la préview vivante (fog filtré, `PredictBattle`) ; bancs re-baselinés sans collapse. 🔶 Erik valide en jouant (Oracle + attaque risquée).
 - **CIVS-NEUTRES-LOBBY livrée** (38b7c32) : « Sans civilisation » sélectionnable au lobby pour chaque siège (joueur ET bot/Jev), jamais tirée au hasard — les duels de test d'Erik sont propres.
 - **COHABITATION-HOSTILE livrée** (`138dece`, acceptée) : les entrants hostiles convergents se battent en bataille complète (gate `residentPresent` — l'ancienne mêlée pondérée vit pour les résiduels) ; le trou 5633Y3 est fermé, les convergences barbares/joueur tuent désormais.
@@ -44,10 +45,10 @@
 
 ## 📋 File d'attente (dans l'ordre convenu avec Erik)
 
-1. **Erik joue contre le Jev complet** (l'arbitre réel) — verdict ressenti sur victoires Jev 15 %, Oracle, armées ×3 ;
-2. **BOT-GATE-ATTAQUE** (handoff prêt, 10/11 — diagnostic D3UUQJ : le guerrier de Jev s'est suicidé sur un gardien fortifié t5 sans que Jev ne décide, couche tactique bot sans évaluation) : gate d'attaque à l'espérance de gain (k=2) pondérée par valeur tactique + qualification Jev catégorielle bornée ×0,5-×2 ;
-3. **JEV-ESCORTE** (à cadrer, couplé au gate) : 0 unité combattante + colon sortant → production pivote sur guerrier ;
-4. **Miroir Jev vs Jev** (backlog) : équilibre attaque/défense du canon + exam de la chaîne conquête des deux côtés ;
+1. **Erik joue contre le Jev complet** (l'arbitre réel) — verdict ressenti sur victoires Jev 15 %, Oracle, armées ×3, ET sur les guerres du gate (muettes ou vivantes ?) ;
+2. **JEV-ESCORTE** (à cadrer, couplé au gate) : 0 unité combattante + colon sortant → production pivote sur guerrier ;
+3. **Miroir Jev vs Jev** (backlog) : équilibre attaque/défense du canon + exam de la chaîne conquête des deux côtés ;
+4. **Leviers géométriques de contact** (backlog conditionnel) : anneau à dist 1 / chasse du campement adverse — UNIQUEMENT si le verdict ressenti dit « guerres muettes » ;
 5. Atelier voix de Zii (Erik écrit la personnalité dans `zii.json`), vieux 🔶 ci-dessous.
 
 ## 🔶 À trancher par Erik (ouverts)
