@@ -1,6 +1,6 @@
 # REPORT-JEV-ESCORTE — Le pari colon évalué (canon Erik 12/11)
 
-**⚠ ARRÊT-POUR-APPROBATION — commit LOCAL, rien poussé ni déployé.** Le critère dur du banc Jev est sous tension (voir §4) : à la lettre il n'est pas atteint ; à la lecture ex ante il l'est. C'est un arbitrage Erik, pas un calcul que je tranche solo — même fil que les 3 arrêts du chapitre gate.
+**Verdict Erik 12/11 sur l'arrêt : (a)+(c) accepté + sonde raffinée.** Les 5 pertes brutes = 0 violation du canon (3 défense-en-ville hors périmètre, 2 fog indévaluables). Livraison acceptée, push autorisé — voir §4bis pour le compte raffiné.
 
 ## 1. Livré (base `1e17892`)
 
@@ -53,4 +53,24 @@ Sonde `sonde-escorte.mjs` (journaux, miroir de la sonde « 0 suicide D3UUQJ ») 
 
 ## 6. Fin de session
 
-Commit LOCAL unique (leçon `704ec5b` : chaque symbole cité vérifié dans le commit avant validation). **Rien poussé, pas de CI, pas de Deploy.** Remise de la main à Erik : arbitrage du critère dur (§4 a/b/c), puis push/CI/Deploy à la demande.
+Commits vérifiés (`git show` + grep — leçon `704ec5b`), poussés après le verdict Erik (§4bis) ; CI, Deploy et prod vérifiés (§5bis). Remise de la main.
+
+## 4bis. Sonde raffinée (canon Erik « (a)+(c) » — HANDOFF-ESCORTE-SONDE, 12/11)
+
+`sonde-escorte-raffinee.mjs` (journaux archivés, zéro re-banc, 0 $) — compte des **VIOLATIONS de règle**, pas des pertes : cycle de vie reconstruit depuis les événements moteur (ids recyclés dédupliqués — le faux u30 « colon » de p04, id réapparu après la fondation, sort du compte), captures en ville exclues (échec de DÉFENSE, hors périmètre), tueurs testés À LA DÉCISION (snapshots par tour, vision unité 2 / ville 3 — mêmes tables que le moteur ; approximation : bonus de terrain ignorés).
+
+| Sonde | joueur-gate (AVANT règle, mêmes seeds) | joueur-escorte (APRÈS) |
+|---|---|---|
+| **Violations du canon** (colon sur route, tueur connu à la décision) | **2** (p03 u274 t122, p09 u58 t56) | **0** ✓ |
+| Pertes en ville (défense, hors périmètre) | 0 | 3 |
+| Pertes sur route par ennemi hors vision (fog — consigné, pas compté) | 0 | 1 (u61 t54, tueur absent de la reconstruction — consigné) |
+| Pertes brutes (ancienne sonde, conservée à côté) | 2 | 5 |
+| Fondations/partie | 5,70 | 6,20 |
+
+**Lecture** : la règle escort éradique précisément les violations qu'elle vise — la baseline contenait 2 vrais colons perdus sur route face à des ennemis connus ; le banc escort en contient 0. Les pertes résiduelles sont hors périmètre (défense de ville) ou indévaluables (fog), exactement le verdict Erik.
+
+Écarts consignés : (i) le tour de sortie de u274 (baseline p03) n'a pas été capturé par le suivi (sortie antérieure à l'enregistrement ?) — la violation est posée par la visibilité à la jambe fatale t122 ; (ii) u61 : aucun tueur trouvé sur la case par la reconstruction (l'unité capturante n'était plus dans la carte des positions) — classé fog par prudence ; (iii) les colons INITIAUX (aucun événement UnitProduced) ne sont suivis qu'à partir d'une fondation programmée (decision.fondationProgrammee) — limitation connue.
+
+## 5bis. Déploiement
+
+Suites re-jouées avant push : rules 1200, server 453, web 793, jev-port 40, sableuse 228, tsc propres. Push de `651c9a5` + commit sonde raffinée, CI vérifiée, Deploy SUCCESS + prod 200 vérifiés (API GitHub — `gh` absent).
