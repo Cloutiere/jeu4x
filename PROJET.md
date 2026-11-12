@@ -2,7 +2,7 @@
 
 **Tenue par le pilot, mise à jour à chaque acceptation de phase — dernier point complet : 10/11.** Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md). Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md).
 
-**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **~2 500 tests verts** (rules 1180 / server 448 / web 793 / jev-port 40 / sableuse 228) · `schemaVersion` **28** · budget Cloudflare tenu (~5 $/mois). Coquille Electron de distribution Windows en place.
+**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **~2 700 tests verts** (rules 1200 / server 453 / web 793 / jev-port 40 / sableuse 228) · `schemaVersion` **28** · budget Cloudflare tenu (~5 $/mois). Coquille Electron de distribution Windows en place.
 
 ---
 
