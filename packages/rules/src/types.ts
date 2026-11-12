@@ -894,6 +894,26 @@ export interface BotSettingsData {
    *  P(victoire)×valeur(gain) ≥ k×P(défaite)×valeur(perte), toute table
    *  éditable (zéro durcissement). */
   gateAttaque: BotGateAttaqueData;
+  /** JEV-ESCORTE (canon Erik 12/11) : évaluation du déploiement du colon —
+   *  rayons/portées tunables, zéro durcissement. */
+  escort: BotEscorteData;
+}
+
+/** JEV-ESCORTE · tables data-driven de l'évaluation du pari colon. */
+export interface BotEscorteData {
+  /** Une unité ennemie capable d'atteindre le site OU un tile de la route
+   *  en ≤ N tours de MARCHE (BFS × mouvement de l'unité) → risque élevé. */
+  toursEnnemi: number;
+  /** Camp barbare connu à distance ≤ N du site → risque élevé (les
+   *  satellites sortent — D3UUQJ). */
+  campDistMax: number;
+  /** Route passant à dist ≤ N d'un ennemi connu → risque élevé. */
+  influenceRouteDist: number;
+  /** Rayon de l'approximation géométrique du site par défaut (arbitrage de
+   *  production botPolicy). */
+  siteParDefautRayon: number;
+  /** Type d'unité du PIVOT quand le risque est élevé et 0 combattante. */
+  pivotUnit: string;
 }
 
 /** BOT-GATE-ATTAQUE · D1/D2 — tables data-driven du gate. Valeurs en « points

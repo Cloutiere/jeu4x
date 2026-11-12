@@ -151,5 +151,13 @@
     "kHorsGuerre": 2,
     "kPente": 0.1,
     "kPlancher": 1.1
+  },
+  "escort": {
+    "_commentaire": "JEV-ESCORTE (canon Erik 12/11, prod D3UUQJ) — le colon seul n'est pas un interdit : un PARI ÉVALUÉ, déterministe au BFS. uniteAtteintSite/Route : portée de MARCHE = toursEnnemi × mouvement de l'unité (pas à vol d'oiseau). campBarbareProche : les satellites sortent du camp (D3UUQJ). siteBrume : tile absent de l'état connu = risque majoré. routeInfluence : route à dist ≤ influenceRouteDist d'un ennemi connu. Pivot : risque élevé ET 0 combattante → pivotUnit.",
+    "toursEnnemi": 3,
+    "campDistMax": 3,
+    "influenceRouteDist": 2,
+    "siteParDefautRayon": 3,
+    "pivotUnit": "guerrier"
   }
 }

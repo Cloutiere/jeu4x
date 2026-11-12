@@ -18,6 +18,10 @@ import {
   BOT_SETTINGS,
   canSetProduction,
   cityEconomyInputs,
+  deciderProductionColon,
+  doitRappelerColon,
+  escorteEnPlace,
+  risqueDeploiementColon,
   hexDistance,
   TERRAINS,
   TECHS,
@@ -255,6 +259,45 @@ function cheminVers(etatFiltre: AnyEtat, moi: string, colon: AnyEtat, cible: Any
     if (pas.q === cible.q && pas.r === cible.r) break;
   }
   return chemin;
+}
+
+/** JEV-ESCORTE (canon Erik 12/11) — le veto AU-DESSUS du choix de Jev : le
+ * colon ne marche vers son site QUE si le pari est bon (risque FAIBLE OU
+ * escorte en place — déterministe, risqueDeploiementColon). Sinon :
+ *  - colon en ville → il ATTEND (pas de Move risqué, memo conservé) ;
+ *  - colon déjà sorti → RAPPEL vers la ville la plus proche (miroir du
+ *    rappel D3 de l'exploration — Move existant, zéro nouvel ordre).
+ * Retour : { ordre, attendu } ou null (attendre). */
+function ordreMarcheColon(
+  etatFiltre: AnyEtat,
+  moi: string,
+  colon: AnyEtat,
+  site: { q: number; r: number },
+  chemin: AnyEtat[],
+): { ordre: AnyEtat; attendu: string } | null {
+  if (chemin.length === 0) return null;
+  const risque = risqueDeploiementColon(etatFiltre, moi, site, chemin);
+  if (risque.niveau === 'faible' || escorteEnPlace(etatFiltre, moi, colon)) {
+    return {
+      ordre: { type: 'MultiStep', unitId: colon.id, path: chemin, final: 'foundCity' },
+      attendu: `${chemin[0].q},${chemin[0].r}`,
+    };
+  }
+  const enVille = vals(etatFiltre.cities ?? {}).some(
+    (v: AnyEtat) => v.owner === moi && v.q === colon.q && v.r === colon.r,
+  );
+  if (enVille) return null; // le colon attend en ville
+  // D4 — rappel : un pas routier vers ma ville la plus proche.
+  const refuge = vals(etatFiltre.cities ?? {})
+    .filter((v: AnyEtat) => v.owner === moi)
+    .sort((a: AnyEtat, b: AnyEtat) => hexDistance(a, colon) - hexDistance(b, colon))[0];
+  if (!refuge) return null;
+  const step = pasVersRoutier(colon, etatFiltre, { q: refuge.q, r: refuge.r });
+  if (!step) return null;
+  if (doitRappelerColon(etatFiltre, moi, colon, chemin)) {
+    return { ordre: { type: 'Move', unitId: colon.id, path: [step] }, attendu: `${step.q},${step.r}` };
+  }
+  return null;
 }
 
 /** JEV-CALIBRAGE-OFFENSIF · D-E2 — chemin de MARCHE sous le fog (miroir
@@ -1039,12 +1082,14 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
           sortie.attentes.push({ genre: 'fondation', unitId: colon.id, case: cible.case });
         } else {
           const chemin = cheminVers(etatFiltre, moi, colon, { q: cq, r: cr });
-          if (chemin.length > 0) {
-            sortie.ordres.push({ type: 'MultiStep', unitId: colon.id, path: chemin, final: 'foundCity' });
-            sortie.attentes.push({ genre: 'mouvement', unitId: colon.id, attendu: `${chemin[0].q},${chemin[0].r}` });
-          } else {
+          const marche = ordreMarcheColon(etatFiltre, moi, colon, { q: cq, r: cr }, chemin);
+          if (marche) {
+            sortie.ordres.push(marche.ordre);
+            sortie.attentes.push({ genre: 'mouvement', unitId: colon.id, attendu: marche.attendu });
+          } else if (chemin.length === 0) {
             delete memo.fondationEnCours;
           }
+          // chemin non vide mais veto escort : le colon attend (memo conservé).
         }
       } else {
         const capitale =
@@ -1053,8 +1098,22 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
           null;
         const typeColon = colonProductible(me?.techsUnlocked ?? []);
         if (capitale && typeColon && canSetProduction({ kind: 'unit', id: typeColon.id }, me?.techsUnlocked ?? [], capitale.buildings ?? [], me?.civId)) {
-          sortie.ordres.push({ type: 'SetProduction', cityId: capitale.id, item: { kind: 'unit', id: typeColon.id } });
-          sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: `unit:${typeColon.id}` });
+          // JEV-ESCORTE · D2 (canon 12/11) : le colon entre en file seulement
+          // si le pari est bon — risque ÉLEVÉ ET 0 combattante → PIVOT
+          // guerrier ; 'attendre' → rien en file ce tour (le moteur décide
+          // au-dessus de Jev — gainSite et `produire` inchangés).
+          const verdict = deciderProductionColon(etatFiltre, moi, { q: cq, r: cr });
+          const pivotPossible =
+            verdict.decision === 'pivot' &&
+            canSetProduction({ kind: 'unit', id: verdict.pivot }, me?.techsUnlocked ?? [], capitale.buildings ?? [], me?.civId);
+          if (pivotPossible) {
+            const item = { kind: 'unit', id: (verdict as AnyEtat).pivot };
+            sortie.ordres.push({ type: 'SetProduction', cityId: capitale.id, item });
+            sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: `unit:${(verdict as AnyEtat).pivot}` });
+          } else if (verdict.decision !== 'attendre') {
+            sortie.ordres.push({ type: 'SetProduction', cityId: capitale.id, item: { kind: 'unit', id: typeColon.id } });
+            sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: `unit:${typeColon.id}` });
+          }
         }
       }
     }
@@ -1074,9 +1133,10 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
           sortie.attentes.push({ genre: 'fondation', unitId: colon.id, case: site.case });
         } else {
           const chemin = cheminVers(etatFiltre, moi, colon, { q: cq, r: cr });
-          if (chemin.length > 0) {
-            sortie.ordres.push({ type: 'MultiStep', unitId: colon.id, path: chemin, final: 'foundCity' });
-            sortie.attentes.push({ genre: 'mouvement', unitId: colon.id, attendu: `${chemin[0].q},${chemin[0].r}` });
+          const marche = ordreMarcheColon(etatFiltre, moi, colon, { q: cq, r: cr }, chemin);
+          if (marche) {
+            sortie.ordres.push(marche.ordre);
+            sortie.attentes.push({ genre: 'mouvement', unitId: colon.id, attendu: marche.attendu });
           }
         }
       }

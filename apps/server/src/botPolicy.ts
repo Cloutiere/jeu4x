@@ -62,12 +62,14 @@ import {
   compareCityIds,
   compareUnitIds,
   derniereDeclarationCible,
+  deciderProductionColon,
   distanceCibleGuerre,
   dureeGuerre,
   frontierRadius,
   growthThresholdFor,
   hexDistanceW,
   isBarbarian,
+  siteColonParDefaut,
   normalizeHexW,
   rayonCulturelDe,
   rushBuyCostOf,
@@ -2062,10 +2064,26 @@ export function arbitrerProduction(
   }
   // ② expansion : colon si la ville est « au plafond ou presque » (seuil
   // data) ou bloquée, et si l'empire n'a AUCUN colon en attente de fondation.
+  // JEV-ESCORTE (canon Erik 12/11 — botPolicy PARTAGÉ, les calibrages
+  // profitent aux deux) : le colon seul est un PARI ÉVALUÉ — risque faible
+  // OU escorte en place → autorisé ; risque ÉLEVÉ ET 0 combattante → PIVOT
+  // guerrier ; risque élevé, combattantes toutes en garnison → le colon
+  // ATTEND (retombée sur ③ bâtiment). Site = approximation géométrique
+  // (siteColonParDefaut — la réserve réelle reste le memo Jev 🔶).
   if ((city.pop >= eco.seuilPopColonne || growthThresholdFor(city.pop) === null) &&
       !Object.values(state.units).some((u) => u.owner === player.id && u.type === 'colon' && !u.aboard)) {
     const colon = unitesDisponibles.find((o) => o.kind === 'unit' && o.id === 'colon');
-    if (colon) return colon;
+    if (colon) {
+      const site = siteColonParDefaut(state, city) ?? { q: city.q, r: city.r };
+      const verdict = deciderProductionColon(state, player.id, site);
+      if (verdict.decision === 'pivot') {
+        const pivot = unitesDisponibles.find((o) => o.kind === 'unit' && o.id === verdict.pivot);
+        if (pivot) return pivot;
+      } else if (verdict.decision === 'autorise') {
+        return colon;
+      }
+      // 'attendre' (ou pivot indisponible) : pas de colon ce tour — ③.
+    }
   }
   // ③ bâtiment économique : premier de l'ordre data-driven présent dans les
   // manquants (tie par l'ordre lui-même — déterministe).

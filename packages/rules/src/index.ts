@@ -53,3 +53,5 @@ export * from './oracle.js';
 export * from './derive.js';
 /** BOT-GATE-ATTAQUE (canon Erik 10/11) — gate d'espérance + valeur tactique. */
 export * from './gateAttaque.js';
+/** JEV-ESCORTE (canon Erik 12/11) — évaluation du déploiement du colon. */
+export * from './escortColon.js';
