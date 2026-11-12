@@ -29,7 +29,9 @@ import {
   deciderPaixNegociee,
   deciderEchangeTechs,
   filtrerMarcheBot,
+  filtrerOrdresJevDefense,
   negociationDuBot,
+  planDefenseVille,
   profileDuBot,
 } from '../../apps/server/src/botPolicy.js';
 import { fusionnerPlan, tourJev } from './adapter-jev.mjs';
@@ -198,6 +200,14 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       // Ordres : les overrides Jev remplacent les ordres bot de même sujet.
       // Actions : appliquées APRÈS celles du bot (dernier mot à Jev).
       ordres[jev] = fusionnerPlan(ordres[jev] ?? [], decision.ordres, [], []).ordres;
+      // DEFENSE-VILLE-A (canon Erik 12/11) — veto défensif AU-DESSUS de Jev
+      // (miroir game.ts) : les Move/MultiStep/Attack des unités rappelées ou
+      // maintenues en garnison sont retirés — le plan bot défend.
+      {
+        const defenseJev = planDefenseVille(etat, jev, profileDuBot());
+        const unitesDefense = new Set([...defenseJev.rappels.keys(), ...defenseJev.maintiens.keys()]);
+        ordres[jev] = filtrerOrdresJevDefense(ordres[jev] ?? [], unitesDefense);
+      }
       for (const action of decision.actions) actionsAppliquees.push({ id: jev, action });
       // JEV-EXPANSION D2/D3 — le choix `fonder` de Jev PROGRAMME la fondation
       // (le memo vit dans joueur.mjs, qui le met à jour ; on consigne ici la

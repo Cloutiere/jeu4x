@@ -55,3 +55,4 @@ export * from './derive.js';
 export * from './gateAttaque.js';
 /** JEV-ESCORTE (canon Erik 12/11) — évaluation du déploiement du colon. */
 export * from './escortColon.js';
+export * from './defenseVille.js';

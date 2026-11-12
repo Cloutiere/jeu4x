@@ -19,7 +19,9 @@ import {
   canSetProduction,
   cityEconomyInputs,
   deciderProductionColon,
+  defenseDuBot,
   doitRappelerColon,
+  fondationProcheBarbare,
   escorteEnPlace,
   risqueDeploiementColon,
   hexDistance,
@@ -371,6 +373,10 @@ export function sitesCorrects(etatFiltre: AnyEtat, moi: string, memo: AnyEtat = 
   const estEchouee = (cle: string) => (typeof echouees.has === 'function' ? echouees.has(cle) : echouees.includes(cle));
   return sitesFondation(etatFiltre, moi, colonne ? null : capitale)
     .map((s: AnyEtat) => ({ ...s, gainNet: s.gainNet ?? gainNetSite(etatFiltre, moi, s) }))
+    // DEFENSE-VILLE-A · L6 — hygiène de fondation (canon Erik 12/11) : un
+    // site à ≤ fondationBarbareDist d'un barbare visible est REFUSÉ
+    // (« fondé sous les griffes, ce n'est pas un pari évalué »).
+    .filter((s: AnyEtat) => !fondationProcheBarbare(etatFiltre, { q: s.q, r: s.r }, defenseDuBot().fondationBarbareDist))
     .filter((s: AnyEtat) => s.gainNet > 0)
     .filter((s: AnyEtat) => !estEchouee(s.case))
     .sort((a: AnyEtat, b: AnyEtat) => b.gainNet - a.gainNet || a.distance - b.distance || a.case.localeCompare(b.case));
@@ -1074,7 +1080,13 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
       delete memo.fondationEnCours;
     } else {
       const [cq, cr] = cible.case.split(',').map(Number);
-      const colon = trouveColon();
+      // DEFENSE-VILLE-A · L6 — le site programmé est tombé sous les griffes
+      // (barbare visible à ≤ fondationBarbareDist) : fondation REFUSÉE, le
+      // memo est levé (la question `fonder` reviendra sur des sites sains).
+      if (fondationProcheBarbare(etatFiltre, { q: cq, r: cr }, defenseDuBot().fondationBarbareDist)) {
+        delete memo.fondationEnCours;
+      } else {
+        const colon = trouveColon();
       if (colon) {
         cible.unitId = colon.id;
         if (colon.q === cq && colon.r === cr) {
@@ -1117,6 +1129,7 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
         }
       }
     }
+      }
   }
   const fond = confiance(ans.fonder, confQuestion('fonder') ?? confDial);
   if (fond?.choice && fond.choice.startsWith('fonder:') && !memo.fondationEnCours) {

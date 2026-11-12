@@ -63,6 +63,12 @@ import {
   compareUnitIds,
   derniereDeclarationCible,
   deciderProductionColon,
+  // DEFENSE-VILLE-A (canon Erik 12/11) — garnison d=0 + rappel hystérésis
+  // (mécanique partagée bot ET Jev) ; L6 hygiène de fondation vit dans le
+  // PORT Jev (joueur.ts / joueur.mjs) et le gate fondation, pas ici.
+  defenseDuBot,
+  garnisonDeficit,
+  menacesVille,
   distanceCibleGuerre,
   dureeGuerre,
   frontierRadius,
@@ -1193,6 +1199,132 @@ export function groupesFusion(
 }
 
 // ---------------------------------------------------------------------------
+// DEFENSE-VILLE-A (canon Erik 12/11, diag DIAG-DEFENSE-VILLE) — plan de
+// DÉFENSE de ville partagé bot ET branche Jev. Le fait déclencheur : 6
+// razes barbares dont 4 villes d'1-4 tours garnies d'un colon seul, prises
+// SANS COMBAT, et 5/13 chutes avec des combattants à d=1-2 JAMAIS dans la
+// tuile. Priorités canon : garnison > rappel > escort > exploration ;
+// recadrage Erik : DÉFENDRE UNE VILLE N'EST PAS DE L'INACTIVITÉ.
+// ---------------------------------------------------------------------------
+
+export interface PlanDefense {
+  /** L2 — combattantes à rappeler : unitId → ville (LA tuile) à rejoindre. */
+  rappels: Map<string, string>;
+  /** L1 — combattantes DÉJÀ sur la tuile d'une ville menacée : maintenues
+   *  en garnison (ne partent pas explorer — anti ping-pong : c'est ELLES la
+   *  garnison que le rappel amène, les relâcher recréerait le déficit). */
+  maintiens: Map<string, string>;
+}
+
+/**
+ * Plan défensif d'un tour : pour chaque ville dont une menace est visible
+ * dans la bande d'HYSTÉRÉSIS (menaceDist + hysteresisMarge tours de MARCHE
+ * — BFS portée réelle, miroir escortColon), la garnison manquante (L1 :
+ * déficit au seuil data, colon exclu — leçon p08) est comblée par les
+ * combattantes disponibles LES PLUS PROCHES ; les villes PLUS MENACÉES sont
+ * servies d'abord (nb de menaces desc, puis ordre canonique — R-81). Les
+ * membres de l'armée DE CAMPAGNE (loin de la capitale — même règle que
+ * TB-SIEGE A2/B2 : la guerre prime sauf capitale assaillie, où planGarnison
+ * B2 prend le relais) ne sont JAMAIS rappelés ; le scout l'est (la défense
+ * surclasse la patrouille). Pur, déterministe. NOTE hystérésis : sans état
+ * persisté (schemaVersion intacte), la bande de dissolution tient lieu de
+ * mémoire — le rappel ne se lève que menace DISSOUTE.
+ */
+export function planDefenseVille(
+  state: GameState,
+  me: PlayerId,
+  profile: BotProfileData,
+): PlanDefense {
+  const rappels = new Map<string, string>();
+  const maintiens = new Map<string, string>();
+  const d = defenseDuBot();
+  const mine = Object.values(state.units)
+    .filter((u) => u.owner === me)
+    .sort((a, b) => compareUnitIds(a.id, b.id)); // R-81
+  const estCombattante = (u: Unit): boolean =>
+    !u.aboard && (UNIT_TYPES[u.type]?.canAttack ?? false) && UNIT_TYPES[u.type]?.aquatic !== true;
+  const myCities = Object.values(state.cities)
+    .filter((c) => c.owner === me)
+    .sort((a, b) => (a.capital !== b.capital ? (a.capital ? -1 : 1) : compareCityIds(a.id, b.id)));
+
+  // Menacées dans la bande d'hystérésis (dissolution inclusive).
+  const menacees = myCities
+    .map((ville) => ({ ville, menaces: menacesVille(state, ville, me, d.menaceDist + d.hysteresisMarge) }))
+    .filter((m) => m.menaces.length > 0);
+  if (menacees.length === 0) return { rappels, maintiens };
+
+  // Canon BOT-EXPLORATION : le scout (première combattante, R-81) n'est
+  // JAMAIS un défenseur — ni maintenu ni rappelé ici (sa mobilisation reste
+  // celle de planGarnison à l'urgence capitale) ; la non-régression de la
+  // patrouille prime hors du rayon de menace canon.
+  const scoutId = mine.find((u) => estCombattante(u))?.id;
+
+  // Membres de l'armée de campagne : JAMAIS rappelés — même proches de la
+  // capitale (la campagne garde sa poussée ; le rappel défensif de la
+  // capitale ASSAILLIE reste le canon TB-SIEGE B2 via planGarnison).
+  const capitale = myCities[0];
+  const ennemis = ennemisDe(state, me);
+  const campagne = ennemis.size > 0 ? cibleCampagne(state, me, profile) : null;
+  const armee = campagne ? assignerArmee(state, me, profile, campagne) : new Set<string>();
+
+  // L1 — maintien : les combattantes déjà SUR la tuile d'une ville menacée
+  // restent quand elles forment LA garnison minimale (≤ seuil — anti
+  // ping-pong : c'est ELLES que le rappel amène ; au-delà du seuil, le
+  // surplus reste libre — canon planGarnison, quotas inchangés).
+  for (const m of menacees) {
+    const presentes = mine.filter(
+      (u) => u.id !== scoutId && estCombattante(u) && u.q === m.ville.q && u.r === m.ville.r,
+    );
+    if (presentes.length === 0 || presentes.length > d.seuilGarnison) continue;
+    for (const u of presentes) maintiens.set(u.id, m.ville.id);
+  }
+
+  // L2 — rappel : combler le déficit (seuil data), villes PLUS MENACÉES
+  // d'abord, combattantes AU PLUS PRÈS (tie id — R-81).
+  const deficitDe = (m: { ville: City }): number =>
+    Math.max(0, d.seuilGarnison - [...maintiens.values()].filter((cid) => cid === m.ville.id).length);
+  const ordreVilles = [...menacees].sort(
+    (a, b) => b.menaces.length - a.menaces.length || compareCityIds(a.ville.id, b.ville.id),
+  );
+  for (const m of ordreVilles) {
+    const besoin = Math.min(deficitDe(m), garnisonDeficit(state, m.ville, me, d.seuilGarnison));
+    for (let k = 0; k < besoin; k++) {
+      let best: Unit | null = null;
+      let bestD = Infinity;
+      for (const u of mine) {
+        if (u.id === scoutId) continue;
+        if (!estCombattante(u) || maintiens.has(u.id) || rappels.has(u.id)) continue;
+        if (armee.has(u.id)) continue; // la campagne n'est pas dissoute
+        const dd = dist(state, u, m.ville);
+        if (dd < bestD || (dd === bestD && best && compareUnitIds(u.id, best.id) < 0)) {
+          bestD = dd;
+          best = u;
+        }
+      }
+      if (!best) break;
+      rappels.set(best.id, m.ville.id);
+    }
+  }
+  return { rappels, maintiens };
+}
+
+/**
+ * Branchement Jev IDENTIQUE (zéro nouvelle question LLM) — le veto
+ * AU-DESSUS de Jev : les ordres de DÉPLACEMENT/SORTIE (Move/MultiStep/Attack)
+ * d'une unité défensive (rappelée ou maintenue) sont retirés de la décision
+ * Jev ; le plan bot défend. Fortify/Heal/Hold/Sleep passent (défendre n'est
+ * pas désobéir). Miroir de la discipline fondation (retiresUnitIds) et de la
+ * garde de marche (OSCILLATION-MARCHE). Pur.
+ */
+export function filtrerOrdresJevDefense(ordres: Order[], unitesDefense: ReadonlySet<string>): Order[] {
+  if (unitesDefense.size === 0) return ordres;
+  return ordres.filter((o) => {
+    if (!('unitId' in o) || !unitesDefense.has(o.unitId)) return true;
+    return !(o.type === 'Move' || o.type === 'MultiStep' || o.type === 'Attack');
+  });
+}
+
+// ---------------------------------------------------------------------------
 // BOT-TA · D1 — assignation d'objectifs (pure, séparée de l'émission).
 // ---------------------------------------------------------------------------
 
@@ -1426,6 +1558,11 @@ export function assignerObjectifs(
     profile,
     assautSurCapitale ? undefined : enCampagne,
   ).drafts;
+  // DEFENSE-VILLE-A · L1/L2 — le plan défensif PRIME sur hutte/patrouille/
+  // garnison-drafts/campagne/chasse/exploration (garnison > rappel > escort
+  // > exploration — canon 12/11 ; défendre une ville n'est pas de
+  // l'inactivité). L'assautSurCapitale (B2) reste au-dessus via planGarnison.
+  const defense = planDefenseVille(state, playerId, profile);
   // BOT-MARCHE · D2 : l'armée PERMANENTE en paix — calculée une fois (le
   // scout qui en fait partie ne patrouille plus, voir plus bas).
   const agressivite = agressiviteDe(me.civId);
@@ -1526,6 +1663,17 @@ export function assignerObjectifs(
       : [];
     if (cibles.length > 0) {
       objectifs.set(unit.id, { kind: 'attaquer', cible: cibles[0]!.hex });
+      continue;
+    }
+
+    // DEFENSE-VILLE-A · L1/L2 : rappelée OU maintenue — objectif garnison
+    // vers LA tuile de la ville menacée (sur place → Fortify, émission).
+    // Passe après ② (une défense qui frappe une cible adjacente au gate
+    // reste possible) et AVANT repli/hutte/patrouille/drafts/chasse/
+    // exploration — la défense n'est pas de l'inactivité.
+    const villeDefense = defense.rappels.get(unit.id) ?? defense.maintiens.get(unit.id);
+    if (villeDefense) {
+      objectifs.set(unit.id, { kind: 'garnison', cityId: villeDefense });
       continue;
     }
 

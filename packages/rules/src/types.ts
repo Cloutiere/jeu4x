@@ -897,6 +897,25 @@ export interface BotSettingsData {
   /** JEV-ESCORTE (canon Erik 12/11) : évaluation du déploiement du colon —
    *  rayons/portées tunables, zéro durcissement. */
   escort: BotEscorteData;
+  /** DEFENSE-VILLE-A (canon Erik 12/11) : garnison d=0, rappel défensif
+   *  hystérésis, hygiène de fondation — rayons tunables, zéro durcissement. */
+  defense: BotDefenseData;
+}
+
+/** DEFENSE-VILLE-A · table data-driven de la défense de ville. */
+export interface BotDefenseData {
+  /** Une menace visible à ≤ N TOURS DE MARCHE (BFS portée réelle — miroir
+   *  escortColon) d'une ville déclenche le rappel défensif. */
+  menaceDist: number;
+  /** Hystérésis SANS ÉTAT (schemaVersion intacte) : le rappel, une fois
+   *  déclenché, ne se lève que quand plus aucune menace n'est visible à ≤
+   *  menaceDist + N — la bande de dissolution empêche le ping-pong. */
+  hysteresisMarge: number;
+  /** Fondation REFUSÉE (gate fondation : pénalité forte — site écarté) sur
+   *  tout site à distance ≤ N d'un barbare visible. */
+  fondationBarbareDist: number;
+  /** L1 : toute ville compte ≥ N combattant SUR sa tuile (colon exclu). */
+  seuilGarnison: number;
 }
 
 /** JEV-ESCORTE · tables data-driven de l'évaluation du pari colon. */

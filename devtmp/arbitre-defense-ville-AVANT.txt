@@ -1,0 +1,7 @@
+
+===== TOTAUX (n=10) =====
+chutes p1 (capturées + razées): 14
+éliminations précoces (<t75): 3
+fondations p1: 62 (6.2/partie)
+ping-pong A⇄B: 136
+fondations sous les griffes: 20

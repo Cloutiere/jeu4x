@@ -19,6 +19,8 @@ import {
   canSetProduction,
   cityEconomyInputs,
   deciderProductionColon,
+  defenseDuBot,
+  fondationProcheBarbare,
   doitRappelerColon,
   escorteEnPlace,
   hexDistance,
@@ -393,6 +395,9 @@ export function sitesCorrects(etatFiltre, moi, memo = {}) {
   const echouees = memo.casesFondationEchouees ?? new Set();
   return sitesFondation(etatFiltre, moi, colonne ? null : capitale)
     .map((s) => ({ ...s, gainNet: s.gainNet ?? gainNetSite(etatFiltre, moi, s) }))
+    // DEFENSE-VILLE-A · L6 — hygiène de fondation (canon Erik 12/11) : site
+    // à ≤ fondationBarbareDist d'un barbare visible REFUSÉ.
+    .filter((s) => !fondationProcheBarbare(etatFiltre, { q: s.q, r: s.r }, defenseDuBot().fondationBarbareDist))
     .filter((s) => s.gainNet > 0)
     .filter((s) => !echouees.has(s.case))
     .sort((a, b) => b.gainNet - a.gainNet || a.distance - b.distance || a.case.localeCompare(b.case));
@@ -1173,6 +1178,11 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
       delete memo.fondationEnCours;
     } else {
       const [cq, cr] = cible.case.split(',').map(Number);
+      // DEFENSE-VILLE-A · L6 — site programmé tombé sous les griffes :
+      // fondation REFUSÉE, memo levé (miroir port serveur joueur.ts).
+      if (fondationProcheBarbare(etatFiltre, { q: cq, r: cr }, defenseDuBot().fondationBarbareDist)) {
+        delete memo.fondationEnCours;
+      } else {
       const colon = trouveColon();
       if (colon) {
         cible.unitId = colon.id;
@@ -1218,6 +1228,7 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
             sortie.attentes.push({ genre: 'production', cityId: capitale.id, item: `unit:${typeColon.id}` });
           }
         }
+      }
       }
     }
   }

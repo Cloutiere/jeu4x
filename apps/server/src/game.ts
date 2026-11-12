@@ -58,7 +58,7 @@ import { PROTO_VERSION, normaliseDifficulteBot } from '@game/shared';
 import type { ClientToServerMessage, ConfigPartie, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
-import { botPolicy, botTurnSeed, deciderPaix, deciderPaixNegociee, deciderEchangeTechs, filtrerMarcheBot, negociationDuBot, profileDuBot } from './botPolicy.js';
+import { botPolicy, botTurnSeed, deciderPaix, deciderPaixNegociee, deciderEchangeTechs, filtrerMarcheBot, filtrerOrdresJevDefense, negociationDuBot, planDefenseVille, profileDuBot } from './botPolicy.js';
 import type { ActionJev, PlanJev } from './jev/orchestre.js';
 import { appliquerDiplomatieJev, attentesPostResolution, planifierJev } from './jev/orchestre.js';
 import { creerClientJev } from './jev/client.js';
@@ -2267,6 +2267,14 @@ export class GameDO {
           ordresSiege.push(o);
         }
         this.orders[jevSeat!] = ordresSiege;
+        // DEFENSE-VILLE-A (canon Erik 12/11) — le veto défensif AU-DESSUS de
+        // Jev : les Move/MultiStep/Attack des unités RAPPELÉES ou MAINTENUES
+        // en garnison (menace visible dans la bande d'hystérésis) sont
+        // retirés de la décision Jev — le plan bot défend (zéro nouvelle
+        // question LLM ; miroir harnais partie.mjs).
+        const defenseJev = planDefenseVille(game, jevSeat, profileDuBot(this.meta.settings.botDifficulte));
+        const unitesDefense = new Set([...defenseJev.rappels.keys(), ...defenseJev.maintiens.keys()]);
+        this.orders[jevSeat!] = filtrerOrdresJevDefense(this.orders[jevSeat!] ?? [], unitesDefense);
       }
       // Actions immédiates du bot (recherche R-85, régime R-122, diplomatie
       // BOT-TC) — mêmes helpers purs que les messages des humains, entrelacées

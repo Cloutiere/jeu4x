@@ -86,8 +86,10 @@ function combattantesDe(state: GameState, joueurId: PlayerId): Unit[] {
 /** Carte de portée de MARCHE (BFS, wrap canon CARTE-RONDE) : distance en
  *  cases depuis l'unité vers chaque tile praticable, plafonnée à `limite`.
  *  Le transit ignore les unités (la MENACE est la réachabilité du terrain —
- *  une case occupée ce tour ne l'est pas le suivant). */
-function porteeMarche(state: GameState, unit: Unit, limite: number): Map<string, number> {
+ *  une case occupée ce tour ne l'est pas le suivant). DEFENSE-VILLE-A :
+ *  exportée pour menacesVille (la menace de ville juge à la portée de MARCHE
+ *  réelle — même philosophie, règles inchangées). */
+export function porteeMarche(state: GameState, unit: Unit, limite: number): Map<string, number> {
   const dists = new Map<string, number>([[`${unit.q},${unit.r}`, 0]]);
   if (limite <= 0) return dists;
   const stats = UNIT_TYPES[unit.type];
