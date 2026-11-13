@@ -59,7 +59,7 @@ Avant fix (diagnostic 1b1100a) : cible (24,10) EAU, routier=glouton=null, Hold, 
 - L'« ordre déterministe seedé » du canon est rempli par la détermination pure du sélecteur (tie-break index R-81, zéro RNG) — 30 seeds verrouillent l'absence d'aléa.
 - `bot-exploration.test.ts` : 1 ligne retouchée (non-null assertion `!` — la signature retourne maintenant `| null`).
 
-⚠ **CI/Deploy à vérifier après push.**
+⚠ **CI/Deploy à vérifier après push.** → **VÉRIFIÉS** : Deploy `9cce52c` tentative 1 = **failure flocon** (étape `Deploy (wrangler --env prod)`, logs 403 sans admin) — re-run API (tentative 2, canon anti-flocon) = **SUCCESS** ; prod `game-4x-server-prod` : **200**.
 
 ## 7. Pièges évités
 
