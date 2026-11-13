@@ -50,4 +50,4 @@ Le ping-pong « ≤ 136 » était un mauvais proxy : il mesure un bruit de fond 
 - **Tranche C — L4/L5** : condensé localisé (menace → SA ville ; garnison par ville dans `empire.villes`) + question défense dédiée ; L6 (hygiène de fondation) à réévaluer avec le fog localisé — les razes-fog restantes (~la moitié des 5 chutes) attendent L4 ;
 - **Sonde** : isolation du ping-pong par marqueur moteur (à cadrer en C).
 
-**État final : pushed** — `2f95e59` + `06193b9` + `36be6ae` + `4e72dbd` + ce rapport. CI/Deploy : vérifiés après push (§ rapport final mis à jour si besoin). Périmètre interdit respecté sur toute la tranche (escortColon hors exclues optionnelles, gainSite, questions Jev, gate R-190, schemaVersion 28).
+**État final : PUSHED ET VÉRIFIÉ** — `2f95e59` + `06193b9` + `36be6ae` + `abd4ffd` (cadrages) + `4e72dbd` (A3) + ce rapport, poussés sur `main` (abd4ffd..4dbfa3b). **Run Deploy SUCCESS sur `4dbfa3b`** (API GitHub, run 43421261481) et **prod 200** (`https://game-4x-server-prod.erik-ai-studio.workers.dev/`). Périmètre interdit respecté sur toute la tranche (escortColon hors exclues optionnelles, gainSite, questions Jev, gate R-190, schemaVersion 28).
