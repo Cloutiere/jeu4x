@@ -916,6 +916,10 @@ export interface BotDefenseData {
   fondationBarbareDist: number;
   /** L1 : toute ville compte ≥ N combattant SUR sa tuile (colon exclu). */
   seuilGarnison: number;
+  /** A3 (13/11) : après dissolution d'une menace, le rappel défensif d'une
+   *  même ville ne se ré-arme pas pendant N tours (anti quitter/rentrer à la
+   *  frontière de bande — porté par le memo de tour, bots inchangés). */
+  cooldownRappel: number;
 }
 
 /** JEV-ESCORTE · tables data-driven de l'évaluation du pari colon. */

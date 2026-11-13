@@ -220,3 +220,80 @@ describe('DEFENSE-VILLE-A2 · marqueur d\u2019état de rappel (memo de tour — 
     expect(plan.rappels.get('u2')).toBe('c1'); // statu quo 2f95e59
   });
 });
+
+describe('DEFENSE-VILLE-A3 · cooldown anti-ré-armement (5 tours par ville — canon Erik 13/11)', () => {
+  /** Dissolution au tour T : menace levée puis réapparue au tour T+k. */
+  function etatCycle(tour: number): GameState {
+    const state = etatRaze();
+    state.turn = tour;
+    return state;
+  }
+
+  it('RÉ-ARMEMENT AVANT expiration (T+2) → REFUSÉ (rouge avant fix)', () => {
+    const memo: Record<string, string> = {};
+    const cooldown: Record<string, number> = {};
+    // t10 : menace présente → rappel armé.
+    let plan = planDefenseVille(etatCycle(10), ME, profileDuBot(), memo, cooldown);
+    expect(plan.rappels.get('u2')).toBe('c1');
+    // t11 : menace dissoute → marqueur consommé + cooldown posé.
+    const s11 = etatCycle(11);
+    s11.units['b1']!.q = 0;
+    s11.units['b1']!.r = 0;
+    plan = planDefenseVille(s11, ME, profileDuBot(), memo, cooldown);
+    expect(memo).toEqual({});
+    // t13 : menace de retour — cooldown actif → PAS de rappel.
+    const s13 = etatCycle(13);
+    const memo13: Record<string, string> = {};
+    plan = planDefenseVille(s13, ME, profileDuBot(), memo13, cooldown);
+    expect(plan.rappels.size).toBe(0);
+    expect(memo13).toEqual({});
+  });
+
+  it('APRÈS expiration (T+5) → ré-armé', () => {
+    const cooldown: Record<string, number> = {};
+    // t11 : dissolution.
+    const s11 = etatCycle(11);
+    s11.units['b1']!.q = 0;
+    s11.units['b1']!.r = 0;
+    planDefenseVille(s11, ME, profileDuBot(), { u2: 'c1' }, cooldown);
+    expect(cooldown['c1']).toBe(11);
+    // t16 : menace de retour — expiration → rappel ré-armé.
+    const s16 = etatCycle(16);
+    const memo16: Record<string, string> = {};
+    const plan = planDefenseVille(s16, ME, profileDuBot(), memo16, cooldown);
+    expect(plan.rappels.get('u2')).toBe('c1');
+    expect(memo16['u2']).toBe('c1');
+  });
+
+  it('chaque ville a SON cooldown (2 villes indépendantes)', () => {
+    const state = makeState({
+      width: 20,
+      height: 20,
+      players: [ME, ADV],
+      rngSeed: 42,
+      turn: 20,
+      cities: [
+        { id: 'c1', q: 5, r: 5, owner: ME, pop: 1 },
+        { id: 'c2', q: 14, r: 5, owner: ME, pop: 1 },
+      ],
+      units: [
+        { id: 'col1', type: 'colon', owner: ME, q: 5, r: 5 },
+        { id: 'col2', type: 'colon', owner: ME, q: 14, r: 5 },
+        { id: 'u1', type: 'guerrier', owner: ME, q: 8, r: 6 }, // scout
+        { id: 'u2', type: 'guerrier', owner: ME, q: 8, r: 7 }, // rappelable
+        { id: 'b2', type: 'guerrier', owner: BAR, q: 15, r: 5 }, // c2 déclenchée
+      ],
+    }) as GameState;
+    const cooldown: Record<string, number> = { c1: 18 }; // c1 en cooldown jusqu'à t23
+    const memo: Record<string, string> = {};
+    const plan = planDefenseVille(state, ME, profileDuBot(), memo, cooldown);
+    // c2 déclenchée (hors cooldown) → rappel vers c2 ; c1 jamais rappelée.
+    expect(plan.rappels.get('u2')).toBe('c2');
+    expect([...plan.rappels.values()]).not.toContain('c1');
+  });
+
+  it('statu quo SANS memo/cooldown (bots) : rappel armé même après dissolution virtuelle', () => {
+    const plan = planDefenseVille(etatCycle(13), ME, profileDuBot());
+    expect(plan.rappels.get('u2')).toBe('c1'); // pas de cooldown hors memo
+  });
+});

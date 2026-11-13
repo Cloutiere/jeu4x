@@ -1248,6 +1248,11 @@ export function planDefenseVille(
   // DEFENSE-VILLE-A2 — memo de rappel (unitId → cityId), MUTÉ (pose /
   // consomme les marqueurs). Absent : bots (statu quo sans état).
   memo?: Record<string, string>,
+  // DEFENSE-VILLE-A3 — cooldown anti-ré-armement PAR VILLE (cityId → tour
+  // de dissolution), MUTÉ. Une ville dissoute ne recrute plus pendant
+  // `cooldownRappel` tours (anti quitter/rentrer à la frontière de bande —
+  // diagnose A2). Absent : bots (statu quo sans état).
+  cooldownMemo?: Record<string, number>,
 ): PlanDefense {
   const rappels = new Map<string, string>();
   const maintiens = new Map<string, string>();
@@ -1276,8 +1281,14 @@ export function planDefenseVille(
     .map((ville) => ({ ville, menaces: menacesVille(state, ville, me, d.menaceDist + d.hysteresisMarge) }))
     .filter((m) => m.menaces.length > 0);
   if (menacees.length === 0) {
-    // DISSOLUTION GÉNÉRALE — tous les marqueurs sont consommés.
-    if (memo) for (const uid of Object.keys(memo)) delete memo[uid];
+    // DISSOLUTION GÉNÉRALE — tous les marqueurs sont consommés (A3 : la
+    // dissolution ARME le cooldown de chaque ville ainsi relâchée).
+    if (memo) {
+      for (const uid of Object.keys(memo)) {
+        if (cooldownMemo) cooldownMemo[memo[uid]!] = state.turn;
+        delete memo[uid];
+      }
+    }
     return { rappels, maintiens };
   }
   const declenchees = new Set(
@@ -1312,6 +1323,9 @@ export function planDefenseVille(
       }
       const encore = menacees.some((m) => m.ville.id === cityId);
       if (!encore) {
+        // A3 : la dissolution ARME le cooldown de la ville (anti
+        // ré-armement immédiat — cycles quitter/rentrer à la frontière).
+        if (cooldownMemo) cooldownMemo[cityId] = state.turn;
         delete memo[uid]; // dissolution — CONSOMMÉ, l'unité reprend son ordre
         continue;
       }
@@ -1340,7 +1354,16 @@ export function planDefenseVille(
   // d'abord, combattantes AU PLUS PRÈS (tie id — R-81). A2 : avec memo,
   // seules les villes DÉCLENCHÉES (≤ menaceDist) recrutent — les marqueurs
   // tiennent le reste ; sans memo, la bande déclenche (statu quo).
-  const villesRappel = memo ? menacees.filter((m) => declenchees.has(m.ville.id)) : menacees;
+  // A3 : une ville dont le cooldown est actif (dissolution il y a moins de
+  // `cooldownRappel` tours) ne recrute PAS — le maintien L1 (unités déjà sur
+  // tuile) reste actif, seul le ré-armement du rappel est bloqué.
+  const enCooldown = (cityId: string): boolean =>
+    !!cooldownMemo &&
+    cooldownMemo[cityId] !== undefined &&
+    state.turn - cooldownMemo[cityId]! < d.cooldownRappel;
+  const villesRappel = memo
+    ? menacees.filter((m) => declenchees.has(m.ville.id) && !enCooldown(m.ville.id))
+    : menacees.filter((m) => !enCooldown(m.ville.id));
   const deficitDe = (m: { ville: City }): number =>
     Math.max(
       0,
@@ -1501,6 +1524,8 @@ export function assignerObjectifs(
   // DEFENSE-VILLE-A2 — memo de rappel (unitId → cityId) : branché pour le
   // siège Jev (hystérésis à état) ; absent pour les bots (statu quo).
   defenseMemo?: Record<string, string>,
+  // DEFENSE-VILLE-A3 — cooldown anti-ré-armement par ville (miroir memo).
+  defenseCooldownMemo?: Record<string, number>,
 ): Map<string, Objectif> {
   const objectifs = new Map<string, Objectif>();
   const me = state.players[playerId];
@@ -1630,7 +1655,7 @@ export function assignerObjectifs(
   // garnison-drafts/campagne/chasse/exploration (garnison > rappel > escort
   // > exploration — canon 12/11 ; défendre une ville n'est pas de
   // l'inactivité). L'assautSurCapitale (B2) reste au-dessus via planGarnison.
-  const defense = planDefenseVille(state, playerId, profile, defenseMemo);
+  const defense = planDefenseVille(state, playerId, profile, defenseMemo, defenseCooldownMemo);
   // BOT-MARCHE · D2 : l'armée PERMANENTE en paix — calculée une fois (le
   // scout qui en fait partie ne patrouille plus, voir plus bas).
   const agressivite = agressiviteDe(me.civId);
@@ -2348,6 +2373,8 @@ export function botPolicy(
     // DEFENSE-VILLE-A2 — memo de rappel Jev (pose/consomme les marqueurs
     // d'état « rappel en cours » — hystérésis à état, schemaVersion 28).
     defenseRappelsMemo?: Record<string, string>;
+    // DEFENSE-VILLE-A3 — cooldown anti-ré-armement par ville (miroir memo).
+    defenseCooldownMemo?: Record<string, number>;
   },
 ): BotPlan {
   const orders: Order[] = [];
@@ -2424,7 +2451,14 @@ export function botPolicy(
     if (cible) actions.push({ type: 'DeclareWar', player: cible });
   }
 
-  const objectifs = assignerObjectifs(state, playerId, profile, opts?.categoriesTactiques, opts?.defenseRappelsMemo);
+  const objectifs = assignerObjectifs(
+    state,
+    playerId,
+    profile,
+    opts?.categoriesTactiques,
+    opts?.defenseRappelsMemo,
+    opts?.defenseCooldownMemo,
+  );
   if (fondateurId) objectifs.set(fondateurId, { kind: 'tenir' as const });
 
   for (const unit of mine) {

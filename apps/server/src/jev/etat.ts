@@ -39,6 +39,10 @@ export interface JevMemo {
    *  le pose et le consomme ; memo de tour, PAS une donnée de schema —
    *  schemaVersion 28 intacte). */
   defenseRappels?: Record<string, string>;
+  /** DEFENSE-VILLE-A3 (Erik 13/11) · cooldown anti-ré-armement du rappel —
+   *  cityId → tour de dissolution ; une ville dissoute ne recrute plus
+   *  pendant `defense.cooldownRappel` tours (memo de tour — schema intacte). */
+  defenseCooldown?: Record<string, number>;
 }
 
 export interface JevEtat {

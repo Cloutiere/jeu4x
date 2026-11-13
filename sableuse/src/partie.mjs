@@ -122,7 +122,10 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       // à état) — les bots purs gardent le statu quo sans état.
       const plan =
         id === jev && memo.defenseRappels
-          ? botPolicy(etat, id, rng, undefined, { defenseRappelsMemo: memo.defenseRappels })
+          ? botPolicy(etat, id, rng, undefined, {
+              defenseRappelsMemo: memo.defenseRappels,
+              defenseCooldownMemo: memo.defenseCooldown ?? (memo.defenseCooldown = {}),
+            })
           : botPolicy(etat, id, rng);
       ordres[id] = plan.orders;
       for (const action of plan.actions) actionsAppliquees.push({ id, action });
@@ -214,6 +217,7 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
           jev,
           profileDuBot(),
           memo.defenseRappels, // A2 — hystérésis à état
+          memo.defenseCooldown ?? (memo.defenseCooldown = {}), // A3 — cooldown
         );
         const unitesDefense = new Set([...defenseJev.rappels.keys(), ...defenseJev.maintiens.keys()]);
         ordres[jev] = filtrerOrdresJevDefense(ordres[jev] ?? [], unitesDefense);

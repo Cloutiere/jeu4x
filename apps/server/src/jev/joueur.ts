@@ -990,7 +990,8 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
   // escorte du colon (le pari se réévalue quand les conditions changent —
   // canon escort étendu, Erik 12/11).
   const memoDefenseRappels = (memo.defenseRappels ?? (memo.defenseRappels = {}));
-  const planDefenseJev = planDefenseVille(etatFiltre, moi, profileDuBot(), memoDefenseRappels);
+  const memoDefenseCooldown = (memo.defenseCooldown ?? (memo.defenseCooldown = {}));
+  const planDefenseJev = planDefenseVille(etatFiltre, moi, profileDuBot(), memoDefenseRappels, memoDefenseCooldown);
   const excluesDefense = new Set([...planDefenseJev.rappels.keys(), ...planDefenseJev.maintiens.keys()]);
   const condense = condenseJoueur(etatFiltre, moi, memo);
   // JEV-DECISIONNEL · D1 — l'acte mécanique PRÉCÈDE les questions (miroir

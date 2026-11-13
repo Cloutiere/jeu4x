@@ -1062,7 +1062,8 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
   // plan défensif avec memo de rappel partagé ; les rappelées/maintenues
   // sont exclues de l'escorte du colon.
   const memoDefenseRappels = (memo.defenseRappels ?? (memo.defenseRappels = {}));
-  const planDefenseJev = planDefenseVille(etatFiltre, moi, profileDuBot(), memoDefenseRappels);
+  const memoDefenseCooldown = (memo.defenseCooldown ?? (memo.defenseCooldown = {}));
+  const planDefenseJev = planDefenseVille(etatFiltre, moi, profileDuBot(), memoDefenseRappels, memoDefenseCooldown);
   const excluesDefense = new Set([...planDefenseJev.rappels.keys(), ...planDefenseJev.maintiens.keys()]);
   const condense = condenseJoueur(etatFiltre, moi, memo);
   // JEV-DECISIONNEL · D1 — l'acte mécanique PRÉCÈDE les questions : le memo

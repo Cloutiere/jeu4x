@@ -2234,6 +2234,10 @@ export class GameDO {
               defenseRappelsMemo:
                 this.jevEtat?.memo.defenseRappels ??
                 (this.jevEtat ? (this.jevEtat.memo.defenseRappels = {}) : {}),
+              // DEFENSE-VILLE-A3 — cooldown anti-ré-armement par ville.
+              defenseCooldownMemo:
+                this.jevEtat?.memo.defenseCooldown ??
+                (this.jevEtat ? (this.jevEtat.memo.defenseCooldown = {}) : {}),
             }
           : undefined,
       );
@@ -2283,6 +2287,7 @@ export class GameDO {
           jevSeat,
           profileDuBot(this.meta.settings.botDifficulte),
           this.jevEtat?.memo.defenseRappels, // A2 — hystérésis à état
+          this.jevEtat?.memo.defenseCooldown, // A3 — cooldown par ville
         );
         const unitesDefense = new Set([...defenseJev.rappels.keys(), ...defenseJev.maintiens.keys()]);
         this.orders[jevSeat!] = filtrerOrdresJevDefense(this.orders[jevSeat!] ?? [], unitesDefense);
