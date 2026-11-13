@@ -53,11 +53,40 @@ function analyser(fichier) {
   const dernierTourRappel = new Map(); // unitId → tour du dernier rappel
   // ennemis visibles du tour (condensé decision)
   const visiblesTour = new Map(); // tour → [{q,r,...}]
+  // DEFENSE-VILLE-B · sonde — villes MENACÉES-DÉFICIENTES (menace villeId à
+  // distanceVille ≤ seuilQuestionDef 2 + def.deficit > 0 — condensé L4/C) et
+  // production expansive pendant le siège (critère canon B : = 0).
+  const siegeCases = new Set(); // clés "q,r" des villes actuellement menacées-déficientes
+  const caseDeVille = new Map(); // id → clé "q,r" (condensé empire.villes)
+  const colonsPendantSiege = [];
+  const setProdExpansifsSiege = [];
+  const MILITAIRE = (id) => ['guerrier', 'guerrier_jaguar', 'guerrier_impi', 'archer', 'piquier', 'chevalier', 'mousquetaire', 'fusilier', 'char', 'artillerie', 'infanterie', 'tank', 'canon'].includes(id);
   for (const ligne of lignes) {
     let e; try { e = JSON.parse(ligne); } catch { continue; }
     if (e.type === 'meta') { largeur = e.carte?.largeur ?? largeur; continue; }
     if (e.type === 'tour') { tour = e.tour; continue; }
-    if (e.type === 'decision') { visiblesTour.set(e.tour, e.condense?.monde?.ennemisVisibles ?? []); continue; }
+    if (e.type === 'decision') {
+      visiblesTour.set(e.tour, e.condense?.monde?.ennemisVisibles ?? []);
+      const c = e.condense ?? {};
+      const villes = c.empire?.villes ?? [];
+      for (const v of villes) if (v.case) caseDeVille.set(v.id, v.case);
+      siegeCases.clear();
+      for (const m of c.menaces ?? []) {
+        if ((m.distanceVille ?? 99) > 2) continue;
+        const v = villes.find((x) => x.id === m.villeId);
+        if (v && (v.def?.deficit ?? 0) > 0 && v.case) siegeCases.add(`${v.case}|tour${e.tour}`);
+      }
+      for (const o of e.ordresJev ?? []) {
+        if (o.type !== 'SetProduction') continue;
+        const idV = caseDeVille.get(o.cityId);
+        if (!idV) continue;
+        const siege = [...siegeCases].some((k) => k.startsWith(`${idV}|`));
+        const item = o.item ?? {};
+        const expansif = item.kind !== 'unit' || !MILITAIRE(item.id);
+        if (siege && expansif) setProdExpansifsSiege.push({ tour: e.tour, ville: o.cityId, item: `${item.kind}:${item.id}` });
+      }
+      continue;
+    }
     if (e.type === 'defense_plan' && e.genre === 'rappel') {
       const ens = rappelsTour.get(e.tour) ?? new Set();
       for (const uid of e.unites ?? []) { ens.add(uid); dernierTourRappel.set(uid, e.tour); }
@@ -70,6 +99,11 @@ function analyser(fichier) {
     const t = ev.type;
     if (t === 'UnitProduced') {
       units.set(ev.unitId, { owner: ev.owner, type: ev.unitType, q: ev.at.q, r: ev.at.r });
+      if (ev.unitType === 'colon' && ev.owner === 'p1') {
+        const cle = `${ev.at.q},${ev.at.r}`;
+        const siege = [...siegeCases].some((k) => k.startsWith(`${cle}|`));
+        if (siege) colonsPendantSiege.push({ tour, case: cle });
+      }
     } else if (t === 'BarbarianSpawned') {
       units.set(ev.unitId, { owner: ev.owner ?? 'barbarien', type: ev.unitType ?? 'guerrier', q: ev.at.q, r: ev.at.r });
     } else if (t === 'Move' || t === 'Retreat' || t === 'UnitExpelled') {
@@ -131,7 +165,7 @@ function analyser(fichier) {
     }
     return acc;
   }, []);
-  return { fichier: fichier.split(/[\/]/).pop(), fin, chutes, pingPongs, pingPongsRappel, fondationsSousGriffes, fondations };
+  return { fichier: fichier.split(/[\/]/).pop(), fin, chutes, pingPongs, pingPongsRappel, fondationsSousGriffes, fondations, colonsPendantSiege, setProdExpansifsSiege };
 }
 
 const fichiers = readdirSync(dossier).filter((f) => f.endsWith('.jsonl')).sort();
@@ -150,6 +184,8 @@ for (const f of fichiers) {
   console.log(`  ping-pong A⇄B: ${r.pingPongs.length} ${JSON.stringify(r.pingPongs)}`);
   console.log(`  ping-pong IMPUTABLE au rappel (isolation C): ${r.pingPongsRappel.length} ${JSON.stringify(r.pingPongsRappel)}`);
   console.log(`  fondations sous les griffes (barbare visible d≤3): ${r.fondationsSousGriffes.length} ${JSON.stringify(r.fondationsSousGriffes)}`);
+  console.log(`  COLONS PRODUITS PENDANT SIÈGE (menacée-déficiente d≤2): ${r.colonsPendantSiege.length} ${JSON.stringify(r.colonsPendantSiege)}`);
+  console.log(`  SetProduction EXPANSIFS émis sur ville menacée-déficiente: ${r.setProdExpansifsSiege.length} ${JSON.stringify(r.setProdExpansifsSiege)}`);
 }
 console.log(`\n===== TOTAUX (n=${fichiers.length}) =====`);
 console.log(`chutes p1 (capturées + razées): ${totChutes}`);
@@ -158,3 +194,11 @@ console.log(`fondations p1: ${totFond} (${(totFond / Math.max(1, fichiers.length
 console.log(`ping-pong A⇄B: ${totPp}`);
 console.log(`ping-pong IMPUTABLE au rappel: ${totPpRappel}`);
 console.log(`fondations sous les griffes: ${totSousGriffes}`);
+let totColonsSiege = 0, totProdSiege = 0;
+for (const f of fichiers) {
+  const r = analyser(join(dossier, f));
+  totColonsSiege += r.colonsPendantSiege.length;
+  totProdSiege += r.setProdExpansifsSiege.length;
+}
+console.log(`COLONS PENDANT SIÈGE (critère canon B : 0): ${totColonsSiege}`);
+console.log(`SetProduction expansifs sur ville menacée-déficiente: ${totProdSiege}`);

@@ -52,12 +52,26 @@ describe('JEV-ESCORTE · arbitrage production bot partagé (D1/D2)', () => {
   });
 
   it('risque élevé MAIS combattante disponible (escorte en place) → le colon passe (D3)', () => {
-    const s = state({
+    // DEFENSE-VILLE-B (canon Erik 13/11) — priorités canon garnison L1 >
+    // rappel L2 > question L5 > VETO L3 > production normale : une ville
+    // MENACÉE-DÉFICIENTE (camp barbare à d≤2 + 0 combattant sur tuile) ne
+    // produit PAS de colon quel que soit le verdict escort (miroir p03/p04).
+    // La D3 « escorte en place » reste prouvée avec la garnison COMPLÈTE
+    // (veto inactif — le verdict escort repasse).
+    const sVeto = state({
       villages: [{ q: 4, r: 4 }],
-      units: [{ id: 'g1', type: 'guerrier', owner: BOT, q: 8, r: 8 }], // hors garnison
+      units: [{ id: 'g1', type: 'guerrier', owner: BOT, q: 8, r: 8 }], // hors garnison → déficit → veto L3
     });
-    const item = arbitrerProduction(s.cities['c1']!, s.players[BOT]!, [s.cities['c1']!], s, ecoDuBot(), false, false);
-    expect(item).toEqual({ kind: 'unit', id: 'colon' });
+    expect(arbitrerProduction(sVeto.cities['c1']!, sVeto.players[BOT]!, [sVeto.cities['c1']!], sVeto, ecoDuBot(), false, false))
+      .toEqual({ kind: 'unit', id: 'guerrier' });
+    const sD3 = state({
+      villages: [{ q: 4, r: 4 }],
+      units: [{ id: 'g1', type: 'guerrier', owner: BOT, q: 3, r: 3 }], // SUR la tuile → garnison complète → veto inactif
+    });
+    // Veto inactif → l'arbitrage préexistant reprend la main (verdict escort
+    // « attendre » : la garnison n'est pas une escorte → ③④, jamais colon).
+    expect(arbitrerProduction(sD3.cities['c1']!, sD3.players[BOT]!, [sD3.cities['c1']!], sD3, ecoDuBot(), false, false))
+      .not.toEqual({ kind: 'unit', id: 'colon' });
   });
 
   it('risque élevé, combattante FORTIFIÉE en garnison → ATTENDRE (retombée ③ bâtiment)', () => {

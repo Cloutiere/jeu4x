@@ -33,7 +33,13 @@ import {
   WONDERS,
 } from '@game/rules';
 import { condenserEtat, gainNetSite, sitesFondation, COMPOSANTS_VAISSEAU } from './condense.mjs';
-import { pasVersRoutier, planDefenseVille, profileDuBot } from '../../apps/server/src/botPolicy.js';
+import {
+  pasVersRoutier,
+  pivotProductionDefensive,
+  planDefenseVille,
+  profileDuBot,
+  vetoProductionDefensif,
+} from '../../apps/server/src/botPolicy.js';
 
 /** Civs / barbare exclus — seuls les vrais joueurs sont des partenaires. */
 function rivalsReels(etatFiltre, moi) {
@@ -861,6 +867,63 @@ export function traduireDefense(ansDefense, metaDefense, etatFiltre, moi, exclue
   return { ordres, attentes };
 }
 
+// DEFENSE-VILLE-B (canon Erik 13/11) · L3 — appliquerVetoProduction (miroir
+// EXACT du port joueur.ts) : tout SetProduction EXPANSIF (colon/bâtiment/
+// merveille — tout item non combattante) sur une ville MENACÉE-DÉFICIENTE
+// (vetoProductionDefensif — menacesVille d≤ seuilQuestionDef +
+// garnisonDeficit, tranche A, zéro nouveau calcul) est remplacé par le pivot
+// guerrier (pivotProductionDefensive) ou RETIRÉ si aucune combattante
+// productible. produireGuerrier L5 + veto = MÊME ordre, JAMAIS double
+// (dernier SetProduction par ville vetoée gagne — sémantique moteur).
+// Ville non menacée : ordres intacts BIT-À-BIT.
+export function appliquerVetoProduction(ordres, etatFiltre, moi, attentes) {
+  const attentesOut = attentes ? [...attentes] : [];
+  const indices = new Map();
+  ordres.forEach((o, i) => {
+    if (o.type !== 'SetProduction') return;
+    const l = indices.get(o.cityId) ?? [];
+    l.push(i);
+    indices.set(o.cityId, l);
+  });
+  const remplacementAttente = new Map();
+  const out = [...ordres];
+  for (const [cityId, liste] of indices) {
+    const ville = Object.values(etatFiltre.cities ?? {}).find((v) => v.id === cityId && v.owner === moi);
+    if (!ville || !vetoProductionDefensif(etatFiltre, ville, moi)) continue; // non menacée : bit-à-bit
+    for (let k = liste.length - 2; k >= 0; k--) {
+      const idx = liste[k];
+      out.splice(idx, 1);
+      if (attentesOut) {
+        const j = attentesOut.findIndex((a) => a.genre === 'production' && a.cityId === cityId);
+        if (j >= 0) attentesOut.splice(j, 1);
+      }
+    }
+    const item = out.find((o) => o.type === 'SetProduction' && o.cityId === cityId)?.item;
+    const combattante =
+      item && item.kind === 'unit' && (UNIT_TYPES[item.id]?.canAttack ?? false) && UNIT_TYPES[item.id]?.aquatic !== true;
+    if (combattante) continue; // poussée militaire / produireGuerrier L5 : tel quel
+    const pivot = pivotProductionDefensive(ville, etatFiltre.players?.[moi], etatFiltre);
+    if (!pivot) {
+      out.splice(out.findIndex((o) => o.type === 'SetProduction' && o.cityId === cityId), 1);
+      if (attentesOut) {
+        const j = attentesOut.findIndex((a) => a.genre === 'production' && a.cityId === cityId);
+        if (j >= 0) attentesOut.splice(j, 1);
+      }
+      continue;
+    }
+    const idx = out.findIndex((o) => o.type === 'SetProduction' && o.cityId === cityId);
+    out[idx] = { type: 'SetProduction', cityId, item: pivot };
+    if (attentesOut) {
+      const j = attentesOut.findIndex((a) => a.genre === 'production' && a.cityId === cityId);
+      const maj = { genre: 'production', cityId, item: `unit:${pivot.id}` };
+      if (j >= 0) attentesOut[j] = maj;
+      else remplacementAttente.set(idx, maj);
+    }
+  }
+  if (attentesOut) for (const [, a] of remplacementAttente) attentesOut.push(a);
+  return { ordres: out, attentes: attentesOut ?? [] };
+}
+
 /** JEV-IT4 · D3 — gate de bruit : un signal de fin de partie dans le bloc
  * victoire (jalons ≥ 10 chez quelqu'un, ≥ 2 composants, merveille de
  * victoire en chantier, ou guerre contre moi). */
@@ -1675,6 +1738,15 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
       for (const o of trad.ordres) sortie.ordres.push(o);
       for (const a of trad.attentes) sortie.attentes.push(a);
     }
+  }
+
+  // DEFENSE-VILLE-B · L3 — veto production défensive (miroir du port) :
+  // appliqué EN DERNIER, après la traduction L5 — produireGuerrier Jev +
+  // veto = même ordre, jamais double.
+  {
+    const vete = appliquerVetoProduction(sortie.ordres, etatFiltre, moi, sortie.attentes);
+    sortie.ordres = vete.ordres;
+    sortie.attentes = vete.attentes;
   }
 
   // Repli métrique : aucune décision traduite cette tour (le choix 'aucun'

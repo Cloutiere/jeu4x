@@ -33,7 +33,13 @@ import {
   WONDERS,
 } from '@game/rules';
 import { condenserEtat, gainNetSite, sitesFondation, COMPOSANTS_VAISSEAU } from './condense.js';
-import { pasVersRoutier, planDefenseVille, profileDuBot } from '../botPolicy.js';
+import {
+  pasVersRoutier,
+  pivotProductionDefensive,
+  planDefenseVille,
+  profileDuBot,
+  vetoProductionDefensif,
+} from '../botPolicy.js';
 
 type AnyEtat = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -812,6 +818,78 @@ export function traduireDefense(
   return { ordres, attentes };
 }
 
+/** DEFENSE-VILLE-B (canon Erik 13/11) · L3 — miroir harnais/port du veto
+ * production défensive (PURE, testable ; appelée en FIN de tourJevJoueur,
+ * miroir bit-à-bit du harnais joueur.mjs). Tout SetProduction EXPANSIF
+ * (colon/bâtiment/merveille — tout item non combattante) sur une ville
+ * MENACÉE-DÉFICIENTE (vetoProductionDefensif : menacesVille d≤
+ * seuilQuestionDef + garnisonDeficit — tranche A, zéro nouveau calcul) est
+ * remplacé par le pivot guerrier (pivotProductionDefensive) ou RETIRÉ si
+ * aucune combattante productible. La réponse L5 `produireGuerrier` + le veto
+ * = MÊME ordre, JAMAIS double (sur une ville vetoée, le DERNIER SetProduction
+ * par ville gagne — sémantique moteur SetProduction qui se remplace lui-même).
+ * Ville non menacée : ordres intacts BIT-À-BIT. */
+export function appliquerVetoProduction(
+  ordres: AnyEtat[],
+  etatFiltre: AnyEtat,
+  moi: string,
+  attentes?: AnyEtat[],
+): { ordres: AnyEtat[]; attentes: AnyEtat[] } {
+  const attentesOut = attentes ? [...attentes] : [];
+  // Index des SetProduction par ville (ordre d'émission conservé).
+  const indices = new Map<string, number[]>();
+  ordres.forEach((o, i) => {
+    if (o.type !== 'SetProduction') return;
+    const l = indices.get(o.cityId) ?? [];
+    l.push(i);
+    indices.set(o.cityId, l);
+  });
+  const remplacementAttente = new Map<number, AnyEtat>(); // index ordre → attente
+  const out = [...ordres];
+  for (const [cityId, liste] of indices) {
+    const ville = vals(etatFiltre.cities ?? {}).find((v: AnyEtat) => v.id === cityId && v.owner === moi);
+    if (!ville || !vetoProductionDefensif(etatFiltre as never, ville as never, moi)) continue; // non menacée : bit-à-bit
+    // « même ordre, jamais double » : seul le DERNIER SetProduction de la
+    // ville survit (miroir de la sémantique moteur).
+    const dernier = liste[liste.length - 1]!;
+    for (let k = liste.length - 2; k >= 0; k--) {
+      const idx = liste[k]!;
+      out.splice(idx, 1);
+      if (attentesOut) {
+        const j = attentesOut.findIndex((a: AnyEtat) => a.genre === 'production' && a.cityId === cityId);
+        if (j >= 0) attentesOut.splice(j, 1);
+      }
+    }
+    const item = out.find((o: AnyEtat) => o.type === 'SetProduction' && o.cityId === cityId)?.item;
+    const combattante =
+      item &&
+      item.kind === 'unit' &&
+      (UNIT_TYPES[item.id]?.canAttack ?? false) &&
+      UNIT_TYPES[item.id]?.aquatic !== true;
+    if (combattante) continue; // poussée militaire / produireGuerrier L5 : tel quel
+    const pivot = pivotProductionDefensive(ville as never, etatFiltre.players?.[moi] as never, etatFiltre as never);
+    if (!pivot) {
+      // aucune combattante productible : l'ordre expansif est RETIRÉ.
+      out.splice(out.findIndex((o: AnyEtat) => o.type === 'SetProduction' && o.cityId === cityId), 1);
+      if (attentesOut) {
+        const j = attentesOut.findIndex((a: AnyEtat) => a.genre === 'production' && a.cityId === cityId);
+        if (j >= 0) attentesOut.splice(j, 1);
+      }
+      continue;
+    }
+    const idx = out.findIndex((o: AnyEtat) => o.type === 'SetProduction' && o.cityId === cityId);
+    out[idx] = { type: 'SetProduction', cityId, item: pivot };
+    if (attentesOut) {
+      const j = attentesOut.findIndex((a: AnyEtat) => a.genre === 'production' && a.cityId === cityId);
+      const maj = { genre: 'production', cityId, item: `unit:${pivot.id}` };
+      if (j >= 0) attentesOut[j] = maj;
+      else remplacementAttente.set(idx, maj);
+    }
+  }
+  if (attentesOut) for (const [, a] of remplacementAttente) attentesOut.push(a);
+  return { ordres: out, attentes: attentesOut ?? [] };
+}
+
 /** JEV-IT4 · D3 — gate de bruit : un signal de fin de partie dans le bloc
  * victoire (jalons ≥ 10 chez quelqu'un, ≥ 2 composants, merveille de
  * victoire en chantier, ou guerre contre moi). */
@@ -1569,6 +1647,15 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
     const trad = traduireDefense(reponseDefense, meta.defense, etatFiltre, moi, excluesDefense);
     for (const o of trad.ordres) sortie.ordres.push(o);
     for (const a of trad.attentes) sortie.attentes.push(a);
+  }
+
+  // DEFENSE-VILLE-B · L3 — veto production défensive (miroir harnais) :
+  // appliqué EN DERNIER, après la traduction L5 — produireGuerrier Jev + veto
+  // = même ordre, jamais double.
+  {
+    const vete = appliquerVetoProduction(sortie.ordres, etatFiltre, moi, sortie.attentes);
+    sortie.ordres = vete.ordres as typeof sortie.ordres;
+    sortie.attentes = vete.attentes as typeof sortie.attentes;
   }
 
   sortie.repli = sortie.ordres.length === 0 && sortie.actions.length === 0 && sortie.diplomatie.length === 0;

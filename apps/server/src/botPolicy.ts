@@ -2296,6 +2296,57 @@ function dependDe(a: string, b: string): boolean {
 /** Ordre croissant des ères (miroir growth.ts — non exporté là-bas). */
 const ERA_ORDRE: TechEra[] = ['ancienne', 'medievale', 'industrielle', 'moderne'];
 
+/**
+ * DEFENSE-VILLE-B (canon Erik 13/11) · L3 — le VETO PRODUCTION DÉFENSIVE :
+ * une ville avec menace visible à ≤ `seuilQuestionDef` tours de MARCHE (le
+ * rayon L5 — même rayon canon) ET déficit de garnison (menacesVille +
+ * garnisonDeficit de la tranche A — ZÉRO nouveau calcul) ne produit PAS
+ * d'item expansif : « survivre d'abord » — un colon produit dans une ville
+ * qui va tomber meurt avec elle (leçon p03/p04 : 5 colons en 50 tours de
+ * guerre). Pur, déterministe, ZÉRO nouvelle question LLM — le veto CONFIRME
+ * la réponse `produireGuerrier` de la question défense L5 même sans elle.
+ */
+export function vetoProductionDefensif(
+  state: GameState,
+  ville: City,
+  joueurId: PlayerId,
+): boolean {
+  const d = defenseDuBot();
+  return (
+    menacesVille(state, ville, joueurId, d.seuilQuestionDef).length > 0 &&
+    garnisonDeficit(state, ville, joueurId, d.seuilGarnison) > 0
+  );
+}
+
+/** DEFENSE-VILLE-B · L3 — le PIVOT guerrier : la meilleure COMBATTANTE
+ * productible dans la ville (même filtre et même tri que ① de
+ * arbitrerProduction — tie coût puis id R-81), ou null si aucune. Pur. */
+export function pivotProductionDefensive(
+  city: City,
+  player: GameState['players'][PlayerId],
+  state: GameState,
+): ProductionItem | null {
+  const unlocked = player.techsUnlocked ?? [];
+  const combattantes: ProductionItem[] = [];
+  for (const u of Object.values(UNIT_TYPES)) {
+    if (u.implemented === false || u.greatPerson || u.strategic) continue;
+    if (u.id === 'caravane') continue;
+    if ((u.populationCost ?? 0) > 0 && city.pop < u.populationCost!) continue; // R-112
+    if (u.aquatic && !isCoastal(city, state)) continue; // R-117
+    if (!canSetProduction({ kind: 'unit', id: u.id }, unlocked, city.buildings, player.civId)) continue;
+    if (!(u.canAttack ?? false) || u.aquatic === true) continue;
+    combattantes.push({ kind: 'unit', id: u.id });
+  }
+  return (
+    combattantes.sort(
+      (a, b) =>
+        (UNIT_TYPES[b.id]?.attack ?? 0) - (UNIT_TYPES[a.id]?.attack ?? 0) ||
+        (UNIT_TYPES[a.id]?.cost ?? 0) - (UNIT_TYPES[b.id]?.cost ?? 0) ||
+        (a.id < b.id ? -1 : 1),
+    )[0] ?? null
+  );
+}
+
 /** D2 · Production pondérée — remplace le tirage aléatoire.
  *  ① besoin militaire (guerre ou barbares actifs proches → meilleure unité
  *  d'attaque disponible) ; ② pop au seuil (ou croissance bloquée) → colon
@@ -2366,6 +2417,19 @@ export function arbitrerProduction(
       );
     if (combattantes.length > 0) return combattantes[0]!;
   }
+  // DEFENSE-VILLE-B (canon Erik 13/11) · L3 — le veto PRODUCTION DÉFENSIVE :
+  // menace visible à ≤ seuilQuestionDef tours de MARCHE ET déficit de
+  // garnison → « survivre d'abord » (priorités canon : garnison L1 > rappel
+  // L2 > question défense L5 > VETO L3 > production normale). Le pivot est
+  // la meilleure combattante productible ; à défaut, les branches
+  // EXPANSIVES (② colon, ③ bâtiment, ④ merveille) sont court-circuitées —
+  // ⑤ repli parmi les UNITÉS seules. Miroir exact dans le port Jev
+  // (appliquerVetoProduction) et le harnais (joueur.mjs).
+  const vetoDef = vetoProductionDefensif(state, city, player.id);
+  if (vetoDef) {
+    const pivot = pivotProductionDefensive(city, player, state);
+    if (pivot) return pivot;
+  }
   // ② expansion : colon si la ville est « au plafond ou presque » (seuil
   // data) ou bloquée, et si l'empire n'a AUCUN colon en attente de fondation.
   // JEV-ESCORTE (canon Erik 12/11 — botPolicy PARTAGÉ, les calibrages
@@ -2374,7 +2438,8 @@ export function arbitrerProduction(
   // guerrier ; risque élevé, combattantes toutes en garnison → le colon
   // ATTEND (retombée sur ③ bâtiment). Site = approximation géométrique
   // (siteColonParDefaut — la réserve réelle reste le memo Jev 🔶).
-  if ((city.pop >= eco.seuilPopColonne || growthThresholdFor(city.pop) === null) &&
+  if (!vetoDef &&
+      (city.pop >= eco.seuilPopColonne || growthThresholdFor(city.pop) === null) &&
       !Object.values(state.units).some((u) => u.owner === player.id && u.type === 'colon' && !u.aboard)) {
     const colon = unitesDisponibles.find((o) => o.kind === 'unit' && o.id === 'colon');
     if (colon) {
@@ -2390,21 +2455,23 @@ export function arbitrerProduction(
     }
   }
   // ③ bâtiment économique : premier de l'ordre data-driven présent dans les
-  // manquants (tie par l'ordre lui-même — déterministe).
-  for (const id of eco.ordreBatiments) {
-    const b = batimentsManquants.find((o) => o.kind === 'building' && o.id === id);
-    if (b) return b;
+  // manquants (tie par l'ordre lui-même — déterministe). Veto L3 : REFUSÉ.
+  if (!vetoDef) {
+    for (const id of eco.ordreBatiments) {
+      const b = batimentsManquants.find((o) => o.kind === 'building' && o.id === id);
+      if (b) return b;
+    }
   }
   // ④ merveille si pionnier : l'empire n'en possède AUCUNE — première par id.
-  if (empireWonders.size === 0 && merveillesDisponibles.length > 0) {
+  // Veto L3 : REFUSÉE (expansive au même titre que le colon).
+  if (!vetoDef && empireWonders.size === 0 && merveillesDisponibles.length > 0) {
     return merveillesDisponibles.slice().sort((a, b) => (a.id < b.id ? -1 : 1))[0]!;
   }
-  // ⑤ repli : l'ancien tirage aléatoire parmi TOUTES les options valides.
-  const options: ProductionItem[] = [
-    ...unitesDisponibles,
-    ...batimentsManquants,
-    ...merveillesDisponibles,
-  ];
+  // ⑤ repli : l'ancien tirage aléatoire parmi TOUTES les options valides —
+  // sous veto L3, les UNITÉS seules (aucun expansif ne passe).
+  const options: ProductionItem[] = vetoDef
+    ? [...unitesDisponibles]
+    : [...unitesDisponibles, ...batimentsManquants, ...merveillesDisponibles];
   if (options.length === 0) return null;
   return rng ? options[rng.nextInt(options.length)]! : options[0]!;
 }
@@ -2714,7 +2781,23 @@ export function botPolicy(
   // jalonsMinPrioriteOnu jalons — sinon arbitrage inchangé (consigné).
   const courseOnu = courseOnuAdversaire(state, playerId);
   for (const city of myCities) {
-    if (city.production) continue;
+    if (city.production) {
+      // DEFENSE-VILLE-B · L3 — un chantier EXPANSIF déjà en cours sur une
+      // ville menacée-déficiente est REPLACÉ par le pivot combattante
+      // (SetProduction remplace, progression conservée côté moteur — jamais
+      // un colon qui sort au milieu du siège, leçon p03 colon t34 /
+      // p04 : 5 colons en 50 tours de guerre). Item militaire : intouché.
+      const item = city.production.item;
+      const militaire =
+        item.kind === 'unit' &&
+        (UNIT_TYPES[item.id]?.canAttack ?? false) &&
+        UNIT_TYPES[item.id]?.aquatic !== true;
+      if (!militaire && vetoProductionDefensif(state, city, playerId)) {
+        const pivot = pivotProductionDefensive(city, me, state);
+        if (pivot) orders.push({ type: 'SetProduction', cityId: city.id, item: pivot });
+      }
+      continue;
+    }
     const component = (me.techsUnlocked ?? []).includes('vol_spatial') ? missingShipComponent(myCities) : null;
     let item: ProductionItem | null = component
       ? ({ kind: 'building', id: component } as ProductionItem)
