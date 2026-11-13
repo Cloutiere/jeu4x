@@ -21,6 +21,7 @@ import {
   deciderProductionColon,
   defenseDuBot,
   fondationProcheBarbare,
+  menacesVille,
   doitRappelerColon,
   escorteEnPlace,
   hexDistance,
@@ -773,7 +774,91 @@ export function construireQuestionsJoueur(config, condense, etatFiltre, moi, mem
     }
   }
 
+  // DEFENSE-VILLE-C (canon Erik 13/11) · L5 — QUESTION DÉFENSE dédiée
+  // (miroir EXACT du port joueur.ts) : posée quand une ville est menacée à
+  // ≤ defense.seuilQuestionDef tours de MARCHE ; énumération fermée
+  // rappeler / produireGuerrier / tenir / abandonner ; ville présentée =
+  // la PLUS MENACÉE (nb de menaces desc, déficit desc, tie id — R-81).
+  if (config.questions.defense) {
+    const seuil = defenseDuBot().seuilQuestionDef;
+    const critiques = mesVilles
+      .map((v) => ({ ville: v, menaces: menacesVille(etatFiltre, v, moi, seuil) }))
+      .filter((m) => m.menaces.length > 0)
+      .sort(
+        (a, b) =>
+          b.menaces.length - a.menaces.length ||
+          (b.ville.def?.deficit ?? 0) - (a.ville.def?.deficit ?? 0) ||
+          String(a.ville.id).localeCompare(String(b.ville.id)),
+      );
+    if (critiques.length > 0) {
+      const premiere = critiques[0];
+      const cible = premiere.ville;
+      const def = (condense.empire?.villes ?? []).find((v) => v.id === cible.id)?.def ?? null;
+      const criteriaD = {
+        rappeler: `ORDONNER le rappel — les combattantes disponibles les plus proches marchent vers ${cible.id} (${cible.q},${cible.r}) ; la garnison d=0 mécanique reste active.`,
+        produireGuerrier: `PRODUIRE une unité de combat DANS ${cible.id} (défense locale — canon « survivre d'abord »).`,
+        tenir: `TENIR — la mécanique défensive décide seule ce tour (garnison ${def ? `nb ${def.nbDef}, déficit ${def.deficit}` : 'inconnue'}).`,
+        abandonner: `ABANDONNER ${cible.id} — NE PAS la défendre (consigné au journal ; ${premiere.menaces.length} menace(s) à ≤ ${seuil} tours).`,
+      };
+      q.defense = { instructions: config.questions.defense.instructions, criteria: criteriaD, type: 'choice' };
+      meta.defense = {
+        genre: 'defense',
+        ville: { id: cible.id, q: cible.q, r: cible.r },
+        nbMenaces: premiere.menaces.length,
+        def,
+      };
+    }
+  }
+
   return { questions: q, meta, seuils };
+}
+
+// DEFENSE-VILLE-C · L5 — CHOIX_DEFENSE + traduireDefense (miroir EXACT du
+// port joueur.ts — énumération fermée, repli mécanique, « rappeler » émet
+// des Move EXISTANTS pour ≤ 3 combattantes HORS plan défensif, se compose
+// avec la garnison d=0 L1 ; « produireGuerrier » SetProduction dans la
+// ville ; « tenir »/« abandonner » zéro ordre, audités).
+export const CHOIX_DEFENSE = ['rappeler', 'produireGuerrier', 'tenir', 'abandonner'];
+
+export function traduireDefense(ansDefense, metaDefense, etatFiltre, moi, exclues, seuilConfiance = 0.25) {
+  const ordres = [];
+  const attentes = [];
+  const choice = ansDefense?.choice;
+  if (!choice || !CHOIX_DEFENSE.includes(choice)) return { ordres, attentes };
+  if ((ansDefense.confidence ?? 0) < seuilConfiance) return { ordres, attentes };
+  if (!metaDefense?.ville) return { ordres, attentes };
+  const cible = metaDefense.ville;
+  if (choice === 'rappeler') {
+    const combattantes = Object.values(etatFiltre.units ?? {})
+      .filter(
+        (u) =>
+          u.owner === moi &&
+          !u.aboard &&
+          (UNIT_TYPES[u.type]?.canAttack ?? false) &&
+          UNIT_TYPES[u.type]?.aquatic !== true &&
+          !exclues.has(u.id) &&
+          !(u.q === cible.q && u.r === cible.r),
+      )
+      .sort(
+        (a, b) =>
+          hexDistance(a, cible) - hexDistance(b, cible) || String(a.id).localeCompare(String(b.id)),
+      )
+      .slice(0, 3);
+    for (const u of combattantes) {
+      const pas = pasVersRoutier(u, etatFiltre, { q: cible.q, r: cible.r });
+      if (!pas) continue;
+      ordres.push({ type: 'Move', unitId: u.id, path: [pas] });
+      attentes.push({ genre: 'defense_rappel', unitId: u.id, attendu: `${pas.q},${pas.r}` });
+    }
+  } else if (choice === 'produireGuerrier') {
+    const ville = Object.values(etatFiltre.cities ?? {}).find((v) => v.id === cible.id && v.owner === moi);
+    const me = etatFiltre.players?.[moi];
+    if (ville && me && canSetProduction({ kind: 'unit', id: 'guerrier' }, me.techsUnlocked ?? [], ville.buildings ?? [], me.civId)) {
+      ordres.push({ type: 'SetProduction', cityId: cible.id, item: { kind: 'unit', id: 'guerrier' } });
+      attentes.push({ genre: 'production', cityId: cible.id, item: 'unit:guerrier' });
+    }
+  }
+  return { ordres, attentes };
 }
 
 /** JEV-IT4 · D3 — gate de bruit : un signal de fin de partie dans le bloc
@@ -1577,6 +1662,18 @@ export async function tourJevJoueur(client, config, etatFiltre, moi, memo = {}) 
     for (const u of proches.slice(0, 4)) {
       sortie.ordres.push({ type: 'Fortify', unitId: u.id });
       sortie.attentes.push({ genre: 'fortification', unitId: u.id });
+    }
+  }
+
+  // DEFENSE-VILLE-C · L5 — traduction de la réponse défense (seuil dédié
+  // confianceParQuestion.defense, défaut 0,25 — miroir du port ; repli
+  // mécanique = la tranche A décide seule). Audité via reponses.
+  {
+    const reponseDefense = confiance(ans.defense, confQuestion('defense') ?? 0.25);
+    if (meta.defense) {
+      const trad = traduireDefense(reponseDefense, meta.defense, etatFiltre, moi, excluesDefense);
+      for (const o of trad.ordres) sortie.ordres.push(o);
+      for (const a of trad.attentes) sortie.attentes.push(a);
     }
   }
 

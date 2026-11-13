@@ -920,6 +920,9 @@ export interface BotDefenseData {
    *  même ville ne se ré-arme pas pendant N tours (anti quitter/rentrer à la
    *  frontière de bande — porté par le memo de tour, bots inchangés). */
   cooldownRappel: number;
+  /** C (13/11) : la question défense dédiée (L5) est posée quand une ville
+   *  est menacée à ≤ N tours de MARCHE (BFS). */
+  seuilQuestionDef: number;
 }
 
 /** JEV-ESCORTE · tables data-driven de l'évaluation du pari colon. */

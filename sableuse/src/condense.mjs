@@ -11,8 +11,10 @@ import {
   BUILDINGS,
   canSetProduction,
   cityEconomyInputs,
+  defenseDuBot,
   hexDistance,
   MIN_CITY_DISTANCE,
+  menacesVille,
   TECHS,
   TERRAINS,
   UNIT_TYPES,
@@ -411,11 +413,54 @@ export function condenserEtat(etatFiltre, moi) {
   const ennemiesVisibles = Object.values(etatFiltre.units ?? {}).filter((u) => u.owner !== moi && !u.aboard);
   const villesEnnemuesVisibles = Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner !== moi);
 
+  // DEFENSE-VILLE-C (canon Erik 13/11) · L4 — CONDENSÉ LOCALISÉ (miroir
+  // EXACT du port condense.ts) : chaque menace porte SA ville cible (villeId
+  // — BFS portée de MARCHE réelle via menacesVille, tranche A ; repli : la
+  // ville la plus proche à vol d'oiseau, ex. menace derrière l'eau) et la
+  // distance à CETTE ville. La garnison (`def`) de chaque ville est exposée
+  // : nb combattants d=0, force totale, déficit au seuil — le COLON n'est
+  // JAMAIS un défenseur (leçon p08).
+  const defenseCfg = defenseDuBot();
+  const attaignablesParVille = new Map(
+    mesVilles.map((v) => [v.id, menacesVille({ ...etatFiltre, diplomacy: etatFiltre.diplomacy ?? { war: [] } }, v, moi, defenseCfg.menaceDist)]),
+  );
+  const villeCibleDe = (u) => {
+    const atteinte = mesVilles.find((v) =>
+      (attaignablesParVille.get(v.id) ?? []).some((e) => e.id === u.id));
+    if (atteinte) return atteinte;
+    return (
+      mesVilles
+        .slice()
+        .sort((a, b) => hexDistance(u, a) - hexDistance(u, b) || (a.id < b.id ? -1 : 1))[0] ?? null
+    );
+  };
+  const garnisonDe = (v) => {
+    const surTuile = Object.values(etatFiltre.units ?? {}).filter(
+      (u) =>
+        u.owner === moi &&
+        !u.aboard &&
+        (UNIT_TYPES[u.type]?.canAttack ?? false) &&
+        UNIT_TYPES[u.type]?.aquatic !== true &&
+        u.q === v.q &&
+        u.r === v.r,
+    );
+    const nbDef = surTuile.length;
+    return {
+      nbDef,
+      force: surTuile.reduce((a, u) => a + (UNIT_TYPES[u.type]?.defense ?? 0), 0),
+      deficit: Math.max(0, defenseCfg.seuilGarnison - nbDef),
+    };
+  };
   const menaces = ennemiesVisibles
-    .map((u) => ({
-      distanceVilleLaPlusProche: Math.min(...mesVilles.map((v) => hexDistance(u, v)), 99),
-      type: u.type,
-    }))
+    .map((u) => {
+      const cible = villeCibleDe(u);
+      return {
+        distanceVilleLaPlusProche: Math.min(...mesVilles.map((v) => hexDistance(u, v)), 99),
+        type: u.type,
+        villeId: cible ? cible.id : null,
+        distanceVille: cible ? hexDistance(u, cible) : null,
+      };
+    })
     .filter((m) => m.distanceVilleLaPlusProche <= RAYON_MENACE)
     .sort((a, b) => a.distanceVilleLaPlusProche - b.distanceVilleLaPlusProche)
     .slice(0, MAX_CANDIDATS);
@@ -467,6 +512,7 @@ export function condenserEtat(etatFiltre, moi) {
         // V4 (D1) : orientation courante de la conversion or/science — le
         // condensé est prêt pour la future question « convertir » de Jev.
         conversion: v.conversion === 'science' ? 'science' : 'or',
+        def: garnisonDe(v), // L4 — DEFENSE-VILLE-C : garnison locale
       })),
       // D1 · v2 : état de la recherche (tech en cours, tours restants, candidates).
       recherche,

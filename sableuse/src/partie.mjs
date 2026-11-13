@@ -221,6 +221,17 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
         );
         const unitesDefense = new Set([...defenseJev.rappels.keys(), ...defenseJev.maintiens.keys()]);
         ordres[jev] = filtrerOrdresJevDefense(ordres[jev] ?? [], unitesDefense);
+        // DEFENSE-VILLE-C · sonde — marqueur de RAPPEL au journal : la sonde
+        // isole les oscillations IMPUTABLES au rappel du bruit de fond
+        // (patrouille/quotas — consigné 136-177 en A3). Mesure
+        // d'information, pas un critère.
+        journal.ligne({
+          type: 'defense_plan',
+          tour,
+          genre: 'rappel',
+          unites: [...defenseJev.rappels.keys()],
+          villes: Object.fromEntries([...defenseJev.rappels.entries()]),
+        });
       }
       for (const action of decision.actions) actionsAppliquees.push({ id: jev, action });
       // JEV-EXPANSION D2/D3 — le choix `fonder` de Jev PROGRAMME la fondation

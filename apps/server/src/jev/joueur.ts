@@ -22,6 +22,7 @@ import {
   defenseDuBot,
   doitRappelerColon,
   fondationProcheBarbare,
+  menacesVille,
   escorteEnPlace,
   risqueDeploiementColon,
   hexDistance,
@@ -710,7 +711,105 @@ export function construireQuestionsJoueur(config: AnyEtat, condense: AnyEtat, et
     }
   }
 
+  // DEFENSE-VILLE-C (canon Erik 13/11) · L5 — QUESTION DÉFENSE dédiée :
+  // posée quand une ville est menacée à ≤ defense.seuilQuestionDef tours de
+  // MARCHE (BFS — data, défaut 2). Énumération fermée : rappeler /
+  // produireGuerrier / tenir / abandonner ; seuil de confiance dédié 0,25
+  // (confianceParQuestion.defense) ; repli = la mécanique tranche A décide
+  // seule. La ville présentée = la PLUS MENACÉE (nb de menaces desc,
+  // déficit desc, tie id — R-81).
+  if (config.questions.defense) {
+    const seuil = defenseDuBot().seuilQuestionDef;
+    const critiques = mesVilles
+      .map((v: AnyEtat) => ({ ville: v, menaces: menacesVille(etatFiltre, v, moi, seuil) }))
+      .filter((m: AnyEtat) => m.menaces.length > 0)
+      .sort(
+        (a: AnyEtat, b: AnyEtat) =>
+          b.menaces.length - a.menaces.length ||
+          (b.ville.def?.deficit ?? 0) - (a.ville.def?.deficit ?? 0) ||
+          String(a.ville.id).localeCompare(String(b.ville.id)),
+      );
+    if (critiques.length > 0) {
+      const premiere = critiques[0]!;
+      const cible = premiere.ville;
+      const def = (condense.empire?.villes ?? []).find((v: AnyEtat) => v.id === cible.id)?.def ?? null;
+      const criteriaD: AnyEtat = {
+        rappeler: `ORDONNER le rappel — les combattantes disponibles les plus proches marchent vers ${cible.id} (${cible.q},${cible.r}) ; la garnison d=0 mécanique reste active.`,
+        produireGuerrier: `PRODUIRE une unité de combat DANS ${cible.id} (défense locale — canon « survivre d'abord »).`,
+        tenir: `TENIR — la mécanique défensive décide seule ce tour (garnison ${def ? `nb ${def.nbDef}, déficit ${def.deficit}` : 'inconnue'}).`,
+        abandonner: `ABANDONNER ${cible.id} — NE PAS la défendre (consigné au journal ; ${premiere.menaces.length} menace(s) à ≤ ${seuil} tours).`,
+      };
+      q.defense = { instructions: config.questions.defense.instructions, criteria: criteriaD, type: 'choice' };
+      meta.defense = {
+        genre: 'defense',
+        ville: { id: cible.id, q: cible.q, r: cible.r },
+        nbMenaces: premiere.menaces.length,
+        def,
+      };
+    }
+  }
+
   return { questions: q, meta, seuils };
+}
+
+/** DEFENSE-VILLE-C · L5 — traduction de la réponse défense (PURE, testable ;
+ * appelée depuis tourJevJoueur ET miroir joueur.mjs). Énumération fermée :
+ * rappeler / produireGuerrier / tenir / abandonner ; réponse hors énumération
+ * ou sous le seuil de confiance → repli mécanique (ZÉRO ordre). « rappeler »
+ * émet des Move EXISTANTS pour jusqu'à 3 combattantes disponibles les plus
+ * proches HORS plan défensif (exclues — se compose avec la garnison d=0 L1,
+ * jamais en contradiction). « produireGuerrier » : SetProduction guerrier
+ * DANS la ville menacée (si productible). « tenir »/« abandonner » : zéro
+ * ordre (audités au journal via les réponses). */
+export const CHOIX_DEFENSE = ['rappeler', 'produireGuerrier', 'tenir', 'abandonner'] as const;
+
+export function traduireDefense(
+  ansDefense: AnyEtat,
+  metaDefense: AnyEtat | null,
+  etatFiltre: AnyEtat,
+  moi: string,
+  exclues: ReadonlySet<string>,
+  seuilConfiance = 0.25,
+): { ordres: AnyEtat[]; attentes: AnyEtat[] } {
+  const ordres: AnyEtat[] = [];
+  const attentes: AnyEtat[] = [];
+  const choice = ansDefense?.choice;
+  if (!choice || !(CHOIX_DEFENSE as readonly string[]).includes(choice)) return { ordres, attentes }; // hors énumération → repli
+  if ((ansDefense.confidence ?? 0) < seuilConfiance) return { ordres, attentes }; // sous confiance → repli
+  if (!metaDefense?.ville) return { ordres, attentes };
+  const cible = metaDefense.ville;
+  if (choice === 'rappeler') {
+    const combattantes = vals(etatFiltre.units ?? {})
+      .filter(
+        (u: AnyEtat) =>
+          u.owner === moi &&
+          !u.aboard &&
+          (UNIT_TYPES[u.type]?.canAttack ?? false) &&
+          UNIT_TYPES[u.type]?.aquatic !== true &&
+          !exclues.has(u.id) &&
+          !(u.q === cible.q && u.r === cible.r),
+      )
+      .sort(
+        (a: AnyEtat, b: AnyEtat) =>
+          hexDistance(a, cible) - hexDistance(b, cible) || String(a.id).localeCompare(String(b.id)),
+      )
+      .slice(0, 3);
+    for (const u of combattantes) {
+      const pas = pasVersRoutier(u, etatFiltre, { q: cible.q, r: cible.r });
+      if (!pas) continue;
+      ordres.push({ type: 'Move', unitId: u.id, path: [pas] });
+      attentes.push({ genre: 'defense_rappel', unitId: u.id, attendu: `${pas.q},${pas.r}` });
+    }
+  } else if (choice === 'produireGuerrier') {
+    const ville = vals(etatFiltre.cities ?? {}).find((v: AnyEtat) => v.id === cible.id && v.owner === moi);
+    const me = etatFiltre.players?.[moi];
+    if (ville && me && canSetProduction({ kind: 'unit', id: 'guerrier' }, me.techsUnlocked ?? [], ville.buildings ?? [], me.civId)) {
+      ordres.push({ type: 'SetProduction', cityId: cible.id, item: { kind: 'unit', id: 'guerrier' } });
+      attentes.push({ genre: 'production', cityId: cible.id, item: 'unit:guerrier' });
+    }
+  }
+  // tenir / abandonner : zéro ordre — audités au journal (réponses).
+  return { ordres, attentes };
 }
 
 /** JEV-IT4 · D3 — gate de bruit : un signal de fin de partie dans le bloc
@@ -1460,6 +1559,16 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
       sortie.ordres.push({ type: 'Fortify', unitId: u.id });
       sortie.attentes.push({ genre: 'fortification', unitId: u.id });
     }
+  }
+
+  // DEFENSE-VILLE-C · L5 — traduction de la réponse défense (seuil dédié
+  // confianceParQuestion.defense, défaut 0,25 — miroir des autres questions ;
+  // repli mécanique = la tranche A décide seule). Audité via reponses.
+  const reponseDefense = confiance(ans.defense, confQuestion('defense') ?? 0.25);
+  if (meta.defense) {
+    const trad = traduireDefense(reponseDefense, meta.defense, etatFiltre, moi, excluesDefense);
+    for (const o of trad.ordres) sortie.ordres.push(o);
+    for (const a of trad.attentes) sortie.attentes.push(a);
   }
 
   sortie.repli = sortie.ordres.length === 0 && sortie.actions.length === 0 && sortie.diplomatie.length === 0;

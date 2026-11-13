@@ -161,11 +161,12 @@
     "pivotUnit": "guerrier"
   },
   "defense": {
-    "_commentaire": "DEFENSE-VILLE-A (canon Erik 12/11, diag DIAG-DEFENSE-VILLE : 7 captures bot + 6 RAZES barbares dont 4 villes d'1-4 tours garnies d'un colon seul, prises SANS combat). L1 : toute ville compte ≥ seuilGarnison COMBATTANT SUR sa tuile (colon exclu — un colon ne défend pas, leçon p08). L2 : menace visible à ≤ menaceDist TOURS de MARCHE (BFS, portée réelle) d'une ville → RAPPEL des combattantes les plus proches ; HYSTÉRÉSIS sans état : le rappel ne se lève que quand plus aucune menace n'est visible à ≤ menaceDist + hysteresisMarge (bande de dissolution — pas de ping-pong, leçon OSCILLATION-MARCHE ; défendre une ville n'est pas de l'inactivité). L6 : fondation REFUSÉE sur tout site à ≤ fondationBarbareDist d'un barbare visible (« fondé sous les griffes, ce n'est pas un pari évalué »). A3 (13/11) : cooldownRappel — après DISSOLUTION d'une menace, le rappel défensif d'une même ville ne se ré-arme pas pendant N tours (ferme les cycles quitter/rentrer à la frontière de bande — diagnose A2 ; porté par le memo de tour, bots inchangés).",
+    "_commentaire": "DEFENSE-VILLE-A (canon Erik 12/11, diag DIAG-DEFENSE-VILLE : 7 captures bot + 6 RAZES barbares dont 4 villes d'1-4 tours garnies d'un colon seul, prises SANS combat). L1 : toute ville compte ≥ seuilGarnison COMBATTANT SUR sa tuile (colon exclu — un colon ne défend pas, leçon p08). L2 : menace visible à ≤ menaceDist TOURS de MARCHE (BFS, portée réelle) d'une ville → RAPPEL des combattantes les plus proches ; HYSTÉRÉSIS sans état : le rappel ne se lève que quand plus aucune menace n'est visible à ≤ menaceDist + hysteresisMarge (bande de dissolution — pas de ping-pong, leçon OSCILLATION-MARCHE ; défendre une ville n'est pas de l'inactivité). L6 : fondation REFUSÉE sur tout site à ≤ fondationBarbareDist d'un barbare visible (« fondé sous les griffes, ce n'est pas un pari évalué »). A3 (13/11) : cooldownRappel — après DISSOLUTION d'une menace, le rappel défensif d'une même ville ne se ré-arme pas pendant N tours (ferme les cycles quitter/rentrer à la frontière de bande — diagnose A2 ; porté par le memo de tour, bots inchangés). C (13/11) : seuilQuestionDef — la question défense dédiée (L5) est posée quand une ville est menacée à ≤ N tours de MARCHE.",
     "menaceDist": 3,
     "hysteresisMarge": 2,
     "fondationBarbareDist": 3,
     "seuilGarnison": 1,
-    "cooldownRappel": 5
+    "cooldownRappel": 5,
+    "seuilQuestionDef": 2
   }
 }

@@ -44,8 +44,13 @@ function analyser(fichier) {
   // ping-pong : dernier segment (unité) { fromKey→toKey } précédent
   const dernierSegment = new Map(); // id → { a, b }
   let pingPongs = [];
+  let pingPongsRappel = [];
   let fondationsSousGriffes = [];
   let fondations = 0;
+  // DEFENSE-VILLE-C · sonde — marqueurs de RAPPEL (defense_plan) : les
+  // oscillations des unités rappelées sont comptées SÉPARÉMENT du bruit.
+  const rappelsTour = new Map(); // tour → Set(unitId)
+  const dernierTourRappel = new Map(); // unitId → tour du dernier rappel
   // ennemis visibles du tour (condensé decision)
   const visiblesTour = new Map(); // tour → [{q,r,...}]
   for (const ligne of lignes) {
@@ -53,6 +58,12 @@ function analyser(fichier) {
     if (e.type === 'meta') { largeur = e.carte?.largeur ?? largeur; continue; }
     if (e.type === 'tour') { tour = e.tour; continue; }
     if (e.type === 'decision') { visiblesTour.set(e.tour, e.condense?.monde?.ennemisVisibles ?? []); continue; }
+    if (e.type === 'defense_plan' && e.genre === 'rappel') {
+      const ens = rappelsTour.get(e.tour) ?? new Set();
+      for (const uid of e.unites ?? []) { ens.add(uid); dernierTourRappel.set(uid, e.tour); }
+      rappelsTour.set(e.tour, ens);
+      continue;
+    }
     if (e.type === 'fin') { fin = e; continue; }
     const ev = e.evenement;
     if (!ev) continue;
@@ -76,10 +87,18 @@ function analyser(fichier) {
           };
           if (u.owner === 'p1' && (presDeVille(from) || presDeVille(to))) {
             pingPongs.push({ tour, unitId: ev.unitId, hexes: `${from}⇄${to}` });
+            // DEFENSE-VILLE-C — ISOLATION : imputable au rappel si l'unité
+            // était rappelée au tour du mouvement OU au tour du segment
+            // précédent (fenêtre de rappel).
+            const tPrec = dernierSegment.get(ev.unitId)?.tour ?? -99;
+            const sousRappel =
+              (rappelsTour.get(tour)?.has(ev.unitId) ?? false) ||
+              (rappelsTour.get(tPrec)?.has(ev.unitId) ?? false);
+            if (sousRappel) pingPongsRappel.push({ tour, unitId: ev.unitId, hexes: `${from}⇄${to}` });
           }
           dernierSegment.delete(ev.unitId); // un cycle compte une fois
         } else {
-          dernierSegment.set(ev.unitId, { a: from, b: to });
+          dernierSegment.set(ev.unitId, { a: from, b: to, tour });
         }
       }
       u.q = ev.to.q; u.r = ev.to.r;
@@ -112,22 +131,24 @@ function analyser(fichier) {
     }
     return acc;
   }, []);
-  return { fichier: fichier.split(/[\\/]/).pop(), fin, chutes, pingPongs, fondationsSousGriffes, fondations };
+  return { fichier: fichier.split(/[\/]/).pop(), fin, chutes, pingPongs, pingPongsRappel, fondationsSousGriffes, fondations };
 }
 
 const fichiers = readdirSync(dossier).filter((f) => f.endsWith('.jsonl')).sort();
-let totChutes = 0, totPp = 0, totFond = 0, totSousGriffes = 0, totElim = 0;
+let totChutes = 0, totPp = 0, totPpRappel = 0, totFond = 0, totSousGriffes = 0, totElim = 0;
 for (const f of fichiers) {
   const r = analyser(join(dossier, f));
   const elim = r.fin && r.fin.gagnant && r.fin.gagnant !== 'p1' && (r.fin.toursJoues ?? 999) < 75;
   if (elim) totElim += 1;
   totChutes += r.chutes.length;
   totPp += r.pingPongs.length;
+  totPpRappel += r.pingPongsRappel.length;
   totFond += r.fondations;
   totSousGriffes += r.fondationsSousGriffes.length;
   console.log(`\n=== ${r.fichier} — fin: gagnant=${r.fin?.gagnant} raison=${r.fin?.raisonVictoire} tours=${r.fin?.toursJoues}${elim ? '  ⚠ ÉLIMINATION PRÉCOCE' : ''}`);
   console.log(`  fondations p1: ${r.fondations} ; chutes p1: ${r.chutes.length} ${JSON.stringify(r.chutes)}`);
   console.log(`  ping-pong A⇄B: ${r.pingPongs.length} ${JSON.stringify(r.pingPongs)}`);
+  console.log(`  ping-pong IMPUTABLE au rappel (isolation C): ${r.pingPongsRappel.length} ${JSON.stringify(r.pingPongsRappel)}`);
   console.log(`  fondations sous les griffes (barbare visible d≤3): ${r.fondationsSousGriffes.length} ${JSON.stringify(r.fondationsSousGriffes)}`);
 }
 console.log(`\n===== TOTAUX (n=${fichiers.length}) =====`);
@@ -135,4 +156,5 @@ console.log(`chutes p1 (capturées + razées): ${totChutes}`);
 console.log(`éliminations précoces (<t75): ${totElim}`);
 console.log(`fondations p1: ${totFond} (${(totFond / Math.max(1, fichiers.length)).toFixed(1)}/partie)`);
 console.log(`ping-pong A⇄B: ${totPp}`);
+console.log(`ping-pong IMPUTABLE au rappel: ${totPpRappel}`);
 console.log(`fondations sous les griffes: ${totSousGriffes}`);

@@ -76,6 +76,11 @@
       "primitive": "choice",
       "instructions": "Qualification TACTIQUE d'une unité engageable (gate d'espérance du moteur — canon du 10/11). Pour l'unité présentée, choisissez UNE catégorie : jeGarde = cette unité protège quelque chose d'irremplaçable (capitale, colon, dernier défenseur — le moteur exigera le DOUBLE de gain pour la risquer) ; sacrificiable = unité échangeable, une perte acceptable pour un gain réel (le moteur acceptera la MOITIÉ du gain) ; positionDecisive = elle verrouille un passage ou une escorte décisive (comme jeGarde) ; aucun = pas de qualification particulière ce tour (le moteur calcule normalement).",
       "aucun": true
+    },
+    "defense": {
+      "primitive": "choice",
+      "instructions": "DEFENSE-VILLE · Une de nos villes est MENACÉE (unité(s) hostile(s) à portée de marche). Choisir LA réponse défense ce tour : 'rappeler' = les combattantes disponibles les plus proches MARCHENT vers la ville menacée (la garnison d=0 mécanique reste active) ; 'produireGuerrier' = mettre une unité de combat en production DANS la ville menacée ; 'tenir' = laisser la mécanique défensive décider seule ; 'abandonner' = NE PAS défendre cette ville (consigné — la ville pourra tomber).",
+      "aucun": false
     }
   },
   "seuils": {
@@ -130,5 +135,8 @@
     "techs": 30,
     "merveilles": 100,
     "divTresorerie": 10
+  },
+  "confianceParQuestion": {
+    "defense": 0.25
   }
 }
