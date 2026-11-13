@@ -160,3 +160,63 @@ describe('DEFENSE-VILLE-A · filtrerOrdresJevDefense (branchement identique, zé
     expect(filtrés).toEqual([{ type: 'Fortify', unitId: 'u1' }, { type: 'Move', unitId: 'u2', path: [{ q: 3, r: 3 }] }]);
   });
 });
+
+describe('DEFENSE-VILLE-A2 · marqueur d\u2019état de rappel (memo de tour — canon option (c))', () => {
+  it('DÉCLENCHEMENT canon : menace à d ≤ menaceDist (3) → rappel + marqueur POSÉ', () => {
+    const state = etatRaze();
+    const memo: Record<string, string> = {};
+    const plan = planDefenseVille(state, ME, profileDuBot(), memo);
+    expect(plan.rappels.get('u2')).toBe('c1');
+    expect(memo['u2']).toBe('c1');
+  });
+
+  it('menace qui n\u2019a JAMAIS été à ≤ 3 (apparaît à d=4, bande seulement) → PAS de nouveau rappel (trigger canon, rouge avant fix)', () => {
+    const state = etatRaze();
+    state.units['b1']!.q = 7;
+    state.units['b1']!.r = 3; // d=4 : bande seulement
+    const memo: Record<string, string> = {};
+    const plan = planDefenseVille(state, ME, profileDuBot(), memo);
+    expect(plan.rappels.size).toBe(0);
+    expect(Object.keys(memo).length).toBe(0);
+  });
+
+  it('HYSTÉRÉSIS à état : menace à d=4 MAIS marqueur actif → le rappel PERSISTE (tenu)', () => {
+    const state = etatRaze();
+    state.units['b1']!.q = 7;
+    state.units['b1']!.r = 3; // d=4 : hors trigger, dans la bande
+    const memo: Record<string, string> = { u2: 'c1' }; // rappel du tour précédent
+    const plan = planDefenseVille(state, ME, profileDuBot(), memo);
+    expect(plan.rappels.get('u2')).toBe('c1');
+    expect(memo['u2']).toBe('c1'); // toujours actif
+  });
+
+  it('DISSOLUTION : menace levée → marqueur CONSOMMÉ (supprimé), l\u2019unité reprend son ordre', () => {
+    const state = etatRaze();
+    state.units['b1']!.q = 0;
+    state.units['b1']!.r = 0;
+    const memo: Record<string, string> = { u2: 'c1', u1: 'c1' };
+    const plan = planDefenseVille(state, ME, profileDuBot(), memo);
+    expect(plan.rappels.size).toBe(0);
+    expect(plan.maintiens.size).toBe(0);
+    expect(memo).toEqual({}); // consommé
+  });
+
+  it('le MAINTIEN pose aussi le marqueur ; les unités mortes sont purgées du memo', () => {
+    const state = etatRaze();
+    state.units['u2']!.q = 7;
+    state.units['u2']!.r = 7; // sur la tuile : maintien
+    const memo: Record<string, string> = { u2: 'c1', fantome: 'c1' }; // fantôme = unité morte
+    const plan = planDefenseVille(state, ME, profileDuBot(), memo);
+    expect(plan.maintiens.get('u2')).toBe('c1');
+    expect(memo['u2']).toBe('c1');
+    expect(memo['fantome']).toBeUndefined(); // purgé
+  });
+
+  it('sans memo (bots) : comportement A2 bit-à-bit (bande = déclenchement)', () => {
+    const state = etatRaze();
+    state.units['b1']!.q = 7;
+    state.units['b1']!.r = 3; // d=4 : bande seulement
+    const plan = planDefenseVille(state, ME, profileDuBot());
+    expect(plan.rappels.get('u2')).toBe('c1'); // statu quo 2f95e59
+  });
+});

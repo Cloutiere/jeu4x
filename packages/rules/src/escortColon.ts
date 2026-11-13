@@ -175,15 +175,17 @@ export function risqueDeploiementColon(
 }
 
 /** Combattante amie NON embarquée, hors GARNISON (ni fortifiée ni dans une
- *  de mes villes) = disponible comme escorte dédiée. */
-function combattanteDisponible(state: GameState, joueurId: PlayerId): boolean {
+ *  de mes villes) = disponible comme escorte dédiée. DEFENSE-VILLE-A2 :
+ *  `exclues` (optionnel — défaut bit-à-bit) retire les unités RAPPELÉES par
+ *  le plan défensif — une escorte qui rentre en garnison ne protège plus. */
+function combattanteDisponible(state: GameState, joueurId: PlayerId, exclues?: ReadonlySet<string>): boolean {
   const villes = new Set(
     Object.values(state.cities)
       .filter((c) => c.owner === joueurId)
       .map((c) => `${c.q},${c.r}`),
   );
   return combattantesDe(state, joueurId).some(
-    (u) => !u.fortified && !villes.has(`${u.q},${u.r}`),
+    (u) => !u.fortified && !villes.has(`${u.q},${u.r}`) && !(exclues?.has(u.id) ?? false),
   );
 }
 
@@ -195,17 +197,21 @@ export function escorteEnPlace(
   state: GameState,
   joueurId: PlayerId,
   colon?: Unit,
+  // DEFENSE-VILLE-A2 — cohérence rappel × escort : les combattantes
+  // RAPPELÉES par planDefenseVille ne comptent plus (le pari se réévalue
+  // quand les conditions changent — canon escort étendu, Erik 12/11).
+  exclues?: ReadonlySet<string>,
 ): boolean {
   if (colon) {
     // Adjacente au sens du gate (positionCritique) : dist === 1. Une
     // combattante SUR la case du colon est une garnison de ville (le colon
     // attend déjà) — pas une escorte qui marchera avec lui.
     const adjacente = combattantesDe(state, joueurId).some(
-      (u) => u.id !== colon.id && hexDistanceW(u, colon, state.mapWidth) === 1,
+      (u) => u.id !== colon.id && hexDistanceW(u, colon, state.mapWidth) === 1 && !(exclues?.has(u.id) ?? false),
     );
     if (adjacente) return true;
   }
-  return combattanteDisponible(state, joueurId);
+  return combattanteDisponible(state, joueurId, exclues);
 }
 
 export type VerdictProductionColon =
@@ -223,10 +229,12 @@ export function deciderProductionColon(
   joueurId: PlayerId,
   site: { q: number; r: number },
   route?: Array<{ q: number; r: number }>,
+  // DEFENSE-VILLE-A2 : miroir escorteEnPlace — les rappelées ne protègent plus.
+  exclues?: ReadonlySet<string>,
 ): VerdictProductionColon {
   const risque = risqueDeploiementColon(state, joueurId, site, route);
   if (risque.niveau === 'faible') return { decision: 'autorise', escorte: false, risque };
-  if (escorteEnPlace(state, joueurId)) return { decision: 'autorise', escorte: true, risque };
+  if (escorteEnPlace(state, joueurId, undefined, exclues)) return { decision: 'autorise', escorte: true, risque };
   if (combattantesDe(state, joueurId).length === 0) {
     return { decision: 'pivot', pivot: escortColonDuBot().pivotUnit, risque };
   }
@@ -242,6 +250,9 @@ export function doitRappelerColon(
   joueurId: PlayerId,
   colon: Unit,
   route?: Array<{ q: number; r: number }>,
+  // DEFENSE-VILLE-A2 : une escorte RAPPELÉE (exclues) n'empêche plus le
+  // rappel du colon — il ne reste JAMAIS seul sur une route risquée.
+  exclues?: ReadonlySet<string>,
 ): boolean {
   const dansMaVille = Object.values(state.cities).some(
     (c) => c.owner === joueurId && c.q === colon.q && c.r === colon.r,
@@ -250,7 +261,7 @@ export function doitRappelerColon(
   const risque = risqueDeploiementColon(state, joueurId, colon, route);
   if (risque.niveau !== 'eleve') return false;
   const adjacente = combattantesDe(state, joueurId).some(
-    (u) => u.id !== colon.id && hexDistanceW(u, colon, state.mapWidth) <= 1,
+    (u) => u.id !== colon.id && hexDistanceW(u, colon, state.mapWidth) <= 1 && !(exclues?.has(u.id) ?? false),
   );
   return !adjacente;
 }

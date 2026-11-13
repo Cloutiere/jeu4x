@@ -33,6 +33,10 @@ import {
 import type { GameState } from '../src/state.js';
 
 const SITE = { q: 5, r: 5 };
+const ROUTE2 = [
+  { q: 3, r: 3 },
+  { q: 3, r: 4 },
+];
 const ROUTE = [
   { q: 2, r: 2 },
   { q: 3, r: 3 },
@@ -272,5 +276,58 @@ describe('JEV-ESCORTE · siteColonParDefaut (approximation géométrique du bot)
     };
     state.map['1,1'] = { terrain: 'ville', resource: null };
     expect(siteColonParDefaut(state, state.cities['cap']!)).toBeNull();
+  });
+});
+
+describe('DEFENSE-VILLE-A2 · cohérence rappel × escort — exclues (l\u2019escorte RAPPELÉE ne protège plus)', () => {
+  /** ColON en route + escorte adjacente + ennemi à portée du site. */
+  function etatColonneEscorte(): GameState {
+    const s = makeState({
+      width: 12,
+      height: 12,
+      players: ['jev', 'p2'],
+      rngSeed: 42,
+      cities: [{ id: 'cap', q: 0, r: 0, owner: 'jev', capital: true, pop: 2 }],
+      units: [
+        { id: 'col', type: 'colon', owner: 'jev', q: 2, r: 2 },
+        { id: 'esc', type: 'guerrier', owner: 'jev', q: 2, r: 3 }, // escorte adjacente
+        { id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 5, r: 4 }, // atteint le site (3,4)
+      ],
+    });
+    return s;
+  }
+
+  it('sans exclues : l\u2019escorte adjacente protège (comportement historique bit-à-bit)', () => {
+    const s = etatColonneEscorte();
+    expect(escorteEnPlace(s, 'jev', s.units['col']!)).toBe(true);
+    expect(doitRappelerColon(s, 'jev', s.units['col']!, ROUTE2)).toBe(false);
+  });
+
+  it('escorte RAPPELÉE (exclues) → escorte absente ET le colon doit être rappelé (rouge avant fix)', () => {
+    const s = etatColonneEscorte();
+    const exclues = new Set(['esc']);
+    expect(escorteEnPlace(s, 'jev', s.units['col']!, exclues)).toBe(false);
+    expect(doitRappelerColon(s, 'jev', s.units['col']!, ROUTE2, exclues)).toBe(true);
+  });
+
+  it('combattante DISPONIBLE rappelée (exclues) → ne compte plus comme escorte dédiée', () => {
+    const s = makeState({
+      width: 12,
+      height: 12,
+      players: ['jev', 'p2'],
+      rngSeed: 42,
+      cities: [{ id: 'cap', q: 0, r: 0, owner: 'jev', capital: true, pop: 2 }],
+      units: [
+        { id: 'col', type: 'colon', owner: 'jev', q: 2, r: 2 },
+        { id: 'lib', type: 'guerrier', owner: 'jev', q: 6, r: 6 }, // dispo, non adjacente
+        { id: 'b1', type: 'guerrier', owner: BARBARIAN_ID, q: 5, r: 4 },
+      ],
+    });
+    expect(escorteEnPlace(s, 'jev', s.units['col']!)).toBe(true); // dispo protège (historique)
+    expect(escorteEnPlace(s, 'jev', s.units['col']!, new Set(['lib']))).toBe(false);
+    const verdictSans = deciderProductionColon(s, 'jev', { q: 5, r: 4 });
+    const verdictAvec = deciderProductionColon(s, 'jev', { q: 5, r: 4 }, undefined, new Set(['lib']));
+    expect(verdictAvec.decision).not.toBe('autorise');
+    expect(verdictSans.decision).toBe('autorise'); // escorte dispo → autorisé (historique)
   });
 });

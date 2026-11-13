@@ -1217,23 +1217,37 @@ export interface PlanDefense {
 }
 
 /**
- * Plan défensif d'un tour : pour chaque ville dont une menace est visible
- * dans la bande d'HYSTÉRÉSIS (menaceDist + hysteresisMarge tours de MARCHE
- * — BFS portée réelle, miroir escortColon), la garnison manquante (L1 :
- * déficit au seuil data, colon exclu — leçon p08) est comblée par les
- * combattantes disponibles LES PLUS PROCHES ; les villes PLUS MENACÉES sont
- * servies d'abord (nb de menaces desc, puis ordre canonique — R-81). Les
- * membres de l'armée DE CAMPAGNE (loin de la capitale — même règle que
+ * Plan défensif d'un tour : pour chaque ville dont une menace est visible,
+ * la garnison manquante (L1 : déficit au seuil data, colon exclu — leçon
+ * p08) est comblée par les combattantes disponibles LES PLUS PROCHES ; les
+ * villes PLUS MENACÉES sont servies d'abord (nb de menaces desc, puis ordre
+ * canonique — R-81). Les membres de l'armée DE CAMPAGNE (même règle que
  * TB-SIEGE A2/B2 : la guerre prime sauf capitale assaillie, où planGarnison
  * B2 prend le relais) ne sont JAMAIS rappelés ; le scout l'est (la défense
- * surclasse la patrouille). Pur, déterministe. NOTE hystérésis : sans état
- * persisté (schemaVersion intacte), la bande de dissolution tient lieu de
- * mémoire — le rappel ne se lève que menace DISSOUTE.
+ * surclasse la patrouille). Pur, déterministe.
+ *
+ * DEFENSE-VILLE-A2 · MARQUEUR D'ÉTAT (canon Erik, option (c)) — `memo`
+ * (unitId → cityId, le memo Jev persisté — PAS une donnée de schema,
+ * schemaVersion 28 intacte) pose l'état « rappel en cours » :
+ *   - DÉCLENCHEMENT canon : une menace à ≤ menaceDist tours pose le rappel
+ *     ET le marqueur ;
+ *   - HYSTÉRÉSIS à état : un marqueur actif TIENT l'unité (rappel en route
+ *     ou maintien sur tuile) tant que sa ville garde une menace dans la
+ *     bande (≤ menaceDist + hysteresisMarge) — même si la menace est sortie
+ *     du rayon de déclenchement ;
+ *   - DISSOLUTION : plus aucune menace dans la bande → le marqueur est
+ *     CONSOMMÉ (supprimé) et l'unité reprend son ordre ;
+ *   - purge : marqueurs d'unités mortes/parties ou de villes perdues.
+ * SANS memo (bots — appel historique), la bande tient lieu de
+ * déclenchement : comportement 2f95e59 bit-à-bit (statu quo consigné).
  */
 export function planDefenseVille(
   state: GameState,
   me: PlayerId,
   profile: BotProfileData,
+  // DEFENSE-VILLE-A2 — memo de rappel (unitId → cityId), MUTÉ (pose /
+  // consomme les marqueurs). Absent : bots (statu quo sans état).
+  memo?: Record<string, string>,
 ): PlanDefense {
   const rappels = new Map<string, string>();
   const maintiens = new Map<string, string>();
@@ -1247,11 +1261,30 @@ export function planDefenseVille(
     .filter((c) => c.owner === me)
     .sort((a, b) => (a.capital !== b.capital ? (a.capital ? -1 : 1) : compareCityIds(a.id, b.id)));
 
-  // Menacées dans la bande d'hystérésis (dissolution inclusive).
+  // Purge du memo : unités mortes/parties/embarquées, villes perdues.
+  if (memo) {
+    for (const uid of Object.keys(memo)) {
+      const u = state.units[uid];
+      const ville = u ? state.cities[memo[uid]!] : undefined;
+      if (!u || u.owner !== me || u.aboard || !ville || ville.owner !== me) delete memo[uid];
+    }
+  }
+
+  // Menacées dans la bande d'hystérésis (dissolution inclusive) et dans le
+  // rayon de DÉCLENCHEMENT canon (trigger).
   const menacees = myCities
     .map((ville) => ({ ville, menaces: menacesVille(state, ville, me, d.menaceDist + d.hysteresisMarge) }))
     .filter((m) => m.menaces.length > 0);
-  if (menacees.length === 0) return { rappels, maintiens };
+  if (menacees.length === 0) {
+    // DISSOLUTION GÉNÉRALE — tous les marqueurs sont consommés.
+    if (memo) for (const uid of Object.keys(memo)) delete memo[uid];
+    return { rappels, maintiens };
+  }
+  const declenchees = new Set(
+    menacees
+      .filter((m) => menacesVille(state, m.ville, me, d.menaceDist).length > 0)
+      .map((m) => m.ville.id),
+  );
 
   // Canon BOT-EXPLORATION : le scout (première combattante, R-81) n'est
   // JAMAIS un défenseur — ni maintenu ni rappelé ici (sa mobilisation reste
@@ -1267,6 +1300,27 @@ export function planDefenseVille(
   const campagne = ennemis.size > 0 ? cibleCampagne(state, me, profile) : null;
   const armee = campagne ? assignerArmee(state, me, profile, campagne) : new Set<string>();
 
+  // A2 — HOLD (mémoire) : les marqueurs actifs dont la ville est encore
+  // menacée DANS LA BANDE tiennent l'unité (rappel en route ou maintien sur
+  // tuile) même hors rayon de déclenchement ; marqueur consommé sinon.
+  if (memo) {
+    for (const [uid, cityId] of Object.entries(memo)) {
+      const u = state.units[uid]!;
+      if (uid === scoutId || armee.has(uid) || !estCombattante(u)) {
+        delete memo[uid];
+        continue;
+      }
+      const encore = menacees.some((m) => m.ville.id === cityId);
+      if (!encore) {
+        delete memo[uid]; // dissolution — CONSOMMÉ, l'unité reprend son ordre
+        continue;
+      }
+      const ville = state.cities[cityId]!;
+      if (u.q === ville.q && u.r === ville.r) maintiens.set(uid, cityId);
+      else rappels.set(uid, cityId);
+    }
+  }
+
   // L1 — maintien : les combattantes déjà SUR la tuile d'une ville menacée
   // restent quand elles forment LA garnison minimale (≤ seuil — anti
   // ping-pong : c'est ELLES que le rappel amène ; au-delà du seuil, le
@@ -1276,14 +1330,24 @@ export function planDefenseVille(
       (u) => u.id !== scoutId && estCombattante(u) && u.q === m.ville.q && u.r === m.ville.r,
     );
     if (presentes.length === 0 || presentes.length > d.seuilGarnison) continue;
-    for (const u of presentes) maintiens.set(u.id, m.ville.id);
+    for (const u of presentes) {
+      maintiens.set(u.id, m.ville.id);
+      if (memo) memo[u.id] = m.ville.id;
+    }
   }
 
   // L2 — rappel : combler le déficit (seuil data), villes PLUS MENACÉES
-  // d'abord, combattantes AU PLUS PRÈS (tie id — R-81).
+  // d'abord, combattantes AU PLUS PRÈS (tie id — R-81). A2 : avec memo,
+  // seules les villes DÉCLENCHÉES (≤ menaceDist) recrutent — les marqueurs
+  // tiennent le reste ; sans memo, la bande déclenche (statu quo).
+  const villesRappel = memo ? menacees.filter((m) => declenchees.has(m.ville.id)) : menacees;
   const deficitDe = (m: { ville: City }): number =>
-    Math.max(0, d.seuilGarnison - [...maintiens.values()].filter((cid) => cid === m.ville.id).length);
-  const ordreVilles = [...menacees].sort(
+    Math.max(
+      0,
+      d.seuilGarnison -
+        [...maintiens.values(), ...rappels.values()].filter((cid) => cid === m.ville.id).length,
+    );
+  const ordreVilles = [...villesRappel].sort(
     (a, b) => b.menaces.length - a.menaces.length || compareCityIds(a.ville.id, b.ville.id),
   );
   for (const m of ordreVilles) {
@@ -1303,6 +1367,7 @@ export function planDefenseVille(
       }
       if (!best) break;
       rappels.set(best.id, m.ville.id);
+      if (memo) memo[best.id] = m.ville.id;
     }
   }
   return { rappels, maintiens };
@@ -1433,6 +1498,9 @@ export function assignerObjectifs(
   // BOT-GATE-ATTAQUE (Erik 10/11) : catégories tactiques Jev (L3) —
   // multiplicateur borné sur la valeur de l'attaquant, défaut ×1 (absent).
   categories?: Readonly<Record<string, string>>,
+  // DEFENSE-VILLE-A2 — memo de rappel (unitId → cityId) : branché pour le
+  // siège Jev (hystérésis à état) ; absent pour les bots (statu quo).
+  defenseMemo?: Record<string, string>,
 ): Map<string, Objectif> {
   const objectifs = new Map<string, Objectif>();
   const me = state.players[playerId];
@@ -1562,7 +1630,7 @@ export function assignerObjectifs(
   // garnison-drafts/campagne/chasse/exploration (garnison > rappel > escort
   // > exploration — canon 12/11 ; défendre une ville n'est pas de
   // l'inactivité). L'assautSurCapitale (B2) reste au-dessus via planGarnison.
-  const defense = planDefenseVille(state, playerId, profile);
+  const defense = planDefenseVille(state, playerId, profile, defenseMemo);
   // BOT-MARCHE · D2 : l'armée PERMANENTE en paix — calculée une fois (le
   // scout qui en fait partie ne patrouille plus, voir plus bas).
   const agressivite = agressiviteDe(me.civId);
@@ -2275,7 +2343,12 @@ export function botPolicy(
   // de l'attaquant). Absent/illisible → neutre (×1), le moteur calcule.
   // Record<string, string> volontaire : une catégorie inconnue/illisible
   // vaut neutre (×1) — multiplicateurCategorie rejette ce qu'elle ne connaît pas.
-  opts?: { categoriesTactiques?: Readonly<Record<string, string>> },
+  opts?: {
+    categoriesTactiques?: Readonly<Record<string, string>>;
+    // DEFENSE-VILLE-A2 — memo de rappel Jev (pose/consomme les marqueurs
+    // d'état « rappel en cours » — hystérésis à état, schemaVersion 28).
+    defenseRappelsMemo?: Record<string, string>;
+  },
 ): BotPlan {
   const orders: Order[] = [];
   const actions: BotAction[] = [];
@@ -2351,7 +2424,7 @@ export function botPolicy(
     if (cible) actions.push({ type: 'DeclareWar', player: cible });
   }
 
-  const objectifs = assignerObjectifs(state, playerId, profile, opts?.categoriesTactiques);
+  const objectifs = assignerObjectifs(state, playerId, profile, opts?.categoriesTactiques, opts?.defenseRappelsMemo);
   if (fondateurId) objectifs.set(fondateurId, { kind: 'tenir' as const });
 
   for (const unit of mine) {

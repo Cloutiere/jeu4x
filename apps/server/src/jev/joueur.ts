@@ -32,7 +32,7 @@ import {
   WONDERS,
 } from '@game/rules';
 import { condenserEtat, gainNetSite, sitesFondation, COMPOSANTS_VAISSEAU } from './condense.js';
-import { pasVersRoutier } from '../botPolicy.js';
+import { pasVersRoutier, planDefenseVille, profileDuBot } from '../botPolicy.js';
 
 type AnyEtat = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -276,10 +276,14 @@ function ordreMarcheColon(
   colon: AnyEtat,
   site: { q: number; r: number },
   chemin: AnyEtat[],
+  // DEFENSE-VILLE-A2 : unités rappelées par le plan défensif — exclues de
+  // l'escorte (le colon n'est JAMAIS laissé seul parce que son escorte a
+  // été rappelée en garnison).
+  exclues?: ReadonlySet<string>,
 ): { ordre: AnyEtat; attendu: string } | null {
   if (chemin.length === 0) return null;
   const risque = risqueDeploiementColon(etatFiltre, moi, site, chemin);
-  if (risque.niveau === 'faible' || escorteEnPlace(etatFiltre, moi, colon)) {
+  if (risque.niveau === 'faible' || escorteEnPlace(etatFiltre, moi, colon, exclues)) {
     return {
       ordre: { type: 'MultiStep', unitId: colon.id, path: chemin, final: 'foundCity' },
       attendu: `${chemin[0].q},${chemin[0].r}`,
@@ -296,7 +300,7 @@ function ordreMarcheColon(
   if (!refuge) return null;
   const step = pasVersRoutier(colon, etatFiltre, { q: refuge.q, r: refuge.r });
   if (!step) return null;
-  if (doitRappelerColon(etatFiltre, moi, colon, chemin)) {
+  if (doitRappelerColon(etatFiltre, moi, colon, chemin, exclues)) {
     return { ordre: { type: 'Move', unitId: colon.id, path: [step] }, attendu: `${step.q},${step.r}` };
   }
   return null;
@@ -980,6 +984,14 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
   // v5 CONTACT-GUERRE D1 : l'état de rencontre est mis à jour AVANT le
   // condensé (le bloc diplomatie lit memo.rencontres).
   majRencontres(etatFiltre, moi, memo);
+  // DEFENSE-VILLE-A2 — cohérence rappel × escort : le plan défensif est
+  // calculé sur l'état CONNU (avec le memo de rappel partagé — hystérésis
+  // à état) ; les unités rappelées/maintenues ne comptent PLUS comme
+  // escorte du colon (le pari se réévalue quand les conditions changent —
+  // canon escort étendu, Erik 12/11).
+  const memoDefenseRappels = (memo.defenseRappels ?? (memo.defenseRappels = {}));
+  const planDefenseJev = planDefenseVille(etatFiltre, moi, profileDuBot(), memoDefenseRappels);
+  const excluesDefense = new Set([...planDefenseJev.rappels.keys(), ...planDefenseJev.maintiens.keys()]);
   const condense = condenseJoueur(etatFiltre, moi, memo);
   // JEV-DECISIONNEL · D1 — l'acte mécanique PRÉCÈDE les questions (miroir
   // harnais bit-à-bit).
@@ -1094,7 +1106,7 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
           sortie.attentes.push({ genre: 'fondation', unitId: colon.id, case: cible.case });
         } else {
           const chemin = cheminVers(etatFiltre, moi, colon, { q: cq, r: cr });
-          const marche = ordreMarcheColon(etatFiltre, moi, colon, { q: cq, r: cr }, chemin);
+          const marche = ordreMarcheColon(etatFiltre, moi, colon, { q: cq, r: cr }, chemin, excluesDefense);
           if (marche) {
             sortie.ordres.push(marche.ordre);
             sortie.attentes.push({ genre: 'mouvement', unitId: colon.id, attendu: marche.attendu });
@@ -1114,7 +1126,7 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
           // si le pari est bon — risque ÉLEVÉ ET 0 combattante → PIVOT
           // guerrier ; 'attendre' → rien en file ce tour (le moteur décide
           // au-dessus de Jev — gainSite et `produire` inchangés).
-          const verdict = deciderProductionColon(etatFiltre, moi, { q: cq, r: cr });
+          const verdict = deciderProductionColon(etatFiltre, moi, { q: cq, r: cr }, undefined, excluesDefense);
           const pivotPossible =
             verdict.decision === 'pivot' &&
             canSetProduction({ kind: 'unit', id: verdict.pivot }, me?.techsUnlocked ?? [], capitale.buildings ?? [], me?.civId);
@@ -1146,7 +1158,7 @@ export async function tourJevJoueur(client: ClientJev, config: AnyEtat, etatFilt
           sortie.attentes.push({ genre: 'fondation', unitId: colon.id, case: site.case });
         } else {
           const chemin = cheminVers(etatFiltre, moi, colon, { q: cq, r: cr });
-          const marche = ordreMarcheColon(etatFiltre, moi, colon, { q: cq, r: cr }, chemin);
+          const marche = ordreMarcheColon(etatFiltre, moi, colon, { q: cq, r: cr }, chemin, excluesDefense);
           if (marche) {
             sortie.ordres.push(marche.ordre);
             sortie.attentes.push({ genre: 'mouvement', unitId: colon.id, attendu: marche.attendu });

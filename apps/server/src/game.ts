@@ -2228,7 +2228,13 @@ export class GameDO {
         // (memo persisté — jeGarde/sacrifiable/positionDecisive) borne la
         // valeur de ses attaquants dans le gate d'espérance.
         p.jev === true
-          ? { categoriesTactiques: this.jevEtat?.memo.categoriesTactiques ?? {} }
+          ? {
+              categoriesTactiques: this.jevEtat?.memo.categoriesTactiques ?? {},
+              // DEFENSE-VILLE-A2 — memo de rappel (hystérésis à état).
+              defenseRappelsMemo:
+                this.jevEtat?.memo.defenseRappels ??
+                (this.jevEtat ? (this.jevEtat.memo.defenseRappels = {}) : {}),
+            }
           : undefined,
       );
       for (const order of plan.orders) {
@@ -2272,7 +2278,12 @@ export class GameDO {
         // en garnison (menace visible dans la bande d'hystérésis) sont
         // retirés de la décision Jev — le plan bot défend (zéro nouvelle
         // question LLM ; miroir harnais partie.mjs).
-        const defenseJev = planDefenseVille(game, jevSeat, profileDuBot(this.meta.settings.botDifficulte));
+        const defenseJev = planDefenseVille(
+          game,
+          jevSeat,
+          profileDuBot(this.meta.settings.botDifficulte),
+          this.jevEtat?.memo.defenseRappels, // A2 — hystérésis à état
+        );
         const unitesDefense = new Set([...defenseJev.rappels.keys(), ...defenseJev.maintiens.keys()]);
         this.orders[jevSeat!] = filtrerOrdresJevDefense(this.orders[jevSeat!] ?? [], unitesDefense);
       }

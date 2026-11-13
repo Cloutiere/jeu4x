@@ -118,7 +118,12 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
     for (const id of joueurs) {
       if (etat.players[id]?.defeated) continue;
       const rng = createRng(botTurnSeed(seed, tour, id));
-      const plan = botPolicy(etat, id, rng);
+      // DEFENSE-VILLE-A2 : le siège Jev reçoit le memo de rappel (hystérésis
+      // à état) — les bots purs gardent le statu quo sans état.
+      const plan =
+        id === jev && memo.defenseRappels
+          ? botPolicy(etat, id, rng, undefined, { defenseRappelsMemo: memo.defenseRappels })
+          : botPolicy(etat, id, rng);
       ordres[id] = plan.orders;
       for (const action of plan.actions) actionsAppliquees.push({ id, action });
     }
@@ -204,7 +209,12 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
       // (miroir game.ts) : les Move/MultiStep/Attack des unités rappelées ou
       // maintenues en garnison sont retirés — le plan bot défend.
       {
-        const defenseJev = planDefenseVille(etat, jev, profileDuBot());
+        const defenseJev = planDefenseVille(
+          etat,
+          jev,
+          profileDuBot(),
+          memo.defenseRappels, // A2 — hystérésis à état
+        );
         const unitesDefense = new Set([...defenseJev.rappels.keys(), ...defenseJev.maintiens.keys()]);
         ordres[jev] = filtrerOrdresJevDefense(ordres[jev] ?? [], unitesDefense);
       }

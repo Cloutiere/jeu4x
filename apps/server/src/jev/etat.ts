@@ -34,6 +34,11 @@ export interface JevMemo {
    *  unitId → jeGarde/sacrifiable/positionDecisive (bornage ×0,5–×2 côté
    *  moteur). Nettoyé chaque tour sans qualification (neutre ×1). */
   categoriesTactiques?: Record<string, string>;
+  /** DEFENSE-VILLE-A2 (Erik 12/11) · marqueur d'état du RAPPEL défensif —
+   *  unitId → cityId tant que la menace n'est pas DISSOUTE (planDefenseVille
+   *  le pose et le consomme ; memo de tour, PAS une donnée de schema —
+   *  schemaVersion 28 intacte). */
+  defenseRappels?: Record<string, string>;
 }
 
 export interface JevEtat {
