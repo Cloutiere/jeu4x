@@ -81,7 +81,7 @@ describe('BOT-EXPLORATION · D1 — la première unité PATROUILLE (boucle, pas 
     let pos = { ...capitale };
     const vus: string[] = [];
     for (let i = 0; i < 14; i++) {
-      const wp = prochainWaypointPatrouille(capitale, pos, rayon, 8);
+      const wp = prochainWaypointPatrouille(capitale, pos, rayon, 8)!;
       vus.push(`${wp.q},${wp.r}`);
       pos = wp; // le scout atteint le waypoint puis vise le suivant
     }

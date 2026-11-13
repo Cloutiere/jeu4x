@@ -265,18 +265,68 @@ export function quotaCapitale(profile: BotProfileData, nbUnites: number, urgence
   return profile.garnisonsCapitale;
 }
 
+/** FIX-PRACTICABILITÉ (canon Erik 13/11 — levier L1 du diagnostic
+ *  DIAG-OSCILLATION-RESIDUELLE, prod NP8JEE) · Ensemble des cases atteignables
+ *  par un chemin TERRESTRE BFS depuis l'unité (wrap cylindrique canon
+ *  CARTE-RONDE T1, miroir pasVersRoutier — voisinage normalisé Est↔Ouest,
+ *  terrains passables pour la classe de l'unité ; navales : accès naval).
+ *  L'OCCUPATION n'entre PAS : la praticabilité est une propriété du terrain
+ *  (les unités bougent chaque tour — les exclure ferait des faux négatifs).
+ *  Pur, déterministe (BFS, voisinage trié R-81). */
+export function porteeMarcheTerrestre(state: GameState, unit: Unit): Set<string> {
+  const stats = UNIT_TYPES[unit.type];
+  const aquatic = stats?.aquatic === true;
+  const praticable = (h: { q: number; r: number }): boolean => {
+    const tile = state.map[`${h.q},${h.r}`];
+    if (!tile) return false;
+    if (aquatic) {
+      const access = TERRAINS[tile.terrain]?.navalAccess;
+      if (!access) return false;
+      return !(access === 'ocean' && stats?.navalAccess !== 'ocean');
+    }
+    return !!TERRAINS[tile.terrain]?.passable;
+  };
+  const vus = new Set<string>([`${unit.q},${unit.r}`]);
+  const queue: Array<{ q: number; r: number }> = [{ q: unit.q, r: unit.r }];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const voisins = DIRS.map(([dq, dr]) => normalizeHexW({ q: current.q + dq, r: current.r + dr }, state.mapWidth))
+      .sort((a, b) => a.q - b.q || a.r - b.r); // R-81
+    for (const n of voisins) {
+      const k = `${n.q},${n.r}`;
+      if (vus.has(k)) continue;
+      if (!praticable(n)) continue;
+      vus.add(k);
+      queue.push(n);
+    }
+  }
+  return vus;
+}
+
 /** D1 · Prochain WAYPOINT de patrouille : les 6 coins de l'anneau de rayon
  *  `rayon` autour de la capitale (ordre canonique des directions), visités
  *  en cycle — le coin suivant celui le plus proche du scout (tie-break :
  *  index le plus petit, R-81). Répétable : arrivé sur un coin, le scout vise
- *  le suivant → boucle infinie déterministe autour de la capitale. */
+ *  le suivant → boucle infinie déterministe autour de la capitale.
+ *  FIX-PRACTICABILITÉ (canon Erik 13/11, prod NP8JEE) : si un prédicat
+ *  `praticable` est fourni, les coins INPRATICABLES (ex. l'EAU d'un anneau
+ *  côtier — l'ancien sélecteur géométrique gelait le scout sur un waypoint
+ *  inatteignable) sont ÉCARTÉS AVANT le tir : le cycle ne porte que sur les
+ *  coins praticables, re-tir déterministe sur le prochain candidat du cycle.
+ *  AUCUN candidat praticable (capitale mono-tile insulaire) → `null` :
+ *  l'appelant applique le repli canon « jamais inactif » (objectif ⑤
+ *  explorer) au lieu d'un coin impossible. Sans prédicat (appel legacy,
+ *  tests géométriques) : comportement d'origine inchangé. */
 export function prochainWaypointPatrouille(
   capitale: { q: number; r: number },
   unit: { q: number; r: number },
   rayon: number,
   mapWidth: number,
-): { q: number; r: number } {
-  const coins = DIRS.map(([dq, dr]) => ({ q: capitale.q + dq * rayon, r: capitale.r + dr * rayon }));
+  praticable?: (h: { q: number; r: number }) => boolean,
+): { q: number; r: number } | null {
+  const coinsBruts = DIRS.map(([dq, dr]) => ({ q: capitale.q + dq * rayon, r: capitale.r + dr * rayon }));
+  const coins = praticable ? coinsBruts.filter(praticable) : coinsBruts;
+  if (coins.length === 0) return null;
   let k = 0;
   let bestD = Infinity;
   for (let i = 0; i < coins.length; i++) {
@@ -1814,9 +1864,22 @@ export function assignerObjectifs(
       capitale && !urgence && scoutId === unit.id && estCombattante(unit) &&
       !armee.has(unit.id) && !armeeProjetee.has(unit.id)
     ) {
-      const wp = prochainWaypointPatrouille(capitale, unit, profile.rayonPatrouille, state.mapWidth);
-      objectifs.set(unit.id, { kind: 'patrouiller', cible: wp });
-      continue;
+      // FIX-PRACTICABILITÉ (canon Erik 13/11, prod NP8JEE) : le waypoint de
+      // patrouille doit être PRATICABLE (portée de marche terrestre réelle).
+      // Ancien gel : anneau côtier 3/6 coins en mer → waypoint d'eau re-tiré
+      // à l'identique chaque tour → Hold, mp intactes, t11-14 (canon
+      // « jamais inactif » violé). AUCUN coin praticable → PAS de patrouille
+      // impossible : le scout tombe au classement ④ chasser / ⑤ explorer
+      // (repli jamais-inactif existant) — anti-recul et rappel D3 intouchés.
+      const portee = porteeMarcheTerrestre(state, unit);
+      const wp = prochainWaypointPatrouille(
+        capitale, unit, profile.rayonPatrouille, state.mapWidth,
+        (h) => portee.has(`${h.q},${h.r}`),
+      );
+      if (wp) {
+        objectifs.set(unit.id, { kind: 'patrouiller', cible: wp });
+        continue;
+      }
     }
 
     // ③ garnisonner (unités de combat terrestres seulement) — PAIX-RYTHME :
