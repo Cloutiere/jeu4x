@@ -2,7 +2,7 @@
 
 **Mission exécutée le 13/11 (canon Erik 13/11, handoff HANDOFF-DEFENSE-VILLE-B). Base : tranche C livrée `b96e401`, main `050f07f`. Le veto tourne À VUE (localisation L4/L5 en place).**
 
-**VERDICT : TOUS LES CRITÈRES D'ACCEPTATION SONT ATTEINTS — voir §4. Push + déploiement : §5.**
+**VERDICT : TOUS LES CRITÈRES D'ACCEPTATION SONT ATTEINTS — pushé (`c5eea46` + `e5cdf6d`), Deploy SUCCESS, prod 200 (voir §5).**
 
 ---
 
@@ -50,7 +50,7 @@ Toutes les marges dans les normes (le bot partagé subit le veto sans collapse ;
 
 ## 5. Push + déploiement
 
-À compléter après push (CI/Deploy à vérifier — canon re-run API si flocon wrangler, prod 200).
+Pushed : `c5eea46` (B) + rapport. **CI/Deploy : vérifiés** — run Deploy **SUCCESS** (`43501565165`, sur `e5cdf6d`, premier passage — pas de flocon wrangler) et **prod 200** (`https://game-4x-server-prod.erik-ai-studio.workers.dev/`). Symboles vérifiés (`git show` + grep : `vetoProductionDefensif`, `pivotProductionDefensive`, `appliquerVetoProduction`).
 
 ## 6. Fin du plan défense-de-ville (A + A2 + A3 + B + C)
 
