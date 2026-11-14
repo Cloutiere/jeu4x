@@ -326,17 +326,14 @@ describe('D2-POSTURE · postureAssautSiege (posture des armées)', () => {
     expect(exempt.size).toBe(0);
   });
 
-  it('D2-collision pour TOUS, armée comprise : atterrir sur une case d\u2019arrivée ennemie reste REFUSÉ (non-régression)', () => {
+  it('COLLISION-MOBILE amende le canon : la tuile de la ville GARNISONNÉE n\u2019est plus une « arrivée » — l\u2019assaut volontaire passe (le moteur juge l\u2019entrée)', () => {
     const state = etatGuerre();
     // a3 (11,0) — membre exempté — pas vers (12,0), case de la garnison :
-    // dans la portée d'arrivée de d1/d2 → REFUSÉ même exempté (collision
-    // universelle — GZJQZX protégé).
-    const ordres = filtrerAntiCollision(
-      [{ type: 'Move', unitId: 'a3', path: [{ q: 12, r: 0 }] } as Order],
-      state,
-      P1,
-    );
-    expect(ordres[0]!.type).toBe('Fortify');
+    // d1/d2 sont garnison canon (mobiles-seulement) → pas une menace
+    // d'arrivée ; l'entrée sur la tuile est un ASSAUT VOLONTAIRE que le
+    // moteur juge (bataille complète R-183), le gate régule l'émission.
+    const move: Order = { type: 'Move', unitId: 'a3', path: [{ q: 12, r: 0 }] };
+    expect(filtrerAntiCollision([move], state, P1)).toEqual([move]);
   });
 
   it('DERNIÈRE combattante de l\u2019empire en guerre → JAMAIS exemptée (leçon GZJQZX : sa mort ouvre la capitale)', () => {
@@ -371,6 +368,87 @@ describe('D2-POSTURE · postureAssautSiege (posture des armées)', () => {
         if (or.unitId !== 'u4') continue;
         for (const s of or.path) expect(`${s.q},${s.r}`).not.toBe('19,22');
       }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// COLLISION-MOBILE (canon Erik 14/11, levier « (a') ennemis mobiles
+// seulement » — suite de D2-POSTURE) : la portée d'arrivée qui alimente la
+// collision ne compte que les ennemis MOBILES — ni FORTIFIÉS, ni en
+// GARNISON CANON (dans une de SES villes) : une garnison tient sa tuile,
+// elle n'« arrive » nulle part. GZJQZX reste protégé (u27 mobile). Le siège
+// reprend : le défenseur garnisonné n'est pas une menace d'arrivée.
+// Sortie de garnison = guerre normale (hors périmètre collision).
+// ---------------------------------------------------------------------------
+describe('COLLISION-MOBILE · portée d\u2019arrivée = ennemis mobiles seulement', () => {
+  it('pas adjacent à une ville ENNEMIE garnisonnée → AUTORISÉ (le siège reprend — rouge avant fix)', () => {
+    const state = etatGuerre();
+    // a1 (10,0) → (11,0) : tuile adjacente à la ville garnie c9 (12,0) —
+    // d1/d2 sont EN VILLE (garnison canon) : pas une menace d'arrivée.
+    const move: Order = { type: 'Move', unitId: 'a1', path: [{ q: 11, r: 0 }] };
+    expect(filtrerAntiCollision([move], state, P1)).toEqual([move]);
+  });
+
+  it('le MÊME défenseur MOBILE (hors ville, non fortifié) → pas REFUSÉ (GZJQZX inchangé)', () => {
+    const state = etatGuerre();
+    state.units['d1']!.q = 10;
+    state.units['d1']!.r = 1; // mobile, en champ
+    delete state.units['d2'];
+    // a1 (10,0) → (11,0) : (11,0) est dans la portée d'arrivée de d1 mobile.
+    const move: Order = { type: 'Move', unitId: 'a1', path: [{ q: 11, r: 0 }] };
+    const ordres = filtrerAntiCollision([move], state, P1);
+    expect(ordres[0]!.type).toBe('Fortify');
+  });
+
+  it('défenseur FORTIFIÉ hors ville → pas autorisé (fortifié = tient sa tuile, n\u2019arrive nulle part)', () => {
+    const state = etatGuerre();
+    state.units['d1']!.q = 11;
+    state.units['d1']!.r = 1;
+    state.units['d1']!.fortified = true;
+    delete state.units['d2'];
+    // (11,0) est adjacent à d1 fortifié — fortifié = pas une menace d'arrivée.
+    const move: Order = { type: 'Move', unitId: 'a1', path: [{ q: 11, r: 0 }] };
+    expect(filtrerAntiCollision([move], state, P1)).toEqual([move]);
+  });
+
+  it('atterrir SUR la case d\u2019un ennemi mobile reste REFUSÉ (cohabitation — universal)', () => {
+    const state = etatGuerre();
+    state.units['d1']!.q = 10;
+    state.units['d1']!.r = 1;
+    delete state.units['d2'];
+    // La tuile de d1 elle-même reste « dans sa portée » (distance 0) —
+    // atterrir dessus = cohabitation forcée : refusé pour tous.
+    const ordres = filtrerAntiCollision(
+      [{ type: 'Move', unitId: 'a1', path: [{ q: 10, r: 1 }] } as Order],
+      state,
+      P1,
+    );
+    expect(ordres[0]!.type).toBe('Fortify');
+  });
+
+  it('D2-approche postureAssautSiege INCHANGÉE (exonération d\u2019effectif conservée)', () => {
+    const state = etatGuerre();
+    expect(postureAssautSiege(state, P1, profileDuBot()).size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('30 seeds : GZJQZX t36 (u27 MOBILE qui marche) reste REFUSÉ, siège garnisonné autorisé (invariants)', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      void seed;
+      // GZJQZX : u27 mobile qui marche → le pas fatal reste refusé.
+      const g = etatGZJQZX(seed);
+      const memo: Record<string, number> = { u4: 1 };
+      const plan = botPolicy(g, ME, createRng(botTurnSeed(seed, 36, ME)), undefined, { antiCollisionMemo: memo });
+      for (const o of plan.orders) {
+        if (o.type !== 'Move' && o.type !== 'MultiStep') continue;
+        const or = o as { unitId: string; path: Array<{ q: number; r: number }> };
+        if (or.unitId !== 'u4') continue;
+        for (const s of or.path) expect(`${s.q},${s.r}`).not.toBe('19,22');
+      }
+      // Siège : le pas vers la ville garnisonnée reste autorisé.
+      const guerre = etatGuerre();
+      const move: Order = { type: 'Move', unitId: 'a1', path: [{ q: 11, r: 0 }] };
+      expect(filtrerAntiCollision([move], guerre, P1)).toEqual([move]);
     }
   });
 });

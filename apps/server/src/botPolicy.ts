@@ -1671,6 +1671,20 @@ function pasAntiCollisionFatal(
   return false;
 }
 
+/** COLLISION-MOBILE (canon Erik 14/11, levier « (a') ennemis mobiles
+ *  seulement ») · Un ennemi est MOBILE s'il n'est NI fortifié (Fortify
+ *  R-33 — il tient sa tuile), NI en GARNISON CANON (sur la tuile d'une de
+ *  SES villes — L1 défense : la garnison tient, elle n'« arrive » nulle
+ *  part). Une garnison peut SORTIR (attaque du défenseur) — c'est la guerre
+ *  normale, pas une collision forcée à pièce de face (hors périmètre).
+ *  GZJQZX reste protégé : u27 mobile qui marche → menace d'arrivée. Pur. */
+function estEnnemiMobile(state: GameState, e: Unit): boolean {
+  if (e.fortified) return false;
+  return !Object.values(state.cities).some(
+    (c) => c.owner === e.owner && c.q === e.q && c.r === e.r,
+  );
+}
+
 /**
  * D2 · Pré-filtre de TRAJECTOIRE (pur) : les Move/MultiStep d'une
  * COMBATTANTE dont un pas est fatal (pasAntiCollisionFatal) sont tronqués au
@@ -1696,11 +1710,13 @@ export function filtrerAntiCollision(
   // fois — ses membres gardent l'approche du siège (D2-approche éteinte) ;
   // D2-collision reste UNIVERSAL (armées comprises).
   const exemptsApproche = postureAssautSiege(state, me, profile);
-  // Portée d'ARRIVÉE 1 tour de chaque ennemi connu (distanceArrivee ×
-  // mouvement — le transit ignore les unités : la réachabilité du terrain,
-  // miroir porteeMarche).
+  // Portée d'ARRIVÉE 1 tour des ennemis connus MOBILES (COLLISION-MOBILE —
+  // les fortifiés et garnisons canon tiennent leur tuile, n'« arrivent »
+  // nulle part) ; distanceArrivee × mouvement — le transit ignore les
+  // unités : la réachabilité du terrain, miroir porteeMarche.
   const arrivee = new Set<string>();
   for (const e of ennemis) {
+    if (!estEnnemiMobile(state, e)) continue;
     const mouvement = UNIT_TYPES[e.type]?.movement ?? 1;
     for (const k of porteeMarche(state, e, cfg.distanceArrivee * mouvement).keys()) arrivee.add(k);
   }
