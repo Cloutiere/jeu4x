@@ -71,47 +71,49 @@ Il n'existe **PAS d'autre canal** : les accumulateurs GP à rendement sont ABROG
 
 **Sanctuaire** (canon plausible : l'ancêtre pré-Temple du sanctuaire/shrine des Civilization ; CivRev n'en a pas, mais rien dans les docs d'Erik ne l'interdit — il comble un trou que CivRev comblait par le Temple lui-même, disponible plus tôt chez eux via le rythme de recherche).
 
-**Effet proposé : `culturePerCitizen: 1`** — « +1 Culture par citoyen et par tour ». Réutilise le champ existant : **zéro ligne de moteur**, cohérent avec le Temple (même scalaire démographique, exemple canon : 20 pop × Cathédrale = 40 🔶).
+**Effet proposé (rév. 14/11) : `cultureFlat: 1`** — « **+1 Culture par tour**, indépendant de la population » : strictement ≤ Temple (`+1 × pop`) dès pop 1, moitié dès pop 2 — moins puissant ET moins cher (20 vs 40), conforme au retour d'Erik. Nouveau champ data-driven (~10 lignes moteur).
 
-- Interactions héritées gratuitement et **cohérentes** : Stonehenge ×1,5 s'applique (lignée Temple — le Sanctuaire rejoint cette lignée), Monarchie ne l'affecte pas (part Palais seule), Communisme l'annule (part `culturePerCitizen` — même logique religieuse 🔶 à confirmer par Erik), Théâtre ×2 s'applique.
-- **Ne dupe aucune merveille** : Stonehenge reste un multiplicateur (il devient même plus intéressant), Magna Carta/Théâtre jouent d'autres parts. Aucune merveille existante n'a d'effet « culture flat précoce » à dupe.
+- Interactions **cohérentes et canon-friendly** : Stonehenge ne le multiplie PAS (champ flat, hors lignée Temple/Cathédrale — le Temple reste l'achat qui profite de la merveille), Monarchie ne l'affecte pas (part Palais seule), **Communisme ne l'annule pas** (bâtiment civil, pas religieux), Théâtre ×2 s'applique (part totale de la ville).
+- **Ne dupe aucune merveille** : Stonehenge reste le multiplicateur de la lignée Temple, Magna Carta/Théâtre jouent d'autres parts. Aucune merveille existante n'a d'effet « culture flat précoce » à dupe.
 
 ### Coût en marteaux calibré
 
-Les bâtiments de début sont tous à **40** (Grenier/poterie, Caserne/travail_du_bronze, Bibliothèque/alphabet, Temple/rites_funeraires). **Proposition : 40 marteaux, sans tech.**
+> **Rév. 14/11 (retour Erik)** : le premier placement proposé (40 marteaux, +1 × pop — le même ticket que le Temple) a été REFUSÉ : Erik veut un bâtiment **moins puissant ET moins cher** que le Temple. La proposition est révisée ci-dessous.
 
-À ~4-5 marteaux/tour (ville type t10, pop 3 sur tuiles normales), 40 marteaux ≈ **8-10 tours de production** ≈ renoncer à ~2 guerriers ou à un Grenier. C'est le même ticket d'entrée que tout bâtiment de début : la balance naturelle reste le coût d'opportunité des marteaux.
+Les bâtiments de début sont tous à **40** (Grenier/poterie, Caserne/travail_du_bronze, Bibliothèque/alphabet, Temple/rites_funeraires). **Proposition révisée : 20 marteaux, sans tech** — un nouveau palier de prix, volontairement sous la table existante (moitié du ticket standard, ~4-5 tours de production à ~4-5 marteaux/tour, soit renoncer à **1 guerrier**).
 
 ### Argument d'équilibre (pourquoi ça ne casse pas science/domination)
 
-- **Coût d'opportunité chiffré** : 40 marteaux = 2 guerriers (40) ou 1 Grenier. Au banc, un bot qui bâtit un Sanctuaire dans chaque ville paie ~40 × nVilles marteaux étalés sur les tours 10-60 — soit concrètement **2-3 unités militaires ou 1-2 bâtiments éco en moins par ville** sur la fenêtre critique d'expansion/défense (t10-t60). La voie domination n'est pas affaiblie en soi : c'est le joueur qui choisit de payer.
-- **Le rendement reste modeste** : +1 × pop ≈ +3 culture/tour à pop 3 — comparable au Palais. Ça double la vitesse vers le 1ᵉʳ palier dans une ville dédiée, ça ne l'explose pas (seuil 2ᵉ palier = 267, 3ᵉ = 417, croissance +33 %).
+- **Strictement dominé par le Temple** : `+1 flat` ≤ Temple dès pop 1, moitié du Temple dès pop 2, tiers dès pop 3. Le Temple reste l'achat culture de référence ; le Sanctuaire est le premier cran, pas un doublon.
+- **Coût d'opportunité chiffré** : 20 marteaux = **1 guerrier** ou la moitié d'un Grenier. Un bot qui en bâtit un par ville paie 20 × nVilles marteaux sur t10-t60 — visible mais léger ; la voie domination n'est pas affaiblie en soi : c'est le joueur qui choisit de payer.
+- **Le rendement reste modeste** : +1/tour par ville. Une capitale pop 3 passe de 3 à 4/tour (+33 %) ; le 1ᵉʳ palier (150) gagne quelques tours, il n'explose pas (seuil 2ᵉ = 267, croissance +33 %). Avec n villes Sanctuarisées, l'empire gagne +n/tour — c'est LÀ que l'effet se voit (3 villes = +3/tour, ~la moitié d'un Palais), et c'est le vrai arbitrage : **étendre pour Sanctuariser vs s'armer**.
 - **La victoire culturelle reste un parcours complet** : 20 jalons = paliers (cumul 8 067) + merveilles + conversions ; le Sanctuaire rapproche le DÉBUT du parcours, pas la fin (ONU 500 marteaux, inchangée).
-- **Symétrie défensive** : un adversaire qui investit dans la culture a moins d'armée — c'est le même arbitrage que CivRev, fidélité canon.
+- **Symétrie défensive** : un adversaire qui investit dans la culture a moins d'armée — le même arbitrage que CivRev, fidélité canon.
 
-### Implémentation data-driven (ampleur : MINEURE)
+### Implémentation data-driven (ampleur : MINEURE — un cran au-dessus de la rév. 1)
 
-1. **`packages/rules/src/data/buildings.json`** : 1 entrée `{ id: 'sanctuaire', name: 'Sanctuaire', cost: 40, workRadiusBonus: 0, tileBonus: null, tech: null, culturePerCitizen: 1, effect: '+1 Culture par citoyen et par tour' }`. `tech: null` → disponible d'office au menu (comme la Galère).
-2. **Moteur : AUCUNE modification** — `cultureGains` lit déjà `culturePerCitizen` pour tout bâtiment (`culture.ts:301`) ; production/HTTP/UI/web remontent les bâtiments par la table existante.
-3. **Tests** : compléter l'intégrité de table de `data.test.ts` (ids uniques, coût > 0) — automatique ; +1 test de calcul (`culture.test.ts` : ville pop 3 + Sanctuaire = Palais-part + 3).
-4. **Piège à trancher avant impl** : le Communisme annulera le Sanctuaire avec les Temples (même champ). Si Erik le veut immunisé (bâtiment civil, pas religieux), il faudrait un champ séparé (~5 lignes moteur) — recommandation : **NON**, garder la lignée religieuse unique (cohérence canon Communisme = anti-culture).
-5. Estimation : **~30 minutes de code et tests**, zéro migration (`schemaVersion` inchangé — données pures).
+1. **`packages/rules/src/data/buildings.json`** : 1 entrée `{ id: 'sanctuaire', name: 'Sanctuaire', cost: 20, workRadiusBonus: 0, tileBonus: null, tech: null, cultureFlat: 1, effect: '+1 Culture par tour' }`. `tech: null` → disponible d'office au menu (comme la Galère).
+2. **Moteur : ~10 lignes** — nouveau champ `cultureFlat?: number` sur l'interface Building (`types.ts`, à côté de `culturePerCitizen` culture.ts:136) + `flat += b.cultureFlat ?? 0` dans `cultureGains` (`culture.ts:291-301`). C'est le champ FLAT de la formule (pas la part `culturePerCitizen`) : **Stonehenge ne le multiplie PAS** (il reste fidèle à la lignée Temple), le Théâtre ×2 s'applique (part totale).
+3. **Tests** : intégrité de table (`data.test.ts` — automatique) ; +1 test de calcul (`culture.test.ts` : ville pop 3 + Sanctuaire = Palais-part + 1, indépendant de pop).
+4. **Interactions government** : le flat n'étant PAS dans la part `culturePerCitizen`, **le Communisme ne l'annule PAS** et la Monarchie ne l'affecte pas — cohérent (bâtiment civil, pas religieux) et obtenu gratuitement par le choix du champ. Anarchie gèle tout (déjà le cas, `turn.ts:4657`).
+5. Estimation : **~30-45 minutes de code et tests**, zéro migration (`schemaVersion` inchangé — champ optionnel en données).
 
 ### Plan de banc
 
 - **Banc existant** : le banc bot 40×3 (même harnais que les bancs défense, budget ≤ 0,60 $) mesure par partie : culture cumulée empire par ère, **tour du 1ᵉʳ palier** (`CultureMilestone reason 'cultureLevel'` dans la trace), nombre de paliers/jalons à t100 et fin de partie.
 - **Critère proposé pour Erik** : le 1ᵉʳ palier culturel tombe **avant t60** (contre ~t100+ sans le bâtiment) dans ≥ 2 parties/3, sans régression des métriques défense (chutes ≤ 2, fondations ≥ 5) ni victoire science.
 - ⚠ **Rappel du handoff** : au banc, la victoire culturelle reste **humaine seulement** (filtres bots + seuils 20 jalons — T3-ONU) ; le banc ne mesure donc PAS de victoires culturelles, seulement la **progression du canal** (paliers, culture/tour, tour du 1ᵉʳ GP). L'arbitrage final « est-ce que la voie s'ouvre » se fera à l'œil en prod (Erik vs Jev).
+- 🔶 **Risque honnête** : à +1 flat, l'effet au banc peut être invisible (le bot n'a que 1-2 villes t10-t40). C'est le prix de l'équilibre demandé ; le critère banc ci-dessus peut devoir être assoupli (1ᵉʳ palier avant t80) ou l'évaluation basculer à l'œil en prod.
 
 ### 3 variantes de calibrage — Erik tranche UN chiffre
 
 | Variante | Coût | Effet | Profil | Recommandation |
 |---|---|---|---|---|
-| **V1 — faible/coût bas** | **30 marteaux** | +1 × pop /tour | Entrée quasi gratuite, visible t10 ; le plus sûr pour la praticabilité bot (le bot l'achète sans casser son éco) | 🔶 bonne si Erik veut voir l'effet AU BANC dès les premières parties |
-| **V2 — moyenne (recommandée)** | **40 marteaux** | +1 × pop /tour | Aligné sur Grenier/Temple/Bibliothèque — le placement canon des bâtiments de début ; arbitrage marteaux réel | ✅ **RECOMMANDÉE** : même ticket que la table existante, équilibre prouvé par la structure du jeu |
-| **V3 — forte/coût élevé** | 60 marteaux | +1 × pop /tour **mais** aussi +2 culture flat /tour (champ `cultureFlat` nouveau, ~10 lignes moteur) | Vraie accélération du 1ᵉʳ palier (pop 3 : 3→5+/tour) ; ouvre le flat-culture pour de futurs bâtiments/merveilles | la plus puissante, coût d'impl plus élevé ; à réserver si V2 s'avère invisible au banc |
+| **V1 — mince (recommandée)** | **20 marteaux** | **+1 culture flat /tour** | Nouveau palier de prix sous la table, moitié du Temple à pop 2+ ; 1 guerrier d'arbitrage | ✅ **RECOMMANDÉE** : exactement « moins puissant ET moins cher que le Temple », échelle de progression lisible (Sanctuaire 20 → Temple 40 → Cathédrale 160) |
+| **V2 — intermédiaire** | **30 marteaux** | **+1 culture flat /tour** | Entre guerrier (20) et bâtiments standard (40) ; lisible aussi, mais crée un 3ᵉ palier de prix | 🔶 si V1 paraît trop gratuit à l'œil |
+| **V3 — mince citoyen** | **20 marteaux** | **+0,5 × pop /tour** (arrondi au plus proche, pop 2-3 = +1) | Croît avec la pop mais reste ≤ Temple ; moins lisible en UI (arrondi) | à réserver si le flat paraît trop rigide |
 
-**Recommandation argumentée : V2 (40 marteaux, +1/citoyen).** Raison : c'est le seul placement qui ne crée pas un nouveau palier de prix (tous les bâtiments précoces sont à 40) et qui réutilise le champ moteur existant — zéro code, équilibre garanti par la symétrie avec le Temple. Si le banc montre que le bot n'achète jamais (le veto production défensive montre qu'il arbitre déjà), la manette de calibrage suivante est le COÛT (30) — pas l'effet.
+**Recommandation argumentée : V1 (20 marteaux, +1 flat).** Raison : elle répond exactement à la contrainte d'Erik (dominée par le Temple sur les deux axes : prix 20 < 40, effet +1 ≤ +pop dès pop 1), elle crée une **échelle de prix lisible** (20 → 40 → 160) qui matérialise la progression culturelle, et le champ flat laisse le Communisme/Stonehenge intouchés (cohérence canon). Manettes de calibrage suivantes si le banc est invisible : le COÛT (30) ou l'EFFET (V3), jamais les deux.
 
 ---
 
