@@ -26,6 +26,7 @@ import {
   botTurnSeed,
   filtrerAntiCollision,
   planAntiCollision,
+  postureAssautSiege,
   profileDuBot,
 } from '../src/botPolicy.js';
 import type { Order } from '@game/rules';
@@ -260,5 +261,116 @@ describe('ANTICOLLISION-CHASSE · botPolicy bout-en-bout', () => {
     const p2 = botPolicy(state, ME, createRng(botTurnSeed(7, 36, ME)), undefined, { antiCollisionMemo: m2 });
     expect(JSON.stringify(p1.orders)).toBe(JSON.stringify(p2.orders));
     expect(m1).toEqual(m2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D2-POSTURE (canon Erik 14/11, HANDOFF-D2-POSTURE — découpage validé « je
+// valide ce découpage ») : D2 se SPLITTE en deux moitiés posturales —
+//   D2-collision : UNIVERSAL inchangé (jamais atterrir SUR une case où un
+//     ennemi connu peut arriver ce même tour — le fix GZJQZX protège tout le
+//     monde, armées comprises) ;
+//   D2-approche (d≤1 d'un plus fort/égal) : POSTURE-DÉPENDANTE — éteinte
+//     pour les ARMÉES DE CAMPAGNE en guerre déclarée (effectif au rayon ≥
+//     antiCollision.effectifCampagne — le seuil TB-SIEGE), active pour les
+//     unités seules ou en posture défensive ; exception conservée : la
+//     DERNIÈRE combattante reste soumise à D2-approche même en guerre.
+// ---------------------------------------------------------------------------
+const P1 = 'p1';
+const P2 = 'p2';
+
+/** Guerre déclarée p1↔p2 (makeState : toutes les paires en guerre par
+ *  défaut) — capitale p1 (2,0), ville-campagne p2 c9 (12,0) garnie de
+ *  vétérans (plus forts), armée p1 réunie au rayon de ralliement 2. */
+function etatGuerre(opts: { membres?: number; c9Garnison?: boolean } = {}): GameState {
+  const membres = opts.membres ?? 6;
+  const spots: Array<[number, number]> = [[10, 0], [10, 1], [11, 0], [11, 1], [11, 2], [12, 2]];
+  const units: Array<{ id: string; type: string; owner: string; q: number; r: number; veteran?: boolean }> =
+    Array.from({ length: membres }, (_, i) => ({
+      id: `a${i + 1}`,
+      type: 'guerrier',
+      owner: P1,
+      q: spots[i % spots.length]![0],
+      r: spots[i % spots.length]![1],
+    }));
+  if (opts.c9Garnison !== false) {
+    units.push({ id: 'd1', type: 'guerrier', owner: P2, q: 12, r: 0, veteran: true });
+    units.push({ id: 'd2', type: 'guerrier', owner: P2, q: 12, r: 0, veteran: true });
+  }
+  return makeState({
+    width: 30,
+    height: 30,
+    fill: 'plaine',
+    rngSeed: 5,
+    players: [P1, P2],
+    cities: [
+      { id: 'c1', q: 2, r: 0, owner: P1, pop: 2, capital: true },
+      { id: 'c9', q: 12, r: 0, owner: P2, pop: 2, capital: true },
+    ],
+    units,
+  }) as GameState;
+}
+
+describe('D2-POSTURE · postureAssautSiege (posture des armées)', () => {
+  it('armée de campagne RÉUNIE (effectif ≥ effectifCampagne) en guerre déclarée → membres EXEMPTÉS de D2-approche (rouge avant fix)', () => {
+    const state = etatGuerre();
+    const exempt = postureAssautSiege(state, P1, profileDuBot());
+    expect(exempt.size).toBeGreaterThanOrEqual(4); // effectifCampagne = 4
+    expect(exempt.has('a1')).toBe(true);
+    expect(exempt.has('a3')).toBe(true);
+  });
+
+  it('armée ENTIÈRE (effectif < effectifCampagne) → AUCUN exempté (posture défensive : D2-approche active)', () => {
+    const state = etatGuerre({ membres: 2 });
+    const exempt = postureAssautSiege(state, P1, profileDuBot());
+    expect(exempt.size).toBe(0);
+  });
+
+  it('D2-collision pour TOUS, armée comprise : atterrir sur une case d\u2019arrivée ennemie reste REFUSÉ (non-régression)', () => {
+    const state = etatGuerre();
+    // a3 (11,0) — membre exempté — pas vers (12,0), case de la garnison :
+    // dans la portée d'arrivée de d1/d2 → REFUSÉ même exempté (collision
+    // universelle — GZJQZX protégé).
+    const ordres = filtrerAntiCollision(
+      [{ type: 'Move', unitId: 'a3', path: [{ q: 12, r: 0 }] } as Order],
+      state,
+      P1,
+    );
+    expect(ordres[0]!.type).toBe('Fortify');
+  });
+
+  it('DERNIÈRE combattante de l\u2019empire en guerre → JAMAIS exemptée (leçon GZJQZX : sa mort ouvre la capitale)', () => {
+    const state = etatGuerre({ membres: 1, c9Garnison: true });
+    const exempt = postureAssautSiege(state, P1, profileDuBot());
+    expect(exempt.size).toBe(0);
+  });
+
+  it('hors guerre déclarée (barbares seulement) → posture vide (approche inchangée)', () => {
+    const state = etatGZJQZX();
+    const exempt = postureAssautSiege(state, ME, profileDuBot());
+    expect(exempt.size).toBe(0);
+  });
+
+  it('les ordres des membres exemptés restent BIT-À-BIT quand aucun pas n\u2019est fatal', () => {
+    const state = etatGuerre();
+    const move: Order = { type: 'Move', unitId: 'a3', path: [{ q: 10, r: 0 }] };
+    expect(filtrerAntiCollision([move], state, P1)).toEqual([move]);
+  });
+
+  it('30 seeds : l\u2019armée réunie garde sa posture, GZJQZX t36 reste refusé (invariant)', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      void seed;
+      const guerre = etatGuerre();
+      expect(postureAssautSiege(guerre, P1, profileDuBot()).size).toBeGreaterThanOrEqual(4);
+      const g = etatGZJQZX(seed);
+      const memo: Record<string, number> = { u4: 1 };
+      const plan = botPolicy(g, ME, createRng(botTurnSeed(seed, 36, ME)), undefined, { antiCollisionMemo: memo });
+      for (const o of plan.orders) {
+        if (o.type !== 'Move' && o.type !== 'MultiStep') continue;
+        const or = o as { unitId: string; path: Array<{ q: number; r: number }> };
+        if (or.unitId !== 'u4') continue;
+        for (const s of or.path) expect(`${s.q},${s.r}`).not.toBe('19,22');
+      }
+    }
   });
 });

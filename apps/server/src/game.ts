@@ -2307,6 +2307,7 @@ export class GameDO {
           game,
           jevSeat,
           this.jevEtat?.memo.categoriesTactiques,
+          profileDuBot(this.meta.settings.botDifficulte), // D2-POSTURE — profil du siège
         );
       }
       // Actions immédiates du bot (recherche R-85, régime R-122, diplomatie

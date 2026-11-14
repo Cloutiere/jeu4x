@@ -1588,6 +1588,45 @@ export function planAntiCollision(
   return poursivies;
 }
 
+/**
+ * D2-POSTURE (canon Erik 14/11, « je valide ce découpage ») · La POSTURE
+ * d'ASSAUT DE SIÈGE (pur, déterministe) : les membres de l'armée de campagne
+ * EN GUERRE DÉCLARÉE dont l'effectif AU RAYON de ralliement atteint
+ * `antiCollision.effectifCampagne` (le seuil d'assaut TB-SIEGE miroir) sont
+ * EXONÉRÉS de D2-approche (d≤1 d'un plus fort/égal) — ils gardent l'approche
+ * du siège : l'assaut passe de toute façon par le gate R-190 et la courbe de
+ * pression k-durée régule le rythme. Hors guerre déclarée, armée entamée
+ * (effectif < seuil) → posture défensive : D2-approche ACTIVE. Exception
+ * canon conservée : la DERNIÈRE combattante de l'empire n'est JAMAIS
+ * exonérée (leçon GZJQZX — sa mort ouvre la capitale). D2-collision reste
+ * UNIVERSAL (inchangé, armées comprises). Retour : ids des membres exonérés.
+ */
+export function postureAssautSiege(
+  state: GameState,
+  me: PlayerId,
+  profile: BotProfileData = profileDuBot(),
+): Set<string> {
+  const exempt = new Set<string>();
+  // Guerre DÉCLARÉE seulement (les barbares sont en guerre permanente de
+  // fait R-95 mais ne font pas une campagne — cibleCampagne les exclut).
+  const enGuerreDeclaree = state.diplomacy.war.some(
+    ([a, b]) => (a === me || b === me) && !isBarbarian(a === me ? b : a),
+  );
+  if (!enGuerreDeclaree) return exempt;
+  const cfg = antiCollisionDuBot();
+  const campagne = cibleCampagne(state, me, profile);
+  if (!campagne) return exempt;
+  const armee = assignerArmee(state, me, profile, campagne);
+  const membres = [...armee].map((id) => state.units[id]).filter((u): u is Unit => !!u && !u.aboard);
+  const auRayon = membres.filter((m) => dist(state, m, campagne) <= profile.rayonRalliement);
+  if (auRayon.length < cfg.effectifCampagne) return exempt; // armée entamée : D2-approche active
+  // Exception canon : la dernière combattante de l'empire reste soumise.
+  const combattantes = Object.values(state.units).filter((u) => u.owner === me && !u.aboard && estCombattanteAC(u));
+  if (combattantes.length <= 1) return exempt;
+  for (const m of membres) exempt.add(m.id);
+  return exempt;
+}
+
 /** D2 · Un pas FATAL : il atterrit sur une case où un ennemi CONNU peut
  *  arriver CE même tour (portée d'arrivée pré-calculée — la cohabitation
  *  hostile force la bataille complète), ou à d ≤ 1 d'un ennemi plus
@@ -1603,13 +1642,19 @@ function pasAntiCollisionFatal(
   arrivee: ReadonlySet<string>,
   ennemis: ReadonlyArray<Unit>,
   categorie?: string,
+  // D2-POSTURE (canon Erik 14/11) : membres d'armée de campagne réunie en
+  // guerre déclarée — D2-approche ÉTEINTE (le gate R-190 régule l'assaut) ;
+  // D2-collision reste active pour TOUS.
+  exemptsApproche?: ReadonlySet<string>,
 ): boolean {
   // Exception canon D1 : entrer dans une de MES villes = défense fortifiée
   // (le défenseur est fourni, le soin tourne — jamais un duel en champ).
   if (Object.values(state.cities).some((c) => c.owner === me && c.q === step.q && c.r === step.r)) {
     return false;
   }
-  if (arrivee.has(`${step.q},${step.r}`)) return true; // collision = duel offert
+  if (arrivee.has(`${step.q},${step.r}`)) return true; // collision = duel offert (UNIVERSAL)
+  // D2-approche : ÉTEINTE pour la posture d'assaut de siège (exempté).
+  if (exemptsApproche?.has(unit.id)) return false;
   const mesStats = UNIT_TYPES[unit.type];
   const mesForces = ((mesStats?.attack ?? 0) + (mesStats?.defense ?? 0)) * (unit.veteran ? 1.5 : 1);
   const adjacent = ennemis.find((e) => {
@@ -1640,10 +1685,17 @@ export function filtrerAntiCollision(
   state: GameState,
   me: PlayerId,
   categories?: Readonly<Record<string, string>>,
+  // D2-POSTURE : profil pour le calcul de la posture d'assaut de siège
+  // (effectif au rayon ≥ antiCollision.effectifCampagne — défaut « normal »).
+  profile: BotProfileData = profileDuBot(),
 ): Order[] {
   const cfg = antiCollisionDuBot();
   const ennemis = ennemisConnusAntiCollision(state, me);
   if (ennemis.length === 0) return ordres;
+  // D2-POSTURE (canon Erik 14/11) : la posture d'assaut est calculée UNE
+  // fois — ses membres gardent l'approche du siège (D2-approche éteinte) ;
+  // D2-collision reste UNIVERSAL (armées comprises).
+  const exemptsApproche = postureAssautSiege(state, me, profile);
   // Portée d'ARRIVÉE 1 tour de chaque ennemi connu (distanceArrivee ×
   // mouvement — le transit ignore les unités : la réachabilité du terrain,
   // miroir porteeMarche).
@@ -1660,7 +1712,7 @@ export function filtrerAntiCollision(
     const sur: Array<{ q: number; r: number }> = [];
     let fatal = false;
     for (const s of path) {
-      if (pasAntiCollisionFatal(state, unit, me, s, arrivee, ennemis, categories?.[unit.id])) {
+      if (pasAntiCollisionFatal(state, unit, me, s, arrivee, ennemis, categories?.[unit.id], exemptsApproche)) {
         fatal = true;
         break;
       }
@@ -3091,6 +3143,6 @@ export function botPolicy(
   // duel offert) ni adjacent à un ennemi plus fort/égal sans gate favorable
   // ; tous les pas mauvais → Fortify (jamais inactif). Les Attack passent
   // INTACTS (le gate R-190 est consulté, jamais modifié).
-  const ordersFiltrees = filtrerAntiCollision(orders, state, playerId, opts?.categoriesTactiques);
+  const ordersFiltrees = filtrerAntiCollision(orders, state, playerId, opts?.categoriesTactiques, profile);
   return { orders: ordersFiltrees, actions };
 }

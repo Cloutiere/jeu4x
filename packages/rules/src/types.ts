@@ -945,6 +945,12 @@ export interface BotAntiCollisionData {
    *  pas qui atterrit sur une case qu'un ennemi connu peut atteindre CE
    *  même tour (cohabitation hostile = bataille complète forcée). */
   distanceArrivee: number;
+  /** D2-POSTURE (canon Erik 14/11, « je valide ce découpage ») — effectif
+   *  d'armée de campagne AU RAYON de ralliement (guerre déclarée) qui EXONÈRE
+   *  ses membres de D2-approche (d≤1 d'un plus fort/égal) : le seuil
+   *  d'assaut TB-SIEGE miroir ; D2-collision reste universelle ; la
+   *  dernière combattante de l'empire n'est jamais exonérée. */
+  effectifCampagne: number;
 }
 
 /** JEV-ESCORTE · tables data-driven de l'évaluation du pari colon. */
