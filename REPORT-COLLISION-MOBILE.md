@@ -1,6 +1,6 @@
 # REPORT-COLLISION-MOBILE — la collision ne compte que les ennemis MOBILES (levier (a') validé)
 
-**Mini-mission exécutée le 14/11 (canon Erik « levier (a') ennemis mobiles seulement » — HANDOFF-COLLISION-MOBILE, suite de D2-POSTURE `028773d`).** Commit : ⚠ CI/Deploy à vérifier (§4).
+**Mini-mission exécutée le 14/11 (canon Erik « levier (a') ennemis mobiles seulement » — HANDOFF-COLLISION-MOBILE, suite de D2-POSTURE `028773d`).** Commit `2b4e386` — Deploy **SUCCESS** (run 43629801033) + prod 200 ✓.
 
 ## 1. Implémentation (L1)
 
@@ -51,7 +51,7 @@
 
 ## 4. Suites + déploiement
 
-- Push + Deploy SUCCESS + prod 200 : ⚠ à vérifier (§4bis).
+- Push `2b4e386` + Deploy **SUCCESS** (run **43629801033**) + prod **200** ✓.
 
 ## 5. Pièges consignés
 
