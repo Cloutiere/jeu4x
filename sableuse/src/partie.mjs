@@ -28,6 +28,7 @@ import {
   botTurnSeed,
   deciderPaixNegociee,
   deciderEchangeTechs,
+  filtrerAntiCollision,
   filtrerMarcheBot,
   filtrerOrdresJevDefense,
   negociationDuBot,
@@ -125,6 +126,8 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
           ? botPolicy(etat, id, rng, undefined, {
               defenseRappelsMemo: memo.defenseRappels,
               defenseCooldownMemo: memo.defenseCooldown ?? (memo.defenseCooldown = {}),
+              // ANTICOLLISION-CHASSE (canon Erik 14/11) — memo de poursuite D1.
+              antiCollisionMemo: memo.antiCollision ?? (memo.antiCollision = {}),
             })
           : botPolicy(etat, id, rng);
       ordres[id] = plan.orders;
@@ -221,6 +224,11 @@ export async function jouerPartie({ client, config, seed, plafondTours = 50, jou
         );
         const unitesDefense = new Set([...defenseJev.rappels.keys(), ...defenseJev.maintiens.keys()]);
         ordres[jev] = filtrerOrdresJevDefense(ordres[jev] ?? [], unitesDefense);
+        // ANTICOLLISION-CHASSE (canon Erik 14/11) · D2 — anti-collision de
+        // trajectoire (miroir game.ts) : jamais un pas qui atterrit dans la
+        // portée d'arrivée d'un ennemi connu ; tous les pas mauvais →
+        // Fortify. Les Attack passent INTACTS (gate consulté, jamais modifié).
+        ordres[jev] = filtrerAntiCollision(ordres[jev] ?? [], etat, jev, memo.categoriesTactiques);
         // DEFENSE-VILLE-C · sonde — marqueur de RAPPEL au journal : la sonde
         // isole les oscillations IMPUTABLES au rappel du bruit de fond
         // (patrouille/quotas — consigné 136-177 en A3). Mesure

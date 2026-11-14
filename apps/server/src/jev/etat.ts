@@ -43,6 +43,11 @@ export interface JevMemo {
    *  cityId → tour de dissolution ; une ville dissoute ne recrute plus
    *  pendant `defense.cooldownRappel` tours (memo de tour — schema intacte). */
   defenseCooldown?: Record<string, number>;
+  /** ANTICOLLISION-CHASSE (canon Erik 14/11) · memo de POURSUITE D1 —
+   *  unitId → tours consécutifs de chasse (planAntiCollision le pose et le
+   *  reset ; memo de tour, PAS une donnée de schema — schemaVersion 28
+   *  intacte). */
+  antiCollision?: Record<string, number>;
 }
 
 export interface JevEtat {

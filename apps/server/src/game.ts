@@ -58,7 +58,7 @@ import { PROTO_VERSION, normaliseDifficulteBot } from '@game/shared';
 import type { ClientToServerMessage, ConfigPartie, ErrorCode, GameCreationSettings, ServerToClientMessage } from '@game/shared';
 import type { Env } from './env.js';
 import { jsonResponse, sessionOfRequest } from './env.js';
-import { botPolicy, botTurnSeed, deciderPaix, deciderPaixNegociee, deciderEchangeTechs, filtrerMarcheBot, filtrerOrdresJevDefense, negociationDuBot, planDefenseVille, profileDuBot } from './botPolicy.js';
+import { botPolicy, botTurnSeed, deciderPaix, deciderPaixNegociee, deciderEchangeTechs, filtrerAntiCollision, filtrerMarcheBot, filtrerOrdresJevDefense, negociationDuBot, planDefenseVille, profileDuBot } from './botPolicy.js';
 import type { ActionJev, PlanJev } from './jev/orchestre.js';
 import { appliquerDiplomatieJev, attentesPostResolution, planifierJev } from './jev/orchestre.js';
 import { creerClientJev } from './jev/client.js';
@@ -2238,6 +2238,10 @@ export class GameDO {
               defenseCooldownMemo:
                 this.jevEtat?.memo.defenseCooldown ??
                 (this.jevEtat ? (this.jevEtat.memo.defenseCooldown = {}) : {}),
+              // ANTICOLLISION-CHASSE (canon Erik 14/11) — memo de poursuite D1.
+              antiCollisionMemo:
+                this.jevEtat?.memo.antiCollision ??
+                (this.jevEtat ? (this.jevEtat.memo.antiCollision = {}) : {}),
             }
           : undefined,
       );
@@ -2291,6 +2295,19 @@ export class GameDO {
         );
         const unitesDefense = new Set([...defenseJev.rappels.keys(), ...defenseJev.maintiens.keys()]);
         this.orders[jevSeat!] = filtrerOrdresJevDefense(this.orders[jevSeat!] ?? [], unitesDefense);
+        // ANTICOLLISION-CHASSE (canon Erik 14/11) · D2 — anti-collision de
+        // trajectoire AU-DESSUS de Jev : jamais un pas de combattante qui
+        // atterrit dans la portée d'arrivée d'un ennemi CONNU (cohabitation
+        // = duel offert, GZJQZX t36) ni adjacent à un plus fort/égal sans
+        // gate favorable ; tous les pas mauvais → Fortify (jamais inactif).
+        // Les Attack passent INTACTS (le gate R-190 est consulté, jamais
+        // modifié). Miroir bit-à-bit dans le harnais (partie.mjs).
+        this.orders[jevSeat!] = filtrerAntiCollision(
+          this.orders[jevSeat!] ?? [],
+          game,
+          jevSeat,
+          this.jevEtat?.memo.categoriesTactiques,
+        );
       }
       // Actions immédiates du bot (recherche R-85, régime R-122, diplomatie
       // BOT-TC) — mêmes helpers purs que les messages des humains, entrelacées

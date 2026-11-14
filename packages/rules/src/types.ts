@@ -900,6 +900,9 @@ export interface BotSettingsData {
   /** DEFENSE-VILLE-A (canon Erik 12/11) : garnison d=0, rappel défensif
    *  hystérésis, hygiène de fondation — rayons tunables, zéro durcissement. */
   defense: BotDefenseData;
+  /** ANTICOLLISION-CHASSE (canon Erik 14/11) : poursuite D1 + anti-collision
+   *  de trajectoire D2 — rayons tunables, zéro durcissement. */
+  antiCollision: BotAntiCollisionData;
 }
 
 /** DEFENSE-VILLE-A · table data-driven de la défense de ville. */
@@ -923,6 +926,25 @@ export interface BotDefenseData {
   /** C (13/11) : la question défense dédiée (L5) est posée quand une ville
    *  est menacée à ≤ N tours de MARCHE (BFS). */
   seuilQuestionDef: number;
+}
+
+/** ANTICOLLISION-CHASSE (canon Erik 14/11, prod GZJQZX perdue t39) —
+ *  l'unité chassée n'offre jamais le duel : D1 poursuite + entrée en ville /
+ *  fortification, D2 anti-collision de trajectoire. Rayons tunables, zéro
+ *  durcissement. */
+export interface BotAntiCollisionData {
+  /** D1 — une ennemi CONNU capable de joindre la tuile de l'unité en ≤ N
+   *  tours de MARCHE (BFS × mouvement) pose une tour de POURSUITE ; ≥ N
+   *  tours consécutifs → l'unité est « poursuivie » (pinned). */
+  toursDePoursuite: number;
+  /** D1 — une ville PROPRE à distance ≤ N (hex) est un refuge : l'unité
+   *  poursuivie y ENTRE (déficit de garnison ou menacée d'abord, la plus
+   *  proche sinon) ; aucune → fortification sur place. */
+  distanceVille: number;
+  /** D2 — rayon de la portée d'ARRIVÉE ennemie (tours de MARCHE) : jamais un
+   *  pas qui atterrit sur une case qu'un ennemi connu peut atteindre CE
+   *  même tour (cohabitation hostile = bataille complète forcée). */
+  distanceArrivee: number;
 }
 
 /** JEV-ESCORTE · tables data-driven de l'évaluation du pari colon. */

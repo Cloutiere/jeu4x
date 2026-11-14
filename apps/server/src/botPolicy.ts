@@ -69,6 +69,7 @@ import {
   defenseDuBot,
   garnisonDeficit,
   menacesVille,
+  porteeMarche,
   distanceCibleGuerre,
   dureeGuerre,
   frontierRadius,
@@ -87,6 +88,7 @@ import {
 } from '@game/rules';
 import type { CategorieTactique } from '@game/rules';
 import type {
+  BotAntiCollisionData,
   BotEconomieData,
   BotNegociationData,
   BotProfileData,
@@ -1463,6 +1465,215 @@ export function filtrerOrdresJevDefense(ordres: Order[], unitesDefense: Readonly
 }
 
 // ---------------------------------------------------------------------------
+// ANTICOLLISION-CHASSE (canon Erik 14/11, prod GZJQZX PERDUE t39) — D1+D2 :
+// l'unité chassée n'offre JAMAIS le duel. Le gate R-190 filtre les attaques
+// ÉMISES ; rien ne filtrait les duels OFFERTS par collision de trajectoire
+// (u4 marche SUR la case (19,22) où u27 arrive le même tour → cohabitation
+// hostile = bataille complète 3v3 p=0,5, capitale vide t38, rasée t39 — le
+// guerrier en production terminait CE tour-là, un tour trop tard). Le
+// comportement optimal : une fois près de ses villes sachant qu'on est pris
+// en chasse, l'unité ARRÊTE de se déplacer et se FORTIFIE (def ~1,3-1,6 +
+// soin 1 PV/tour contre un attaquant 3 PV — odds favorables, et le temps
+// travaille pour la production). Même famille que le rappel L2 : mécanique
+// botPolicy AU-DESSUS de Jev, memo de tour (schemaVersion 28 intacte).
+// ---------------------------------------------------------------------------
+
+/** Table antiCollision (bot.json `antiCollision`). */
+export function antiCollisionDuBot(): BotAntiCollisionData {
+  return BOT_SETTINGS.antiCollision;
+}
+
+/** Ennemis CONNUS (barbares permanents — R-95 — ou guerre déclarée), hors
+ *  embarquées — miroir defenseVille/escortColon : l'appelant passe l'état
+ *  QU'IL connaît (Jev l'état filtré par la brume, botPolicy l'état complet). */
+function ennemisConnusAntiCollision(state: GameState, me: PlayerId): Unit[] {
+  const enGuerre = new Set<PlayerId>();
+  for (const [a, b] of state.diplomacy.war) {
+    if (a === me) enGuerre.add(b);
+    if (b === me) enGuerre.add(a);
+  }
+  return Object.values(state.units).filter(
+    (u) => !u.aboard && (isBarbarian(u.owner) || enGuerre.has(u.owner)),
+  );
+}
+
+/** Combattante terrestre (canon planGarnison — le colon n'est JAMAIS un
+ *  combattant ; sa trajectoire reste réglée par escortColon). */
+function estCombattanteAC(u: Unit): boolean {
+  return (
+    !u.aboard &&
+    (UNIT_TYPES[u.type]?.canAttack ?? false) &&
+    UNIT_TYPES[u.type]?.aquatic !== true
+  );
+}
+
+/**
+ * D1 · Plan de POURSUITE (pur, déterministe) : pour chaque combattante
+ * terrestre, un ennemi CONNU capable de joindre SA tuile en ≤
+ * toursDePoursuite tours de MARCHE (BFS porteeMarche × mouvement — miroir
+ * menacesVille) pose une tour de poursuite ; le compteur consécutif vit dans
+ * `memoChasse` (unitId → tours, MUTÉ — miroir defenseRappels : purge des
+ * unités mortes/parties, reset à la dissolution). Compteur ≥ seuil →
+ * « poursuivie » : à ≤ distanceVille d'une ville propre elle y ENTRE (la
+ * ville la plus proche à DÉFICIT de garnison d'abord — canon : le rappel L2
+ * vise la tuile, D1 change la MANIÈRE d'y marcher : par la porte, pas en
+ * champ — menacée sinon ; hystérésis : pinned tant que la poursuite tient) ;
+ * aucune ville → `null` (fortification sur place, canon « capitale
+ * insulaire »). Retour : unitId → cityId | null.
+ */
+export function planAntiCollision(
+  state: GameState,
+  me: PlayerId,
+  memoChasse?: Record<string, number>,
+  categories?: Readonly<Record<string, string>>,
+): Map<string, string | null> {
+  void categories; // réservé : le gate consulté par filtrerAntiCollision
+  const cfg = antiCollisionDuBot();
+  const poursivies = new Map<string, string | null>();
+  const mine = Object.values(state.units)
+    .filter((u) => u.owner === me && !u.aboard && estCombattanteAC(u))
+    .sort((a, b) => compareUnitIds(a.id, b.id)); // R-81
+  const ennemis = ennemisConnusAntiCollision(state, me);
+  const villes = Object.values(state.cities)
+    .filter((c) => c.owner === me)
+    .sort((a, b) => (a.capital !== b.capital ? (a.capital ? -1 : 1) : compareCityIds(a.id, b.id)));
+
+  // Purge du memo : unités mortes/parties/embarquées, villes perdues.
+  if (memoChasse) {
+    for (const uid of Object.keys(memoChasse)) {
+      const u = state.units[uid];
+      if (!u || u.owner !== me || u.aboard || !estCombattanteAC(u)) delete memoChasse[uid];
+    }
+  }
+
+  for (const u of mine) {
+    const cle = `${u.q},${u.r}`;
+    const chasseur = ennemis.some((e) => {
+      const mouvement = UNIT_TYPES[e.type]?.movement ?? 1;
+      return porteeMarche(state, e, cfg.toursDePoursuite * mouvement).has(cle);
+    });
+    const compteur = chasseur ? (memoChasse?.[u.id] ?? 0) + 1 : 0;
+    if (memoChasse) {
+      if (chasseur) memoChasse[u.id] = compteur;
+      else delete memoChasse[u.id];
+    }
+    if (compteur < cfg.toursDePoursuite) continue;
+    // Ville refuge : d ≤ distanceVille — TIERING canon (« la ville la plus
+    // proche à DÉFICIT de garnison » d'abord, ville MENACÉE sinon — le
+    // déficit veut la garnison, la ville pleine n'offre qu'un abri
+    // fortifié) ; la plus proche de chaque rang (tie id — R-81).
+    let cible: City | null = null;
+    let bestD = Infinity;
+    for (const deficitOnly of [true, false]) {
+      let rangD = Infinity;
+      let rangCible: City | null = null;
+      for (const v of villes) {
+        const d = dist(state, u, v);
+        if (d > cfg.distanceVille || d > rangD) continue;
+        const deficit = garnisonDeficit(state, v, me) > 0;
+        const menacee = menacesVille(state, v, me).length > 0;
+        if (deficitOnly ? !deficit : (deficit || !menacee)) continue;
+        rangD = d;
+        rangCible = v;
+      }
+      if (rangCible) {
+        cible = rangCible;
+        bestD = rangD;
+        break;
+      }
+    }
+    void bestD;
+    poursivies.set(u.id, cible ? cible.id : null);
+  }
+  return poursivies;
+}
+
+/** D2 · Un pas FATAL : il atterrit sur une case où un ennemi CONNU peut
+ *  arriver CE même tour (portée d'arrivée pré-calculée — la cohabitation
+ *  hostile force la bataille complète), ou à d ≤ 1 d'un ennemi plus
+ *  fort/égal SAUF si le duel passe le gate R-190 (attaque volontaire — le
+ *  gate est CONSULTÉ, jamais modifié). Atterrir sur une ville PROPRE est la
+ *  défense fortifiée canon D1 (def ~1,3-1,6 + soin — jamais un duel en
+ *  champ). Pur. */
+function pasAntiCollisionFatal(
+  state: GameState,
+  unit: Unit,
+  me: PlayerId,
+  step: { q: number; r: number },
+  arrivee: ReadonlySet<string>,
+  ennemis: ReadonlyArray<Unit>,
+  categorie?: string,
+): boolean {
+  // Exception canon D1 : entrer dans une de MES villes = défense fortifiée
+  // (le défenseur est fourni, le soin tourne — jamais un duel en champ).
+  if (Object.values(state.cities).some((c) => c.owner === me && c.q === step.q && c.r === step.r)) {
+    return false;
+  }
+  if (arrivee.has(`${step.q},${step.r}`)) return true; // collision = duel offert
+  const mesStats = UNIT_TYPES[unit.type];
+  const mesForces = ((mesStats?.attack ?? 0) + (mesStats?.defense ?? 0)) * (unit.veteran ? 1.5 : 1);
+  const adjacent = ennemis.find((e) => {
+    if (hexDistanceW(e, step, state.mapWidth) > 1) return false;
+    const sesStats = UNIT_TYPES[e.type];
+    const sesForces = ((sesStats?.attack ?? 0) + (sesStats?.defense ?? 0)) * (e.veteran ? 1.5 : 1);
+    return sesForces >= mesForces; // plus fort OU égal : le gate tranche
+  });
+  if (adjacent) {
+    // Seule exception D2 : un pas qui passe le gate R-190 (attaque
+    // volontaire — le contact du dernier pas reste la porte du gate).
+    return !deciderAttaqueUnitaire(state, unit, adjacent, categorie).passe;
+  }
+  return false;
+}
+
+/**
+ * D2 · Pré-filtre de TRAJECTOIRE (pur) : les Move/MultiStep d'une
+ * COMBATTANTE dont un pas est fatal (pasAntiCollisionFatal) sont tronqués au
+ * préfixe sûr ; premier pas fatal → FORTIFIER sur place (seule exception :
+ * l'attaque volontaire — les Attack passent INTACTS, leur contact est déjà
+ * jugé par le gate R-190). Rappel L2 compris : y arriver EN VIE > y arriver
+ * mort. Doctrine « jamais inactif » : l'unité garde TOUJOURS un ordre.
+ * Non-fatal → ordre retourné BIT-À-BIT.
+ */
+export function filtrerAntiCollision(
+  ordres: Order[],
+  state: GameState,
+  me: PlayerId,
+  categories?: Readonly<Record<string, string>>,
+): Order[] {
+  const cfg = antiCollisionDuBot();
+  const ennemis = ennemisConnusAntiCollision(state, me);
+  if (ennemis.length === 0) return ordres;
+  // Portée d'ARRIVÉE 1 tour de chaque ennemi connu (distanceArrivee ×
+  // mouvement — le transit ignore les unités : la réachabilité du terrain,
+  // miroir porteeMarche).
+  const arrivee = new Set<string>();
+  for (const e of ennemis) {
+    const mouvement = UNIT_TYPES[e.type]?.movement ?? 1;
+    for (const k of porteeMarche(state, e, cfg.distanceArrivee * mouvement).keys()) arrivee.add(k);
+  }
+  return ordres.map((o) => {
+    if (o.type !== 'Move' && o.type !== 'MultiStep') return o;
+    const unit = state.units[(o as { unitId: string }).unitId];
+    if (!unit || unit.owner !== me || !estCombattanteAC(unit)) return o;
+    const path = (o as { path: Array<{ q: number; r: number }> }).path ?? [];
+    const sur: Array<{ q: number; r: number }> = [];
+    let fatal = false;
+    for (const s of path) {
+      if (pasAntiCollisionFatal(state, unit, me, s, arrivee, ennemis, categories?.[unit.id])) {
+        fatal = true;
+        break;
+      }
+      sur.push(s);
+    }
+    if (!fatal) return o; // bit-à-bit
+    if (sur.length === 0) return { type: 'Fortify', unitId: unit.id };
+    if (o.type === 'Move') return { type: 'Fortify', unitId: unit.id }; // un Move tronqué à vide d'arrivée = arrêt
+    return { type: 'MultiStep', unitId: unit.id, path: sur };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // BOT-TA · D1 — assignation d'objectifs (pure, séparée de l'émission).
 // ---------------------------------------------------------------------------
 
@@ -1480,7 +1691,8 @@ export type ObjectifKind =
   | 'rallier'
   | 'fusionner'
   | 'converger'
-  | 'tenir';
+  | 'tenir'
+  | 'fortifier';
 
 export interface Objectif {
   kind: ObjectifKind;
@@ -1576,6 +1788,9 @@ export function assignerObjectifs(
   defenseMemo?: Record<string, string>,
   // DEFENSE-VILLE-A3 — cooldown anti-ré-armement par ville (miroir memo).
   defenseCooldownMemo?: Record<string, number>,
+  // ANTICOLLISION-CHASSE (canon Erik 14/11) — memo de POURSUITE D1 (unitId →
+  // tours consécutifs, MUTÉ — miroir defenseRappels ; schemaVersion 28).
+  antiCollisionMemo?: Record<string, number>,
 ): Map<string, Objectif> {
   const objectifs = new Map<string, Objectif>();
   const me = state.players[playerId];
@@ -1706,6 +1921,10 @@ export function assignerObjectifs(
   // > exploration — canon 12/11 ; défendre une ville n'est pas de
   // l'inactivité). L'assautSurCapitale (B2) reste au-dessus via planGarnison.
   const defense = planDefenseVille(state, playerId, profile, defenseMemo, defenseCooldownMemo);
+  // ANTICOLLISION-CHASSE (canon Erik 14/11) — D1 : plan de poursuite (memo
+  // de tour, miroir defenseRappels). Composition canon : garnison L1 >
+  // rappel L2 > D1/D2 trajectoire > exploration.
+  const poursivies = planAntiCollision(state, playerId, antiCollisionMemo, categories);
   // BOT-MARCHE · D2 : l'armée PERMANENTE en paix — calculée une fois (le
   // scout qui en fait partie ne patrouille plus, voir plus bas).
   const agressivite = agressiviteDe(me.civId);
@@ -1817,6 +2036,22 @@ export function assignerObjectifs(
     const villeDefense = defense.rappels.get(unit.id) ?? defense.maintiens.get(unit.id);
     if (villeDefense) {
       objectifs.set(unit.id, { kind: 'garnison', cityId: villeDefense });
+      continue;
+    }
+
+    // ANTICOLLISION-CHASSE (canon Erik 14/11) · D1 — l'unité POURSUIVIE
+    // (≥ toursDePoursuite tours consécutifs) n'offre jamais le duel : elle
+    // ENTRE dans la ville refuge (garnison — sur tuile l'émission Fortifie)
+    // ou se FORTIFIE sur place (aucune ville à d≤ distanceVille), et n'en
+    // re-sort PAS tant que la poursuite tient (hystérésis du memo — la pin
+    // tombe avec le compteur, miroir du rappel L2). Le scout compris : un
+    // scout NON poursuivi continue (patrouille/exploration inchangées).
+    if (poursivies.has(unit.id)) {
+      const refuge = poursivies.get(unit.id);
+      objectifs.set(
+        unit.id,
+        refuge ? { kind: 'garnison', cityId: refuge } : { kind: 'fortifier' },
+      );
       continue;
     }
 
@@ -2505,6 +2740,9 @@ export function botPolicy(
     defenseRappelsMemo?: Record<string, string>;
     // DEFENSE-VILLE-A3 — cooldown anti-ré-armement par ville (miroir memo).
     defenseCooldownMemo?: Record<string, number>;
+    // ANTICOLLISION-CHASSE (canon Erik 14/11) — memo de poursuite D1 (unitId
+    // → tours consécutifs, MUTÉ ; miroir defenseRappels, schemaVersion 28).
+    antiCollisionMemo?: Record<string, number>;
   },
 ): BotPlan {
   const orders: Order[] = [];
@@ -2588,6 +2826,7 @@ export function botPolicy(
     opts?.categoriesTactiques,
     opts?.defenseRappelsMemo,
     opts?.defenseCooldownMemo,
+    opts?.antiCollisionMemo,
   );
   if (fondateurId) objectifs.set(fondateurId, { kind: 'tenir' as const });
 
@@ -2613,6 +2852,12 @@ export function botPolicy(
       // que l'objectif tient (le moteur revalide territoire R-162).
       case 'soigner':
         orders.push({ type: 'Heal', unitId: unit.id });
+        break;
+      // ANTICOLLISION-CHASSE · D1 : poursuivie sans ville refuge à d≤
+      // distanceVille → FORTIFICATION sur place (def ~1,3-1,6 + soin — le
+      // duel en champ est refusé, la défense fortifiée est fournie).
+      case 'fortifier':
+        orders.push({ type: 'Fortify', unitId: unit.id });
         break;
       // ② attaque — le dernier pas SUR la case de l'ennemi déclenche le
       // combat d'entrée (R-42/D4) ; la cible est adjacente (voir
@@ -2840,5 +3085,12 @@ export function botPolicy(
     else orders.push(settle);
   }
 
-  return { orders, actions };
+  // ANTICOLLISION-CHASSE (canon Erik 14/11) · D2 — pré-filtre de
+  // TRAJECTOIRE sur le plan entier : jamais un pas de combattante qui
+  // atterrit dans la portée d'arrivée d'un ennemi connu (cohabitation =
+  // duel offert) ni adjacent à un ennemi plus fort/égal sans gate favorable
+  // ; tous les pas mauvais → Fortify (jamais inactif). Les Attack passent
+  // INTACTS (le gate R-190 est consulté, jamais modifié).
+  const ordersFiltrees = filtrerAntiCollision(orders, state, playerId, opts?.categoriesTactiques);
+  return { orders: ordersFiltrees, actions };
 }

@@ -168,5 +168,11 @@
     "seuilGarnison": 1,
     "cooldownRappel": 5,
     "seuilQuestionDef": 2
+  },
+  "antiCollision": {
+    "_commentaire": "ANTICOLLISION-CHASSE (canon Erik 14/11, prod GZJQZX PERDUE t39 — u4 (seul guerrier, 3 PV) marche SUR la case où u27 arrive le même tour → bataille de cohabitation 3v3 p=0,5, capitale vide t38, rasée t39 ; le gate R-190 filtre les attaques ÉMISES, rien ne filtre les duels OFFERTS par collision de trajectoire). D1 : un ennemi CONNU (barbare ou guerre) capable de joindre la tuile de l'unité en ≤ toursDePoursuite tours de MARCHE (BFS × mouvement) pose une tour de poursuite ; ≥ toursDePoursuite tours consécutifs (memo de tour, miroir defenseRappels — schemaVersion intacte) l'unité est POURSUIVIE : à ≤ distanceVille d'une ville propre elle ENTRE dans la ville la plus proche à déficit de garnison (menacée sinon) ou se FORTIFIE sur place, et n'en re-sort pas tant que la poursuite tient (hystérésis). D2 : JAMAIS un pas qui atterrit sur une case où un ennemi connu peut arriver CE même tour (portée distanceArrivee × mouvement — la cohabitation hostile force la bataille complète), ni à d≤1 d'un ennemi plus fort/égal SAUF si le duel passe le gate R-190 (attaque volontaire) ; atterrir sur une ville PROPRE = défense fortifiée admise (def ~1,3-1,6 + soin) ; tous les pas mauvais → Fortify (jamais inactif).",
+    "toursDePoursuite": 2,
+    "distanceVille": 2,
+    "distanceArrivee": 1
   }
 }
