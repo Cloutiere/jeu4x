@@ -55,7 +55,7 @@ Le blocage réel = la collision elle-même : le pas `dist 2 → dist 1` d'une ar
 - Suites : **rules 1214 · server 525 · web 793 · jev-port 52** verts, `tsc -b` ✓.
 - Re-sims : **GZJQZX t36 toujours refusé** (ordre fatal → Fortify) · **NP8JEE ordre actif** (`anticollision-resim.ts`).
 - Banc Jev 10 seeds : **livré §3bis** — tous critères verts.
-- Push + Deploy SUCCESS + prod 200 : ⚠ à vérifier (§5bis).
+- Push `028773d` + Deploy **SUCCESS** (run **43609956142**) + prod **200** ✓.
 
 ## 6. Pièges consignés
 
