@@ -1,6 +1,6 @@
 # REPORT-ANTICOLLISION-CHASSE — l'unité chassée entre en ville et se fortifie ; elle n'offre jamais le duel (D1+D2)
 
-**Mission L0→L4 exécutée le 14/11 (canon Erik 14/11 — cas prod GZJQZX PERDUE t39).** Implémentation : `botPolicy` (mécanique D1/D2 au-dessus de Jev, même famille que le rappel L2), data `bot.json` `antiCollision`, miroirs bit-à-bit `game.ts` + harnais `partie.mjs`, memo de poursuite `jevEtat.memo.antiCollision` (schemaVersion **28 intacte**). Suites vertes (§5), bancs joués (§2/§6), Deploy : ⚠ **à vérifier** (§6bis).
+**Mission L0→L4 exécutée le 14/11 (canon Erik 14/11 — cas prod GZJQZX PERDUE t39).** Implémentation : `botPolicy` (mécanique D1/D2 au-dessus de Jev, même famille que le rappel L2), data `bot.json` `antiCollision`, miroirs bit-à-bit `game.ts` + harnais `partie.mjs`, memo de poursuite `jevEtat.memo.antiCollision` (schemaVersion **28 intacte**). Suites vertes (§5), bancs joués (§2/§6), Deploy **SUCCESS** run 43597293555 + prod 200 (§6bis).
 
 ## 1. Les deux re-simulations (dumps prod inchangés)
 
@@ -76,11 +76,12 @@ Victoires Jev 0/10, tours moyens 151 (comme AVANT — la mission ne visait pas l
 - **Écart consigné (arbitrage Erik attendu)** : les victoires rapides chutent (0-1/40) et les parties atteignent le plafond 150 — D2 appliqué STRICTEMENT ferme l'approche de siège dans la portée d'arrivée de la garnison (les armées campent/fortifient aux portes au lieu d'offrir des duels en approche). C'est le prix canon du « y arriver EN VIE > y arriver mort » : le bot ne se brade plus (pertes −61 % au banc Jev), mais termine moins de guerres en 150 tours. L'assaut VOLONTAIRE (gate R-190 passé, `Attack` adjacents, TB-SIEGE à l'effectif) reste intact.
 - Piétinement : la banc piétinement (`fix-praticabilite.test.ts`, 10 verts) reste **0→0** ; NP8JEE re-simulé ordre actif (§1).
 
-## 6bis. ⚠ CI/Deploy à vérifier (push + run GitHub)
+## 6bis. CI/Deploy — VÉRIFIÉS
 
-- Banc bot 40×3 AVANT/APRÈS : APRÈS en cours à la rédaction (120 parties × 150 tours) — résultats dans `devtmp/banc-bot-td-APRES-anticollision.json` ; critère zéro collapse, piétinement 0→0 maintenu, miroir AVANT `banc-bot-td-AVANT-praticabilite.json` (difficile : villes 1,98 / unités 92,1 / guerres 2,5).
-- Sableuse re-passe isolée : verdict à consigner.
-- Push + Deploy SUCCESS + prod 200 (re-run canonique si flocon wrangler).
+- Push `2eb4c16` → run **43597293555 Deploy SUCCESS** (premier passage, pas de flocon wrangler).
+- Prod `https://game-4x-server-prod.erik-ai-studio.workers.dev/` → **200**.
+- Banc bot 40×3 AVANT/APRÈS : livré §6 (`devtmp/banc-bot-td-APRES-anticollision.json`).
+- Sableuse re-passe isolée : 4/4 verts → **228 verts effectifs**.
 
 ## 7. Pièges rencontrés / consignés
 
