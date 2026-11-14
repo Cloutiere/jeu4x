@@ -951,6 +951,13 @@ export interface BotAntiCollisionData {
    *  d'assaut TB-SIEGE miroir ; D2-collision reste universelle ; la
    *  dernière combattante de l'empire n'est jamais exonérée. */
   effectifCampagne: number;
+  /** D1-CAMPAGNE (canon Erik 14/11, levier V3-(ii) — diag
+   *  DIAG-VERROUS-SIEGE) : false = les BARBARES ne déclenchent PAS la
+   *  poursuite D1 pour les MEMBRES de l'armée de campagne offensive en
+   *  guerre déclarée (94 % des pins d'assiégeants avaient un chasseur
+   *  barbare). Scouts/escortes/garnisons et unités hors campagne restent
+   *  pleinement protégés par D1-barbares (leçon GZJQZX). */
+  d1CampagneBarbares: boolean;
 }
 
 /** JEV-ESCORTE · tables data-driven de l'évaluation du pari colon. */

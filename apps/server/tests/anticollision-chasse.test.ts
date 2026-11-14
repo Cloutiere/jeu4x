@@ -452,3 +452,73 @@ describe('COLLISION-MOBILE · portée d\u2019arrivée = ennemis mobiles seulemen
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// D1-CAMPAGNE (canon Erik 14/11, levier V3-(ii) — diag DIAG-VERROUS-SIEGE,
+// mission FINALE du chapitre siège) : les BARBARES sont exclus du DÉCLENCHEUR
+// de poursuite D1 pour les MEMBRES de l'armée de campagne offensive en
+// guerre déclarée exclusivement. Scouts/escortes/garnisons/unités hors
+// campagne restent PLEINEMENT protégés par D1-barbares (leçon GZJQZX).
+// D2-collision mobile reste UNIVERSAL (les barbares mobiles bloquent
+// toujours le pas sur leur case d'arrivée).
+// ---------------------------------------------------------------------------
+describe('D1-CAMPAGNE · les barbares ne poursuivent plus les assiégeants', () => {
+  it('membre de campagne en guerre déclarée + barbare en errance → PAS de poursuite (rouge avant fix)', () => {
+    const state = etatGuerre({ c9Garnison: false }); // aucun ennemi de guerre à portée
+    // a1 (10,0) — membre de l'armée de campagne (guerre déclarée p1↔p2) ;
+    // un barbare mobile capable de joindre sa tuile en ≤ 2 tours.
+    state.units['b1'] = { id: 'b1', type: 'guerrier', owner: BAR, q: 11, r: 1, hp: 3 } as never;
+    const memo: Record<string, number> = { a1: 1 };
+    const poursivies = planAntiCollision(state, P1, memo);
+    expect(poursivies.has('a1')).toBe(false); // campagne offensive : pas de pin barbare
+    expect(memo['a1']).toBeUndefined();
+  });
+
+  it('le MÊME membre + ennemi de CIVILISATION en guerre → poursuite INCHANGÉE', () => {
+    const state = etatGuerre();
+    // d1 est en ville (garnison — mais mobile au sens estEnnemiMobile non :
+    // D1 déclenche sur la CAPACITÉ de joindre, garnison ou non) : ennemi de
+    // civilisation en guerre déclarée p1↔p2.
+    const memo: Record<string, number> = { a1: 1 };
+    const poursivies = planAntiCollision(state, P1, memo);
+    expect(poursivies.get('a1')).not.toBeUndefined();
+    expect(memo['a1']).toBeGreaterThanOrEqual(2);
+  });
+
+  it('unité HORS campagne (pas de guerre) + barbare → D1-barbares INTACT (protégés — leçon GZJQZX)', () => {
+    const state = etatGZJQZX();
+    const memo: Record<string, number> = { u4: 1 };
+    const poursivies = planAntiCollision(state, ME, memo);
+    expect(poursivies.get('u4')).toBe('c2'); // poursuite barbare canon préservée
+  });
+
+  it('D2-collision barbares INCHANGÉE : le pas sur la case d\u2019arrivée d\u2019un barbare mobile reste REFUSÉ (armée comprise)', () => {
+    const state = etatGuerre();
+    state.units['b1'] = { id: 'b1', type: 'guerrier', owner: BAR, q: 11, r: 1, hp: 3 } as never;
+    // a1 (10,0) → (10,1) : dans la portée d'arrivée 1 tour de b1 mobile.
+    const ordres = filtrerAntiCollision(
+      [{ type: 'Move', unitId: 'a1', path: [{ q: 10, r: 1 }] } as Order],
+      state,
+      P1,
+    );
+    expect(ordres[0]!.type).toBe('Fortify');
+  });
+
+  it('GZJQZX t36 (30 seeds) : u4 poursuit/refuse toujours — u4 n\u2019est pas membre de campagne', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      void seed;
+      const g = etatGZJQZX(seed);
+      const memo: Record<string, number> = { u4: 1 };
+      const plan = botPolicy(g, ME, createRng(botTurnSeed(seed, 36, ME)), undefined, { antiCollisionMemo: memo });
+      const or = plan.orders.find(
+        (o) => 'unitId' in o && (o as { unitId: string }).unitId === 'u4',
+      );
+      expect(or).toBeDefined();
+      if (or && (or.type === 'Move' || or.type === 'MultiStep')) {
+        for (const s of (or as { path: Array<{ q: number; r: number }> }).path) {
+          expect(`${s.q},${s.r}`).not.toBe('19,22');
+        }
+      }
+    }
+  });
+});

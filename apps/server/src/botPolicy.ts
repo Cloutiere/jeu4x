@@ -1526,6 +1526,9 @@ export function planAntiCollision(
   me: PlayerId,
   memoChasse?: Record<string, number>,
   categories?: Readonly<Record<string, string>>,
+  // D1-CAMPAGNE : profil pour identifier l'armée de campagne offensive
+  // (défaut « normal »).
+  profile: BotProfileData = profileDuBot(),
 ): Map<string, string | null> {
   void categories; // réservé : le gate consulté par filtrerAntiCollision
   const cfg = antiCollisionDuBot();
@@ -1538,6 +1541,25 @@ export function planAntiCollision(
     .filter((c) => c.owner === me)
     .sort((a, b) => (a.capital !== b.capital ? (a.capital ? -1 : 1) : compareCityIds(a.id, b.id)));
 
+  // D1-CAMPAGNE (canon Erik 14/11, levier V3-(ii) — diag
+  // DIAG-VERROUS-SIEGE : 94 % des pins d'assiégeants avaient un chasseur
+  // BARBARE en errance domestique) — les membres de l'armée de campagne
+  // offensive en guerre déclarée ignorent les BARBARES comme chasseurs
+  // (d1CampagneBarbares: false) ; tout le reste du monde (scouts, escortes,
+  // garnisons, unités seules, membres sans campagne) garde D1-barbares
+  // ENTIER (leçon GZJQZX). Les ennemis de civilisation en guerre déclarée
+  // déclenchent D1 pour tout le monde. D2-collision mobile : inchangée.
+  const enGuerreDeclaree = state.diplomacy.war.some(
+    ([a, b]) => (a === me || b === me) && !isBarbarian(a === me ? b : a),
+  );
+  const armeeOffensive =
+    enGuerreDeclaree && !cfg.d1CampagneBarbares
+      ? (() => {
+          const campagne = cibleCampagne(state, me, profile);
+          return campagne ? assignerArmee(state, me, profile, campagne) : new Set<string>();
+        })()
+      : new Set<string>();
+
   // Purge du memo : unités mortes/parties/embarquées, villes perdues.
   if (memoChasse) {
     for (const uid of Object.keys(memoChasse)) {
@@ -1548,7 +1570,11 @@ export function planAntiCollision(
 
   for (const u of mine) {
     const cle = `${u.q},${u.r}`;
+    const membreCampagne = armeeOffensive.has(u.id);
     const chasseur = ennemis.some((e) => {
+      // D1-CAMPAGNE : les barbares (et eux seuls) ne poursuivent pas les
+      // assiégeants — la chasse domestique ne rappelle plus l'armée.
+      if (membreCampagne && !cfg.d1CampagneBarbares && isBarbarian(e.owner)) return false;
       const mouvement = UNIT_TYPES[e.type]?.movement ?? 1;
       return porteeMarche(state, e, cfg.toursDePoursuite * mouvement).has(cle);
     });
