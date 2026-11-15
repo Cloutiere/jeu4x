@@ -51,7 +51,7 @@ Data-driven (zéro durcissement), test-first citant les R-xx, déterminisme (RNG
 
 ## 4. État actuel (15/11 — la vue synthétique est dans PROJET.md)
 
-**Suites vertes au 15/11** (rules 1214 / server 544 / web 793 / jev-port 52 / sableuse 228), `schemaVersion` **28**, Deploy SUCCESS sur `9ea42ff` (re-run flocon `3679395` — flocon Tests canon sur commit docs), prod 200.
+**Suites vertes au 15/11** (rules **1215** / server 544 / web 793 / jev-port 52 / sableuse 228), `schemaVersion` **28**, Deploy SUCCESS sur `29b0c17` (SANCTUAIRE), prod 200.
 
 ### Le chapitre siège est CLOS (10-15/11 — 7 mécanismes empilés, tous mechanism-first, tous poussés et vérifiés)
 
@@ -93,9 +93,8 @@ Canon de combat complet (BATAILLE-COMPLETE `11b285b`, CANON-SIEGE `b43f298` bonu
 
 1. **Prendre connaissance de l'état** : PROJET.md (état du jeu), ce document §3-§5 (rituel + pièges), `git log` récent (le chapitre siège 10-15/11 a produit ~20 missions — tout est archivé à `docs/historique/`).
 2. **Aucune mission d'agent en cours** (CONVERGENCE-FINALE `9ea42ff` clôture le chapitre siège le 15/11). Vérifier quand même l'état du dépôt avant d'écrire — Erik pilote parfois en parallèle.
-3. **✅ TA PREMIÈRE TÂCHE (déjà arbitrée par Erik) : rédiger les handoffs culture** — les deux propositions sont livrées, analysées et VALIDÉES, il ne manque que les handoffs d'implémentation :
-   - **HANDOFF-SANCTUAIRE** : le bâtiment 20 marteaux / +1 culture flat / sans tech (rév.2 V1 actée — voir `docs/historique/rapports/PROPO-BATIMENT-CULTURE.md`, §3 « Implémentation data-driven » est déjà le plan : 1 entrée `buildings.json` + champ `cultureFlat` + ~10 lignes dans `cultureGains`, tests, banc bot avec critère « 1ᵉʳ palier culturel avant t60-t80 ») ;
-   - **HANDOFF-PRESSION-CULTURELLE** : les 7 tranchés sont validés (voir `docs/historique/rapports/PROPO-PRESSION-CULTURELLE-DEFENSIVE.md` §2-§4 : `pressionCulturelle` pure + paliers 5/10/20 → +10/20/30 % en `CombatMod`, factorisation des 3 sites de défense de `turn.ts`) ;
+3. **✅ PREMIÈRE TÂCHE : handoffs culture — Sanctuaire FAIT ET ACCEPTÉ** (`29b0c17`, 15/11 — livrée, banc AVANT/APRÈS vérifié, Deploy SUCCESS + prod 200 vérifiés via API ; handoff + `REPORT-SANCTUAIRE.md` archivés à `docs/historique/`. Piège consigné : `cultureGains` multipliait tout le flat par `palaceCultureMult` → accumulateur `civilFlat` séparé ajouté APRÈS la ligne Monarchie ; critère banc « 1ᵉʳ palier ≤t60-80 » NON discriminant — déjà vrai avant, verdict à l'œil en prod) :
+   - **HANDOFF-PRESSION-CULTURELLE : À ÉCRIRE (mission suivante)** : les 7 tranchés sont validés (voir `docs/historique/rapports/PROPO-PRESSION-CULTURELLE-DEFENSIVE.md` §2-§4 : `pressionCulturelle` pure + paliers 5/10/20 → +10/20/30 % en `CombatMod`, factorisation des 3 sites de défense de `turn.ts`) — la pression consomme la culture que le Sanctuaire produit (maintenant en place : bon banc de test).
    - **Ordre** : Sanctuaire d'abord (la pression consomme la culture qu'il produit), sérialisés (canon une-seule-mission) ; après eux, tranche B (L3 veto production) reste à cadrer.
 4. **La main est aussi à Erik** : il joue contre le Jev complet en prod — c'est l'arbitre RÉEL du chapitre siège tout entier (les bancs ne peuvent pas trancher le ressenti). Ses retours de partie (codes GZJQZX-style) ouvrent les diagnostics.
 5. **Les pièges récents** : cache vitest à la RACINE avant re-mesure ; banc via tsx ; jev-port via `vitest.jev.config.ts` ; UN SEUL worker 8787 ; la trace prod prend `?turn=` ; les fichiers personnels d'Erik (images, Techtree/, PDF) ne se committent JAMAIS ; voir §5 pour la liste complète à jour.

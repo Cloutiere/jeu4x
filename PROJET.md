@@ -2,7 +2,7 @@
 
 **Tenue par le pilot, mise à jour à chaque acceptation de phase — dernier point complet : 15/11.** Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md).
 
-**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **~2 700 tests verts** (rules 1214 / server 544 / web 793 / jev-port 52 / sableuse 228) · `schemaVersion` **28** · budget Cloudflare tenu (~5 $/mois). Coquille Electron de distribution Windows en place.
+**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **~2 700 tests verts** (rules 1215 / server 544 / web 793 / jev-port 52 / sableuse 228) · `schemaVersion` **28** · budget Cloudflare tenu (~5 $/mois). Coquille Electron de distribution Windows en place.
 
 ---
 
@@ -52,7 +52,7 @@
 
 ## 📋 File d'attente (dans l'ordre convenu avec Erik)
 
-1. **AMÉLIORATIONS CULTURE** (tout est arbitré par Erik — il reste les handoffs d'implémentation à écrire par le pilot, PREMIÈRE TÂCHE de la nouvelle conversation) : **Sanctuaire V1** (20 marteaux, +1 culture flat/tour, sans tech — comble le trou t1→Temple ; rév.2 dans `docs/historique/rapports/PROPO-BATIMENT-CULTURE.md`) puis **pression culturelle défensive** (7 tranchés validés : pression par case → paliers 5/10/20 → +10/20/30 % défense ; `docs/historique/rapports/PROPO-PRESSION-CULTURELLE-DEFENSIVE.md`) ;
+1. **AMÉLIORATIONS CULTURE** : **Sanctuaire V1 LIVRÉE + ACCEPTÉE** (`29b0c17`, 15/11 — 20 marteaux, `cultureFlat: 1` sans tech, accumulateur `civilFlat` séparé APRÈS le ×2 Monarchie ; le bot le bâtit dans 43-63 % des parties au banc, culture +4-7 %, zéro collapse ; critère banc « 1ᵉʳ palier ≤t60-80 » non discriminant — déjà vrai avant — verdict à l'œil en prod ; handoff+rapport archivés). **Reste : pression culturelle défensive** (7 tranchés validés : pression par case → paliers 5/10/20 → +10/20/30 % défense ; `PROPO-PRESSION-CULTURELLE-DEFENSIVE.md`) — handoff à écrire par le pilot ;
 2. **DÉFENSE-DE-VILLE tranche B** (L3 veto production quand ville menacée sans défenseur — la localisation L4/L5 est en place, le veto tournera à vue) ;
 3. **Erik joue contre le Jev complet** (l'arbitre réel du chapitre siège clos) — verdict ressenti sur victoires Jev 15 %, Oracle, armées ×3, guerres du gate ;
 4. **MIROIR JEV vs JEV** (backlog) : équilibre attaque/défense du canon + exam de la chaîne conquête des deux côtés ;
