@@ -62,6 +62,23 @@ describe('R-113 · Rendement culturel (scalaire sur la démographie)', () => {
     expect(cultureGains({ pop: 3, buildings: [], capital: false, wonders: [] })).toBe(0);
   });
 
+  it('SANCTUAIRE (Erik 14/11) : +1 culture FLAT/tour — indépendant de la population, hors lignée Temple', () => {
+    // Ville secondaire pop 3 + Sanctuaire = 1 (flat indépendant de la pop).
+    expect(cultureGains({ pop: 3, buildings: ['sanctuaire'], capital: false, wonders: [] })).toBe(1);
+    // Pop 1 : toujours 1 (le Temple donnerait aussi 1, mais le Sanctuaire coûte 20 et ne demande aucune tech).
+    expect(cultureGains({ pop: 1, buildings: ['sanctuaire'], capital: false, wonders: [] })).toBe(1);
+    // D6 — Communisme : n'annule PAS le flat (bâtiment civil, pas religieux).
+    expect(cultureGains({ pop: 3, buildings: ['sanctuaire'], capital: false, wonders: [] }, 0, [], { zeroTempleCulture: true })).toBe(1);
+    // D4 — Stonehenge ne multiplie PAS le flat (lignée Temple/Cathédrale seule).
+    expect(cultureGains({ pop: 3, buildings: ['sanctuaire'], capital: false, wonders: ['stonehenge'] })).toBe(1);
+    // D7 — Théâtre de Shakespeare ×2 la culture TOTALE de la ville : le flat en fait partie.
+    expect(cultureGains({ pop: 3, buildings: ['sanctuaire'], capital: false, wonders: ['theatre_de_shakespeare'] })).toBe(2);
+    // Capitale pop 3 + Sanctuaire = part Palais 3 (min(3, 5)) + 1 = 4.
+    expect(cultureGains({ pop: 3, buildings: ['palais', 'sanctuaire'], capital: true, wonders: [] })).toBe(4);
+    // D5 — Monarchie : la part Palais seule est doublée (3 × 2), le flat reste 1.
+    expect(cultureGains({ pop: 3, buildings: ['palais', 'sanctuaire'], capital: true, wonders: [] }, 0, [], { palaceCultureMult: 2 })).toBe(7);
+  });
+
   it('Stonehenge multiplie ×1,5 la part Temple/Cathédrale tant qu’il n’est pas obsolète (R-110)', () => {
     // 4 pop × Temple = 4 × 1,5 = 6, + Palais 4 (min(4,5), non multiplié) = 10.
     expect(cultureGains({ pop: 4, buildings: ['palais', 'temple'], capital: true, wonders: ['stonehenge'] })).toBe(10);

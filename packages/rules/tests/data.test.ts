@@ -158,12 +158,18 @@ describe('Données Phase 6 (RULES.md §2 révisé + R-66)', () => {
     expect(buildingTable['cathedrale']!.culturePerCitizen).toBe(2);
   });
 
-  it('buildings.json 7e : 22 bâtiments — coûts exacts (Temple 40 … Aqueduc 120) + Palais/Usine/SDI/Vaisseau', () => {
+  it('buildings.json 7e : 23 bâtiments — coûts exacts (Sanctuaire 20, Temple 40 … Aqueduc 120) + Palais/Usine/SDI/Vaisseau', () => {
     expect(Object.keys(buildingTable).sort()).toEqual([
       'aqueduc', 'atelier', 'banque', 'bibliotheque', 'caserne', 'cathedrale', 'comptoir_commercial', 'grenier',
-      'marche', 'mine_de_fer', 'palais', 'port', 'remparts', 'sdi', 'temple', 'tribunal', 'universite', 'usine',
+      'marche', 'mine_de_fer', 'palais', 'port', 'remparts', 'sanctuaire', 'sdi', 'temple', 'tribunal', 'universite', 'usine',
       'vaisseau_carburant', 'vaisseau_habitation', 'vaisseau_propulsion', 'vaisseau_support_vie',
     ]);
+    // SANCTUAIRE (Erik 14/11) : nouveau palier de prix sous la table (20),
+    // +1 culture flat/tour, sans tech (disponible d'office au menu).
+    expect(buildingTable['sanctuaire']!.cost).toBe(20);
+    expect(buildingTable['sanctuaire']!.tech).toBeNull();
+    expect(buildingTable['sanctuaire']!.cultureFlat).toBe(1);
+    expect('culturePerCitizen' in buildingTable['sanctuaire']!).toBe(false);
     // Coûts exacts du document « Technologies et Déblocages » (amendement 7e).
     expect(buildingTable['palais']!.cost).toBe(0);
     expect(buildingTable['caserne']!.cost).toBe(40);

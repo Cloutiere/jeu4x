@@ -205,6 +205,12 @@ describe('R-86 · intégrité référentielle de la base technologique (7e : arb
       for (const b of Object.values(buildingTable)) {
         // 7e : le Palais est `fixed` (posé par le moteur dans la capitale).
         if (b.id === 'palais') continue;
+        // SANCTUAIRE (Erik 14/11, D3) : sans tech — disponible d'office au
+        // menu de production (comme la Galère côté unités).
+        if (b.id === 'sanctuaire') {
+          expect(techUnlocked(b.tech ?? null, none), 'sanctuaire disponible au départ').toBe(true);
+          continue;
+        }
         expect(techUnlocked(b.tech ?? null, none), `${b.id} verrouillé au départ`).toBe(false);
       }
     });

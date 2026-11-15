@@ -288,6 +288,12 @@ export function cultureGains(
 ): number {
   let flat = 0;
   let perCitizen = 0;
+  // SANCTUAIRE (décision d'Erik du 14/11) : part FLAT des bâtiments civils
+  // (`cultureFlat`, +1/tour) — accumulée À PART pour échapper au ×2 de la
+  // Monarchie (part Palais SEULE) et à l'annulation du Communisme (part
+  // Temple/Cathédrale seule) ; le Théâtre de Shakespeare (×2 culture TOTALE)
+  // la multiplie bien, via le multiplicateur final de la formule.
+  let civilFlat = 0;
   for (const id of city.buildings) {
     const b = BUILDINGS[id];
     if (!b) continue;
@@ -299,10 +305,16 @@ export function cultureGains(
       flat += b.culturePerCitizenCap.perCitizen * Math.min(city.pop, b.culturePerCitizenCap.cap);
     }
     if (b.culturePerCitizen) perCitizen += b.culturePerCitizen;
+    if (b.cultureFlat) civilFlat += b.cultureFlat;
   }
   // 7h · R-121 : Monarchie double la culture du PALAIS (part Palais seule —
   // les Temples/Cathédrales et le Tribunal n'en profitent pas).
   if (gov.palaceCultureMult) flat *= gov.palaceCultureMult;
+  // SANCTUAIRE : la part civilFlat rejoint le flat APRÈS le ×2 Monarchie
+  // (bâtiment civil — la Monarchie ne l'affecte pas, décision D5) ; en amont
+  // du multiplicateur Théâtre (×2 total, D7) et hors portée de Stonehenge
+  // (multiplie la part `perCitizen` seule, D4) comme du Communisme (D6).
+  flat += civilFlat;
   // 7k · R-133 (audit — révision 7h) · Magna Carta : Tribunal = +1 culture par
   // CITROYEN et par tour (ville hôte, tant que la merveille n'est pas obsolète).
   let tribunalCulture = 0;

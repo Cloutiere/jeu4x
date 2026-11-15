@@ -141,6 +141,14 @@ export interface BuildingData {
    *  à la part `culturePerCitizen` Temple/Cathédrale). Data-driven (calibrage
    *  par édition du JSON). */
   culturePerCitizenCap?: { perCitizen: number; cap: number };
+  /** SANCTUAIRE (décision d'Erik du 14/11, rév. V1) : +1 culture FLAT par tour,
+   *  indépendant de la population — bâtiment civil PRÉ-Temple (20 marteaux,
+   *  sans tech) qui comble le trou culturel des villes secondaires avant
+   *  `rites_funeraires`. Hors lignée Temple/Cathédrale : Stonehenge ne le
+   *  multiplie PAS, Monarchie ne l'affecte pas (part Palais seule), Communisme
+   *  ne l'annule pas ; le Théâtre de Shakespeare ×2 la culture TOTALE de la
+   *  ville s'applique (comportement existant du multiplicateur). */
+  cultureFlat?: number;
   /** Phase 7b : libellé d'effet pour l'UI — absent pour les bâtiments à bonus
    *  de terrain (libellé dérivé). */
   effect?: string;

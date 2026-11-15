@@ -56,6 +56,16 @@
     "culturePerCitizen": 1,
     "effect": "+1 Culture par citoyen et par tour (R-113)"
   },
+  "sanctuaire": {
+    "id": "sanctuaire",
+    "name": "Sanctuaire",
+    "cost": 20,
+    "workRadiusBonus": 0,
+    "tileBonus": null,
+    "tech": null,
+    "cultureFlat": 1,
+    "effect": "+1 Culture par tour, indépendant de la population"
+  },
   "comptoir_commercial": {
     "id": "comptoir_commercial",
     "name": "Comptoir commercial",

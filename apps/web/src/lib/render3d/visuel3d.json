@@ -493,6 +493,7 @@
         "temple": "culture",
         "cathedrale": "culture",
         "palais": "culture",
+        "sanctuaire": "culture",
         "caserne": "defense",
         "remparts": "defense",
         "sdi": "defense"
