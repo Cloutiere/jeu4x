@@ -1,6 +1,6 @@
 # REPORT-CONVERGENCE-FINALE — transit allié + tolérance barbares conditionnelle : clôture du chapitre siège
 
-**Mission FINALE (HANDOFF-CONVERGENCE-FINALE, canon Erik 15/11 — diag `f00f986`).** ⚠ CI/Deploy à vérifier (§5).
+**Mission FINALE (HANDOFF-CONVERGENCE-FINALE, canon Erik 15/11 — diag `f00f986`).** Deploy **SUCCESS** (run 43727279651) + prod 200 ✓ (§5).
 
 ## 1. Implémenté (L1)
 
@@ -61,7 +61,7 @@ Victoires 5 → 4 (shuffle de variance : −1 facile, −2 normal, +2 difficile)
 
 - L0 : 8 nouveaux tests (transit allié + MultiStep traversée + transit ennemi refusé + (b) admis/refusé + tuile barbare + civils + hors-campagne + invariants GZJQZX 30 seeds) → `anticollision-chasse.test.ts` **41 verts**.
 - Suites isolées : **rules 1214 · server 544 · web 793 · jev-port 52** verts, `tsc -b` ✓ (1 flaky contention chat-socle re-passé isolé 12/12).
-- ⚠ Push + Deploy SUCCESS + prod 200 : à vérifier après push.
+- Push `9ea42ff` + Deploy **SUCCESS** (run **43727279651**) + prod **200** ✓.
 
 ## 6. Pièges consignés
 
