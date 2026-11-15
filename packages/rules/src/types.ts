@@ -322,6 +322,16 @@ export interface CultureData {
   // `greatPersonYieldThresholdBase`/`Growth` (R-123) sont SUPPRIMÉES.
   /** 7h · T-31 · Victoires de combat de l'empire pour engendrer un Leader (R-123). */
   leaderGpVictories: number;
+  /** PRESSION-CULTURELLE (T-53, canon Erik 14/11 — D1-D7) : tables de la
+   *  pression culturelle défensive. `attenuationParAnneau` (D1/D2 : ×1 à
+   *  d≤1, ×0,5 à d=2, ×0,25 à d=3 — la longueur fixe la portée R=3),
+   *  `defenseTiers` (D3 : paliers de pression, bornes inclusives) et
+   *  `defenseBonus` (D3/D4 : bonus défensifs, plafond = dernière valeur). */
+  pressionDefensive: {
+    attenuationParAnneau: number[];
+    defenseTiers: number[];
+    defenseBonus: number[];
+  };
 // 7l · C7 : `hammerSalvageWindow` (T-32) est ABROGÉ — la réserve de marteaux
 // est permanente (R-130 rév.), plus aucune dissipation.
 }

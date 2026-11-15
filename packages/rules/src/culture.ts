@@ -15,6 +15,8 @@
  *  - les merveilles SURVIVENT à la capture (champ city.wonders).
  */
 import { BUILDINGS, CULTURE, FIGURES, unitType } from './data.js';
+import { hexDistanceW } from './hex.js';
+import type { Hex } from './hex.js';
 import { TECHS, WONDERS } from './techs.js';
 import type { FigureEntry } from './types.js';
 import { compareCityIds } from './state.js';
@@ -347,6 +349,79 @@ export function cultureGains(
     cityMult = Math.max(cityMult, w.cityCultureMult);
   }
   return Math.round((flat + Math.round(perCitizen * city.pop * templeMult) + empireCulture) * cityMult);
+}
+
+// ---------------------------------------------------------------------------
+// PRESSION-CULTURELLE (T-53, canon Erik 14/11 — tranche 1 défensive, D1-D7)
+// ---------------------------------------------------------------------------
+
+/** PRESSION-CULTURELLE · Une ville SOURCE de pression : position + culture
+ *  par tour (l'appelant fournit le gain du tour réel — même formule que le
+ *  rendement 7f · R-113 — donc D6 merveilles capturées et D7 anarchie sont
+ *  gratuits côté moteur). */
+export interface VillePression {
+  q: number;
+  r: number;
+  /** Culture/tour de la ville (gain du tour réel). */
+  culture: number;
+}
+
+export interface PressionTables {
+  attenuationParAnneau: readonly number[];
+  defenseTiers: readonly number[];
+  defenseBonus: readonly number[];
+}
+
+/**
+ * T-53 · D1/D2 — Pression culturelle d'une case : Σ (villes de la nation,
+ * dist ≤ R) culture/tour × atténuation de l'anneau. R = longueur de la table
+ * d'atténuation (défaut 3 anneaux — D1, FIXE : les anneaux visuels R-162
+ * restent visuels). Atténuation ×1 à d≤1 (case de ville + adjacent), ×0,5 à
+ * d=2, ×0,25 à d=3, 0 au-delà (D2). SUPERPOSITION : les cases entre deux
+ * villes s'additionnent (le cœur dense atteint les paliers hauts). ⚠ TOUTE
+ * distance est wrappée (`hexDistanceW` — Est↔Ouest). FOG : aucune lecture
+ * d'état ennemi — l'appelant ne passe que les villes PROPRES de la nation.
+ * PURE : tri R-81 inutile ici (Σ commutative), aucun RNG, testable hors
+ * Board. Table data-driven (culture.json `pressionDefensive`).
+ */
+export function pressionCulturelle(
+  villes: readonly VillePression[],
+  cible: Hex,
+  mapWidth: number,
+  tables: PressionTables = CULTURE.pressionDefensive,
+): number {
+  const att = tables.attenuationParAnneau;
+  let pression = 0;
+  for (const v of villes) {
+    const d = hexDistanceW({ q: v.q, r: v.r }, cible, mapWidth);
+    if (d > att.length) continue; // au-delà du dernier anneau : 0
+    // d=0 (case de la ville elle-même) compte comme anneau 1 (×1 — D2 : ×1 à d≤1).
+    const attAnneau = att[Math.min(Math.max(d, 1), att.length) - 1] ?? 0;
+    pression += v.culture * attAnneau;
+  }
+  return pression;
+}
+
+/**
+ * T-53 · D3/D4 — Pression → bonus défensif (paliers à bornes INCLUSIVES :
+ * 5-9 → +10 %, 10-19 → +20 %, ≥20 → +30 % plafond D4 ; 0-4 → 0). Retourne
+ * le `CombatMod` prêt à pousser (label règle T-53) ou null à pression
+ * insuffisante — JAMAIS un mod à 0 (pas de bruit dans le détail de combat,
+ * bit-à-bit à pression nulle). DÉFENSIF PUR (D5) : le moteur ne l'appelle
+ * que du côté défenseur.
+ */
+export function bonusDefenseCulturel(
+  pression: number,
+  tables: PressionTables = CULTURE.pressionDefensive,
+): { valeur: number; label: string } | null {
+  const { defenseTiers, defenseBonus } = tables;
+  for (let i = defenseTiers.length - 1; i >= 0; i--) {
+    const valeur = defenseBonus[i] ?? 0;
+    if (pression >= (defenseTiers[i] ?? Infinity) && valeur > 0) {
+      return { valeur, label: `Pression culturelle (T-53)` };
+    }
+  }
+  return null;
 }
 
 /** 7f · R-110/R-128 (M1) : la merveille est-elle obsolète ? ⚠ Le paramètre

@@ -61,6 +61,9 @@ import { WONDERS, TECHS, canSetProduction, buildingCostDiscount, isUnitObsolete,
 import type { WonderData } from './types.js';
 import {
   cultureGains,
+  bonusDefenseCulturel,
+  pressionCulturelle,
+  type VillePression,
   cultureEmpireOf,
   villeLaPlusCultivee,
   greatPersonThresholdFor,
@@ -964,11 +967,6 @@ function capturePeaceful(board: Board, victim: Unit, byPlayer: PlayerId, byUnitI
   }
 }
 
-function terrainDefenseBonus(board: Board, hex: Hex): number {
-  const tile = board.st.map[tileKeyOf(hex)];
-  return tile ? TERRAINS[tile.terrain]!.defenseBonus : 0;
-}
-
 /**
  * 7e · Défense de ville des BÂTIMENTS (data-driven : `cityDefenseBonus`) —
  * s'ajoute au bonus de la case de ville (T-02) dans S_def du défenseur en
@@ -1033,6 +1031,96 @@ function orderTouchesUnit(order: Order, unitId: UnitId): boolean {
 // ---------------------------------------------------------------------------
 // Phase B — combats planifiés (RULES.md §7, contrat ENGAGEMENT R-176/R-177)
 // ---------------------------------------------------------------------------
+
+// PRESSION-CULTURELLE (T-53, canon Erik 14/11 — D1-D7) : la culture de la
+// nation devient un bonus défensif par case (paliers 5/10/20 → +10/20/30 %,
+// tables data-driven culture.json `pressionDefensive`). Défensif PUR (D5 :
+// jamais côté attaquant) ; portée R=3 anneaux fixes (D1), atténuation
+// ×1/×0,5/×0,25 (D2), plafond +30 % (D4), pas de malus ennemi (D5),
+// merveilles capturées pressent pour le NOUVEAU propriétaire (D6), anarchie
+// → pression 0 (D7). Les anneaux visuels R-162 restent visuels.
+
+/**
+ * T-53 — Culture/tour d'une ville, MÊME formule que le rendement réel du
+ * tour (bloc 7f · R-113 de processEconomy : cultureGains + ressources
+ * culturelles travaillées, × GP installé) — D6 (merveilles/bâtiments suivent
+ * la ville capturée → pressent pour le nouveau propriétaire) et D7 (anarchie
+ * → 0, R-122) gratuits. Pur : aucune mutation.
+ */
+function cultureTourDeVille(st: GameState, city: City): number {
+  const player = st.players[city.owner];
+  if (!player || isInAnarchy(player, st.turn)) return 0; // D7 · R-122
+  const empireBonus = empirePerCityBonus(st, city.owner);
+  const allTechs = allKnownTechs(st);
+  const directCulture = cultureRessourcesTravaillees(
+    st.map,
+    city.workedTiles,
+    player.techsUnlocked,
+    civToutesRessources(player),
+  );
+  return Math.round(
+    (cultureGains(city, empireBonus.culture, allTechs, effectsFor(player)) + directCulture) *
+      settledGpMultiplier(city, 'artiste_penseur'),
+  );
+}
+
+/** T-53 — Cache mémoïsé des listes de pression PAR (état, tour) : le gate
+ *  bot (forcesProspectives) appelle le calcul des dizaines de fois par tour —
+ *  la culture/tour d'une ville ne change pas au fil d'une résolution (le
+ *  combat ne touche ni bâtiments ni merveilles avant la capture, et une
+ *  capture invalide le tour entier via le changement d'état). AUCUNE
+ *  influence sur le déterminisme : valeur purement dérivée de (st, tour). */
+const cachePression = new WeakMap<GameState, { tour: number; parOwner: Map<PlayerId, VillePression[]> }>();
+
+/** T-53 — Les villes PROPRES de la nation (aucune lecture d'état ennemi —
+ *  fog intact), position + culture/tour. Tri R-81 (déterminisme). */
+function villesPressionDe(st: GameState, owner: PlayerId): VillePression[] {
+  let entree = cachePression.get(st);
+  if (!entree || entree.tour !== st.turn) {
+    entree = { tour: st.turn, parOwner: new Map() };
+    cachePression.set(st, entree);
+  }
+  const memo = entree.parOwner.get(owner);
+  if (memo) return memo;
+  const villes: VillePression[] = [];
+  for (const city of Object.values(st.cities)) {
+    if (city.owner !== owner) continue;
+    villes.push({ q: city.q, r: city.r, culture: cultureTourDeVille(st, city) });
+  }
+  villes.sort((a, b) => a.q - b.q || a.r - b.r);
+  entree.parOwner.set(owner, villes);
+  return villes;
+}
+
+/**
+ * T-53 — FACTORISATION des sites de mods défensifs de demeure (assaut
+ * `combatStrengthsOf` + mêlée R-180) : terrain (T-02), fortification (T-17),
+ * bâtiments de ville + le mod PRESSION CULTURELLE (défensif pur — D5). Le
+ * mod pression s'applique aux MÊMES conditions que le bloc existant (même
+ * gate R-175 `garde` : stabilise || (fortified && demeure) en assaut,
+ * `demeure` en mêlée) — pas de nouveau gate. À pression nulle le mod n'est
+ * JAMAIS poussé (bit-à-bit, pas de bruit dans le détail).
+ */
+function modsDefenseCase(
+  board: Board,
+  tile: Hex,
+  owner: PlayerId,
+  fortified: boolean,
+  garde: boolean,
+): CombatMod[] {
+  const mods: CombatMod[] = [];
+  if (!garde) return mods;
+  const tileDef = board.st.map[tileKeyOf(tile)];
+  const terr = tileDef ? TERRAINS[tileDef.terrain]!.defenseBonus : 0;
+  if (terr) mods.push({ label: `Terrain — ${tileDef!.terrain} (T-02)`, valeur: terr });
+  if (fortified) mods.push({ label: 'Fortification (T-17)', valeur: FORTIFY_DEFENSE_BONUS });
+  const batiments = cityBuildingDefenseBonus(board, tile, owner);
+  if (batiments) mods.push({ label: 'Bâtiments de ville', valeur: batiments });
+  const pression = pressionCulturelle(villesPressionDe(board.st, owner), tile, board.st.mapWidth);
+  const culturel = bonusDefenseCulturel(pression);
+  if (culturel) mods.push(culturel);
+  return mods;
+}
 
 /**
  * Forces effectives (S_att/S_def) d'un échange — facteur unique partagé par
@@ -1136,12 +1224,19 @@ function combatStrengthsOf(
   const cleTraitDef = stabilise ? 'unitDefense' : 'unitAttack';
   const baseDefense =
     (statDefenseBrute + civUnitStatBonusOf(defPlayer, cleTraitDef, defender.type)) * multDef;
-  const bonusDefense =
-    stabilise || (defender.fortified && demeure)
-      ? terrainDefenseBonus(board, combatTile) +
-        (defender.fortified ? FORTIFY_DEFENSE_BONUS : 0) +
-        cityBuildingDefenseBonus(board, combatTile, defender.owner)
-      : 0;
+  // PRESSION-CULTURELLE (T-53) : les bonus de demeure (terrain T-02,
+  // fortification T-17, bâtiments + pression culturelle) factorisés dans
+  // UN helper partagé avec la mêlée — la somme des valeurs fait le bonus
+  // numérique, zéro duplication de formule.
+  const gardeDef = stabilise || (defender.fortified && demeure);
+  const bonusDefPct: CombatMod[] = modsDefenseCase(
+    board,
+    combatTile,
+    defender.owner,
+    defender.fortified,
+    gardeDef,
+  );
+  const bonusDefense = bonusDefPct.reduce((acc, m) => acc + m.valeur, 0);
   // Détail défenseur — décomposition nommée des bonus de demeure.
   const modsBaseDef: CombatMod[] = [];
   const bonusTypeDef = civUnitStatBonusOf(defPlayer, cleTraitDef, defender.type);
@@ -1149,15 +1244,6 @@ function combatStrengthsOf(
     modsBaseDef.push({ label: `Trait national — ${defender.type} (R-149)`, valeur: bonusTypeDef * multDef });
   }
   if (defender.isArmy) modsBaseDef.push({ label: `Armée ×${ARMY_SIZE} (R-31)`, valeur: statDefenseBrute * (ARMY_SIZE - 1) });
-  const bonusDefPct: CombatMod[] = [];
-  if (stabilise || (defender.fortified && demeure)) {
-    const tileDef = board.st.map[tileKeyOf(combatTile)];
-    const terr = tileDef ? TERRAINS[tileDef.terrain]!.defenseBonus : 0;
-    if (terr) bonusDefPct.push({ label: `Terrain — ${tileDef!.terrain} (T-02)`, valeur: terr });
-    if (defender.fortified) bonusDefPct.push({ label: 'Fortification (T-17)', valeur: FORTIFY_DEFENSE_BONUS });
-    const batiments = cityBuildingDefenseBonus(board, combatTile, defender.owner);
-    if (batiments) bonusDefPct.push({ label: 'Bâtiments de ville', valeur: batiments });
-  }
   const defRegime = defPlayer && !defAnarchy ? landCombatBonus(effectsFor(defPlayer), dStats, 'defense') : 0;
   const modsPostDef: CombatMod[] = [];
   if (defRegime) modsPostDef.push({ label: 'Régime — Fondamentalisme (R-121)', valeur: defRegime });
@@ -5251,11 +5337,11 @@ function processStability(board: Board): void {
       for (const u of participants) {
         const stats = unitType(u.type);
         const demeure = !board.moved.has(u.id);
-        const bonus = demeure
-          ? terrainDefenseBonus(board, tile) +
-            (u.fortified ? FORTIFY_DEFENSE_BONUS : 0) +
-            cityBuildingDefenseBonus(board, tile, u.owner)
-          : 0;
+        // PRESSION-CULTURELLE (T-53) : bonus de demeure factorisés dans le
+        // MÊME helper que l'assaut (terrain T-02, fortification T-17,
+        // bâtiments + pression culturelle) — mods et valeur uniques.
+        const bonusMods = modsDefenseCase(board, tile, u.owner, u.fortified, demeure);
+        const bonus = bonusMods.reduce((acc, m) => acc + m.valeur, 0);
         // ARMEE-STRENGTH (R-31, canon Erik 09/11) : une armée pèse aussi ×3
         // en mêlée pondérée (somme des membres — base du type × ARMY_SIZE).
         const multMelee = u.isArmy ? ARMY_SIZE : 1;
@@ -5267,15 +5353,6 @@ function processStability(board: Board): void {
         const tau = meleeTauMultiplier(compteAllies.get(u.owner) ?? 1);
         poids.set(u.id, eff * eff * tau);
         tracePoids.push({ id: u.id, eff, tau, poids: eff * eff * tau });
-        const bonusMods: CombatMod[] = [];
-        if (demeure) {
-          const tileDef = st.map[tileKeyOf(tile)];
-          const terr = tileDef ? TERRAINS[tileDef.terrain]!.defenseBonus : 0;
-          if (terr) bonusMods.push({ label: `Terrain — ${tileDef!.terrain} (T-02)`, valeur: terr });
-          if (u.fortified) bonusMods.push({ label: 'Fortification (T-17)', valeur: FORTIFY_DEFENSE_BONUS });
-          const batiments = cityBuildingDefenseBonus(board, tile, u.owner);
-          if (batiments) bonusMods.push({ label: 'Bâtiments de ville', valeur: batiments });
-        }
         detailMelee.participants.push({
           unitId: u.id,
           base: stats.attack * multMelee, // armée : base ×3 (R-31), mod non décomposé ici

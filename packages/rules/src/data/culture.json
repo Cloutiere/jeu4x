@@ -73,5 +73,10 @@
     "base": 117,
     "growth": 33.333333333333336,
     "note": "seuil(m) = 150 + somme des écarts ; écart(k) = floor(117 + (100/3)×k) — soit +33,33 par pas (ancres Erik : 150, 267, 417, 600, 817, 1067, 1350, 1667, 2017, 2400, 15e = 4817, 20e = 8067). 64 entrées pré-calculées, extrapolation au-delà."
+  },
+  "pressionDefensive": {
+    "attenuationParAnneau": [1, 0.5, 0.25],
+    "defenseTiers": [5, 10, 20],
+    "defenseBonus": [0.1, 0.2, 0.3]
   }
 }
