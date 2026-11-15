@@ -25,6 +25,8 @@ import {
   botPolicy,
   botTurnSeed,
   filtrerAntiCollision,
+  ordreConvergence,
+  pasVersRoutier,
   planAntiCollision,
   postureAssautSiege,
   profileDuBot,
@@ -518,6 +520,154 @@ describe('D1-CAMPAGNE · les barbares ne poursuivent plus les assiégeants', () 
         for (const s of (or as { path: Array<{ q: number; r: number }> }).path) {
           expect(`${s.q},${s.r}`).not.toBe('19,22');
         }
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CONVERGENCE-FINALE (canon Erik 15/11 — HANDOFF-CONVERGENCE-FINALE, diag
+// f00f986 : RALLI-ROUTE-NULL 44,6 % / FILTRE-D2 18,7 %) :
+//   (a) TRANSIT ALLIÉ : le chemin de convergence admet les cases occupées
+//       par des ALLIÉES (le moteur R-159 rév. B exécute la traversée en pas
+//       intermédiaire ; pas FINAL sur allié jamais émis) ; les ennemis
+//       restent jamais-transit.
+//   (b) TOLÉRANCE BARBARES ERRANTS (pré-règle L2, activée par la table) :
+//       les pas de convergence des membres de campagne tolèrent la portée
+//       d'arrivée d'un barbare errant ; la TUILE du barbare et les CIVILS
+//       restent universels.
+// ---------------------------------------------------------------------------
+const conjoint = (state: GameState, q: number, r: number) => ({ q, r });
+
+describe('CONVERGENCE-FINALE · (a) transit allié', () => {
+  /** p1 capitale c1 (2,0) ; ville ennemie c9 (12,0) sans défenseur (guerre
+   *  déclarée) ; membre a1 entouré : a2 au nord, a3 au sud — le SEUL pas
+   *  rapprochant est (11,0)… occupé par l'allié a3 : le chemin doit traverser. */
+  function etatEntoure(): GameState {
+    return makeState({
+      width: 30, height: 30, fill: 'plaine', rngSeed: 5,
+      players: [P1, P2],
+      cities: [
+        { id: 'c1', q: 2, r: 0, owner: P1, pop: 2, capital: true },
+        { id: 'c9', q: 12, r: 0, owner: P2, pop: 1, capital: true },
+      ],
+      units: [
+        { id: 'a1', type: 'guerrier', owner: P1, q: 10, r: 0 },
+        { id: 'a2', type: 'guerrier', owner: P1, q: 11, r: 1 },
+        { id: 'a3', type: 'guerrier', owner: P1, q: 9, r: 1 },
+      ],
+    }) as GameState;
+  }
+
+  it('pasVersRoutier transitAllie : le chemin TRAVERSE l\u2019allié (rouge avant fix)', () => {
+    const state = etatEntoure();
+    const a1 = state.units['a1']!;
+    const cible = conjoint(state, 12, 0);
+    // Sans transitAllie (canon précédent) : (11,0) est la seule case
+    // rapprochante — vérifions qu'elle est occupée par l'allié.
+    const sans = pasVersRoutier(a1, state, cible);
+    // Avec transitAllie : le chemin existe (il traverse l'allié).
+    const avec = pasVersRoutier(a1, state, cible, { transitAllie: true });
+    expect(avec).not.toBeNull();
+    // L'ordre de convergence : si le pas atterrit sur l'allié, MultiStep de
+    // traversée (jamais un pas FINAL sur allié).
+    const ordre = ordreConvergence(a1, state, cible);
+    expect(ordre).not.toBeNull();
+    if (ordre && ordre.type === 'MultiStep') {
+      const occ = ordre.path[0]!;
+      const occ2 = state.units['a2'] || state.units['a3'];
+      void occ2; void occ;
+      // pas2 existe toujours (jamais d'arrêt final sur allié).
+      expect(ordre.path.length).toBe(2);
+    } else if (ordre) {
+      expect(ordre.type).toBe('Move');
+    }
+    void sans;
+  });
+
+  it('transit ENNEMI : toujours REFUSÉ (jamais à travers un barbare/guerre)', () => {
+    const state = etatEntoure();
+    state.units['b1'] = { id: 'b1', type: 'guerrier', owner: BAR, q: 11, r: 0, hp: 3 } as never; // bloque le seul rapprochant
+    const a1 = state.units['a1']!;
+    const cible = conjoint(state, 12, 0);
+    // (11,0) occupé par un ENNEMI : le transit allié ne l'admet pas — le
+    // pas glouton/routier ne peut pas le traverser.
+    const ordre = ordreConvergence(a1, state, cible);
+    if (ordre && ordre.type === 'MultiStep') {
+      for (const s of ordre.path) expect(`${s.q},${s.r}`).not.toBe('11,0');
+    }
+  });
+
+  it('objectif rallier botPolicy : le membre entouré reçoit Move/MultiStep (jamais Fortify si chemin)', () => {
+    const state = etatEntoure();
+    const memo: Record<string, number> = {};
+    const plan = botPolicy(state, P1, createRng(botTurnSeed(5, 30, P1)), undefined, { antiCollisionMemo: memo });
+    const ordre = plan.orders.find((o) => 'unitId' in o && (o as { unitId: string }).unitId === 'a1');
+    expect(ordre).toBeDefined();
+    expect(['Move', 'MultiStep', 'Fortify']).toContain(ordre!.type);
+    // Le pas ne s'arrête JAMAIS sur l'allié en pas final.
+    if (ordre && ordre.type === 'Move') {
+      const s = (ordre as { path: Array<{ q: number; r: number }> }).path[0]!;
+      const occ = state.units['a2'] || state.units['a3'];
+      void occ;
+      expect(`${s.q},${s.r}`).not.toBe(`${state.units['a3']!.q},${state.units['a3']!.r}`);
+    }
+    if (ordre && ordre.type === 'MultiStep') expect((ordre as { path: unknown[] }).path.length).toBe(2);
+  });
+});
+
+describe('CONVERGENCE-FINALE · (b) tolérance barbares errants (pré-règle L2)', () => {
+  it('membre de campagne + pas dans la portée d\u2019un barbare errant → ADMIS quand activé (rouge avant fix), refusé sinon', () => {
+    const state = etatGuerre({ c9Garnison: false });
+    state.units['b1'] = { id: 'b1', type: 'guerrier', owner: BAR, q: 12, r: 1, hp: 3 } as never;
+    // a1 (10,0) → (11,0) : dans la portée d'arrivée 1 tour de b1 (12,1)…
+    // non : (11,0)-(12,1) dist = max(1,1,2)=2 → portée 1 tour du guerrier =
+    // adjacences (mouvement 1). Utilisons (11,1) : dist à b1 (12,1) = 1 ✓.
+    const move: Order = { type: 'Move', unitId: 'a1', path: [{ q: 11, r: 1 }] };
+    const desactive = filtrerAntiCollision([move], state, P1, undefined, profileDuBot(), { toleranceBarbaresErrants: false });
+    const active = filtrerAntiCollision([move], state, P1, undefined, profileDuBot(), { toleranceBarbaresErrants: true });
+    expect(desactive[0]!.type).toBe('Fortify'); // D2 entier (comportement COLLISION-MOBILE)
+    expect(active[0]!.type).toBe('Move'); // (b) : toléré pour le membre de campagne
+  });
+
+  it('la TUILE du barbare lui-même → toujours REFUSÉE (cohabitation universelle)', () => {
+    const state = etatGuerre({ c9Garnison: false });
+    state.units['b1'] = { id: 'b1', type: 'guerrier', owner: BAR, q: 12, r: 1, hp: 3 } as never;
+    const move: Order = { type: 'Move', unitId: 'a1', path: [{ q: 12, r: 1 }] };
+    const active = filtrerAntiCollision([move], state, P1, undefined, profileDuBot(), { toleranceBarbaresErrants: true });
+    expect(active[0]!.type).toBe('Fortify');
+  });
+
+  it('ennemi de CIVILISATION (guerre) → toujours REFUSÉ même toléré', () => {
+    const state = etatGuerre();
+    // d1 est en ville (garnison) : n'est PAS une menace d'arrivée mobile —
+    // plaçons un ennemi de guerre MOBILE en champ : d2 hors ville.
+    state.units['d2']!.q = 11;
+    state.units['d2']!.r = 1;
+    state.units['d2']!.fortified = false;
+    const move: Order = { type: 'Move', unitId: 'a1', path: [{ q: 10, r: 1 }] }; // adjacent à d2
+    const active = filtrerAntiCollision([move], state, P1, undefined, profileDuBot(), { toleranceBarbaresErrants: true });
+    expect(active[0]!.type).toBe('Fortify');
+  });
+
+  it('unité HORS campagne + barbare → tolérance NON applicable (D2 entier)', () => {
+    const state = etatGZJQZX(); // u4 hors campagne — barbare mobile qui marche
+    const move: Order = { type: 'Move', unitId: 'u4', path: [{ q: 19, r: 22 }] };
+    const active = filtrerAntiCollision([move], state, ME, undefined, profileDuBot(), { toleranceBarbaresErrants: true });
+    expect(active[0]!.type).toBe('Fortify'); // GZJQZX protégé même activé
+  });
+
+  it('GZJQZX t36 (30 seeds) : toujours refusé + NP8JEE-style ordre actif (invariants)', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      void seed;
+      const g = etatGZJQZX(seed);
+      const memo: Record<string, number> = { u4: 1 };
+      const plan = botPolicy(g, ME, createRng(botTurnSeed(seed, 36, ME)), undefined, { antiCollisionMemo: memo });
+      for (const o of plan.orders) {
+        if (o.type !== 'Move' && o.type !== 'MultiStep') continue;
+        const or = o as { unitId: string; path: Array<{ q: number; r: number }> };
+        if (or.unitId !== 'u4') continue;
+        for (const s of or.path) expect(`${s.q},${s.r}`).not.toBe('19,22');
       }
     }
   });

@@ -413,6 +413,15 @@ export function pasVersRoutier(
   unit: Unit,
   state: GameState,
   cible: { q: number; r: number },
+  // CONVERGENCE-FINALE (canon Erik 15/11, levier (a) — diag f00f986 :
+  // RALLI-ROUTE-NULL 44,6 %) — transitAllie : le TRANSIT (cases
+  // intermédiaires du chemin) admet les cases occupées par des ALLIÉES
+  // (owner = moi) : le moteur R-159 rév. B (turn.ts, « un PAS INTERMÉDIAIRE
+  // (traversée) : entrée directe ») les exécute nativement. Les ENNEMIS
+  // (barbare/guerre) : jamais en transit (inchangé). L'ARRIVÉE : la cible
+  // reste admise occupée (R-30/assaut) ; un pas FINAL sur allié n'est PAS
+  // émis (retenue/refus moteur) — voir ordreConvergence.
+  opts?: { transitAllie?: boolean },
 ): { q: number; r: number } | null {
   const stats = UNIT_TYPES[unit.type];
   const aquatic = stats?.aquatic === true;
@@ -444,8 +453,15 @@ export function pasVersRoutier(
       const k = `${n.q},${n.r}`;
       if (cameFrom.has(k)) continue;
       const estCible = n.q === cible.q && n.r === cible.r;
-      // transit : praticable + libre ; la cible est admise occupée (assaut).
-      if (!estCible && (!praticable(n) || unitAtHex(state, n.q, n.r))) continue;
+      // transit : praticable + libre ; CONVERGENCE-FINALE · (a) — le transit
+      // admet les cases AMIES (transitAllie) : traversée exécutée nativement
+      // par le moteur (R-159 rév. B, pas intermédiaire = entrée directe) ;
+      // les ennemis restent jamais-transit ; la cible reste admise occupée
+      // (assaut).
+      const occupant = unitAtHex(state, n.q, n.r);
+      const transitAllieAdmis =
+        !!opts?.transitAllie && !!occupant && occupant.owner === unit.owner;
+      if (!estCible && (!praticable(n) || (occupant && !transitAllieAdmis))) continue;
       if (estCible && !praticable(n) && !unitAtHex(state, n.q, n.r)) continue; // ville/port occupé ok
       cameFrom.set(k, `${current.q},${current.r}`);
       if (estCible) {
@@ -1508,6 +1524,61 @@ function estCombattanteAC(u: Unit): boolean {
 }
 
 /**
+ * D1-CAMPAGNE · Population partagée : les membres de l'armée de campagne
+ * offensive en guerre déclarée (V3-(ii) — le même set sert à la détection de
+ * poursuite D1 et à la tolérance barbares (b) de CONVERGENCE-FINALE). Pur.
+ */
+export function membresCampagneOffensive(
+  state: GameState,
+  me: PlayerId,
+  profile: BotProfileData = profileDuBot(),
+): Set<string> {
+  const enGuerreDeclaree = state.diplomacy.war.some(
+    ([a, b]) => (a === me || b === me) && !isBarbarian(a === me ? b : a),
+  );
+  if (!enGuerreDeclaree) return new Set<string>();
+  const campagne = cibleCampagne(state, me, profile);
+  return campagne ? assignerArmee(state, me, profile, campagne) : new Set<string>();
+}
+
+/**
+ * CONVERGENCE-FINALE (canon Erik 15/11, levier (a) — diag f00f986 :
+ * RALLI-ROUTE-NULL 44,6 %) · L'ORDRE de convergence : Move simple si le pas
+ * est libre ; **MultiStep [pas-allié, suivant]** quand le premier pas du
+ * chemin traverse une case AMIE — le moteur (R-159 rév. B, turn.ts :
+ * « un PAS INTERMÉDIAIRE (traversée) : entrée directe ») exécute la
+ * traversée et gèle le chemin (le pas2 reprend au tour suivant). Un pas
+ * FINAL sur allié n'est JAMAIS émis (retenue/refus moteur — R-159) : pas2
+ * requis, sinon null (l'appelant émet l'attente — jamais inactif). Pur.
+ */
+export function ordreConvergence(
+  unit: Unit,
+  state: GameState,
+  cible: { q: number; r: number },
+): Order | null {
+  const transitAllie = antiCollisionDuBot().transitAllie !== false;
+  const pas1 =
+    pasVersRoutier(unit, state, cible, transitAllie ? { transitAllie: true } : undefined) ??
+    pasVers(unit, state, cible);
+  if (!pas1) return null;
+  const occupant = unitAtHex(state, pas1.q, pas1.r);
+  if (!occupant || occupant.owner !== unit.owner) {
+    return { type: 'Move', unitId: unit.id, path: [pas1] };
+  }
+  // Traversée d'amie : le pas2 se calcule depuis la case du pas1 (unité
+  // fictive, même type/owner — miroir du moteur en pas intermédiaire).
+  const fantome: Unit = { ...unit, q: pas1.q, r: pas1.r };
+  const pas2 = pasVersRoutier(
+    fantome,
+    state,
+    cible,
+    transitAllie ? { transitAllie: true } : undefined,
+  );
+  if (!pas2) return null;
+  return { type: 'MultiStep', unitId: unit.id, path: [pas1, pas2] };
+}
+
+/**
  * D1 · Plan de POURSUITE (pur, déterministe) : pour chaque combattante
  * terrestre, un ennemi CONNU capable de joindre SA tuile en ≤
  * toursDePoursuite tours de MARCHE (BFS porteeMarche × mouvement — miroir
@@ -1554,10 +1625,7 @@ export function planAntiCollision(
   );
   const armeeOffensive =
     enGuerreDeclaree && !cfg.d1CampagneBarbares
-      ? (() => {
-          const campagne = cibleCampagne(state, me, profile);
-          return campagne ? assignerArmee(state, me, profile, campagne) : new Set<string>();
-        })()
+      ? membresCampagneOffensive(state, me, profile)
       : new Set<string>();
 
   // Purge du memo : unités mortes/parties/embarquées, villes perdues.
@@ -1672,13 +1740,28 @@ function pasAntiCollisionFatal(
   // guerre déclarée — D2-approche ÉTEINTE (le gate R-190 régule l'assaut) ;
   // D2-collision reste active pour TOUS.
   exemptsApproche?: ReadonlySet<string>,
+  // CONVERGENCE-FINALE · (b) — portée d'arrivée des BARBARES seuls + leurs
+  // TUILES + l'unité est-elle membre de campagne : la tolérance
+  // (toleranceBarbaresErrants) admet le pas qui ne croise QUE la portée d'un
+  // barbare errant ; la TUILE du barbare (cohabitation) et les civils
+  // restent UNIVERSELS. Inerte si toleranceBarbaresErrants=false (table).
+  arriveeBarbare?: ReadonlySet<string>,
+  tuilesBarbares?: ReadonlySet<string>,
+  membreCampagne = false,
 ): boolean {
   // Exception canon D1 : entrer dans une de MES villes = défense fortifiée
   // (le défenseur est fourni, le soin tourne — jamais un duel en champ).
   if (Object.values(state.cities).some((c) => c.owner === me && c.q === step.q && c.r === step.r)) {
     return false;
   }
-  if (arrivee.has(`${step.q},${step.r}`)) return true; // collision = duel offert (UNIVERSAL)
+  const cle = `${step.q},${step.r}`;
+  const dansBarbare = arriveeBarbare?.has(cle) ?? false;
+  if (arrivee.has(cle)) {
+    // (b) — le pas ne croise QUE la portée d'un barbare errant (pas sa
+    // tuile — la cohabitation reste universelle) → admis pour la campagne.
+    if (membreCampagne && dansBarbare && !(tuilesBarbares?.has(cle) ?? false)) return false;
+    return true; // collision = duel offert (UNIVERSAL — civils et tuile barbare)
+  }
   // D2-approche : ÉTEINTE pour la posture d'assaut de siège (exempté).
   if (exemptsApproche?.has(unit.id)) return false;
   const mesStats = UNIT_TYPES[unit.type];
@@ -1728,6 +1811,9 @@ export function filtrerAntiCollision(
   // D2-POSTURE : profil pour le calcul de la posture d'assaut de siège
   // (effectif au rayon ≥ antiCollision.effectifCampagne — défaut « normal »).
   profile: BotProfileData = profileDuBot(),
+  // CONVERGENCE-FINALE · (b) — override de la table toleranceBarbaresErrants
+  // (tests / émission : défaut = table ; la pré-règle L2 de la mesure arbitre).
+  opts?: { toleranceBarbaresErrants?: boolean },
 ): Order[] {
   const cfg = antiCollisionDuBot();
   const ennemis = ennemisConnusAntiCollision(state, me);
@@ -1741,11 +1827,30 @@ export function filtrerAntiCollision(
   // nulle part) ; distanceArrivee × mouvement — le transit ignore les
   // unités : la réachabilité du terrain, miroir porteeMarche.
   const arrivee = new Set<string>();
+  // CONVERGENCE-FINALE · (b) — portées séparées barbare/civil : la
+  // tolérance (table toleranceBarbaresErrants) n'admet QUE la portée
+  // d'arrivée d'un barbare ERRANT pour les membres de campagne (la tuile du
+  // barbare et les civils restent universels).
+  const arriveeBarbare = new Set<string>();
+  const tuilesBarbares = new Set<string>();
   for (const e of ennemis) {
     if (!estEnnemiMobile(state, e)) continue;
     const mouvement = UNIT_TYPES[e.type]?.movement ?? 1;
-    for (const k of porteeMarche(state, e, cfg.distanceArrivee * mouvement).keys()) arrivee.add(k);
+    const barbare = isBarbarian(e.owner);
+    for (const k of porteeMarche(state, e, cfg.distanceArrivee * mouvement).keys()) {
+      arrivee.add(k);
+      if (barbare) {
+        arriveeBarbare.add(k);
+        tuilesBarbares.add(`${e.q},${e.r}`);
+      }
+    }
   }
+  // (b) activé par la table (pré-règle L2 : FILTRE-D2 doit dominer les
+  // blocages de convergence restants après le transit allié (a)) — override
+  // test possible.
+  const toleranceActive = opts?.toleranceBarbaresErrants ?? cfg.toleranceBarbaresErrants === true;
+  const toleranceBarbares =
+    toleranceActive ? membresCampagneOffensive(state, me, profile) : new Set<string>();
   return ordres.map((o) => {
     if (o.type !== 'Move' && o.type !== 'MultiStep') return o;
     const unit = state.units[(o as { unitId: string }).unitId];
@@ -1754,7 +1859,18 @@ export function filtrerAntiCollision(
     const sur: Array<{ q: number; r: number }> = [];
     let fatal = false;
     for (const s of path) {
-      if (pasAntiCollisionFatal(state, unit, me, s, arrivee, ennemis, categories?.[unit.id], exemptsApproche)) {
+      if (
+        pasAntiCollisionFatal(
+          state, unit, me, s, arrivee, ennemis, categories?.[unit.id], exemptsApproche,
+          // CONVERGENCE-FINALE · (b) : les pas de convergence des membres de
+          // campagne tolèrent la portée d'arrivée d'un barbare ERRANT
+          // (toleranceBarbaresErrants) — la tuile du barbare et les civils
+          // restent universels (pasAntiCollisionFatal tranche).
+          arriveeBarbare,
+          tuilesBarbares,
+          toleranceBarbares.has(unit.id),
+        )
+      ) {
         fatal = true;
         break;
       }
@@ -3017,9 +3133,18 @@ export function botPolicy(
           orders.push({ type: 'Hold', unitId: unit.id });
           break;
         }
-        const step = pasVersRoutier(unit, state, obj.cible) ?? pasVers(unit, state, obj.cible);
-        if (step && dist(state, step, obj.cible) < dist(state, unit, obj.cible)) {
-          orders.push({ type: 'Move', unitId: unit.id, path: [step] });
+        // CONVERGENCE-FINALE · (a) : l'ordre de convergence (Move simple ou
+        // MultiStep de traversée d'amie — ordreConvergence).
+        const convergence = ordreConvergence(unit, state, obj.cible);
+        if (
+          convergence &&
+          (convergence.type !== 'Move' && convergence.type !== 'MultiStep'
+            ? true
+            : dist(state, (convergence as { path: Array<{ q: number; r: number }> }).path[
+                (convergence as { path: Array<{ q: number; r: number }> }).path.length - 1
+              ]!, obj.cible) <= dist(state, unit, obj.cible))
+        ) {
+          orders.push(convergence);
         } else {
           orders.push({ type: 'Hold', unitId: unit.id });
         }
@@ -3036,8 +3161,11 @@ export function botPolicy(
           orders.push({ type: 'Fortify', unitId: unit.id });
           break;
         }
-        const step = pasVersRoutier(unit, state, cible) ?? pasVers(unit, state, cible);
-        orders.push(step ? { type: 'Move', unitId: unit.id, path: [step] } : { type: 'Fortify', unitId: unit.id });
+        // CONVERGENCE-FINALE · (a) : l'ordre de convergence (Move simple ou
+        // MultiStep de traversée d'amie — ordreConvergence) ; sans chemin →
+        // Fortify (jamais inactif).
+        const convergence = ordreConvergence(unit, state, cible);
+        orders.push(convergence ?? { type: 'Fortify', unitId: unit.id });
         break;
       }
       // PAIX-RYTHME · D1 (canon R-31) : trio co-localisé au rendez-vous —

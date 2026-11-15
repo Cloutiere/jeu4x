@@ -958,6 +958,19 @@ export interface BotAntiCollisionData {
    *  barbare). Scouts/escortes/garnisons et unités hors campagne restent
    *  pleinement protégés par D1-barbares (leçon GZJQZX). */
   d1CampagneBarbares: boolean;
+  /** CONVERGENCE-FINALE (canon Erik 15/11, levier (a) — diag
+   *  DIAG-CONVERGENCE : RALLI-ROUTE-NULL 44,6 %) : true = le TRANSIT du
+   *  chemin de convergence admet les cases occupées par des ALLIÉES (le
+   *  moteur R-159 rév. B exécute la traversée en pas intermédiaire) ; les
+   *  ennemis restent jamais-transit ; le pas FINAL reste libre. */
+  transitAllie: boolean;
+  /** CONVERGENCE-FINALE (canon Erik 15/11, levier (b) — RÈGLE
+   *  PRÉ-ENREGISTRÉE : activée seulement si FILTRE-D2 domine les blocages
+   *  de convergence restants après le transit allié) : true = les pas de
+   *  convergence des MEMBRES de campagne tolèrent la portée d'arrivée d'un
+   *  BARBARE errant ; la tuile du barbare et les civils restent
+   *  universels ; garde dure : pertes Jev ≤ 11. */
+  toleranceBarbaresErrants: boolean;
 }
 
 /** JEV-ESCORTE · tables data-driven de l'évaluation du pari colon. */
