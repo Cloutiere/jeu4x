@@ -921,6 +921,10 @@ export interface BotSettingsData {
   /** ANTICOLLISION-CHASSE (canon Erik 14/11) : poursuite D1 + anti-collision
    *  de trajectoire D2 — rayons tunables, zéro durcissement. */
   antiCollision: BotAntiCollisionData;
+  /** DECLARATION-OPPORTUNISTE (canon Erik 16/11) : conditions d'opportunité
+   *  de conquête C3/C4 — guerre éclair (marche ≤ eclairMarcheTours) et
+   *  survivabilité guerre totale (≥ survivabiliteMin). */
+  declaration: { eclairMarcheTours: number; survivabiliteMin: number };
 }
 
 /** DEFENSE-VILLE-A · table data-driven de la défense de ville. */

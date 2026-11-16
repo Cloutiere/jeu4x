@@ -124,6 +124,11 @@
     "seuilJalonsCourseOnu": 16,
     "jalonsMinPrioriteOnu": 12
   },
+  "declaration": {
+    "_commentaire": "DECLARATION-OPPORTUNISTE (canon Erik 16/11) — Jev ne déclare la guerre que sur une opportunité VUE : C1 contact + délai 10 tours, C2 ville ennemie VISIBLE, C3 guerre éclair (marche ≤ eclairMarcheTours ET espérance d'assaut > 0,5 via combatOdds/forcesProspectives — zéro formule parallèle), C4 survivabilité guerre totale ≥ survivabiliteMin. Toute table éditable — zéro durcissement.",
+    "eclairMarcheTours": 5,
+    "survivabiliteMin": 1.0
+  },
   "gateAttaque": {
     "_commentaire": "BOT-GATE-ATTAQUE (canon Erik 10/11, prod D3UUQJ) — une attaque se décide à l'ESPÉRANCE DE GAIN : P(victoire)×valeur(gain) ≥ k×P(défaite)×valeur(perte). La valeur tactique est en « points » arbitraires (monnaie commune aux deux camps). Categories Jev : multiplicateur sur la VALEUR DE L'ATTAQUANT, borné [categorieMin, categorieMax] — jamais un float libre. SECURITE LOCALE (D3) : bonusSecuriteGuerre s'ajoute au gain quand l'ennemi est en guerre DÉCLARÉE (les batailles font vivre la guerre) ; bonusSecuriteVille renforcé s'il menace une de mes villes (dist ≤ 2). Les barbares ne sont jamais en guerre déclarée — D3UUQJ reste refusé.",
     "baseRole": {

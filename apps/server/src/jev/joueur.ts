@@ -18,10 +18,12 @@ import {
   BOT_SETTINGS,
   canSetProduction,
   cityEconomyInputs,
+  combatOdds,
   deciderProductionColon,
   defenseDuBot,
   doitRappelerColon,
   fondationProcheBarbare,
+  forcesProspectives,
   menacesVille,
   escorteEnPlace,
   risqueDeploiementColon,
@@ -202,12 +204,18 @@ export function blocDiplomatie(etatFiltre: AnyEtat, moi: string, memo: AnyEtat =
   const theatre = etatFiltre?.theatre ?? {};
   const rivaux = rivalsReels(etatFiltre, moi).map(({ id, p }: AnyEtat) => {
     const rencontreTour = rencontres[id] ?? null;
+    // DECLARATION-OPPORTUNISTE · D2 (canon Erik 16/11) — avant rencontre, le
+    // condensé ne donne sur un rival que {id, civ} : zéro techs, ère,
+    // trésorerie, jalons, forces, distance. Après rencontre (D3) : ère,
+    // forces visibles, théâtre… restent ; la LISTE des techs exactes sort
+    // DÉFINITIVEMENT (le type des unités visibles porte déjà le niveau
+    // technologique militaire) ; la trésorerie n'y a jamais figuré.
+    if (rencontreTour == null) return { id, civ: p.civId };
     return {
     id,
     civ: p.civId,
     era: p.era ?? null,
     techsConnues: p.techsUnlocked?.length ?? 0,
-    techs: [...(p.techsUnlocked ?? [])].sort(),
     forces: forcesVisibles(etatFiltre, id),
     rapportForces: Math.round((maPuissance / Math.max(1, forcesVisibles(etatFiltre, id))) * 10) / 10,
     enGuerre: ennemisDeMoi(etatFiltre, moi).includes(id),
@@ -229,10 +237,16 @@ export function blocDiplomatie(etatFiltre: AnyEtat, moi: string, memo: AnyEtat =
 }
 
 export function condenseJoueur(etatFiltre: AnyEtat, moi: string, memo: AnyEtat = {}, seuils: AnyEtat = {}): AnyEtat {
-  const condense = condenserEtat(etatFiltre, moi);
+  const condense = condenserEtat(etatFiltre, moi, memo);
   condense.diplomatie = blocDiplomatie(etatFiltre, moi, memo);
   // JEV-STRATEGE C2 : bloc espace (pression d'espace, liste blanche).
   condense.espace = blocEspace(etatFiltre, moi, memo, seuils);
+  // DECLARATION-OPPORTUNISTE · ligne d'analyse (canon Erik 16/11) : quand une
+  // opportunité de conquête existe (même sous le seuil de déclaration), UNE
+  // entrée rejoint le condensé — Jev la voit, Zii pourra la raconter, le
+  // journal l'audite. Calcul déjà fait pour la déclaration (tarif input-only).
+  const opp = opportuneConquete(condense, etatFiltre, moi, memo, seuils);
+  if (opp) condense.opportuniteConquete = opp;
   // ZII-V1 · D5 : les résumés de chat en attente (resumePourJev) rejoignent le
   // condensé — Jev lit ces résumés FACTUELS, jamais le chat brut. Champ absent
   // du harnais : vide dans les tests croisés (bit-à-bit inchangé).
@@ -482,22 +496,21 @@ export function construireQuestionsJoueur(config: AnyEtat, condense: AnyEtat, et
   }
 
   if (!enGuerre && rivaux.length > 0) {
-    const delai = seuils.delaiGuerreApresRencontre ?? 10;
-    const eligibles = rivaux.filter(
-      (r: AnyEtat) => r.rencontreTour != null && (condense.tour - r.rencontreTour) >= delai,
-    );
-    if (eligibles.length > 0) {
-      const cible = [...eligibles].sort(
-        (a: AnyEtat, b: AnyEtat) => a.forces - b.forces || a.distanceCapitale - b.distanceCapitale || a.techsConnues - b.techsConnues,
-      )[0];
+    // DECLARATION-OPPORTUNISTE (canon Erik 16/11) · D4 — la question guerre
+    // n'est posée QUE sur une opportunité VUE qualifiée C1-C4 (le contact
+    // seul ne suffit plus : « déclarer = décider de capturer UNE ville
+    // précise vue et mal tenie »). La cible = la ville de l'opportunité.
+    const opp = condense.opportuniteConquete ?? null;
+    const cible = opp ? rivaux.find((r: AnyEtat) => r.id === opp.cible) : null;
+    if (cible) {
       const provocation = cible.provocations > 0
         ? `provocations : ${cible.provocations} unité(s) hostile(s) près de nos villes`
         : 'provocations : aucune';
       const criteria: AnyEtat = {};
-      criteria[`guerre:${cible.id}`] = `OUI — déclarer la guerre à ${cible.civ} (${cible.id}), le voisin le PLUS FAIBLE : nos forces ${condense.monde.puissance.amie} vs les siennes ${cible.forces} (rapport ${cible.rapportForces}× en notre faveur), ère ${cible.era ?? '?'}, ${cible.techsConnues} techs, capitale à ${cible.distanceCapitale} cases. Relation : rencontré depuis ${condense.tour - cible.rencontreTour} tours (premier contact au tour ${cible.rencontreTour}), ${provocation}. Déclarer lance la campagne : le bot assemble l'armée et marche.`;
+      criteria[`guerre:${cible.id}`] = `OUI — déclarer la guerre à ${cible.civ} (${cible.id}) pour PRENDRE SA VILLE ${opp.case}${opp.capitale ? ' (CAPITALE)' : ''} : garnison visible ${opp.garnisonEstimee} unité(s), à ${opp.marcheTours} tour(s) de marche, espérance d'assaut ${opp.esperanceAssaut}, survivabilité ${opp.survivabilite}× ; nos forces ${condense.monde.puissance.amie} vs les siennes ${cible.forces} (rapport ${cible.rapportForces}×). Relation : rencontré depuis ${condense.tour - cible.rencontreTour} tours (premier contact au tour ${cible.rencontreTour}), ${provocation}. Déclarer lance la campagne : le bot assemble l'armée et marche.`;
       criteria['aucun'] = 'NON — ne pas déclarer cette guerre ce tour (bloque aussi toute déclaration du bot pour nous).';
       q.guerre = { instructions: config.questions.guerre.instructions, criteria, type: 'choice' };
-      meta.guerre = { genre: 'guerre', cible: cible.id };
+      meta.guerre = { genre: 'guerre', cible: cible.id, ville: opp.case };
     }
   }
 
@@ -535,12 +548,19 @@ export function construireQuestionsJoueur(config: AnyEtat, condense: AnyEtat, et
     const refus = memo.echangesRefuses ?? [];
     const estRefusee = (cle: string) => (typeof refus.has === 'function' ? refus.has(cle) : refus.includes(cle));
     const r0 = rivaux[0];
-    const offertes = techs
-      .filter((t: string) => !r0.techs.includes(t) && !estRefusee(`${t}>`))
-      .map((t: string) => ({ id: t, cout: TECHS[t]?.cost ?? 0 }))
-      .sort((a: AnyEtat, b: AnyEtat) => b.cout - a.cout || a.id.localeCompare(b.id))
-      .slice(0, 5);
-    const demandees = r0.techs
+    // DECLARATION-OPPORTUNISTE · D3 : la LISTE des techs du rival n'est plus
+    // exposée — sans elle, l'échange ciblé (offrir X contre Y connu) est
+    // impossible à construire honnêtement : les deux questions disparaissent
+    // du prompt Jev (la négociation T2 mécanique du bot reste intacte).
+    const techsRival: string[] = r0.techs ?? [];
+    const offertes = techsRival.length
+      ? techs
+          .filter((t: string) => !techsRival.includes(t) && !estRefusee(`${t}>`))
+          .map((t: string) => ({ id: t, cout: TECHS[t]?.cost ?? 0 }))
+          .sort((a: AnyEtat, b: AnyEtat) => b.cout - a.cout || a.id.localeCompare(b.id))
+          .slice(0, 5)
+      : [];
+    const demandees = techsRival
       .filter((t: string) => !techs.includes(t) && !estRefusee(`>${t}`))
       .map((t: string) => ({ id: t, cout: TECHS[t]?.cost ?? 0 }))
       .sort((a: AnyEtat, b: AnyEtat) => a.cout - b.cout || a.id.localeCompare(b.id))
@@ -930,36 +950,136 @@ function villesDe(etatFiltre: AnyEtat, pid: string): number {
 
 /** JEV-IT4B · D-A — cible pré-qualifiée de la guerre totale : un rival
  * RENCONTRÉ (bloc diplomatie — fog respecté), PAS déjà en guerre avec lui,
- * rapport de forces ≥ `seuilRapport` (1,2 — data v6), capitale CONNUE
- * (distance < 99). Tri : le plus de villes (leader), puis le meilleur
- * rapport, puis l'id (déterminisme). Null si personne n'est éligible.
- * Amendement AVENIR (verdict Erik 31/10, banc v1) : avec `autoriserAveugle`
- * (le signal D-B « domination mécanique » est actif), un rival JAMAIS
- * rencontré devient une cible valable — la liste des joueurs est publique
- * au lobby (canon T2 : l'UI de négociation expose les rivaux), et c'est le
- * profil EXACT des parties stériles (domination à l'aveugle, distance 99). */
-export function cibleGuerreTotale(condense: AnyEtat, etatFiltre: AnyEtat, moi: string, seuilRapport = 1.2, autoriserAveugle = false): AnyEtat | null {
+ * rapport de forces ≥ `seuilRapport` (1,2 — data v6), villes VISIBLES > 0.
+ * Tri : le plus de villes (leader), puis le meilleur rapport, puis l'id
+ * (déterminisme). Null si personne n'est éligible.
+ * DECLARATION-OPPORTUNISTE · D1 (canon Erik 16/11) — le cas AVEUGLE est
+ * SUPPRIMÉ (abroge le vote du 31/10 : « il ne sait pas qu'il existe » tant
+ * qu'il ne l'a pas vu). `autoriserAveugle` disparaît. */
+export function cibleGuerreTotale(condense: AnyEtat, etatFiltre: AnyEtat, moi: string, seuilRapport = 1.2): AnyEtat | null {
   const enGuerre = new Set(condense?.diplomatie?.guerreAvec ?? []);
   return (condense?.diplomatie?.rivaux ?? [])
     .filter((r: AnyEtat) => !enGuerre.has(r.id) && (r.rapportForces ?? 0) >= seuilRapport)
-    .map((r: AnyEtat) => ({
-      ...r,
-      villes: villesDe(etatFiltre, r.id),
-      aveugle: (r.distanceCapitale ?? 99) >= 99,
-    }))
-    .filter((r: AnyEtat) => (r.aveugle ? autoriserAveugle && r.rencontreTour == null : r.villes > 0))
+    .map((r: AnyEtat) => ({ ...r, villes: villesDe(etatFiltre, r.id) }))
+    .filter((r: AnyEtat) => r.villes > 0 && r.rencontreTour != null)
     .sort((a: AnyEtat, b: AnyEtat) => b.villes - a.villes || b.rapportForces - a.rapportForces || a.id.localeCompare(b.id))[0] ?? null;
 }
 
+/** DECLARATION-OPPORTUNISTE (canon Erik 16/11) — l'OPPORTUNITÉ DE CONQUÊTE
+ * (conditions C1-C4 du handoff, PURE, déterministe, data bot.json
+ * `declaration`). Retourne la meilleure ville ennemie VISIBLE attaquable, ou
+ * null. C1 : rival rencontré + délai delaiGuerreApresRencontre. C2 : cible =
+ * une ville de l'état FILTRÉ (jamais une ville « déduite »). C3 guerre
+ * éclair : chemin de marche réel depuis ma combattante la plus proche
+ * (cheminMarche — pas la distance à vol d'oiseau) ≤ eclairMarcheTours ET
+ * espérance d'assaut > 0,5 via combatOdds(forcesProspectives(...)) — le
+ * calcul EXISTANT du gate R-190 (garnison + fortification + bonus de case),
+ * JAMAIS de formule parallèle (ville sans garnison visible : tombe, p = 1).
+ * C4 survivabilité : (ma force totale − force engagée) vs (leurs unités
+ * visibles − défenseurs de la ville ciblée) ≥ survivabiliteMin. Ordre des
+ * candidats : espérance desc, marche asc, id (déterministe — R-81). */
+export function opportuneConquete(condense: AnyEtat, etatFiltre: AnyEtat, moi: string, memo: AnyEtat = {}, seuils: AnyEtat = {}): AnyEtat | null {
+  const decl = BOT_SETTINGS.declaration ?? { eclairMarcheTours: 5, survivabiliteMin: 1.0 };
+  const eclair = (seuils?.eclairMarcheTours as number) ?? decl.eclairMarcheTours ?? 5;
+  const survivabiliteMin = (seuils?.survivabiliteMin as number) ?? decl.survivabiliteMin ?? 1.0;
+  const delai = seuils?.delaiGuerreApresRencontre ?? 10;
+  const tour = condense?.tour ?? etatFiltre?.turn ?? 0;
+  const rencontres = memo?.rencontres ?? {};
+  const enGuerre = new Set((condense?.diplomatie?.guerreAvec ?? []) as string[]);
+  // C1 — rivaux rencontrés, délai écoulé, pas déjà en guerre.
+  const cibles = rivalsReels(etatFiltre, moi)
+    .filter(({ id }: AnyEtat) => !enGuerre.has(id))
+    .filter(({ id }: AnyEtat) => rencontres[id] != null && tour - rencontres[id] >= delai);
+  if (cibles.length === 0) return null;
+  const idsCibles = new Set(cibles.map((c: AnyEtat) => c.id));
+  const mesCombattantes = vals(etatFiltre.units ?? {}).filter(
+    (u: AnyEtat) => u.owner === moi && !u.aboard && (UNIT_TYPES[u.type]?.canAttack ?? false) && UNIT_TYPES[u.type]?.aquatic !== true,
+  );
+  if (mesCombattantes.length === 0) return null;
+  const maForceTotale = forcesVisibles(etatFiltre, moi);
+  const candidats: AnyEtat[] = [];
+  for (const v of vals(etatFiltre.cities ?? {})) {
+    // C2 — ville VISIBLE de l'état filtré d'un rival qualifié C1.
+    if (!idsCibles.has(v.owner)) continue;
+    const defenseurs = vals(etatFiltre.units ?? {}).filter(
+      (u: AnyEtat) => u.owner === v.owner && !u.aboard && u.q === v.q && u.r === v.r,
+    );
+    // C3 — guerre éclair : la combattante au chemin de marche le plus court
+    // vers la ville ; l'espérance d'assaut réutilise le gate R-190.
+    let meilleur: AnyEtat = null;
+    for (const a of mesCombattantes) {
+      const chemin = cheminMarche(etatFiltre, moi, a, { q: v.q, r: v.r }, Math.max(10, eclair + 1));
+      const marcheTours = chemin.length;
+      if (marcheTours > eclair) continue;
+      if (defenseurs.length === 0) {
+        const cand = { attaquante: a, marcheTours, esperance: 1, sAtt: 0 };
+        if (!meilleur || cand.esperance > meilleur.esperance || (cand.esperance === meilleur.esperance && cand.marcheTours < meilleur.marcheTours)) meilleur = cand;
+        continue;
+      }
+      for (const d of defenseurs) {
+        let esperance = 0;
+        try {
+          const { sAtt, sDef } = forcesProspectives(etatFiltre as never, a as never, d as never);
+          esperance = combatOdds(sAtt, sDef);
+        } catch {
+          // État filtré partiel : repli honnête sur la même formule R-125
+          // alimentée par les stats de table (jamais de p inventé).
+          const sAtt = UNIT_TYPES[a.type]?.attack ?? 0;
+          const sDef = UNIT_TYPES[d.type]?.defense ?? UNIT_TYPES[d.type]?.attack ?? 0;
+          esperance = combatOdds(sAtt, sDef);
+        }
+        const cand = { attaquante: a, defenseur: d, marcheTours, esperance, sAtt: 0 };
+        if (
+          !meilleur ||
+          cand.esperance > meilleur.esperance ||
+          (cand.esperance === meilleur.esperance && cand.marcheTours < meilleur.marcheTours)
+        ) {
+          meilleur = cand;
+        }
+      }
+    }
+    // Espérance d'assaut POSITIVE (p > 0,5 — un assaut perdu en moyenne n'est
+    // pas une opportunité, canon gate : le suicide pur reste fermé).
+    if (!meilleur || meilleur.esperance <= 0.5) continue;
+    // C4 — survivabilité guerre totale : mes forces hors assaut vs leurs
+    // forces visibles restantes (défenseurs de la ville retirés).
+    const forceEngagee = UNIT_TYPES[meilleur.attaquante.type]?.attack ?? 0;
+    const forceDefenseurs = defenseurs.reduce((s: number, u: AnyEtat) => s + (UNIT_TYPES[u.type]?.attack ?? 0), 0);
+    const leurRestante = forcesVisibles(etatFiltre, v.owner) - forceDefenseurs;
+    const survivabilite = Math.round(((maForceTotale - forceEngagee) / Math.max(1, leurRestante)) * 10) / 10;
+    if (survivabilite < survivabiliteMin) continue;
+    candidats.push({
+      cible: v.owner,
+      civ: etatFiltre.players?.[v.owner]?.civId ?? v.owner,
+      villeId: v.id,
+      case: `${v.q},${v.r}`,
+      capitale: !!v.capital,
+      garnisonEstimee: defenseurs.length,
+      marcheTours: meilleur.marcheTours,
+      esperanceAssaut: Math.round(meilleur.esperance * 100) / 100,
+      survivabilite,
+    });
+  }
+  if (candidats.length === 0) return null;
+  return candidats.sort(
+    (a: AnyEtat, b: AnyEtat) =>
+      b.esperanceAssaut - a.esperanceAssaut ||
+      a.marcheTours - b.marcheTours ||
+      String(a.case).localeCompare(String(b.case)),
+  )[0];
+}
+
 /** JEV-DECISIONNEL · D1 (verdict Erik 31/10) — la DÉCLARATION de guerre en
- * mode domination devient un ACTE MÉCANIQUE du harnais : mêmes conditions
- * EXACTES que l'ex-choix `guerreTotale` (inchangées) — signal « domination
- * mécanique » actif, mode courant domination/pousserCapitale, cible
- * pré-qualifiée (rapport ≥ guerreTotaleRapportMin, pas déjà en guerre,
- * contact réel + délai OU cas aveugle — D3). Débit BORNÉ (D4) : au plus UNE
- * déclaration mécanique toutes les `guerreTotaleCooldown` tours (data v8,
- * défaut 8). Retourne un snapshot { cible, tour, rapport, aveugle } pour le
- * journal, ou null. Miroir bit-à-bit du harnais (sableuse/src/joueur.mjs). */
+ * mode domination reste un ACTE MÉCANIQUE du harnais. DECLARATION-
+ * OPPORTUNISTE (canon Erik 16/11) — D1 : le cas AVEUGLE est SUPPRIMÉ
+ * (contact obligatoire : rencontre + délai, jamais rencontré = jamais
+ * déclaré) ; D4 : TOUTE déclaration mécanique (domination ET écrasement)
+ * exige UNE opportunité de conquête VISIBLE qualifiée C1-C4
+ * (opportuneConquete) — sans opportunité, le mode domination attend.
+ * Débit BORNÉ (D4 v8) : au plus UNE déclaration toutes les
+ * `guerreTotaleCooldown` tours. Retourne un snapshot { cible, ville, tour,
+ * rapport, opportunite } pour le journal (Zii raconte la ville visée), ou
+ * null. Miroir bit-à-bit du harnais (sableuse/src/joueur.mjs). */
 export function declarationMechanique(condense: AnyEtat, etatFiltre: AnyEtat, moi: string, memo: AnyEtat, seuils: AnyEtat, dominationMecanique: boolean): AnyEtat | null {
   const tour = condense?.tour ?? 0;
   const cooldown = seuils?.guerreTotaleCooldown ?? 8;
@@ -968,23 +1088,33 @@ export function declarationMechanique(condense: AnyEtat, etatFiltre: AnyEtat, mo
   const rapportMin = seuils?.guerreTotaleRapportMin ?? 1.2;
   const mode = memo?.finPartie?.mode;
   const modeDom = mode === 'domination' || mode === 'pousserCapitale';
+  // D4 — sans opportunité vue et qualifiée (C1-C4), PAS de déclaration.
+  const opp = opportuneConquete(condense, etatFiltre, moi, memo, seuils);
+  if (!opp) return null;
   if (modeDom && dominationMecanique) {
-    const cible = cibleGuerreTotale(condense, etatFiltre, moi, rapportMin, true);
-    if (cible) {
-      return { cible: cible.id, tour, rapport: cible.rapportForces ?? 0, aveugle: cible.aveugle ?? false, motif: 'domination' };
+    const cible = cibleGuerreTotale(condense, etatFiltre, moi, rapportMin);
+    if (cible && cible.id === opp.cible) {
+      return {
+        cible: cible.id, tour, rapport: cible.rapportForces ?? 0,
+        ville: opp.case, motif: 'domination', opportunite: opp,
+      };
     }
   }
   // JEV-STRATEGE D-B — déclencheur SUPPLÉMENTAIRE : l'ÉCRASEMENT (rapport ≥
-  // seuils.ecrasementRapport, sans signal ni mode ; cibleEcrasement).
+  // seuils.ecrasementRapport, sans signal ni mode) — même opportunité C1-C4.
   const cibleEcr = cibleEcrasement(condense, etatFiltre, moi, seuils);
-  if (cibleEcr && (cibleEcr.rapportForces ?? 0) >= (seuils?.ecrasementRapport ?? 3)) {
-    return { cible: cibleEcr.id, tour, rapport: cibleEcr.rapportForces ?? 0, aveugle: cibleEcr.aveugle ?? false, motif: 'ecrasement' };
+  if (cibleEcr && cibleEcr.id === opp.cible && (cibleEcr.rapportForces ?? 0) >= (seuils?.ecrasementRapport ?? 3)) {
+    return {
+      cible: cibleEcr.id, tour, rapport: cibleEcr.rapportForces ?? 0,
+      ville: opp.case, motif: 'ecrasement', opportunite: opp,
+    };
   }
   return null;
 }
 
-/** JEV-STRATEGE D-B bis — cible qualifiée pour l'ÉCRASEMENT (miroir harnais) :
- * capitale vue OU rencontré depuis ≥ délai OU jamais rencontré (aveugle). */
+/** JEV-STRATEGE D-B bis — cible qualifiée pour l'ÉCRASEMENT : rival RENCONTRÉ
+ * (capitale vue OU délai de rencontre écoulé). DECLARATION-OPPORTUNISTE · D1
+ * : la branche « jamais rencontré (aveugle voté) » est SUPPRIMÉE. */
 export function cibleEcrasement(condense: AnyEtat, etatFiltre: AnyEtat, moi: string, seuils: AnyEtat = {}): AnyEtat | null {
   const enGuerre = new Set((condense?.diplomatie?.guerreAvec ?? []) as string[]);
   const delai = seuils?.delaiGuerreApresRencontre ?? 10;
@@ -993,13 +1123,11 @@ export function cibleEcrasement(condense: AnyEtat, etatFiltre: AnyEtat, moi: str
     .map((r: AnyEtat) => ({
       ...r,
       villes: vals(etatFiltre.cities ?? {}).filter((v: AnyEtat) => v.owner === r.id).length,
-      aveugle: (r.distanceCapitale ?? 99) >= 99,
     }))
     .filter(
       (r: AnyEtat) =>
-        r.villes > 0 ||
-        (r.rencontreTour != null && ((condense?.tour ?? 0) - r.rencontreTour) >= delai) ||
-        (r.aveugle && r.rencontreTour == null),
+        r.rencontreTour != null &&
+        (r.villes > 0 || ((condense?.tour ?? 0) - r.rencontreTour) >= delai),
     )
     .sort((a: AnyEtat, b: AnyEtat) => b.rapportForces - a.rapportForces || a.id.localeCompare(b.id))[0] ?? null;
 }

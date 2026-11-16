@@ -348,7 +348,7 @@ function composantsPoses(villes) {
   return poses.size;
 }
 
-export function blocVictoire(etatFiltre, moi, marteauxParVille) {
+export function blocVictoire(etatFiltre, moi, marteauxParVille, rencontres) {
   const joueurs = etatFiltre.players ?? {};
   const vivant = ([id, p]) => id !== 'barbarien' && p.defeated !== true;
   const villesDe = (pid) => Object.values(etatFiltre.cities ?? {}).filter((v) => v.owner === pid);
@@ -364,15 +364,22 @@ export function blocVictoire(etatFiltre, moi, marteauxParVille) {
     merveillesEnChantier: merveillesEnChantier(mesVilles, marteauxParVille),
     merveillesBatees: (mesVilles.reduce((a, v) => a + (v.buildings ?? []).filter((b) => merveillesVictoire(b)).length, 0)),
   };
-  const rivaux = autres.map(([id, p]) => ({
-    id,
-    civ: p.civId,
-    jalons: jalonsDe(p),
-    composants: composantsPoses(villesDe(id)),
-    merveillesEnChantier: merveillesEnChantier(villesDe(id), marteauxParVille),
-    tresorerieApprox: Math.round((p.treasury ?? 0) / 100) * 100,
-    merveillesBatees: villesDe(id).reduce((a, v) => a + (v.buildings ?? []).filter((b) => merveillesVictoire(b)).length, 0),
-  }));
+  // DECLARATION-OPPORTUNISTE (canon Erik 16/11) · D2/D3 — la trésorerie du
+  // rival SORT DÉFINITIVEMENT ; avant RENCONTRE (memo.rencontres fourni), un
+  // rival n'apparaît que {id, civ}. Miroir bit-à-bit du port serveur.
+  const rencontreDe = (pid) => (rencontres ? (rencontres[pid] ?? null) : 0);
+  const rivaux = autres.map(([id, p]) => {
+    const civ = p.civId;
+    if (rencontreDe(id) == null) return { id, civ };
+    return {
+      id,
+      civ,
+      jalons: jalonsDe(p),
+      composants: composantsPoses(villesDe(id)),
+      merveillesEnChantier: merveillesEnChantier(villesDe(id), marteauxParVille),
+      merveillesBatees: villesDe(id).reduce((a, v) => a + (v.buildings ?? []).filter((b) => merveillesVictoire(b)).length, 0),
+    };
+  });
   const merveillesBateesQui = autres
     .map(([id, p]) => ({
       civ: p.civId,
@@ -404,7 +411,7 @@ export function blocVictoire(etatFiltre, moi, marteauxParVille) {
   };
 }
 
-export function condenserEtat(etatFiltre, moi) {
+export function condenserEtat(etatFiltre, moi, memo = undefined) {
   const joueurs = etatFiltre.players ?? {};
   const me = joueurs[moi];
   const autres = Object.entries(joueurs).filter(([id]) => id !== moi);
@@ -474,6 +481,9 @@ export function condenserEtat(etatFiltre, moi) {
   );
 
   // D1 · v2 : candidats de production + valeur des sites + recherche.
+  // DECLARATION-OPPORTUNISTE · D2 — gate de rencontre seulement quand le
+  // memo EST fourni (pipeline « Jev JOUEUR »).
+  const rencontresVictoire = memo === undefined ? undefined : (memo?.rencontres ?? {});
   const capitale = mesVilles.find((v) => v.capital) ?? mesVilles[0] ?? null;
   const candidatsProd = capitale
     ? candidatsProduction({ ...etatFiltre, players: etatFiltre.players }, { ...capitale, productionMarteaux: marteauxParVille.get(capitale.id) ?? 1 }, moi)
@@ -532,14 +542,20 @@ export function condenserEtat(etatFiltre, moi) {
         case: `${v.q},${v.r}`,
         capitale: v.capital,
       })),
-      rivaux: autres.map(([id, p]) => ({ civ: p.civId, era: p.era, techsConnues: p.techsUnlocked?.length ?? 0 })),
+      // DECLARATION-OPPORTUNISTE · D2 — avant rencontre : {id, civ} seul ;
+      // après : ère + NOMBRE de techs (jamais la liste — D3).
+      rivaux: autres.map(([id, p]) => {
+        const civ = p.civId;
+        if (rencontresVictoire && (rencontresVictoire[id] ?? null) == null) return { id, civ };
+        return { id, civ, era: p.era, techsConnues: p.techsUnlocked?.length ?? 0 };
+      }),
       // D1 · v2 : puissance militaire connue (visible seulement) et rapport.
       puissance: puissanceMilitaire(etatFiltre, moi),
     },
     // JEV-IT4 · D1 : la fin de partie devient VISIBLE (jalons, composants,
     // merveilles de victoire, trésoreries approximées) — Jev ne peut viser
     // une victoire qu'il ne voit pas.
-    victoire: blocVictoire(etatFiltre, moi, marteauxParVille),
+    victoire: blocVictoire(etatFiltre, moi, marteauxParVille, rencontresVictoire),
     menaces,
     candidats: {
       fondation: sites,

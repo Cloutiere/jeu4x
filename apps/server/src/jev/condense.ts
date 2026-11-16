@@ -294,7 +294,7 @@ function composantsPoses(villes: AnyEtat[]): number {
   return poses.size;
 }
 
-export function blocVictoire(etatFiltre: AnyEtat, moi: string, marteauxParVille: Map<string, number>): AnyEtat {
+export function blocVictoire(etatFiltre: AnyEtat, moi: string, marteauxParVille: Map<string, number>, rencontres?: Record<string, number>): AnyEtat {
   const joueurs = etatFiltre.players ?? {};
   const vivant = ([id, p]: [string, AnyEtat]) => id !== 'barbarien' && p.defeated !== true;
   const villesDe = (pid: string) => vals(etatFiltre.cities ?? {}).filter((v: AnyEtat) => v.owner === pid);
@@ -312,15 +312,26 @@ export function blocVictoire(etatFiltre: AnyEtat, moi: string, marteauxParVille:
     merveillesEnChantier: merveillesEnChantier(mesVilles, marteauxParVille),
     merveillesBatees: compteMerveillesBatees(mesVilles),
   };
-  const rivaux = autres.map(([id, p]) => ({
-    id,
-    civ: (p as AnyEtat).civId,
-    jalons: jalonsDe(p),
-    composants: composantsPoses(villesDe(id)),
-    merveillesEnChantier: merveillesEnChantier(villesDe(id), marteauxParVille),
-    tresorerieApprox: Math.round(((p as AnyEtat).treasury ?? 0) / 100) * 100,
-    merveillesBatees: compteMerveillesBatees(villesDe(id)),
-  }));
+  // DECLARATION-OPPORTUNISTE (canon Erik 16/11) · D2/D3 — la trésorerie du
+  // rival SORT DÉFINITIVEMENT du condensé (jamais publique) ; avant RENCONTRE
+  // (memo.rencontres fourni), un rival n'apparaît que {id, civ} — zéro
+  // jalons/composants/merveilles (« il ne sait pas qu'il existe »). Après
+  // rencontre : ère/jalons/composants/merveilles restent (miroir écran
+  // classements CivRev — comptés sur villes VISIBLES, déjà le cas).
+  const rencontreDe = (pid: string): number | null =>
+    rencontres ? (rencontres[pid] ?? null) : 0;
+  const rivaux = autres.map(([id, p]) => {
+    const civ = (p as AnyEtat).civId;
+    if (rencontreDe(id) == null) return { id, civ };
+    return {
+      id,
+      civ,
+      jalons: jalonsDe(p),
+      composants: composantsPoses(villesDe(id)),
+      merveillesEnChantier: merveillesEnChantier(villesDe(id), marteauxParVille),
+      merveillesBatees: compteMerveillesBatees(villesDe(id)),
+    };
+  });
   const merveillesBateesQui = autres
     .map(([id, p]) => ({ civ: (p as AnyEtat).civId, n: compteMerveillesBatees(villesDe(id)) }))
     .filter((x) => x.n > 0);
@@ -350,7 +361,7 @@ export function blocVictoire(etatFiltre: AnyEtat, moi: string, marteauxParVille:
   };
 }
 
-export function condenserEtat(etatFiltre: AnyEtat, moi: string): AnyEtat {
+export function condenserEtat(etatFiltre: AnyEtat, moi: string, memo: AnyEtat = undefined): AnyEtat {
   const joueurs = etatFiltre.players ?? {};
   const me = joueurs[moi];
   const autres = Object.entries(joueurs).filter(([id]) => id !== moi);
@@ -421,6 +432,10 @@ export function condenserEtat(etatFiltre: AnyEtat, moi: string): AnyEtat {
     mesVilles.map((v: AnyEtat, i: number) => [v.id, economieVilles[i]?.production ?? 0]),
   );
 
+  // DECLARATION-OPPORTUNISTE · D2 — le gate de rencontre ne s'applique que
+  // quand le memo EST fourni (pipeline « Jev JOUEUR » ; l'ancien banc
+  // conseiller passe sans memo → comportement historique inchangé).
+  const rencontresVictoire: Record<string, number> | undefined = memo === undefined ? undefined : (memo?.rencontres ?? {});
   const capitale = mesVilles.find((v: AnyEtat) => v.capital) ?? mesVilles[0] ?? null;
   const candidatsProd = capitale
     ? candidatsProduction({ ...etatFiltre, players: etatFiltre.players }, { ...capitale, productionMarteaux: marteauxParVille.get(capitale.id) ?? 1 }, moi)
@@ -472,13 +487,20 @@ export function condenserEtat(etatFiltre: AnyEtat, moi: string): AnyEtat {
         case: `${v.q},${v.r}`,
         capitale: v.capital,
       })),
-      rivaux: autres.map(([id, p]) => ({ civ: (p as AnyEtat).civId, era: (p as AnyEtat).era, techsConnues: (p as AnyEtat).techsUnlocked?.length ?? 0 })),
+      // DECLARATION-OPPORTUNISTE · D2 — avant rencontre : {id, civ} seul ;
+      // après : ère + NOMBRE de techs (jamais la liste — D3).
+      rivaux: autres.map(([id, p]) => {
+        const civ = (p as AnyEtat).civId;
+        if (rencontresVictoire && (rencontresVictoire[id] ?? null) == null) return { id, civ };
+        return { id, civ, era: (p as AnyEtat).era, techsConnues: (p as AnyEtat).techsUnlocked?.length ?? 0 };
+      }),
       puissance: puissanceMilitaire(etatFiltre, moi),
     },
     // JEV-IT4 · D1 : la fin de partie devient VISIBLE (jalons, composants,
-    // merveilles de victoire, trésoreries approximées) — Jev ne peut viser
-    // une victoire qu'il ne voit pas.
-    victoire: blocVictoire(etatFiltre, moi, marteauxParVille),
+    // merveilles de victoire) — Jev ne peut viser une victoire qu'il ne voit
+    // pas. DECLARATION-OPPORTUNISTE · D2 : un rival JAMAIS rencontré n'y
+    // figure que {id, civ} ; la trésorerie en a été RETIRÉE (D3).
+    victoire: blocVictoire(etatFiltre, moi, marteauxParVille, rencontresVictoire),
     menaces,
     candidats: {
       fondation: sites,

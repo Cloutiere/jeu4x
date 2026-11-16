@@ -86,7 +86,19 @@ describe('Tests croisés condensé (D2)', () => {
     };
     const course = getFilteredState(etat, 'p2');
     expect(condenserEtatTs(course, 'p2').victoire).toEqual(condenserEtatMjs(course, 'p2').victoire);
-    expect(condenseJoueurTs(course, 'p2').victoire.rivaux[0].jalons).toBe(8);
+    // DECLARATION-OPPORTUNISTE · D2 : sans memo, le bloc victoire reste au
+    // format historique (l'ancien banc conseiller) ; avec memo + rencontre,
+    // les jalons du rival rencontré apparaissent.
+    const memoCourse: any = { rencontres: { p1: 30 } };
+    expect(condenseJoueurTs(course, 'p2', memoCourse).victoire.rivaux[0].jalons).toBe(8);
+    expect(JSON.parse(JSON.stringify(condenseJoueurTs(course, 'p2', memoCourse))))
+      .toEqual(JSON.parse(JSON.stringify(condenseJoueurMjs(course, 'p2', JSON.parse(JSON.stringify(memoCourse))))));
+    // Rival JAMAIS rencontré : {id, civ} seul — zéro jalons/trésorerie.
+    expect(condenseJoueurTs(course, 'p2', {}).victoire.rivaux[0]).toEqual({
+      id: 'p1',
+      civ: expect.any(String),
+    });
+    expect(JSON.stringify(condenseJoueurTs(course, 'p2', {}))).not.toContain('tresorerie');
   });
 
   it('T3 · muraille : bloc victoire muraille identique (port bit à bit) + sémantique', () => {
@@ -359,7 +371,7 @@ describe('Tests croisés décisions (D2) — mêmes réponses ⇒ mêmes ordres'
     expect(dTs2.diplomatie).toEqual(dMjs2.diplomatie);
   });
 
-  it('JEV-IT4B · amendement aveugle : rival jamais rencontré + domination mécanique ⇒ questions/décision identiques', async () => {
+  it('DECLARATION-OPPORTUNISTE · reproduction ZGFV42 : rival JAMAIS rencontré + domination mécanique ⇒ AUCUNE déclaration (cas aveugle abrogé)', async () => {
     const gen = generateProceduralMap(42);
     let etat = createInitialState(gen.map, 42, {});
     etat = {
@@ -387,21 +399,28 @@ describe('Tests croisés décisions (D2) — mêmes réponses ⇒ mêmes ordres'
     const filtre = getFilteredState(etat, 'p2');
     const memoTs: any = { finPartie: { mode: 'domination' } };
     const memoMjs: any = { finPartie: { mode: 'domination' } };
-    const a = construireTs(configJev, condenseJoueurTs(filtre, 'p2', memoTs), filtre, 'p2', memoTs);
+    const condTs = condenseJoueurTs(filtre, 'p2', memoTs);
+    const a = construireTs(configJev, condTs, filtre, 'p2', memoTs);
     const b = construireMjs(configJev, condenseJoueurMjs(filtre, 'p2', memoMjs), filtre, 'p2', memoMjs);
     expect(a.questions.finPartie).toBeDefined(); // signal D-B (4 villes, rapport ≥ 2)
-    expect(Object.keys(a.questions.finPartie!.criteria).some((k) => k.startsWith('guerreTotale:'))).toBe(false);
     expect(a.questions.finPartie).toEqual(JSON.parse(JSON.stringify(b.questions.finPartie)));
-    // v8 D1 : l'acte MÉCANIQUE — la déclaration part SANS choix LLM
-    // (réponse 'continuer' ici), bit-à-bit des deux côtés, bascule memo D4.
-    const dTs = await tourTs(fauxClient({ finPartie: 'continuer' }), configJev, filtre, 'p2', memoTs);
-    const dMjs = await tourMjs(fauxClient({ finPartie: 'continuer' }), configJev, filtre, 'p2', memoMjs);
+    // D2 : le condensé ne donne sur p1 que {id, civ} — pas d'ère, pas de
+    // forces, pas de distance (le profil EXACT de la fuite ZGFV42).
+    expect(condTs.diplomatie.rivaux).toEqual([{ id: 'p1', civ: expect.any(String) }]);
+    expect(condTs.victoire.rivaux).toEqual([{ id: 'p1', civ: expect.any(String) }]);
+    expect(condTs.monde.rivaux).toEqual([{ id: 'p1', civ: expect.any(String) }]);
+    expect(JSON.stringify(condTs)).not.toContain('tresorerie');
+    // D1 : l'acte mécanique NE PART PAS — aucun chemin aveugle (aucune
+    // déclaration sur toute la partie tant que la rencontre n'a pas eu lieu).
+    const dTs = await tourTs(fauxClient({ finPartie: 'continuer' }), configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoTs);
+    const dMjs = await tourMjs(fauxClient({ finPartie: 'continuer' }), configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoMjs);
     expect(dTs.diplomatie).toEqual(dMjs.diplomatie);
-    expect(dTs.diplomatie).toEqual([{ genre: 'guerre', cible: 'p1', mecanique: true, motif: 'domination' }]);
-    expect(memoCanon(memoTs).finPartie).toEqual({ mode: 'pousserCapitale', cible: 'p1' });
-    expect(memoCanon(memoMjs).finPartie).toEqual({ mode: 'pousserCapitale', cible: 'p1' });
-    expect(memoTs.guerreMecaniqueTour).toBe(40);
-    expect(memoMjs.guerreMecaniqueTour).toBe(40);
+    expect(dTs.diplomatie).toEqual([]);
+    // réponse 'continuer' : le mode courant est levé (comportement existant).
+    expect(memoCanon(memoTs).finPartie).toBeUndefined();
+    expect(memoCanon(memoMjs).finPartie).toBeUndefined();
+    expect(memoTs.guerreMecaniqueTour).toBeUndefined();
+    expect(memoMjs.guerreMecaniqueTour).toBeUndefined();
   });
 
   it('erreur API : repli + erreur consignés à l’identique', async () => {    const filtre = fixture(1);
@@ -595,7 +614,9 @@ function etatGuerreV6c({ guerre = true, theatre = true } = {}) {
       p2: { ...etat.players.p2 },
     },
   };
-  const memo = { finPartie: { mode: 'domination' } };
+  // DECLARATION-OPPORTUNISTE · D2 : la guerre implique la rencontre —
+  // p2 vue au tour 30 (le condensé n'expose les champs du rival qu'après).
+  const memo = { finPartie: { mode: 'domination' }, rencontres: { p2: 30 } };
   const filtre = getFilteredState(etat, 'p1');
   if (theatre) filtre.theatre = theatreMjs(etat, 'p1', memo);
   return { etat, filtre, memo };
@@ -604,7 +625,7 @@ function etatGuerreV6c({ guerre = true, theatre = true } = {}) {
 describe('JEV-CALIBRAGE-OFFENSIF · v6c croisé (théâtre, marche, D-B, D-C)', () => {
   it('calculerTheatre : harnais ⇄ port bit à bit (guerre, domination, vide)', () => {
     const { etat } = etatGuerreV6c({ guerre: true });
-    const memo = { finPartie: { mode: 'domination' } };
+    const memo = { finPartie: { mode: 'domination' }, rencontres: { p2: 30 } };
     expect(theatreTs(etat, 'p1', memo)).toEqual(theatreMjs(etat, 'p1', memo));
     expect(theatreTs(etat, 'p1', {})).toEqual(theatreMjs(etat, 'p1', {}));
     const calme = etatGuerreV6c({ guerre: false }).etat;
@@ -675,11 +696,14 @@ describe('JEV-STRATEGE v9 — tests croisés (bit à bit)', () => {
     return getFilteredState(etat, 'p2');
   }
 
-  it('D-B écrasement : rapport ≥ 3 SANS mode ⇒ déclaration mécanique identique (motif ecrasement)', async () => {
+  it('D-B écrasement : rapport ≥ 3 SANS mode ⇒ déclaration mécanique identique (motif ecrasement, opportunité C1-C4)', async () => {
     const filtre = fixtureStratege();
     const faux = () => ({ async systemOne() { return { answers: {}, usage: { input_tokens: 100 } }; } });
-    const memoTs: any = {};
-    const memoMjs: any = {};
+    // DECLARATION-OPPORTUNISTE · D1 : la rencontre est OBLIGATOIRE — p1 vue
+    // au tour 30 (délai 10 écoulé au tour 40) ; ville VISIBLE sans défenseur,
+    // marche 3 ≤ 5 (C3), survivabilité 6 (C4) : l'opportunité qualifie.
+    const memoTs: any = { rencontres: { p1: 30 } };
+    const memoMjs: any = { rencontres: { p1: 30 } };
     const dTs = await tourTs(faux() as any, configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoTs);
     const dMjs = await tourMjs(faux(), configJev, JSON.parse(JSON.stringify(filtre)), 'p2', memoMjs);
     expect(dTs.diplomatie).toEqual(dMjs.diplomatie);
@@ -687,6 +711,9 @@ describe('JEV-STRATEGE v9 — tests croisés (bit à bit)', () => {
     expect(memoCanon(memoTs).finPartie).toEqual({ mode: 'pousserCapitale', cible: 'p1' });
     expect(memoCanon(memoTs).finPartie).toEqual(memoCanon(memoMjs).finPartie);
     expect(memoTs.guerreMecaniqueTour).toBe(40);
+    // D4 : le snapshot journal porte la VILLE visée + l'opportunité chiffrée.
+    expect((dTs.meta.guerreMecanique as any).ville).toBe('8,5');
+    expect((dTs.meta.guerreMecanique as any).opportunite.esperanceAssaut).toBe(1);
   });
 
   it('D-A opportunité : questions finPartie (opportuniste) identiques ; choix de voie ⇒ memo identique', async () => {
