@@ -1,6 +1,6 @@
 # REPORT-PRESSION-CULTURELLE — Pression culturelle défensive (T-53, tranche 1 du volet culture)
 
-**Mission HANDOFF-PRESSION-CULTURELLE — canon Erik 14/11 (D1-D7), implémentée intégralement (L0-L4). État : COMMIT LOCAL, pas poussé — arrêt-pour-approbation, verdict à l'œil Erik en prod.**
+**Mission HANDOFF-PRESSION-CULTURELLE — canon Erik 14/11 (D1-D7), implémentée intégralement (L0-L4). État : POUSSÉE `61a195f` sur origin/main avec le FEU VERT d'Erik — Deploy SUCCESS (run 43787601668), prod 200 (`game-4x-server-prod.erik-ai-studio.workers.dev`). Reste : verdict à l'œil Erik vs Jev en prod.**
 
 ## 1. Livré
 
@@ -61,11 +61,8 @@ Le mod est néanmoins **prouvé au niveau moteur** : le `CombatExchange.detail.d
 4. Le +30 % ne s'est jamais produit au banc bot (superposition de villes denses requise) — c'est le comportement attendu « cœur dense » ; l'arbitre réel est Erik vs Jev.
 5. Tranches 2 (infobulle) et 3 (pression offensive/conversion, `Territoire_culturel.md`) : BACKLOG, non commencées.
 
-## 6. Arrêt-pour-approbation
+## 6. Acceptation
 
-**Rien n'est poussé.** Erik :
-1. rejoue/valide **à l'œil en prod** (Erik vs Jev : les sièges doivent être sensiblement plus durs près du cœur culturel — le mod apparaît au détail de combat et à la préview Oracle) ;
-2. confirme le numéro **T-53** (ou désigne un autre) ;
-3. fait pousser s'il est satisfait (commit local prêt, symboles PRESSION-CULTURELLE + D1-D7 dans le message).
+**Poussée avec le feu vert explicite d'Erik (15/11).** Commit `61a195f` sur origin/main — CI/Deploy vérifiés via API GitHub : **Deploy SUCCESS** (run 43787601668 sur le SHA), **prod 200**. La vérification « à l'œil » (Erik vs Jev : sièges sensiblement plus durs près du cœur culturel, mod au détail de combat et préview Oracle) reste le verdict canon. T-53 non contesté à ce stade (consigné, révocable par flip de table seul).
 
 **Reste après cette mission** : verdict Sanctuaire à l'œil (déjà en attente) → tranches 2/3 culture (backlog) → tranche B → Erik vs Jev arbitre réel.
