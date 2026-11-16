@@ -103,7 +103,7 @@
   let canvasApi: { centerOnHex(hex: { q: number; r: number }): void } | null = null;
 </script>
 
-<main>
+<main class="labo-culture">
   <header>
     <h1>Labo culture-ressources — encens +2, soie cachée, or direct</h1>
     <a href="#/lobby">← Lobby</a>
@@ -139,8 +139,17 @@
 </main>
 
 <style>
-  :global(html, body) { margin: 0; background: #101418; color: #dde; font-family: system-ui, sans-serif; }
-  main { display: flex; flex-direction: column; height: 100vh; }
+  /* ⚠ JAMAIS de style global sur html/body ici : le labo est importé statiquement
+     par App.svelte, la règle s'appliquerait à TOUTES les pages (a masqué le
+     fond du lobby — cf. REPORT-FOND-LOBBY). Décor posé sur ce conteneur. */
+  main.labo-culture {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: #101418;
+    color: #dde;
+    font-family: system-ui, sans-serif;
+  }
   header { padding: 0.4rem 1rem; border-bottom: 1px solid #2c353d; }
   header h1 { font-size: 1rem; margin: 0.1rem 0; }
   .hint { color: #8a949c; font-size: 0.8rem; margin: 0.25rem 0; max-width: 64rem; }
