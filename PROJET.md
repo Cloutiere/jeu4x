@@ -2,7 +2,7 @@
 
 **Tenue par le pilot, mise à jour à chaque acceptation de phase — dernier point complet : 15/11.** Erik ouvre ce document pour savoir où on en est ; tout agent neuf le lit pour le contexte en 2 minutes. Vision et architecture : [DESIGN.md](DESIGN.md). Spécification normative : [RULES.md](RULES.md). File d'attente détaillée et mémoire de pilotage : [PILOT-HANDOFF.md](PILOT-HANDOFF.md). Index de tous les documents : [docs/index.md](docs/index.md).
 
-**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **~2 700 tests verts** (rules 1215 / server 544 / web 793 / jev-port 52 / sableuse 228) · `schemaVersion` **28** · budget Cloudflare tenu (~5 $/mois). Coquille Electron de distribution Windows en place.
+**Production** : [game-4x-server-prod.erik-ai-studio.workers.dev](https://game-4x-server-prod.erik-ai-studio.workers.dev) · **~2 700 tests verts** (rules 1229 / server 544 / web 794 / jev-port 52 / sableuse 228) · `schemaVersion` **28** · budget Cloudflare tenu (~5 $/mois). Coquille Electron de distribution Windows en place.
 
 ---
 
@@ -52,12 +52,14 @@
 
 ## 📋 File d'attente (dans l'ordre convenu avec Erik)
 
-1. **AMÉLIORATIONS CULTURE** : **Sanctuaire V1 LIVRÉE + ACCEPTÉE** (`29b0c17`, 15/11 — 20 marteaux, `cultureFlat: 1` sans tech, accumulateur `civilFlat` séparé APRÈS le ×2 Monarchie ; le bot le bâtit dans 43-63 % des parties au banc, culture +4-7 %, zéro collapse ; critère banc « 1ᵉʳ palier ≤t60-80 » non discriminant — déjà vrai avant — verdict à l'œil en prod ; handoff+rapport archivés). **Reste : pression culturelle défensive** (7 tranchés validés : pression par case → paliers 5/10/20 → +10/20/30 % défense ; `PROPO-PRESSION-CULTURELLE-DEFENSIVE.md`) — handoff à écrire par le pilot ;
-2. **DÉFENSE-DE-VILLE tranche B** (L3 veto production quand ville menacée sans défenseur — la localisation L4/L5 est en place, le veto tournera à vue) ;
-3. **Erik joue contre le Jev complet** (l'arbitre réel du chapitre siège clos) — verdict ressenti sur victoires Jev 15 %, Oracle, armées ×3, guerres du gate ;
-4. **MIROIR JEV vs JEV** (backlog) : équilibre attaque/défense du canon + exam de la chaîne conquête des deux côtés ;
-5. **Backlog conditionnel** : leviers géométriques de contact (si guerres muettes) · affichage pression culturelle (tranche 2) · pression offensive/conversion (tranche 3, Territoire_culturel.md) · L7 raze sans combat/CityRazed au snapshot · banc botSolo non convergé ;
-6. Atelier voix de Zii (Erik écrit la personnalité dans `zii.json`), vieux 🔶 ci-dessous.
+1. **AMÉLIORATIONS CULTURE** : **Sanctuaire V1 LIVRÉE + ACCEPTÉE** (`29b0c17`, 15/11 — 20 marteaux, `cultureFlat: 1` sans tech, accumulateur `civilFlat` séparé APRÈS le ×2 Monarchie ; le bot le bâtit dans 43-63 % des parties au banc, culture +4-7 %, zéro collapse ; critère banc « 1ᵉʳ palier ≤t60-80 » non discriminant — déjà vrai avant — verdict à l'œil en prod ; handoff+rapport archivés). **PRESSION-CULTURELLE LIVRÉE + ACCEPTÉE** (`61a195f`, 15/11 — T-53/R-163, mod rare 1,7-2,5 % que du +10 %, 1ᵉʳ mod t74-101 ; verdict à l'œil Erik vs Jev) ;
+2. **FIX FOND-LOBBY LIVRÉ + ACCEPTÉ** (`2059994`, 16/11 — LaboCulture `:global(html,body)` masquait le fond z-index:-1 depuis 02/10 ; test anti-récidive ; « c'est parfait ») ; **diag ZGFV42** : Jev avait déclaré une guerre AVEUGLE (cas voté 31/10, abrogé) ;
+3. **DECLARATION-OPPORTUNISTE** (canon Erik 16/11 — Jev ne déclare que sur ville VUE : contact réel + délai, guerre éclair ≤5 tours, survivabilité ≥1,0 ; condensé épuré des méta-joueurs hors fog ; HANDOFF-DECLARATION-OPPORTUNISTE.md prêt) ;
+4. **DÉFENSE-DE-VILLE tranche B** (L3 veto production quand ville menacée sans défenseur — la localisation L4/L5 est en place, le veto tournera à vue) ;
+5. **Erik joue contre le Jev complet** (l'arbitre réel du chapitre siège clos) — verdict ressenti sur victoires Jev 15 %, Oracle, armées ×3, guerres du gate ;
+6. **MIROIR JEV vs JEV** (backlog) : équilibre attaque/défense du canon + exam de la chaîne conquête des deux côtés ;
+7. **Backlog conditionnel** : leviers géométriques de contact (si guerres muettes) · affichage pression culturelle (tranche 2) · pression offensive/conversion (tranche 3, Territoire_culturel.md) · L7 raze sans combat/CityRazed au snapshot · banc botSolo non convergé ;
+8. Atelier voix de Zii (Erik écrit la personnalité dans `zii.json`), vieux 🔶 ci-dessous.
 
 ## 🔶 À trancher par Erik (ouverts)
 
